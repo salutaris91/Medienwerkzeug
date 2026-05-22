@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medienwerkzeug v5.0 (Master-Detail)</title>
+    <link rel="stylesheet" href="style.css?v=25">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Top-Header & Statusbar -->
+    <header class="app-header">
+        <div class="header-logo">
+            <span class="logo-icon">🚀</span>
+            <div class="logo-text">
+                <h1>Medienwerkzeug</h1>
+                <span class="version">v5.0 Native Edition</span>
+            </div>
+        </div>
+        
+        <div class="status-indicators">
+            <div class="status-item" id="nas-status-container">
+                <span class="status-label">NAS Status:</span>
+                <span class="status-badge offline" id="nas-badge">Lade...</span>
+            </div>
+            
+            <div class="status-item" id="streamfab-status-container">
+                <span class="status-label">Import-Quellen:</span>
+                <span class="status-badge" id="streamfab-badge">Prüfe...</span>
+                <button class="btn btn-sm btn-accent hidden" id="btn-streamfab-import">Importieren</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Master-Detail Layout -->
+    <div class="master-detail-layout">
+        
+        <!-- ==================== LEFT SIDEBAR (MASTER) ==================== -->
+        <aside class="master-sidebar">
+            <button class="btn btn-primary" style="width: 100%; margin-bottom: 20px; font-weight: 600;" id="master-btn-youtube">
+                ➕ Neues YouTube Video
+            </button>
+
+            <div class="sidebar-section">
+                <h3>Projektordner</h3>
+                <p class="section-desc" style="font-size:12px; margin-bottom:10px;">Medien Input / Streamfab</p>
+                <div class="project-list" id="project-list-container">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+
+            <div class="sidebar-section" style="margin-top: 60px;">
+                <h3>System</h3>
+                <div class="nav-list" style="margin-top: 10px;">
+                    <div class="project-item" id="nav-tools-dashboard" style="margin-bottom: 10px;">
+                        <span class="project-item-name">🛠️ Werkzeuge</span>
+                    </div>
+                    <div class="project-item" id="nav-settings-dashboard" style="margin-bottom: 10px;">
+                        <span class="project-item-name">⚙️ Einstellungen</span>
+                    </div>
+                    <div class="project-item" id="nav-queue-dashboard" style="margin-bottom: 10px;">
+                        <span class="project-item-name">📋 Warteschlange</span>
+                        <span id="queue-badge" class="badge hidden" style="background:var(--accent); color:white; border-radius:12px; padding:2px 8px; font-size:12px; margin-left:auto; display:inline-block;">0</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- ==================== RIGHT MAIN AREA (DETAIL) ==================== -->
+        <main class="detail-content">
+            
+            <!-- STATE: EMPTY / WELCOME -->
+            <div id="view-empty" class="view-panel active" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--text-muted);">
+                <div style="font-size: 64px; margin-bottom: 20px;">🎬</div>
+                <h2>Kein Projekt ausgewählt</h2>
+                <p style="margin-top: 10px;">Wähle links einen Ordner aus deiner Inbox oder starte einen neuen YouTube Download.</p>
+            </div>
+
+            <!-- STATE: FOLDER WORKFLOW -->
+            <div id="view-folder" class="view-panel hidden">
+                
+                <!-- Dateiliste Card -->
+                <div class="card card-main" style="margin-bottom: 20px;">
+                    <div class="card-header-actions" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <h2 id="current-project-title">Hauptinbox verarbeiten</h2>
+                        <div class="header-buttons">
+                            <button class="btn btn-secondary btn-sm" id="btn-scan-project">🔄 Aktualisieren</button>
+                            <button class="btn btn-danger btn-sm" id="btn-clean-project">🗑️ Aufräumen</button>
+                        </div>
+                    </div>
+                    <p class="text-muted" id="current-project-path" style="font-size:13px; margin-bottom:15px;">Pfad: ...</p>
+                    
+                    <div class="stats-panel" id="project-stats-container" style="display: none;">
+                        <div class="stats-badges" id="stats-badges-container" style="display:flex; gap:10px;"></div>
+                    </div>
+
+                    <div class="files-table-container" style="max-height:250px; overflow-y:auto; border:1px solid var(--border-glass); border-radius:var(--radius-md);">
+                        <table class="files-table" style="width:100%; text-align:left; border-collapse:collapse;">
+                            <thead style="background:var(--bg-surface); position:sticky; top:0;">
+                                <tr>
+                                    <th style="padding:10px; border-bottom:1px solid var(--border-glass);">Dateiname</th>
+                                    <th style="padding:10px; border-bottom:1px solid var(--border-glass);">Typ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="files-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Modus Auswahl Kacheln -->
+                <div id="folder-mode-selector" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; margin-bottom:30px;">
+                    <div class="mode-card" id="mode-movie">
+                        <div class="mode-icon">🎬</div>
+                        <h3>Film</h3>
+                        <p>Einzelfilm verarbeiten (TMDb)</p>
+                    </div>
+                    <div class="mode-card" id="mode-series">
+                        <div class="mode-icon">📺</div>
+                        <h3>Serie</h3>
+                        <p>Episoden zuordnen (TVDb)</p>
+                    </div>
+                    <div class="mode-card" id="mode-doku">
+                        <div class="mode-icon">🎥</div>
+                        <h3>Doku</h3>
+                        <p>Als Dokumentation verarbeiten</p>
+                    </div>
+                </div>
+
+                <!-- CONTEXT PANELS -->
+
+                <!-- CONTEXT: MOVIE / DOKU -->
+                <div id="context-movie" class="context-panel hidden card" style="animation: fadeUp 0.4s ease-out;">
+                    <h3 id="context-movie-header">Film verarbeiten</h3>
+                    <div class="form-group" style="margin-top:15px;">
+                        <label for="movie-search-query">Titel suchen:</label>
+                        <div class="search-input-group" style="display:flex; gap:10px;">
+                            <input type="text" id="movie-search-query" placeholder="Name..." style="flex:1;">
+                            <button class="btn btn-primary" id="btn-search-movie">Suchen</button>
+                            <button class="btn btn-secondary" id="btn-manual-movie" type="button">Manuell eintragen</button>
+                        </div>
+                    </div>
+
+                    <div class="search-results-container" id="movie-search-results" style="margin-top:15px;"></div>
+
+                    <!-- Manual Movie Form Container -->
+                    <div id="manual-movie-container" class="hidden" style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-glass); border-radius: var(--radius-md);">
+                        <h4 style="margin-top:0;">Manuelle Metadaten (Film)</h4>
+                        <div class="form-group" style="margin-top: 10px;">
+                            <label for="manual-movie-title">Titel:</label>
+                            <input type="text" id="manual-movie-title" placeholder="z.B. Entdeckung der Welt">
+                        </div>
+                        <div class="form-group">
+                            <label for="manual-movie-year">Jahr:</label>
+                            <input type="number" id="manual-movie-year" placeholder="z.B. 2026" style="width: 120px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="manual-movie-plot">Plot / Beschreibung:</label>
+                            <textarea id="manual-movie-plot" rows="3" placeholder="Beschreibung des Films..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="selected-show-card hidden" id="selected-movie-panel" style="margin-top:15px; padding:15px; background:var(--bg-surface); border-radius:var(--radius-md);">
+                        <h4 id="selected-movie-title">Ausgewählter Film</h4>
+                        <p class="text-muted" id="selected-movie-provider-info"></p>
+                    </div>
+
+                    <div class="execution-options-panel" style="margin-top: 25px; padding-top:20px; border-top:1px solid var(--border-glass);">
+                        <h4>Verarbeitungs-Optionen</h4>
+                        <div class="options-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="movie-option-convert">
+                                <span class="checkmark"></span> Nach H.265 konvertieren
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="movie-option-delete" checked>
+                                <span class="checkmark"></span> Original löschen
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="movie-option-copy-nas" checked>
+                                <span class="checkmark"></span> Auf NAS verschieben
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="movie-option-copy-pcloud">
+                                <span class="checkmark"></span> Auch in pCloud sichern
+                            </label>
+                        </div>
+                        <div id="movie-size-estimate-panel" class="hidden" style="margin-top: 15px; padding: 12px; background: rgba(236, 72, 153, 0.15); border: 1px solid rgba(236, 72, 153, 0.3); border-radius: var(--radius-sm); font-size: 13px; display: flex; align-items: center; gap: 10px;">
+                            <span>📊</span>
+                            <span id="movie-size-estimate-text">Dateigrößen-Prognose: Berechnung läuft...</span>
+                        </div>
+                        <div class="form-group" style="margin-top: 20px;" id="movie-nas-destination-container">
+                            <label for="movie-nas-destination">Zielordner (NAS):</label>
+                            <select id="movie-nas-destination" class="form-select" style="width:100%;">
+                                <option value="/Volumes/Kino/Filme">Standard-Film (/Volumes/Kino/Filme)</option>
+                                <option value="/Volumes/Kino/Filme 3D">3D-Film (/Volumes/Kino/Filme 3D)</option>
+                                <option value="/Volumes/Kino/Dokus/Einzelne Dokus">Einzel-Doku (/Volumes/Kino/Dokus/Einzelne Dokus)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-top: 15px;" id="movie-pcloud-destination-container">
+                            <label for="movie-pcloud-destination">Zielordner (pCloud):</label>
+                            <select id="movie-pcloud-destination" class="form-select" style="width:100%;">
+                            </select>
+                        </div>
+                        <div style="margin-top: 30px; display: flex; justify-content: flex-end;">
+                            <button class="btn btn-accent btn-lg" id="btn-execute-movie-process" style="width:100%; box-shadow: 0 0 20px var(--accent-glow);">📋 Vorschau generieren</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CONTEXT: SERIES -->
+                <div id="context-series" class="context-panel hidden card" style="animation: fadeUp 0.4s ease-out;">
+                    <h3>Serien-Matching</h3>
+                    <div class="form-group" style="margin-top:15px;">
+                        <label for="series-search-query">Serienname suchen:</label>
+                        <div class="search-input-group" style="display:flex; gap:10px;">
+                            <input type="text" id="series-search-query" placeholder="Name..." style="flex:1;">
+                            <button class="btn btn-primary" id="btn-search-series">Suchen</button>
+                            <button class="btn btn-secondary" id="btn-manual-series" type="button">Manuell eintragen</button>
+                        </div>
+                    </div>
+
+                    <div class="search-results-container" id="series-search-results" style="margin-top:15px;"></div>
+
+                    <!-- Manual Series Form Container -->
+                    <div id="manual-series-container" class="hidden" style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-glass); border-radius: var(--radius-md);">
+                        <h4 style="margin-top:0;">Manuelle Metadaten (Serie)</h4>
+                        <div class="form-group" style="margin-top: 10px;">
+                            <label for="manual-series-title">Serienname:</label>
+                            <input type="text" id="manual-series-title" placeholder="z.B. Entdeckung der Welt">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="manual-series-plot">Beschreibung:</label>
+                            <textarea id="manual-series-plot" rows="3" placeholder="Beschreibung der Serie..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="selected-show-card hidden" id="selected-show-panel" style="margin-top:15px; padding:15px; background:var(--bg-surface); border-radius:var(--radius-md);">
+                        <h4 id="selected-show-title">Ausgewählte Serie</h4>
+                        <p class="text-muted" id="selected-show-provider-info"></p>
+                        <p id="selected-show-seasons-info"></p>
+                        <div class="form-group" style="margin-top:10px; display:flex; gap:15px; align-items:center; flex-wrap: wrap;">
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <label for="series-season-num">Staffel:</label>
+                                <input type="number" id="series-season-num" min="1" value="1" style="width: 80px;">
+                            </div>
+                            <label class="checkbox-container" style="margin-bottom:0;">
+                                <input type="checkbox" id="series-all-seasons">
+                                <span class="checkmark"></span> Alle Staffeln
+                            </label>
+                            <button class="btn btn-secondary btn-sm" id="btn-fetch-episodes">Episoden laden</button>
+                        </div>
+                        <div class="form-group" style="margin-top:15px; position: relative;">
+                            <label style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                                <span>Serienname / Ordnername auf NAS (anpassbar):</span>
+                                <button class="btn btn-secondary btn-xs" id="btn-load-nas-series" type="button" style="padding:2px 8px; font-size:11px;">NAS laden</button>
+                            </label>
+                            <input type="text" id="series-nas-folder-override" placeholder="Automatisch (z.B. Sendung mit der Maus)" style="width:100%; margin-top:5px;" autocomplete="off">
+                            <div id="series-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
+                        </div>
+                    </div>
+
+                    <div class="matching-container" id="matching-panel-container" style="margin-top: 20px;">
+                        <!-- Episoden-Tabelle -->
+                    </div>
+
+                    <div class="execution-options-panel hidden" id="series-execution-panel" style="margin-top: 25px; padding-top:20px; border-top:1px solid var(--border-glass);">
+                        <h4>Verarbeitungs-Optionen</h4>
+                        <div class="options-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="series-option-convert" checked>
+                                <span class="checkmark"></span> Nach H.265 konvertieren
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="series-option-delete" checked>
+                                <span class="checkmark"></span> Original löschen
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="series-option-copy-nas" checked>
+                                <span class="checkmark"></span> Auf NAS verschieben
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="series-option-copy-pcloud">
+                                <span class="checkmark"></span> Auch in pCloud sichern
+                            </label>
+                        </div>
+                        <div id="series-size-estimate-panel" class="hidden" style="margin-top: 15px; padding: 12px; background: rgba(236, 72, 153, 0.15); border: 1px solid rgba(236, 72, 153, 0.3); border-radius: var(--radius-sm); font-size: 13px; display: flex; align-items: center; gap: 10px;">
+                            <span>📊</span>
+                            <span id="series-size-estimate-text">Dateigrößen-Prognose: Berechnung läuft...</span>
+                        </div>
+                        <div class="form-group" style="margin-top: 20px;" id="series-nas-destination-container">
+                            <label for="series-nas-destination">Zielordner (NAS):</label>
+                            <select id="series-nas-destination" class="form-select" style="width:100%;">
+                                <option value="/Volumes/Kino/Serien">Standard-Serie (/Volumes/Kino/Serien)</option>
+                                <option value="/Volumes/Kino/Dokus/Doku-Serien">Doku-Serie (/Volumes/Kino/Dokus/Doku-Serien)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-top: 15px;" id="series-pcloud-destination-container">
+                            <label for="series-pcloud-destination">Zielordner (pCloud):</label>
+                            <select id="series-pcloud-destination" class="form-select" style="width:100%;">
+                            </select>
+                        </div>
+                        <div style="margin-top: 30px; display: flex; justify-content: flex-end;">
+                            <button class="btn btn-accent btn-lg" id="btn-execute-series-process" style="width:100%; box-shadow: 0 0 20px var(--accent-glow);">📋 Vorschau generieren</button>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+
+            <!-- STATE: TOOLS DASHBOARD -->
+            <div id="view-tools" class="view-panel hidden">
+                <div class="card" style="margin-bottom: 25px;">
+                    <div style="font-size: 48px; margin-bottom: 10px;">🛠️</div>
+                    <h2>Werkzeuge-Dashboard</h2>
+                    <p class="section-desc" style="margin-bottom: 20px;">Führe manuelle Aktionen auf einem bestimmten Ordner aus. Du kannst den Pfad jederzeit frei anpassen.</p>
+                    <div class="form-group" style="margin-bottom: 0; max-width: 600px;">
+                        <label for="tools-target-path" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Zielordner-Pfad:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="tools-target-path" placeholder="/Volumes/Kino/..." style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main); font-size: 14px;">
+                            <button id="btn-browse-tools-path" class="btn btn-secondary" style="padding: 10px 20px; font-size: 14px;">🔍 Durchsuchen...</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tools-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; padding-bottom: 60px;">
+                    <button class="btn btn-secondary card" id="tool-btn-pull-files" style="padding:25px; text-align:left; display:flex; gap:20px; align-items:center; transition: all 0.2s; height: 140px;">
+                        <span style="font-size:40px;">📁</span> <div><strong style="font-size:18px;">Dateien hochziehen</strong><br><small class="text-muted">Unterordner auflösen</small></div>
+                    </button>
+                    <button class="btn btn-secondary card" id="tool-btn-clean" style="padding:25px; text-align:left; display:flex; gap:20px; align-items:center; transition: all 0.2s; height: 140px;">
+                        <span style="font-size:40px;">🧹</span> <div><strong style="font-size:18px;">Ordner bereinigen</strong><br><small class="text-muted">Trash entfernen</small></div>
+                    </button>
+                    <button class="btn btn-secondary card" id="tool-btn-convert" style="padding:25px; text-align:left; display:flex; gap:20px; align-items:center; transition: all 0.2s; height: 140px;">
+                        <span style="font-size:40px;">🎥</span> <div><strong style="font-size:18px;">H.265 Batch-Konvertierung</strong><br><small class="text-muted">Videos komprimieren</small></div>
+                    </button>
+                    <button class="btn btn-secondary card" id="tool-btn-nfo-agent" style="padding:25px; text-align:left; display:flex; gap:20px; align-items:center; transition: all 0.2s; height: 140px;">
+                        <span style="font-size:40px;">📝</span> <div><strong style="font-size:18px;">NFO Agent</strong><br><small class="text-muted">Metadaten generieren</small></div>
+                    </button>
+                    <button class="btn btn-secondary card" id="tool-btn-manual-sync" style="padding:25px; text-align:left; display:flex; gap:20px; align-items:center; transition: all 0.2s; height: 140px;">
+                        <span style="font-size:40px;">💾</span> <div><strong style="font-size:18px;">NAS Syncing</strong><br><small class="text-muted">Auf NAS kopieren</small></div>
+                    </button>
+                    <button class="btn btn-secondary card" id="tool-btn-pcloud-sync" style="padding:25px; text-align:left; display:flex; gap:20px; align-items:center; transition: all 0.2s; height: 140px;">
+                        <span style="font-size:40px;">☁️</span> <div><strong style="font-size:18px;">pCloud Syncing</strong><br><small class="text-muted">Nur in pCloud sichern</small></div>
+                    </button>
+                    <button class="btn btn-secondary card" id="tool-btn-paths-clean" style="padding:25px; text-align:left; display:flex; gap:20px; align-items:center; transition: all 0.2s; height: 140px;">
+                        <span style="font-size:40px;">🗑️</span> <div><strong style="font-size:18px;">Medienpfade bereinigen</strong><br><small class="text-muted">Inbox & Output aufräumen</small></div>
+                    </button>
+                    <div class="fsk-tool-container" style="display:flex; gap:10px; height: 140px;">
+                        <button class="btn btn-secondary card" id="tool-btn-nfo-batch" style="padding:25px; text-align:left; flex:1; display:flex; gap:20px; align-items:center; transition: all 0.2s; height: 100%;">
+                            <span style="font-size:40px;">🏷️</span> <div><strong style="font-size:18px;">FSK Batch</strong><br><small class="text-muted">Altersfreigabe setzen</small></div>
+                        </button>
+                        <input type="number" id="tool-fsk-value" value="16" min="0" max="18" style="width: 80px; background:var(--bg-card); color:var(--text-main); border:1px solid var(--border-glass); border-radius:var(--radius-lg); text-align:center; font-size:24px; font-weight:bold; height: 100%;">
+                    </div>
+                </div>
+                
+                <div class="card" style="margin-top: -40px; margin-bottom: 40px; background: rgba(20,20,30,0.5); padding: 15px; border-radius: var(--radius-lg); border: 1px solid var(--border-glass);">
+                    <h3 style="margin-top:0; font-size:14px; color:var(--text-muted); margin-bottom: 10px;">Transfer-Optionen (Für NAS & pCloud Sync)</h3>
+                    <label style="display:flex; align-items:center; gap:10px; margin-bottom:8px; cursor:pointer;">
+                        <input type="checkbox" id="opt-open-after" style="width:16px; height:16px;">
+                        <span>Nach erfolgreicher Übertragung Zielordner im Finder öffnen</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                        <input type="checkbox" id="opt-delete-original" style="width:16px; height:16px;">
+                        <span style="color: #ff6b6b;">Originaldateien/Ordner nach erfolgreichem Transfer von der Festplatte löschen</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- STATE: SETTINGS DASHBOARD -->
+            <div id="view-settings" class="view-panel hidden">
+                <div class="card" style="margin-bottom: 25px;">
+                    <div style="font-size: 48px; margin-bottom: 10px;">⚙️</div>
+                    <h2>Einstellungen</h2>
+                    <p class="section-desc" style="margin-bottom: 20px;">Passe die globalen Pfade für das Medienwerkzeug an. Diese Werte werden für das Importieren und Verschieben verwendet.</p>
+                    
+                    <div class="form-group" style="margin-bottom: 15px; max-width: 700px;">
+                        <label for="settings-inbox-dir" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Medien Input (Inbox):</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="settings-inbox-dir" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
+                            <button id="btn-settings-browse-inbox" class="btn btn-secondary">🔍</button>
+                            <button id="btn-settings-toggle-inbox" class="btn btn-secondary" title="Im Finder sichtbar/unsichtbar machen">👁️</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 15px; max-width: 700px;">
+                        <label for="settings-outbox-dir" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Medien Output (Outbox):</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="settings-outbox-dir" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
+                            <button id="btn-settings-browse-outbox" class="btn btn-secondary">🔍</button>
+                            <button id="btn-settings-toggle-outbox" class="btn btn-secondary" title="Im Finder sichtbar/unsichtbar machen">👁️</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 15px; max-width: 700px;">
+                        <label for="settings-nas-root" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">NAS Wurzelverzeichnis:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="settings-nas-root" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
+                            <button id="btn-settings-browse-nas" class="btn btn-secondary">🔍</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 15px; max-width: 700px;">
+                        <label for="settings-pcloud-dir" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">pCloud Sync-Ordner (lokal):</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="settings-pcloud-dir" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
+                            <button id="btn-settings-browse-pcloud" class="btn btn-secondary">🔍</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 25px; max-width: 700px;">
+                        <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Globale Import-Quellen (z.B. StreamFab):</label>
+                        <div id="settings-import-sources-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom: 10px;">
+                            <!-- Dynamically populated -->
+                        </div>
+                        <button id="btn-settings-add-source" class="btn btn-secondary btn-sm">➕ Neue Quelle hinzufügen</button>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
+                        <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Sync-Kategorien (NAS & pCloud):</label>
+                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 10px;">Lege fest, welche Optionen beim Klick auf "NAS Syncing" oder "pCloud Syncing" angeboten werden und wohin die Dateien kopiert werden sollen.</p>
+                        <div id="settings-sync-categories-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom: 10px;">
+                            <!-- Dynamically populated -->
+                        </div>
+                        <button id="btn-settings-add-category" class="btn btn-secondary btn-sm">➕ Neue Kategorie hinzufügen</button>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
+                        <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Abhängigkeiten & CLI-Tools:</label>
+                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Prüfe systemkritische Tools wie yt-dlp, rclone, ffmpeg und deno auf installierte Versionen und neue Updates.</p>
+                        
+                        <div style="display: flex; align-items: center; justify-content: space-between; max-width: 700px; margin-bottom: 20px; gap: 15px; flex-wrap: wrap;">
+                            <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                                <input type="checkbox" id="settings-check-dependency-updates" style="width:16px; height:16px;">
+                                <span>Abhängigkeiten beim Start auf Updates prüfen</span>
+                            </label>
+                            <button id="btn-check-dependencies" class="btn btn-secondary btn-sm" style="display: flex; align-items: center; gap: 5px; padding: 6px 12px;">
+                                🔄 Jetzt prüfen
+                            </button>
+                        </div>
+                        
+                        <!-- Status Grid Container -->
+                        <div id="dependency-status-list" class="dependency-status-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; max-width: 900px;">
+                            <!-- Dynamically populated -->
+                        </div>
+                    </div>
+
+                    <div style="max-width: 700px; display: flex; justify-content: flex-end; padding-top: 15px; border-top: 1px solid var(--border-glass);">
+                        <button class="btn btn-accent btn-lg" id="btn-save-settings" style="width: 200px;">💾 Speichern</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STATE: YOUTUBE -->
+            <div id="view-youtube" class="view-panel hidden">
+                <div class="card" id="yt-input-card">
+                    <h2>YouTube & Mediatheken Downloader</h2>
+                    <p class="section-desc">Videos von YouTube oder Mediatheken herunterladen, schneiden und automatisch taggen.</p>
+                    
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label for="yt-url">Video- oder Playlist-URL:</label>
+                        <div class="search-input-group" style="display:flex; gap:10px;">
+                            <input type="text" id="yt-url" placeholder="https://www.youtube.com/watch?v=..." style="flex:1;">
+                            <button class="btn btn-accent" id="btn-analyse-yt-link">🔍 Link analysieren</button>
+                        </div>
+                    </div>
+                    <div id="yt-loading-indicator" class="hidden" style="text-align: center; padding: 20px;">
+                        <div class="loading-spinner"></div>
+                        <p style="margin-top: 10px; color: var(--text-muted);">Video-Informationen werden geladen...</p>
+                    </div>
+                </div>
+
+                <div class="grid-layout hidden" id="yt-details-panel" style="grid-template-columns: 1fr 1fr; gap:20px; margin-top:20px;">
+                    <!-- Left: Metadata -->
+                    <div class="card">
+                        <h3>Video Info</h3>
+                        <div id="yt-video-info-preview"></div>
+                        <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border-glass);">
+                        
+                        <h3>Tagging Modus</h3>
+                        <div class="form-group">
+                            <label for="yt-meta-mode">Typ:</label>
+                            <select id="yt-meta-mode" class="form-select" style="width:100%;">
+                                <option value="youtube">Allgemein (YouTube)</option>
+                                <option value="movie">Film (TMDb)</option>
+                                <option value="tv">Serie (TMDb/TVDb)</option>
+                            </select>
+                        </div>
+
+                        <!-- Movie Search -->
+                        <div id="yt-movie-search-section" class="hidden" style="margin-top:15px;">
+                            <div class="search-input-group" style="display:flex; gap:10px;">
+                                <input type="text" id="yt-movie-search-query" placeholder="Filmname..." style="flex:1;">
+                                <button class="btn btn-primary btn-sm" id="btn-search-yt-movie">Suchen</button>
+                            </div>
+                            <div id="yt-movie-search-results" style="margin-top:10px;"></div>
+                            <div class="selected-show-card hidden" id="yt-selected-movie-card">
+                                <h4 id="yt-selected-movie-title">Ausgewählter Film</h4>
+                                <p class="text-muted" id="yt-selected-movie-info"></p>
+                            </div>
+                        </div>
+
+                        <!-- Series Search -->
+                        <div id="yt-series-search-section" class="hidden" style="margin-top:15px;">
+                            <div class="search-input-group" style="display:flex; gap:10px;">
+                                <input type="text" id="yt-series-search-query" placeholder="Serienname..." style="flex:1;">
+                                <button class="btn btn-primary btn-sm" id="btn-search-yt-series">Suchen</button>
+                            </div>
+                            <div id="yt-series-search-results" style="margin-top:10px;"></div>
+                            <div class="selected-show-card hidden" id="yt-selected-series-card">
+                                <h4 id="yt-selected-series-title">Ausgewählte Serie</h4>
+                                <p class="text-muted" id="yt-selected-series-info"></p>
+                                <div class="form-group" style="margin-top:10px;">
+                                    <label for="yt-series-season">Staffel:</label>
+                                    <input type="number" id="yt-series-season" min="1" value="1" style="width:60px;">
+                                </div>
+                                <div class="form-group" style="margin-top:15px; position: relative;">
+                                    <label style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                                        <span>Serienname / Ordnername auf NAS (anpassbar):</span>
+                                        <button class="btn btn-secondary btn-xs" id="btn-load-yt-nas-series" type="button" style="padding:2px 8px; font-size:11px;">NAS laden</button>
+                                    </label>
+                                    <input type="text" id="yt-series-nas-folder-override" placeholder="Automatisch (z.B. Sendung mit der Maus)" style="width:100%; margin-top:5px;" autocomplete="off">
+                                    <div id="yt-series-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Options -->
+                    <div class="card">
+                        <h3>Download-Optionen</h3>
+                        <div class="form-group">
+                            <label for="yt-format-select">Qualität:</label>
+                            <select id="yt-format-select" class="form-select" style="width:100%;"></select>
+                        </div>
+                        <div class="form-group" style="margin-top:10px;">
+                            <label>Untertitel laden:</label>
+                            <div id="yt-subtitles-container" class="subs-checkboxes-list"></div>
+                        </div>
+
+                        <h3 style="margin-top: 20px;">Schnitt</h3>
+                        <div class="options-grid" style="display:flex; flex-direction:column; gap:10px;">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="yt-split-chapters">
+                                <span class="checkmark"></span> Kapitel aufteilen
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="yt-open-losslesscut" checked>
+                                <span class="checkmark"></span> In LosslessCut öffnen
+                            </label>
+                        </div>
+                        <div class="form-group custom-trim-fields hidden" id="yt-custom-trim-panel" style="margin-top: 15px;">
+                            <label>Manueller Ausschnitt:</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="yt-trim-start" placeholder="00:00:00" style="width: 100px;">
+                                <input type="text" id="yt-trim-end" placeholder="00:10:00" style="width: 100px;">
+                            </div>
+                        </div>
+
+                        <h3 style="margin-top: 25px;">Ziel & Transfer</h3>
+                        <div class="options-grid" style="display:flex; flex-direction:column; gap:10px;">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="yt-option-copy-nas" checked>
+                                <span class="checkmark"></span> Auf NAS kopieren
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="yt-option-copy-pcloud">
+                                <span class="checkmark"></span> Auch in pCloud sichern
+                            </label>
+                            <div class="form-group" id="yt-nas-destination-container">
+                                <label for="yt-nas-destination">Zielordner (NAS):</label>
+                                <select id="yt-nas-destination" class="form-select" style="width:100%;">
+                                    <option value="/Volumes/Kino/Filme">Filme (/Volumes/Kino/Filme)</option>
+                                    <option value="/Volumes/Kino/Serien">Serien (/Volumes/Kino/Serien)</option>
+                                    <option value="/Volumes/Kino/Dokus/Einzelne Dokus">Einzel-Dokus (/Volumes/Kino/Dokus/Einzelne Dokus)</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="yt-pcloud-destination-container" style="margin-top: 5px;">
+                                <label for="yt-pcloud-destination">Zielordner (pCloud):</label>
+                                <select id="yt-pcloud-destination" class="form-select" style="width:100%;">
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 30px; display:flex; gap:10px;">
+                            <button class="btn btn-secondary" id="btn-yt-reset" style="flex:1;">Abbrechen</button>
+                            <button class="btn btn-accent" id="btn-execute-yt-pipeline" style="flex:2;">🚀 Starten</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Wait Gate: LosslessCut -->
+            <div class="modal-overlay hidden" id="yt-losslesscut-modal">
+                <div class="modal-card">
+                    <div style="font-size: 48px; margin-bottom: 15px;">🎬</div>
+                    <h2>Schnitt in LosslessCut aktiv</h2>
+                    <p>Führe die Schnitte in LosslessCut aus und exportiere sie.</p>
+                    <button class="btn btn-accent btn-lg" id="btn-yt-cut-done" style="margin-top:20px;">Schnitt abgeschlossen</button>
+                </div>
+            </div>
+
+            <!-- Wait Gate: Segment Mapping -->
+            <div class="modal-overlay hidden" id="yt-mapping-modal">
+                <div class="modal-card" style="max-width: 650px;">
+                    <div style="font-size: 48px; margin-bottom: 15px;">📺</div>
+                    <h2>Kapitel zu Episoden zuweisen</h2>
+                    <div id="yt-mapping-list" style="margin: 20px 0; max-height: 350px; overflow-y: auto;"></div>
+                    <button class="btn btn-accent btn-lg" id="btn-yt-finalize-mapping">🚀 Zuweisung abschließen</button>
+                </div>
+            </div>
+            
+        </main>
+    </div>
+
+    <!-- Bottom Terminal Console Log -->
+    <footer class="app-console collapsed" id="app-console">
+        <div class="console-header" id="console-header-toggle">
+            <div class="console-title">
+                <span class="console-icon">💻</span>
+                <h3>Ausgabe-Konsole</h3>
+                <span class="pulse-indicator hidden" id="console-pulse">● Aktiv</span>
+            </div>
+            <div class="console-actions">
+                <button class="btn btn-sm btn-secondary" id="btn-clear-console">Clear</button>
+                <button class="console-toggle-btn" id="console-toggle-btn-icon">▲</button>
+            </div>
+        </div>
+        <div class="console-body" id="console-body-text">
+            <div class="console-line system-line">[System]: Konsole gestartet. Warte auf Aktionen...</div>
+        </div>
+    </footer>
+
+    <!-- Slide-out Queue Panel -->
+    <div id="queue-panel-overlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:900; opacity:0; transition:opacity 0.3s; pointer-events:none;"></div>
+    <div id="queue-panel" style="position:fixed; top:0; right:0; width:450px; height:100%; background:var(--bg-card); z-index:1000; box-shadow:-5px 0 25px rgba(0,0,0,0.5); transform:translateX(100%); transition:transform 0.3s ease; display:flex; flex-direction:column; border-left:1px solid var(--border-glass);">
+        <div style="padding:20px; border-bottom:1px solid var(--border-glass); display:flex; justify-content:space-between; align-items:center;">
+            <h2 style="margin:0; font-size:20px;">📋 Warteschlange</h2>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <button id="btn-clear-queue" class="btn btn-secondary btn-sm" style="padding:5px 10px;">🗑️ Leeren</button>
+                <button id="btn-close-queue" class="btn btn-secondary" style="padding:5px 10px; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">✕</button>
+            </div>
+        </div>
+        <div id="queue-list" style="padding:20px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:15px;">
+            <div style="color:var(--text-muted); text-align:center; padding: 30px;">Keine Aufgaben in der Warteschlange.</div>
+        </div>
+    </div>
+
+    <script src="app.js?v=25"></script>
+<!-- Preview Modal Overlay -->
+<div id="preview-modal-overlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); backdrop-filter:blur(10px); z-index:9999; display:flex; justify-content:center; align-items:center; opacity:0; transition:opacity 0.3s;">
+    <div id="preview-modal" style="background:var(--bg-main); border:1px solid var(--border-glass); border-radius:var(--radius-lg); width:90%; max-width:800px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 20px 50px rgba(0,0,0,0.5); transform:translateY(20px); transition:transform 0.3s;">
+        
+        <!-- Header -->
+        <div style="padding:20px; border-bottom:1px solid var(--border-glass); display:flex; justify-content:space-between; align-items:center; background:rgba(20,20,30,0.5); border-radius:var(--radius-lg) var(--radius-lg) 0 0;">
+            <h2 style="margin:0; font-size:18px; color:var(--text-main);">📋 Vorschau & Bereinigung</h2>
+            <button id="btn-preview-close" class="btn" style="background:transparent; border:none; color:var(--text-muted); font-size:24px; padding:0; cursor:pointer;">&times;</button>
+        </div>
+        
+        <!-- Body -->
+        <div style="padding:20px; overflow-y:auto; flex:1;">
+            
+            <!-- Warning Box for Season Year Numbers -->
+            <div id="preview-season-warning" class="hidden" style="margin-bottom:20px; padding:15px; background:rgba(255, 71, 87, 0.15); border:1px solid #ff4757; border-radius:var(--radius-md); display:flex; align-items:center; gap:12px;">
+                <span style="font-size:20px;">⚠️</span>
+                <div style="color:#ff6b6b; font-size:13px; font-weight:500;" id="preview-season-warning-text"></div>
+            </div>
+            
+            <!-- Zielpfad -->
+            <div style="margin-bottom:20px; padding:15px; background:rgba(var(--accent-rgb), 0.1); border:1px solid var(--accent); border-radius:var(--radius-md);">
+                <div style="font-size:12px; color:var(--accent); text-transform:uppercase; margin-bottom:5px; font-weight:bold;">Zielverzeichnis (NAS/pCloud)</div>
+                <div id="preview-destination" style="color:var(--text-main); font-family:monospace; word-break:break-all;">Lade...</div>
+            </div>
+
+            <!-- Videos (Renames) -->
+            <div style="margin-bottom:20px;">
+                <h3 style="margin-top:0; margin-bottom:10px; font-size:14px; color:var(--text-main); display:flex; align-items:center; gap:8px;">
+                    <span style="color:#4caf50;">▶</span> Videos umbenennen & verschieben
+                </h3>
+                <div id="preview-list-renames" style="display:flex; flex-direction:column; gap:8px;">
+                    <!-- Checkbox items go here -->
+                </div>
+            </div>
+
+            <!-- Extras (Subs) -->
+            <div style="margin-bottom:20px;">
+                <h3 style="margin-top:0; margin-bottom:10px; font-size:14px; color:var(--text-main); display:flex; align-items:center; gap:8px;">
+                    <span style="color:#2196f3;">📄</span> Untertitel & Metadaten mitnehmen
+                </h3>
+                <div id="preview-list-subs" style="display:flex; flex-direction:column; gap:8px;">
+                </div>
+            </div>
+
+            <!-- Junk (Deletes) -->
+            <div style="margin-bottom:10px;">
+                <h3 style="margin-top:0; margin-bottom:10px; font-size:14px; color:var(--text-main); display:flex; align-items:center; gap:8px;">
+                    <span style="color:#ff6b6b;">🗑</span> Müll-Dateien löschen (Junk)
+                </h3>
+                <p style="font-size:12px; color:var(--text-muted); margin-top:-5px; margin-bottom:10px;">Diese Dateien wurden nicht zugeordnet. Hake sie an, um sie endgültig vom Laufwerk zu putzen.</p>
+                <div id="preview-list-junk" style="display:flex; flex-direction:column; gap:8px;">
+                </div>
+            </div>
+
+        </div>
+        
+        <!-- Footer -->
+        <div style="padding:20px; border-top:1px solid var(--border-glass); background:rgba(20,20,30,0.5); border-radius:0 0 var(--radius-lg) var(--radius-lg); display:flex; justify-content:flex-end; gap:10px;">
+            <button id="btn-preview-cancel" class="btn btn-secondary" style="padding:10px 20px;">Abbrechen</button>
+            <button id="btn-preview-execute" class="btn btn-primary" style="padding:10px 20px; display:flex; align-items:center; gap:8px;">
+                🚀 Jetzt final verarbeiten
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Clean Modal Overlay -->
+<div id="clean-modal-overlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); backdrop-filter:blur(10px); z-index:9999; display:flex; justify-content:center; align-items:center; opacity:0; transition:opacity 0.3s;">
+    <div id="clean-modal" style="background:var(--bg-main); border:1px solid var(--border-glass); border-radius:var(--radius-lg); width:90%; max-width:600px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 20px 50px rgba(0,0,0,0.5); transform:translateY(20px); transition:transform 0.3s;">
+        <!-- Header -->
+        <div style="padding:20px; border-bottom:1px solid var(--border-glass); display:flex; justify-content:space-between; align-items:center; background:rgba(20,20,30,0.5); border-radius:var(--radius-lg) var(--radius-lg) 0 0;">
+            <h2 style="margin:0; font-size:18px; color:var(--text-main);">🗑 Ordner interaktiv aufräumen</h2>
+            <button id="btn-clean-close" class="btn" style="background:transparent; border:none; color:var(--text-muted); font-size:24px; padding:0; cursor:pointer;">&times;</button>
+        </div>
+        <!-- Body -->
+        <div style="padding:20px; overflow-y:auto; flex:1;">
+            <p style="font-size:13px; color:var(--text-muted); margin-top:0; margin-bottom:20px;">Wähle die Dateien aus, die du endgültig löschen möchtest. Leere Unterordner werden automatisch entfernt.</p>
+            <div id="clean-list" style="display:flex; flex-direction:column; gap:15px;">
+            </div>
+        </div>
+        <!-- Footer -->
+        <div style="padding:20px; border-top:1px solid var(--border-glass); background:rgba(20,20,30,0.5); border-radius:0 0 var(--radius-lg) var(--radius-lg); display:flex; justify-content:flex-end; gap:10px;">
+            <button id="btn-clean-cancel" class="btn btn-secondary" style="padding:10px 20px;">Abbrechen</button>
+            <button id="btn-clean-execute" class="btn btn-primary" style="padding:10px 20px; display:flex; align-items:center; gap:8px; background:#ff4757;">
+                🗑 Jetzt löschen
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Paths Clean Modal Overlay -->
+<div id="paths-clean-modal-overlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); backdrop-filter:blur(10px); z-index:9999; display:flex; justify-content:center; align-items:center; opacity:0; transition:opacity 0.3s;">
+    <div id="paths-clean-modal" style="background:var(--bg-main); border:1px solid var(--border-glass); border-radius:var(--radius-lg); width:90%; max-width:700px; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 20px 50px rgba(0,0,0,0.5); transform:translateY(20px); transition:transform 0.3s;">
+        <!-- Header -->
+        <div style="padding:20px; border-bottom:1px solid var(--border-glass); display:flex; justify-content:space-between; align-items:center; background:rgba(20,20,30,0.5); border-radius:var(--radius-lg) var(--radius-lg) 0 0;">
+            <h2 style="margin:0; font-size:18px; color:var(--text-main); display:flex; align-items:center; gap:8px;">🗑️ Medienpfade bereinigen</h2>
+            <button id="btn-paths-clean-close" class="btn" style="background:transparent; border:none; color:var(--text-muted); font-size:24px; padding:0; cursor:pointer;">&times;</button>
+        </div>
+        
+        <!-- Phase 1: Selector -->
+        <div id="paths-clean-phase-select" style="padding:20px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:20px;">
+            <p style="font-size:14px; color:var(--text-muted); margin:0;">Wähle die Medienpfade aus, die gescannt und bereinigt werden sollen:</p>
+            <div style="display:flex; flex-direction:column; gap:12px; background:rgba(255,255,255,0.02); padding:20px; border-radius:var(--radius-md); border:1px solid var(--border-glass);">
+                <label style="display:flex; align-items:center; gap:12px; cursor:pointer; font-size:15px;">
+                    <input type="checkbox" id="paths-clean-opt-inbox" checked style="width:20px; height:20px; accent-color:var(--accent);">
+                    <div>
+                        <strong>Inbox</strong> <span style="color:var(--text-muted); font-size:13px;">(Medien Input)</span>
+                    </div>
+                </label>
+                <div style="height:1px; background:var(--border-glass); margin:5px 0;"></div>
+                <label style="display:flex; align-items:center; gap:12px; cursor:pointer; font-size:15px;">
+                    <input type="checkbox" id="paths-clean-opt-output" checked style="width:20px; height:20px; accent-color:var(--accent);">
+                    <div>
+                        <strong>Output</strong> <span style="color:var(--text-muted); font-size:13px;">(Medien Output)</span>
+                    </div>
+                </label>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
+                <button id="btn-paths-clean-select-cancel" class="btn btn-secondary" style="padding:10px 20px;">Abbrechen</button>
+                <button id="btn-paths-clean-scan" class="btn btn-accent" style="padding:10px 25px; font-weight:bold;">🔍 Scan starten</button>
+            </div>
+        </div>
+        
+        <!-- Phase 2: Preview -->
+        <div id="paths-clean-phase-preview" class="hidden" style="padding:20px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:15px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                <p style="font-size:13px; color:var(--text-muted); margin:0;">Wähle die Dateien aus, die du endgültig löschen möchtest. Leere Unterordner werden automatisch entfernt.</p>
+            </div>
+            
+            <!-- Quick Selection Controls -->
+            <div style="display:flex; gap:10px; background:rgba(255,255,255,0.02); padding:10px; border-radius:var(--radius-sm); border:1px solid var(--border-glass);">
+                <span style="font-size:12px; color:var(--text-muted); align-self:center; margin-right:5px;">Auswahl:</span>
+                <button id="btn-paths-clean-select-all" class="btn btn-secondary btn-sm" style="padding:4px 8px; font-size:11px;">Alle</button>
+                <button id="btn-paths-clean-select-none" class="btn btn-secondary btn-sm" style="padding:4px 8px; font-size:11px;">Keine</button>
+                <button id="btn-paths-clean-select-junk" class="btn btn-secondary btn-sm" style="padding:4px 8px; font-size:11px;">Nur Junk</button>
+            </div>
+            
+            <!-- File List Container -->
+            <div id="paths-clean-list" style="display:flex; flex-direction:column; gap:20px; max-height:40vh; overflow-y:auto; padding-right:5px;">
+            </div>
+            
+            <!-- Deletion Warning and Action Buttons -->
+            <div style="padding:15px; background:rgba(255,71,87,0.1); border:1px solid rgba(255,71,87,0.2); border-radius:var(--radius-md); font-size:12px; color:#ff4757; display:flex; align-items:center; gap:10px;">
+                <span>⚠️</span>
+                <span>Die ausgewählten Dateien werden endgültig von der Festplatte gelöscht. Dieser Vorgang ist irreversibel!</span>
+            </div>
+            
+            <!-- Footer Actions for Phase 2 -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; border-top:1px solid var(--border-glass); padding-top:15px;">
+                <button id="btn-paths-clean-back" class="btn btn-secondary" style="padding:10px 20px;">Zurück</button>
+                <div style="display:flex; gap:10px;">
+                    <button id="btn-paths-clean-preview-cancel" class="btn btn-secondary" style="padding:10px 20px;">Abbrechen</button>
+                    <button id="btn-paths-clean-execute" class="btn btn-primary" style="padding:10px 20px; display:flex; align-items:center; gap:8px; background:#ff4757; font-weight:bold;">
+                        🗑️ Ausgewählte löschen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

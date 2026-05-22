@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+
+# Local configuration and credentials
+gui/.env
+gui/settings.json
+gui/jobs_state.json
+
+# Backup files
+*.bak
+*.backup
+
+# Local user profiles and history
+gui/data/
+
+# Log files
+gui/logs/
+
+# Python cache/bytecode
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Python virtual environment (if any)
+venv/
+.venv/
+env/

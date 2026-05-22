@@ -1,0 +1,1713 @@
+import sys
+import json
+import urllib.request
+import urllib.parse
+import re
+
+import os
+
+# --- .env Datei parsen (Hausregel #1: Keine Secrets im Code) ---
+env_path = os.path.join(os.path.dirname(__file__), '.env')
+if os.path.exists(env_path):
+    with open(env_path, 'r') as f:
+        for line in f:
+            if line.strip() and not line.startswith('#'):
+                parts = line.strip().split('=', 1)
+                if len(parts) == 2:
+                    os.environ[parts[0].strip()] = parts[1].strip().strip('"\'')
+
+TVDB_API_KEY = os.environ.get("TVDB_API_KEY", "")
+tvdb_token = None
+
+def get_tvdb_token():
+    global tvdb_token
+    if tvdb_token: return tvdb_token
+    try:
+        url = "https://api4.thetvdb.com/v4/login"
+        data = json.dumps({"apikey": TVDB_API_KEY}).encode('utf-8')
+        req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            res = json.loads(response.read().decode())
+            tvdb_token = res.get('data', {}).get('token')
+            return tvdb_token
+    except urllib.error.URLError as e:
+        print(f"[TVDB Login Error] Netzwerk/Timeout Fehler: {e}", file=sys.stderr)
+        return None
+    except json.JSONDecodeError as e:
+        print(f"[TVDB Login Error] Ungültige JSON Antwort: {e}", file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"[TVDB Login Error] Unerwarteter Fehler: {e}", file=sys.stderr)
+        return None
+
+def search_tvdb(query, lang="deu"):
+    token = get_tvdb_token()
+    if not token: return []
+    url = f"https://api4.thetvdb.com/v4/search?query={urllib.parse.quote(query)}&type=series&language={lang}"
+    try:
+        req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode())
+            results = []
+            for item in data.get('data', [])[:8]:
+                year = item.get('year', '????')
+                title = item.get('name', '')
+                trans = item.get('translations', {})
+                if isinstance(trans, dict) and 'deu' in trans:
+                    title = trans['deu']
+                country = item.get('country', 'Unbekannt')
+                results.append({
+                    'id': str(item.get('tvdb_id')),
+                    'name': f"{title} ({year}) [{country}]",
+                    'provider': 'tvdb'
+                })
+            return results
+    except urllib.error.URLError as e:
+        print(f"[TVDB Search Error] Netzwerk/Timeout Fehler bei '{query}': {e}", file=sys.stderr)
+        return []
+    except json.JSONDecodeError as e:
+        print(f"[TVDB Search Error] Ungültige JSON Antwort: {e}", file=sys.stderr)
+        return []
+    except Exception as e:
+        print(f"[TVDB Search Error] Unerwarteter Fehler: {e}", file=sys.stderr)
+        return []
+
+def fetch_tvdb(show_id, season, lang="deu"):
+    token = get_tvdb_token()
+    if not token: return {}
+    result = {}
+    page = 0
+    is_all = (str(season).lower() == "all")
+    while True:
+        url = f"https://api4.thetvdb.com/v4/series/{show_id}/episodes/default/{lang}?page={page}"
+        try:
+            req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+                episodes = data.get('data', {}).get('episodes', [])
+                if not episodes:
+                    break
+                for ep in episodes:
+                    ep_season = ep.get('seasonNumber')
+                    if ep_season is None or int(ep_season) <= 0:
+                        continue
+                    
+                    if is_all or str(ep_season) == str(season):
+                        ep_num = str(ep.get('number'))
+                        title = ep.get('name', '').replace('/', '-').replace(':', '').strip()
+                        date_str = ep.get('aired', '')
+                        
+                        if is_all:
+                            s_str = str(ep_season)
+                            if len(s_str) < 2:
+                                s_str = s_str.zfill(2)
+                            e_str = str(ep_num)
+                            if len(e_str) < 2:
+                                e_str = e_str.zfill(2)
+                            key = f"S{s_str}E{e_str}"
+                            result[key] = {"title": title, "date": date_str}
+                        else:
+                            result[ep_num] = {"title": title, "date": date_str}
+                links = data.get('links', {})
+                if links.get('next') and links['next'] != links.get('self'):
+                    page += 1
+                else:
+                    break
+        except urllib.error.URLError as e:
+            print(f"[TVDB Fetch Error] Netzwerk/Timeout bei Staffel {season}: {e}", file=sys.stderr)
+            break
+        except json.JSONDecodeError as e:
+            print(f"[TVDB Fetch Error] Ungültige JSON Antwort: {e}", file=sys.stderr)
+            break
+        except Exception as e:
+            print(f"[TVDB Fetch Error] Unerwarteter Fehler: {e}", file=sys.stderr)
+            break
+    # EN-Fallback für Episoden ohne deutschen Titel
+    if lang == "deu":
+        missing = [k for k, v in result.items() if not v.get("title")]
+        if missing:
+            en_result = fetch_tvdb(show_id, season, lang="eng")
+            for ep_num in missing:
+                if ep_num in en_result and en_result[ep_num].get("title"):
+                    result[ep_num]["title"] = en_result[ep_num]["title"]
+    return result
+
+def search_all_db(query):
+    import re
+    # Clean query using the new robust clean_search_query
+    clean_query = clean_search_query(query)
+    if not clean_query:
+        clean_query = query.strip()
+    
+    results = []
+    
+    # 1. TMDb DE
+    for r in search_tmdb_tv(clean_query, "de-DE"):
+        r['provider'] = 'tmdb_tv'
+        results.append(r)
+        
+    # 2. TVDb DE
+    results.extend(search_tvdb(clean_query, "deu"))
+    
+    # 3. TVmaze
+    for r in search_tvmaze(clean_query):
+        r['provider'] = 'tvmaze'
+        results.append(r)
+
+    # 4. TMDb EN (Fallback)
+    for r in search_tmdb_tv(clean_query, "en-US"):
+        r['provider'] = 'tmdb_tv_en'
+        results.append(r)
+        
+    final_results = []
+    seen = set()
+    for r in results:
+        # Signatur für Deduplizierung: Titel + Jahr + PROVIDER
+        sig = f"{r['name'].split('[')[0].strip().lower()}_{r['provider']}"
+        if sig not in seen:
+            seen.add(sig)
+            # Anbieter im Anzeigenamen markieren
+            r['name'] = f"{r['name']} [{r['provider'].upper()}]"
+            final_results.append(r)
+            
+    # Sort results by match score with original query
+    final_results.sort(key=lambda r: calculate_match_score(query, r['name']), reverse=True)
+    return final_results[:20]
+
+
+def get_all_season_numbers(provider, show_id):
+    seasons = []
+    try:
+        if provider in ["tmdb_tv", "tmdb_tv_en"]:
+            url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+                seasons = [s['season_number'] for s in data.get('seasons', []) if s.get('season_number', 0) > 0]
+        elif provider == "tvdb":
+            token = get_tvdb_token()
+            url = f"https://api4.thetvdb.com/v4/series/{show_id}/extended"
+            req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode()).get('data', {})
+                seasons = [s['number'] for s in data.get('seasons', []) if s.get('type', {}).get('id') == 1 and s.get('number', 0) > 0]
+        elif provider == "tvmaze":
+            url = f"https://api.tvmaze.com/shows/{show_id}/seasons"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+                seasons = [s['number'] for s in data if s.get('number', 0) > 0]
+    except Exception as e:
+        print(f"[get_all_season_numbers Error] {e}", file=sys.stderr)
+    return sorted(list(set(seasons)))
+
+def get_show_info(provider, show_id):
+    try:
+        seasons = get_all_season_numbers(provider, show_id)
+        if seasons:
+            seasons_str = [str(s) for s in seasons]
+            info_str = f"Staffeln vorhanden: {', '.join(seasons_str)}"
+            if len(seasons) > 20:
+                info_str = f"Staffeln vorhanden: {seasons[0]} bis {seasons[-1]}"
+            return info_str
+    except:
+        pass
+    return "Keine Info zur Staffelstruktur gefunden."
+
+def search_tvmaze(query):
+    # Automatische Fallbacks für eine tolerantere Suche
+    queries_to_try = [query]
+    
+    # 1. Fallback: Entferne Länderkürzel (USA, UK)
+    clean_query = re.sub(r'\b(USA|UK|AU|NZ)\b', '', query, flags=re.IGNORECASE).strip()
+    if clean_query != query and clean_query:
+        queries_to_try.append(clean_query)
+        
+    # 2. Fallback: Leerzeichen entfernen (z.B. "Master Chef" -> "MasterChef")
+    no_space_query = clean_query.replace(' ', '')
+    if no_space_query != clean_query and len(no_space_query) > 3:
+        queries_to_try.append(no_space_query)
+        
+    # 3. Fallback: Nur die ersten zwei Wörter nehmen
+    words = clean_query.split()
+    if len(words) > 2:
+        queries_to_try.append(f"{words[0]} {words[1]}")
+
+    all_results = {}
+    for q in queries_to_try:
+        search_url = f"https://api.tvmaze.com/search/shows?q={urllib.parse.quote(q)}"
+        try:
+            req = urllib.request.Request(search_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+                for item in data:
+                    show = item['show']
+                    if show['id'] not in all_results:
+                        year = show.get('premiered', '')[:4] if show.get('premiered') else '?'
+                        
+                        # Land ermitteln (aus Network oder WebChannel)
+                        network = show.get('network') or show.get('webChannel') or {}
+                        country = network.get('country') or {}
+                        country_name = country.get('name') or 'Unbekannt'
+                        
+                        all_results[show['id']] = {
+                            'id': show['id'],
+                            'name': f"{show['name']} ({year}) [{country_name}]"
+                        }
+        except Exception:
+            continue
+            
+    return list(all_results.values())[:8]
+
+def fetch_tvmaze(show_id, season):
+    is_all = (str(season).lower() == "all")
+    episodes_url = f"https://api.tvmaze.com/shows/{show_id}/episodes"
+    try:
+        req = urllib.request.Request(episodes_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            episodes_data = json.loads(response.read().decode())
+            
+        result = {}
+        for ep in episodes_data:
+            ep_season = ep.get('season')
+            if ep_season is None or int(ep_season) <= 0:
+                continue
+            
+            if is_all or str(ep_season) == str(season):
+                ep_num = str(ep.get('number'))
+                if ep_num and ep_num != 'None':
+                    title = ep.get('name', '').replace('/', '-').replace(':', '')
+                    date_str = ep.get('airdate', '')
+                    if is_all:
+                        s_str = str(ep_season).zfill(2)
+                        e_str = str(ep_num).zfill(2)
+                        key = f"S{s_str}E{e_str}"
+                        result[key] = {"title": title, "date": date_str}
+                    else:
+                        result[ep_num] = {"title": title, "date": date_str}
+        return result
+    except Exception as e:
+        return {}
+
+def get_fernsehserien_episodes(series_name_or_url, season):
+    if series_name_or_url.startswith('http'):
+        url = series_name_or_url
+    else:
+        url_name = series_name_or_url.lower().replace(' ', '-').replace('.', '').replace(':', '')
+        url = f"https://www.fernsehserien.de/{url_name}/episodenguide/staffel-{season}"
+    
+    try:
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
+        })
+        with urllib.request.urlopen(req) as response:
+            html = response.read().decode('utf-8')
+            
+        result = {}
+        for match in re.finditer(r'<td class="episodenliste-episodennummer">.*?(\d+).*?</td>.*?<span itemprop="name">(.*?)</span>', html, re.IGNORECASE | re.DOTALL):
+            ep_num = match.group(1).strip()
+            title = match.group(2).strip().replace('/', '-').replace(':', '')
+            result[ep_num] = title
+            
+        return result
+    except Exception as e:
+        return {}
+
+TMDB_API_KEY = os.environ.get("TMDB_API_KEY", "")
+
+def search_tmdb_movie(query):
+    query = query.strip()
+    # Direkte ID-Suche (IMDB oder TMDB)
+    if query.startswith("tt"):
+        url = f"https://api.themoviedb.org/3/find/{query}?api_key={TMDB_API_KEY}&external_source=imdb_id&language=de-DE"
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+                results = []
+                for item in data.get('movie_results', []):
+                    year = item.get('release_date', '')[:4] if item.get('release_date') else '????'
+                    title = item.get('title', '')
+                    results.append({'id': item['id'], 'name': f"{title} ({year})", 'genre_ids': item.get('genre_ids', [])})
+                if results: return results
+        except urllib.error.URLError as e:
+            print(f"[TMDb Movie Error] Netzwerk/Timeout bei ID-Suche: {e}", file=sys.stderr)
+        except Exception as e:
+            print(f"[TMDb Movie Error] Unerwarteter Fehler bei ID-Suche: {e}", file=sys.stderr)
+    elif query.isdigit() or query.startswith("tmdb:"):
+        tmdb_id = query.replace("tmdb:", "")
+        url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}&language=de-DE"
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                item = json.loads(response.read().decode())
+                year = item.get('release_date', '')[:4] if item.get('release_date') else '????'
+                title = item.get('title', '')
+                gids = [g.get('id') for g in item.get('genres', [])] if 'genres' in item else item.get('genre_ids', [])
+                return [{'id': item['id'], 'name': f"{title} ({year})", 'genre_ids': gids}]
+        except urllib.error.URLError as e:
+            print(f"[TMDb Movie Error] Netzwerk/Timeout bei TMDB-ID-Suche: {e}", file=sys.stderr)
+        except Exception as e:
+            print(f"[TMDb Movie Error] Unerwarteter Fehler bei TMDB-ID-Suche: {e}", file=sys.stderr)
+
+    # Normale Textsuche
+    clean_query = clean_search_query(query)
+    url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={urllib.parse.quote(clean_query)}&language=de-DE"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode())
+            results = []
+            for item in data.get('results', [])[:8]:
+                year = item.get('release_date', '')[:4] if item.get('release_date') else '????'
+                title = item.get('title', '')
+                results.append({
+                    'id': item['id'],
+                    'name': f"{title} ({year})",
+                    'genre_ids': item.get('genre_ids', [])
+                })
+            return results
+    except urllib.error.URLError as e:
+        print(f"[TMDb Movie Error] Netzwerk/Timeout bei Textsuche '{query}': {e}", file=sys.stderr)
+        return []
+    except json.JSONDecodeError as e:
+        print(f"[TMDb Movie Error] Ungültige JSON Antwort: {e}", file=sys.stderr)
+        return []
+    except Exception as e:
+        print(f"[TMDb Movie Error] Unerwarteter Fehler bei Textsuche: {e}", file=sys.stderr)
+        return []
+
+def search_tmdb_tv(query, lang="de-DE"):
+    query = query.strip()
+    # Direkte ID-Suche (IMDB oder TMDB)
+    if query.startswith("tt"):
+        url = f"https://api.themoviedb.org/3/find/{query}?api_key={TMDB_API_KEY}&external_source=imdb_id&language={lang}"
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+                results = []
+                for item in data.get('tv_results', []):
+                    year = item.get('first_air_date', '')[:4] if item.get('first_air_date') else '????'
+                    title = item.get('name', '')
+                    country = item.get('origin_country', [''])[0] if item.get('origin_country') else 'Unbekannt'
+                    results.append({'id': item['id'], 'name': f"{title} ({year}) [{country}]", 'genre_ids': item.get('genre_ids', [])})
+                if results: return results
+        except urllib.error.URLError as e:
+            print(f"[TMDb TV Error] Netzwerk/Timeout bei ID-Suche: {e}", file=sys.stderr)
+        except Exception as e:
+            print(f"[TMDb TV Error] Unerwarteter Fehler bei ID-Suche: {e}", file=sys.stderr)
+    elif query.isdigit() or query.startswith("tmdb:"):
+        tmdb_id = query.replace("tmdb:", "")
+        url = f"https://api.themoviedb.org/3/tv/{tmdb_id}?api_key={TMDB_API_KEY}&language={lang}"
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                item = json.loads(response.read().decode())
+                year = item.get('first_air_date', '')[:4] if item.get('first_air_date') else '????'
+                title = item.get('name', '')
+                country = item.get('origin_country', [''])[0] if item.get('origin_country') else 'Unbekannt'
+                gids = [g.get('id') for g in item.get('genres', [])] if 'genres' in item else item.get('genre_ids', [])
+                return [{'id': item['id'], 'name': f"{title} ({year}) [{country}]", 'genre_ids': gids}]
+        except urllib.error.URLError as e:
+            print(f"[TMDb TV Error] Netzwerk/Timeout bei TMDB-ID-Suche: {e}", file=sys.stderr)
+        except Exception as e:
+            print(f"[TMDb TV Error] Unerwarteter Fehler bei TMDB-ID-Suche: {e}", file=sys.stderr)
+
+    # Normale Textsuche
+    url = f"https://api.themoviedb.org/3/search/tv?api_key={TMDB_API_KEY}&query={urllib.parse.quote(query)}&language={lang}"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode())
+            results = []
+            for item in data.get('results', [])[:8]:
+                year = item.get('first_air_date', '')[:4] if item.get('first_air_date') else '????'
+                title = item.get('name', '')
+                country = item.get('origin_country', [''])[0] if item.get('origin_country') else 'Unbekannt'
+                results.append({
+                    'id': item['id'],
+                    'name': f"{title} ({year}) [{country}]",
+                    'genre_ids': item.get('genre_ids', [])
+                })
+            return results
+    except urllib.error.URLError as e:
+        print(f"[TMDb TV Error] Netzwerk/Timeout bei Textsuche '{query}': {e}", file=sys.stderr)
+        return []
+    except json.JSONDecodeError as e:
+        print(f"[TMDb TV Error] Ungültige JSON Antwort: {e}", file=sys.stderr)
+        return []
+    except Exception as e:
+        print(f"[TMDb TV Error] Unerwarteter Fehler bei Textsuche: {e}", file=sys.stderr)
+        return []
+
+def fetch_tmdb_tv(show_id, season, lang="de-DE"):
+    is_all = (str(season).lower() == "all")
+    if is_all:
+        result = {}
+        provider = "tmdb_tv_en" if lang == "en-US" else "tmdb_tv"
+        seasons = get_all_season_numbers(provider, show_id)
+        for s_num in seasons:
+            s_eps = fetch_tmdb_tv(show_id, s_num, lang)
+            for ep_num, ep_data in s_eps.items():
+                s_str = str(s_num).zfill(2)
+                e_str = str(ep_num).zfill(2)
+                key = f"S{s_str}E{e_str}"
+                result[key] = ep_data
+        return result
+
+    url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season}?api_key={TMDB_API_KEY}&language={lang}"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode())
+            result = {}
+            for ep in data.get('episodes', []):
+                ep_num = str(ep['episode_number'])
+                title = ep.get('name', '').replace('/', '-').replace(':', '')
+                date_str = ep.get('air_date', '')
+                result[ep_num] = {"title": title, "date": date_str}
+            return result
+    except Exception as e:
+        return {}
+
+def match_episode(filename, json_str):
+    try:
+        episodes = json.loads(json_str)
+        best_match = ""
+        best_score = 0.0
+        
+        import re
+        def get_words(text):
+            # Filtere Füllwörter aus
+            words = set(re.findall(r'\w+', text.lower()))
+            return {w for w in words if w not in ['der', 'die', 'das', 'in', 'im', 'teil', 'part', 'von', 'und']}
+            
+        file_words = get_words(filename)
+        
+        for ep_num, ep_data in episodes.items():
+            if isinstance(ep_data, dict):
+                title = ep_data.get('title', '')
+                date_str = ep_data.get('date', '')
+            else:
+                title = str(ep_data)
+                date_str = ""
+                
+            if date_str:
+                parts = date_str.split('-')
+                if len(parts) == 3:
+                    y, m, d = parts
+                    # Prüfe gängige Datumsformate im Dateinamen
+                    if f"{d}.{m}.{y}" in filename or f"{d}{m}{y}" in filename or f"{y}-{m}-{d}" in filename or f"{y}{m}{d}" in filename:
+                        return ep_num
+                        
+            title_words = get_words(title)
+            if not title_words: continue
+            
+            overlap = len(title_words.intersection(file_words))
+            score = overlap / len(title_words)
+            
+            if score > best_score:
+                best_score = score
+                best_match = ep_num
+                
+        if best_score >= 0.5:
+            return best_match
+    except Exception as e:
+        pass
+    return ""
+
+
+def search_ofdb(query):
+    clean_query = clean_search_query(query)
+    url = "https://www.ofdb.de/suchergebnis/"
+    data = urllib.parse.urlencode({'QSinput': clean_query}).encode('utf-8')
+    req = urllib.request.Request(url, data=data, headers={'User-Agent': 'Mozilla/5.0'})
+    try:
+        html = urllib.request.urlopen(req).read().decode('utf-8', errors='ignore')
+    except Exception as e:
+        return []
+        
+    results = []
+    matches = re.finditer(r'<a[^>]*href=\"https://www.ofdb.de/film/(\d+),([^\"]*)\"[^>]*>.*?<span class=\"tooltipster\"[^>]*>(.*?)</span></a>.*?</td>\s*<td>(\d{4})</td>', html, re.DOTALL | re.IGNORECASE)
+    for m in matches:
+        ofdb_id = m.group(1)
+        url_part = m.group(2)
+        title_raw = m.group(3)
+        title = re.sub(r'^">', '', title_raw).strip()
+        year = m.group(4)
+        results.append({
+            "id": f"ofdb_{ofdb_id}_{url_part}",
+            "title": title,
+            "year": year
+        })
+    return results
+
+def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=None):
+    parts = ofdb_full_id.split('_', 2)
+    if len(parts) != 3: return {}
+    ofdb_id = parts[1]
+    url_part = parts[2]
+    
+    url = f"https://www.ofdb.de/film/{ofdb_id},{url_part}/"
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    try:
+        html = urllib.request.urlopen(req).read().decode('utf-8', errors='ignore')
+    except: return {}
+    
+    title_m = re.search(r'<title>OFDb - (.*?) \(\d{4}\)</title>', html)
+    title = title_m.group(1) if title_m else filename_base
+    
+    year_m = re.search(r'Erscheinungsjahr:.*?<a[^>]*>(\d{4})</a>', html, re.DOTALL)
+    year = year_m.group(1) if year_m else ""
+    
+    plot_m = re.search(r'<div class=\"plot\">(.*?)</div>', html, re.DOTALL)
+    plot = plot_m.group(1).strip() if plot_m else ""
+    plot = re.sub(r'<[^>]+>', '', plot)
+    
+    actors = []
+    for m in re.finditer(r'<a[^>]*href=\"https://www.ofdb.de/person/[^>]*>(.*?)</a>', html):
+        actor_name = re.sub(r'<[^>]+>', '', m.group(1)).strip()
+        if actor_name and actor_name not in actors:
+            actors.append(actor_name)
+            
+    xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<movie>\n  <lockdata>true</lockdata>\n'
+    xml += f"  <title>{title.replace('&', '&amp;')}</title>\n"
+    xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+    xml += f"  <year>{year}</year>\n"
+    
+    for a in actors[:15]:
+        xml += "  <actor>\n"
+        xml += f"    <name>{a.replace('&', '&amp;')}</name>\n"
+        xml += "  </actor>\n"
+    xml += "</movie>\n"
+    
+    nfo_path = os.path.join(target_folder, f"{filename_base}.nfo")
+    with open(nfo_path, 'w', encoding='utf-8') as f:
+        f.write(xml)
+        
+    return {"nfo": True, "poster": False, "fanart": False, "msg": "OFDb NFO erstellt"}
+
+def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None):
+
+    import os
+    nfo_path = os.path.join(folder_path, f"{filename_base}.nfo")
+    poster_path = os.path.join(folder_path, "poster.jpg")
+    fanart_path = os.path.join(folder_path, "fanart.jpg")
+    
+    needs_nfo = not os.path.exists(nfo_path)
+    needs_poster = not os.path.exists(poster_path)
+    needs_fanart = not os.path.exists(fanart_path)
+    
+    if tmdb_id == "manual" or (isinstance(tmdb_id, str) and tmdb_id.startswith("{")):
+        if needs_nfo:
+            import json
+            try:
+                meta = json.loads(tmdb_id) if isinstance(tmdb_id, str) else tmdb_id
+            except:
+                meta = {"title": filename_base, "year": "", "plot": ""}
+            title = meta.get("title", filename_base)
+            year = meta.get("year", "")
+            plot = meta.get("plot", "")
+            
+            xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+            xml += '<movie>\n  <lockdata>true</lockdata>\n'
+            xml += f"  <title>{title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+            if plot:
+                xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+            if year:
+                xml += f"  <year>{year}</year>\n"
+            xml += "  <mw_provider>manual</mw_provider>\n"
+            xml += '</movie>\n'
+            with open(nfo_path, 'w', encoding='utf-8') as f:
+                f.write(xml)
+        return {"nfo": needs_nfo, "poster": False, "fanart": False, "msg": "Manuelle Film NFO erstellt"}
+
+    if isinstance(tmdb_id, str) and (tmdb_id.startswith("http://") or tmdb_id.startswith("https://")):
+        downloaded_poster = False
+        if needs_nfo or needs_poster:
+            entries = fetch_ytdlp_url_metadata(tmdb_id)
+            title = filename_base
+            plot = ""
+            year = ""
+            studio = ""
+            thumbnail_url = None
+            if not isinstance(entries, dict) and len(entries) > 0:
+                entry = entries[0]
+                title = entry.get("title", filename_base)
+                plot = entry.get("description", "")
+                studio = entry.get("uploader", "")
+                thumbnail_url = entry.get("thumbnail")
+                if entry.get("upload_date"):
+                    year = entry.get("upload_date")[:4]
+                elif entry.get("release_year"):
+                    year = str(entry.get("release_year"))
+                    
+            if needs_nfo:
+                xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                xml += '<movie>\n  <lockdata>true</lockdata>\n'
+                xml += f"  <title>{title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+                if plot:
+                    xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+                if year:
+                    xml += f"  <year>{year}</year>\n"
+                if studio:
+                    xml += f"  <studio>{studio.replace('&', '&amp;').replace('<', '&lt;')}</studio>\n"
+                xml += "  <mw_provider>ytdlp</mw_provider>\n"
+                xml += '</movie>\n'
+                with open(nfo_path, 'w', encoding='utf-8') as f:
+                    f.write(xml)
+            
+            if thumbnail_url and needs_poster:
+                try:
+                    urllib.request.urlretrieve(thumbnail_url, poster_path)
+                    downloaded_poster = True
+                except Exception as e:
+                    print(f"[ytdlp poster error] {e}")
+                    
+        return {"nfo": needs_nfo, "poster": downloaded_poster, "fanart": False, "msg": "ytdlp movie NFO erstellt"}
+
+    if not (needs_nfo or needs_poster or needs_fanart):
+        return {"nfo": False, "poster": False, "fanart": False, "msg": "existiert"}
+        
+    url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}&language=de-DE&append_to_response=credits,release_dates"
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    try:
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode())
+    except Exception as e:
+        return {"error": str(e)}
+        
+    if needs_nfo:
+        yt_data = {}
+        if fallback_json and os.path.exists(fallback_json):
+            try:
+                with open(fallback_json, 'r', encoding='utf-8') as f:
+                    yt_data = json.load(f)
+            except: pass
+            
+        fsk = ""
+        for r in data.get('release_dates', {}).get('results', []):
+            if r.get('iso_3166_1') == 'DE':
+                for rd in r.get('release_dates', []):
+                    if rd.get('certification'):
+                        fsk = rd.get('certification')
+                        break
+                break
+            
+        year = data.get('release_date', '')[:4] if data.get('release_date') else ''
+        if not year and yt_data.get('upload_date'):
+            year = yt_data.get('upload_date')[:4]
+            
+        plot = data.get('overview', '')
+        if yt_data.get('description') and len(yt_data.get('description', '')) > len(plot):
+            plot = f"{plot}\n\n--- YouTube Info ---\n{yt_data['description']}".strip()
+            
+        studio = yt_data.get('uploader', '')
+            
+        xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        xml += '<movie>\n  <lockdata>true</lockdata>\n'
+        xml += f"  <title>{data.get('title', '').replace('&', '&amp;')}</title>\n"
+        xml += f"  <originaltitle>{data.get('original_title', '').replace('&', '&amp;')}</originaltitle>\n"
+        xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+        if fsk:
+            xml += f"  <mpaa>FSK {fsk}</mpaa>\n"
+        for pc in data.get('production_companies', []):
+            if pc.get('name'):
+                xml += f"  <studio>{pc.get('name').replace('&', '&amp;')}</studio>\n"
+        xml += f"  <year>{year}</year>\n"
+        if data.get('release_date'):
+            xml += f"  <premiered>{data.get('release_date', '')}</premiered>\n"
+        xml += f"  <rating>{data.get('vote_average', 0)}</rating>\n"
+        if studio:
+            xml += f"  <studio>{studio.replace('&', '&amp;').replace('<', '&lt;')}</studio>\n"
+        xml += f"  <tmdbid>{tmdb_id}</tmdbid>\n"
+        
+        for g in data.get('genres', []):
+            xml += f"  <genre>{g.get('name', '')}</genre>\n"
+            
+        for c in data.get('credits', {}).get('cast', [])[:15]:
+            xml += "  <actor>\n"
+            xml += f"    <name>{c.get('name', '').replace('&', '&amp;')}</name>\n"
+            xml += f"    <role>{c.get('character', '').replace('&', '&amp;')}</role>\n"
+            if c.get('profile_path'):
+                xml += f"    <thumb>https://image.tmdb.org/t/p/w500{c.get('profile_path')}</thumb>\n"
+            xml += "  </actor>\n"
+            
+        xml += '</movie>\n'
+        
+        with open(nfo_path, 'w', encoding='utf-8') as f:
+            f.write(xml)
+            
+    if needs_poster and data.get('poster_path'):
+        try:
+            p_url = f"https://image.tmdb.org/t/p/original{data['poster_path']}"
+            urllib.request.urlretrieve(p_url, poster_path)
+        except:
+            needs_poster = False
+            
+    if needs_fanart and data.get('backdrop_path'):
+        try:
+            b_url = f"https://image.tmdb.org/t/p/original{data['backdrop_path']}"
+            urllib.request.urlretrieve(b_url, fanart_path)
+        except:
+            needs_fanart = False
+            
+    return {"nfo": needs_nfo, "poster": needs_poster, "fanart": needs_fanart}
+
+def generate_tvshow_nfo(provider, show_id, target_folder):
+    import os
+    
+    if provider == "manual":
+        import json
+        try:
+            meta = json.loads(show_id) if isinstance(show_id, str) else show_id
+        except:
+            meta = {"title": show_id or "Manuelle Serie", "plot": "", "year": ""}
+        
+        nfo_path = os.path.join(target_folder, "tvshow.nfo")
+        title = meta.get("title", "Manuelle Serie")
+        plot = meta.get("plot", "")
+        year = meta.get("year", "")
+        
+        xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
+        xml += f"  <title>{title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+        if plot:
+            xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+        if year:
+            xml += f"  <year>{year}</year>\n"
+        xml += "  <mw_provider>manual</mw_provider>\n"
+        xml += '</tvshow>\n'
+        with open(nfo_path, 'w', encoding='utf-8') as f:
+            f.write(xml)
+        return {"nfo": True, "poster": False, "fanart": False, "msg": "Manuelle tvshow.nfo erstellt"}
+        
+    if provider == "mediathek":
+        nfo_path = os.path.join(target_folder, "tvshow.nfo")
+        xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
+        xml += f"  <title>{show_id.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+        xml += f"  <mw_provider>mediathek</mw_provider>\n"
+        xml += f"  <mw_showid>{show_id}</mw_showid>\n"
+        xml += '</tvshow>\n'
+        with open(nfo_path, 'w', encoding='utf-8') as f:
+            f.write(xml)
+        return {"nfo": True, "poster": False, "fanart": False, "msg": "Mediathek tvshow.nfo erstellt"}
+        
+    if provider == "ytdlp":
+        nfo_path = os.path.join(target_folder, "tvshow.nfo")
+        entries = fetch_ytdlp_url_metadata(show_id)
+        title = "YouTube/Mediathek Serie"
+        plot = ""
+        if not isinstance(entries, dict) and len(entries) > 0:
+            title = entries[0].get("playlist_title") or entries[0].get("playlist") or entries[0].get("title") or "YouTube/Mediathek Serie"
+            plot = entries[0].get("description") or ""
+            
+        xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
+        xml += f"  <title>{title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+        if plot:
+            xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+        xml += "  <mw_provider>ytdlp</mw_provider>\n"
+        xml += f"  <mw_showid>{show_id}</mw_showid>\n"
+        xml += '</tvshow>\n'
+        with open(nfo_path, 'w', encoding='utf-8') as f:
+            f.write(xml)
+        return {"nfo": True, "poster": False, "fanart": False, "msg": "ytdlp tvshow.nfo erstellt"}
+        
+    if provider not in ["tmdb_tv", "tmdb_tv_en", "tvdb"]:
+        return {"nfo": False, "poster": False, "fanart": False, "msg": f"Skipped for {provider}"}
+        
+    nfo_path = os.path.join(target_folder, "tvshow.nfo")
+    poster_path = os.path.join(target_folder, "poster.jpg")
+    fanart_path = os.path.join(target_folder, "fanart.jpg")
+    
+    needs_nfo = not os.path.exists(nfo_path)
+    needs_poster = not os.path.exists(poster_path)
+    needs_fanart = not os.path.exists(fanart_path)
+    
+    if not (needs_nfo or needs_poster or needs_fanart):
+        return {"nfo": False, "poster": False, "fanart": False, "msg": "existiert"}
+        
+    if provider == "tvdb":
+        token = get_tvdb_token()
+        url = f"https://api4.thetvdb.com/v4/series/{show_id}/extended?meta=translations"
+        try:
+            req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode()).get('data', {})
+        except Exception as e:
+            return {"error": str(e)}
+            
+        if needs_nfo:
+            title = data.get('name', '')
+            original_title = title
+            plot = data.get('overview', '')
+            trans = data.get('translations', {})
+            if isinstance(trans, dict):
+                for t in trans.get('nameTranslations', []):
+                    if t.get('language') == 'deu':
+                        title = t.get('name', title)
+                        break
+                for t in trans.get('overviewTranslations', []):
+                    if t.get('language') == 'deu':
+                        plot = t.get('overview', plot)
+                        break
+                        
+            fsk = ""
+            for cr in data.get('contentRatings', []):
+                if cr.get('country') == 'deu':
+                    fsk = cr.get('name', '').replace('+', '')
+                    break
+                        
+            year = data.get('firstAired', '')[:4] if data.get('firstAired') else ''
+            xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+            xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
+            xml += f"  <title>{title.replace('&', '&amp;')}</title>\n"
+            xml += f"  <originaltitle>{original_title.replace('&', '&amp;')}</originaltitle>\n"
+            xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+            xml += f"  <year>{year}</year>\n"
+            xml += f"  <premiered>{data.get('firstAired', '')}</premiered>\n"
+            xml += f"  <rating>{data.get('score', 0)}</rating>\n"
+            status = data.get('status', {}).get('name') if isinstance(data.get('status'), dict) else ''
+            if status:
+                xml += f"  <status>{status}</status>\n"
+            if fsk:
+                xml += f"  <mpaa>FSK {fsk}</mpaa>\n"
+            for comp in data.get('companies', []):
+                if comp.get('name'):
+                    xml += f"  <studio>{comp.get('name').replace('&', '&amp;')}</studio>\n"
+            xml += f"  <tvdbid>{show_id}</tvdbid>\n"
+            xml += f"  <mw_provider>{provider}</mw_provider>\n"
+            xml += f"  <mw_showid>{show_id}</mw_showid>\n"
+            for g in data.get('genres', []):
+                xml += f"  <genre>{g.get('name', '')}</genre>\n"
+            for c in data.get('characters', [])[:15]:
+                xml += "  <actor>\n"
+                xml += f"    <name>{c.get('personName', '').replace('&', '&amp;')}</name>\n"
+                xml += f"    <role>{c.get('name', '').replace('&', '&amp;')}</role>\n"
+                if c.get('image'):
+                    xml += f"    <thumb>{c.get('image')}</thumb>\n"
+                xml += "  </actor>\n"
+            xml += '</tvshow>\n'
+            with open(nfo_path, 'w', encoding='utf-8') as f:
+                f.write(xml)
+                
+        if needs_poster or needs_fanart:
+            for art in data.get('artworks', []):
+                if needs_poster and art.get('type') == 2:
+                    try: urllib.request.urlretrieve(art.get('image'), poster_path); needs_poster = False
+                    except: pass
+                if needs_fanart and art.get('type') == 3:
+                    try: urllib.request.urlretrieve(art.get('image'), fanart_path); needs_fanart = False
+                    except: pass
+        return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart}
+
+    lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
+    url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}&language={lang}&append_to_response=credits,content_ratings"
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    try:
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode())
+    except Exception as e:
+        return {"error": str(e)}
+        
+    if needs_nfo:
+        fsk = ""
+        for r in data.get('content_ratings', {}).get('results', []):
+            if r.get('iso_3166_1') == 'DE':
+                fsk = r.get('rating')
+                break
+                
+        year = data.get('first_air_date', '')[:4] if data.get('first_air_date') else ''
+        xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
+        xml += f"  <title>{data.get('name', '').replace('&', '&amp;')}</title>\n"
+        xml += f"  <originaltitle>{data.get('original_name', '').replace('&', '&amp;')}</originaltitle>\n"
+        xml += f"  <plot>{data.get('overview', '').replace('&', '&amp;')}</plot>\n"
+        xml += f"  <year>{year}</year>\n"
+        xml += f"  <premiered>{data.get('first_air_date', '')}</premiered>\n"
+        xml += f"  <rating>{data.get('vote_average', 0)}</rating>\n"
+        if data.get('status'):
+            xml += f"  <status>{data.get('status')}</status>\n"
+        if fsk:
+            xml += f"  <mpaa>FSK {fsk}</mpaa>\n"
+        for net in data.get('networks', []):
+            if net.get('name'):
+                xml += f"  <studio>{net.get('name').replace('&', '&amp;')}</studio>\n"
+        xml += f"  <tmdbid>{show_id}</tmdbid>\n"
+        xml += f"  <mw_provider>{provider}</mw_provider>\n"
+        xml += f"  <mw_showid>{show_id}</mw_showid>\n"
+        for g in data.get('genres', []):
+            xml += f"  <genre>{g.get('name', '')}</genre>\n"
+        for c in data.get('credits', {}).get('cast', [])[:15]:
+            xml += "  <actor>\n"
+            xml += f"    <name>{c.get('name', '').replace('&', '&amp;')}</name>\n"
+            xml += f"    <role>{c.get('character', '').replace('&', '&amp;')}</role>\n"
+            if c.get('profile_path'):
+                xml += f"    <thumb>https://image.tmdb.org/t/p/w500{c.get('profile_path')}</thumb>\n"
+            xml += "  </actor>\n"
+        xml += '</tvshow>\n'
+        with open(nfo_path, 'w', encoding='utf-8') as f:
+            f.write(xml)
+            
+    if needs_poster and data.get('poster_path'):
+        try:
+            p_url = f"https://image.tmdb.org/t/p/original{data['poster_path']}"
+            urllib.request.urlretrieve(p_url, poster_path)
+        except:
+            needs_poster = False
+    if needs_fanart and data.get('backdrop_path'):
+        try:
+            b_url = f"https://image.tmdb.org/t/p/original{data['backdrop_path']}"
+            urllib.request.urlretrieve(b_url, fanart_path)
+        except:
+            needs_fanart = False
+            
+    return {"nfo": needs_nfo, "poster": needs_poster, "fanart": needs_fanart}
+
+def generate_episode_nfo(provider, show_id, season, episode, target_folder, filename_base):
+    import os
+    nfo_path = os.path.join(target_folder, f"{filename_base}.nfo")
+    thumb_path = os.path.join(target_folder, f"{filename_base}-thumb.jpg")
+    
+    needs_nfo = not os.path.exists(nfo_path)
+    needs_thumb = not os.path.exists(thumb_path)
+    
+    if provider == "manual":
+        ep_title = ""
+        ep_num = episode
+        ep_plot = ""
+        if isinstance(episode, dict):
+            ep_title = episode.get("title", "")
+            ep_num = episode.get("episode", 1)
+            ep_plot = episode.get("plot", "")
+            
+        if needs_nfo:
+            xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+            xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
+            xml += f"  <title>{ep_title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+            xml += f"  <season>{season}</season>\n"
+            xml += f"  <episode>{ep_num}</episode>\n"
+            if ep_plot:
+                xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+            xml += '</episodedetails>\n'
+            with open(nfo_path, 'w', encoding='utf-8') as f:
+                f.write(xml)
+        return {"nfo": needs_nfo, "thumb": False}
+        
+    if provider == "mediathek":
+        if needs_nfo:
+            eps = fetch_mediathek_episodes(show_id)
+            ep_data = eps.get(str(episode), {})
+            ep_title = ep_data.get("title", f"Folge {episode}")
+            ep_plot = ep_data.get("plot", "")
+            
+            xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+            xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
+            xml += f"  <title>{ep_title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+            xml += f"  <season>{season}</season>\n"
+            xml += f"  <episode>{episode}</episode>\n"
+            if ep_plot:
+                xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+            xml += '</episodedetails>\n'
+            with open(nfo_path, 'w', encoding='utf-8') as f:
+                f.write(xml)
+        return {"nfo": needs_nfo, "thumb": False}
+        
+    if provider == "ytdlp":
+        downloaded_thumb = False
+        if needs_nfo or needs_thumb:
+            entries = fetch_ytdlp_url_metadata(show_id)
+            ep_title = f"Folge {episode}"
+            ep_plot = ""
+            thumbnail_url = None
+            if not isinstance(entries, dict) and len(entries) > 0:
+                matched_entry = None
+                for i, ent in enumerate(entries):
+                    idx = ent.get("playlist_index") or ent.get("playlist_autonumber") or (i + 1)
+                    if str(idx) == str(episode):
+                        matched_entry = ent
+                        break
+                if matched_entry:
+                    title = matched_entry.get("title", "")
+                    alt_title = matched_entry.get("alt_title", "")
+                    show_name = matched_entry.get("playlist_title") or matched_entry.get("playlist", "")
+                    thumbnail_url = matched_entry.get("thumbnail")
+                    if alt_title and title == show_name:
+                        ep_title = alt_title
+                    elif alt_title and not title:
+                        ep_title = alt_title
+                    else:
+                        ep_title = title or f"Folge {episode}"
+                    ep_plot = matched_entry.get("description", "")
+            
+            if needs_nfo:
+                xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
+                xml += f"  <title>{ep_title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+                xml += f"  <season>{season}</season>\n"
+                xml += f"  <episode>{episode}</episode>\n"
+                if ep_plot:
+                    xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+                xml += '</episodedetails>\n'
+                with open(nfo_path, 'w', encoding='utf-8') as f:
+                    f.write(xml)
+            
+            if thumbnail_url and needs_thumb:
+                try:
+                    urllib.request.urlretrieve(thumbnail_url, thumb_path)
+                    downloaded_thumb = True
+                except Exception as e:
+                    print(f"[ytdlp episode thumb error] {e}")
+                    
+        return {"nfo": needs_nfo, "thumb": downloaded_thumb}
+
+    if not (needs_nfo or needs_thumb):
+        return {"nfo": False, "thumb": False, "msg": "existiert"}
+
+    if provider == "tvdb":
+        token = get_tvdb_token()
+        ep_data = {}
+        
+        # Caching logic
+        import tempfile
+        cache_file = os.path.join(tempfile.gettempdir(), f"tvdb_{show_id}_deu.json")
+        all_episodes = []
+        
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    all_episodes = json.load(f)
+            except: pass
+            
+        def _tvdb_load_episodes(sid, lang_code, cache_path):
+            eps = []
+            if os.path.exists(cache_path):
+                try:
+                    with open(cache_path, 'r', encoding='utf-8') as f:
+                        eps = json.load(f)
+                except: pass
+            if not eps:
+                pg = 0
+                while True:
+                    url = f"https://api4.thetvdb.com/v4/series/{sid}/episodes/default/{lang_code}?page={pg}"
+                    try:
+                        req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
+                        with urllib.request.urlopen(req) as response:
+                            d = json.loads(response.read().decode())
+                            batch = d.get('data', {}).get('episodes', [])
+                            if not batch: break
+                            eps.extend(batch)
+                            lnk = d.get('links', {})
+                            if lnk.get('next') and lnk['next'] != lnk.get('self'):
+                                pg += 1
+                            else:
+                                break
+                    except: break
+                if eps:
+                    try:
+                        with open(cache_path, 'w', encoding='utf-8') as f:
+                            json.dump(eps, f)
+                    except: pass
+            return eps
+
+        all_episodes = _tvdb_load_episodes(show_id, "deu", cache_file)
+
+        for ep in all_episodes:
+            if str(ep.get('seasonNumber')) == str(season) and str(ep.get('number')) == str(episode):
+                ep_data = ep
+                break
+
+        if not ep_data:
+            return {"nfo": False, "thumb": False, "msg": "Episode nicht gefunden"}
+
+        ep_title = ep_data.get('name', '').strip()
+        ep_plot  = ep_data.get('overview', '').strip()
+
+        # EN-Fallback wenn Titel oder Plot fehlt
+        if not ep_title or not ep_plot:
+            cache_file_en = os.path.join(tempfile.gettempdir(), f"tvdb_{show_id}_eng.json")
+            all_episodes_en = _tvdb_load_episodes(show_id, "eng", cache_file_en)
+            for ep_en in all_episodes_en:
+                if str(ep_en.get('seasonNumber')) == str(season) and str(ep_en.get('number')) == str(episode):
+                    if not ep_title:
+                        ep_title = ep_en.get('name', '').strip()
+                    if not ep_plot:
+                        ep_plot = ep_en.get('overview', '').strip()
+                    break
+
+        if needs_nfo:
+            xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+            xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
+            xml += f"  <title>{ep_title.replace('&', '&amp;')}</title>\n"
+            xml += f"  <season>{season}</season>\n"
+            xml += f"  <episode>{episode}</episode>\n"
+            xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+            xml += f"  <aired>{ep_data.get('aired', '')}</aired>\n"
+            xml += f"  <rating>{ep_data.get('score', 0)}</rating>\n"
+            xml += '</episodedetails>\n'
+            with open(nfo_path, 'w', encoding='utf-8') as f:
+                f.write(xml)
+                
+        if needs_thumb and ep_data.get('image'):
+            try: urllib.request.urlretrieve(ep_data.get('image'), thumb_path); needs_thumb = False
+            except: pass
+            
+        return {"nfo": needs_nfo, "thumb": not needs_thumb}
+        
+    lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
+    url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season}/episode/{episode}?api_key={TMDB_API_KEY}&language={lang}"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode())
+    except Exception as e:
+        return {"error": str(e)}
+        
+    if needs_nfo:
+        xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
+        xml += f"  <title>{data.get('name', '').replace('&', '&amp;')}</title>\n"
+        xml += f"  <season>{season}</season>\n"
+        xml += f"  <episode>{episode}</episode>\n"
+        xml += f"  <plot>{data.get('overview', '').replace('&', '&amp;')}</plot>\n"
+        xml += f"  <aired>{data.get('air_date', '')}</aired>\n"
+        xml += f"  <rating>{data.get('vote_average', 0)}</rating>\n"
+        xml += '</episodedetails>\n'
+        with open(nfo_path, 'w', encoding='utf-8') as f:
+            f.write(xml)
+            
+    if needs_thumb and data.get('still_path'):
+        try:
+            t_url = f"https://image.tmdb.org/t/p/original{data['still_path']}"
+            urllib.request.urlretrieve(t_url, thumb_path)
+        except:
+            needs_thumb = False
+            
+    return {"nfo": needs_nfo, "thumb": needs_thumb}
+
+def generate_youtube_nfo(json_path, nfo_path, nfo_type):
+    import os
+    if not os.path.exists(json_path):
+        return {"nfo": False, "msg": "JSON not found"}
+        
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception as e:
+        return {"error": str(e)}
+        
+    title = data.get('title', '').replace('&', '&amp;').replace('<', '&lt;')
+    plot = data.get('description', '').replace('&', '&amp;').replace('<', '&lt;')
+    year = data.get('upload_date', '')[:4] if data.get('upload_date') else ''
+    premiered = f"{year}-{data['upload_date'][4:6]}-{data['upload_date'][6:8]}" if len(data.get('upload_date', '')) == 8 else ''
+    channel = data.get('uploader', '').replace('&', '&amp;').replace('<', '&lt;')
+    
+    xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    if nfo_type == "movie":
+        xml += '<movie>\n  <lockdata>true</lockdata>\n'
+        xml += f"  <title>{title}</title>\n"
+        xml += f"  <plot>{plot}</plot>\n"
+        xml += f"  <year>{year}</year>\n"
+        xml += f"  <premiered>{premiered}</premiered>\n"
+        xml += f"  <studio>{channel}</studio>\n"
+        xml += '</movie>\n'
+    elif nfo_type == "episode":
+        xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
+        xml += f"  <title>{title}</title>\n"
+        xml += f"  <plot>{plot}</plot>\n"
+        xml += f"  <year>{year}</year>\n"
+        xml += f"  <aired>{premiered}</aired>\n"
+        xml += f"  <studio>{channel}</studio>\n"
+        xml += '</episodedetails>\n'
+        
+    with open(nfo_path, 'w', encoding='utf-8') as f:
+        f.write(xml)
+        
+    return {"nfo": True}
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("{}")
+        sys.exit(1)
+        
+    action = sys.argv[1]
+    
+    if action == "search_tvmaze":
+        query = sys.argv[2]
+        res = search_tvmaze(query)
+        print(json.dumps(res))
+    elif action == "search_tmdb":
+        query = sys.argv[2]
+        res = search_tmdb_movie(query)
+        print(json.dumps(res))
+    elif action == "search_tmdb_tv":
+        query = sys.argv[2]
+        res = search_tmdb_tv(query, "de-DE")
+        print(json.dumps(res))
+    elif action == "search_tmdb_tv_en":
+        query = sys.argv[2]
+        res = search_tmdb_tv(query, "en-US")
+        print(json.dumps(res))
+    elif action == "fetch_tvmaze":
+        show_id = sys.argv[2]
+        season = sys.argv[3]
+        res = fetch_tvmaze(show_id, season)
+        print(json.dumps(res))
+    elif action == "fetch_fernsehserien":
+        show_name = sys.argv[2]
+        season = sys.argv[3]
+        res = get_fernsehserien_episodes(show_name, season)
+        print(json.dumps(res))
+    elif action == "fetch_tmdb_tv":
+        show_id = sys.argv[2]
+        season = sys.argv[3]
+        res = fetch_tmdb_tv(show_id, season, "de-DE")
+        print(json.dumps(res))
+    elif action == "fetch_tmdb_tv_en":
+        show_id = sys.argv[2]
+        season = sys.argv[3]
+        res = fetch_tmdb_tv(show_id, season, "en-US")
+        print(json.dumps(res))
+    elif action == "search_all_db":
+        query = sys.argv[2]
+        res = search_all_db(query)
+        print(json.dumps(res))
+    elif action == "fetch_tvdb":
+        show_id = sys.argv[2]
+        season = sys.argv[3]
+        res = fetch_tvdb(show_id, season, "deu")
+        print(json.dumps(res))
+    elif action == "show_info":
+        provider = sys.argv[2]
+        show_id = sys.argv[3]
+        res = get_show_info(provider, show_id)
+        print(res)
+    elif action == "match_episode":
+        filename = sys.argv[2]
+        json_str = sys.argv[3]
+        res = match_episode(filename, json_str)
+        print(res)
+    elif action == "generate_movie_nfo":
+        tmdb_id = sys.argv[2]
+        folder_path = sys.argv[3]
+        filename_base = sys.argv[4]
+        fallback = sys.argv[5] if len(sys.argv) > 5 else None
+        res = generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback)
+        print(json.dumps(res))
+    elif action == "search_ofdb":
+        query = sys.argv[2]
+        res = search_ofdb(query)
+        print(json.dumps(res))
+    elif action == "generate_ofdb_nfo":
+        ofdb_full_id = sys.argv[2]
+        folder_path = sys.argv[3]
+        filename_base = sys.argv[4]
+        fallback = sys.argv[5] if len(sys.argv) > 5 else None
+        res = generate_ofdb_nfo(ofdb_full_id, folder_path, filename_base, fallback)
+        print(json.dumps(res))
+    elif action == "generate_tvshow_nfo":
+        provider = sys.argv[2]
+        show_id = sys.argv[3]
+        target_folder = sys.argv[4]
+        res = generate_tvshow_nfo(provider, show_id, target_folder)
+        print(json.dumps(res))
+    elif action == "generate_episode_nfo":
+        provider = sys.argv[2]
+        show_id = sys.argv[3]
+        season = sys.argv[4]
+        episode = sys.argv[5]
+        target_folder = sys.argv[6]
+        filename_base = sys.argv[7]
+        res = generate_episode_nfo(provider, show_id, season, episode, target_folder, filename_base)
+        print(json.dumps(res))
+    elif action == "generate_youtube_nfo":
+        json_path = sys.argv[2]
+        nfo_path = sys.argv[3]
+        nfo_type = sys.argv[4]
+        res = generate_youtube_nfo(json_path, nfo_path, nfo_type)
+        print(json.dumps(res))
+    elif action == "guess_season":
+        provider = sys.argv[2]
+        show_id = sys.argv[3]
+        filenames_json = sys.argv[4]
+        res = guess_season(provider, show_id, filenames_json)
+        if res:
+            print(res)
+    else:
+        print("{}")
+
+def guess_season(provider, show_id, filenames_json_or_list):
+    if isinstance(filenames_json_or_list, str):
+        try:
+            filenames = json.loads(filenames_json_or_list)
+        except:
+            return None
+    else:
+        filenames = filenames_json_or_list
+    if not filenames:
+        return None
+
+    seasons = []
+    try:
+        if provider in ["tmdb_tv", "tmdb_tv_en", "tmdb"]:
+            url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+                seasons = [str(s['season_number']) for s in data.get('seasons', []) if s.get('season_number', 0) > 0]
+        elif provider == "tvdb":
+            token = get_tvdb_token()
+            url = f"https://api4.thetvdb.com/v4/series/{show_id}/extended"
+            req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode()).get('data', {})
+                seasons = [str(s['number']) for s in data.get('seasons', []) if s.get('type', {}).get('id') == 1 and s.get('number', 0) > 0]
+        elif provider == "tvmaze":
+            url = f"https://api.tvmaze.com/shows/{show_id}/seasons"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+                seasons = [str(s['number']) for s in data if s.get('number', 0) > 0]
+    except Exception:
+        pass
+        
+    if not seasons: return None
+    
+    best_season = ""
+    best_season_score = 0.0
+    
+    import re
+    def get_words(text):
+        words = set(re.findall(r'\w+', text.lower()))
+        return {w for w in words if w not in ['der', 'die', 'das', 'in', 'im', 'teil', 'part', 'von', 'und', 'folge', 'episode']}
+        
+    file_word_sets = [get_words(f) for f in filenames]
+    
+    for season in reversed(seasons):
+        if provider in ["tmdb_tv", "tmdb_tv_en", "tmdb"]:
+            episodes = fetch_tmdb_tv(show_id, season, lang="de-DE")
+        elif provider == "tvdb":
+            episodes = fetch_tvdb(show_id, season, lang="deu")
+        elif provider == "tvmaze":
+            episodes = fetch_tvmaze(show_id, season)
+        else:
+            episodes = {}
+            
+        season_score = 0.0
+        matches = 0
+        
+        for file_words in file_word_sets:
+            best_ep_score = 0.0
+            for ep_num, ep_data in episodes.items():
+                title = ep_data.get('title', '') if isinstance(ep_data, dict) else str(ep_data)
+                title_words = get_words(title)
+                if not title_words: continue
+                overlap = len(title_words.intersection(file_words))
+                score = overlap / len(title_words)
+                if score > best_ep_score:
+                    best_ep_score = score
+            if best_ep_score > 0.4:
+                season_score += best_ep_score
+                matches += 1
+                
+        if matches > 0 and season_score > best_season_score:
+            best_season_score = season_score
+            best_season = season
+            
+        # Fast exit if we found matches for almost all files (at least half)
+        if matches >= max(1, len(filenames) * 0.5):
+            break
+            
+    if best_season:
+        return best_season
+    return None
+
+def clean_search_query(query):
+    if not query:
+        return ""
+    q = query.strip()
+    # If it is a direct ID (IMDB ID or TMDB ID) or digits, don't clean it
+    if q.startswith("tt") or q.startswith("tmdb:") or q.isdigit():
+        return q
+        
+    # Remove video file extensions first
+    q = re.sub(r"\.(mkv|mp4|avi|webm|mov|m4v|3gp|flv)$", "", q, flags=re.IGNORECASE)
+    
+    # Check if the query looks like a raw release name containing common noise patterns.
+    # We do this to distinguish release names from clean hyphenated titles like "He-Man".
+    has_release_noise = bool(re.search(
+        r"\b(19\d{2}|20\d{2}|1080p|720p|2160p|4k|uhd|x264|x265|h264|h265|hevc|bluray|web-dl|webdl|webrip|web|hdtv|german|deutsch|dl|multi|S\d+(E\d+)?)\b", 
+        q, 
+        re.IGNORECASE
+    ))
+    
+    # Remove release tags at the end like "-GRP" or "-TvR" BEFORE replacing dashes,
+    # but only if the query has release noise or the hyphen is preceded by a space, dot, underscore, or digit.
+    if has_release_noise or re.search(r"[\s\._\d]-\s*[a-zA-Z0-9]+$", q):
+        q = re.sub(r"-\s*[a-zA-Z0-9]+$", "", q)
+    
+    # Remove lowercase short prefixes followed by a hyphen (e.g., "sh-") at the start,
+    # but avoid stripping capitalized names like "He-Man" or "X-Men".
+    q = re.sub(r"^[a-z]{2,3}-(?=[A-Z0-9])", "", q)
+    
+    # Replace dots, underscores, dashes with spaces
+    q = re.sub(r"[\._-]", " ", q)
+    
+    # Extract and remove 4-digit years (e.g. 2011) to avoid confusing search APIs
+    year_match = re.search(r"\b(19\d{2}|20\d{2})\b", q)
+    if year_match:
+        year = year_match.group(1)
+        q = q.replace(year, " ")
+        
+    # Noise terms commonly found in release filenames (resolutions, codecs, language, audio, groups)
+    noise_patterns = [
+        r"\bS\d+(E\d+)?\b",  # S01, S01E01
+        r"\bSeason\s+\d+\b",
+        r"\bStaffel\s+\d+\b",
+        r"\b(1080p|720p|2160p|4k|576p|480p|1080i|720i|3d|uhd)\b",
+        r"\b(x264|x265|h264|h265|hevc|avc|mpeg2|mpeg4|hvc1)\b",
+        r"\b(bluray|blu-ray|web-dl|webdl|webrip|web|hdtv|dvd|dvdrip|bdrip|brrip|remux|complete|uncut|unrated|retail|proper|repack)\b",
+        r"\b(dd5\.?1|dd2\.?0|dts|dts-hd|truehd|atmos|ac3|aac)\b",
+        r"\b(german|deutsch|english|englisch|dl|multi|subbed|dubbed|dub|sub)\b",
+        r"\b(directors?\s*cut|extended\s*cut|theatrical\s*cut|final\s*cut)\b",
+        r"\b(extended|directors?|theatrical|remastered|limited|special|edition|imax|hdr(10)?(\+)?|sdr|dv|dovi|dolby\s*vision|10\s*bit|8\s*bit|10bit|8bit)\b",
+    ]
+    
+    for pat in noise_patterns:
+        q = re.sub(pat, " ", q, flags=re.IGNORECASE)
+        
+    # Clean up double/multiple spaces and brackets
+    q = re.sub(r"\(\s*\)", " ", q)
+    q = re.sub(r"\[\s*\]", " ", q)
+    q = re.sub(r"\s+", " ", q).strip()
+    return q
+
+def calculate_match_score(query, result_name):
+    if not query or not result_name:
+        return 0.0
+        
+    # Extract year from query
+    q_year_match = re.search(r"\b(19\d{2}|20\d{2})\b", query)
+    q_year = q_year_match.group(1) if q_year_match else None
+    
+    # Clean query (remove year for title matching)
+    clean_q = query
+    if q_year:
+        clean_q = clean_q.replace(q_year, "")
+    clean_q = clean_search_query(clean_q)
+    
+    # Extract year from result_name
+    res_year_match = re.search(r"\((\d{4})\)", result_name)
+    res_year = res_year_match.group(1) if res_year_match else None
+    
+    # Clean result name (remove year in parentheses and provider brackets)
+    clean_res = re.sub(r"\[.*\]", "", result_name)
+    clean_res = re.sub(r"\(\d{4}\)", "", clean_res)
+    clean_res = clean_search_query(clean_res)
+    
+    # Compute words
+    q_words = set(re.findall(r"\w+", clean_q.lower()))
+    res_words = set(re.findall(r"\w+", clean_res.lower()))
+    
+    if not q_words or not res_words:
+        score = 0.0
+    else:
+        # Jaccard similarity index
+        intersection = q_words.intersection(res_words)
+        union = q_words.union(res_words)
+        score = len(intersection) / len(union)
+        
+        # Word set exact matching bonus
+        q_sorted = " ".join(sorted(q_words))
+        res_sorted = " ".join(sorted(res_words))
+        if q_sorted == res_sorted:
+            score += 0.5
+        elif clean_q.lower() in clean_res.lower() or clean_res.lower() in clean_q.lower():
+            score += 0.2
+            
+    # Year compatibility score
+    if q_year and res_year:
+        if q_year == res_year:
+            score += 0.3
+        else:
+            score -= 1.5  # Heavy penalty for mismatch
+            
+    return max(0.0, score)
+
+
+# --- Mediathek & YT-DLP Integration ---
+
+def search_mediathek(query):
+    url = "https://mediathekviewweb.de/api/query"
+    payload = {
+        "queries": [
+            {
+                "fields": ["title", "topic"],
+                "query": query
+            }
+        ],
+        "sortBy": "timestamp",
+        "sortOrder": "desc",
+        "future": False,
+        "offset": 0,
+        "size": 50
+    }
+    
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+        },
+        method="POST"
+    )
+    
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            results = []
+            seen_topics = set()
+            for item in res_data.get("result", {}).get("results", []):
+                topic = item.get("topic") or item.get("title")
+                if not topic: continue
+                topic_clean = topic.strip()
+                if topic_clean not in seen_topics:
+                    seen_topics.add(topic_clean)
+                    channel = item.get("channel", "Mediathek")
+                    results.append({
+                        "id": topic_clean,
+                        "name": f"{topic_clean} [{channel}]",
+                        "provider": "mediathek"
+                    })
+            return results
+    except Exception as e:
+        print(f"[search_mediathek] Error: {e}", file=sys.stderr)
+        return []
+
+def fetch_mediathek_episodes(topic):
+    is_query_search = False
+    if topic.startswith("url_mediathek:"):
+        topic = topic.split("url_mediathek:", 1)[1]
+        is_query_search = True
+
+    url = "https://mediathekviewweb.de/api/query"
+    payload = {
+        "queries": [
+            {
+                "fields": ["topic"] if not is_query_search else ["title", "topic"],
+                "query": topic,
+                "exact": not is_query_search
+            }
+        ],
+        "sortBy": "timestamp",
+        "sortOrder": "asc",
+        "future": False,
+        "offset": 0,
+        "size": 100
+    }
+    
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+        },
+        method="POST"
+    )
+    
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            episodes = {}
+            results = res_data.get("result", {}).get("results", [])
+            
+            if not results:
+                payload["queries"][0]["exact"] = False
+                req = urllib.request.Request(
+                    url,
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={
+                        "Content-Type": "application/json",
+                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+                    },
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=10) as fallback_response:
+                    res_data = json.loads(fallback_response.read().decode("utf-8"))
+                    results = res_data.get("result", {}).get("results", [])
+            
+            for idx, item in enumerate(results):
+                title = item.get("title") or f"Folge {idx+1}"
+                date_str = ""
+                ts = item.get("timestamp")
+                if ts:
+                    try:
+                        import datetime
+                        date_str = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+                    except:
+                        pass
+                
+                ep_num = str(idx + 1)
+                episodes[ep_num] = {
+                    "title": title.replace('/', '-').replace(':', '').strip(),
+                    "date": date_str,
+                    "plot": item.get("description", "")
+                }
+            return episodes
+    except Exception as e:
+        print(f"[fetch_mediathek_episodes] Error: {e}", file=sys.stderr)
+        return {}
+
+YTDLP_CACHE = {}
+
+def fetch_ytdlp_url_metadata(url):
+    if url in YTDLP_CACHE:
+        return YTDLP_CACHE[url]
+        
+    import subprocess
+    import json
+    
+    cmd = [
+        "yt-dlp",
+        "--flat-playlist",
+        "--dump-json",
+        "--cookies-from-browser", "chrome",
+        url
+    ]
+    
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stdout, stderr = proc.communicate(timeout=30)
+        
+        entries = []
+        for line in stdout.splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    entries.append(json.loads(line))
+                except:
+                    pass
+                    
+        if not entries:
+            cmd_no_cookies = ["yt-dlp", "--flat-playlist", "--dump-json", url]
+            proc = subprocess.Popen(cmd_no_cookies, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            stdout, stderr = proc.communicate(timeout=30)
+            for line in stdout.splitlines():
+                line = line.strip()
+                if line:
+                    try:
+                        entries.append(json.loads(line))
+                    except:
+                        pass
+                        
+        YTDLP_CACHE[url] = entries
+        return entries
+    except Exception as e:
+        print(f"[fetch_ytdlp_url_metadata] Error: {e}", file=sys.stderr)
+        return []
+
