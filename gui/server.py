@@ -699,29 +699,19 @@ def import_streamfab_files():
         
     # 3. Process each group
     for key, file_list in groups.items():
-        if len(file_list) > 1:
-            # Group into a project folder named after the base name
-            first_filename = file_list[0][1]
-            folder_name, _ = os.path.splitext(first_filename)
-            safe_folder_name = limit_filename_length(sanitize_filename(folder_name))
-            project_dir = os.path.join(inbox, safe_folder_name)
-            os.makedirs(project_dir, exist_ok=True)
-            for src, f in file_list:
-                dst = os.path.join(project_dir, f)
-                try:
-                    shutil.move(src, dst)
-                    count += 1
-                except Exception as e:
-                    print(f"Error moving {f} to project dir {safe_folder_name}: {e}")
-        else:
-            # Single file stays in inbox root
-            src, f = file_list[0]
-            dst = os.path.join(inbox, f)
+        # Always group into a project folder named after the base name
+        first_filename = file_list[0][1]
+        folder_name, _ = os.path.splitext(first_filename)
+        safe_folder_name = limit_filename_length(sanitize_filename(folder_name))
+        project_dir = os.path.join(inbox, safe_folder_name)
+        os.makedirs(project_dir, exist_ok=True)
+        for src, f in file_list:
+            dst = os.path.join(project_dir, f)
             try:
                 shutil.move(src, dst)
                 count += 1
             except Exception as e:
-                print(f"Error moving single file {f} to inbox root: {e}")
+                print(f"Error moving {f} to project dir {safe_folder_name}: {e}")
                 
     # 4. Clean empty directories in sources
     for sf_dir in sources:

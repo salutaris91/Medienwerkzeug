@@ -673,9 +673,9 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             count = server.import_streamfab_files()
             self.assertEqual(count, 8)
             
-            # Check single file is in root of inbox
-            self.assertTrue(os.path.exists(os.path.join(test_inbox, "SingleVideo.mp4")))
-            self.assertFalse(os.path.exists(os.path.join(test_inbox, "SingleVideo", "SingleVideo.mp4")))
+            # Check single file is in a folder (project folder)
+            self.assertFalse(os.path.exists(os.path.join(test_inbox, "SingleVideo.mp4")))
+            self.assertTrue(os.path.exists(os.path.join(test_inbox, "SingleVideo", "SingleVideo.mp4")))
             
             # Check AwesomeMovie group is in a folder
             self.assertTrue(os.path.exists(os.path.join(test_inbox, "AwesomeMovie", "AwesomeMovie.mkv")))
