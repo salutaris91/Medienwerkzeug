@@ -626,6 +626,85 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         self.assertEqual(root_ep.find("episode").text, "1")
         self.assertEqual(root_ep.find("plot").text, "Über das Leben in kargen Landschaften.")
 
+    def test_import_streamfab_files_grouping(self):
+        from gui import server
+        orig_load_settings = server.load_settings
+        
+        # Setup temporary directories for testing
+        test_inbox = os.path.join(self.test_dir, "import_inbox")
+        test_sf_dir = os.path.join(self.test_dir, "import_sf")
+        os.makedirs(test_inbox, exist_ok=True)
+        os.makedirs(test_sf_dir, exist_ok=True)
+        
+        server.load_settings = lambda: {
+            "inbox_dir": test_inbox,
+            "import_sources": [test_sf_dir]
+        }
+        
+        try:
+            # 1. Create single video file in sf
+            single_video = os.path.join(test_sf_dir, "SingleVideo.mp4")
+            with open(single_video, 'w') as f:
+                f.write("dummy video")
+                
+            # 2. Create group with identical base name
+            grp_video = os.path.join(test_sf_dir, "AwesomeMovie.mkv")
+            grp_srt = os.path.join(test_sf_dir, "AwesomeMovie.srt")
+            grp_jpg = os.path.join(test_sf_dir, "AwesomeMovie.jpg")
+            for fp in [grp_video, grp_srt, grp_jpg]:
+                with open(fp, 'w') as f:
+                    f.write("dummy group")
+                    
+            # 3. Create case-insensitive group
+            case_video = os.path.join(test_sf_dir, "CaseTest.mp4")
+            case_srt = os.path.join(test_sf_dir, "casetest.SRT")
+            for fp in [case_video, case_srt]:
+                with open(fp, 'w') as f:
+                    f.write("dummy case")
+
+            # 4. Create group with illegal characters in base name
+            dirty_video = os.path.join(test_sf_dir, "My Movie: A.mp4")
+            dirty_srt = os.path.join(test_sf_dir, "My Movie: A.srt")
+            for fp in [dirty_video, dirty_srt]:
+                with open(fp, 'w') as f:
+                    f.write("dummy dirty")
+
+            # Run import
+            count = server.import_streamfab_files()
+            self.assertEqual(count, 8)
+            
+            # Check single file is in root of inbox
+            self.assertTrue(os.path.exists(os.path.join(test_inbox, "SingleVideo.mp4")))
+            self.assertFalse(os.path.exists(os.path.join(test_inbox, "SingleVideo", "SingleVideo.mp4")))
+            
+            # Check AwesomeMovie group is in a folder
+            self.assertTrue(os.path.exists(os.path.join(test_inbox, "AwesomeMovie", "AwesomeMovie.mkv")))
+            self.assertTrue(os.path.exists(os.path.join(test_inbox, "AwesomeMovie", "AwesomeMovie.srt")))
+            self.assertTrue(os.path.exists(os.path.join(test_inbox, "AwesomeMovie", "AwesomeMovie.jpg")))
+            
+            # Check CaseTest group (case-insensitive) is in a folder
+            inbox_dirs = [d for d in os.listdir(test_inbox) if os.path.isdir(os.path.join(test_inbox, d))]
+            self.assertIn("AwesomeMovie", inbox_dirs)
+            case_folder = next((d for d in inbox_dirs if d.lower() == "casetest"), None)
+            self.assertIsNotNone(case_folder)
+            self.assertTrue(os.path.exists(os.path.join(test_inbox, case_folder, "CaseTest.mp4")))
+            self.assertTrue(os.path.exists(os.path.join(test_inbox, case_folder, "casetest.SRT")))
+
+            # Check My Movie: A group is in a sanitized folder name
+            self.assertTrue(os.path.exists(os.path.join(test_inbox, "My Movie - A", "My Movie: A.mp4")))
+            self.assertTrue(os.path.exists(os.path.join(test_inbox, "My Movie - A", "My Movie: A.srt")))
+            
+            # Check that empty source folder is cleaned up (as top-level test_sf_dir is not deleted, but subdirs might be.
+            # Wait, the code deletes subdirectories inside sf_dir, but does it delete sf_dir itself?
+            # Let's check: sf_dir has all files moved, so it is empty now.
+            # But the code walks sf_dir and deletes empty dirs. Since sf_dir itself is not a subdirectory inside sf_dir,
+            # sf_dir itself might remain, but it should be empty. Let's check that test_sf_dir is empty or does not exist.
+            self.assertTrue(os.path.exists(test_sf_dir))
+            self.assertEqual(len(os.listdir(test_sf_dir)), 0)
+            
+        finally:
+            server.load_settings = orig_load_settings
+
 if __name__ == "__main__":
     unittest.main()
 

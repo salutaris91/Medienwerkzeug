@@ -601,7 +601,6 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None):
     
     if tmdb_id == "manual" or (isinstance(tmdb_id, str) and tmdb_id.startswith("{")):
         if needs_nfo:
-            import json
             try:
                 meta = json.loads(tmdb_id) if isinstance(tmdb_id, str) else tmdb_id
             except:
@@ -759,7 +758,6 @@ def generate_tvshow_nfo(provider, show_id, target_folder):
     import os
     
     if provider == "manual":
-        import json
         try:
             meta = json.loads(show_id) if isinstance(show_id, str) else show_id
         except:

@@ -676,6 +676,9 @@ def import_streamfab_files():
     
     os.makedirs(inbox, exist_ok=True)
     count = 0
+    
+    # 1. Collect all candidates
+    all_files_to_import = []
     for sf_dir in sources:
         if not os.path.exists(sf_dir):
             continue
@@ -683,14 +686,47 @@ def import_streamfab_files():
             for f in files:
                 if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.srt', '.nfo', '.vtt', '.jpg', '.png')):
                     src = os.path.join(root, f)
-                    dst = os.path.join(inbox, f)
-                    try:
-                        shutil.move(src, dst)
-                        count += 1
-                    except Exception as e:
-                        print(f"Error moving {f}: {e}")
-                        
-        # Clean empty directories
+                    all_files_to_import.append((src, f))
+                    
+    # 2. Group by base name case-insensitively
+    groups = {} # lowercase_base_name -> list of (src, original_filename)
+    for src, f in all_files_to_import:
+        base_name, _ = os.path.splitext(f)
+        key = base_name.lower()
+        if key not in groups:
+            groups[key] = []
+        groups[key].append((src, f))
+        
+    # 3. Process each group
+    for key, file_list in groups.items():
+        if len(file_list) > 1:
+            # Group into a project folder named after the base name
+            first_filename = file_list[0][1]
+            folder_name, _ = os.path.splitext(first_filename)
+            safe_folder_name = limit_filename_length(sanitize_filename(folder_name))
+            project_dir = os.path.join(inbox, safe_folder_name)
+            os.makedirs(project_dir, exist_ok=True)
+            for src, f in file_list:
+                dst = os.path.join(project_dir, f)
+                try:
+                    shutil.move(src, dst)
+                    count += 1
+                except Exception as e:
+                    print(f"Error moving {f} to project dir {safe_folder_name}: {e}")
+        else:
+            # Single file stays in inbox root
+            src, f = file_list[0]
+            dst = os.path.join(inbox, f)
+            try:
+                shutil.move(src, dst)
+                count += 1
+            except Exception as e:
+                print(f"Error moving single file {f} to inbox root: {e}")
+                
+    # 4. Clean empty directories in sources
+    for sf_dir in sources:
+        if not os.path.exists(sf_dir):
+            continue
         for root, dirs, files in os.walk(sf_dir, topdown=False):
             for d in dirs:
                 dir_path = os.path.join(root, d)
