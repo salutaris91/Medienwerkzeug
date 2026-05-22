@@ -705,6 +705,47 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         finally:
             server.load_settings = orig_load_settings
 
+    def test_queue_clear(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        
+        # Mock/dummy handler
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+                
+        dummy = DummyHandler()
+        
+        # Save original active_jobs
+        with server.active_jobs_lock:
+            orig_jobs = dict(server.active_jobs)
+            server.active_jobs.clear()
+            
+            # Setup test jobs
+            server.active_jobs["job1"] = {"id": "job1", "status": "done", "timestamp": 1.0}
+            server.active_jobs["job2"] = {"id": "job2", "status": "error", "timestamp": 2.0}
+            server.active_jobs["job3"] = {"id": "job3", "status": "running", "timestamp": 3.0}
+            server.active_jobs["job4"] = {"id": "job4", "status": "queued", "timestamp": 4.0}
+            
+        try:
+            GUIRequestHandler.handle_api_queue_clear(dummy)
+            
+            self.assertEqual(dummy.sent_json, {"status": "success"})
+            
+            with server.active_jobs_lock:
+                self.assertEqual(len(server.active_jobs), 2)
+                self.assertIn("job3", server.active_jobs)
+                self.assertIn("job4", server.active_jobs)
+                self.assertNotIn("job1", server.active_jobs)
+                self.assertNotIn("job2", server.active_jobs)
+                
+        finally:
+            with server.active_jobs_lock:
+                server.active_jobs.clear()
+                server.active_jobs.update(orig_jobs)
+
 if __name__ == "__main__":
     unittest.main()
 

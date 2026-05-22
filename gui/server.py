@@ -1987,6 +1987,8 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             self.handle_api_match_episodes(params)
         elif path == "/api/estimate-conversion":
             self.handle_api_estimate_conversion(params)
+        elif path == "/api/queue/clear":
+            self.handle_api_queue_clear()
         else:
             self.send_error(404, "Not found")
 
@@ -2925,6 +2927,16 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                 })
         jobs_list.sort(key=lambda x: x["timestamp"])
         self.send_json({"jobs": jobs_list})
+
+    def handle_api_queue_clear(self):
+        with active_jobs_lock:
+            to_keep = {}
+            for task_id, job in active_jobs.items():
+                if job.get("status") not in ("done", "error"):
+                    to_keep[task_id] = job
+            active_jobs.clear()
+            active_jobs.update(to_keep)
+        self.send_json({"status": "success"})
 
     def handle_api_yt_fetch(self, query):
         url_list = query.get("url", [""])
