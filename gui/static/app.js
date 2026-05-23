@@ -63,7 +63,35 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         ytOverrideInput.addEventListener("change", fetchYtNasSeasons);
     }
+    
+    // Automatically match pCloud destination with NAS destination
+    if (seriesNasDest) {
+        seriesNasDest.addEventListener("change", (e) => {
+            const pcloudDest = document.getElementById("series-pcloud-destination");
+            if (pcloudDest) {
+                pcloudDest.value = e.target.value;
+            }
+        });
+    }
+    if (ytNasDest) {
+        ytNasDest.addEventListener("change", (e) => {
+            const pcloudDest = document.getElementById("yt-pcloud-destination");
+            if (pcloudDest) {
+                pcloudDest.value = e.target.value;
+            }
+        });
+    }
+    const movieNasDest = document.getElementById("movie-nas-destination");
+    if (movieNasDest) {
+        movieNasDest.addEventListener("change", (e) => {
+            const pcloudDest = document.getElementById("movie-pcloud-destination");
+            if (pcloudDest) {
+                pcloudDest.value = e.target.value;
+            }
+        });
+    }
 });
+
 
 // ==========================================================================
 // UTILS / HELPERS
@@ -3422,6 +3450,71 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             } catch (e) {
                 alert("Verbindungsfehler: " + e);
+            }
+        });
+    }
+
+    const btnRestartServer = document.getElementById("btn-restart-server");
+    if (btnRestartServer) {
+        btnRestartServer.addEventListener("click", async () => {
+            if (!confirm("Bist du sicher, dass du den Server neu starten möchtest?")) {
+                return;
+            }
+            
+            btnRestartServer.disabled = true;
+            btnRestartServer.textContent = "⌛ Starte neu...";
+            
+            try {
+                const response = await fetch("/api/system/restart", {
+                    method: "POST"
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === "busy") {
+                        alert("Abgebrochen: " + data.message);
+                        btnRestartServer.disabled = false;
+                        btnRestartServer.textContent = "🔄 Server neu starten";
+                    } else if (data.status === "restarting") {
+                        appendConsoleLog("[System]: Server startet neu... Warte auf Neustart.");
+                        expandConsole();
+                        
+                        const pollInterval = setInterval(async () => {
+                            try {
+                                const res = await fetch("/api/status");
+                                if (res.ok) {
+                                    clearInterval(pollInterval);
+                                    appendConsoleLog("[System]: Server wieder online. Lade Seite neu...");
+                                    setTimeout(() => {
+                                        location.reload();
+                                    }, 500);
+                                }
+                            } catch (err) {
+                                // Keep polling
+                            }
+                        }, 1000);
+                    }
+                } else {
+                    alert("Fehler beim Senden des Neustart-Befehls.");
+                    btnRestartServer.disabled = false;
+                    btnRestartServer.textContent = "🔄 Server neu starten";
+                }
+            } catch (e) {
+                appendConsoleLog("[System]: Verbindung getrennt. Warte auf Server...");
+                const pollInterval = setInterval(async () => {
+                    try {
+                        const res = await fetch("/api/status");
+                        if (res.ok) {
+                            clearInterval(pollInterval);
+                            appendConsoleLog("[System]: Server wieder online. Lade Seite neu...");
+                            setTimeout(() => {
+                                location.reload();
+                            }, 500);
+                        }
+                    } catch (err) {
+                        // Keep polling
+                    }
+                }, 1000);
             }
         });
     }

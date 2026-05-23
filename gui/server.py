@@ -514,10 +514,13 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False):
         if match:
             percent = int(match.group(1))
             if task_id:
-                with active_jobs_lock:
-                    if task_id in active_jobs:
-                        active_jobs[task_id]["progress"] = percent
-                        active_jobs[task_id]["message"] = f"Übertragung: {percent}%"
+                if callable(task_id):
+                    task_id(percent, f"Übertragung: {percent}%")
+                else:
+                    with active_jobs_lock:
+                        if task_id in active_jobs:
+                            active_jobs[task_id]["progress"] = percent
+                            active_jobs[task_id]["message"] = f"Übertragung: {percent}%"
             # Throttle logging: only print to log_message at multiples of 10%
             if percent % 10 == 0 and percent != last_logged_pct:
                 log_message(f"Übertragung: {percent}%")
@@ -580,10 +583,13 @@ def run_ffmpeg_with_progress(cmd, filepath, task_id=None, log_queue=None):
         if current_time is not None and duration > 0:
             percent = min(99, int((current_time / duration) * 100))
             if task_id:
-                with active_jobs_lock:
-                    if task_id in active_jobs:
-                        active_jobs[task_id]["progress"] = percent
-                        active_jobs[task_id]["message"] = f"Konvertierung: {percent}%"
+                if callable(task_id):
+                    task_id(percent, f"Konvertierung: {percent}%")
+                else:
+                    with active_jobs_lock:
+                        if task_id in active_jobs:
+                            active_jobs[task_id]["progress"] = percent
+                            active_jobs[task_id]["message"] = f"Konvertierung: {percent}%"
                         
     proc.wait()
     return proc.returncode == 0
@@ -679,10 +685,13 @@ def copy_to_pcloud(source_dir, nas_target_dir, task_id=None, explicit_remote_bas
             if match:
                 percent = int(match.group(1))
                 if task_id:
-                    with active_jobs_lock:
-                        if task_id in active_jobs:
-                            active_jobs[task_id]["progress"] = percent
-                            active_jobs[task_id]["message"] = f"Upload: {percent}%"
+                    if callable(task_id):
+                        task_id(percent, f"Upload: {percent}%")
+                    else:
+                        with active_jobs_lock:
+                            if task_id in active_jobs:
+                                active_jobs[task_id]["progress"] = percent
+                                active_jobs[task_id]["message"] = f"Upload: {percent}%"
                 if percent % 10 == 0 and percent != last_logged_pct:
                     log_message(f"Upload: {percent}%")
                     last_logged_pct = percent
@@ -940,8 +949,169 @@ def process_worker(params):
             log_message(f"Fehler beim Laden der Episoden: {e}")
             episodes = {}
 
-        # 3. Process mappings
-        for filename, ep_num_val in mappings.items():
+        # 3. Setup parallel transmission thread and queue
+        mapping_items = list(mappings.items())
+        N = len(mapping_items)
+        if N == 0:
+            log_message("Keine Mappings zur Verarbeitung vorhanden.")
+            return
+
+        conv_pct = [0] * N
+        nas_pct = [0] * N
+        pcloud_pct = 0
+        file_titles = [""] * N
+        
+        has_conv = convert
+        has_nas = copy_to_nas
+        has_pcloud = params.get("copy_to_pcloud", False)
+        
+        w_conv = 0.5 if has_conv else 0
+        w_nas = 0.3 if has_nas else 0
+        w_pcloud = 0.2 if has_pcloud else 0
+        total_w = w_conv + w_nas + w_pcloud
+        
+        if total_w > 0:
+            w_conv = w_conv / total_w
+            w_nas = w_nas / total_w
+            w_pcloud = w_pcloud / total_w
+        else:
+            w_conv = 0.5
+            w_nas = 0.5
+            w_pcloud = 0.0
+
+        progress_lock = threading.Lock()
+
+        def update_global_job_progress():
+            with progress_lock:
+                total_file_progress = 0
+                for i in range(N):
+                    total_file_progress += (conv_pct[i] * w_conv) + (nas_pct[i] * w_nas)
+                
+                avg_files = total_file_progress / N if N > 0 else 0
+                total_val = avg_files + (pcloud_pct * w_pcloud)
+                percent = min(100, max(0, int(total_val)))
+                
+                active_conv = []
+                active_trans = []
+                for i in range(N):
+                    if conv_pct[i] > 0 and conv_pct[i] < 100:
+                        active_conv.append(f"{file_titles[i]} ({conv_pct[i]}%)")
+                    if nas_pct[i] > 0 and nas_pct[i] < 100:
+                        active_trans.append(f"{file_titles[i]} ({nas_pct[i]}%)")
+                        
+                status_parts = []
+                if active_conv:
+                    status_parts.append(f"Konvertierung: {', '.join(active_conv)}")
+                elif has_conv and sum(conv_pct) < N * 100:
+                    status_parts.append("Konvertierung wartet...")
+                    
+                if active_trans:
+                    status_parts.append(f"Kopieren: {', '.join(active_trans)}")
+                elif pcloud_pct > 0 and pcloud_pct < 100:
+                    status_parts.append(f"pCloud Upload: {pcloud_pct}%")
+                    
+                if not status_parts:
+                    status_parts.append("Verarbeitung läuft...")
+                    
+                message = " | ".join(status_parts)
+                
+                if task_id:
+                    with active_jobs_lock:
+                        if task_id in active_jobs:
+                            active_jobs[task_id]["progress"] = percent
+                            active_jobs[task_id]["message"] = message
+
+        transfer_queue = queue.Queue()
+        transfer_errors = []
+
+        def transfer_worker():
+            while True:
+                task = transfer_queue.get()
+                if task is None:
+                    transfer_queue.task_done()
+                    break
+                try:
+                    task_type = task["type"]
+                    file_idx = task.get("file_idx")
+                    
+                    if task_type == "nas_transfer":
+                        dest_dir_outbox = task["dest_dir_outbox"]
+                        dest_dir_nas = task["dest_dir_nas"]
+                        final_filename = task["final_filename"]
+                        clean_title = task["clean_title"]
+                        
+                        log_message(f"[Transfer Thread]: Starte NAS-Kopieren für {final_filename}...")
+                        
+                        def nas_progress_cb(percent, msg):
+                            nas_pct[file_idx] = percent
+                            update_global_job_progress()
+                            
+                        os.makedirs(dest_dir_nas, exist_ok=True)
+                        success = run_rsync_with_progress(
+                            os.path.join(dest_dir_outbox, final_filename),
+                            os.path.join(dest_dir_nas, final_filename),
+                            task_id=nas_progress_cb
+                        )
+                        if not success:
+                            log_message(f"⚠️ [Transfer Thread]: Fehler beim Kopieren von {final_filename} auf das NAS.")
+                        else:
+                            nas_pct[file_idx] = 100
+                            
+                        # Copy accompanying files
+                        for f in os.listdir(dest_dir_outbox):
+                            if f.startswith(clean_title) and f != final_filename:
+                                shutil.copy(os.path.join(dest_dir_outbox, f), os.path.join(dest_dir_nas, f))
+                        
+                        log_message(f"[Transfer Thread]: NAS-Kopieren fertig für {final_filename}.")
+                        update_global_job_progress()
+                        
+                    elif task_type == "show_metadata_nas_transfer":
+                        dest_show_dir_outbox = task["dest_show_dir_outbox"]
+                        dest_show_dir_nas = task["dest_show_dir_nas"]
+                        
+                        log_message("[Transfer Thread]: Kopiere Serien-Metadaten auf NAS...")
+                        os.makedirs(dest_show_dir_nas, exist_ok=True)
+                        for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]:
+                            p_src = os.path.join(dest_show_dir_outbox, f)
+                            if os.path.exists(p_src):
+                                shutil.copy(p_src, os.path.join(dest_show_dir_nas, f))
+                        log_message("[Transfer Thread]: Serien-Metadaten kopiert.")
+                        subprocess.run(["open", dest_show_dir_nas])
+                        
+                    elif task_type == "pcloud_transfer":
+                        dest_show_dir_outbox = task["dest_show_dir_outbox"]
+                        nas_serien = task["nas_serien"]
+                        explicit_pcloud_base = task["explicit_pcloud_base"]
+                        
+                        log_message("[Transfer Thread]: Starte pCloud-Upload...")
+                        
+                        def pcloud_progress_cb(percent, msg):
+                            nonlocal pcloud_pct
+                            pcloud_pct = percent
+                            update_global_job_progress()
+                            
+                        copy_to_pcloud(
+                            dest_show_dir_outbox,
+                            nas_serien,
+                            task_id=pcloud_progress_cb,
+                            explicit_remote_base=explicit_pcloud_base
+                        )
+                        pcloud_pct = 100
+                        log_message("[Transfer Thread]: pCloud-Upload fertig.")
+                        update_global_job_progress()
+                        
+                except Exception as e:
+                    log_message(f"❌ [Transfer Thread] Fehler: {e}")
+                    transfer_errors.append(e)
+                finally:
+                    transfer_queue.task_done()
+
+        # Start the Transfer Thread
+        transfer_thread = threading.Thread(target=transfer_worker, daemon=True)
+        transfer_thread.start()
+
+        # 4. Process mappings sequentially
+        for file_idx, (filename, ep_num_val) in enumerate(mapping_items):
             # If explicit_renames was used, the file is ALREADY renamed to the target_filename
             # We just need to generate the NFO!
             
@@ -997,6 +1167,9 @@ def process_worker(params):
                 ep_str = f"E{int(ep_num):02d}"
             except (ValueError, TypeError):
                 ep_str = f"E{ep_num}"
+            
+            # Save file title for display
+            file_titles[file_idx] = f"{season_str}{ep_str}"
             
             clean_title = f"{clean_show_name} - {season_str}{ep_str}"
             if ep_title:
@@ -1067,7 +1240,10 @@ def process_worker(params):
                         "-c:a", "copy", temp_output
                     ]
                     try:
-                        success = run_ffmpeg_with_progress(ffmpeg_cmd, target_filepath, task_id=task_id, log_queue=log_queue)
+                        def ffmpeg_progress_cb(percent, msg):
+                            conv_pct[file_idx] = percent
+                            update_global_job_progress()
+                        success = run_ffmpeg_with_progress(ffmpeg_cmd, target_filepath, task_id=ffmpeg_progress_cb, log_queue=log_queue)
                         if success and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
                             log_message("Konvertierung erfolgreich beendet.")
                             try:
@@ -1087,15 +1263,23 @@ def process_worker(params):
                                 os.remove(final_filepath)
                             os.rename(temp_output, final_filepath)
                             final_filename = f"{clean_title}.mkv"
+                            conv_pct[file_idx] = 100
                         else:
                             log_message(f"❌ Fehler bei der Konvertierung von {target_filename}.")
                             if os.path.exists(temp_output):
                                 os.remove(temp_output)
+                            conv_pct[file_idx] = 100
                     except Exception as e:
                         log_message(f"Konvertierungsfehler: {e}")
                         if os.path.exists(temp_output):
                             os.remove(temp_output)
-                            
+                        conv_pct[file_idx] = 100
+                else:
+                    conv_pct[file_idx] = 100
+            else:
+                conv_pct[file_idx] = 100
+            update_global_job_progress()
+            
             # Move to local Output folder
             nas_serien = destination if destination else f"{nas_root}/Serien"
             rel_dest = os.path.relpath(nas_serien, nas_root)
@@ -1121,24 +1305,23 @@ def process_worker(params):
             except Exception as e:
                 log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
  
-            # Copy to NAS if requested
+            # Queue NAS transfer task
             if copy_to_nas:
                 if not ensure_nas_mounted():
                     raise RuntimeError("NAS konnte nicht gemountet werden. Kopiervorgang abgebrochen.")
                 dest_dir_nas = os.path.join(nas_serien, clean_show_name, f"Staffel {int(ep_season)}", clean_title)
-                log_message(f"Kopiere auf NAS: {dest_dir_nas}")
-                try:
-                    os.makedirs(dest_dir_nas, exist_ok=True)
-                    success = run_rsync_with_progress(os.path.join(dest_dir_outbox, final_filename), os.path.join(dest_dir_nas, final_filename), task_id)
-                    if not success:
-                        log_message("⚠️ Fehler beim Kopieren der Videodatei auf das NAS.")
-                    for f in os.listdir(dest_dir_outbox):
-                        if f.startswith(clean_title) and f != final_filename:
-                            shutil.copy(os.path.join(dest_dir_outbox, f), os.path.join(dest_dir_nas, f))
-                    log_message(f"  ✅ Erfolgreich auf NAS kopiert.")
-                except Exception as e:
-                    log_message(f"  ❌ Fehler beim Kopieren auf NAS: {e}")
-                    
+                transfer_queue.put({
+                    "type": "nas_transfer",
+                    "file_idx": file_idx,
+                    "dest_dir_outbox": dest_dir_outbox,
+                    "dest_dir_nas": dest_dir_nas,
+                    "final_filename": final_filename,
+                    "clean_title": clean_title
+                })
+            else:
+                nas_pct[file_idx] = 100
+                update_global_job_progress()
+                
         # Move show-level files to local Output
         nas_serien = destination if destination else f"{nas_root}/Serien"
         rel_dest = os.path.relpath(nas_serien, nas_root)
@@ -1159,20 +1342,29 @@ def process_worker(params):
         # Copy show-level files to NAS if requested
         if copy_to_nas:
             dest_show_dir_nas = os.path.join(nas_serien, clean_show_name)
-            try:
-                os.makedirs(dest_show_dir_nas, exist_ok=True)
-                for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]:
-                    p_src = os.path.join(dest_show_dir_outbox, f)
-                    if os.path.exists(p_src):
-                        shutil.copy(p_src, os.path.join(dest_show_dir_nas, f))
-                        log_message(f"Serien-Metadatei auf NAS kopiert: {f}")
-                # Open NAS destination in Finder
-                subprocess.run(["open", dest_show_dir_nas])
-            except Exception as e:
-                log_message(f"Fehler beim Kopieren der Serien-Metadaten auf NAS: {e}")
-                
+            transfer_queue.put({
+                "type": "show_metadata_nas_transfer",
+                "dest_show_dir_outbox": dest_show_dir_outbox,
+                "dest_show_dir_nas": dest_show_dir_nas
+            })
+            
         if params.get("copy_to_pcloud"):
-            copy_to_pcloud(dest_show_dir_outbox, nas_serien, task_id=task_id, explicit_remote_base=explicit_pcloud_base)
+            transfer_queue.put({
+                "type": "pcloud_transfer",
+                "dest_show_dir_outbox": dest_show_dir_outbox,
+                "nas_serien": nas_serien,
+                "explicit_pcloud_base": explicit_pcloud_base
+            })
+        else:
+            pcloud_pct = 100
+            update_global_job_progress()
+            
+        # Send Sentinel and join
+        transfer_queue.put(None)
+        transfer_thread.join()
+        
+        if transfer_errors:
+            raise transfer_errors[0]
 
         # Cleanup input folder if it was a project directory under inbox_root
         if current_dir != inbox_root and os.path.exists(current_dir):
@@ -1202,7 +1394,144 @@ def process_worker(params):
             
         clean_movie_name = limit_filename_length(sanitize_filename(movie_name))
         
-        for video_file in video_files:
+        # Setup progress tracking
+        N = len(video_files)
+        conv_pct = [0] * N
+        nas_pct = [0] * N
+        pcloud_pct = [0] * N
+        file_titles = [clean_movie_name] * N
+        
+        has_conv = convert
+        has_nas = copy_to_nas
+        has_pcloud = params.get("copy_to_pcloud", False)
+        
+        w_conv = 0.5 if has_conv else 0
+        w_nas = 0.3 if has_nas else 0
+        w_pcloud = 0.2 if has_pcloud else 0
+        total_w = w_conv + w_nas + w_pcloud
+        
+        if total_w > 0:
+            w_conv = w_conv / total_w
+            w_nas = w_nas / total_w
+            w_pcloud = w_pcloud / total_w
+        else:
+            w_conv = 0.5
+            w_nas = 0.5
+            w_pcloud = 0.0
+
+        progress_lock = threading.Lock()
+
+        def update_global_job_progress():
+            with progress_lock:
+                total_file_progress = 0
+                for i in range(N):
+                    total_file_progress += (conv_pct[i] * w_conv) + (nas_pct[i] * w_nas) + (pcloud_pct[i] * w_pcloud)
+                
+                avg_files = total_file_progress / N if N > 0 else 0
+                percent = min(100, max(0, int(avg_files)))
+                
+                active_conv = []
+                active_trans = []
+                for i in range(N):
+                    if conv_pct[i] > 0 and conv_pct[i] < 100:
+                        active_conv.append(f"{file_titles[i]} ({conv_pct[i]}%)")
+                    if nas_pct[i] > 0 and nas_pct[i] < 100:
+                        active_trans.append(f"NAS ({nas_pct[i]}%)")
+                    if pcloud_pct[i] > 0 and pcloud_pct[i] < 100:
+                        active_trans.append(f"pCloud ({pcloud_pct[i]}%)")
+                        
+                status_parts = []
+                if active_conv:
+                    status_parts.append(f"Konvertierung: {', '.join(active_conv)}")
+                elif has_conv and sum(conv_pct) < N * 100:
+                    status_parts.append("Konvertierung wartet...")
+                    
+                if active_trans:
+                    status_parts.append(f"Übertragung: {', '.join(active_trans)}")
+                    
+                if not status_parts:
+                    status_parts.append("Verarbeitung läuft...")
+                    
+                message = " | ".join(status_parts)
+                
+                if task_id:
+                    with active_jobs_lock:
+                        if task_id in active_jobs:
+                            active_jobs[task_id]["progress"] = percent
+                            active_jobs[task_id]["message"] = message
+
+        # Initialize Transfer Queue
+        transfer_queue = queue.Queue()
+        transfer_errors = []
+
+        def transfer_worker():
+            while True:
+                task = transfer_queue.get()
+                if task is None:
+                    transfer_queue.task_done()
+                    break
+                try:
+                    task_type = task["type"]
+                    file_idx = task.get("file_idx")
+                    
+                    if task_type == "movie_nas_transfer":
+                        dest_movie_dir_outbox = task["dest_movie_dir_outbox"]
+                        dest_movie_dir_nas = task["dest_movie_dir_nas"]
+                        final_filename = task["final_filename"]
+                        
+                        log_message(f"[Transfer Thread]: Starte NAS-Kopieren für {final_filename}...")
+                        
+                        def nas_progress_cb(percent, msg):
+                            nas_pct[file_idx] = percent
+                            update_global_job_progress()
+                            
+                        os.makedirs(dest_movie_dir_nas, exist_ok=True)
+                        success = run_rsync_with_progress(
+                            dest_movie_dir_outbox,
+                            dest_movie_dir_nas,
+                            task_id=nas_progress_cb
+                        )
+                        if success:
+                            log_message(f"[Transfer Thread]: NAS-Kopieren fertig für {final_filename}.")
+                            nas_pct[file_idx] = 100
+                            subprocess.run(["open", dest_movie_dir_nas])
+                        else:
+                            log_message(f"⚠️ [Transfer Thread]: Fehler beim Kopieren von {final_filename} auf das NAS.")
+                        update_global_job_progress()
+                        
+                    elif task_type == "movie_pcloud_transfer":
+                        dest_movie_dir_outbox = task["dest_movie_dir_outbox"]
+                        dest_movies = task["dest_movies"]
+                        explicit_pcloud_base = task["explicit_pcloud_base"]
+                        
+                        log_message(f"[Transfer Thread]: Starte pCloud-Upload für {clean_movie_name}...")
+                        
+                        def pcloud_progress_cb(percent, msg):
+                            pcloud_pct[file_idx] = percent
+                            update_global_job_progress()
+                            
+                        copy_to_pcloud(
+                            dest_movie_dir_outbox,
+                            dest_movies,
+                            task_id=pcloud_progress_cb,
+                            explicit_remote_base=explicit_pcloud_base
+                        )
+                        pcloud_pct[file_idx] = 100
+                        log_message(f"[Transfer Thread]: pCloud-Upload fertig für {clean_movie_name}.")
+                        update_global_job_progress()
+                        
+                except Exception as e:
+                    log_message(f"❌ [Transfer Thread] Fehler: {e}")
+                    transfer_errors.append(e)
+                finally:
+                    transfer_queue.task_done()
+
+        # Start the Transfer Thread
+        transfer_thread = threading.Thread(target=transfer_worker, daemon=True)
+        transfer_thread.start()
+        
+        # Process video files sequentially
+        for file_idx, video_file in enumerate(video_files):
             ext = os.path.splitext(video_file)[1].lower()
             target_filename = f"{clean_movie_name}{ext}"
             filepath = os.path.join(current_dir, video_file)
@@ -1251,7 +1580,10 @@ def process_worker(params):
                         "-c:a", "copy", temp_output
                     ]
                     try:
-                        success = run_ffmpeg_with_progress(ffmpeg_cmd, target_filepath, task_id=task_id, log_queue=log_queue)
+                        def ffmpeg_progress_cb(percent, msg):
+                            conv_pct[file_idx] = percent
+                            update_global_job_progress()
+                        success = run_ffmpeg_with_progress(ffmpeg_cmd, target_filepath, task_id=ffmpeg_progress_cb, log_queue=log_queue)
                         if success and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
                             log_message("Konvertierung erfolgreich.")
                             try:
@@ -1271,15 +1603,23 @@ def process_worker(params):
                                 os.remove(final_filepath)
                             os.rename(temp_output, final_filepath)
                             final_filename = f"{clean_movie_name}.mkv"
+                            conv_pct[file_idx] = 100
                         else:
                             log_message(f"❌ Fehler bei der Konvertierung.")
                             if os.path.exists(temp_output):
                                 os.remove(temp_output)
+                            conv_pct[file_idx] = 100
                     except Exception as e:
                         log_message(f"Konvertierungsfehler: {e}")
                         if os.path.exists(temp_output):
                             os.remove(temp_output)
-
+                        conv_pct[file_idx] = 100
+                else:
+                    conv_pct[file_idx] = 100
+            else:
+                conv_pct[file_idx] = 100
+            update_global_job_progress()
+ 
             # Move to local Output folder
             dest_movies = destination if destination else f"{nas_root}/Filme"
             rel_dest = os.path.relpath(dest_movies, nas_root)
@@ -1320,27 +1660,43 @@ def process_worker(params):
                 subprocess.run(["open", dest_movie_dir_outbox])
             except Exception as e:
                 log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
-
-            # Copy to NAS if requested
+ 
+            # Queue NAS copy
             if copy_to_nas:
                 if not ensure_nas_mounted():
                     raise RuntimeError("NAS konnte nicht gemountet werden. Kopiervorgang abgebrochen.")
                 dest_movie_dir_nas = os.path.join(dest_movies, clean_movie_name)
-                log_message(f"Kopiere auf NAS: {dest_movie_dir_nas}")
-                try:
-                    os.makedirs(dest_movie_dir_nas, exist_ok=True)
-                    success = run_rsync_with_progress(dest_movie_dir_outbox, dest_movie_dir_nas, task_id)
-                    if success:
-                        log_message("  ✅ Erfolgreich auf NAS kopiert.")
-                    else:
-                        log_message("  ❌ Fehler beim Kopieren auf NAS.")
-                    subprocess.run(["open", dest_movie_dir_nas])
-                except Exception as e:
-                    log_message(f"  ❌ Fehler beim Kopieren auf NAS: {e}")
-                    
+                transfer_queue.put({
+                    "type": "movie_nas_transfer",
+                    "file_idx": file_idx,
+                    "dest_movie_dir_outbox": dest_movie_dir_outbox,
+                    "dest_movie_dir_nas": dest_movie_dir_nas,
+                    "final_filename": final_filename
+                })
+            else:
+                nas_pct[file_idx] = 100
+                update_global_job_progress()
+                
+            # Queue pCloud copy
             if params.get("copy_to_pcloud"):
-                copy_to_pcloud(dest_movie_dir_outbox, dest_movies, task_id=task_id, explicit_remote_base=explicit_pcloud_base)
-
+                transfer_queue.put({
+                    "type": "movie_pcloud_transfer",
+                    "file_idx": file_idx,
+                    "dest_movie_dir_outbox": dest_movie_dir_outbox,
+                    "dest_movies": dest_movies,
+                    "explicit_pcloud_base": explicit_pcloud_base
+                })
+            else:
+                pcloud_pct[file_idx] = 100
+                update_global_job_progress()
+                
+        # Send Sentinel and join
+        transfer_queue.put(None)
+        transfer_thread.join()
+        
+        if transfer_errors:
+            raise transfer_errors[0]
+ 
         # Cleanup input folder if it was a project directory under inbox_root
         if current_dir != inbox_root and os.path.exists(current_dir):
             try:
@@ -2065,6 +2421,8 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             self.handle_api_post_settings(params)
         elif path == "/api/profile":
             self.handle_api_post_profile(params)
+        elif path == "/api/system/restart":
+            self.handle_api_system_restart()
         elif path == "/api/toggle-visibility":
             self.handle_api_toggle_visibility(params)
         elif path == "/api/guess-season":
@@ -2157,6 +2515,31 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             return
         success = utils.save_show_profile(show_name, profile_data)
         self.send_json({"success": success})
+
+    def handle_api_system_restart(self):
+        # Check active background tasks
+        active_count = 0
+        with active_jobs_lock:
+            for job in active_jobs.values():
+                if job.get("status") not in ("done", "error"):
+                    active_count += 1
+                    
+        if active_count > 0:
+            self.send_json({
+                "status": "busy",
+                "message": "Der Server kann nicht neu gestartet werden, da aktuell noch Konvertierungen oder Dateiübertragungen laufen!"
+            })
+            return
+            
+        self.send_json({"status": "restarting"})
+        
+        # Schedule restart in a separate thread to allow response to send
+        def do_restart():
+            time.sleep(0.5)
+            print("Restarting server process...")
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+            
+        threading.Thread(target=do_restart, daemon=True).start()
 
     def handle_api_guess_season(self, params):
         provider = params.get("provider")
