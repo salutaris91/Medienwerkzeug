@@ -104,6 +104,7 @@ def fetch_tvdb(show_id, season, lang="deu"):
                         title = ep.get('name', '').replace('/', '-').replace(':', '').strip()
                         date_str = ep.get('aired', '')
                         
+                        abs_val = ep.get('absoluteNumber')
                         if is_all:
                             s_str = str(ep_season)
                             if len(s_str) < 2:
@@ -112,9 +113,9 @@ def fetch_tvdb(show_id, season, lang="deu"):
                             if len(e_str) < 2:
                                 e_str = e_str.zfill(2)
                             key = f"S{s_str}E{e_str}"
-                            result[key] = {"title": title, "date": date_str}
+                            result[key] = {"title": title, "date": date_str, "absolute_number": abs_val}
                         else:
-                            result[ep_num] = {"title": title, "date": date_str}
+                            result[ep_num] = {"title": title, "date": date_str, "absolute_number": abs_val}
                 links = data.get('links', {})
                 if links.get('next') and links['next'] != links.get('self'):
                     page += 1
@@ -972,13 +973,16 @@ def generate_tvshow_nfo(provider, show_id, target_folder):
             
     return {"nfo": needs_nfo, "poster": needs_poster, "fanart": needs_fanart}
 
-def generate_episode_nfo(provider, show_id, season, episode, target_folder, filename_base):
+def generate_episode_nfo(provider, show_id, season, episode, target_folder, filename_base, force_season=None, force_episode=None):
     import os
     nfo_path = os.path.join(target_folder, f"{filename_base}.nfo")
     thumb_path = os.path.join(target_folder, f"{filename_base}-thumb.jpg")
     
     needs_nfo = not os.path.exists(nfo_path)
     needs_thumb = not os.path.exists(thumb_path)
+    
+    nfo_season = force_season if force_season is not None else season
+    nfo_episode = force_episode if force_episode is not None else episode
     
     if provider == "manual":
         ep_title = ""
@@ -989,11 +993,14 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             ep_num = episode.get("episode", 1)
             ep_plot = episode.get("plot", "")
             
+        if force_episode is not None:
+            ep_num = force_episode
+            
         if needs_nfo:
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
             xml += f"  <title>{ep_title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
-            xml += f"  <season>{season}</season>\n"
+            xml += f"  <season>{nfo_season}</season>\n"
             xml += f"  <episode>{ep_num}</episode>\n"
             if ep_plot:
                 xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
@@ -1012,8 +1019,8 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
             xml += f"  <title>{ep_title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
-            xml += f"  <season>{season}</season>\n"
-            xml += f"  <episode>{episode}</episode>\n"
+            xml += f"  <season>{nfo_season}</season>\n"
+            xml += f"  <episode>{nfo_episode}</episode>\n"
             if ep_plot:
                 xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
             xml += '</episodedetails>\n'
@@ -1055,8 +1062,8 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                 xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
                 xml += f"  <title>{ep_title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
-                xml += f"  <season>{season}</season>\n"
-                xml += f"  <episode>{episode}</episode>\n"
+                xml += f"  <season>{nfo_season}</season>\n"
+                xml += f"  <episode>{nfo_episode}</episode>\n"
                 if ep_plot:
                     xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
                 xml += '</episodedetails>\n'
@@ -1133,9 +1140,9 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                 try:
                     xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                     xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
-                    xml += f"  <title>Folge {episode}</title>\n"
-                    xml += f"  <season>{season}</season>\n"
-                    xml += f"  <episode>{episode}</episode>\n"
+                    xml += f"  <title>Folge {nfo_episode}</title>\n"
+                    xml += f"  <season>{nfo_season}</season>\n"
+                    xml += f"  <episode>{nfo_episode}</episode>\n"
                     xml += f"  <plot>Automatischer Fallback: Episode online bei TVDB nicht gefunden.</plot>\n"
                     xml += '</episodedetails>\n'
                     with open(nfo_path, 'w', encoding='utf-8') as f:
@@ -1164,8 +1171,8 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
             xml += f"  <title>{ep_title.replace('&', '&amp;')}</title>\n"
-            xml += f"  <season>{season}</season>\n"
-            xml += f"  <episode>{episode}</episode>\n"
+            xml += f"  <season>{nfo_season}</season>\n"
+            xml += f"  <episode>{nfo_episode}</episode>\n"
             xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
             xml += f"  <aired>{ep_data.get('aired', '')}</aired>\n"
             xml += f"  <rating>{ep_data.get('score', 0)}</rating>\n"
@@ -1190,9 +1197,9 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             try:
                 xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
-                xml += f"  <title>Folge {episode}</title>\n"
-                xml += f"  <season>{season}</season>\n"
-                xml += f"  <episode>{episode}</episode>\n"
+                xml += f"  <title>Folge {nfo_episode}</title>\n"
+                xml += f"  <season>{nfo_season}</season>\n"
+                xml += f"  <episode>{nfo_episode}</episode>\n"
                 xml += f"  <plot>Automatischer Fallback: Details konnten nicht geladen werden ({str(e)}).</plot>\n"
                 xml += '</episodedetails>\n'
                 with open(nfo_path, 'w', encoding='utf-8') as f:
@@ -1206,8 +1213,8 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
         xml += f"  <title>{data.get('name', '').replace('&', '&amp;')}</title>\n"
-        xml += f"  <season>{season}</season>\n"
-        xml += f"  <episode>{episode}</episode>\n"
+        xml += f"  <season>{nfo_season}</season>\n"
+        xml += f"  <episode>{nfo_episode}</episode>\n"
         xml += f"  <plot>{data.get('overview', '').replace('&', '&amp;')}</plot>\n"
         xml += f"  <aired>{data.get('air_date', '')}</aired>\n"
         xml += f"  <rating>{data.get('vote_average', 0)}</rating>\n"

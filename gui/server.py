@@ -133,6 +133,46 @@ def clean_series_name_for_fs(name):
     name = name.strip()
     return name
 
+def extract_absolute_episode_number(ep_num_val, ep_data, filename):
+    # 1. Check if absolute_number is explicitly provided in ep_data
+    if isinstance(ep_data, dict) and ep_data.get("absolute_number"):
+        try:
+            return int(ep_data.get("absolute_number"))
+        except (ValueError, TypeError):
+            pass
+            
+    # 2. Check if absolute number is in the episode title, e.g., "Title (381)"
+    ep_title = ""
+    if isinstance(ep_data, dict):
+        ep_title = ep_data.get("title", "")
+    elif isinstance(ep_data, str):
+        ep_title = ep_data
+        
+    if ep_title:
+        # Search for digits in parentheses, e.g., (381) or [381] or ( Folge 381 )
+        m_abs = re.search(r'(?:\(|\[)(?:Folge\s+)?(\d+)(?:\)|\])', ep_title, re.IGNORECASE)
+        if m_abs:
+            return int(m_abs.group(1))
+            
+    # 3. Check if absolute number is in the source filename, e.g., "Show_(381)_2026.mp4"
+    if filename:
+        m_file = re.search(r'(?:\(|_|-|\s)(\d{3,4})(?:\)|_|-|\s)', filename)
+        if m_file:
+            return int(m_file.group(1))
+            
+    # 4. Fallback: Parse the SxxExx or ep_num_val itself
+    if isinstance(ep_num_val, str):
+        match = re.match(r"^S(\d+)E(\d+)$", ep_num_val, re.IGNORECASE)
+        if match:
+            return int(match.group(2))
+    elif isinstance(ep_num_val, dict):
+        return ep_num_val.get("episode", 1)
+        
+    try:
+        return int(ep_num_val)
+    except (ValueError, TypeError):
+        return 1
+
 def limit_filename_length(name, max_len=160):
     if not name:
         return ""
@@ -905,11 +945,13 @@ def process_worker(params):
             # If explicit_renames was used, the file is ALREADY renamed to the target_filename
             # We just need to generate the NFO!
             
-            # Get episode title
+            # Get episode title and original season/episode values
             if isinstance(ep_num_val, dict):
                 ep_num = ep_num_val.get("episode", 1)
                 ep_season = ep_num_val.get("season", season)
                 ep_title = ep_num_val.get("title", "")
+                orig_season = ep_season
+                orig_episode = ep_num
             else:
                 ep_data = episodes.get(str(ep_num_val), {})
                 if not ep_data and provider == "ytdlp" and len(episodes) == 1:
@@ -928,6 +970,20 @@ def process_worker(params):
                 else:
                     ep_num = ep_num_val
                     ep_season = season
+                orig_season = ep_season
+                orig_episode = ep_num
+                
+            force_abs = params.get("force_absolute_season_1", False)
+            if force_abs:
+                if isinstance(ep_num_val, dict):
+                    ep_data = ep_num_val
+                else:
+                    ep_data = episodes.get(str(ep_num_val), {})
+                    if not ep_data and provider == "ytdlp" and len(episodes) == 1:
+                        ep_data = list(episodes.values())[0]
+                abs_num = extract_absolute_episode_number(ep_num_val, ep_data, filename)
+                ep_season = 1
+                ep_num = abs_num
                 
             ep_title = sanitize_filename(ep_title)
             
@@ -980,7 +1036,10 @@ def process_worker(params):
             if show_id and provider:
                 log_message(f"Generiere Episoden-NFO für {ep_str}...")
                 try:
-                    res = mw_metadata.generate_episode_nfo(provider, show_id, ep_season, ep_num_val, current_dir, clean_title)
+                    res = mw_metadata.generate_episode_nfo(
+                        provider, show_id, orig_season, orig_episode, current_dir, clean_title,
+                        force_season=ep_season, force_episode=ep_num
+                    )
                     log_message(f"Episode NFO Status: {res}")
                 except Exception as e:
                     log_message(f"Fehler bei Episode NFO: {e}")
@@ -3043,6 +3102,18 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                                 curr_season = season
                                 curr_ep_num = ep_num
                         
+                        force_abs = params.get("force_absolute_season_1", False)
+                        if force_abs:
+                            if isinstance(ep_num, dict):
+                                ep_data = ep_num
+                            else:
+                                ep_data = episodes.get(str(ep_num), {})
+                                if not ep_data and provider == "ytdlp" and len(episodes) == 1:
+                                    ep_data = list(episodes.values())[0]
+                            abs_num = extract_absolute_episode_number(ep_num, ep_data, basename)
+                            curr_season = 1
+                            curr_ep_num = abs_num
+                            
                         ep_title = sanitize_filename(ep_title)
                         
                         try:
@@ -3115,7 +3186,7 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             preview["destination"] = dest_str
             
         # Season year warning
-        if media_type == "tv" and season is not None:
+        if media_type == "tv" and season is not None and not params.get("force_absolute_season_1", False):
             try:
                 s_num = int(season)
                 if s_num >= 1000:

@@ -434,7 +434,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             "1": {"title": "Die Maus wird 50"}
         }
         server.mw_metadata.generate_tvshow_nfo = lambda provider, show_id, path: "success"
-        server.mw_metadata.generate_episode_nfo = lambda provider, show_id, season, ep, path, title: "success"
+        server.mw_metadata.generate_episode_nfo = lambda provider, show_id, season, ep, path, title, *args, **kwargs: "success"
         
         params = {
             "media_type": "tv",
@@ -502,6 +502,151 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             server.mw_metadata.generate_tvshow_nfo = orig_gen_show_nfo
             server.mw_metadata.generate_episode_nfo = orig_gen_ep_nfo
 
+    def test_process_worker_force_absolute_season_1(self):
+        import gui.server as server
+        import subprocess
+        
+        # Setup directories
+        test_inbox = os.path.join(self.test_dir, "inbox_worker_force")
+        test_outbox = os.path.join(self.test_dir, "outbox_worker_force")
+        test_nas = os.path.join(self.test_dir, "nas_worker_force")
+        
+        project_dir = os.path.join(test_inbox, "Elefant_Project")
+        os.makedirs(project_dir, exist_ok=True)
+        os.makedirs(test_outbox, exist_ok=True)
+        os.makedirs(test_nas, exist_ok=True)
+        
+        # Create input file
+        filename = "Elefant_Tiger_Co_(381)_2026.mp4"
+        with open(os.path.join(project_dir, filename), "w") as f:
+            f.write("dummy video data")
+            
+        # Mock load_settings
+        orig_load_settings = server.load_settings
+        server.load_settings = lambda: {
+            "inbox_dir": test_inbox,
+            "outbox_dir": test_outbox,
+            "nas_root": test_nas,
+            "sync_categories": [
+                {"id": "2", "name": "Serien", "nas_sub": "/Serien"}
+            ]
+        }
+        
+        # Save original imports/functions to restore later
+        orig_ensure_nas = server.ensure_nas_mounted
+        orig_run_rsync = server.run_rsync_with_progress
+        orig_run_ffmpeg = server.run_ffmpeg_with_progress
+        orig_subprocess_run = subprocess.run
+        orig_fetch_tvdb = server.mw_metadata.fetch_tvdb
+        orig_gen_show_nfo = server.mw_metadata.generate_tvshow_nfo
+        orig_gen_ep_nfo = server.mw_metadata.generate_episode_nfo
+        
+        # Mock dependencies
+        server.ensure_nas_mounted = lambda: True
+        
+        def mock_run_rsync(src, dest, *args, **kwargs):
+            # Simulate rsync copying
+            if os.path.isdir(src):
+                import shutil
+                shutil.copytree(src, dest, dirs_exist_ok=True)
+            else:
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with open(dest, "w") as out:
+                    out.write("copied")
+            return True
+        server.run_rsync_with_progress = mock_run_rsync
+        
+        def mock_run_ffmpeg(cmd, filepath, *args, **kwargs):
+            # cmd is list. find output filename and touch it
+            # ffmpeg -i input -c:v libx265 -crf 28 output.mkv
+            out_file = cmd[-1]
+            os.makedirs(os.path.dirname(out_file), exist_ok=True)
+            with open(out_file, "w") as f:
+                f.write("converted x265")
+            return True
+        server.run_ffmpeg_with_progress = mock_run_ffmpeg
+        
+        # Mock subprocess run for ffprobe
+        def mock_run(cmd, *args, **kwargs):
+            class MockCompletedProcess:
+                def __init__(self):
+                    self.returncode = 0
+                    self.stdout = b"1000000" # Dummy size
+                    self.stderr = b""
+            return MockCompletedProcess()
+        subprocess.run = mock_run
+        
+        # Mock metadata calls
+        server.mw_metadata.fetch_tvdb = lambda show_id, season, lang: {
+            "1": {"title": "In der Ruhe liegt die Kraft", "date": "2026-01-01", "absolute_number": 381}
+        }
+        server.mw_metadata.generate_tvshow_nfo = lambda provider, show_id, path: "success"
+        
+        nfo_calls = []
+        def track_gen_nfo(provider, show_id, season, episode, target_folder, filename_base, force_season=None, force_episode=None):
+            nfo_calls.append({
+                "season": season, "episode": episode,
+                "force_season": force_season, "force_episode": force_episode
+            })
+            # create dummy nfo file so verification passes
+            nfo_path = os.path.join(target_folder, f"{filename_base}.nfo")
+            with open(nfo_path, "w") as f:
+                f.write("<episodedetails></episodedetails>")
+            return "success"
+        server.mw_metadata.generate_episode_nfo = track_gen_nfo
+        
+        params = {
+            "media_type": "tv",
+            "project_name": "Elefant_Project",
+            "show_name": "Elefant, Tiger und Co.",
+            "show_id": "249482",
+            "provider": "tvdb",
+            "season": "2026",
+            "mappings": {
+                "Elefant_Tiger_Co_(381)_2026.mp4": "1"
+            },
+            "convert": True,
+            "quality": 60,
+            "delete_original": False,
+            "copy_to_nas": True,
+            "nas_destination_id": "2",
+            "force_absolute_season_1": True,
+            "explicit_renames": [
+                {"old": "Elefant_Tiger_Co_(381)_2026.mp4", "new": "Elefant, Tiger und Co. - S01E381 - In der Ruhe liegt die Kraft.mp4"}
+            ],
+            "explicit_subs": [],
+            "explicit_junk": []
+        }
+        
+        try:
+            server.process_worker(params)
+            
+            # Now verify output structure - season folder should be "Staffel 1"
+            ep_dir_nas = os.path.join(
+                test_nas, "Serien", "Elefant, Tiger und Co.", "Staffel 1",
+                "Elefant, Tiger und Co. - S01E381 - In der Ruhe liegt die Kraft"
+            )
+            self.assertTrue(os.path.exists(ep_dir_nas))
+            self.assertTrue(os.path.exists(os.path.join(ep_dir_nas, "Elefant, Tiger und Co. - S01E381 - In der Ruhe liegt die Kraft.mkv")))
+            self.assertTrue(os.path.exists(os.path.join(ep_dir_nas, "Elefant, Tiger und Co. - S01E381 - In der Ruhe liegt die Kraft.nfo")))
+            
+            # Verify nfo generator parameters
+            self.assertEqual(len(nfo_calls), 1)
+            # Original S2026E1 lookup is still used for TVDb, but forced S01E381 is passed as force_* parameters to write to XML
+            self.assertEqual(nfo_calls[0]["season"], "2026")
+            self.assertEqual(nfo_calls[0]["episode"], "1")
+            self.assertEqual(nfo_calls[0]["force_season"], 1)
+            self.assertEqual(nfo_calls[0]["force_episode"], 381)
+        finally:
+            server.load_settings = orig_load_settings
+            server.ensure_nas_mounted = orig_ensure_nas
+            server.run_rsync_with_progress = orig_run_rsync
+            server.run_ffmpeg_with_progress = orig_run_ffmpeg
+            subprocess.run = orig_subprocess_run
+            server.mw_metadata.fetch_tvdb = orig_fetch_tvdb
+            server.mw_metadata.generate_tvshow_nfo = orig_gen_show_nfo
+            server.mw_metadata.generate_episode_nfo = orig_gen_ep_nfo
+
     @unittest.mock.patch('urllib.request.urlopen')
     def test_fetch_all_seasons(self, mock_urlopen):
         import json
@@ -566,8 +711,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         # Test TVDB season='all'
         tvdb_res = mw_metadata.fetch_tvdb("12345", "all")
         self.assertEqual(tvdb_res, {
-            "S01E01": {"title": "Ep1", "date": "2020-01-01"},
-            "S02E03": {"title": "Ep3", "date": "2020-02-02"}
+            "S01E01": {"title": "Ep1", "date": "2020-01-01", "absolute_number": None},
+            "S02E03": {"title": "Ep3", "date": "2020-02-02", "absolute_number": None}
         })
         
         # Test TVMaze season='all'
@@ -982,6 +1127,78 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             
         finally:
             server.load_settings = orig_load_settings
+
+    def test_preview_force_absolute_season_1(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        
+        inbox_dir = os.path.join(self.test_dir, "inbox_force_abs_test")
+        nas_root = os.path.join(self.test_dir, "nas_force_abs_test")
+        os.makedirs(inbox_dir, exist_ok=True)
+        os.makedirs(nas_root, exist_ok=True)
+        
+        # Write dummy file with absolute number in name
+        ep_file_path = os.path.join(inbox_dir, "Elefant_Tiger_Co_(381)_2026.mp4")
+        with open(ep_file_path, "w") as f:
+            f.write("")
+            
+        orig_load_settings = server.load_settings
+        server.load_settings = lambda: {
+            "inbox_dir": inbox_dir,
+            "outbox_dir": os.path.join(self.test_dir, "outbox_force_abs_test"),
+            "nas_root": nas_root,
+            "sync_categories": [
+                {"id": "2", "name": "Serien", "nas_sub": "/Serien"}
+            ]
+        }
+        
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+                
+        dummy = DummyHandler()
+        
+        params = {
+            "media_type": "tv",
+            "project_name": "",
+            "show_name": "Elefant, Tiger und Co.",
+            "show_id": "249482",
+            "provider": "tvdb",
+            "season": "2026",
+            "copy_to_nas": True,
+            "force_absolute_season_1": True,
+            "mappings": {
+                "Elefant_Tiger_Co_(381)_2026.mp4": "1"
+            }
+        }
+        
+        # Mock TVDB fetching
+        orig_fetch = server.mw_metadata.fetch_tvdb
+        server.mw_metadata.fetch_tvdb = lambda show_id, season, lang: {
+            "1": {"title": "In der Ruhe liegt die Kraft", "date": "2026-01-01", "absolute_number": 381}
+        }
+        
+        try:
+            GUIRequestHandler.handle_api_preview_process(dummy, params)
+            result = dummy.sent_json
+            self.assertIsNotNone(result)
+            
+            # Warning about high season should NOT be present (suppressed)
+            self.assertNotIn("warning", result)
+            
+            renames = result.get("renames", [])
+            self.assertEqual(len(renames), 1)
+            self.assertEqual(os.path.basename(renames[0]["old"]), "Elefant_Tiger_Co_(381)_2026.mp4")
+            # Should be mapped to S01E381 since force_absolute_season_1 is True
+            self.assertEqual(renames[0]["new"], "Elefant, Tiger und Co. - S01E381 - In der Ruhe liegt die Kraft.mp4")
+            
+            dest = result.get("destination", "")
+            self.assertIn("Serien/Elefant, Tiger und Co./Staffel 1/Elefant, Tiger und Co. - S01E381 - In der Ruhe liegt die Kraft", dest)
+        finally:
+            server.load_settings = orig_load_settings
+            server.mw_metadata.fetch_tvdb = orig_fetch
 
     def test_api_nas_series_get(self):
         import gui.server as server

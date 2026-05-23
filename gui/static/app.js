@@ -1716,6 +1716,7 @@ async function executeSeriesWorkflow() {
     const quality = document.getElementById("series-quality-slider") ? parseInt(document.getElementById("series-quality-slider").value, 10) : 60;
     
     const nasShowFolder = document.getElementById("series-nas-folder-override")?.value?.trim();
+    const forceAbsoluteSeason1 = document.getElementById("series-option-absolute-numbering") ? document.getElementById("series-option-absolute-numbering").checked : false;
     
     const payload = {
         media_type: "tv",
@@ -1732,7 +1733,8 @@ async function executeSeriesWorkflow() {
         copy_to_pcloud: copyPcloud,
         destination_id: nasDestId,
         nas_destination_id: nasDestId,
-        pcloud_destination_id: pcloudDestId
+        pcloud_destination_id: pcloudDestId,
+        force_absolute_season_1: forceAbsoluteSeason1
     };
     if (nasShowFolder) {
         payload.nas_show_folder = nasShowFolder;
@@ -3522,30 +3524,32 @@ async function openPreviewModal(basePayload) {
     let hasHighSeason = false;
     let highSeasonNum = null;
 
-    if (basePayload.season && basePayload.season !== "all") {
-        const s = parseInt(basePayload.season, 10);
-        if (!isNaN(s) && s >= 1000) {
-            hasHighSeason = true;
-            highSeasonNum = s;
+    if (!basePayload.force_absolute_season_1) {
+        if (basePayload.season && basePayload.season !== "all") {
+            const s = parseInt(basePayload.season, 10);
+            if (!isNaN(s) && s >= 1000) {
+                hasHighSeason = true;
+                highSeasonNum = s;
+            }
         }
-    }
-    if (!hasHighSeason && basePayload.mappings) {
-        for (const val of Object.values(basePayload.mappings)) {
-            if (val && typeof val === "object") {
-                const s = parseInt(val.season, 10);
-                if (!isNaN(s) && s >= 1000) {
-                    hasHighSeason = true;
-                    highSeasonNum = s;
-                    break;
-                }
-            } else if (typeof val === "string") {
-                const match = val.match(/^S(\d+)/i);
-                if (match) {
-                    const s = parseInt(match[1], 10);
-                    if (s >= 1000) {
+        if (!hasHighSeason && basePayload.mappings) {
+            for (const val of Object.values(basePayload.mappings)) {
+                if (val && typeof val === "object") {
+                    const s = parseInt(val.season, 10);
+                    if (!isNaN(s) && s >= 1000) {
                         hasHighSeason = true;
                         highSeasonNum = s;
                         break;
+                    }
+                } else if (typeof val === "string") {
+                    const match = val.match(/^S(\d+)/i);
+                    if (match) {
+                        const s = parseInt(match[1], 10);
+                        if (s >= 1000) {
+                            hasHighSeason = true;
+                            highSeasonNum = s;
+                            break;
+                        }
                     }
                 }
             }
@@ -3586,7 +3590,7 @@ async function openPreviewModal(basePayload) {
             return;
         }
         
-        if (data.warning && warningBox && warningText) {
+        if (data.warning && warningBox && warningText && !basePayload.force_absolute_season_1) {
             warningText.textContent = data.warning;
             warningBox.classList.remove("hidden");
         }
