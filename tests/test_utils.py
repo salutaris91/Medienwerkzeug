@@ -433,7 +433,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         server.mw_metadata.fetch_tmdb_tv = lambda show_id, season, lang: {
             "1": {"title": "Die Maus wird 50"}
         }
-        server.mw_metadata.generate_tvshow_nfo = lambda provider, show_id, path: "success"
+        server.mw_metadata.generate_tvshow_nfo = lambda provider, show_id, path, *args, **kwargs: "success"
         server.mw_metadata.generate_episode_nfo = lambda provider, show_id, season, ep, path, title, *args, **kwargs: "success"
         
         params = {
@@ -580,10 +580,10 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         server.mw_metadata.fetch_tvdb = lambda show_id, season, lang: {
             "1": {"title": "In der Ruhe liegt die Kraft", "date": "2026-01-01", "absolute_number": 381}
         }
-        server.mw_metadata.generate_tvshow_nfo = lambda provider, show_id, path: "success"
+        server.mw_metadata.generate_tvshow_nfo = lambda provider, show_id, path, *args, **kwargs: "success"
         
         nfo_calls = []
-        def track_gen_nfo(provider, show_id, season, episode, target_folder, filename_base, force_season=None, force_episode=None):
+        def track_gen_nfo(provider, show_id, season, episode, target_folder, filename_base, force_season=None, force_episode=None, *args, **kwargs):
             nfo_calls.append({
                 "season": season, "episode": episode,
                 "force_season": force_season, "force_episode": force_episode
@@ -816,6 +816,62 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         self.assertTrue("Episode online bei TVDB nicht gefunden" in root_ep_tvdb.find("plot").text)
         
         mw_metadata.get_tvdb_token = orig_get_token
+
+    def test_nfo_overrides(self):
+        import xml.etree.ElementTree as ET
+        target_dir = os.path.join(self.test_dir, "overrides_nfo_test")
+        os.makedirs(target_dir, exist_ok=True)
+        
+        # 1. Test generate_tvshow_nfo with overrides
+        overrides = {
+            "title": "Custom Show Title",
+            "plot": "Custom Show Plot",
+            "year": "2024"
+        }
+        res_show = mw_metadata.generate_tvshow_nfo("manual", "unused", target_dir, nfo_overrides=overrides)
+        self.assertTrue(res_show["nfo"])
+        
+        show_nfo_path = os.path.join(target_dir, "tvshow.nfo")
+        self.assertTrue(os.path.exists(show_nfo_path))
+        tree_show = ET.parse(show_nfo_path)
+        root_show = tree_show.getroot()
+        self.assertEqual(root_show.find("title").text, "Custom Show Title")
+        self.assertEqual(root_show.find("plot").text, "Custom Show Plot")
+        self.assertEqual(root_show.find("year").text, "2024")
+        
+        # 2. Test generate_episode_nfo with overrides
+        ep_overrides = {
+            "title": "Custom Episode Title",
+            "plot": "Custom Episode Plot",
+            "aired": "2024-05-23"
+        }
+        res_ep = mw_metadata.generate_episode_nfo("manual", "unused", 1, 2, target_dir, "episode_custom", nfo_overrides=ep_overrides)
+        self.assertTrue(res_ep["nfo"])
+        
+        ep_nfo_path = os.path.join(target_dir, "episode_custom.nfo")
+        self.assertTrue(os.path.exists(ep_nfo_path))
+        tree_ep = ET.parse(ep_nfo_path)
+        root_ep = tree_ep.getroot()
+        self.assertEqual(root_ep.find("title").text, "Custom Episode Title")
+        self.assertEqual(root_ep.find("plot").text, "Custom Episode Plot")
+        self.assertEqual(root_ep.find("aired").text, "2024-05-23")
+        
+        # 3. Test generate_movie_nfo with overrides
+        movie_overrides = {
+            "title": "Custom Movie Title",
+            "plot": "Custom Movie Plot",
+            "year": "2023"
+        }
+        res_movie = mw_metadata.generate_movie_nfo("manual", target_dir, "movie_custom", nfo_overrides=movie_overrides)
+        self.assertTrue(res_movie["nfo"])
+        
+        movie_nfo_path = os.path.join(target_dir, "movie_custom.nfo")
+        self.assertTrue(os.path.exists(movie_nfo_path))
+        tree_movie = ET.parse(movie_nfo_path)
+        root_movie = tree_movie.getroot()
+        self.assertEqual(root_movie.find("title").text, "Custom Movie Title")
+        self.assertEqual(root_movie.find("plot").text, "Custom Movie Plot")
+        self.assertEqual(root_movie.find("year").text, "2023")
 
     def test_import_streamfab_files_grouping(self):
         from gui import server

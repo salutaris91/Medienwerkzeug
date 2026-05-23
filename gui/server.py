@@ -804,6 +804,7 @@ def process_worker(params):
     nas_destination_id = params.get("nas_destination_id") or params.get("destination_id")
     pcloud_destination_id = params.get("pcloud_destination_id") or params.get("destination_id")
     task_id = params.get("task_id")
+    nfo_overrides = params.get("nfo_overrides", {})
 
     settings = load_settings()
     inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
@@ -910,7 +911,8 @@ def process_worker(params):
         if show_id and provider:
             log_message("Generiere tvshow.nfo und lade Poster/Fanart...")
             try:
-                res = mw_metadata.generate_tvshow_nfo(provider, show_id, current_dir)
+                show_overrides = nfo_overrides.get("show")
+                res = mw_metadata.generate_tvshow_nfo(provider, show_id, current_dir, nfo_overrides=show_overrides)
                 log_message(f"tvshow.nfo Status: {res}")
             except Exception as e:
                 log_message(f"Fehler bei tvshow.nfo: {e}")
@@ -1209,9 +1211,12 @@ def process_worker(params):
             if show_id and provider:
                 log_message(f"Generiere Episoden-NFO für {ep_str}...")
                 try:
+                    ep_overrides = None
+                    if "episodes" in nfo_overrides:
+                        ep_overrides = nfo_overrides["episodes"].get(filename) or nfo_overrides["episodes"].get(os.path.join(current_dir, filename))
                     res = mw_metadata.generate_episode_nfo(
                         provider, show_id, orig_season, orig_episode, current_dir, clean_title,
-                        force_season=ep_season, force_episode=ep_num
+                        force_season=ep_season, force_episode=ep_num, nfo_overrides=ep_overrides
                     )
                     log_message(f"Episode NFO Status: {res}")
                 except Exception as e:
@@ -1549,10 +1554,11 @@ def process_worker(params):
             if movie_id and provider:
                 log_message("Generiere NFO und lade Poster/Fanart...")
                 try:
+                    movie_overrides = nfo_overrides.get("movie")
                     if provider == "ofdb":
                         res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
                     else:
-                        res = mw_metadata.generate_movie_nfo(movie_id, current_dir, clean_movie_name)
+                        res = mw_metadata.generate_movie_nfo(movie_id, current_dir, clean_movie_name, nfo_overrides=movie_overrides)
                     log_message(f"Movie NFO Status: {res}")
                 except Exception as e:
                     log_message(f"Fehler bei NFO-Erstellung: {e}")
@@ -2377,6 +2383,8 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             self.handle_api_nas_series(query)
         elif path == "/api/series/detect":
             self.handle_api_series_detect(query)
+        elif path == "/api/metadata/fetch":
+            self.handle_api_metadata_fetch(query)
         else:
             self.handle_static_files(path)
             
@@ -3913,6 +3921,28 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                 return
                 
         self.send_json({"found": False})
+
+    def handle_api_metadata_fetch(self, query):
+        media_type = query.get("media_type", [""])[0]
+        provider = query.get("provider", [""])[0]
+        
+        result = {}
+        try:
+            if media_type == "tv":
+                show_id = query.get("show_id", [""])[0]
+                result = mw_metadata.fetch_show_nfo_data(provider, show_id)
+            elif media_type == "movie":
+                movie_id = query.get("movie_id", [""])[0]
+                result = mw_metadata.fetch_movie_nfo_data(provider, movie_id)
+            elif media_type == "episode":
+                show_id = query.get("show_id", [""])[0]
+                season = query.get("season", [""])[0]
+                episode = query.get("episode", [""])[0]
+                result = mw_metadata.fetch_episode_nfo_data(provider, show_id, season, episode)
+        except Exception as e:
+            result = {"error": str(e)}
+            
+        self.send_json(result)
 
     def handle_api_process(self, params):
         task_id = str(uuid.uuid4())

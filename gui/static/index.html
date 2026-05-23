@@ -161,6 +161,25 @@
                     <div class="selected-show-card hidden" id="selected-movie-panel" style="margin-top:15px; padding:15px; background:var(--bg-surface); border-radius:var(--radius-md);">
                         <h4 id="selected-movie-title">Ausgewählter Film</h4>
                         <p class="text-muted" id="selected-movie-provider-info"></p>
+                        
+                        <!-- Film NFO Editier-Bereich -->
+                        <details id="movie-nfo-details" style="margin-top: 15px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 10px; background: rgba(255,255,255,0.02);">
+                            <summary style="cursor: pointer; font-weight: 500; color: var(--text-main); font-size: 13px;">🎬 Film-Metadaten (movie.nfo) bearbeiten</summary>
+                            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
+                                <div>
+                                    <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Filmtitel:</label>
+                                    <input type="text" id="movie-nfo-title" style="width:100%;">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Jahr:</label>
+                                    <input type="text" id="movie-nfo-year" style="width:100%;">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Beschreibung / Plot:</label>
+                                    <textarea id="movie-nfo-plot" rows="3" style="width:100%; resize:vertical;"></textarea>
+                                </div>
+                            </div>
+                        </details>
                     </div>
 
                     <div class="execution-options-panel" style="margin-top: 25px; padding-top:20px; border-top:1px solid var(--border-glass);">
@@ -258,6 +277,26 @@
                         <p class="text-muted" id="selected-show-provider-info"></p>
                         <p id="selected-show-seasons-info"></p>
                         <div id="selected-show-nas-seasons-info" style="margin-top: 8px; font-size: 12px; color: var(--text-muted);"></div>
+                        
+                        <!-- Serien NFO Editier-Bereich -->
+                        <details id="series-nfo-details" style="margin-top: 15px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 10px; background: rgba(255,255,255,0.02);">
+                            <summary style="cursor: pointer; font-weight: 500; color: var(--text-main); font-size: 13px;">📁 Serien-Metadaten (tvshow.nfo) bearbeiten</summary>
+                            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
+                                <div>
+                                    <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Serientitel:</label>
+                                    <input type="text" id="series-nfo-title" style="width:100%;">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Jahr / Erstausstrahlung:</label>
+                                    <input type="text" id="series-nfo-year" style="width:100%;">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Beschreibung / Plot:</label>
+                                    <textarea id="series-nfo-plot" rows="3" style="width:100%; resize:vertical;"></textarea>
+                                </div>
+                            </div>
+                        </details>
+                        
                         <div class="form-group" style="margin-top:10px; display:flex; gap:15px; align-items:center; flex-wrap: wrap;">
                             <div style="display:flex; gap:10px; align-items:center;">
                                 <label for="series-season-num">Staffel:</label>

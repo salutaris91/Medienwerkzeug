@@ -596,7 +596,7 @@ def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=
         
     return {"nfo": True, "poster": False, "fanart": False, "msg": "OFDb NFO erstellt"}
 
-def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None):
+def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, nfo_overrides=None):
 
     import os
     nfo_path = os.path.join(folder_path, f"{filename_base}.nfo")
@@ -616,6 +616,10 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None):
             title = meta.get("title", filename_base)
             year = meta.get("year", "")
             plot = meta.get("plot", "")
+            if nfo_overrides:
+                if "title" in nfo_overrides: title = nfo_overrides["title"]
+                if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
+                if "year" in nfo_overrides: year = nfo_overrides["year"]
             
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<movie>\n  <lockdata>true</lockdata>\n'
@@ -650,6 +654,11 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None):
                 elif entry.get("release_year"):
                     year = str(entry.get("release_year"))
                     
+            if nfo_overrides:
+                if "title" in nfo_overrides: title = nfo_overrides["title"]
+                if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
+                if "year" in nfo_overrides: year = nfo_overrides["year"]
+                
             if needs_nfo:
                 xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 xml += '<movie>\n  <lockdata>true</lockdata>\n'
@@ -711,10 +720,16 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None):
             plot = f"{plot}\n\n--- YouTube Info ---\n{yt_data['description']}".strip()
             
         studio = yt_data.get('uploader', '')
+        title = data.get('title', '')
+        
+        if nfo_overrides:
+            if "title" in nfo_overrides: title = nfo_overrides["title"]
+            if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
+            if "year" in nfo_overrides: year = nfo_overrides["year"]
             
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<movie>\n  <lockdata>true</lockdata>\n'
-        xml += f"  <title>{data.get('title', '').replace('&', '&amp;')}</title>\n"
+        xml += f"  <title>{title.replace('&', '&amp;')}</title>\n"
         xml += f"  <originaltitle>{data.get('original_title', '').replace('&', '&amp;')}</originaltitle>\n"
         xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
         if fsk:
@@ -762,7 +777,250 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None):
             
     return {"nfo": needs_nfo, "poster": needs_poster, "fanart": needs_fanart}
 
-def generate_tvshow_nfo(provider, show_id, target_folder):
+def fetch_show_nfo_data(provider, show_id):
+    if provider == "manual":
+        try:
+            meta = json.loads(show_id) if isinstance(show_id, str) else show_id
+        except:
+            meta = {"title": show_id or "Manuelle Serie", "plot": "", "year": ""}
+        return {
+            "title": meta.get("title", "Manuelle Serie"),
+            "plot": meta.get("plot", ""),
+            "year": meta.get("year", "")
+        }
+    elif provider == "mediathek":
+        return {
+            "title": show_id or "",
+            "plot": "",
+            "year": ""
+        }
+    elif provider == "ytdlp":
+        try:
+            entries = fetch_ytdlp_url_metadata(show_id)
+            title = "YouTube/Mediathek Serie"
+            plot = ""
+            if not isinstance(entries, dict) and len(entries) > 0:
+                title = entries[0].get("playlist_title") or entries[0].get("playlist") or entries[0].get("title") or "YouTube/Mediathek Serie"
+                plot = entries[0].get("description") or ""
+            return {"title": title, "plot": plot, "year": ""}
+        except:
+            return {"title": "YouTube/Mediathek Serie", "plot": "", "year": ""}
+    elif provider == "tvdb":
+        try:
+            token = get_tvdb_token()
+            url = f"https://api4.thetvdb.com/v4/series/{show_id}/extended?meta=translations"
+            req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode()).get('data', {})
+            title = data.get('name', '')
+            plot = data.get('overview', '')
+            trans = data.get('translations', {})
+            if isinstance(trans, dict):
+                for t in trans.get('nameTranslations', []):
+                    if t.get('language') == 'deu':
+                        title = t.get('name', title)
+                        break
+                for t in trans.get('overviewTranslations', []):
+                    if t.get('language') == 'deu':
+                        plot = t.get('overview', plot)
+                        break
+            year = data.get('firstAired', '')[:4] if data.get('firstAired') else ''
+            return {"title": title, "plot": plot, "year": year}
+        except Exception as e:
+            return {"title": "", "plot": f"Fehler: {e}", "year": ""}
+    elif provider in ["tmdb_tv", "tmdb_tv_en"]:
+        try:
+            lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
+            url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}&language={lang}"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+            title = data.get('name', '')
+            plot = data.get('overview', '')
+            year = data.get('first_air_date', '')[:4] if data.get('first_air_date') else ''
+            return {"title": title, "plot": plot, "year": year}
+        except Exception as e:
+            return {"title": "", "plot": f"Fehler: {e}", "year": ""}
+    return {"title": "", "plot": "", "year": ""}
+
+def fetch_movie_nfo_data(provider, movie_id):
+    if provider == "manual" or (isinstance(movie_id, str) and movie_id.startswith("{")):
+        try:
+            meta = json.loads(movie_id) if isinstance(movie_id, str) else movie_id
+        except:
+            meta = {"title": "Manueller Film", "year": "", "plot": ""}
+        return {
+            "title": meta.get("title", ""),
+            "plot": meta.get("plot", ""),
+            "year": meta.get("year", "")
+        }
+    elif isinstance(movie_id, str) and (movie_id.startswith("http://") or movie_id.startswith("https://")):
+        try:
+            entries = fetch_ytdlp_url_metadata(movie_id)
+            title = "YouTube Video"
+            plot = ""
+            year = ""
+            if not isinstance(entries, dict) and len(entries) > 0:
+                entry = entries[0]
+                title = entry.get("title", "YouTube Video")
+                plot = entry.get("description", "")
+                if entry.get("upload_date"):
+                    year = entry.get("upload_date")[:4]
+                elif entry.get("release_year"):
+                    year = str(entry.get("release_year"))
+            return {"title": title, "plot": plot, "year": year}
+        except:
+            return {"title": "", "plot": "", "year": ""}
+    else: # TMDB
+        try:
+            url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&language=de-DE"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+            title = data.get('title', '')
+            plot = data.get('overview', '')
+            year = data.get('release_date', '')[:4] if data.get('release_date') else ''
+            return {"title": title, "plot": plot, "year": year}
+        except Exception as e:
+            return {"title": "", "plot": f"Fehler: {e}", "year": ""}
+
+def fetch_episode_nfo_data(provider, show_id, season, episode):
+    if provider == "manual":
+        ep_title = f"Folge {episode}"
+        ep_plot = ""
+        if isinstance(episode, dict):
+            ep_title = episode.get("title", "")
+            ep_plot = episode.get("plot", "")
+        return {"title": ep_title, "plot": ep_plot, "aired": ""}
+    elif provider == "mediathek":
+        try:
+            eps = fetch_mediathek_episodes(show_id)
+            ep_data = eps.get(str(episode), {})
+            return {
+                "title": ep_data.get("title", f"Folge {episode}"),
+                "plot": ep_data.get("plot", ""),
+                "aired": ""
+            }
+        except:
+            return {"title": f"Folge {episode}", "plot": "", "aired": ""}
+    elif provider == "ytdlp":
+        try:
+            entries = fetch_ytdlp_url_metadata(show_id)
+            ep_title = f"Folge {episode}"
+            ep_plot = ""
+            aired = ""
+            if not isinstance(entries, dict) and len(entries) > 0:
+                matched_entry = None
+                if len(entries) == 1:
+                    matched_entry = entries[0]
+                else:
+                    for i, ent in enumerate(entries):
+                        idx = ent.get("playlist_index") or ent.get("playlist_autonumber") or (i + 1)
+                        if str(idx) == str(episode):
+                            matched_entry = ent
+                            break
+                if matched_entry:
+                    title = matched_entry.get("title", "")
+                    alt_title = matched_entry.get("alt_title", "")
+                    show_name = matched_entry.get("playlist_title") or matched_entry.get("playlist", "")
+                    if alt_title and normalize_title(title) == normalize_title(show_name):
+                        ep_title = alt_title
+                    elif alt_title and not title:
+                        ep_title = alt_title
+                    else:
+                        ep_title = title or f"Folge {episode}"
+                    ep_plot = matched_entry.get("description", "")
+                    if matched_entry.get("upload_date") and len(matched_entry.get("upload_date")) == 8:
+                        d = matched_entry.get("upload_date")
+                        aired = f"{d[:4]}-{d[4:6]}-{d[6:8]}"
+            return {"title": ep_title, "plot": ep_plot, "aired": aired}
+        except:
+            return {"title": f"Folge {episode}", "plot": "", "aired": ""}
+    elif provider == "tvdb":
+        try:
+            token = get_tvdb_token()
+            import tempfile
+            cache_file = os.path.join(tempfile.gettempdir(), f"tvdb_{show_id}_deu.json")
+            
+            def _tvdb_load_episodes(sid, lang_code, cache_path):
+                eps = []
+                if os.path.exists(cache_path):
+                    try:
+                        with open(cache_path, 'r', encoding='utf-8') as f:
+                            eps = json.load(f)
+                    except: pass
+                if not eps:
+                    pg = 0
+                    while True:
+                        url = f"https://api4.thetvdb.com/v4/series/{sid}/episodes/default/{lang_code}?page={pg}"
+                        try:
+                            req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
+                            with urllib.request.urlopen(req) as response:
+                                d = json.loads(response.read().decode())
+                                batch = d.get('data', {}).get('episodes', [])
+                                if not batch: break
+                                eps.extend(batch)
+                                lnk = d.get('links', {})
+                                if lnk.get('next') and lnk['next'] != lnk.get('self'):
+                                    pg += 1
+                                else:
+                                    break
+                        except: break
+                    if eps:
+                        try:
+                            with open(cache_path, 'w', encoding='utf-8') as f:
+                                json.dump(eps, f)
+                        except: pass
+                return eps
+
+            all_episodes = _tvdb_load_episodes(show_id, "deu", cache_file)
+            ep_data = {}
+            for ep in all_episodes:
+                if str(ep.get('seasonNumber')) == str(season) and str(ep.get('number')) == str(episode):
+                    ep_data = ep
+                    break
+            
+            ep_title = ep_data.get('name', '').strip() if ep_data else ""
+            ep_plot  = ep_data.get('overview', '').strip() if ep_data else ""
+            aired = ep_data.get('aired', '') if ep_data else ""
+            
+            if not ep_title or not ep_plot:
+                cache_file_en = os.path.join(tempfile.gettempdir(), f"tvdb_{show_id}_eng.json")
+                all_episodes_en = _tvdb_load_episodes(show_id, "eng", cache_file_en)
+                for ep_en in all_episodes_en:
+                    if str(ep_en.get('seasonNumber')) == str(season) and str(ep_en.get('number')) == str(episode):
+                        if not ep_title:
+                            ep_title = ep_en.get('name', '').strip()
+                        if not ep_plot:
+                            ep_plot = ep_en.get('overview', '').strip()
+                        if not aired:
+                            aired = ep_en.get('aired', '')
+                        break
+            
+            return {
+                "title": ep_title or f"Folge {episode}",
+                "plot": ep_plot,
+                "aired": aired
+            }
+        except Exception as e:
+            return {"title": f"Folge {episode}", "plot": f"Fehler: {e}", "aired": ""}
+    elif provider in ["tmdb_tv", "tmdb_tv_en"]:
+        try:
+            lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
+            url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season}/episode/{episode}?api_key={TMDB_API_KEY}&language={lang}"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+            return {
+                "title": data.get('name', f"Folge {episode}"),
+                "plot": data.get('overview', ''),
+                "aired": data.get('air_date', '')
+            }
+        except Exception as e:
+            return {"title": f"Folge {episode}", "plot": f"Fehler: {e}", "aired": ""}
+    return {"title": f"Folge {episode}", "plot": "", "aired": ""}
+
+def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
     import os
     
     if provider == "manual":
@@ -775,6 +1033,10 @@ def generate_tvshow_nfo(provider, show_id, target_folder):
         title = meta.get("title", "Manuelle Serie")
         plot = meta.get("plot", "")
         year = meta.get("year", "")
+        if nfo_overrides:
+            if "title" in nfo_overrides: title = nfo_overrides["title"]
+            if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
+            if "year" in nfo_overrides: year = nfo_overrides["year"]
         
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
@@ -791,9 +1053,21 @@ def generate_tvshow_nfo(provider, show_id, target_folder):
         
     if provider == "mediathek":
         nfo_path = os.path.join(target_folder, "tvshow.nfo")
+        title = show_id
+        plot = ""
+        year = ""
+        if nfo_overrides:
+            if "title" in nfo_overrides: title = nfo_overrides["title"]
+            if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
+            if "year" in nfo_overrides: year = nfo_overrides["year"]
+            
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
-        xml += f"  <title>{show_id.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+        xml += f"  <title>{title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+        if plot:
+            xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+        if year:
+            xml += f"  <year>{year}</year>\n"
         xml += f"  <mw_provider>mediathek</mw_provider>\n"
         xml += f"  <mw_showid>{show_id}</mw_showid>\n"
         xml += '</tvshow>\n'
@@ -806,15 +1080,22 @@ def generate_tvshow_nfo(provider, show_id, target_folder):
         entries = fetch_ytdlp_url_metadata(show_id)
         title = "YouTube/Mediathek Serie"
         plot = ""
+        year = ""
         if not isinstance(entries, dict) and len(entries) > 0:
             title = entries[0].get("playlist_title") or entries[0].get("playlist") or entries[0].get("title") or "YouTube/Mediathek Serie"
             plot = entries[0].get("description") or ""
+        if nfo_overrides:
+            if "title" in nfo_overrides: title = nfo_overrides["title"]
+            if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
+            if "year" in nfo_overrides: year = nfo_overrides["year"]
             
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
         xml += f"  <title>{title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
         if plot:
             xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+        if year:
+            xml += f"  <year>{year}</year>\n"
         xml += "  <mw_provider>ytdlp</mw_provider>\n"
         xml += f"  <mw_showid>{show_id}</mw_showid>\n"
         xml += '</tvshow>\n'
@@ -868,6 +1149,12 @@ def generate_tvshow_nfo(provider, show_id, target_folder):
                     break
                         
             year = data.get('firstAired', '')[:4] if data.get('firstAired') else ''
+            
+            if nfo_overrides:
+                if "title" in nfo_overrides: title = nfo_overrides["title"]
+                if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
+                if "year" in nfo_overrides: year = nfo_overrides["year"]
+                
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
             xml += f"  <title>{title.replace('&', '&amp;')}</title>\n"
@@ -927,11 +1214,18 @@ def generate_tvshow_nfo(provider, show_id, target_folder):
                 break
                 
         year = data.get('first_air_date', '')[:4] if data.get('first_air_date') else ''
+        plot = data.get('overview', '')
+        
+        if nfo_overrides:
+            if "title" in nfo_overrides: data['name'] = nfo_overrides["title"]
+            if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
+            if "year" in nfo_overrides: year = nfo_overrides["year"]
+            
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
         xml += f"  <title>{data.get('name', '').replace('&', '&amp;')}</title>\n"
         xml += f"  <originaltitle>{data.get('original_name', '').replace('&', '&amp;')}</originaltitle>\n"
-        xml += f"  <plot>{data.get('overview', '').replace('&', '&amp;')}</plot>\n"
+        xml += f"  <plot>{plot.replace('&', '&amp;')}</plot>\n"
         xml += f"  <year>{year}</year>\n"
         xml += f"  <premiered>{data.get('first_air_date', '')}</premiered>\n"
         xml += f"  <rating>{data.get('vote_average', 0)}</rating>\n"
@@ -973,7 +1267,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder):
             
     return {"nfo": needs_nfo, "poster": needs_poster, "fanart": needs_fanart}
 
-def generate_episode_nfo(provider, show_id, season, episode, target_folder, filename_base, force_season=None, force_episode=None):
+def generate_episode_nfo(provider, show_id, season, episode, target_folder, filename_base, force_season=None, force_episode=None, nfo_overrides=None):
     import os
     nfo_path = os.path.join(target_folder, f"{filename_base}.nfo")
     thumb_path = os.path.join(target_folder, f"{filename_base}-thumb.jpg")
@@ -988,6 +1282,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
         ep_title = ""
         ep_num = episode
         ep_plot = ""
+        ep_aired = ""
         if isinstance(episode, dict):
             ep_title = episode.get("title", "")
             ep_num = episode.get("episode", 1)
@@ -995,6 +1290,11 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             
         if force_episode is not None:
             ep_num = force_episode
+            
+        if nfo_overrides:
+            if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
+            if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
+            if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
             
         if needs_nfo:
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
@@ -1004,6 +1304,8 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             xml += f"  <episode>{ep_num}</episode>\n"
             if ep_plot:
                 xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+            if ep_aired:
+                xml += f"  <aired>{ep_aired}</aired>\n"
             xml += '</episodedetails>\n'
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
@@ -1015,7 +1317,12 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             ep_data = eps.get(str(episode), {})
             ep_title = ep_data.get("title", f"Folge {episode}")
             ep_plot = ep_data.get("plot", "")
-            
+            ep_aired = ""
+            if nfo_overrides:
+                if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
+                if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
+                if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
+                
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
             xml += f"  <title>{ep_title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
@@ -1023,6 +1330,8 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             xml += f"  <episode>{nfo_episode}</episode>\n"
             if ep_plot:
                 xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+            if ep_aired:
+                xml += f"  <aired>{ep_aired}</aired>\n"
             xml += '</episodedetails>\n'
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
@@ -1034,6 +1343,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             entries = fetch_ytdlp_url_metadata(show_id)
             ep_title = f"Folge {episode}"
             ep_plot = ""
+            ep_aired = ""
             thumbnail_url = None
             if not isinstance(entries, dict) and len(entries) > 0:
                 matched_entry = None
@@ -1057,7 +1367,15 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                     else:
                         ep_title = title or f"Folge {episode}"
                     ep_plot = matched_entry.get("description", "")
+                    if matched_entry.get("upload_date") and len(matched_entry.get("upload_date")) == 8:
+                        d = matched_entry.get("upload_date")
+                        ep_aired = f"{d[:4]}-{d[4:6]}-{d[6:8]}"
             
+            if nfo_overrides:
+                if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
+                if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
+                if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
+                
             if needs_nfo:
                 xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
@@ -1066,6 +1384,8 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                 xml += f"  <episode>{nfo_episode}</episode>\n"
                 if ep_plot:
                     xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+                if ep_aired:
+                    xml += f"  <aired>{ep_aired}</aired>\n"
                 xml += '</episodedetails>\n'
                 with open(nfo_path, 'w', encoding='utf-8') as f:
                     f.write(xml)
@@ -1138,12 +1458,22 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
         if not ep_data:
             if needs_nfo:
                 try:
+                    ep_title = f"Folge {nfo_episode}"
+                    ep_plot = "Automatischer Fallback: Episode online bei TVDB nicht gefunden."
+                    ep_aired = ""
+                    if nfo_overrides:
+                        if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
+                        if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
+                        if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
+                        
                     xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                     xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
-                    xml += f"  <title>Folge {nfo_episode}</title>\n"
+                    xml += f"  <title>{ep_title}</title>\n"
                     xml += f"  <season>{nfo_season}</season>\n"
                     xml += f"  <episode>{nfo_episode}</episode>\n"
-                    xml += f"  <plot>Automatischer Fallback: Episode online bei TVDB nicht gefunden.</plot>\n"
+                    xml += f"  <plot>{ep_plot}</plot>\n"
+                    if ep_aired:
+                        xml += f"  <aired>{ep_aired}</aired>\n"
                     xml += '</episodedetails>\n'
                     with open(nfo_path, 'w', encoding='utf-8') as f:
                         f.write(xml)
@@ -1154,6 +1484,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
 
         ep_title = ep_data.get('name', '').strip()
         ep_plot  = ep_data.get('overview', '').strip()
+        ep_aired = ep_data.get('aired', '')
 
         # EN-Fallback wenn Titel oder Plot fehlt
         if not ep_title or not ep_plot:
@@ -1165,8 +1496,15 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                         ep_title = ep_en.get('name', '').strip()
                     if not ep_plot:
                         ep_plot = ep_en.get('overview', '').strip()
+                    if not ep_aired:
+                        ep_aired = ep_en.get('aired', '')
                     break
 
+        if nfo_overrides:
+            if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
+            if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
+            if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
+            
         if needs_nfo:
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
@@ -1174,7 +1512,8 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             xml += f"  <season>{nfo_season}</season>\n"
             xml += f"  <episode>{nfo_episode}</episode>\n"
             xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
-            xml += f"  <aired>{ep_data.get('aired', '')}</aired>\n"
+            if ep_aired:
+                xml += f"  <aired>{ep_aired}</aired>\n"
             xml += f"  <rating>{ep_data.get('score', 0)}</rating>\n"
             xml += '</episodedetails>\n'
             with open(nfo_path, 'w', encoding='utf-8') as f:
@@ -1195,12 +1534,22 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
     except Exception as e:
         if needs_nfo:
             try:
+                ep_title = f"Folge {nfo_episode}"
+                ep_plot = f"Automatischer Fallback: Details konnten nicht geladen werden ({str(e)})."
+                ep_aired = ""
+                if nfo_overrides:
+                    if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
+                    if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
+                    if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
+                    
                 xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
-                xml += f"  <title>Folge {nfo_episode}</title>\n"
+                xml += f"  <title>{ep_title}</title>\n"
                 xml += f"  <season>{nfo_season}</season>\n"
                 xml += f"  <episode>{nfo_episode}</episode>\n"
-                xml += f"  <plot>Automatischer Fallback: Details konnten nicht geladen werden ({str(e)}).</plot>\n"
+                xml += f"  <plot>{ep_plot}</plot>\n"
+                if ep_aired:
+                    xml += f"  <aired>{ep_aired}</aired>\n"
                 xml += '</episodedetails>\n'
                 with open(nfo_path, 'w', encoding='utf-8') as f:
                     f.write(xml)
@@ -1210,13 +1559,22 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
         return {"error": str(e)}
         
     if needs_nfo:
+        ep_title = data.get('name', '')
+        ep_plot = data.get('overview', '')
+        ep_aired = data.get('air_date', '')
+        if nfo_overrides:
+            if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
+            if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
+            if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
+            
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
-        xml += f"  <title>{data.get('name', '').replace('&', '&amp;')}</title>\n"
+        xml += f"  <title>{ep_title.replace('&', '&amp;')}</title>\n"
         xml += f"  <season>{nfo_season}</season>\n"
         xml += f"  <episode>{nfo_episode}</episode>\n"
-        xml += f"  <plot>{data.get('overview', '').replace('&', '&amp;')}</plot>\n"
-        xml += f"  <aired>{data.get('air_date', '')}</aired>\n"
+        xml += f"  <plot>{ep_plot.replace('&', '&amp;')}</plot>\n"
+        if ep_aired:
+            xml += f"  <aired>{ep_aired}</aired>\n"
         xml += f"  <rating>{data.get('vote_average', 0)}</rating>\n"
         xml += '</episodedetails>\n'
         with open(nfo_path, 'w', encoding='utf-8') as f:

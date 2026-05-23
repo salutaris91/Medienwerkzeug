@@ -7,6 +7,7 @@ let currentProjectIsDoku = false;
 let selectedShow = null;
 let selectedMovie = null;
 let episodesData = {}; // maps episode number (string) to title/info
+let fetchedEpisodeMetadataCache = {}; // caches fetched episode metadata: provider_showid_season_episode -> {title, plot, aired}
 let eventSource = null;
 let isManualMovieMode = false;
 let isManualSeriesMode = false;
@@ -1074,6 +1075,31 @@ async function selectShow(show) {
     seasonsInfo.textContent = "Lade Staffel-Informationen...";
     panel.classList.remove("hidden");
     
+    // Reset and close series details collapsible block
+    const seriesDetails = document.getElementById("series-nfo-details");
+    if (seriesDetails) {
+        seriesDetails.removeAttribute("open");
+    }
+    const seriesNfoTitle = document.getElementById("series-nfo-title");
+    const seriesNfoYear = document.getElementById("series-nfo-year");
+    const seriesNfoPlot = document.getElementById("series-nfo-plot");
+    if (seriesNfoTitle) seriesNfoTitle.value = show.name;
+    if (seriesNfoYear) seriesNfoYear.value = "";
+    if (seriesNfoPlot) seriesNfoPlot.value = "Lade Metadaten...";
+
+    // Fetch and populate show NFO metadata
+    fetch(`/api/metadata/fetch?media_type=tv&provider=${show.provider}&show_id=${show.id}`)
+        .then(res => res.json())
+        .then(data => {
+            if (seriesNfoTitle && data.title) seriesNfoTitle.value = data.title;
+            if (seriesNfoYear && data.year) seriesNfoYear.value = data.year;
+            if (seriesNfoPlot) seriesNfoPlot.value = data.plot || "";
+        })
+        .catch(err => {
+            console.error("Error fetching show NFO preview:", err);
+            if (seriesNfoPlot) seriesNfoPlot.value = "";
+        });
+        
     fetchNasSeasons();
     
     let hasLoadedAllSeasons = false;
@@ -1460,6 +1486,25 @@ function renderMatchingMatrix(matches = {}) {
                         </select>
                     </div>
                     <div class="selected-match-info" id="selected-match-info-${index}"></div>
+                    
+                    <!-- Episoden NFO Editier-Bereich -->
+                    <details class="episode-nfo-details" id="episode-nfo-details-${index}" data-index="${index}" style="margin-top: 10px; border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-sm); padding: 8px; background: rgba(0,0,0,0.15);">
+                        <summary style="cursor: pointer; font-size: 11px; color: var(--text-muted);">📝 NFO für diese Episode bearbeiten</summary>
+                        <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+                            <div>
+                                <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px;">Episodentitel:</label>
+                                <input type="text" class="episode-nfo-title" id="episode-nfo-title-${index}" style="width:100%; font-size: 12px; padding: 6px;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px;">Erstausstrahlung (Aired):</label>
+                                <input type="text" class="episode-nfo-aired" id="episode-nfo-aired-${index}" style="width:100%; font-size: 12px; padding: 6px;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px;">Beschreibung / Plot:</label>
+                                <textarea class="episode-nfo-plot" id="episode-nfo-plot-${index}" rows="2" style="width:100%; resize:vertical; font-size: 12px; padding: 6px;"></textarea>
+                            </div>
+                        </div>
+                    </details>
                 </div>
             </div>
         `;
@@ -1526,6 +1571,72 @@ function renderMatchingMatrix(matches = {}) {
                     updateInfo();
                 });
             }
+            
+            // Bind NFO collapsible events
+            const details = document.getElementById(`episode-nfo-details-${index}`);
+            const epTitleInput = document.getElementById(`episode-nfo-title-${index}`);
+            const epAiredInput = document.getElementById(`episode-nfo-aired-${index}`);
+            const epPlotTextarea = document.getElementById(`episode-nfo-plot-${index}`);
+            
+            const loadEpisodeNfoData = async () => {
+                const val = select.value;
+                if (val === 'skip') {
+                    if (epTitleInput) epTitleInput.value = "";
+                    if (epAiredInput) epAiredInput.value = "";
+                    if (epPlotTextarea) epPlotTextarea.value = "Folge wird übersprungen";
+                    return;
+                }
+                
+                let epNum = val;
+                let epSeason = document.getElementById("series-season-num")?.value || "1";
+                if (isAllSeasons) {
+                    const s_e_match = val.match(/^S(\d+)E(\d+)$/i);
+                    if (s_e_match) {
+                        epSeason = parseInt(s_e_match[1], 10).toString();
+                        epNum = parseInt(s_e_match[2], 10).toString();
+                    }
+                }
+                
+                const cacheKey = `${selectedShow.provider}_${selectedShow.id}_${epSeason}_${epNum}`;
+                if (fetchedEpisodeMetadataCache[cacheKey]) {
+                    const cached = fetchedEpisodeMetadataCache[cacheKey];
+                    if (epTitleInput) epTitleInput.value = cached.title || "";
+                    if (epAiredInput) epAiredInput.value = cached.aired || "";
+                    if (epPlotTextarea) epPlotTextarea.value = cached.plot || "";
+                    return;
+                }
+                
+                if (epPlotTextarea) epPlotTextarea.value = "Lade Metadaten...";
+                try {
+                    const response = await fetch(`/api/metadata/fetch?media_type=episode&provider=${selectedShow.provider}&show_id=${selectedShow.id}&season=${epSeason}&episode=${epNum}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        fetchedEpisodeMetadataCache[cacheKey] = data;
+                        if (select.value === val) {
+                            if (epTitleInput) epTitleInput.value = data.title || "";
+                            if (epAiredInput) epAiredInput.value = data.aired || "";
+                            if (epPlotTextarea) epPlotTextarea.value = data.plot || "";
+                        }
+                    }
+                } catch (err) {
+                    console.error("Error fetching episode NFO:", err);
+                    if (epPlotTextarea) epPlotTextarea.value = "";
+                }
+            };
+            
+            if (details) {
+                details.addEventListener("toggle", () => {
+                    if (details.open) {
+                        loadEpisodeNfoData();
+                    }
+                });
+            }
+            
+            select.addEventListener("change", () => {
+                if (details && details.open) {
+                    loadEpisodeNfoData();
+                }
+            });
         }
     });
 }
@@ -1656,6 +1767,31 @@ function selectMovie(movie) {
     renderProviderInfo(provider, movie.provider, movie.id, movie.loadedFromNfo);
     panel.classList.remove("hidden");
     
+    // Reset and close movie details collapsible block
+    const movieDetails = document.getElementById("movie-nfo-details");
+    if (movieDetails) {
+        movieDetails.removeAttribute("open");
+    }
+    const movieNfoTitle = document.getElementById("movie-nfo-title");
+    const movieNfoYear = document.getElementById("movie-nfo-year");
+    const movieNfoPlot = document.getElementById("movie-nfo-plot");
+    if (movieNfoTitle) movieNfoTitle.value = movie.name;
+    if (movieNfoYear) movieNfoYear.value = "";
+    if (movieNfoPlot) movieNfoPlot.value = "Lade Metadaten...";
+
+    // Fetch and populate movie NFO metadata
+    fetch(`/api/metadata/fetch?media_type=movie&provider=${movie.provider}&movie_id=${movie.id}`)
+        .then(res => res.json())
+        .then(data => {
+            if (movieNfoTitle && data.title) movieNfoTitle.value = data.title;
+            if (movieNfoYear && data.year) movieNfoYear.value = data.year;
+            if (movieNfoPlot) movieNfoPlot.value = data.plot || "";
+        })
+        .catch(err => {
+            console.error("Error fetching movie NFO preview:", err);
+            if (movieNfoPlot) movieNfoPlot.value = "";
+        });
+    
     // Auto-routing destination for Dokus
     const nameLower = movie.name.toLowerCase();
     const isDoku = nameLower.includes("doku") || nameLower.includes("dokumentation") || currentProjectIsDoku;
@@ -1768,6 +1904,33 @@ async function executeSeriesWorkflow() {
         payload.nas_show_folder = nasShowFolder;
     }
     
+    // Collect NFO overrides
+    const nfoOverrides = {
+        show: {
+            title: document.getElementById("series-nfo-title")?.value?.trim() || "",
+            year: document.getElementById("series-nfo-year")?.value?.trim() || "",
+            plot: document.getElementById("series-nfo-plot")?.value?.trim() || ""
+        },
+        episodes: {}
+    };
+    if (!isManualSeriesMode) {
+        rows.forEach((row, index) => {
+            const file = row.getAttribute("data-file");
+            const select = document.getElementById(`match-select-${index}`);
+            if (select && select.value !== "skip") {
+                const epTitle = document.getElementById(`episode-nfo-title-${index}`)?.value?.trim() || "";
+                const epAired = document.getElementById(`episode-nfo-aired-${index}`)?.value?.trim() || "";
+                const epPlot = document.getElementById(`episode-nfo-plot-${index}`)?.value?.trim() || "";
+                nfoOverrides.episodes[file] = {
+                    title: epTitle,
+                    aired: epAired,
+                    plot: epPlot
+                };
+            }
+        });
+    }
+    payload.nfo_overrides = nfoOverrides;
+    
     openPreviewModal(payload);
 }
 
@@ -1800,6 +1963,16 @@ async function executeMovieWorkflow() {
         nas_destination_id: nasDestId,
         pcloud_destination_id: pcloudDestId
     };
+    
+    // Collect NFO overrides
+    const nfoOverrides = {
+        movie: {
+            title: document.getElementById("movie-nfo-title")?.value?.trim() || "",
+            year: document.getElementById("movie-nfo-year")?.value?.trim() || "",
+            plot: document.getElementById("movie-nfo-plot")?.value?.trim() || ""
+        }
+    };
+    payload.nfo_overrides = nfoOverrides;
     
     openPreviewModal(payload);
 }
