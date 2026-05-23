@@ -38,6 +38,31 @@ document.addEventListener("DOMContentLoaded", () => {
     
     setupNasFolderAutocomplete("series-nas-folder-override", "series-nas-folder-dropdown", "btn-load-nas-series", "series-nas-destination");
     setupNasFolderAutocomplete("yt-series-nas-folder-override", "yt-series-nas-folder-dropdown", "btn-load-yt-nas-series", "yt-nas-destination");
+
+    // Register change listeners to update existing NAS seasons info
+    const seriesNasDest = document.getElementById("series-nas-destination");
+    if (seriesNasDest) {
+        seriesNasDest.addEventListener("change", fetchNasSeasons);
+    }
+    const seriesOverrideInput = document.getElementById("series-nas-folder-override");
+    if (seriesOverrideInput) {
+        seriesOverrideInput.addEventListener("input", () => {
+            window.nasFolderSelected = seriesOverrideInput.value;
+        });
+        seriesOverrideInput.addEventListener("change", fetchNasSeasons);
+    }
+    
+    const ytNasDest = document.getElementById("yt-nas-destination");
+    if (ytNasDest) {
+        ytNasDest.addEventListener("change", fetchYtNasSeasons);
+    }
+    const ytOverrideInput = document.getElementById("yt-series-nas-folder-override");
+    if (ytOverrideInput) {
+        ytOverrideInput.addEventListener("input", () => {
+            window.ytNasFolderSelected = ytOverrideInput.value;
+        });
+        ytOverrideInput.addEventListener("change", fetchYtNasSeasons);
+    }
 });
 
 // ==========================================================================
@@ -518,6 +543,9 @@ async function updateSizeEstimation(mediaType) {
 function selectProject(projectName) {
     currentProject = projectName;
     
+    window.nasFolderSelected = null;
+    window.ytNasFolderSelected = null;
+    
     // Reset manual mode variables
     isManualMovieMode = false;
     isManualSeriesMode = false;
@@ -897,7 +925,7 @@ async function searchSeries() {
             html += `
                 <div class="search-item" data-id="${item.id}" data-name="${item.name}" data-provider="${item.provider}" data-media-type="${item.media_type}">
                     <div class="search-item-name">${badge}${item.name}</div>
-                    <div class="search-item-provider">${item.provider}</div>
+                    <div class="search-item-provider">Metadatendienst: ${item.provider}</div>
                 </div>
             `;
         });
@@ -964,22 +992,22 @@ function renderProviderInfo(element, providerName, id, loadedFromNfo) {
     
     if (displayProvider === "tvdb") {
         provBadge.className = "provider-badge tvdb";
-        provBadge.textContent = "TVDB";
+        provBadge.textContent = "Metadatendienst: TVDB";
     } else if (displayProvider === "tmdb_tv" || displayProvider === "tmdb") {
         provBadge.className = "provider-badge tmdb";
-        provBadge.textContent = "TMDb";
+        provBadge.textContent = "Metadatendienst: TMDb";
     } else if (displayProvider === "mediathek") {
         provBadge.className = "provider-badge mediathek";
-        provBadge.textContent = "Mediathek";
+        provBadge.textContent = "Metadatendienst: Mediathek";
     } else if (displayProvider === "ytdlp" || displayProvider === "youtube") {
         provBadge.className = "provider-badge ytdlp";
-        provBadge.textContent = "YouTube / yt-dlp";
+        provBadge.textContent = "Metadatendienst: YouTube / yt-dlp";
     } else if (displayProvider === "manual" || displayProvider === "manuell") {
         provBadge.className = "provider-badge manual";
-        provBadge.textContent = "Manuell";
+        provBadge.textContent = "Metadatendienst: Manuell";
     } else {
         provBadge.className = "provider-badge manual";
-        provBadge.textContent = providerName.toUpperCase();
+        provBadge.textContent = "Metadatendienst: " + providerName.toUpperCase();
     }
     element.appendChild(provBadge);
 
@@ -1000,8 +1028,12 @@ async function selectShow(show) {
     
     const overrideInput = document.getElementById("series-nas-folder-override");
     if (overrideInput) {
-        overrideInput.value = cleanSeriesName(show.name);
-        autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", show.name);
+        if (window.nasFolderSelected) {
+            overrideInput.value = window.nasFolderSelected;
+        } else {
+            overrideInput.value = cleanSeriesName(show.name);
+        }
+        autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
     }
     
     const panel = document.getElementById("selected-show-panel");
@@ -1013,6 +1045,8 @@ async function selectShow(show) {
     renderProviderInfo(provider, show.provider, show.id, show.loadedFromNfo);
     seasonsInfo.textContent = "Lade Staffel-Informationen...";
     panel.classList.remove("hidden");
+    
+    fetchNasSeasons();
     
     let hasLoadedAllSeasons = false;
     // Fetch and apply profile settings
@@ -1550,7 +1584,7 @@ async function searchMovie() {
             html += `
                 <div class="search-item" data-id="${item.id}" data-name="${item.name}" data-provider="${item.provider}" data-media-type="${item.media_type}">
                     <div class="search-item-name">${badge}${item.name}</div>
-                    <div class="search-item-provider">${item.provider}</div>
+                    <div class="search-item-provider">Metadatendienst: ${item.provider}</div>
                 </div>
             `;
         });
@@ -1900,7 +1934,7 @@ async function searchYtMovie() {
             html += `
                 <div class="search-item yt-movie-search-item" data-id="${item.id}" data-name="${item.name}" data-provider="${item.provider}">
                     <div class="search-item-name">${item.name}</div>
-                    <div class="search-item-provider">${item.provider}</div>
+                    <div class="search-item-provider">Metadatendienst: ${item.provider}</div>
                 </div>
             `;
         });
@@ -1959,7 +1993,7 @@ async function searchYtSeries() {
             html += `
                 <div class="search-item yt-series-search-item" data-id="${item.id}" data-name="${item.name}" data-provider="${item.provider}">
                     <div class="search-item-name">${item.name}</div>
-                    <div class="search-item-provider">${item.provider}</div>
+                    <div class="search-item-provider">Metadatendienst: ${item.provider}</div>
                 </div>
             `;
         });
@@ -1980,9 +2014,15 @@ async function searchYtSeries() {
                 
                 const ytOverrideInput = document.getElementById("yt-series-nas-folder-override");
                 if (ytOverrideInput) {
-                    ytOverrideInput.value = cleanSeriesName(ytSelectedShow.name);
-                    autoMatchNasFolder("yt-series-nas-folder-override", "yt-nas-destination", ytSelectedShow.name);
+                    if (window.ytNasFolderSelected) {
+                        ytOverrideInput.value = window.ytNasFolderSelected;
+                    } else {
+                        ytOverrideInput.value = cleanSeriesName(ytSelectedShow.name);
+                    }
+                    autoMatchNasFolder("yt-series-nas-folder-override", "yt-nas-destination", ytOverrideInput.value);
                 }
+                
+                fetchYtNasSeasons();
             });
         });
         
@@ -3953,23 +3993,37 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
                     item.addEventListener("click", (e) => {
                         e.stopPropagation();
                         input.value = folder;
+                        if (inputId === "series-nas-folder-override") {
+                            window.nasFolderSelected = folder;
+                        } else if (inputId === "yt-series-nas-folder-override") {
+                            window.ytNasFolderSelected = folder;
+                        }
                         closeDropdown();
                         
                         // Automatically switch category if category mapping exists
                         if (destSelect && folderDestinations && folderDestinations[folder.toLowerCase()]) {
-                            const matchedDest = folderDestinations[folder.toLowerCase()];
-                            let hasOption = false;
-                            for (let i = 0; i < destSelect.options.length; i++) {
-                                if (destSelect.options[i].value === matchedDest) {
-                                    hasOption = true;
-                                    break;
+                            const matchedDestPath = folderDestinations[folder.toLowerCase()];
+                            const nasRoot = currentSettings.nas_root || "";
+                            const foundCat = (currentSettings.sync_categories || []).find(cat => {
+                                const fullPath = nasRoot + (cat.nas_sub || "");
+                                return fullPath.toLowerCase() === matchedDestPath.toLowerCase();
+                            });
+                            
+                            if (foundCat) {
+                                const matchedDest = foundCat.id;
+                                let hasOption = false;
+                                for (let i = 0; i < destSelect.options.length; i++) {
+                                    if (destSelect.options[i].value === matchedDest) {
+                                        hasOption = true;
+                                        break;
+                                    }
                                 }
-                            }
-                            if (hasOption) {
-                                window.isProgrammaticCategoryChange = true;
-                                destSelect.value = matchedDest;
-                                destSelect.dispatchEvent(new Event("change", { bubbles: true }));
-                                window.isProgrammaticCategoryChange = false;
+                                if (hasOption) {
+                                    window.isProgrammaticCategoryChange = true;
+                                    destSelect.value = matchedDest;
+                                    destSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                                    window.isProgrammaticCategoryChange = false;
+                                }
                             }
                         }
                         
@@ -3980,6 +4034,8 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
                         // Custom action: If this is the series tab autocomplete, trigger show matching!
                         if (inputId === "series-nas-folder-override") {
                             triggerSeriesMatchingFromFolder(folder);
+                        } else if (inputId === "yt-series-nas-folder-override") {
+                            fetchYtNasSeasons();
                         }
                     });
                     itemsContainer.appendChild(item);

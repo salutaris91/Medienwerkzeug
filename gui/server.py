@@ -3324,10 +3324,34 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                         break
                         
         if best_match:
+            existing_seasons = []
+            folder_found = False
+            matched_dest = folder_to_dest.get(best_match)
+            if matched_dest:
+                folder_found = True
+                series_dirs = []
+                if connected and os.path.exists(matched_dest):
+                    series_dirs.append(os.path.join(matched_dest, best_match))
+                
+                rel_dest = os.path.relpath(matched_dest, nas_root)
+                outbox_series_dir = os.path.join(outbox_root, rel_dest, best_match)
+                series_dirs.append(outbox_series_dir)
+                
+                for sd in series_dirs:
+                    if os.path.exists(sd) and os.path.isdir(sd):
+                        try:
+                            for entry in os.listdir(sd):
+                                entry_path = os.path.join(sd, entry)
+                                if os.path.isdir(entry_path) and not entry.startswith('.'):
+                                    if entry not in existing_seasons:
+                                        existing_seasons.append(entry)
+                        except Exception:
+                            pass
+            existing_seasons.sort(key=lambda s: s.lower())
+
             # Check if tvshow.nfo exists
             # We must check both NAS and Outbox paths
             nfo_paths = []
-            matched_dest = folder_to_dest.get(best_match)
             if matched_dest:
                 if connected and os.path.exists(matched_dest):
                     nfo_paths.append(os.path.join(matched_dest, best_match, "tvshow.nfo"))
@@ -3375,7 +3399,17 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                     "found": True,
                     "show_id": show_id,
                     "provider": provider,
-                    "show_name": best_match
+                    "show_name": best_match,
+                    "folder_found": folder_found,
+                    "existing_seasons": existing_seasons
+                })
+                return
+            else:
+                self.send_json({
+                    "found": False,
+                    "show_name": best_match,
+                    "folder_found": folder_found,
+                    "existing_seasons": existing_seasons
                 })
                 return
                 
