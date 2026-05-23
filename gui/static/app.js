@@ -576,6 +576,10 @@ function selectProject(projectName) {
     const navTools = document.getElementById("nav-tools-dashboard");
     if(navTools) navTools.classList.remove("active");
     
+    // Hide context panels and reset mode cards on new project selection
+    document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
+    ["movie", "series", "doku", "tools"].forEach(m => document.getElementById(`mode-${m}`)?.classList.remove("active"));
+    
     scanProject(projectName);
 }
 
@@ -591,9 +595,6 @@ async function scanProject(project) {
     document.getElementById("view-folder").classList.remove("hidden");
     document.getElementById("view-folder").classList.add("active");
     
-    // Hide context panels and reset cards
-    document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
-    ["movie", "series", "doku", "tools"].forEach(m => document.getElementById(`mode-${m}`)?.classList.remove("active"));
     
     title.textContent = project === "" ? "Hauptinbox verarbeiten" : `Projekt: ${project}`;
     path.textContent = "Scanne Ordner...";
