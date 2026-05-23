@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Medienwerkzeug v5.0 (Master-Detail)</title>
-    <link rel="stylesheet" href="style.css?v=25">
+    <link rel="stylesheet" href="style.css?v=26">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -102,6 +102,7 @@
                                 <tr>
                                     <th style="padding:10px; border-bottom:1px solid var(--border-glass);">Dateiname</th>
                                     <th style="padding:10px; border-bottom:1px solid var(--border-glass);">Typ</th>
+                                    <th style="padding:10px; border-bottom:1px solid var(--border-glass); text-align:right;">Aktion</th>
                                 </tr>
                             </thead>
                             <tbody id="files-table-body">
@@ -111,7 +112,7 @@
                 </div>
 
                 <!-- Modus Auswahl Kacheln -->
-                <div id="folder-mode-selector" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; margin-bottom:30px;">
+                <div id="folder-mode-selector" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:20px; margin-bottom:30px;">
                     <div class="mode-card" id="mode-movie">
                         <div class="mode-icon">🎬</div>
                         <h3>Film</h3>
@@ -121,11 +122,6 @@
                         <div class="mode-icon">📺</div>
                         <h3>Serie</h3>
                         <p>Episoden zuordnen (TVDb)</p>
-                    </div>
-                    <div class="mode-card" id="mode-doku">
-                        <div class="mode-icon">🎥</div>
-                        <h3>Doku</h3>
-                        <p>Als Dokumentation verarbeiten</p>
                     </div>
                 </div>
 
@@ -187,6 +183,17 @@
                                 <span class="checkmark"></span> Auch in pCloud sichern
                             </label>
                         </div>
+                        <div class="quality-slider-container form-group hidden" id="movie-quality-slider-container" style="margin-top: 15px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                                <label for="movie-quality-slider" style="margin-bottom:0;">Konvertierungs-Qualität:</label>
+                                <span id="movie-quality-val" style="font-family:var(--font-mono); font-weight:600; color:var(--primary); font-size:14px;">60</span>
+                            </div>
+                            <input type="range" id="movie-quality-slider" min="10" max="100" value="60" step="1" style="width:100%;">
+                            <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted); margin-top:2px;">
+                                <span>Schneller / Kleinere Datei (10)</span>
+                                <span>Sehr hohe Qualität / Große Datei (100)</span>
+                            </div>
+                        </div>
                         <div id="movie-size-estimate-panel" class="hidden" style="margin-top: 15px; padding: 12px; background: rgba(236, 72, 153, 0.15); border: 1px solid rgba(236, 72, 153, 0.3); border-radius: var(--radius-sm); font-size: 13px; display: flex; align-items: center; gap: 10px;">
                             <span>📊</span>
                             <span id="movie-size-estimate-text">Dateigrößen-Prognose: Berechnung läuft...</span>
@@ -237,6 +244,15 @@
                         </div>
                     </div>
 
+                    <div class="form-group" style="margin-top:20px; position: relative;">
+                        <label style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                            <span>Serienname / Ordnername auf NAS (anpassbar):</span>
+                            <button class="btn btn-secondary btn-xs" id="btn-load-nas-series" type="button" style="padding:2px 8px; font-size:11px;">NAS laden</button>
+                        </label>
+                        <input type="text" id="series-nas-folder-override" placeholder="Automatisch (z.B. Sendung mit der Maus)" style="width:100%; margin-top:5px;" autocomplete="off">
+                        <div id="series-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
+                    </div>
+
                     <div class="selected-show-card hidden" id="selected-show-panel" style="margin-top:15px; padding:15px; background:var(--bg-surface); border-radius:var(--radius-md);">
                         <h4 id="selected-show-title">Ausgewählte Serie</h4>
                         <p class="text-muted" id="selected-show-provider-info"></p>
@@ -251,14 +267,6 @@
                                 <span class="checkmark"></span> Alle Staffeln
                             </label>
                             <button class="btn btn-secondary btn-sm" id="btn-fetch-episodes">Episoden laden</button>
-                        </div>
-                        <div class="form-group" style="margin-top:15px; position: relative;">
-                            <label style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-                                <span>Serienname / Ordnername auf NAS (anpassbar):</span>
-                                <button class="btn btn-secondary btn-xs" id="btn-load-nas-series" type="button" style="padding:2px 8px; font-size:11px;">NAS laden</button>
-                            </label>
-                            <input type="text" id="series-nas-folder-override" placeholder="Automatisch (z.B. Sendung mit der Maus)" style="width:100%; margin-top:5px;" autocomplete="off">
-                            <div id="series-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
                         </div>
                     </div>
 
@@ -285,6 +293,17 @@
                                 <input type="checkbox" id="series-option-copy-pcloud">
                                 <span class="checkmark"></span> Auch in pCloud sichern
                             </label>
+                        </div>
+                        <div class="quality-slider-container form-group hidden" id="series-quality-slider-container" style="margin-top: 15px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                                <label for="series-quality-slider" style="margin-bottom:0;">Konvertierungs-Qualität:</label>
+                                <span id="series-quality-val" style="font-family:var(--font-mono); font-weight:600; color:var(--primary); font-size:14px;">60</span>
+                            </div>
+                            <input type="range" id="series-quality-slider" min="10" max="100" value="60" step="1" style="width:100%;">
+                            <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted); margin-top:2px;">
+                                <span>Schneller / Kleinere Datei (10)</span>
+                                <span>Sehr hohe Qualität / Große Datei (100)</span>
+                            </div>
                         </div>
                         <div id="series-size-estimate-panel" class="hidden" style="margin-top: 15px; padding: 12px; background: rgba(236, 72, 153, 0.15); border: 1px solid rgba(236, 72, 153, 0.3); border-radius: var(--radius-sm); font-size: 13px; display: flex; align-items: center; gap: 10px;">
                             <span>📊</span>
@@ -365,6 +384,21 @@
                         <input type="checkbox" id="opt-delete-original" style="width:16px; height:16px;">
                         <span style="color: #ff6b6b;">Originaldateien/Ordner nach erfolgreichem Transfer von der Festplatte löschen</span>
                     </label>
+                </div>
+                
+                <div class="card" style="margin-top: -25px; margin-bottom: 40px; background: rgba(20,20,30,0.5); padding: 15px; border-radius: var(--radius-lg); border: 1px solid var(--border-glass);">
+                    <h3 style="margin-top:0; font-size:14px; color:var(--text-muted); margin-bottom: 10px;">Werkzeug-Optionen (Für H.265 Batch-Konvertierung)</h3>
+                    <div class="quality-slider-container form-group" id="tool-quality-slider-container" style="margin-bottom:0;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                            <label for="tool-quality-slider" style="margin-bottom:0;">Konvertierungs-Qualität:</label>
+                            <span id="tool-quality-val" style="font-family:var(--font-mono); font-weight:600; color:var(--primary); font-size:14px;">60</span>
+                        </div>
+                        <input type="range" id="tool-quality-slider" min="10" max="100" value="60" step="1" style="width:100%;">
+                        <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-muted); margin-top:2px;">
+                            <span>Schneller / Kleinere Datei (10)</span>
+                            <span>Sehr hohe Qualität / Große Datei (100)</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -647,7 +681,7 @@
         </div>
     </div>
 
-    <script src="app.js?v=25"></script>
+    <script src="app.js?v=27"></script>
 <!-- Preview Modal Overlay -->
 <div id="preview-modal-overlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); backdrop-filter:blur(10px); z-index:9999; display:flex; justify-content:center; align-items:center; opacity:0; transition:opacity 0.3s;">
     <div id="preview-modal" style="background:var(--bg-main); border:1px solid var(--border-glass); border-radius:var(--radius-lg); width:90%; max-width:800px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 20px 50px rgba(0,0,0,0.5); transform:translateY(20px); transition:transform 0.3s;">

@@ -40,6 +40,13 @@ def get_tvdb_token():
         print(f"[TVDB Login Error] Unerwarteter Fehler: {e}", file=sys.stderr)
         return None
 
+def normalize_title(t):
+    if not t:
+        return ""
+    t = t.lower()
+    t = t.replace("&", "und")
+    return re.sub(r'[^a-z0-9]', '', t)
+
 def search_tvdb(query, lang="deu"):
     token = get_tvdb_token()
     if not token: return []
@@ -1023,17 +1030,20 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             thumbnail_url = None
             if not isinstance(entries, dict) and len(entries) > 0:
                 matched_entry = None
-                for i, ent in enumerate(entries):
-                    idx = ent.get("playlist_index") or ent.get("playlist_autonumber") or (i + 1)
-                    if str(idx) == str(episode):
-                        matched_entry = ent
-                        break
+                if len(entries) == 1:
+                    matched_entry = entries[0]
+                else:
+                    for i, ent in enumerate(entries):
+                        idx = ent.get("playlist_index") or ent.get("playlist_autonumber") or (i + 1)
+                        if str(idx) == str(episode):
+                            matched_entry = ent
+                            break
                 if matched_entry:
                     title = matched_entry.get("title", "")
                     alt_title = matched_entry.get("alt_title", "")
                     show_name = matched_entry.get("playlist_title") or matched_entry.get("playlist", "")
                     thumbnail_url = matched_entry.get("thumbnail")
-                    if alt_title and title == show_name:
+                    if alt_title and normalize_title(title) == normalize_title(show_name):
                         ep_title = alt_title
                     elif alt_title and not title:
                         ep_title = alt_title
@@ -1119,6 +1129,20 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                 break
 
         if not ep_data:
+            if needs_nfo:
+                try:
+                    xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                    xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
+                    xml += f"  <title>Folge {episode}</title>\n"
+                    xml += f"  <season>{season}</season>\n"
+                    xml += f"  <episode>{episode}</episode>\n"
+                    xml += f"  <plot>Automatischer Fallback: Episode online bei TVDB nicht gefunden.</plot>\n"
+                    xml += '</episodedetails>\n'
+                    with open(nfo_path, 'w', encoding='utf-8') as f:
+                        f.write(xml)
+                    return {"nfo": True, "thumb": False, "msg": "Episode online bei TVDB nicht gefunden (lokaler Fallback generiert)"}
+                except Exception as write_err:
+                    return {"nfo": False, "thumb": False, "msg": f"Episode online bei TVDB nicht gefunden, Schreibfehler: {write_err}"}
             return {"nfo": False, "thumb": False, "msg": "Episode nicht gefunden"}
 
         ep_title = ep_data.get('name', '').strip()
@@ -1162,6 +1186,20 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
         with urllib.request.urlopen(req) as response:
             data = json.loads(response.read().decode())
     except Exception as e:
+        if needs_nfo:
+            try:
+                xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
+                xml += f"  <title>Folge {episode}</title>\n"
+                xml += f"  <season>{season}</season>\n"
+                xml += f"  <episode>{episode}</episode>\n"
+                xml += f"  <plot>Automatischer Fallback: Details konnten nicht geladen werden ({str(e)}).</plot>\n"
+                xml += '</episodedetails>\n'
+                with open(nfo_path, 'w', encoding='utf-8') as f:
+                    f.write(xml)
+                return {"nfo": True, "thumb": False, "msg": f"Online-Fehler ({str(e)}), lokaler Fallback generiert"}
+            except Exception as write_err:
+                return {"error": f"Original: {str(e)}, Schreibfehler Fallback: {str(write_err)}"}
         return {"error": str(e)}
         
     if needs_nfo:

@@ -61,6 +61,11 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         self.assertEqual(server.clean_series_name_for_fs("Doctor Who (fernsehserien.de URL)"), "Doctor Who")
         self.assertEqual(server.clean_series_name_for_fs("Doku - Geheimnisse Asiens [ARTE]"), "Doku - Geheimnisse Asiens")
         self.assertEqual(server.clean_series_name_for_fs("Entdeckung der Welt - Wunder der Tiefsee [ARTE.DE]"), "Entdeckung der Welt - Wunder der Tiefsee")
+        self.assertEqual(server.clean_series_name_for_fs("Wildkatzen und Wildhunde (2022) [FR] [TMDB_TV]"), "Wildkatzen und Wildhunde (2022) [FR]")
+        self.assertEqual(server.clean_series_name_for_fs("Wildkatzen_und_Wildhunde (Freie Mediathek-Suche)"), "Wildkatzen und Wildhunde")
+        self.assertEqual(server.clean_series_name_for_fs("Wildkatzen & Wildhunde (4 Videos via URL)"), "Wildkatzen & Wildhunde")
+        self.assertEqual(server.clean_series_name_for_fs("Wildkatzen & Wildhunde (Video via URL)"), "Wildkatzen & Wildhunde")
+        self.assertEqual(server.clean_series_name_for_fs("Dokus (Mediathek Film aus URL)"), "Dokus")
         self.assertEqual(server.clean_series_name_for_fs("Some Show"), "Some Show")
         self.assertEqual(server.clean_series_name_for_fs(""), "")
         self.assertEqual(server.clean_series_name_for_fs(None), "")
@@ -626,6 +631,47 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         self.assertEqual(root_ep.find("episode").text, "1")
         self.assertEqual(root_ep.find("plot").text, "Über das Leben in kargen Landschaften.")
 
+    def test_generate_episode_nfo_fallback(self):
+        import xml.etree.ElementTree as ET
+        target_dir = os.path.join(self.test_dir, "fallback_nfo_test")
+        os.makedirs(target_dir, exist_ok=True)
+        
+        # Test Case 1: TMDB failure fallback (404/Exception)
+        res = mw_metadata.generate_episode_nfo("tmdb_tv", "999999", 1, 4, target_dir, "ep4_tmdb_fallback")
+        self.assertTrue(res.get("nfo"))
+        self.assertFalse(res.get("thumb"))
+        self.assertIn("Fallback", res.get("msg", ""))
+        
+        ep_nfo_path = os.path.join(target_dir, "ep4_tmdb_fallback.nfo")
+        self.assertTrue(os.path.exists(ep_nfo_path))
+        
+        tree_ep = ET.parse(ep_nfo_path)
+        root_ep = tree_ep.getroot()
+        self.assertEqual(root_ep.find("title").text, "Folge 4")
+        self.assertEqual(root_ep.find("season").text, "1")
+        self.assertEqual(root_ep.find("episode").text, "4")
+        self.assertTrue("Details konnten nicht geladen werden" in root_ep.find("plot").text)
+
+        # Test Case 2: TVDB failure fallback (not found)
+        orig_get_token = mw_metadata.get_tvdb_token
+        mw_metadata.get_tvdb_token = lambda: "fake_token"
+        
+        res_tvdb = mw_metadata.generate_episode_nfo("tvdb", "nonexistent_show_id", 1, 4, target_dir, "ep4_tvdb_fallback")
+        self.assertTrue(res_tvdb.get("nfo"))
+        self.assertIn("nicht gefunden", res_tvdb.get("msg", ""))
+        
+        ep_nfo_path_tvdb = os.path.join(target_dir, "ep4_tvdb_fallback.nfo")
+        self.assertTrue(os.path.exists(ep_nfo_path_tvdb))
+        
+        tree_ep_tvdb = ET.parse(ep_nfo_path_tvdb)
+        root_ep_tvdb = tree_ep_tvdb.getroot()
+        self.assertEqual(root_ep_tvdb.find("title").text, "Folge 4")
+        self.assertEqual(root_ep_tvdb.find("season").text, "1")
+        self.assertEqual(root_ep_tvdb.find("episode").text, "4")
+        self.assertTrue("Episode online bei TVDB nicht gefunden" in root_ep_tvdb.find("plot").text)
+        
+        mw_metadata.get_tvdb_token = orig_get_token
+
     def test_import_streamfab_files_grouping(self):
         from gui import server
         orig_load_settings = server.load_settings
@@ -746,6 +792,812 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                 server.active_jobs.clear()
                 server.active_jobs.update(orig_jobs)
 
+    def test_preview_destination_formatting(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        
+        inbox_dir = os.path.join(self.test_dir, "inbox")
+        outbox_dir = os.path.join(self.test_dir, "outbox")
+        nas_root = os.path.join(self.test_dir, "nas")
+        os.makedirs(inbox_dir)
+        os.makedirs(outbox_dir)
+        os.makedirs(nas_root)
+        
+        orig_load_settings = server.load_settings
+        def mock_load_settings():
+            return {
+                "inbox_dir": inbox_dir,
+                "outbox_dir": outbox_dir,
+                "nas_root": nas_root,
+                "sync_categories": [
+                    {"id": "4", "name": "Doku-Serien", "nas_sub": "/Dokus/Doku-Serien", "pcloud_remote": "pcloud:04a_Dokus"}
+                ]
+            }
+        server.load_settings = mock_load_settings
+        
+        project_dir = os.path.join(inbox_dir, "Geheimnisse_Asiens")
+        os.makedirs(project_dir)
+        video_path = os.path.join(project_dir, "episode1.mp4")
+        with open(video_path, "w") as f:
+            f.write("dummy video data")
+            
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+                
+        dummy = DummyHandler()
+        
+        params = {
+            "media_type": "tv",
+            "project_name": "Geheimnisse_Asiens",
+            "show_name": "Geheimnisse Asiens - Die schönsten Nationalparks",
+            "show_id": "123",
+            "provider": "tmdb_tv",
+            "season": "1",
+            "destination_id": "4",
+            "copy_to_nas": True,
+            "copy_to_pcloud": True,
+            "mappings": {
+                "episode1.mp4": {
+                    "season": "1",
+                    "episode": 1,
+                    "title": "Chinas wilde Berge"
+                }
+            }
+        }
+        
+        try:
+            GUIRequestHandler.handle_api_preview_process(dummy, params)
+            
+            result = dummy.sent_json
+            self.assertIsNotNone(result)
+            dest = result.get("destination", "")
+            expected_nas = "NAS: " + nas_root + "/Dokus/Doku-Serien/Geheimnisse Asiens - Die schönsten Nationalparks/Staffel 1/Geheimnisse Asiens - Die schönsten Nationalparks - S01E01 - Chinas wilde Berge"
+            self.assertIn(expected_nas, dest)
+            self.assertIn("☁️ pCloud: pcloud:04a_Dokus/Geheimnisse Asiens - Die schönsten Nationalparks", dest)
+            
+            params["mappings"] = {}
+            GUIRequestHandler.handle_api_preview_process(dummy, params)
+            
+            result = dummy.sent_json
+            dest = result.get("destination", "")
+            self.assertIn("[Episoden-Unterordner]", dest)
+            
+            # Test "all" seasons mode with string mappings
+            params["season"] = "all"
+            params["mappings"] = {
+                "episode1.mp4": "S02E03"
+            }
+            
+            # Mock the fetch_tmdb_tv to return metadata for S02E03
+            orig_fetch = server.mw_metadata.fetch_tmdb_tv
+            def mock_fetch(show_id, season, lang="de-DE"):
+                return {
+                    "S02E03": {"title": "Kopfeck", "date": "2026-05-22"}
+                }
+            server.mw_metadata.fetch_tmdb_tv = mock_fetch
+            
+            try:
+                GUIRequestHandler.handle_api_preview_process(dummy, params)
+                result = dummy.sent_json
+                self.assertIsNotNone(result)
+                dest = result.get("destination", "")
+                expected_nas = "NAS: " + nas_root + "/Dokus/Doku-Serien/Geheimnisse Asiens - Die schönsten Nationalparks/Staffel 2/Geheimnisse Asiens - Die schönsten Nationalparks - S02E03 - Kopfeck"
+                self.assertIn(expected_nas, dest)
+                
+                # Test fallback when mappings are empty in "all" seasons mode
+                params["mappings"] = {}
+                GUIRequestHandler.handle_api_preview_process(dummy, params)
+                result = dummy.sent_json
+                dest = result.get("destination", "")
+                self.assertIn("[Staffeln]/[Episoden-Unterordner]", dest)
+            finally:
+                server.mw_metadata.fetch_tmdb_tv = orig_fetch
+            
+        finally:
+            server.load_settings = orig_load_settings
+
+    def test_preview_skipped_episodes_are_not_junk(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        
+        inbox_dir = os.path.join(self.test_dir, "inbox_skipped_test")
+        outbox_dir = os.path.join(self.test_dir, "outbox_skipped_test")
+        nas_root = os.path.join(self.test_dir, "nas_skipped_test")
+        os.makedirs(inbox_dir)
+        os.makedirs(outbox_dir)
+        os.makedirs(nas_root)
+        
+        orig_load_settings = server.load_settings
+        def mock_load_settings():
+            return {
+                "inbox_dir": inbox_dir,
+                "outbox_dir": outbox_dir,
+                "nas_root": nas_root,
+                "sync_categories": []
+            }
+        server.load_settings = mock_load_settings
+        
+        project_dir = os.path.join(inbox_dir, "MyShow")
+        os.makedirs(project_dir)
+        
+        # episode1 is mapped, episode2 is unmapped (skipped)
+        video1 = os.path.join(project_dir, "episode1.mp4")
+        video2 = os.path.join(project_dir, "episode2.mp4")
+        sub2 = os.path.join(project_dir, "episode2.srt")
+        junk_txt = os.path.join(project_dir, "streamfab.log")
+        
+        for p in [video1, video2, sub2, junk_txt]:
+            with open(p, "w") as f:
+                f.write("dummy content")
+                
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+                
+        dummy = DummyHandler()
+        
+        params = {
+            "media_type": "tv",
+            "project_name": "MyShow",
+            "show_name": "MyShow",
+            "show_id": "123",
+            "provider": "tmdb_tv",
+            "season": "1",
+            "copy_to_nas": False,
+            "mappings": {
+                "episode1.mp4": {
+                    "season": "1",
+                    "episode": 1,
+                    "title": "Welcome"
+                }
+            }
+        }
+        
+        try:
+            GUIRequestHandler.handle_api_preview_process(dummy, params)
+            result = dummy.sent_json
+            self.assertIsNotNone(result)
+            
+            renames = result.get("renames", [])
+            junk = result.get("junk", [])
+            subs = result.get("subs", [])
+            
+            # episode1.mp4 should be renamed
+            self.assertEqual(len(renames), 1)
+            self.assertEqual(renames[0]["old"], "episode1.mp4")
+            
+            # streamfab.log should be junk
+            self.assertIn("streamfab.log", junk)
+            
+            # episode2.mp4 (unmapped video) and episode2.srt (unmapped sub) should NOT be in junk
+            self.assertNotIn("episode2.mp4", junk)
+            self.assertNotIn("episode2.srt", junk)
+            self.assertNotIn("episode2.mp4", [r["old"] for r in renames])
+            self.assertNotIn("episode2.srt", [s["old"] for s in subs])
+            
+        finally:
+            server.load_settings = orig_load_settings
+
+    def test_api_nas_series_get(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        
+        nas_root = os.path.join(self.test_dir, "nas_get_test")
+        outbox_dir = os.path.join(self.test_dir, "outbox_get_test")
+        os.makedirs(nas_root, exist_ok=True)
+        os.makedirs(outbox_dir, exist_ok=True)
+        
+        # Create folders (including a case-insensitive duplicate)
+        os.makedirs(os.path.join(nas_root, "Serien", "Simpsonspedia"), exist_ok=True)
+        os.makedirs(os.path.join(outbox_dir, "Serien", "Simpsonspedia Outbox"), exist_ok=True)
+        os.makedirs(os.path.join(outbox_dir, "Serien", "simpsonspedia"), exist_ok=True)
+        
+        orig_load_settings = server.load_settings
+        server.load_settings = lambda: {
+            "nas_root": nas_root,
+            "outbox_dir": outbox_dir,
+            "sync_categories": [
+                {"id": "2", "name": "Serien", "nas_sub": "/Serien", "pcloud_remote": ""}
+            ]
+        }
+        
+        orig_ensure = server.ensure_nas_mounted
+        server.ensure_nas_mounted = lambda: True
+        
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+                
+        dummy = DummyHandler()
+        
+        try:
+            # Query format of parse_qs: values are lists
+            params = {"destination_id": ["2"]}
+            GUIRequestHandler.handle_api_nas_series(dummy, params)
+            
+            result = dummy.sent_json
+            self.assertIsNotNone(result)
+            self.assertTrue(result.get("connected"))
+            
+            folders = result.get("folders", [])
+            self.assertIn("Simpsonspedia", folders)
+            self.assertIn("Simpsonspedia Outbox", folders)
+            self.assertNotIn("simpsonspedia", folders)
+            self.assertEqual(len(folders), 2)
+            
+        finally:
+            server.load_settings = orig_load_settings
+            server.ensure_nas_mounted = orig_ensure
+
+    def test_api_nas_series_get_all(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        
+        nas_root = os.path.join(self.test_dir, "nas_get_all_test")
+        outbox_dir = os.path.join(self.test_dir, "outbox_get_all_test")
+        os.makedirs(nas_root, exist_ok=True)
+        os.makedirs(outbox_dir, exist_ok=True)
+        
+        # Create folders in two different categories
+        os.makedirs(os.path.join(nas_root, "Serien", "Simpsonspedia"), exist_ok=True)
+        os.makedirs(os.path.join(nas_root, "Dokus/Doku-Serien", "Modern Marvels"), exist_ok=True)
+        os.makedirs(os.path.join(outbox_dir, "Serien", "Simpsonspedia Outbox"), exist_ok=True)
+        
+        orig_load_settings = server.load_settings
+        server.load_settings = lambda: {
+            "nas_root": nas_root,
+            "outbox_dir": outbox_dir,
+            "sync_categories": [
+                {"id": "2", "name": "Serien", "nas_sub": "/Serien", "pcloud_remote": ""},
+                {"id": "3", "name": "Dokus", "nas_sub": "/Dokus/Doku-Serien", "pcloud_remote": ""}
+            ]
+        }
+        
+        orig_ensure = server.ensure_nas_mounted
+        server.ensure_nas_mounted = lambda: True
+        
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+                
+        dummy = DummyHandler()
+        
+        try:
+            params = {"destination_id": ["all"]}
+            GUIRequestHandler.handle_api_nas_series(dummy, params)
+            
+            result = dummy.sent_json
+            self.assertIsNotNone(result)
+            self.assertTrue(result.get("connected"))
+            
+            folders = result.get("folders", [])
+            self.assertIn("Simpsonspedia", folders)
+            self.assertIn("Modern Marvels", folders)
+            self.assertIn("Simpsonspedia Outbox", folders)
+            self.assertEqual(len(folders), 3)
+            
+            folder_destinations = result.get("folder_destinations", {})
+            self.assertEqual(folder_destinations.get("simpsonspedia"), os.path.join(nas_root, "Serien"))
+            self.assertEqual(folder_destinations.get("modern marvels"), os.path.join(nas_root, "Dokus/Doku-Serien"))
+            self.assertEqual(folder_destinations.get("simpsonspedia outbox"), os.path.join(nas_root, "Serien"))
+            
+        finally:
+            server.load_settings = orig_load_settings
+            server.ensure_nas_mounted = orig_ensure
+
+    def test_api_series_detect(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        
+        nas_root = os.path.join(self.test_dir, "nas_detect_test")
+        outbox_dir = os.path.join(self.test_dir, "outbox_detect_test")
+        os.makedirs(nas_root, exist_ok=True)
+        os.makedirs(outbox_dir, exist_ok=True)
+        
+        # Create folder structure for a show with a tvshow.nfo
+        show_dir = os.path.join(nas_root, "Serien", "Simpsonspedia (1989)")
+        os.makedirs(show_dir, exist_ok=True)
+        nfo_path = os.path.join(show_dir, "tvshow.nfo")
+        with open(nfo_path, "w", encoding="utf-8") as f:
+            f.write("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<tvshow>
+  <mw_provider>ytdlp</mw_provider>
+  <mw_showid>https://youtube.com/playlist?list=some_id</mw_showid>
+</tvshow>""")
+            
+        orig_load_settings = server.load_settings
+        server.load_settings = lambda: {
+            "nas_root": nas_root,
+            "outbox_dir": outbox_dir,
+            "sync_categories": [
+                {"id": "2", "name": "Serien", "nas_sub": "/Serien", "pcloud_remote": ""}
+            ]
+        }
+        
+        orig_ensure = server.ensure_nas_mounted
+        server.ensure_nas_mounted = lambda: True
+        
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+                
+        dummy = DummyHandler()
+        
+        try:
+            # Query format of parse_qs: values are lists.
+            # 1. Exact match (cleaned)
+            query = {
+                "project_name": ["Simpsonspedia 1989"],
+                "nas_destination_id": ["2"]
+            }
+            GUIRequestHandler.handle_api_series_detect(dummy, query)
+            result = dummy.sent_json
+            self.assertTrue(result.get("found"))
+            self.assertEqual(result.get("provider"), "ytdlp")
+            self.assertEqual(result.get("show_id"), "https://youtube.com/playlist?list=some_id")
+            self.assertEqual(result.get("show_name"), "Simpsonspedia (1989)")
+            
+            # 2. Normalized alphanumeric match
+            query_norm = {
+                "project_name": ["simpsonspedia-1989"],
+                "nas_destination_id": ["2"]
+            }
+            GUIRequestHandler.handle_api_series_detect(dummy, query_norm)
+            result_norm = dummy.sent_json
+            self.assertTrue(result_norm.get("found"))
+            self.assertEqual(result_norm.get("show_name"), "Simpsonspedia (1989)")
+            
+            # 3. All destinations search (searching across multiple directories)
+            doku_dir = os.path.join(nas_root, "Dokus", "Doku-Serien", "Geheimnisse Asiens")
+            os.makedirs(doku_dir, exist_ok=True)
+            with open(os.path.join(doku_dir, "tvshow.nfo"), "w", encoding="utf-8") as f:
+                f.write("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<tvshow>
+  <mw_provider>tmdb_tv</mw_provider>
+  <mw_showid>12345</mw_showid>
+</tvshow>""")
+                
+            server.load_settings = lambda: {
+                "nas_root": nas_root,
+                "outbox_dir": outbox_dir,
+                "sync_categories": [
+                    {"id": "2", "name": "Serien", "nas_sub": "/Serien", "pcloud_remote": ""},
+                    {"id": "4", "name": "Doku-Serien", "nas_sub": "/Dokus/Doku-Serien", "pcloud_remote": ""}
+                ]
+            }
+            
+            query_all = {
+                "project_name": ["Geheimnisse Asiens"],
+                "nas_destination_id": ["all"]
+            }
+            GUIRequestHandler.handle_api_series_detect(dummy, query_all)
+            result_all = dummy.sent_json
+            self.assertTrue(result_all.get("found"))
+            self.assertEqual(result_all.get("provider"), "tmdb_tv")
+            self.assertEqual(result_all.get("show_id"), "12345")
+            self.assertEqual(result_all.get("show_name"), "Geheimnisse Asiens")
+            
+        finally:
+            server.load_settings = orig_load_settings
+            server.ensure_nas_mounted = orig_ensure
+
+    def test_api_scan_project_detect_doku(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        
+        inbox_root = os.path.join(self.temp_home, "Downloads", "Medien Input")
+        os.makedirs(inbox_root, exist_ok=True)
+        
+        # Test Case 1: Folder name contains "doku"
+        doku_folder_path = os.path.join(inbox_root, "Planet Erde Doku-Serie")
+        os.makedirs(doku_folder_path, exist_ok=True)
+        # Create a video file
+        with open(os.path.join(doku_folder_path, "episode1.mp4"), "w") as f:
+            f.write("")
+            
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+            def send_error(self, code, message=None):
+                pass
+                
+        dummy = DummyHandler()
+        
+        GUIRequestHandler.handle_api_scan_project(dummy, {"project": ["Planet Erde Doku-Serie"]})
+        self.assertIsNotNone(dummy.sent_json)
+        self.assertTrue(dummy.sent_json.get("is_doku"))
+        self.assertEqual(dummy.sent_json.get("video_count"), 1)
+        
+        # Test Case 2: Folder name does NOT contain "doku", but NFO file contains documentary keywords
+        normal_folder_path = os.path.join(inbox_root, "Some Movie Title")
+        os.makedirs(normal_folder_path, exist_ok=True)
+        with open(os.path.join(normal_folder_path, "movie.mp4"), "w") as f:
+            f.write("")
+        # Create NFO file with documentary keyword
+        with open(os.path.join(normal_folder_path, "movie.nfo"), "w", encoding="utf-8") as f:
+            f.write("This is a fascinating documentary about wildlife.")
+            
+        dummy2 = DummyHandler()
+        GUIRequestHandler.handle_api_scan_project(dummy2, {"project": ["Some Movie Title"]})
+        self.assertIsNotNone(dummy2.sent_json)
+        self.assertTrue(dummy2.sent_json.get("is_doku"))
+        
+        # Test Case 3: Folder name and NFO files have no doku keywords
+        clean_folder_path = os.path.join(inbox_root, "Pure Fiction Movie")
+        os.makedirs(clean_folder_path, exist_ok=True)
+        with open(os.path.join(clean_folder_path, "movie.mp4"), "w") as f:
+            f.write("")
+        with open(os.path.join(clean_folder_path, "movie.nfo"), "w", encoding="utf-8") as f:
+            f.write("A cool action movie about heroes.")
+            
+        dummy3 = DummyHandler()
+        GUIRequestHandler.handle_api_scan_project(dummy3, {"project": ["Pure Fiction Movie"]})
+        self.assertIsNotNone(dummy3.sent_json)
+        self.assertFalse(dummy3.sent_json.get("is_doku"))
+
+    def test_api_split_project_file(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        
+        # Create a temp settings file to mock load_settings
+        temp_dir = self.temp_dirs[0] if hasattr(self, 'temp_dirs') else tempfile.mkdtemp()
+        if not hasattr(self, 'temp_dirs'):
+            self.temp_dirs = [temp_dir]
+            
+        inbox_root = os.path.join(temp_dir, "Medien Input")
+        os.makedirs(inbox_root, exist_ok=True)
+        
+        # Mock load_settings to return our temp inbox_root
+        original_load_settings = server.load_settings
+        server.load_settings = lambda: {"inbox_dir": inbox_root}
+        
+        try:
+            # Create a source project folder with multiple files
+            project_name = "Mixed Project"
+            project_path = os.path.join(inbox_root, project_name)
+            os.makedirs(project_path, exist_ok=True)
+            
+            # File to split and its sidecars
+            movie_file = "Entdeckung_der_Welt_-_Natur_und_Tiere-Das_Tote_Gebirge.mp4"
+            movie_srt = "Entdeckung_der_Welt_-_Natur_und_Tiere-Das_Tote_Gebirge.srt"
+            movie_nfo = "Entdeckung_der_Welt_-_Natur_und_Tiere-Das_Tote_Gebirge.nfo"
+            movie_poster = "Entdeckung_der_Welt_-_Natur_und_Tiere-Das_Tote_Gebirge-poster.jpg"
+            
+            # Other file that should remain in the original project
+            other_file = "Entdeckung_der_Welt_-_Natur_und_Tiere-Wildkatzen.mp4"
+            
+            for name in [movie_file, movie_srt, movie_nfo, movie_poster, other_file]:
+                with open(os.path.join(project_path, name), "w") as f:
+                    f.write("content")
+                    
+            class DummyHandler:
+                def __init__(self):
+                    self.sent_json = None
+                def send_json(self, data):
+                    self.sent_json = data
+                def send_error(self, code, message=None):
+                    pass
+                    
+            dummy = DummyHandler()
+            
+            # Split the movie file
+            params = {
+                "project": project_name,
+                "file_name": movie_file
+            }
+            
+            GUIRequestHandler.handle_api_split_project_file(dummy, params)
+            
+            self.assertIsNotNone(dummy.sent_json)
+            self.assertEqual(dummy.sent_json.get("status"), "success")
+            
+            new_project = dummy.sent_json.get("new_project")
+            self.assertEqual(new_project, "Entdeckung_der_Welt_-_Natur_und_Tiere-Das_Tote_Gebirge")
+            
+            # Check files in new project directory
+            new_project_path = os.path.join(inbox_root, new_project)
+            self.assertTrue(os.path.exists(new_project_path))
+            self.assertTrue(os.path.exists(os.path.join(new_project_path, movie_file)))
+            self.assertTrue(os.path.exists(os.path.join(new_project_path, movie_srt)))
+            self.assertTrue(os.path.exists(os.path.join(new_project_path, movie_nfo)))
+            self.assertTrue(os.path.exists(os.path.join(new_project_path, movie_poster)))
+            
+            # Original project folder should still exist and contain the other file
+            self.assertTrue(os.path.exists(project_path))
+            self.assertTrue(os.path.exists(os.path.join(project_path, other_file)))
+            
+            # Movie files should no longer be in the original project folder
+            self.assertFalse(os.path.exists(os.path.join(project_path, movie_file)))
+            self.assertFalse(os.path.exists(os.path.join(project_path, movie_srt)))
+            
+            # Now let's test that splitting the other file leaves the original folder empty, which should delete it
+            dummy2 = DummyHandler()
+            params2 = {
+                "project": project_name,
+                "file_name": other_file
+            }
+            GUIRequestHandler.handle_api_split_project_file(dummy2, params2)
+            self.assertIsNotNone(dummy2.sent_json)
+            self.assertEqual(dummy2.sent_json.get("status"), "success")
+            
+            # Original project directory should now be deleted since it's empty
+            self.assertFalse(os.path.exists(project_path))
+            
+        finally:
+            server.load_settings = original_load_settings
+
+    def test_single_video_url_series_recognition(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        import gui.mw_metadata as mw_metadata
+        import tempfile
+        
+        # Mock fetch_ytdlp_url_metadata
+        original_fetch = mw_metadata.fetch_ytdlp_url_metadata
+        mw_metadata.fetch_ytdlp_url_metadata = lambda url: [
+            {
+                "title": "Wildkatzen und Wildhunde",
+                "description": "Eine Doku über wilde Tiere.",
+                "thumbnail": "http://example.com/thumb.jpg",
+                "playlist_title": None,
+                "playlist": None
+            }
+        ]
+        
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+                
+        dummy = DummyHandler()
+        
+        try:
+            # 1. Test search with type="tv" -> should classify as tv
+            query_tv = {
+                "q": ["https://www.arte.tv/de/videos/094408-002-F/wildkatzen-und-wildhunde/"],
+                "type": ["tv"]
+            }
+            GUIRequestHandler.handle_api_search(dummy, query_tv)
+            res_tv = dummy.sent_json
+            self.assertEqual(len(res_tv), 1)
+            self.assertEqual(res_tv[0]["media_type"], "tv")
+            self.assertEqual(res_tv[0]["provider"], "ytdlp")
+            
+            # 2. Test search with type="doku" -> should classify as doku
+            query_doku = {
+                "q": ["https://www.arte.tv/de/videos/094408-002-F/wildkatzen-und-wildhunde/"],
+                "type": ["doku"]
+            }
+            GUIRequestHandler.handle_api_search(dummy, query_doku)
+            res_doku = dummy.sent_json
+            self.assertEqual(len(res_doku), 1)
+            self.assertEqual(res_doku[0]["media_type"], "doku")
+            
+            # 3. Test search with type="movie" -> should classify as movie
+            query_movie = {
+                "q": ["https://www.arte.tv/de/videos/094408-002-F/wildkatzen-und-wildhunde/"],
+                "type": ["movie"]
+            }
+            GUIRequestHandler.handle_api_search(dummy, query_movie)
+            res_movie = dummy.sent_json
+            self.assertEqual(len(res_movie), 1)
+            self.assertEqual(res_movie[0]["media_type"], "movie")
+            
+            # 4. Test search with fernsehserien.de URL -> should always classify as tv
+            query_fs = {
+                "q": ["https://www.fernsehserien.de/wildkatzen"],
+                "type": ["tv"]
+            }
+            GUIRequestHandler.handle_api_search(dummy, query_fs)
+            res_fs = dummy.sent_json
+            self.assertEqual(len(res_fs), 1)
+            self.assertEqual(res_fs[0]["media_type"], "tv")
+            self.assertEqual(res_fs[0]["provider"], "fernsehserien")
+            
+            # 5. Test generate_episode_nfo when mapping to episode 4
+            temp_dir = self.temp_dirs[0] if hasattr(self, 'temp_dirs') else tempfile.mkdtemp()
+            if not hasattr(self, 'temp_dirs'):
+                self.temp_dirs = [temp_dir]
+            
+            # This should use entries[0] from the mock because len(entries) == 1
+            nfo_res = mw_metadata.generate_episode_nfo(
+                provider="ytdlp",
+                show_id="https://www.arte.tv/de/videos/094408-002-F/wildkatzen-und-wildhunde/",
+                season=1,
+                episode=4,
+                target_folder=temp_dir,
+                filename_base="Wildkatzen_S01E04"
+            )
+            
+            self.assertTrue(nfo_res.get("nfo"))
+            nfo_file = os.path.join(temp_dir, "Wildkatzen_S01E04.nfo")
+            self.assertTrue(os.path.exists(nfo_file))
+            
+            with open(nfo_file, "r", encoding="utf-8") as f:
+                nfo_content = f.read()
+                
+            self.assertIn("<title>Wildkatzen und Wildhunde</title>", nfo_content)
+            self.assertIn("<season>1</season>", nfo_content)
+            self.assertIn("<episode>4</episode>", nfo_content)
+            self.assertIn("<plot>Eine Doku über wilde Tiere.</plot>", nfo_content)
+            
+        finally:
+            mw_metadata.fetch_ytdlp_url_metadata = original_fetch
+
+    def test_normalize_title_and_episode_naming(self):
+        # 1. Test basic normalization
+        self.assertEqual(mw_metadata.normalize_title("Wildkatzen & Wildhunde"), "wildkatzenundwildhunde")
+        self.assertEqual(mw_metadata.normalize_title("Wildkatzen und Wildhunde"), "wildkatzenundwildhunde")
+        self.assertEqual(mw_metadata.normalize_title("Wildkatzen: und Wildhunde!"), "wildkatzenundwildhunde")
+        self.assertEqual(mw_metadata.normalize_title("   Wildkatzen & Wildhunde   "), "wildkatzenundwildhunde")
+        self.assertEqual(mw_metadata.normalize_title(None), "")
+        self.assertEqual(mw_metadata.normalize_title(""), "")
+
+        # 2. Test equivalence matching
+        title_a = "Wildkatzen & Wildhunde"
+        title_b = "Wildkatzen und Wildhunde"
+        self.assertEqual(mw_metadata.normalize_title(title_a), mw_metadata.normalize_title(title_b))
+
+    def test_paths_clean_api(self):
+        from gui.server import GUIRequestHandler
+        
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+
+        import gui.server as server
+        orig_load_settings = server.load_settings
+        
+        # Setup paths
+        test_inbox = os.path.join(self.test_dir, "test_inbox")
+        test_outbox = os.path.join(self.test_dir, "test_outbox")
+        os.makedirs(test_inbox, exist_ok=True)
+        os.makedirs(test_outbox, exist_ok=True)
+        
+        # Create some files in inbox
+        inbox_sub = os.path.join(test_inbox, "SubFolder")
+        os.makedirs(inbox_sub, exist_ok=True)
+        
+        with open(os.path.join(test_inbox, "file1.mp4"), "w") as f:
+            f.write("video content") # 13 bytes
+        with open(os.path.join(inbox_sub, "junk.txt"), "w") as f:
+            f.write("junk data") # 9 bytes
+            
+        # Create some files in outbox
+        outbox_sub = os.path.join(test_outbox, "AnotherSub")
+        os.makedirs(outbox_sub, exist_ok=True)
+        with open(os.path.join(test_outbox, "file2.mkv"), "w") as f:
+            f.write("video content 2") # 15 bytes
+        with open(os.path.join(outbox_sub, "info.nfo"), "w") as f:
+            f.write("info") # 4 bytes
+            
+        server.load_settings = lambda: {
+            "inbox_dir": test_inbox,
+            "outbox_dir": test_outbox
+        }
+        
+        dummy = DummyHandler()
+        try:
+            # 1. Preview clean for both
+            GUIRequestHandler.handle_api_paths_preview_clean(dummy, {"inbox": True, "output": True})
+            res = dummy.sent_json
+            self.assertIsNotNone(res)
+            self.assertIn("inbox_files", res)
+            self.assertIn("output_files", res)
+            
+            # Check inbox files list
+            inbox_paths = {item["rel_path"]: item["size_bytes"] for item in res["inbox_files"]}
+            self.assertEqual(inbox_paths.get("file1.mp4"), 13)
+            self.assertEqual(inbox_paths.get("SubFolder/junk.txt"), 9)
+            
+            # Check outbox files list
+            outbox_paths = {item["rel_path"]: item["size_bytes"] for item in res["output_files"]}
+            self.assertEqual(outbox_paths.get("file2.mkv"), 15)
+            self.assertEqual(outbox_paths.get("AnotherSub/info.nfo"), 4)
+            
+            # 2. Execute clean for SubFolder/junk.txt and AnotherSub/info.nfo
+            dummy.sent_json = None
+            params = {
+                "inbox_files": ["SubFolder/junk.txt"],
+                "output_files": ["AnotherSub/info.nfo"]
+            }
+            GUIRequestHandler.handle_api_paths_clean(dummy, params)
+            clean_res = dummy.sent_json
+            self.assertEqual(clean_res.get("status"), "ok")
+            self.assertIn("inbox/SubFolder/junk.txt", clean_res.get("deleted_files", []))
+            self.assertIn("output/AnotherSub/info.nfo", clean_res.get("deleted_files", []))
+            
+            # Check that files were actually removed
+            self.assertFalse(os.path.exists(os.path.join(inbox_sub, "junk.txt")))
+            self.assertFalse(os.path.exists(os.path.join(outbox_sub, "info.nfo")))
+            
+            # Check that empty sub directories were cleaned up
+            self.assertFalse(os.path.exists(inbox_sub))
+            self.assertFalse(os.path.exists(outbox_sub))
+            
+            # Check that non-selected files and main dirs are still there
+            self.assertTrue(os.path.exists(os.path.join(test_inbox, "file1.mp4")))
+            self.assertTrue(os.path.exists(os.path.join(test_outbox, "file2.mkv")))
+            
+        finally:
+            server.load_settings = orig_load_settings
+
+    def test_api_estimate_conversion_optimization(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        import gui.core.media as media
+        
+        inbox_dir = os.path.join(self.test_dir, "test_estimate_inbox")
+        os.makedirs(inbox_dir, exist_ok=True)
+        
+        # Create 3 dummy video files
+        filenames = ["ep1.mp4", "ep2.mp4", "ep3.mp4"]
+        for f in filenames:
+            with open(os.path.join(inbox_dir, f), "w") as file:
+                file.write("dummy video data")
+                
+        orig_load_settings = server.load_settings
+        server.load_settings = lambda: {"inbox_dir": inbox_dir}
+        
+        # Track calls to server.media.konvertierung_schaetzen
+        call_count = 0
+        original_konvertierung_schaetzen = server.media.konvertierung_schaetzen
+        
+        def mock_konvertierung_schaetzen(filepath, quality, codec="hevc"):
+            nonlocal call_count
+            call_count += 1
+            return 0.45
+            
+        server.media.konvertierung_schaetzen = mock_konvertierung_schaetzen
+        
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+                
+        dummy = DummyHandler()
+        
+        try:
+            params = {
+                "project_name": "",
+                "filenames": filenames,
+                "quality": 60
+            }
+            GUIRequestHandler.handle_api_estimate_conversion(dummy, params)
+            
+            res = dummy.sent_json
+            self.assertIsNotNone(res)
+            estimates = res.get("estimates", {})
+            self.assertEqual(len(estimates), 3)
+            
+            # Verify media.konvertierung_schaetzen was called exactly ONCE
+            self.assertEqual(call_count, 1)
+            
+            # Verify all estimates have the same ratio 0.45
+            for f in filenames:
+                self.assertIn(f, estimates)
+                self.assertEqual(estimates[f]["ratio"], 0.45)
+                
+        finally:
+            server.load_settings = orig_load_settings
+            server.media.konvertierung_schaetzen = original_konvertierung_schaetzen
+
 if __name__ == "__main__":
     unittest.main()
-

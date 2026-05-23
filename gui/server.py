@@ -124,9 +124,11 @@ def clean_series_name_for_fs(name):
     if not name:
         return ""
     # Remove search-related suffixes in parentheses (case-insensitive)
-    name = re.sub(r'\s*\((?:Mediathek Serie aus URL|Freie Mediathek-Suche|fernsehserien\.de URL)\)', '', name, flags=re.IGNORECASE)
-    # Remove channel/bracket tags like [ARTE], [ARTE.DE], [ZDF] (case-insensitive, optional trailing spaces/dots/chars)
-    name = re.sub(r'\s*\[[A-Za-z0-9\.-]+\]\s*$', '', name)
+    name = re.sub(r'\s*\((?:Mediathek\s+(?:Serie|Film)\s+aus\s+URL|Freie\s+Mediathek-Suche|fernsehserien\.de\s+URL|\d*\s*Videos?\s+via\s+URL)\)', '', name, flags=re.IGNORECASE)
+    # Remove channel/bracket tags like [ARTE], [ARTE.DE], [ZDF], [TMDB_TV] (case-insensitive, optional trailing spaces/dots/chars/underscores)
+    name = re.sub(r'\s*\[[A-Za-z0-9\._-]+\]\s*$', '', name)
+    # Replace underscores with spaces
+    name = name.replace('_', ' ')
     # Also strip any trailing spaces, dots, or dashes that may be left over
     name = name.strip()
     return name
@@ -887,7 +889,7 @@ def process_worker(params):
                         alt_title = ent.get("alt_title", "")
                         show_name = ent.get("playlist_title") or ent.get("playlist", "")
                         ep_title = title
-                        if alt_title and title == show_name:
+                        if alt_title and mw_metadata.normalize_title(title) == mw_metadata.normalize_title(show_name):
                             ep_title = alt_title
                         elif alt_title and not title:
                             ep_title = alt_title
@@ -909,21 +911,36 @@ def process_worker(params):
                 ep_season = ep_num_val.get("season", season)
                 ep_title = ep_num_val.get("title", "")
             else:
-                ep_num = ep_num_val
-                ep_season = season
-                ep_data = episodes.get(str(ep_num), {})
+                ep_data = episodes.get(str(ep_num_val), {})
+                if not ep_data and provider == "ytdlp" and len(episodes) == 1:
+                    ep_data = list(episodes.values())[0]
                 ep_title = ""
                 if isinstance(ep_data, dict):
                     ep_title = ep_data.get("title", "")
                 else:
                     ep_title = str(ep_data)
                 
+                import re
+                match = re.match(r"^S(\d+)E(\d+)$", str(ep_num_val), re.IGNORECASE)
+                if match:
+                    ep_season = int(match.group(1))
+                    ep_num = int(match.group(2))
+                else:
+                    ep_num = ep_num_val
+                    ep_season = season
+                
             ep_title = sanitize_filename(ep_title)
             
             # Format: Show Name - SxxExx - Title.ext
             ext = os.path.splitext(filename)[1].lower()
-            season_str = f"S{int(ep_season):02d}"
-            ep_str = f"E{int(ep_num):02d}"
+            try:
+                season_str = f"S{int(ep_season):02d}"
+            except (ValueError, TypeError):
+                season_str = f"S{ep_season}"
+            try:
+                ep_str = f"E{int(ep_num):02d}"
+            except (ValueError, TypeError):
+                ep_str = f"E{ep_num}"
             
             clean_title = f"{clean_show_name} - {season_str}{ep_str}"
             if ep_title:
@@ -1782,12 +1799,12 @@ def process_worker(params):
                     pass
                     
                 if not is_hevc:
-                    log_message(f"Konvertiere {f} nach H.265 (Qualität 60)...")
+                    log_message(f"Konvertiere {f} nach H.265 (Qualität {quality})...")
                     base = os.path.splitext(f)[0]
                     temp_output = os.path.join(current_dir, f"{base}_neu.mkv")
                     ffmpeg_cmd = [
                         "caffeinate", "-i", "-s", "ffmpeg", "-nostdin", "-i", filepath,
-                        "-c:v", "hevc_videotoolbox", "-tag:v", "hvc1", "-q:v", "60",
+                        "-c:v", "hevc_videotoolbox", "-tag:v", "hvc1", "-q:v", str(quality),
                         "-c:a", "copy", temp_output
                     ]
                     try:
@@ -1799,7 +1816,7 @@ def process_worker(params):
                                 size_out = os.path.getsize(temp_output)
                                 if size_in > 0:
                                     ratio = size_out / size_in
-                                    media.add_conversion_to_history(60, "hevc", ratio)
+                                    media.add_conversion_to_history(quality, "hevc", ratio)
                                     log_message(f"Konvertierungs-Verhältnis erfasst: {ratio:.4f}")
                             except Exception as e:
                                 log_message(f"Fehler beim Erfassen des Konvertierungs-Verhältnisses: {e}")
@@ -1941,6 +1958,10 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             self.handle_api_get_profile(query)
         elif path == "/api/check-dependencies":
             self.handle_api_check_dependencies(query)
+        elif path == "/api/nas-series":
+            self.handle_api_nas_series(query)
+        elif path == "/api/series/detect":
+            self.handle_api_series_detect(query)
         else:
             self.handle_static_files(path)
             
@@ -1961,10 +1982,16 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             self.handle_api_streamfab_import()
         elif path == "/api/preview_clean":
             self.handle_api_preview_clean(params)
+        elif path == "/api/paths/preview_clean":
+            self.handle_api_paths_preview_clean(params)
+        elif path == "/api/paths/clean":
+            self.handle_api_paths_clean(params)
         elif path == "/api/clean-project":
             self.handle_api_clean_project(params)
         elif path == "/api/delete-project":
             self.handle_api_delete_project(params)
+        elif path == "/api/split-project-file":
+            self.handle_api_split_project_file(params)
         elif path == "/api/preview_process":
             self.handle_api_preview_process(params)
         elif path == "/api/nas-series":
@@ -2187,12 +2214,18 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             target_dir = inbox_root
             
         estimates = {}
+        first_successful_ratio = None
         for f in filenames:
             filepath = os.path.join(target_dir, f)
             if os.path.exists(filepath):
                 try:
-                    ratio = media.konvertierung_schaetzen(filepath, quality)
                     size_in = os.path.getsize(filepath)
+                    if first_successful_ratio is not None:
+                        ratio = first_successful_ratio
+                    else:
+                        ratio = media.konvertierung_schaetzen(filepath, quality)
+                        first_successful_ratio = ratio
+                    
                     estimated_size = int(size_in * ratio)
                     estimates[f] = {
                         "ratio": ratio,
@@ -2298,11 +2331,32 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
         # Count videos
         video_count = sum(ext_counts.get(ext, 0) for ext in ['mp4', 'mkv', 'avi', 'webm', 'mov'])
         
+        # Check if project folder name contains doku or if any NFO file inside it contains doku keywords
+        is_doku = False
+        if project and ("doku" in project.lower() or "dokumentation" in project.lower()):
+            is_doku = True
+        
+        if not is_doku:
+            # Let's search for .nfo files in the target directory
+            for f in all_files:
+                if f.lower().endswith(".nfo"):
+                    nfo_path = os.path.join(target_dir, f)
+                    if os.path.exists(nfo_path):
+                        try:
+                            with open(nfo_path, 'r', encoding='utf-8', errors='ignore') as nfo_f:
+                                content = nfo_f.read().lower()
+                                if "doku" in content or "dokumentation" in content or "documentary" in content:
+                                    is_doku = True
+                                    break
+                        except Exception as e:
+                            log_message(f"Fehler beim Lesen der NFO-Datei {f}: {e}")
+        
         self.send_json({
             "current_dir": target_dir,
             "files": file_list,
             "video_count": video_count,
-            "ext_counts": ext_counts
+            "ext_counts": ext_counts,
+            "is_doku": is_doku
         })
 
     def handle_api_preview_clean(self, params):
@@ -2328,6 +2382,109 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             groups[ext].append(f)
             
         self.send_json({"groups": groups})
+
+    def handle_api_paths_preview_clean(self, params):
+        try:
+            settings = load_settings()
+            inbox_dir = settings.get("inbox_dir")
+            outbox_dir = settings.get("outbox_dir")
+            
+            scan_inbox = params.get("inbox", False)
+            scan_output = params.get("output", False)
+            
+            inbox_files = []
+            output_files = []
+            
+            if scan_inbox and inbox_dir and os.path.exists(inbox_dir):
+                files = find_files_recursively(inbox_dir)
+                for f in files:
+                    full_path = os.path.join(inbox_dir, f)
+                    try:
+                        sz = os.path.getsize(full_path)
+                    except Exception:
+                        sz = 0
+                    inbox_files.append({"rel_path": f, "size_bytes": sz})
+                    
+            if scan_output and outbox_dir and os.path.exists(outbox_dir):
+                files = find_files_recursively(outbox_dir)
+                for f in files:
+                    full_path = os.path.join(outbox_dir, f)
+                    try:
+                        sz = os.path.getsize(full_path)
+                    except Exception:
+                        sz = 0
+                    output_files.append({"rel_path": f, "size_bytes": sz})
+                    
+            self.send_json({
+                "inbox_files": inbox_files,
+                "output_files": output_files
+            })
+        except Exception as e:
+            self.send_json({"error": f"Fehler beim Scannen der Medienpfade: {e}"})
+
+    def handle_api_paths_clean(self, params):
+        try:
+            settings = load_settings()
+            inbox_dir = settings.get("inbox_dir")
+            outbox_dir = settings.get("outbox_dir")
+            
+            inbox_files = params.get("inbox_files", [])
+            output_files = params.get("output_files", [])
+            
+            deleted_files = []
+            deleted_dirs = []
+            
+            # Lösche Dateien aus Inbox
+            if inbox_dir and os.path.exists(inbox_dir):
+                for f in inbox_files:
+                    path_f = os.path.join(inbox_dir, f)
+                    if os.path.exists(path_f):
+                        try:
+                            os.remove(path_f)
+                            deleted_files.append(f"inbox/{f}")
+                        except Exception as e:
+                            print(f"Error removing {path_f}: {e}")
+                            
+            # Lösche Dateien aus Output
+            if outbox_dir and os.path.exists(outbox_dir):
+                for f in output_files:
+                    path_f = os.path.join(outbox_dir, f)
+                    if os.path.exists(path_f):
+                        try:
+                            os.remove(path_f)
+                            deleted_files.append(f"output/{f}")
+                        except Exception as e:
+                            print(f"Error removing {path_f}: {e}")
+                            
+            # Leere Ordner aufräumen
+            def cleanup_empty_dirs(base_dir):
+                cleaned = []
+                for root, dirs, files in os.walk(base_dir, topdown=False):
+                    for d in dirs:
+                        dir_path = os.path.join(root, d)
+                        try:
+                            if not os.listdir(dir_path):
+                                os.rmdir(dir_path)
+                                cleaned.append(os.path.relpath(dir_path, base_dir))
+                        except Exception:
+                            pass
+                return cleaned
+
+            if inbox_dir and os.path.exists(inbox_dir):
+                cleaned_inbox = cleanup_empty_dirs(inbox_dir)
+                deleted_dirs.extend([f"inbox/{d}" for d in cleaned_inbox])
+                
+            if outbox_dir and os.path.exists(outbox_dir):
+                cleaned_outbox = cleanup_empty_dirs(outbox_dir)
+                deleted_dirs.extend([f"output/{d}" for d in cleaned_outbox])
+                
+            self.send_json({
+                "status": "ok",
+                "deleted_files": deleted_files,
+                "deleted_dirs": deleted_dirs
+            })
+        except Exception as e:
+            self.send_json({"error": f"Fehler beim Bereinigen der Medienpfade: {e}"})
 
     def handle_api_clean_project(self, params):
         project = params.get("project", "")
@@ -2422,6 +2579,102 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             log_message(f"❌ Fehler beim Löschen des Ordners {project}: {e}")
             self.send_json({"status": "error", "error": str(e)})
 
+    def handle_api_split_project_file(self, params):
+        project = params.get("project", "")
+        file_name = params.get("file_name")
+        if not file_name:
+            self.send_json({"status": "error", "error": "Kein Dateiname angegeben."})
+            return
+            
+        settings = load_settings()
+        inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
+        
+        inbox_root_abs = os.path.abspath(inbox_root)
+        
+        if project:
+            source_dir = os.path.join(inbox_root, project)
+        else:
+            source_dir = inbox_root
+            
+        source_dir_abs = os.path.abspath(source_dir)
+        
+        # Security check: Ensure source_dir is inside inbox_root
+        if not source_dir_abs.startswith(inbox_root_abs):
+            self.send_json({"status": "error", "error": "Ungültiger oder unzulässiger Quell-Pfad."})
+            return
+            
+        # Security check: Prevent path traversal in file_name
+        safe_file_name = os.path.basename(file_name)
+        if safe_file_name != file_name:
+            self.send_json({"status": "error", "error": "Ungültiger Dateiname."})
+            return
+            
+        source_file_path = os.path.join(source_dir_abs, safe_file_name)
+        if not os.path.exists(source_file_path):
+            self.send_json({"status": "error", "error": f"Datei {safe_file_name} existiert nicht im Projekt."})
+            return
+            
+        # Determine base name without extension
+        base_name, _ = os.path.splitext(safe_file_name)
+        if not base_name:
+            base_name = safe_file_name
+            
+        # Find unique folder name to avoid collision
+        new_project_name = base_name
+        counter = 1
+        while os.path.exists(os.path.join(inbox_root_abs, new_project_name)):
+            new_project_name = f"{base_name}_{counter}"
+            counter += 1
+            
+        new_project_dir = os.path.join(inbox_root_abs, new_project_name)
+        
+        try:
+            # Find all files with the same base name
+            all_entries = os.listdir(source_dir_abs)
+            files_to_move = []
+            for entry in all_entries:
+                entry_path = os.path.join(source_dir_abs, entry)
+                if os.path.isfile(entry_path):
+                    # Move exact match, or if it starts with base_name + "." or base_name + "-"
+                    if entry == safe_file_name or entry.startswith(base_name + ".") or entry.startswith(base_name + "-"):
+                        files_to_move.append(entry)
+                        
+            if not files_to_move:
+                self.send_json({"status": "error", "error": "Keine Dateien zum Verschieben gefunden."})
+                return
+                
+            # Create new project directory
+            os.makedirs(new_project_dir, exist_ok=True)
+            
+            # Move files
+            import shutil
+            for f in files_to_move:
+                src = os.path.join(source_dir_abs, f)
+                dst = os.path.join(new_project_dir, f)
+                shutil.move(src, dst)
+                log_message(f"Moved {src} to {dst}")
+                
+            log_message(f"✂️ Datei {safe_file_name} erfolgreich in das Projekt {new_project_name} abgespalten (insgesamt {len(files_to_move)} Dateien).")
+            
+            # Delete source directory if empty and not the inbox root
+            if project:
+                remaining = os.listdir(source_dir_abs)
+                remaining = [r for r in remaining if not r.startswith(".")]
+                if not remaining:
+                    try:
+                        shutil.rmtree(source_dir_abs)
+                        log_message(f"🗑️ Quellordner gelöscht, da leer: {project}")
+                    except Exception as e:
+                        log_message(f"⚠️ Fehler beim Löschen des leeren Quellordners {project}: {e}")
+                        
+            self.send_json({
+                "status": "success",
+                "new_project": new_project_name
+            })
+        except Exception as e:
+            log_message(f"❌ Fehler bei handle_api_split_project_file: {e}")
+            self.send_json({"status": "error", "error": str(e)})
+
     def handle_api_search(self, query):
         q = query.get("q", [""])[0].strip()
         media_type = query.get("type", ["tv"])[0]
@@ -2450,11 +2703,17 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                             }]
                         else:
                             title = entries[0].get("title") or "Video via URL"
+                            # Determine media type based on search request and metadata
+                            has_series_info = any(entries[0].get(k) for k in ["series", "season_number", "episode_number", "season", "episode"])
+                            if media_type in ("tv", "doku") or has_series_info:
+                                res_type = media_type if media_type in ("tv", "doku") else "tv"
+                            else:
+                                res_type = "movie"
                             results = [{
                                 "id": q,
                                 "name": f"{title} (Video via URL)",
                                 "provider": "ytdlp",
-                                "media_type": "movie"
+                                "media_type": res_type
                             }]
                     else:
                         # Fallback for Mediathek/other URLs that yt-dlp fails to extract directly
@@ -2476,11 +2735,13 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                                 elif " - " in title:
                                     search_term = title.split(" - ")[0].strip()
                                 
+                                res_type = media_type if media_type in ("tv", "doku") else "movie"
+                                name_suffix = "Serie aus URL" if res_type != "movie" else "Film aus URL"
                                 results = [{
                                     "id": f"url_mediathek:{search_term}",
-                                    "name": f"{search_term} (Mediathek Serie aus URL)",
+                                    "name": f"{search_term} (Mediathek {name_suffix})",
                                     "provider": "mediathek",
-                                    "media_type": "tv"
+                                    "media_type": res_type
                                 }]
                         except Exception as e:
                             print(f"Error scraping fallback URL {q}: {e}")
@@ -2580,7 +2841,7 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                         alt_title = ent.get("alt_title", "")
                         show_name = ent.get("playlist_title") or ent.get("playlist", "")
                         ep_title = title
-                        if alt_title and title == show_name:
+                        if alt_title and mw_metadata.normalize_title(title) == mw_metadata.normalize_title(show_name):
                             ep_title = alt_title
                         elif alt_title and not title:
                             ep_title = alt_title
@@ -2655,7 +2916,7 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             return
             
         all_files = find_files_recursively(current_dir)
-        video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov')
+        video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
         sub_exts = ('.srt', '.vtt', '.ass')
         good_meta = ('tvshow.nfo', 'poster.jpg', 'fanart.jpg', 'season.nfo', 'movie.nfo')
         
@@ -2724,20 +2985,6 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             
             pcloud_path = f"{explicit_pcloud_base}/{clean_show_name}" if explicit_pcloud_base else None
             
-            if params.get("copy_to_nas", True):
-                dest_str = f"NAS: {dest_show_dir}/Staffel {int(season)}/[Episoden-Unterordner]"
-            else:
-                dest_str = "NAS: (nicht aktiv)"
-                
-            if params.get("copy_to_pcloud", False):
-                if pcloud_path:
-                    dest_str += f"\n☁️ pCloud: {pcloud_path}"
-                else:
-                    dest_str += "\n☁️ pCloud: (Kein Mapping gefunden)"
-            else:
-                dest_str += "\n☁️ pCloud: (nicht aktiv)"
-            preview["destination"] = dest_str
-            
             episodes = {}
             if provider and show_id:
                 try:
@@ -2758,9 +3005,9 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                                 ep_idx = ent.get("playlist_index") or ent.get("playlist_autonumber") or (idx + 1)
                                 title = ent.get("title", "")
                                 alt_title = ent.get("alt_title", "")
-                                show_name = ent.get("playlist_title") or ent.get("playlist", "")
+                                show_name_yt = ent.get("playlist_title") or ent.get("playlist", "")
                                 ep_title = title
-                                if alt_title and title == show_name:
+                                if alt_title and mw_metadata.normalize_title(title) == mw_metadata.normalize_title(show_name_yt):
                                     ep_title = alt_title
                                 elif alt_title and not title:
                                     ep_title = alt_title
@@ -2768,30 +3015,50 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                 except Exception as e:
                     print(f"Error fetching preview episodes: {e}")
             
+            clean_titles = []
             for f in all_files:
                 basename = os.path.basename(f)
                 ext = os.path.splitext(f)[1].lower()
                 
                 if ext in video_exts:
-                    ep_num = mappings.get(f) or mappings.get(basename)
+                    rel_f = os.path.relpath(f, current_dir)
+                    ep_num = mappings.get(rel_f) or mappings.get(f) or mappings.get(basename)
                     if ep_num:
                         if isinstance(ep_num, dict):
                             curr_season = ep_num.get("season", season)
                             curr_ep_num = ep_num.get("episode", 1)
                             ep_title = ep_num.get("title", "")
                         else:
-                            curr_season = season
-                            curr_ep_num = ep_num
-                            ep_data = episodes.get(str(curr_ep_num), {})
+                            ep_data = episodes.get(str(ep_num), {})
+                            if not ep_data and provider == "ytdlp" and len(episodes) == 1:
+                                ep_data = list(episodes.values())[0]
                             ep_title = ep_data.get("title", "") if isinstance(ep_data, dict) else str(ep_data)
+                            
+                            import re
+                            match = re.match(r"^S(\d+)E(\d+)$", str(ep_num), re.IGNORECASE)
+                            if match:
+                                curr_season = int(match.group(1))
+                                curr_ep_num = int(match.group(2))
+                            else:
+                                curr_season = season
+                                curr_ep_num = ep_num
                         
                         ep_title = sanitize_filename(ep_title)
                         
-                        season_str = f"S{int(curr_season):02d}"
-                        ep_str = f"E{int(curr_ep_num):02d}"
+                        try:
+                            season_str = f"S{int(curr_season):02d}"
+                        except (ValueError, TypeError):
+                            season_str = f"S{curr_season}"
+                        try:
+                            ep_str = f"E{int(curr_ep_num):02d}"
+                        except (ValueError, TypeError):
+                            ep_str = f"E{curr_ep_num}"
+                            
                         clean_title = f"{clean_show_name} - {season_str}{ep_str}"
                         if ep_title: clean_title += f" - {ep_title}"
                         clean_title = limit_filename_length(clean_title)
+                        
+                        clean_titles.append((curr_season, clean_title))
                         
                         target_filename = f"{clean_title}{ext}"
                         preview["renames"].append({"old": f, "new": target_filename})
@@ -2803,7 +3070,7 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                             if sbasename.startswith(base_old) and sf != f and sext in sub_exts:
                                 preview["subs"].append({"old": sf, "new": f"{clean_title}{sext}"})
                     else:
-                        preview["junk"].append(f)
+                        pass
                 elif ext in sub_exts:
                     pass # Handled above or ignored
                 elif basename.lower() in good_meta or (ext in ('.nfo', '.jpg', '.png') and ('poster' in basename.lower() or 'fanart' in basename.lower())):
@@ -2813,6 +3080,39 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                     
             sub_olds = [x["old"] for x in preview["subs"]]
             preview["junk"] = [j for j in preview["junk"] if j not in sub_olds and j not in [r["old"] for r in preview["renames"]]]
+            
+            if params.get("copy_to_nas", True):
+                if clean_titles:
+                    unique_paths = []
+                    for s, t in clean_titles:
+                        try:
+                            s_num = int(s)
+                            p = f"{dest_show_dir}/Staffel {s_num}/{t}"
+                        except (ValueError, TypeError):
+                            p = f"{dest_show_dir}/{s}/{t}"
+                        if p not in unique_paths:
+                            unique_paths.append(p)
+                    if len(unique_paths) == 1:
+                        dest_str = f"NAS: {unique_paths[0]}"
+                    else:
+                        dest_str = "NAS:\n" + "\n".join(f"• {p}" for p in unique_paths)
+                else:
+                    try:
+                        s_num = int(season)
+                        dest_str = f"NAS: {dest_show_dir}/Staffel {s_num}/[Episoden-Unterordner]"
+                    except (ValueError, TypeError):
+                        dest_str = f"NAS: {dest_show_dir}/[Staffeln]/[Episoden-Unterordner]"
+            else:
+                dest_str = "NAS: (nicht aktiv)"
+                
+            if params.get("copy_to_pcloud", False):
+                if pcloud_path:
+                    dest_str += f"\n☁️ pCloud: {pcloud_path}"
+                else:
+                    dest_str += "\n☁️ pCloud: (Kein Mapping gefunden)"
+            else:
+                dest_str += "\n☁️ pCloud: (nicht aktiv)"
+            preview["destination"] = dest_str
             
         # Season year warning
         if media_type == "tv" and season is not None:
@@ -2831,37 +3131,154 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
         outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
         
         nas_destination_id = params.get("nas_destination_id") or params.get("destination_id") or "2"
+        if isinstance(nas_destination_id, list) and len(nas_destination_id) > 0:
+            nas_destination_id = nas_destination_id[0]
         
-        destination = None
         sync_cats = settings.get("sync_categories", [])
-        found_cat = None
-        for cat in sync_cats:
-            if cat.get("id") == str(nas_destination_id):
-                found_cat = cat
-                break
-        if not found_cat:
+        categories_to_scan = []
+        
+        if nas_destination_id == "all":
+            categories_to_scan = sync_cats
+        else:
+            found_cat = None
             for cat in sync_cats:
-                nas_sub = cat.get("nas_sub", "")
-                if nas_sub and (nas_sub in str(nas_destination_id)):
+                if cat.get("id") == str(nas_destination_id):
                     found_cat = cat
                     break
-        if found_cat:
-            destination = f"{nas_root}{found_cat.get('nas_sub')}"
-        else:
-            destination = f"{nas_root}/Serien"
-            
+            if not found_cat:
+                for cat in sync_cats:
+                    nas_sub = cat.get("nas_sub", "")
+                    if nas_sub and (nas_sub in str(nas_destination_id)):
+                        found_cat = cat
+                        break
+            if found_cat:
+                categories_to_scan = [found_cat]
+            else:
+                categories_to_scan = [{"id": "2", "name": "Serien", "nas_sub": "/Serien"}]
+                
         connected = ensure_nas_mounted()
         
         folders = set()
-        if connected and destination and os.path.exists(destination):
-            try:
-                for entry in os.listdir(destination):
-                    if os.path.isdir(os.path.join(destination, entry)) and not entry.startswith('.'):
-                        folders.add(entry)
-            except Exception as e:
-                print(f"Fehler beim Scannen von NAS {destination}: {e}")
-                
-        if destination:
+        folder_to_dest = {}
+        
+        for cat in categories_to_scan:
+            nas_sub = cat.get("nas_sub")
+            if not nas_sub:
+                continue
+            destination = f"{nas_root}{nas_sub}"
+            cat_folders = set()
+            
+            if connected and os.path.exists(destination):
+                try:
+                    for entry in os.listdir(destination):
+                        if os.path.isdir(os.path.join(destination, entry)) and not entry.startswith('.'):
+                            cat_folders.add(entry)
+                except Exception as e:
+                    print(f"Fehler beim Scannen von NAS {destination}: {e}")
+                    
+            rel_dest = os.path.relpath(destination, nas_root)
+            outbox_dest = os.path.join(outbox_root, rel_dest)
+            if os.path.exists(outbox_dest):
+                try:
+                    for entry in os.listdir(outbox_dest):
+                        if os.path.isdir(os.path.join(outbox_dest, entry)) and not entry.startswith('.'):
+                            cat_folders.add(entry)
+                except Exception as e:
+                    print(f"Fehler beim Scannen von Outbox {outbox_dest}: {e}")
+                    
+            for folder in cat_folders:
+                folder_clean = folder.strip()
+                if not folder_clean:
+                    continue
+                lower_folder = folder_clean.lower()
+                folders.add(folder_clean)
+                folder_to_dest[lower_folder] = destination
+                    
+        # Case-insensitive deduplication
+        deduped = {}
+        for entry in folders:
+            name = entry.strip()
+            if not name:
+                continue
+            lowered = name.lower()
+            if lowered in deduped:
+                # Keep the one with better casing (more uppercase letters)
+                existing = deduped[lowered]
+                existing_caps = sum(1 for c in existing if c.isupper())
+                entry_caps = sum(1 for c in name if c.isupper())
+                if entry_caps > existing_caps:
+                    deduped[lowered] = name
+            else:
+                deduped[lowered] = name
+
+        self.send_json({
+            "connected": connected,
+            "folders": sorted(list(deduped.values()), key=lambda s: s.lower()),
+            "folder_destinations": {k: folder_to_dest[k] for k in deduped.keys() if k in folder_to_dest}
+        })
+
+    def handle_api_series_detect(self, query):
+        project_name = ""
+        if "project_name" in query and len(query["project_name"]) > 0:
+            project_name = query["project_name"][0]
+            
+        nas_destination_id = ""
+        if "nas_destination_id" in query and len(query["nas_destination_id"]) > 0:
+            nas_destination_id = query["nas_destination_id"][0]
+        elif "destination_id" in query and len(query["destination_id"]) > 0:
+            nas_destination_id = query["destination_id"][0]
+            
+        if not project_name:
+            self.send_json({"found": False})
+            return
+            
+        settings = load_settings()
+        nas_root = settings.get("nas_root", "/Volumes/Kino")
+        outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
+        
+        # Resolve destination paths to search in
+        destinations = []
+        sync_cats = settings.get("sync_categories", [])
+        
+        if nas_destination_id == "all":
+            for cat in sync_cats:
+                nas_sub = cat.get("nas_sub", "")
+                if nas_sub:
+                    destinations.append(f"{nas_root}{nas_sub}")
+        else:
+            found_cat = None
+            if nas_destination_id:
+                for cat in sync_cats:
+                    if cat.get("id") == str(nas_destination_id):
+                        found_cat = cat
+                        break
+                if not found_cat:
+                    for cat in sync_cats:
+                        nas_sub = cat.get("nas_sub", "")
+                        if nas_sub and (nas_sub in str(nas_destination_id)):
+                            found_cat = cat
+                            break
+            if found_cat:
+                destinations.append(f"{nas_root}{found_cat.get('nas_sub')}")
+            else:
+                destinations.append(f"{nas_root}/Serien")
+            
+        connected = ensure_nas_mounted()
+        
+        # Find all folders and map them to their parent destination directory
+        folders = set()
+        folder_to_dest = {}
+        
+        for destination in destinations:
+            if connected and os.path.exists(destination):
+                try:
+                    for entry in os.listdir(destination):
+                        if os.path.isdir(os.path.join(destination, entry)) and not entry.startswith('.'):
+                            folders.add(entry)
+                            folder_to_dest[entry] = destination
+                except Exception:
+                    pass
+                    
             rel_dest = os.path.relpath(destination, nas_root)
             outbox_dest = os.path.join(outbox_root, rel_dest)
             if os.path.exists(outbox_dest):
@@ -2869,13 +3286,100 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                     for entry in os.listdir(outbox_dest):
                         if os.path.isdir(os.path.join(outbox_dest, entry)) and not entry.startswith('.'):
                             folders.add(entry)
-                except Exception as e:
-                    print(f"Fehler beim Scannen von Outbox {outbox_dest}: {e}")
+                            if entry not in folder_to_dest:
+                                folder_to_dest[entry] = destination
+                except Exception:
+                    pass
                     
-        self.send_json({
-            "connected": connected,
-            "folders": sorted(list(folders))
-        })
+        cleaned_proj = clean_series_name_for_fs(project_name)
+        
+        # Helper to find best match in list
+        best_match = None
+        
+        # 1. Exact case-insensitive match
+        for f in folders:
+            if f.lower().strip() == cleaned_proj.lower().strip():
+                best_match = f
+                break
+                
+        # 2. Normalized match
+        if not best_match:
+            import re
+            norm_proj = re.sub(r'[^a-zA-Z0-9]', '', cleaned_proj.lower())
+            if norm_proj:
+                for f in folders:
+                    norm_f = re.sub(r'[^a-zA-Z0-9]', '', f.lower())
+                    if norm_f == norm_proj:
+                        best_match = f
+                        break
+                        
+        # 3. Substring match
+        if not best_match:
+            norm_proj = re.sub(r'[^a-zA-Z0-9]', '', cleaned_proj.lower())
+            if len(norm_proj) >= 4:
+                for f in folders:
+                    norm_f = re.sub(r'[^a-zA-Z0-9]', '', f.lower())
+                    if norm_proj in norm_f or norm_f in norm_proj:
+                        best_match = f
+                        break
+                        
+        if best_match:
+            # Check if tvshow.nfo exists
+            # We must check both NAS and Outbox paths
+            nfo_paths = []
+            matched_dest = folder_to_dest.get(best_match)
+            if matched_dest:
+                if connected and os.path.exists(matched_dest):
+                    nfo_paths.append(os.path.join(matched_dest, best_match, "tvshow.nfo"))
+                
+                rel_dest = os.path.relpath(matched_dest, nas_root)
+                outbox_dest = os.path.join(outbox_root, rel_dest)
+                nfo_paths.append(os.path.join(outbox_dest, best_match, "tvshow.nfo"))
+                
+            show_id = None
+            provider = None
+            
+            for np in nfo_paths:
+                if os.path.exists(np):
+                    try:
+                        with open(np, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                            
+                        # Search for mw_provider and mw_showid
+                        import re
+                        m_prov = re.search(r'<mw_provider>(.*?)</mw_provider>', content)
+                        m_id = re.search(r'<mw_showid>(.*?)</mw_showid>', content)
+                        
+                        if m_prov and m_id:
+                            provider = m_prov.group(1).strip()
+                            show_id = m_id.group(1).strip()
+                            break
+                            
+                        # Fallback search for tvdbid or tmdbid
+                        m_tvdb = re.search(r'<tvdbid>(.*?)</tvdbid>', content)
+                        if m_tvdb:
+                            provider = "tvdb"
+                            show_id = m_tvdb.group(1).strip()
+                            break
+                            
+                        m_tmdb = re.search(r'<tmdbid>(.*?)</tmdbid>', content)
+                        if m_tmdb:
+                            provider = "tmdb_tv"
+                            show_id = m_tmdb.group(1).strip()
+                            break
+                    except Exception:
+                        pass
+                        
+            if show_id and provider:
+                self.send_json({
+                    "found": True,
+                    "show_id": show_id,
+                    "provider": provider,
+                    "show_name": best_match
+                })
+                return
+                
+        self.send_json({"found": False})
 
     def handle_api_process(self, params):
         task_id = str(uuid.uuid4())

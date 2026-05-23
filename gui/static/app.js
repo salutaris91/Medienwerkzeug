@@ -3,6 +3,7 @@
 // ==========================================================================
 let currentProject = "";
 let projectFiles = [];
+let currentProjectIsDoku = false;
 let selectedShow = null;
 let selectedMovie = null;
 let episodesData = {}; // maps episode number (string) to title/info
@@ -45,9 +46,11 @@ document.addEventListener("DOMContentLoaded", () => {
 function cleanSeriesName(name) {
     if (!name) return "";
     // Remove search suffixes in parentheses (case-insensitive)
-    let cleaned = name.replace(/\s*\((Mediathek Serie aus URL|Freie Mediathek-Suche|fernsehserien\.de URL)\)/gi, '');
-    // Remove trailing channel tag in brackets, e.g., [ARTE], [ARTE.DE]
-    cleaned = cleaned.replace(/\s*\[[a-zA-Z0-9\.-]+\]\s*$/, '');
+    let cleaned = name.replace(/\s*\((Mediathek\s+(Serie|Film)\s+aus\s+URL|Freie\s+Mediathek-Suche|fernsehserien\.de\s+URL|\d*\s*Videos?\s+via\s+URL)\)/gi, '');
+    // Remove trailing channel tag in brackets, e.g., [ARTE], [ARTE.DE], [TMDB_TV]
+    cleaned = cleaned.replace(/\s*\[[a-zA-Z0-9\._-]+\]\s*$/, '');
+    // Replace underscores with spaces
+    cleaned = cleaned.replace(/_/g, ' ');
     return cleaned.trim();
 }
 
@@ -67,7 +70,7 @@ function initViews() {
         });
     }
     
-    const modes = ["movie", "series", "doku", "tools"];
+    const modes = ["movie", "series", "tools"];
     modes.forEach(mode => {
         const card = document.getElementById(`mode-${mode}`);
         if(card) {
@@ -78,7 +81,7 @@ function initViews() {
                 
                 document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
                 
-                let ctxTarget = mode === "doku" ? "context-movie" : `context-${mode}`;
+                let ctxTarget = `context-${mode}`;
                 const ctx = document.getElementById(ctxTarget);
                 if(ctx) {
                     ctx.classList.remove("hidden");
@@ -95,17 +98,19 @@ function initViews() {
                         return found ? found.id : fallbackId;
                     };
                     
-                    if(mode === "doku") {
-                        document.getElementById("context-movie-header").innerText = "Doku verarbeiten";
-                        document.getElementById("movie-nas-destination").value = getCatIdBySub("/Dokus/Einzelne Dokus", "3");
-                        document.getElementById("movie-pcloud-destination").value = getCatIdBySub("/Dokus/Einzelne Dokus", "3");
-                        document.getElementById("movie-search-query").value = cleanedQuery;
-                        searchMovie();
-                        updateSizeEstimation("movie");
-                    } else if (mode === "movie") {
-                        document.getElementById("context-movie-header").innerText = "Film verarbeiten";
-                        document.getElementById("movie-nas-destination").value = getCatIdBySub("/Filme", "1");
-                        document.getElementById("movie-pcloud-destination").value = getCatIdBySub("/Filme", "1");
+                    if (mode === "movie") {
+                        const isDoku = currentProjectIsDoku || (cleanedQuery && (cleanedQuery.toLowerCase().includes("doku") || cleanedQuery.toLowerCase().includes("dokumentation")));
+                        
+                        if (isDoku) {
+                            document.getElementById("context-movie-header").innerText = "Doku verarbeiten";
+                            document.getElementById("movie-nas-destination").value = getCatIdBySub("/Dokus/Einzelne Dokus", "3");
+                            document.getElementById("movie-pcloud-destination").value = getCatIdBySub("/Dokus/Einzelne Dokus", "3");
+                        } else {
+                            document.getElementById("context-movie-header").innerText = "Film verarbeiten";
+                            document.getElementById("movie-nas-destination").value = getCatIdBySub("/Filme", "1");
+                            document.getElementById("movie-pcloud-destination").value = getCatIdBySub("/Filme", "1");
+                        }
+                        
                         document.getElementById("movie-search-query").value = cleanedQuery;
                         searchMovie();
                         updateSizeEstimation("movie");
@@ -369,6 +374,37 @@ async function deleteProject(project) {
     }
 }
 
+async function splitProjectFile(project, fileName) {
+    if (!confirm(`Möchtest du die Datei "${fileName}" und alle zugehörigen Begleitdateien in ein separates Projekt abspalten?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch("/api/split-project-file", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ project, file_name: fileName })
+        });
+        const data = await response.json();
+        if (data.status === "success") {
+            appendConsoleLog(`✂️ Datei "${fileName}" wurde in das Projekt "${data.new_project}" abgespalten.`);
+            await loadStatus();
+            if (data.new_project) {
+                selectProject(data.new_project);
+            } else {
+                selectProject(currentProject);
+            }
+        } else {
+            alert(`Fehler beim Trennen der Datei: ${data.error}`);
+        }
+    } catch (e) {
+        console.error("Error splitting project file:", e);
+        alert(`Netzwerkfehler beim Trennen der Datei.`);
+    }
+}
+
 // ==========================================================================
 // SIZE ESTIMATION FOR H.265 CONVERSION
 // ==========================================================================
@@ -392,10 +428,16 @@ async function updateSizeEstimation(mediaType) {
     
     if (!panel || !textEl || !convertCb) return;
     
+    const sliderContainerId = mediaType === "movie" ? "movie-quality-slider-container" : "series-quality-slider-container";
+    const sliderContainer = document.getElementById(sliderContainerId);
+    
     if (!convertCb.checked) {
         panel.classList.add("hidden");
+        if (sliderContainer) sliderContainer.classList.add("hidden");
         return;
     }
+    
+    if (sliderContainer) sliderContainer.classList.remove("hidden");
     
     // Check if we have video files
     const videoFiles = projectFiles.filter(f => {
@@ -410,8 +452,16 @@ async function updateSizeEstimation(mediaType) {
         return;
     }
     
+    const sliderId = mediaType === "movie" ? "movie-quality-slider" : "series-quality-slider";
+    const sliderInput = document.getElementById(sliderId);
+    const qualityVal = sliderInput ? parseInt(sliderInput.value, 10) : 60;
+    
     panel.classList.remove("hidden");
-    textEl.textContent = "Dateigrößen-Prognose: Berechnung läuft...";
+    if (mediaType === "movie") {
+        textEl.textContent = "Dateigrößen-Prognose: Test-Konvertierung läuft für präzise Schätzung (ca. 15 Sek.)...";
+    } else {
+        textEl.textContent = "Dateigrößen-Prognose: Test-Konvertierung der ersten Folge läuft (ca. 15 Sek.)...";
+    }
     
     try {
         const response = await fetch("/api/estimate-conversion", {
@@ -420,7 +470,7 @@ async function updateSizeEstimation(mediaType) {
             body: JSON.stringify({
                 project_name: currentProject,
                 filenames: videoFiles,
-                quality: 60
+                quality: qualityVal
             })
         });
         
@@ -547,22 +597,23 @@ async function scanProject(project) {
     
     title.textContent = project === "" ? "Hauptinbox verarbeiten" : `Projekt: ${project}`;
     path.textContent = "Scanne Ordner...";
-    tbody.innerHTML = '<tr><td colspan="2" class="text-center"><div class="loading-spinner"></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3" class="text-center"><div class="loading-spinner"></div></td></tr>';
     statsContainer.style.display = "none";
     
     try {
         const response = await fetch(`/api/scan-project?project=${encodeURIComponent(project)}`);
         if (!response.ok) {
-            tbody.innerHTML = '<tr><td colspan="2" class="text-center text-danger">Fehler beim Laden des Projektinhalts.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Fehler beim Laden des Projektinhalts.</td></tr>';
             return;
         }
         
         const data = await response.json();
         path.textContent = `Pfad: ${data.current_dir}`;
         projectFiles = data.files || [];
+        currentProjectIsDoku = data.is_doku || false;
         
         if (projectFiles.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="2" class="text-center text-muted">Dieser Ordner ist leer.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Dieser Ordner ist leer.</td></tr>';
             return;
         }
         
@@ -572,17 +623,26 @@ async function scanProject(project) {
             const isDir = f.endsWith("/");
             const name = isDir ? f.slice(0, -1) : f;
             const ext = isDir ? "ordner" : f.split('.').pop().toLowerCase();
+            const isVideo = ['mp4', 'mkv', 'avi', 'webm', 'mov'].includes(ext);
             
             let badgeClass = "file-type-badge";
             if (isDir) badgeClass += " dir";
-            else if (['mp4', 'mkv', 'avi', 'webm', 'mov'].includes(ext)) badgeClass += " video";
+            else if (isVideo) badgeClass += " video";
             else if (['srt', 'vtt', 'ass'].includes(ext)) badgeClass += " subtitle";
             else if (ext === 'nfo') badgeClass += " nfo";
+            
+            let actionHtml = "";
+            if (!isDir && isVideo) {
+                const safeProject = project.replace(/'/g, "\\'");
+                const safeName = name.replace(/'/g, "\\'");
+                actionHtml = `<button class="btn btn-sm" onclick="splitProjectFile('${safeProject}', '${safeName}')" title="In ein separates Projekt abspalten" style="background: rgba(255, 255, 255, 0.1); border: 1px solid var(--border-glass); color: var(--text-normal); cursor: pointer; padding: 3px 8px; border-radius: var(--radius-sm); font-size: 0.7rem; transition: all 0.2s ease;">Trennen</button>`;
+            }
             
             rowsHtml += `
                 <tr>
                     <td>${name}</td>
                     <td><span class="${badgeClass}">${isDir ? "ORDNER" : ext.toUpperCase()}</span></td>
+                    <td style="text-align:right;">${actionHtml}</td>
                 </tr>
             `;
         });
@@ -609,7 +669,7 @@ async function scanProject(project) {
         }
         
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="2" class="text-center text-danger">Verbindungsfehler: ${e}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">Verbindungsfehler: ${e}</td></tr>`;
     }
 }
 
@@ -690,7 +750,8 @@ async function detectExistingSeries(projectName) {
                 selectShow({
                     id: data.show_id,
                     name: data.show_name || projectName,
-                    provider: data.provider
+                    provider: data.provider,
+                    loadedFromNfo: true
                 });
                 return;
             }
@@ -698,7 +759,57 @@ async function detectExistingSeries(projectName) {
     } catch (err) {
         console.error("Error in detectExistingSeries:", err);
     }
+    autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", projectName);
     searchSeries();
+}
+
+async function triggerSeriesMatchingFromFolder(folderName) {
+    if (!folderName) return;
+    
+    // Show a loading spinner in the matching panel
+    const matchingContainer = document.getElementById("matching-panel-container");
+    if (matchingContainer) {
+        matchingContainer.innerHTML = `
+            <div class="loading-spinner"></div>
+            <p class="text-center text-muted" style="margin-top:10px;">Lese tvshow.nfo...</p>
+        `;
+    }
+    
+    const nasDestId = document.getElementById("series-nas-destination").value;
+    try {
+        const url = `/api/series/detect?project_name=${encodeURIComponent(folderName)}&nas_destination_id=${encodeURIComponent(nasDestId)}`;
+        const response = await fetch(url);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.found && data.show_id && data.provider) {
+                console.log("[Folder Select] Found existing show from tvshow.nfo:", data);
+                appendConsoleLog(`[System]: tvshow.nfo gefunden. Serie "${data.show_name}" wird geladen...`);
+                selectShow({
+                    id: data.show_id,
+                    name: data.show_name || folderName,
+                    provider: data.provider,
+                    loadedFromNfo: true
+                });
+                return;
+            }
+        }
+    } catch (err) {
+        console.error("Error in triggerSeriesMatchingFromFolder detect:", err);
+    }
+    
+    // Clear the loading spinner since no existing tvshow.nfo was found
+    if (matchingContainer) {
+        matchingContainer.innerHTML = "";
+    }
+    
+    // If tvshow.nfo not found, trigger online search automatically
+    appendConsoleLog(`[System]: Keine tvshow.nfo gefunden. Starte Online-Suche nach "${folderName}"...`);
+    const searchQueryInput = document.getElementById("series-search-query");
+    if (searchQueryInput) {
+        const cleanQuery = folderName.replace(/\([0-9]{4}\)/g, "").replace(/_/g, " ").trim();
+        searchQueryInput.value = cleanQuery;
+        searchSeries();
+    }
 }
 
 // ==========================================================================
@@ -722,7 +833,16 @@ async function searchSeries() {
     resultsContainer.innerHTML = '<div class="loading-spinner"></div>';
     
     try {
-        const isDokuMode = document.getElementById("mode-doku")?.classList.contains("active") || false;
+        const getCatIdBySub = (sub, fallbackId) => {
+            const cats = currentSettings.sync_categories || [];
+            const found = cats.find(c => c.nas_sub === sub);
+            return found ? found.id : fallbackId;
+        };
+        const destId = getCatIdBySub("/Dokus/Doku-Serien", "4");
+        const nasDestSelect = document.getElementById("series-nas-destination");
+        const isDokuDest = nasDestSelect && nasDestSelect.value === destId;
+        const isDokuQuery = query.toLowerCase().includes("doku") || query.toLowerCase().includes("dokumentation");
+        const isDokuMode = isDokuDest || isDokuQuery || currentProjectIsDoku;
         const searchType = isDokuMode ? "doku" : "tv";
         
         const response = await fetch(`/api/search?type=${searchType}&q=${encodeURIComponent(query)}`, {
@@ -748,6 +868,7 @@ async function searchSeries() {
                 provider: item.provider
             };
             
+            resultsContainer.innerHTML = "";
             if (targetMediaType === "movie") {
                 document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
                 document.getElementById("context-movie").classList.remove("hidden");
@@ -809,12 +930,77 @@ async function searchSeries() {
     }
 }
 
+function renderProviderInfo(element, providerName, id, loadedFromNfo) {
+    if (!element) return;
+    element.innerHTML = "";
+    element.className = "provider-badge-container";
+    element.style.display = "flex";
+    element.style.flexWrap = "wrap";
+    element.style.gap = "8px";
+    element.style.alignItems = "center";
+    element.style.marginTop = "8px";
+    element.style.marginBottom = "12px";
+
+    // Source Badge (NAS or Online)
+    const srcBadge = document.createElement("span");
+    srcBadge.className = "source-badge";
+    if (loadedFromNfo) {
+        srcBadge.textContent = "📁 NAS (tvshow.nfo)";
+        srcBadge.style.background = "rgba(139, 92, 246, 0.15)";
+        srcBadge.style.color = "#a78bfa";
+        srcBadge.style.border = "1px solid rgba(139, 92, 246, 0.35)";
+    } else {
+        srcBadge.textContent = "🌐 Online-Suche";
+        srcBadge.style.background = "rgba(59, 130, 246, 0.15)";
+        srcBadge.style.color = "#60a5fa";
+        srcBadge.style.border = "1px solid rgba(59, 130, 246, 0.35)";
+    }
+    element.appendChild(srcBadge);
+
+    // Provider Badge
+    const provBadge = document.createElement("span");
+    let displayProvider = (providerName || "unbekannt").toLowerCase();
+    
+    if (displayProvider === "tvdb") {
+        provBadge.className = "provider-badge tvdb";
+        provBadge.textContent = "TVDB";
+    } else if (displayProvider === "tmdb_tv" || displayProvider === "tmdb") {
+        provBadge.className = "provider-badge tmdb";
+        provBadge.textContent = "TMDb";
+    } else if (displayProvider === "mediathek") {
+        provBadge.className = "provider-badge mediathek";
+        provBadge.textContent = "Mediathek";
+    } else if (displayProvider === "ytdlp" || displayProvider === "youtube") {
+        provBadge.className = "provider-badge ytdlp";
+        provBadge.textContent = "YouTube / yt-dlp";
+    } else if (displayProvider === "manual" || displayProvider === "manuell") {
+        provBadge.className = "provider-badge manual";
+        provBadge.textContent = "Manuell";
+    } else {
+        provBadge.className = "provider-badge manual";
+        provBadge.textContent = providerName.toUpperCase();
+    }
+    element.appendChild(provBadge);
+
+    // ID Badge/Text
+    if (id && id !== "null" && id !== "undefined" && !id.startsWith("{")) {
+        const idBadge = document.createElement("span");
+        idBadge.className = "provider-badge manual"; // use simple styling
+        idBadge.style.background = "rgba(255, 255, 255, 0.05)";
+        idBadge.style.color = "var(--text-muted)";
+        idBadge.style.border = "1px solid var(--border-glass)";
+        idBadge.textContent = `ID: ${id}`;
+        element.appendChild(idBadge);
+    }
+}
+
 async function selectShow(show) {
     selectedShow = show;
     
     const overrideInput = document.getElementById("series-nas-folder-override");
     if (overrideInput) {
         overrideInput.value = cleanSeriesName(show.name);
+        autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", show.name);
     }
     
     const panel = document.getElementById("selected-show-panel");
@@ -823,7 +1009,7 @@ async function selectShow(show) {
     const seasonsInfo = document.getElementById("selected-show-seasons-info");
     
     title.textContent = show.name;
-    provider.textContent = `Provider: ${show.provider} (ID: ${show.id})`;
+    renderProviderInfo(provider, show.provider, show.id, show.loadedFromNfo);
     seasonsInfo.textContent = "Lade Staffel-Informationen...";
     panel.classList.remove("hidden");
     
@@ -910,7 +1096,7 @@ async function selectShow(show) {
     
     // Auto-routing destination for Dokus
     const nameLower = show.name.toLowerCase();
-    const isDoku = nameLower.includes("doku") || nameLower.includes("dokumentation") || document.getElementById("mode-doku")?.classList.contains("active");
+    const isDoku = nameLower.includes("doku") || nameLower.includes("dokumentation") || currentProjectIsDoku;
     if (isDoku) {
         const getCatIdBySub = (sub, fallbackId) => {
             const cats = currentSettings.sync_categories || [];
@@ -1299,8 +1485,18 @@ async function searchMovie() {
     resultsContainer.innerHTML = '<div class="loading-spinner"></div>';
     
     try {
-        const isDokuMode = document.getElementById("mode-doku")?.classList.contains("active") || false;
-        const searchType = isDokuMode ? "doku" : "movie";
+        const getCatIdBySub = (sub, fallbackId) => {
+            const cats = currentSettings.sync_categories || [];
+            const found = cats.find(c => c.nas_sub === sub);
+            return found ? found.id : fallbackId;
+        };
+        const destId = getCatIdBySub("/Dokus/Einzelne Dokus", "3");
+        const nasDestSelect = document.getElementById("movie-nas-destination");
+        const isDokuDest = nasDestSelect && nasDestSelect.value === destId;
+        const queryLower = query.toLowerCase();
+        const isDokuQuery = queryLower.includes("doku") || queryLower.includes("dokumentation");
+        
+        const searchType = (isDokuDest || isDokuQuery || currentProjectIsDoku) ? "doku" : "movie";
         
         const response = await fetch(`/api/search?type=${searchType}&q=${encodeURIComponent(query)}`, {
             signal: currentSearchMovieController.signal
@@ -1325,6 +1521,7 @@ async function searchMovie() {
                 provider: item.provider
             };
             
+            resultsContainer.innerHTML = "";
             if (targetMediaType === "tv") {
                 document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
                 document.getElementById("context-series").classList.remove("hidden");
@@ -1339,7 +1536,7 @@ async function searchMovie() {
         let html = "";
         data.forEach(item => {
             let badge = "";
-            if (isDokuMode) {
+            if (searchType === "doku") {
                 if (item.media_type === "movie") {
                     badge = `<span class="badge badge-movie" style="background: var(--primary); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 8px;">Film</span>`;
                 } else if (item.media_type === "tv" && item.provider === "mediathek") {
@@ -1393,12 +1590,12 @@ function selectMovie(movie) {
     const provider = document.getElementById("selected-movie-provider-info");
     
     title.textContent = movie.name;
-    provider.textContent = `Provider: ${movie.provider} (ID: ${movie.id})`;
+    renderProviderInfo(provider, movie.provider, movie.id, movie.loadedFromNfo);
     panel.classList.remove("hidden");
     
     // Auto-routing destination for Dokus
     const nameLower = movie.name.toLowerCase();
-    const isDoku = nameLower.includes("doku") || nameLower.includes("dokumentation") || document.getElementById("mode-doku")?.classList.contains("active");
+    const isDoku = nameLower.includes("doku") || nameLower.includes("dokumentation") || currentProjectIsDoku;
     if (isDoku) {
         const getCatIdBySub = (sub, fallbackId) => {
             const cats = currentSettings.sync_categories || [];
@@ -1481,6 +1678,7 @@ async function executeSeriesWorkflow() {
     const copyPcloud = document.getElementById("series-option-copy-pcloud").checked;
     const nasDestId = document.getElementById("series-nas-destination").value;
     const pcloudDestId = document.getElementById("series-pcloud-destination").value;
+    const quality = document.getElementById("series-quality-slider") ? parseInt(document.getElementById("series-quality-slider").value, 10) : 60;
     
     const nasShowFolder = document.getElementById("series-nas-folder-override")?.value?.trim();
     
@@ -1493,6 +1691,7 @@ async function executeSeriesWorkflow() {
         season: (isManualSeriesMode || !isAllSeasons) ? parseInt(season, 10) : "all",
         mappings: mappings,
         convert: convert,
+        quality: quality,
         delete_original: deleteOrig,
         copy_to_nas: copyNas,
         copy_to_pcloud: copyPcloud,
@@ -1519,6 +1718,7 @@ async function executeMovieWorkflow() {
     const copyPcloud = document.getElementById("movie-option-copy-pcloud").checked;
     const nasDestId = document.getElementById("movie-nas-destination").value;
     const pcloudDestId = document.getElementById("movie-pcloud-destination").value;
+    const quality = document.getElementById("movie-quality-slider") ? parseInt(document.getElementById("movie-quality-slider").value, 10) : 60;
     
     const payload = {
         media_type: "movie",
@@ -1527,6 +1727,7 @@ async function executeMovieWorkflow() {
         movie_id: selectedMovie.id,
         provider: selectedMovie.provider,
         convert: convert,
+        quality: quality,
         delete_original: deleteOrig,
         copy_to_nas: copyNas,
         copy_to_pcloud: copyPcloud,
@@ -1779,6 +1980,7 @@ async function searchYtSeries() {
                 const ytOverrideInput = document.getElementById("yt-series-nas-folder-override");
                 if (ytOverrideInput) {
                     ytOverrideInput.value = cleanSeriesName(ytSelectedShow.name);
+                    autoMatchNasFolder("yt-series-nas-folder-override", "yt-nas-destination", ytSelectedShow.name);
                 }
             });
         });
@@ -2436,12 +2638,14 @@ async function runToolConvert() {
     expandConsole();
     appendConsoleLog("[System]: Starte Batch-H.265-Konvertierung...");
     const targetPath = document.getElementById("tools-target-path").value || currentProject;
+    const quality = document.getElementById("tool-quality-slider") ? parseInt(document.getElementById("tool-quality-slider").value, 10) : 60;
     const response = await fetch("/api/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             media_type: "tool_batch_convert",
-            project_name: targetPath
+            project_name: targetPath,
+            quality: quality
         })
     });
     if (response.ok) connectLogStream();
@@ -2766,6 +2970,22 @@ function initEventListeners() {
         runToolGeneric("tool_pcloud_sync", "Starte reinen pCloud Sync...", { destination: destPath });
     });
     setupDestinationToggles();
+    
+    // Re-trigger auto-matching if destination is changed
+    document.getElementById("series-nas-destination")?.addEventListener("change", () => {
+        if (window.isProgrammaticCategoryChange) return;
+        const showName = selectedShow ? selectedShow.name : (currentProject ? currentProject.replace(/\([0-9]{4}\)/g, "").replace(/_/g, " ").trim() : "");
+        if (showName) {
+            autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", showName);
+        }
+    });
+    
+    document.getElementById("yt-nas-destination")?.addEventListener("change", () => {
+        if (window.isProgrammaticCategoryChange) return;
+        if (ytSelectedShow && ytSelectedShow.name) {
+            autoMatchNasFolder("yt-series-nas-folder-override", "yt-nas-destination", ytSelectedShow.name);
+        }
+    });
 }
 
 // ==========================================================================
@@ -3387,6 +3607,39 @@ document.addEventListener("DOMContentLoaded", () => {
         updateSizeEstimation("series");
     });
 
+    // Movie quality slider
+    const movieSlider = document.getElementById("movie-quality-slider");
+    const movieVal = document.getElementById("movie-quality-val");
+    if (movieSlider && movieVal) {
+        movieSlider.addEventListener("input", () => {
+            movieVal.textContent = movieSlider.value;
+        });
+        movieSlider.addEventListener("change", () => {
+            updateSizeEstimation("movie");
+        });
+    }
+
+    // Series quality slider
+    const seriesSlider = document.getElementById("series-quality-slider");
+    const seriesVal = document.getElementById("series-quality-val");
+    if (seriesSlider && seriesVal) {
+        seriesSlider.addEventListener("input", () => {
+            seriesVal.textContent = seriesSlider.value;
+        });
+        seriesSlider.addEventListener("change", () => {
+            updateSizeEstimation("series");
+        });
+    }
+
+    // Tool quality slider
+    const toolSlider = document.getElementById("tool-quality-slider");
+    const toolVal = document.getElementById("tool-quality-val");
+    if (toolSlider && toolVal) {
+        toolSlider.addEventListener("input", () => {
+            toolVal.textContent = toolSlider.value;
+        });
+    }
+
     document.getElementById("btn-preview-close")?.addEventListener("click", closePreviewModal);
     document.getElementById("btn-preview-cancel")?.addEventListener("click", closePreviewModal);
     
@@ -3622,9 +3875,14 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
     if (!input || !dropdown || !loadBtn || !destSelect) return;
     
     let allFolders = [];
+    let folderDestinations = {};
+    const originalBtnText = loadBtn.textContent || "NAS laden";
     
-    const loadFolders = async () => {
-        const destVal = destSelect.value;
+    const loadFolders = async (shouldFocusInnerSearch = false) => {
+        let destVal = destSelect.value;
+        if (inputId === "series-nas-folder-override" || inputId === "yt-series-nas-folder-override") {
+            destVal = "all";
+        }
         loadBtn.disabled = true;
         loadBtn.textContent = "Lade...";
         try {
@@ -3633,8 +3891,9 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
                 const data = await res.json();
                 if (data.folders) {
                     allFolders = data.folders;
+                    folderDestinations = data.folder_destinations || {};
                     appendConsoleLog(`[System]: ${allFolders.length} Serienordner erfolgreich geladen.`);
-                    showDropdown(allFolders);
+                    showDropdown(allFolders, shouldFocusInnerSearch);
                 } else {
                     appendConsoleLog("[System]: Keine Serienordner auf dem NAS gefunden.");
                 }
@@ -3646,27 +3905,108 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
             appendConsoleLog(`[System]: Fehler beim Laden der Serienordner: ${e.message}`);
         } finally {
             loadBtn.disabled = false;
-            loadBtn.textContent = "NAS laden";
+            loadBtn.textContent = originalBtnText;
         }
     };
     
-    const showDropdown = (list) => {
+    const showDropdown = (list, shouldFocusInnerSearch = false) => {
         dropdown.innerHTML = "";
-        if (list.length === 0) {
-            dropdown.innerHTML = `<div class="autocomplete-no-results">Keine Ergebnisse</div>`;
-        } else {
-            list.forEach(folder => {
-                const item = document.createElement("div");
-                item.className = "autocomplete-item";
-                item.textContent = folder;
-                item.addEventListener("click", () => {
-                    input.value = folder;
-                    closeDropdown();
+        
+        // Add a search/filter input container at the top of the dropdown
+        const searchWrapper = document.createElement("div");
+        searchWrapper.className = "autocomplete-search-wrapper";
+        searchWrapper.addEventListener("click", (e) => {
+            e.stopPropagation();
+        });
+        
+        // Premium magnifying glass SVG
+        searchWrapper.innerHTML = `
+            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+        `;
+        
+        const searchInput = document.createElement("input");
+        searchInput.type = "text";
+        searchInput.className = "autocomplete-search-input";
+        searchInput.placeholder = "Serienname suchen...";
+        searchInput.autocomplete = "off";
+        
+        searchWrapper.appendChild(searchInput);
+        dropdown.appendChild(searchWrapper);
+        
+        const itemsContainer = document.createElement("div");
+        itemsContainer.className = "autocomplete-items-container";
+        dropdown.appendChild(itemsContainer);
+        
+        const renderItems = (filteredList) => {
+            itemsContainer.innerHTML = "";
+            if (filteredList.length === 0) {
+                itemsContainer.innerHTML = `<div class="autocomplete-no-results">Keine Ergebnisse</div>`;
+            } else {
+                filteredList.forEach(folder => {
+                    const item = document.createElement("div");
+                    item.className = "autocomplete-item";
+                    item.textContent = folder;
+                    item.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        input.value = folder;
+                        closeDropdown();
+                        
+                        // Automatically switch category if category mapping exists
+                        if (destSelect && folderDestinations && folderDestinations[folder.toLowerCase()]) {
+                            const matchedDest = folderDestinations[folder.toLowerCase()];
+                            let hasOption = false;
+                            for (let i = 0; i < destSelect.options.length; i++) {
+                                if (destSelect.options[i].value === matchedDest) {
+                                    hasOption = true;
+                                    break;
+                                }
+                            }
+                            if (hasOption) {
+                                window.isProgrammaticCategoryChange = true;
+                                destSelect.value = matchedDest;
+                                destSelect.dispatchEvent(new Event("change", { bubbles: true }));
+                                window.isProgrammaticCategoryChange = false;
+                            }
+                        }
+                        
+                        // Trigger listeners
+                        input.dispatchEvent(new Event("input", { bubbles: true }));
+                        input.dispatchEvent(new Event("change", { bubbles: true }));
+                        
+                        // Custom action: If this is the series tab autocomplete, trigger show matching!
+                        if (inputId === "series-nas-folder-override") {
+                            triggerSeriesMatchingFromFolder(folder);
+                        }
+                    });
+                    itemsContainer.appendChild(item);
                 });
-                dropdown.appendChild(item);
-            });
-        }
+            }
+        };
+        
+        // Inner search input event listener
+        searchInput.addEventListener("input", () => {
+            const query = searchInput.value.toLowerCase().trim();
+            if (!query) {
+                renderItems(list);
+            } else {
+                const filtered = list.filter(folder => folder.toLowerCase().includes(query));
+                renderItems(filtered);
+            }
+        });
+        
+        // Initial render
+        renderItems(list);
+        
         dropdown.classList.remove("hidden");
+        
+        if (shouldFocusInnerSearch) {
+            setTimeout(() => {
+                searchInput.focus();
+            }, 50);
+        }
     };
     
     const closeDropdown = () => {
@@ -3676,28 +4016,38 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
     loadBtn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        loadFolders();
+        loadFolders(true);
     });
     
-    input.addEventListener("focus", () => {
-        if (allFolders.length > 0) {
-            filterFolders();
+    input.addEventListener("focus", async () => {
+        if (allFolders.length === 0) {
+            await loadFolders(false);
+        } else {
+            filterFolders(false);
         }
     });
     
-    const filterFolders = () => {
+    const filterFolders = (shouldFocusInnerSearch = false) => {
         const query = input.value.toLowerCase().trim();
         if (allFolders.length === 0) return;
         if (!query) {
-            showDropdown(allFolders);
+            showDropdown(allFolders, shouldFocusInnerSearch);
             return;
         }
         // Case-insensitive substring match (fuzzy)
         const filtered = allFolders.filter(folder => folder.toLowerCase().includes(query));
-        showDropdown(filtered);
+        showDropdown(filtered, shouldFocusInnerSearch);
     };
     
-    input.addEventListener("input", filterFolders);
+    input.addEventListener("input", () => {
+        filterFolders(false);
+    });
+    
+    // Clear folder cache when destination select changes
+    destSelect.addEventListener("change", () => {
+        allFolders = [];
+        folderDestinations = {};
+    });
     
     // Close dropdown on click outside
     document.addEventListener("click", (e) => {
@@ -3706,3 +4056,74 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
         }
     });
 }
+
+function findBestNasFolderMatch(cleanedTitle, folders) {
+    if (!cleanedTitle || !folders || folders.length === 0) return null;
+    
+    const cleanStr = cleanSeriesName(cleanedTitle).trim();
+    if (!cleanStr) return null;
+    
+    // 1. Exact case-insensitive match
+    for (const f of folders) {
+        if (f.toLowerCase().trim() === cleanStr.toLowerCase()) {
+            return f;
+        }
+    }
+    
+    // 2. Normalized alphanumeric match
+    const normProj = cleanStr.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (normProj) {
+        for (const f of folders) {
+            const normF = f.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (normF === normProj) {
+                return f;
+            }
+        }
+    }
+    
+    // 3. Substring match
+    if (normProj.length >= 4) {
+        for (const f of folders) {
+            const normF = f.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (normF.includes(normProj) || normProj.includes(normF)) {
+                return f;
+            }
+        }
+    }
+    
+    return null;
+}
+
+async function autoMatchNasFolder(inputId, destSelectId, originalCleanedName) {
+    if (!originalCleanedName) return;
+    const input = document.getElementById(inputId);
+    const destSelect = document.getElementById(destSelectId);
+    if (!input || !destSelect) return;
+    
+    const destVal = destSelect.value;
+    try {
+        const res = await fetch(`/api/nas-series?destination_id=${encodeURIComponent(destVal)}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.folders && data.folders.length > 0) {
+                const bestMatch = findBestNasFolderMatch(originalCleanedName, data.folders);
+                if (bestMatch) {
+                    input.value = bestMatch;
+                    
+                    // Trigger visual flash
+                    input.classList.remove("highlight-match-flash");
+                    void input.offsetWidth; // trigger reflow
+                    input.classList.add("highlight-match-flash");
+                    setTimeout(() => {
+                        input.classList.remove("highlight-match-flash");
+                    }, 1500);
+                    
+                    appendConsoleLog(`[System]: Automatisch passenden NAS-Ordner "${bestMatch}" zugeordnet.`);
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error auto matching NAS folder:", e);
+    }
+}
+
