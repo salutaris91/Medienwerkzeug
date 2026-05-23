@@ -1311,6 +1311,50 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             server.load_settings = orig_load_settings
             server.ensure_nas_mounted = orig_ensure
 
+    def test_api_match_episodes(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+                
+        dummy = DummyHandler()
+        
+        # Test case 1: TVDB year-based keys with absolute number matching
+        params = {
+            "provider": "tvdb",
+            "show_id": "249482",
+            "season": "all",
+            "filenames": [
+                "Elefant,_Tiger_&_Co._In_der_Ruhe_liegt_die_Kraft_(381)_2026.mp4",
+                "Elefant_Tiger_Co_S01E05_Test.mp4"
+            ]
+        }
+        
+        orig_fetch = server.mw_metadata.fetch_tvdb
+        # Mock fetch_tvdb to return episodes including absolute numbers
+        server.mw_metadata.fetch_tvdb = lambda show_id, season, lang: {
+            "S2010E39": {"title": "In der Ruhe liegt die Kraft", "date": "2010-01-01", "absolute_number": 381},
+            "S01E05": {"title": "Anderer Titel", "date": "2003-05-01", "absolute_number": 5}
+        }
+        
+        try:
+            GUIRequestHandler.handle_api_match_episodes(dummy, params)
+            result = dummy.sent_json
+            self.assertIsNotNone(result)
+            matches = result.get("matches", {})
+            
+            # File with (381) should match S2010E39 based on absolute number 381
+            self.assertEqual(matches.get("Elefant,_Tiger_&_Co._In_der_Ruhe_liegt_die_Kraft_(381)_2026.mp4"), "S2010E39")
+            
+            # File with S01E05 should match S01E05 suffix
+            self.assertEqual(matches.get("Elefant_Tiger_Co_S01E05_Test.mp4"), "S01E05")
+        finally:
+            server.mw_metadata.fetch_tvdb = orig_fetch
+
     def test_api_series_detect(self):
         import gui.server as server
         from gui.server import GUIRequestHandler

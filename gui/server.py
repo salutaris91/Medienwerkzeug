@@ -2193,6 +2193,15 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                 episodes = mw_metadata.fetch_tmdb_tv(show_id, season, lang)
             elif provider == "tvmaze":
                 episodes = mw_metadata.fetch_tvmaze(show_id, season)
+            elif provider == "mediathek":
+                episodes = mw_metadata.fetch_mediathek_episodes(show_id)
+            elif provider == "ytdlp":
+                entries = mw_metadata.fetch_ytdlp_url_metadata(show_id)
+                episodes = {}
+                if not isinstance(entries, dict):
+                    for idx, ent in enumerate(entries):
+                        ep_idx = ent.get("playlist_index") or ent.get("playlist_autonumber") or (idx + 1)
+                        episodes[str(ep_idx)] = {"title": ent.get("title", ""), "plot": ent.get("description", "")}
         except Exception as e:
             print(f"Error fetching episodes for matching: {e}")
             
@@ -2200,6 +2209,11 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
         import re
         def guess_ep_num(filename):
             clean_name = filename.lower()
+            # 1. Parentheses/brackets check for absolute episode numbers first! E.g. (381) or [381]
+            match = re.search(r'(?:\(|\[)(?:folge\s+)?(\d+)(?:\)|\])', clean_name)
+            if match:
+                return int(match.group(1))
+                
             # s01e05
             match = re.search(r's\d+e(\d+)', clean_name)
             if match:
@@ -2218,7 +2232,9 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             if digit_matches:
                 for digit_str in digit_matches:
                     val = int(digit_str)
-                    if 0 < val < 200:
+                    if 0 < val < 2000:
+                        if 1950 <= val <= 2050:
+                            continue
                         return val
             return None
             
@@ -2227,14 +2243,43 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             return {w for w in words if w not in ['der', 'die', 'das', 'in', 'im', 'teil', 'part', 'von', 'und', 'folge', 'episode']}
             
         for file in filenames:
+            basename = os.path.basename(file)
             # 1. Hard match based on filename patterns
-            ep_num = guess_ep_num(file)
-            if ep_num is not None and str(ep_num) in episodes:
-                matches[file] = ep_num
-                continue
+            ep_num = guess_ep_num(basename)
+            if ep_num is not None:
+                # Direct check (e.g. if key is "381" or "39")
+                if str(ep_num) in episodes:
+                    matches[file] = str(ep_num)
+                    continue
+                    
+                # Absolute number check (e.g. if keys are S01E01 style or year-based S2010E39 style, but contain absolute_number = 381)
+                found_key = None
+                for key, ep_data in episodes.items():
+                    if isinstance(ep_data, dict) and ep_data.get("absolute_number") is not None:
+                        try:
+                            if int(ep_data.get("absolute_number")) == int(ep_num):
+                                found_key = key
+                                break
+                        except (ValueError, TypeError):
+                            pass
+                if found_key:
+                    matches[file] = found_key
+                    continue
+                    
+                # Check if it matches the episode number suffix in key (e.g., ep_num=39, key="S2010E39")
+                found_key = None
+                for key in episodes.keys():
+                    match = re.match(r"^s\d+e(\d+)$", str(key), re.IGNORECASE)
+                    if match:
+                        if int(match.group(1)) == int(ep_num):
+                            found_key = key
+                            break
+                if found_key:
+                    matches[file] = found_key
+                    continue
                 
             # 2. Fuzzy match based on text overlap with episode titles
-            file_words = get_words(file)
+            file_words = get_words(basename)
             if not file_words:
                 matches[file] = None
                 continue
@@ -2250,7 +2295,7 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                 score = overlap / len(title_words)
                 if score > best_score:
                     best_score = score
-                    best_ep_num = int(ep_n)
+                    best_ep_num = ep_n
                     
             if best_score > 0.35:
                 matches[file] = best_ep_num
