@@ -461,7 +461,7 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False):
     
     os.makedirs(os.path.dirname(dst) if not os.path.isdir(dst) else dst, exist_ok=True)
     
-    cmd = ["rsync", "-a", get_rsync_progress_flag()]
+    cmd = ["rsync", "-a", "--inplace", "--no-owner", "--no-group", get_rsync_progress_flag()]
     if move:
         cmd.append("--remove-source-files")
         
