@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import threading
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 PROFILES_DIR = os.path.join(DATA_DIR, "profiles")
@@ -156,3 +157,62 @@ def save_konv_history(history_data):
     except Exception as e:
         print(f"Error saving conversion history to {HISTORY_FILE}: {e}")
         return False
+
+# ==========================================================================
+# THREAD-SAFE GLOBAL SETTINGS CONFIGURATION MANAGEMENT
+# ==========================================================================
+SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "settings.json")
+settings_lock = threading.Lock()
+
+def load_settings():
+    default_settings = {
+        "inbox_dir": os.path.expanduser("~/Downloads/Medien Input"),
+        "outbox_dir": os.path.expanduser("~/Downloads/Medien Output"),
+        "nas_root": "/Volumes/Kino",
+        "pcloud_dir": os.path.expanduser("~/pCloud Drive"),
+        "import_sources": [os.path.expanduser("~/Documents/StreamFab/StreamFab")],
+        "check_dependency_updates": False,
+        "open_outbox_finder": False,
+        "open_nas_finder": False,
+        "open_pcloud_finder": False,
+        "notify_macos": False,
+        "notify_telegram": False,
+        "telegram_token": "",
+        "telegram_chat_id": "",
+        "notify_whatsapp": False,
+        "whatsapp_apikey": "",
+        "whatsapp_phone": "",
+        "notify_min_size": 10,
+        "notify_only_end": True,
+        "show_jokes": True,
+        "sync_categories": [
+            {"id": "1", "name": "Filme", "nas_sub": "/Filme", "pcloud_remote": "pcloud:03_Filme"},
+            {"id": "2", "name": "Serien", "nas_sub": "/Serien", "pcloud_remote": "pcloud:04_Serien"},
+            {"id": "3", "name": "Einzel-Dokus", "nas_sub": "/Dokus/Einzelne Dokus", "pcloud_remote": "pcloud:04a_Dokus"},
+            {"id": "4", "name": "Doku-Serien", "nas_sub": "/Dokus/Doku-Serien", "pcloud_remote": "pcloud:04a_Dokus"},
+            {"id": "5", "name": "Filme 3D", "nas_sub": "/Filme 3D", "pcloud_remote": "pcloud:03a_3D Filme"},
+            {"id": "6", "name": "Sonstiges", "nas_sub": "/Sonstiges", "pcloud_remote": "pcloud:05_Sonstiges"}
+        ],
+        "youtube_subscriptions": []
+    }
+    with settings_lock:
+        if os.path.exists(SETTINGS_FILE):
+            try:
+                with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                    settings = json.load(f)
+                    for k, v in default_settings.items():
+                        if k not in settings:
+                            settings[k] = v
+                    return settings
+            except Exception:
+                return default_settings
+        return default_settings
+
+def save_settings(settings):
+    with settings_lock:
+        try:
+            with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+                json.dump(settings, f, indent=4, ensure_ascii=False)
+            return True
+        except Exception:
+            return False

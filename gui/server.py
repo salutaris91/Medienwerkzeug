@@ -28,6 +28,7 @@ except ImportError:
 try:
     from core import utils
     from core import media
+    from core.utils import load_settings, save_settings
 except ImportError:
     print("WARNING: Could not import core.utils/media")
 
@@ -43,58 +44,7 @@ job_queue = queue.Queue()
 active_jobs = {}  # Stores job status: id -> dict
 active_jobs_lock = threading.Lock()
 
-SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
-
-def load_settings():
-    default_settings = {
-        "inbox_dir": os.path.expanduser("~/Downloads/Medien Input"),
-        "outbox_dir": os.path.expanduser("~/Downloads/Medien Output"),
-        "nas_root": "/Volumes/Kino",
-        "pcloud_dir": os.path.expanduser("~/pCloud Drive"),
-        "import_sources": [os.path.expanduser("~/Documents/StreamFab/StreamFab")],
-        "check_dependency_updates": False,
-        "open_outbox_finder": False,
-        "open_nas_finder": False,
-        "open_pcloud_finder": False,
-        "notify_macos": False,
-        "notify_telegram": False,
-        "telegram_token": "",
-        "telegram_chat_id": "",
-        "notify_whatsapp": False,
-        "whatsapp_apikey": "",
-        "whatsapp_phone": "",
-        "notify_min_size": 10,
-        "notify_only_end": True,
-        "show_jokes": True,
-        "sync_categories": [
-            {"id": "1", "name": "Filme", "nas_sub": "/Filme", "pcloud_remote": "pcloud:03_Filme"},
-            {"id": "2", "name": "Serien", "nas_sub": "/Serien", "pcloud_remote": "pcloud:04_Serien"},
-            {"id": "3", "name": "Einzel-Dokus", "nas_sub": "/Dokus/Einzelne Dokus", "pcloud_remote": "pcloud:04a_Dokus"},
-            {"id": "4", "name": "Doku-Serien", "nas_sub": "/Dokus/Doku-Serien", "pcloud_remote": "pcloud:04a_Dokus"},
-            {"id": "5", "name": "Filme 3D", "nas_sub": "/Filme 3D", "pcloud_remote": "pcloud:03a_3D Filme"},
-            {"id": "6", "name": "Sonstiges", "nas_sub": "/Sonstiges", "pcloud_remote": "pcloud:05_Sonstiges"}
-        ],
-        "youtube_subscriptions": []
-    }
-    if os.path.exists(SETTINGS_FILE):
-        try:
-            with open(SETTINGS_FILE, "r") as f:
-                settings = json.load(f)
-                for k, v in default_settings.items():
-                    if k not in settings:
-                        settings[k] = v
-                return settings
-        except Exception:
-            return default_settings
-    return default_settings
-
-def save_settings(settings):
-    try:
-        with open(SETTINGS_FILE, "w") as f:
-            json.dump(settings, f, indent=4)
-        return True
-    except Exception:
-        return False
+# settings management imported from core.utils
 
 # Thread-safe active YouTube download task tracking
 active_yt_tasks = {}
@@ -2955,7 +2905,10 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(results).encode())
 
     def handle_api_post_settings(self, params):
-        if save_settings(params):
+        settings = load_settings()
+        for k, v in params.items():
+            settings[k] = v
+        if save_settings(settings):
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
