@@ -3839,7 +3839,9 @@ async function loadSettings() {
             
             if (!currentSettings.import_sources) currentSettings.import_sources = [];
             if (!currentSettings.sync_categories) currentSettings.sync_categories = [];
+            if (!currentSettings.local_download_folders) currentSettings.local_download_folders = [];
             renderImportSources();
+            renderLocalFolders();
             renderSyncCategories();
             updateDestinationDropdowns();
             
@@ -3912,13 +3914,46 @@ function updateDestinationDropdowns() {
         const currentVal = select.value;
         select.innerHTML = "";
         
+        // Built-in: Input-Ordner
+        const inboxDir = currentSettings.inbox_dir || "~/Downloads/Medien Input";
+        const optInbox = document.createElement("option");
+        optInbox.value = "__inbox__";
+        optInbox.textContent = `📥 Input-Ordner (${inboxDir})`;
+        select.appendChild(optInbox);
+        
+        // Built-in: Output-Ordner (root)
         const outboxDir = currentSettings.outbox_dir || "~/Downloads/Medien Output";
-        currentSettings.sync_categories.forEach(cat => {
-            const opt = document.createElement("option");
-            opt.value = cat.id;
-            opt.textContent = `${cat.name} (${outboxDir}${cat.nas_sub})`;
-            select.appendChild(opt);
-        });
+        const optOutbox = document.createElement("option");
+        optOutbox.value = "__outbox__";
+        optOutbox.textContent = `📤 Output-Ordner (${outboxDir})`;
+        select.appendChild(optOutbox);
+        
+        // Sync categories as local outbox subdirectories
+        if (currentSettings.sync_categories && currentSettings.sync_categories.length > 0) {
+            const optGroup = document.createElement("optgroup");
+            optGroup.label = "Kategorien (Output-Unterordner)";
+            currentSettings.sync_categories.forEach(cat => {
+                const opt = document.createElement("option");
+                opt.value = `__cat_${cat.id}`;
+                opt.textContent = `${cat.name} (${outboxDir}${cat.nas_sub})`;
+                optGroup.appendChild(opt);
+            });
+            select.appendChild(optGroup);
+        }
+        
+        // Custom local folders from settings
+        if (currentSettings.local_download_folders && currentSettings.local_download_folders.length > 0) {
+            const optGroup = document.createElement("optgroup");
+            optGroup.label = "Eigene Ordner";
+            currentSettings.local_download_folders.forEach((folder, idx) => {
+                if (!folder.path) return;
+                const opt = document.createElement("option");
+                opt.value = `__custom_${idx}`;
+                opt.textContent = `📁 ${folder.name || 'Ordner'} (${folder.path})`;
+                optGroup.appendChild(opt);
+            });
+            select.appendChild(optGroup);
+        }
         
         if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
             select.value = currentVal;
@@ -3998,6 +4033,79 @@ function renderImportSources() {
         };
         
         row.appendChild(input);
+        row.appendChild(browseBtn);
+        row.appendChild(removeBtn);
+        container.appendChild(row);
+    });
+}
+
+function renderLocalFolders() {
+    const container = document.getElementById("settings-local-folders-container");
+    if (!container) return;
+    container.innerHTML = "";
+    
+    if (!currentSettings.local_download_folders) currentSettings.local_download_folders = [];
+    
+    currentSettings.local_download_folders.forEach((folder, index) => {
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.gap = "10px";
+        
+        const nameInput = document.createElement("input");
+        nameInput.type = "text";
+        nameInput.className = "form-select";
+        nameInput.style.width = "140px";
+        nameInput.style.padding = "10px 14px";
+        nameInput.style.borderRadius = "var(--radius-sm)";
+        nameInput.style.border = "1px solid var(--border-glass)";
+        nameInput.style.background = "var(--bg-surface)";
+        nameInput.style.color = "var(--text-main)";
+        nameInput.placeholder = "Name";
+        nameInput.value = folder.name || "";
+        nameInput.onchange = (e) => { currentSettings.local_download_folders[index].name = e.target.value; };
+        
+        const pathInput = document.createElement("input");
+        pathInput.type = "text";
+        pathInput.className = "form-select";
+        pathInput.style.flex = "1";
+        pathInput.style.padding = "10px 14px";
+        pathInput.style.borderRadius = "var(--radius-sm)";
+        pathInput.style.border = "1px solid var(--border-glass)";
+        pathInput.style.background = "var(--bg-surface)";
+        pathInput.style.color = "var(--text-main)";
+        pathInput.placeholder = "Pfad (z.B. /Users/alex/Videos)";
+        pathInput.value = folder.path || "";
+        pathInput.onchange = (e) => { currentSettings.local_download_folders[index].path = e.target.value; };
+        
+        const browseBtn = document.createElement("button");
+        browseBtn.className = "btn btn-secondary";
+        browseBtn.textContent = "🔍";
+        browseBtn.onclick = async () => {
+            try {
+                const response = await fetch("/api/browse-folder");
+                const data = await response.json();
+                if (data.path) {
+                    pathInput.value = data.path;
+                    currentSettings.local_download_folders[index].path = data.path;
+                    if (!nameInput.value) {
+                        const parts = data.path.split("/");
+                        nameInput.value = parts[parts.length - 1] || parts[parts.length - 2] || "Ordner";
+                        currentSettings.local_download_folders[index].name = nameInput.value;
+                    }
+                }
+            } catch (e) { console.error("Browse error:", e); }
+        };
+        
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "btn btn-danger";
+        removeBtn.textContent = "❌";
+        removeBtn.onclick = () => {
+            currentSettings.local_download_folders.splice(index, 1);
+            renderLocalFolders();
+        };
+        
+        row.appendChild(nameInput);
+        row.appendChild(pathInput);
         row.appendChild(browseBtn);
         row.appendChild(removeBtn);
         container.appendChild(row);
@@ -4143,7 +4251,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 show_jokes: document.getElementById("settings-show-jokes")?.checked || false,
                 
                 import_sources: currentSettings.import_sources.filter(s => s.trim() !== ""),
-                sync_categories: currentSettings.sync_categories.filter(c => c.id.trim() !== "" && c.name.trim() !== "")
+                sync_categories: currentSettings.sync_categories.filter(c => c.id.trim() !== "" && c.name.trim() !== ""),
+                local_download_folders: (currentSettings.local_download_folders || []).filter(f => f.path && f.path.trim() !== "")
             };
             
             try {
@@ -4250,6 +4359,15 @@ document.addEventListener("DOMContentLoaded", () => {
         btnAddCategory.addEventListener("click", () => {
             currentSettings.sync_categories.push({id: "", name: "", nas_sub: "", pcloud_remote: ""});
             renderSyncCategories();
+        });
+    }
+
+    const btnAddLocalFolder = document.getElementById("btn-settings-add-local-folder");
+    if (btnAddLocalFolder) {
+        btnAddLocalFolder.addEventListener("click", () => {
+            if (!currentSettings.local_download_folders) currentSettings.local_download_folders = [];
+            currentSettings.local_download_folders.push({ name: "", path: "" });
+            renderLocalFolders();
         });
     }
 

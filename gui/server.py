@@ -1128,12 +1128,26 @@ def process_worker(params):
     local_destination_id = params.get("local_destination_id")
     local_destination_path = None
     if local_destination_id:
-        sync_cats = settings.get("sync_categories", [])
-        for cat in sync_cats:
-            if cat.get("id") == str(local_destination_id):
-                nas_sub = cat.get("nas_sub", "")
-                local_destination_path = os.path.join(outbox_root, nas_sub.lstrip("/"))
-                break
+        if local_destination_id == "__inbox__":
+            local_destination_path = inbox_root
+        elif local_destination_id == "__outbox__":
+            local_destination_path = outbox_root
+        elif local_destination_id.startswith("__cat_"):
+            cat_id = local_destination_id[6:]  # strip "__cat_"
+            sync_cats = settings.get("sync_categories", [])
+            for cat in sync_cats:
+                if cat.get("id") == str(cat_id):
+                    nas_sub = cat.get("nas_sub", "")
+                    local_destination_path = os.path.join(outbox_root, nas_sub.lstrip("/"))
+                    break
+        elif local_destination_id.startswith("__custom_"):
+            try:
+                idx = int(local_destination_id[9:])  # strip "__custom_"
+                custom_folders = settings.get("local_download_folders", [])
+                if 0 <= idx < len(custom_folders):
+                    local_destination_path = custom_folders[idx].get("path", "")
+            except (ValueError, IndexError):
+                pass
 
     if project_name:
         current_dir = os.path.join(inbox_root, project_name)
