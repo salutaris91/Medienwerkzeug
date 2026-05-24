@@ -93,6 +93,20 @@ Gibt den Status aller aktuellen und abgeschlossenen Hintergrund-Jobs zurück.
 Gibt die aktuelle Konfiguration zurück.
 * **Response (JSON):** JSON-Inhalt der `settings.json`.
 
+### 10. Ordner im Finder öffnen (`GET /api/system/open-folder`)
+Öffnet einen Ordnerpfad auf dem macOS-System im Finder.
+* **Query-Parameter:**
+  * `path`: Absoluter Ordnerpfad, der geöffnet werden soll.
+* **Response (JSON):** Statusmeldung oder Fehlermeldung bei Problemen.
+
+### 11. Witz des Tages (`GET /api/joke`)
+Gibt einen zufälligen Flachwitz für Modals und Toast-Einblendungen zurück.
+* **Response (JSON):** `{"joke": "Flachwitz..."}`
+
+### 12. YouTube-Abonnements abrufen (`GET /api/youtube/subscriptions`)
+Gibt alle eingetragenen YouTube-Kanäle und Playlist-Abonnements zurück.
+* **Response (JSON):** `{"subscriptions": [...]}`
+
 ---
 
 ## 📤 POST Endpunkte
@@ -148,3 +162,12 @@ Startet den finalen YouTube-Download und die Sortierung.
 ### 6. Einstellungen speichern (`POST /api/settings`)
 Speichert geänderte Einstellungen.
 * **Payload (JSON):** Gesamtes neues Einstellungs-JSON-Objekt.
+
+### 7. YouTube-Abonnements speichern (`POST /api/youtube/subscriptions`)
+Aktualisiert die Liste aller YouTube-Kanäle und Playlist-Abonnements.
+* **Payload (JSON):** `{"subscriptions": [...]}`
+* **Response (JSON):** `{"status": "success"}`
+
+### 8. YouTube-Abonnements prüfen (`POST /api/youtube/subscriptions/check`)
+Triggert im Hintergrund die manuelle Überprüfung aller aktiven YouTube-Abonnements auf neue Videos.
+* **Response (JSON):** `{"status": "success", "message": "Überprüfung gestartet"}`
