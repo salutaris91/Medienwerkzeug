@@ -607,6 +607,29 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
     needs_poster = not os.path.exists(poster_path)
     needs_fanart = not os.path.exists(fanart_path)
     
+    if isinstance(tmdb_id, str) and tmdb_id.startswith("url_mediathek:"):
+        if needs_nfo:
+            title = tmdb_id.split("url_mediathek:", 1)[1]
+            plot = ""
+            year = ""
+            if nfo_overrides:
+                if "title" in nfo_overrides: title = nfo_overrides["title"]
+                if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
+                if "year" in nfo_overrides: year = nfo_overrides["year"]
+            
+            xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+            xml += '<movie>\n  <lockdata>true</lockdata>\n'
+            xml += f"  <title>{title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+            if plot:
+                xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+            if year:
+                xml += f"  <year>{year}</year>\n"
+            xml += "  <mw_provider>mediathek</mw_provider>\n"
+            xml += '</movie>\n'
+            with open(nfo_path, 'w', encoding='utf-8') as f:
+                f.write(xml)
+        return {"nfo": needs_nfo, "poster": False, "fanart": False, "msg": "Mediathek Film NFO erstellt"}
+
     if tmdb_id == "manual" or (isinstance(tmdb_id, str) and tmdb_id.startswith("{")):
         if needs_nfo:
             try:
@@ -854,6 +877,24 @@ def fetch_movie_nfo_data(provider, movie_id):
             "plot": meta.get("plot", ""),
             "year": meta.get("year", "")
         }
+    elif provider == "mediathek" or (isinstance(movie_id, str) and movie_id.startswith("url_mediathek:")):
+        title = movie_id
+        if isinstance(title, str) and title.startswith("url_mediathek:"):
+            title = title.split("url_mediathek:", 1)[1]
+        plot = ""
+        year = ""
+        try:
+            eps = fetch_mediathek_episodes(movie_id)
+            if eps and "1" in eps:
+                first_item = eps["1"]
+                title = first_item.get("title", title)
+                plot = first_item.get("plot", "")
+                date_str = first_item.get("date", "")
+                if date_str and len(date_str) >= 4:
+                    year = date_str[:4]
+        except Exception as e:
+            print(f"[fetch_movie_nfo_data mediathek error] {e}")
+        return {"title": title, "plot": plot, "year": year}
     elif isinstance(movie_id, str) and (movie_id.startswith("http://") or movie_id.startswith("https://")):
         try:
             entries = fetch_ytdlp_url_metadata(movie_id)
