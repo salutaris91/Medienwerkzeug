@@ -3938,6 +3938,7 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
         destination = params.get("destination")
         nas_destination_id = params.get("nas_destination_id") or params.get("destination_id")
         pcloud_destination_id = params.get("pcloud_destination_id") or params.get("destination_id")
+        nfo_overrides = params.get("nfo_overrides", {})
         
         settings = load_settings()
         inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
