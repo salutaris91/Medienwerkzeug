@@ -473,6 +473,7 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False):
     
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
     progress_pattern = re.compile(r'(\d+)%')
+    speed_pattern = re.compile(r'(\d+\.?\d*\s*[kKMG]i?B/s)')
     
     output_lines = []
     last_logged_pct = -1
@@ -481,17 +482,20 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False):
         match = progress_pattern.search(line)
         if match:
             percent = int(match.group(1))
+            speed_match = speed_pattern.search(line)
+            speed_str = f" ({speed_match.group(1)})" if speed_match else ""
+            msg = f"Übertragung: {percent}%{speed_str}"
             if task_id:
                 if callable(task_id):
-                    task_id(percent, f"Übertragung: {percent}%")
+                    task_id(percent, msg)
                 else:
                     with active_jobs_lock:
                         if task_id in active_jobs:
                             active_jobs[task_id]["progress"] = percent
-                            active_jobs[task_id]["message"] = f"Übertragung: {percent}%"
+                            active_jobs[task_id]["message"] = msg
             # Throttle logging: only print to log_message at multiples of 10%
             if percent % 10 == 0 and percent != last_logged_pct:
-                log_message(f"Übertragung: {percent}%")
+                log_message(msg)
                 last_logged_pct = percent
                         
     process.wait()
@@ -644,22 +648,26 @@ def copy_to_pcloud(source_dir, nas_target_dir, task_id=None, explicit_remote_bas
         cmd = ["rclone", "copy", source_dir, remote_target, "--transfers", "2", "--retries", "3", "--stats", "1s", "--stats-one-line"]
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
         rclone_pattern = re.compile(r'(\d+)%,')
+        speed_pattern = re.compile(r'(\d+\.?\d*\s*[kKMG]i?B/s)')
         
         last_logged_pct = -1
         for line in read_lines_from_stream(process.stdout):
             match = rclone_pattern.search(line)
             if match:
                 percent = int(match.group(1))
+                speed_match = speed_pattern.search(line)
+                speed_str = f" ({speed_match.group(1)})" if speed_match else ""
+                msg = f"Upload: {percent}%{speed_str}"
                 if task_id:
                     if callable(task_id):
-                        task_id(percent, f"Upload: {percent}%")
+                        task_id(percent, msg)
                     else:
                         with active_jobs_lock:
                             if task_id in active_jobs:
                                 active_jobs[task_id]["progress"] = percent
-                                active_jobs[task_id]["message"] = f"Upload: {percent}%"
+                                active_jobs[task_id]["message"] = msg
                 if percent % 10 == 0 and percent != last_logged_pct:
-                    log_message(f"Upload: {percent}%")
+                    log_message(msg)
                     last_logged_pct = percent
                         
         process.wait()
@@ -1262,7 +1270,9 @@ def process_worker(params):
 
         conv_pct = [0] * N
         nas_pct = [0] * N
+        nas_speeds = [""] * N
         pcloud_pct = 0
+        pcloud_speed = ""
         file_titles = [""] * N
         
         has_conv = convert
@@ -1301,7 +1311,8 @@ def process_worker(params):
                     if conv_pct[i] > 0 and conv_pct[i] < 100:
                         active_conv.append(f"{file_titles[i]} ({conv_pct[i]}%)")
                     if nas_pct[i] > 0 and nas_pct[i] < 100:
-                        active_trans.append(f"{file_titles[i]} ({nas_pct[i]}%)")
+                        speed_info = f" bei {nas_speeds[i]}" if nas_speeds[i] else ""
+                        active_trans.append(f"{file_titles[i]} ({nas_pct[i]}%{speed_info})")
                         
                 status_parts = []
                 if active_conv:
@@ -1312,7 +1323,8 @@ def process_worker(params):
                 if active_trans:
                     status_parts.append(f"Kopieren: {', '.join(active_trans)}")
                 elif pcloud_pct > 0 and pcloud_pct < 100:
-                    status_parts.append(f"pCloud Upload: {pcloud_pct}%")
+                    speed_info = f" ({pcloud_speed})" if pcloud_speed else ""
+                    status_parts.append(f"pCloud Upload: {pcloud_pct}%{speed_info}")
                     
                 if not status_parts:
                     status_parts.append("Verarbeitung läuft...")
@@ -1348,6 +1360,13 @@ def process_worker(params):
                         
                         def nas_progress_cb(percent, msg):
                             nas_pct[file_idx] = percent
+                            speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
+                            if speed_match:
+                                nas_speeds[file_idx] = speed_match.group(1)
+                            else:
+                                speed_match_raw = re.search(r'([\d.]+\s*[kKMG]i?B/s)', msg)
+                                if speed_match_raw:
+                                    nas_speeds[file_idx] = speed_match_raw.group(1)
                             update_global_job_progress()
                             with active_jobs_lock:
                                 if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
@@ -1397,8 +1416,15 @@ def process_worker(params):
                         log_message("[Transfer Thread]: Starte pCloud-Upload...")
                         
                         def pcloud_progress_cb(percent, msg):
-                            nonlocal pcloud_pct
+                            nonlocal pcloud_pct, pcloud_speed
                             pcloud_pct = percent
+                            speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
+                            if speed_match:
+                                pcloud_speed = speed_match.group(1)
+                            else:
+                                speed_match_raw = re.search(r'([\d.]+\s*[kKMG]i?B/s)', msg)
+                                if speed_match_raw:
+                                    pcloud_speed = speed_match_raw.group(1)
                             update_global_job_progress()
                             with active_jobs_lock:
                                 if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
@@ -1763,7 +1789,9 @@ def process_worker(params):
         N = len(video_files)
         conv_pct = [0] * N
         nas_pct = [0] * N
+        nas_speeds = [""] * N
         pcloud_pct = [0] * N
+        pcloud_speeds = [""] * N
         file_titles = [clean_movie_name] * N
         
         has_conv = convert
@@ -1801,9 +1829,11 @@ def process_worker(params):
                     if conv_pct[i] > 0 and conv_pct[i] < 100:
                         active_conv.append(f"{file_titles[i]} ({conv_pct[i]}%)")
                     if nas_pct[i] > 0 and nas_pct[i] < 100:
-                        active_trans.append(f"NAS ({nas_pct[i]}%)")
+                        speed_info = f" bei {nas_speeds[i]}" if nas_speeds[i] else ""
+                        active_trans.append(f"NAS ({nas_pct[i]}%{speed_info})")
                     if pcloud_pct[i] > 0 and pcloud_pct[i] < 100:
-                        active_trans.append(f"pCloud ({pcloud_pct[i]}%)")
+                        speed_info = f" bei {pcloud_speeds[i]}" if pcloud_speeds[i] else ""
+                        active_trans.append(f"pCloud ({pcloud_pct[i]}%{speed_info})")
                         
                 status_parts = []
                 if active_conv:
@@ -1848,6 +1878,13 @@ def process_worker(params):
                         
                         def nas_progress_cb(percent, msg):
                             nas_pct[file_idx] = percent
+                            speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
+                            if speed_match:
+                                nas_speeds[file_idx] = speed_match.group(1)
+                            else:
+                                speed_match_raw = re.search(r'([\d.]+\s*[kKMG]i?B/s)', msg)
+                                if speed_match_raw:
+                                    nas_speeds[file_idx] = speed_match_raw.group(1)
                             update_global_job_progress()
                             with active_jobs_lock:
                                 if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
@@ -1883,6 +1920,13 @@ def process_worker(params):
                         
                         def pcloud_progress_cb(percent, msg):
                             pcloud_pct[file_idx] = percent
+                            speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
+                            if speed_match:
+                                pcloud_speeds[file_idx] = speed_match.group(1)
+                            else:
+                                speed_match_raw = re.search(r'([\d.]+\s*[kKMG]i?B/s)', msg)
+                                if speed_match_raw:
+                                    pcloud_speeds[file_idx] = speed_match_raw.group(1)
                             update_global_job_progress()
                             with active_jobs_lock:
                                 if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
