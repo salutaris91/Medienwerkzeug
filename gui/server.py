@@ -620,9 +620,7 @@ def copy_to_pcloud(source_dir, nas_target_dir, task_id=None, explicit_remote_bas
             subprocess.run(["ls", pcloud_local], capture_output=True, timeout=2, check=True)
             fuse_ok = True
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
-            log_message("⚠️ pCloud Drive antwortet nicht (Zombie-Mount). Bereinige...")
-            subprocess.run(["diskutil", "unmount", "force", pcloud_local], capture_output=True)
-            log_message("   Starte pCloud App neu oder falle auf rclone zurück.")
+            log_message("⚠️ pCloud Drive antwortet nicht. Falle direkt auf rclone zurück (kein unmount).")
             
     if fuse_ok:
         local_target = remote_target.replace("pcloud:", pcloud_local + "/")
@@ -1387,7 +1385,9 @@ def process_worker(params):
                             if os.path.exists(p_src):
                                 shutil.copy(p_src, os.path.join(dest_show_dir_nas, f))
                         log_message("[Transfer Thread]: Serien-Metadaten kopiert.")
-                        subprocess.run(["open", dest_show_dir_nas])
+                        settings = load_settings()
+                        if settings.get("open_nas_finder"):
+                            subprocess.run(["open", dest_show_dir_nas])
                         
                     elif task_type == "pcloud_transfer":
                         dest_show_dir_outbox = task["dest_show_dir_outbox"]
@@ -1405,19 +1405,26 @@ def process_worker(params):
                                     active_jobs[task_id]["pipeline"]["pcloud"]["status"] = "running"
                                     active_jobs[task_id]["pipeline"]["pcloud"]["progress"] = percent
                             
-                        copy_to_pcloud(
+                        success = copy_to_pcloud(
                             dest_show_dir_outbox,
                             nas_serien,
                             task_id=pcloud_progress_cb,
                             explicit_remote_base=explicit_pcloud_base
                         )
-                        pcloud_pct = 100
-                        log_message("[Transfer Thread]: pCloud-Upload fertig.")
-                        update_global_job_progress()
-                        with active_jobs_lock:
-                            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                active_jobs[task_id]["pipeline"]["pcloud"]["status"] = "done"
-                                active_jobs[task_id]["pipeline"]["pcloud"]["progress"] = 100
+                        if success:
+                            pcloud_pct = 100
+                            log_message("[Transfer Thread]: pCloud-Upload fertig.")
+                            update_global_job_progress()
+                            with active_jobs_lock:
+                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                    active_jobs[task_id]["pipeline"]["pcloud"]["status"] = "done"
+                                    active_jobs[task_id]["pipeline"]["pcloud"]["progress"] = 100
+                        else:
+                            log_message("[Transfer Thread]: ❌ pCloud-Upload fehlgeschlagen.")
+                            with active_jobs_lock:
+                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                    active_jobs[task_id]["pipeline"]["pcloud"]["status"] = "error"
+                                    active_jobs[task_id]["pipeline"]["pcloud"]["message"] = "Fehlgeschlagen"
                         
                 except Exception as e:
                     log_message(f"❌ [Transfer Thread] Fehler: {e}")
@@ -1857,9 +1864,14 @@ def process_worker(params):
                         if success:
                             log_message(f"[Transfer Thread]: NAS-Kopieren fertig für {final_filename}.")
                             nas_pct[file_idx] = 100
-                            subprocess.run(["open", dest_movie_dir_nas])
+                            settings = load_settings()
+                            if settings.get("open_nas_finder"):
+                                subprocess.run(["open", dest_movie_dir_nas])
                         else:
                             log_message(f"⚠️ [Transfer Thread]: Fehler beim Kopieren von {final_filename} auf das NAS.")
+                            with active_jobs_lock:
+                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                    active_jobs[task_id]["pipeline"]["nas"]["status"] = "error"
                         update_global_job_progress()
                         
                     elif task_type == "movie_pcloud_transfer":
@@ -1878,19 +1890,26 @@ def process_worker(params):
                                     avg_pcloud = sum(pcloud_pct) / N
                                     active_jobs[task_id]["pipeline"]["pcloud"]["progress"] = int(avg_pcloud)
                             
-                        copy_to_pcloud(
+                        success = copy_to_pcloud(
                             dest_movie_dir_outbox,
                             dest_movies,
                             task_id=pcloud_progress_cb,
                             explicit_remote_base=explicit_pcloud_base
                         )
-                        pcloud_pct[file_idx] = 100
-                        log_message(f"[Transfer Thread]: pCloud-Upload fertig für {clean_movie_name}.")
-                        update_global_job_progress()
-                        with active_jobs_lock:
-                            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                active_jobs[task_id]["pipeline"]["pcloud"]["status"] = "done"
-                                active_jobs[task_id]["pipeline"]["pcloud"]["progress"] = 100
+                        if success:
+                            pcloud_pct[file_idx] = 100
+                            log_message(f"[Transfer Thread]: pCloud-Upload fertig für {clean_movie_name}.")
+                            update_global_job_progress()
+                            with active_jobs_lock:
+                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                    active_jobs[task_id]["pipeline"]["pcloud"]["status"] = "done"
+                                    active_jobs[task_id]["pipeline"]["pcloud"]["progress"] = 100
+                        else:
+                            log_message(f"[Transfer Thread]: ❌ pCloud-Upload fehlgeschlagen für {clean_movie_name}.")
+                            with active_jobs_lock:
+                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                    active_jobs[task_id]["pipeline"]["pcloud"]["status"] = "error"
+                                    active_jobs[task_id]["pipeline"]["pcloud"]["message"] = "Fehlgeschlagen"
                         
                 except Exception as e:
                     log_message(f"❌ [Transfer Thread] Fehler: {e}")
