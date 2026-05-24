@@ -1486,26 +1486,26 @@ function renderMatchingMatrix(matches = {}) {
                         </select>
                     </div>
                     <div class="selected-match-info" id="selected-match-info-${index}"></div>
-                    
-                    <!-- Episoden NFO Editier-Bereich -->
-                    <details class="episode-nfo-details" id="episode-nfo-details-${index}" data-index="${index}" style="margin-top: 10px; border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-sm); padding: 8px; background: rgba(0,0,0,0.15);">
-                        <summary style="cursor: pointer; font-size: 11px; color: var(--text-muted);">📝 NFO für diese Episode bearbeiten</summary>
-                        <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
-                            <div>
-                                <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px;">Episodentitel:</label>
-                                <input type="text" class="episode-nfo-title" id="episode-nfo-title-${index}" style="width:100%; font-size: 12px; padding: 6px;">
-                            </div>
-                            <div>
-                                <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px;">Erstausstrahlung (Aired):</label>
-                                <input type="text" class="episode-nfo-aired" id="episode-nfo-aired-${index}" style="width:100%; font-size: 12px; padding: 6px;">
-                            </div>
-                            <div>
-                                <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px;">Beschreibung / Plot:</label>
-                                <textarea class="episode-nfo-plot" id="episode-nfo-plot-${index}" rows="2" style="width:100%; resize:vertical; font-size: 12px; padding: 6px;"></textarea>
-                            </div>
-                        </div>
-                    </details>
                 </div>
+                
+                <!-- Episoden NFO Editier-Bereich (Spans both columns for full width) -->
+                <details class="episode-nfo-details" id="episode-nfo-details-${index}" data-index="${index}" style="grid-column: span 2; margin-top: 10px; border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-sm); padding: 8px; background: rgba(0,0,0,0.15); width: 100%; box-sizing: border-box;">
+                    <summary style="cursor: pointer; font-size: 11px; color: var(--text-muted);">📝 NFO für diese Episode bearbeiten</summary>
+                    <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+                        <div>
+                            <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px;">Episodentitel:</label>
+                            <input type="text" class="episode-nfo-title" id="episode-nfo-title-${index}" style="width:100%; font-size: 12px; padding: 6px; box-sizing: border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px;">Erstausstrahlung (Aired):</label>
+                            <input type="text" class="episode-nfo-aired" id="episode-nfo-aired-${index}" style="width:100%; font-size: 12px; padding: 6px; box-sizing: border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px;">Beschreibung / Plot:</label>
+                            <textarea class="episode-nfo-plot" id="episode-nfo-plot-${index}" rows="2" style="width:100%; resize:vertical; font-size: 12px; padding: 6px; box-sizing: border-box;"></textarea>
+                        </div>
+                    </div>
+                </details>
             </div>
         `;
     });
@@ -3909,14 +3909,92 @@ function closePreviewModal() {
     }, 300);
 }
 
+function saveConversionSettings() {
+    const settings = {
+        movieOptionConvert: document.getElementById("movie-option-convert")?.checked,
+        movieOptionDelete: document.getElementById("movie-option-delete")?.checked,
+        movieOptionCopyNas: document.getElementById("movie-option-copy-nas")?.checked,
+        movieOptionCopyPcloud: document.getElementById("movie-option-copy-pcloud")?.checked,
+        movieQualitySlider: document.getElementById("movie-quality-slider")?.value,
+
+        seriesOptionConvert: document.getElementById("series-option-convert")?.checked,
+        seriesOptionDelete: document.getElementById("series-option-delete")?.checked,
+        seriesOptionCopyNas: document.getElementById("series-option-copy-nas")?.checked,
+        seriesOptionCopyPcloud: document.getElementById("series-option-copy-pcloud")?.checked,
+        seriesOptionAbsoluteNumbering: document.getElementById("series-option-absolute-numbering")?.checked,
+        seriesQualitySlider: document.getElementById("series-quality-slider")?.value,
+
+        toolQualitySlider: document.getElementById("tool-quality-slider")?.value
+    };
+    localStorage.setItem("conversionSettings", JSON.stringify(settings));
+}
+
+function loadConversionSettings() {
+    try {
+        const stored = localStorage.getItem("conversionSettings");
+        if (!stored) return;
+        const settings = JSON.parse(stored);
+        
+        const setCheckbox = (id, val) => {
+            const cb = document.getElementById(id);
+            if (cb && val !== undefined) {
+                cb.checked = !!val;
+            }
+        };
+
+        const setSlider = (id, valElId, val) => {
+            const slider = document.getElementById(id);
+            const valEl = document.getElementById(valElId);
+            if (slider && val !== undefined) {
+                slider.value = val;
+                if (valEl) valEl.textContent = val;
+            }
+        };
+
+        setCheckbox("movie-option-convert", settings.movieOptionConvert);
+        setCheckbox("movie-option-delete", settings.movieOptionDelete);
+        setCheckbox("movie-option-copy-nas", settings.movieOptionCopyNas);
+        setCheckbox("movie-option-copy-pcloud", settings.movieOptionCopyPcloud);
+        setSlider("movie-quality-slider", "movie-quality-val", settings.movieQualitySlider);
+
+        setCheckbox("series-option-convert", settings.seriesOptionConvert);
+        setCheckbox("series-option-delete", settings.seriesOptionDelete);
+        setCheckbox("series-option-copy-nas", settings.seriesOptionCopyNas);
+        setCheckbox("series-option-copy-pcloud", settings.seriesOptionCopyPcloud);
+        setCheckbox("series-option-absolute-numbering", settings.seriesOptionAbsoluteNumbering);
+        setSlider("series-quality-slider", "series-quality-val", settings.seriesQualitySlider);
+
+        setSlider("tool-quality-slider", "tool-quality-val", settings.toolQualitySlider);
+    } catch (e) {
+        console.error("Error loading conversion settings:", e);
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById("movie-option-convert")?.addEventListener("change", () => {
+    // 1. Load settings from localStorage first
+    loadConversionSettings();
+
+    // 2. Register listeners that trigger both size estimation/UI toggles and save settings
+    const saveAndEstMovie = () => {
+        saveConversionSettings();
         updateSizeEstimation("movie");
-    });
+    };
     
-    document.getElementById("series-option-convert")?.addEventListener("change", () => {
+    const saveAndEstSeries = () => {
+        saveConversionSettings();
         updateSizeEstimation("series");
-    });
+    };
+
+    document.getElementById("movie-option-convert")?.addEventListener("change", saveAndEstMovie);
+    document.getElementById("movie-option-delete")?.addEventListener("change", saveConversionSettings);
+    document.getElementById("movie-option-copy-nas")?.addEventListener("change", saveConversionSettings);
+    document.getElementById("movie-option-copy-pcloud")?.addEventListener("change", saveConversionSettings);
+
+    document.getElementById("series-option-convert")?.addEventListener("change", saveAndEstSeries);
+    document.getElementById("series-option-delete")?.addEventListener("change", saveConversionSettings);
+    document.getElementById("series-option-copy-nas")?.addEventListener("change", saveConversionSettings);
+    document.getElementById("series-option-copy-pcloud")?.addEventListener("change", saveConversionSettings);
+    document.getElementById("series-option-absolute-numbering")?.addEventListener("change", saveConversionSettings);
 
     // Movie quality slider
     const movieSlider = document.getElementById("movie-quality-slider");
@@ -3925,9 +4003,7 @@ document.addEventListener("DOMContentLoaded", () => {
         movieSlider.addEventListener("input", () => {
             movieVal.textContent = movieSlider.value;
         });
-        movieSlider.addEventListener("change", () => {
-            updateSizeEstimation("movie");
-        });
+        movieSlider.addEventListener("change", saveAndEstMovie);
     }
 
     // Series quality slider
@@ -3937,9 +4013,7 @@ document.addEventListener("DOMContentLoaded", () => {
         seriesSlider.addEventListener("input", () => {
             seriesVal.textContent = seriesSlider.value;
         });
-        seriesSlider.addEventListener("change", () => {
-            updateSizeEstimation("series");
-        });
+        seriesSlider.addEventListener("change", saveAndEstSeries);
     }
 
     // Tool quality slider
@@ -3949,7 +4023,14 @@ document.addEventListener("DOMContentLoaded", () => {
         toolSlider.addEventListener("input", () => {
             toolVal.textContent = toolSlider.value;
         });
+        toolSlider.addEventListener("change", () => {
+            saveConversionSettings();
+        });
     }
+
+    // Initialize size estimations and visibility of quality sliders on startup
+    updateSizeEstimation("movie");
+    updateSizeEstimation("series");
 
     document.getElementById("btn-preview-close")?.addEventListener("click", closePreviewModal);
     document.getElementById("btn-preview-cancel")?.addEventListener("click", closePreviewModal);
@@ -4067,6 +4148,7 @@ function initQueue() {
     const queuePanel = document.getElementById("queue-panel");
     const overlay = document.getElementById("queue-panel-overlay");
     const navBtn = document.getElementById("nav-queue-dashboard");
+    const headerBtn = document.getElementById("header-queue-btn");
     const closeBtn = document.getElementById("btn-close-queue");
 
     function openQueue() {
@@ -4088,6 +4170,7 @@ function initQueue() {
     }
 
     if (navBtn) navBtn.addEventListener("click", openQueue);
+    if (headerBtn) headerBtn.addEventListener("click", openQueue);
     if (closeBtn) closeBtn.addEventListener("click", closeQueue);
     if (overlay) overlay.addEventListener("click", closeQueue);
 
@@ -4125,14 +4208,22 @@ async function pollQueue() {
 function renderQueue(jobs) {
     const list = document.getElementById("queue-list");
     const badge = document.getElementById("queue-badge");
+    const headerBadge = document.getElementById("header-queue-badge");
 
     const activeJobs = jobs.filter(j => j.status === "queued" || j.status === "running");
     
     if (activeJobs.length > 0) {
-        badge.textContent = activeJobs.length;
-        badge.classList.remove("hidden");
+        if (badge) {
+            badge.textContent = activeJobs.length;
+            badge.classList.remove("hidden");
+        }
+        if (headerBadge) {
+            headerBadge.textContent = activeJobs.length;
+            headerBadge.classList.remove("hidden");
+        }
     } else {
-        badge.classList.add("hidden");
+        if (badge) badge.classList.add("hidden");
+        if (headerBadge) headerBadge.classList.add("hidden");
     }
 
     if (jobs.length === 0) {

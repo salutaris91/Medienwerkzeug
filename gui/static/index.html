@@ -21,6 +21,11 @@
         </div>
         
         <div class="status-indicators">
+            <button class="btn btn-secondary btn-sm" id="header-queue-btn" style="position: relative; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                📋 Warteschlange
+                <span id="header-queue-badge" class="badge hidden" style="background:var(--accent); color:white; border-radius:12px; padding:1px 6px; font-size:11px; display:inline-block;">0</span>
+            </button>
+
             <div class="status-item" id="nas-status-container">
                 <span class="status-label">NAS Status:</span>
                 <span class="status-badge offline" id="nas-badge">Lade...</span>
