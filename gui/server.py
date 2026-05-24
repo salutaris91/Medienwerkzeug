@@ -1706,7 +1706,8 @@ def process_worker(params):
                     shutil.move(p_src, os.path.join(dest_show_dir_outbox, f))
                     log_message(f"Serien-Metadatei in Output-Ordner verschoben: {f}")
             # Open local destination in Finder
-            subprocess.run(["open", dest_show_dir_outbox])
+            if settings.get("open_outbox_finder"):
+                subprocess.run(["open", dest_show_dir_outbox])
         except Exception as e:
             log_message(f"Fehler beim Verschieben der Serien-Metadaten in Output-Ordner: {e}")
 
@@ -2112,7 +2113,8 @@ def process_worker(params):
                         log_message(f"Erstellt: {art_name}")
                         
                 # Open output directory in Finder
-                subprocess.run(["open", dest_movie_dir_outbox])
+                if settings.get("open_outbox_finder"):
+                    subprocess.run(["open", dest_movie_dir_outbox])
             except Exception as e:
                 log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
  
@@ -2531,7 +2533,8 @@ def process_worker(params):
                     transfer_successful = True
                     
                     # Open destination directory in Finder
-                    subprocess.run(["open", dest_dir_outbox])
+                    if settings.get("open_outbox_finder"):
+                        subprocess.run(["open", dest_dir_outbox])
                 except Exception as e:
                     log_message(f"  ❌ Fehler bei Übertragung in Output-Ordner: {e}")
                     all_transfers_successful = False
