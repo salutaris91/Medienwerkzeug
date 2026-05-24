@@ -2730,7 +2730,6 @@ def process_worker(params):
     elif media_type == "tool_nfo_batch_fsk":
         fsk_val = params.get("fsk", 16)
         log_message(f"=== STARTE NFO BATCH FSK-ANPASSUNG (FSK {fsk_val}) IN: {current_dir} ===")
-        import re
         nfo_files = [f for f in os.listdir(current_dir) if f.lower().endswith(".nfo")]
         if not nfo_files:
             log_message("❌ Keine .nfo Dateien im Hauptordner gefunden.")
@@ -3080,7 +3079,6 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             print(f"Error fetching episodes for matching: {e}")
             
         matches = {}
-        import re
         def guess_ep_num(filename):
             clean_name = filename.lower()
             # 1. Parentheses/brackets check for absolute episode numbers first! E.g. (381) or [381]
@@ -3254,7 +3252,6 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
         for file in filenames:
             matched_ep = matches.get(file)
             if matched_ep:
-                import re
                 match = re.match(r"^S(\d+)E(\d+)$", str(matched_ep), re.IGNORECASE)
                 if match:
                     ep_season = int(match.group(1))
