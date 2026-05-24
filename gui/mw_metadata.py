@@ -1993,7 +1993,7 @@ def search_mediathek(query):
         ],
         "sortBy": "timestamp",
         "sortOrder": "desc",
-        "future": False,
+        "future": True,
         "offset": 0,
         "size": 50
     }
@@ -2047,7 +2047,7 @@ def fetch_mediathek_episodes(topic):
         ],
         "sortBy": "timestamp",
         "sortOrder": "asc",
-        "future": False,
+        "future": True,
         "offset": 0,
         "size": 100
     }
