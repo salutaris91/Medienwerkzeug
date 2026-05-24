@@ -4371,6 +4371,7 @@ function loadConversionSettings() {
             const cb = document.getElementById(id);
             if (cb && val !== undefined) {
                 cb.checked = !!val;
+                cb.dispatchEvent(new Event('change'));
             }
         };
 
