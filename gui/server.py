@@ -1484,7 +1484,6 @@ def process_worker(params):
                 else:
                     ep_title = str(ep_data)
                 
-                import re
                 match = re.match(r"^S(\d+)E(\d+)$", str(ep_num_val), re.IGNORECASE)
                 if match:
                     ep_season = int(match.group(1))
@@ -4118,7 +4117,6 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                                 ep_data = list(episodes.values())[0]
                             ep_title = ep_data.get("title", "") if isinstance(ep_data, dict) else str(ep_data)
                             
-                            import re
                             match = re.match(r"^S(\d+)E(\d+)$", str(ep_num), re.IGNORECASE)
                             if match:
                                 curr_season = int(match.group(1))
