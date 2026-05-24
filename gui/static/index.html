@@ -62,6 +62,9 @@
                     <div class="project-item" id="nav-tools-dashboard" style="margin-bottom: 10px;">
                         <span class="project-item-name">🛠️ Werkzeuge</span>
                     </div>
+                    <div class="project-item" id="nav-youtube-abos" style="margin-bottom: 10px;">
+                        <span class="project-item-name">📺 YouTube Abos</span>
+                    </div>
                     <div class="project-item" id="nav-settings-dashboard" style="margin-bottom: 10px;">
                         <span class="project-item-name">⚙️ Einstellungen</span>
                     </div>
@@ -271,7 +274,10 @@
                     <div class="form-group" style="margin-top:20px; position: relative;">
                         <label style="display:flex; justify-content:space-between; align-items:center; width:100%;">
                             <span>Serienname / Ordnername auf NAS (anpassbar):</span>
-                            <button class="btn btn-secondary btn-xs" id="btn-load-nas-series" type="button" style="padding:2px 8px; font-size:11px;">NAS laden</button>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-secondary btn-xs" id="btn-load-nas-series" type="button" style="padding:2px 8px; font-size:11px;">NAS laden</button>
+                                <button class="btn btn-secondary btn-xs" id="btn-open-nas-folder-series" type="button" style="padding:2px 8px; font-size:11px;" title="Serienordner im Finder öffnen">📂 Finder</button>
+                            </div>
                         </label>
                         <input type="text" id="series-nas-folder-override" placeholder="Automatisch (z.B. Sendung mit der Maus)" style="width:100%; margin-top:5px;" autocomplete="off">
                         <div id="series-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
@@ -501,6 +507,92 @@
                     </div>
 
                     <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
+                        <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Verarbeitungs-Abschluss (Auto-Finder):</label>
+                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Wähle aus, welche Verzeichnisse nach erfolgreicher Verarbeitung automatisch im Finder geöffnet werden sollen.</p>
+                        <div class="options-grid" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; max-width:700px;">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="settings-open-outbox-finder">
+                                <span class="checkmark"></span> Output (Outbox) öffnen
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="settings-open-nas-finder">
+                                <span class="checkmark"></span> NAS-Ordner öffnen
+                            </label>
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="settings-open-pcloud-finder">
+                                <span class="checkmark"></span> pCloud-Ordner öffnen
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
+                        <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Benachrichtigungen:</label>
+                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Lass dich benachrichtigen, wenn langwierige Konvertierungs- und Übertragungs-Jobs fertiggestellt wurden.</p>
+                        
+                        <div style="display:flex; flex-direction:column; gap:15px; max-width:700px;">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="settings-notify-macos">
+                                <span class="checkmark"></span> macOS Systembenachrichtigung senden
+                            </label>
+                            
+                            <div style="padding: 10px; border: 1px solid var(--border-glass); border-radius: var(--radius-sm); background: rgba(255,255,255,0.01);">
+                                <label class="checkbox-container" style="margin-bottom:10px;">
+                                    <input type="checkbox" id="settings-notify-telegram">
+                                    <span class="checkmark"></span> Telegram-Nachricht senden
+                                </label>
+                                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                    <div style="flex:1; min-width:200px;">
+                                        <label style="font-size:11px; color:var(--text-muted);">Bot Token:</label>
+                                        <input type="text" id="settings-telegram-token" style="width:100%;">
+                                    </div>
+                                    <div style="flex:1; min-width:150px;">
+                                        <label style="font-size:11px; color:var(--text-muted);">Chat ID:</label>
+                                        <input type="text" id="settings-telegram-chat-id" style="width:100%;">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div style="padding: 10px; border: 1px solid var(--border-glass); border-radius: var(--radius-sm); background: rgba(255,255,255,0.01);">
+                                <label class="checkbox-container" style="margin-bottom:10px;">
+                                    <input type="checkbox" id="settings-notify-whatsapp">
+                                    <span class="checkmark"></span> WhatsApp-Nachricht senden (CallMeBot)
+                                </label>
+                                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                    <div style="flex:1; min-width:200px;">
+                                        <label style="font-size:11px; color:var(--text-muted);">API Key:</label>
+                                        <input type="text" id="settings-whatsapp-apikey" style="width:100%;" placeholder="apikey von CallMeBot">
+                                    </div>
+                                    <div style="flex:1; min-width:150px;">
+                                        <label style="font-size:11px; color:var(--text-muted);">Handynummer:</label>
+                                        <input type="text" id="settings-whatsapp-phone" style="width:100%;" placeholder="+49123456789">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="display:flex; gap:15px; align-items:center; flex-wrap:wrap;">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <label for="settings-notify-min-size" style="font-size:12px; color:var(--text-muted); margin-bottom:0;">Nur ab einer Job-Größe von:</label>
+                                    <input type="number" id="settings-notify-min-size" min="0" value="10" style="width:70px; padding:4px;">
+                                    <span style="font-size:12px; color:var(--text-muted);">GB</span>
+                                </div>
+                                <label class="checkbox-container" style="margin-bottom:0;">
+                                    <input type="checkbox" id="settings-notify-only-end" checked>
+                                    <span class="checkmark"></span> Nur am Ende des gesamten Jobs benachrichtigen
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
+                        <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Witz des Tages (Flachwitze):</label>
+                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Blende Witze beim Programmstart oder nach Fertigstellung von Aufgaben ein.</p>
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="settings-show-jokes" checked>
+                            <span class="checkmark"></span> Flachwitze / Dad Jokes einblenden
+                        </label>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
                         <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Sync-Kategorien (NAS & pCloud):</label>
                         <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 10px;">Lege fest, welche Optionen beim Klick auf "NAS Syncing" oder "pCloud Syncing" angeboten werden und wohin die Dateien kopiert werden sollen.</p>
                         <div id="settings-sync-categories-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom: 10px;">
@@ -700,6 +792,51 @@
                     <h2>Kapitel zu Episoden zuweisen</h2>
                     <div id="yt-mapping-list" style="margin: 20px 0; max-height: 350px; overflow-y: auto;"></div>
                     <button class="btn btn-accent btn-lg" id="btn-yt-finalize-mapping">🚀 Zuweisung abschließen</button>
+                </div>
+            </div>
+            
+            <!-- STATE: YOUTUBE ABOS -->
+            <div id="view-youtube-abos" class="view-panel hidden">
+                <div class="card" style="margin-bottom: 25px;">
+                    <div style="font-size: 48px; margin-bottom: 10px;">📺</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; margin-bottom: 20px;">
+                        <div>
+                            <h2 style="margin:0;">YouTube Abos & Überwachung</h2>
+                            <p class="section-desc" style="margin:5px 0 0 0;">Kanäle oder Playlists abonnieren und neue Videos automatisch im Hintergrund herunterladen und einsortieren.</p>
+                        </div>
+                        <button class="btn btn-accent" id="btn-check-all-abos">🔄 Jetzt alle prüfen</button>
+                    </div>
+
+                    <!-- Add subscription form -->
+                    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 20px; margin-bottom: 25px;">
+                        <h3 style="margin-top:0; margin-bottom:15px; font-size:15px; color:var(--text-main); font-weight:600;">Abonnement hinzufügen</h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                            <div>
+                                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:5px;">Name / Titel:</label>
+                                <input type="text" id="abo-name" placeholder="z.B. ARD Dokus" style="width:100%;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:5px;">YouTube Kanal / Playlist URL:</label>
+                                <input type="text" id="abo-url" placeholder="https://www.youtube.com/..." style="width:100%;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:5px;">Suchfilter (optional):</label>
+                                <input type="text" id="abo-filter" placeholder="z.B. Natur" style="width:100%;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:5px;">Zielkategorie (NAS):</label>
+                                <select id="abo-destination" class="form-select" style="width:100%; height:38px; padding: 0 10px; background: var(--bg-surface); border: 1px solid var(--border-glass); color: var(--text-main); border-radius: var(--radius-sm);">
+                                </select>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" id="btn-add-abo" style="margin-top:15px; font-weight:600;">➕ Abo hinzufügen</button>
+                    </div>
+
+                    <!-- List of subscriptions -->
+                    <h3 style="font-size:15px; color:var(--text-main); font-weight:600; margin-bottom:15px;">Aktive Abonnements</h3>
+                    <div id="youtube-abos-list" style="display:flex; flex-direction:column; gap:15px;">
+                        <div style="text-align:center; padding:30px; color:var(--text-muted);">Lade Abonnements...</div>
+                    </div>
                 </div>
             </div>
             

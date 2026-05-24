@@ -53,6 +53,19 @@ def load_settings():
         "pcloud_dir": os.path.expanduser("~/pCloud Drive"),
         "import_sources": [os.path.expanduser("~/Documents/StreamFab/StreamFab")],
         "check_dependency_updates": False,
+        "open_outbox_finder": False,
+        "open_nas_finder": False,
+        "open_pcloud_finder": False,
+        "notify_macos": False,
+        "notify_telegram": False,
+        "telegram_token": "",
+        "telegram_chat_id": "",
+        "notify_whatsapp": False,
+        "whatsapp_apikey": "",
+        "whatsapp_phone": "",
+        "notify_min_size": 10,
+        "notify_only_end": True,
+        "show_jokes": True,
         "sync_categories": [
             {"id": "1", "name": "Filme", "nas_sub": "/Filme", "pcloud_remote": "pcloud:03_Filme"},
             {"id": "2", "name": "Serien", "nas_sub": "/Serien", "pcloud_remote": "pcloud:04_Serien"},
@@ -60,7 +73,8 @@ def load_settings():
             {"id": "4", "name": "Doku-Serien", "nas_sub": "/Dokus/Doku-Serien", "pcloud_remote": "pcloud:04a_Dokus"},
             {"id": "5", "name": "Filme 3D", "nas_sub": "/Filme 3D", "pcloud_remote": "pcloud:03a_3D Filme"},
             {"id": "6", "name": "Sonstiges", "nas_sub": "/Sonstiges", "pcloud_remote": "pcloud:05_Sonstiges"}
-        ]
+        ],
+        "youtube_subscriptions": []
     }
     if os.path.exists(SETTINGS_FILE):
         try:
@@ -793,6 +807,309 @@ def find_files_recursively(directory, extensions=None):
                 found.append(os.path.relpath(os.path.join(root, f), directory))
     return found
 
+def fetch_online_jokes_async():
+    def target():
+        url = "https://raw.githubusercontent.com/salutaris91/Mediawerkzeug/main/gui/data/jokes.json"
+        import urllib.request
+        import json
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                if isinstance(data, list) and len(data) > 0:
+                    local_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "jokes.json")
+                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                    with open(local_path, "w", encoding="utf-8") as f:
+                        json.dump(data, f, ensure_ascii=False, indent=2)
+                    print(f"Jokes successfully updated from GitHub. Total jokes: {len(data)}")
+        except Exception as e:
+            print(f"Failed to fetch jokes from GitHub (using cached/local copy): {e}")
+            
+    threading.Thread(target=target, daemon=True).start()
+
+def get_random_joke():
+    import random
+    import json
+    local_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "jokes.json")
+    try:
+        if os.path.exists(local_path):
+            with open(local_path, "r", encoding="utf-8") as f:
+                jokes = json.load(f)
+                if isinstance(jokes, list) and len(jokes) > 0:
+                    return random.choice(jokes)
+    except Exception as e:
+        print(f"Error loading joke: {e}")
+        
+    return "Was ist gelb und kann nicht schwimmen? Ein Bagger!"
+
+def check_single_subscription(sub):
+    import uuid
+    import time
+    url = sub.get("url")
+    search_filter = sub.get("search_filter", "").lower().strip()
+    downloaded_ids = sub.get("downloaded_ids", [])
+    destination_id = sub.get("destination_id")
+    
+    if not url:
+        return
+        
+    cmd = ["yt-dlp", "--flat-playlist", "--playlist-end", "10", "--dump-json", url]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if res.returncode != 0:
+            print(f"[YouTube Abo-Überwachung] yt-dlp Fehler für {sub.get('name')}: {res.stderr}")
+            return
+            
+        lines = res.stdout.strip().split('\n')
+        new_downloads = 0
+        
+        settings = load_settings()
+        sub_in_settings = None
+        for s in settings.get("youtube_subscriptions", []):
+            if s.get("id") == sub.get("id"):
+                sub_in_settings = s
+                break
+                
+        if not sub_in_settings:
+            return
+            
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                video_data = json.loads(line)
+                v_id = video_data.get("id")
+                v_title = video_data.get("title", "")
+                v_url = video_data.get("url") or f"https://www.youtube.com/watch?v={v_id}"
+                
+                if not v_id or v_id in downloaded_ids:
+                    continue
+                    
+                # Search filter check
+                if search_filter:
+                    if search_filter not in v_title.lower():
+                        continue
+                        
+                print(f"[YouTube Abo-Überwachung]: Neuer Treffer für Abo '{sub.get('name')}': {v_title} ({v_url})")
+                
+                # Start job!
+                task_id = str(uuid.uuid4())
+                job_params = {
+                    "media_type": "youtube",
+                    "yt_url": v_url,
+                    "yt_format": "best",
+                    "yt_embed_thumbnail": True,
+                    "copy_to_nas": True,
+                    "destination_id": destination_id,
+                    "project_name": "",
+                    "task_id": task_id
+                }
+                
+                job_info = {
+                    "id": task_id,
+                    "type": "youtube",
+                    "name": f"Abo: {v_title[:40]}",
+                    "status": "queued",
+                    "progress": 0,
+                    "message": "Automatisch gestartet...",
+                    "timestamp": time.time(),
+                    "params": job_params,
+                    "pipeline": {
+                        "metadata": {"status": "pending", "progress": 0},
+                        "convert": {"status": "pending", "progress": 0},
+                        "nas": {"status": "pending", "progress": 0},
+                        "pcloud": {"status": "pending", "progress": 0}
+                    }
+                }
+                
+                with active_jobs_lock:
+                    active_jobs[task_id] = job_info
+                    
+                job_queue.put(job_info)
+                
+                # Mark as downloaded
+                downloaded_ids.append(v_id)
+                new_downloads += 1
+                
+            except Exception as ex:
+                print(f"[YouTube Abo-Überwachung] Fehler bei Video-Verarbeitung: {ex}")
+                
+        if new_downloads > 0:
+            sub_in_settings["downloaded_ids"] = downloaded_ids
+            sub_in_settings["last_checked"] = time.time()
+            save_settings(settings)
+            
+    except Exception as e:
+        print(f"[YouTube Abo-Überwachung] Fehler bei Check für {sub.get('name')}: {e}")
+
+def check_youtube_subscriptions_loop():
+    # Delay initial check slightly
+    time.sleep(10)
+    while True:
+        try:
+            settings = load_settings()
+            subs = settings.get("youtube_subscriptions", [])
+            active_subs = [s for s in subs if s.get("enabled")]
+            if active_subs:
+                print(f"[YouTube Abo-Überwachung]: Starte turnusmäßigen Check für {len(active_subs)} Abos...")
+                for sub in active_subs:
+                    check_single_subscription(sub)
+        except Exception as e:
+            print(f"[YouTube Abo-Überwachung] Fehler: {e}")
+        time.sleep(3600)  # Check every hour
+
+def trigger_youtube_subscriptions_check():
+    def target():
+        try:
+            settings = load_settings()
+            subs = settings.get("youtube_subscriptions", [])
+            active_subs = [s for s in subs if s.get("enabled")]
+            if active_subs:
+                print(f"[YouTube Abo-Überwachung]: Starte manuell getriggerten Check für {len(active_subs)} Abos...")
+                for sub in active_subs:
+                    check_single_subscription(sub)
+        except Exception as e:
+            print(f"[YouTube Abo-Überwachung] Manuelle Überwachung Fehler: {e}")
+            
+    threading.Thread(target=target, daemon=True).start()
+
+def get_dir_size_gb(directory):
+    total_size = 0
+    if os.path.exists(directory):
+        if os.path.isdir(directory):
+            for root, dirs, files in os.walk(directory):
+                for f in files:
+                    if f.startswith('.'): continue
+                    fp = os.path.join(root, f)
+                    try:
+                        if os.path.exists(fp):
+                            total_size += os.path.getsize(fp)
+                    except: pass
+        else:
+            try:
+                total_size = os.path.getsize(directory)
+            except: pass
+    return total_size / (1024 * 1024 * 1024)
+
+def send_macos_notification(title, message):
+    try:
+        t = title.replace('"', '\\"')
+        m = message.replace('"', '\\"')
+        cmd = f'display notification "{m}" with title "{t}"'
+        subprocess.run(["osascript", "-e", cmd])
+    except Exception as e:
+        print(f"Failed to send macOS notification: {e}")
+
+def send_telegram_notification(token, chat_id, message):
+    import urllib.request
+    import urllib.parse
+    try:
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        data = urllib.parse.urlencode({
+            "chat_id": chat_id,
+            "text": message
+        }).encode("utf-8")
+        req = urllib.request.Request(url, data=data, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            response.read()
+    except Exception as e:
+        print(f"Failed to send Telegram notification: {e}")
+
+def send_whatsapp_notification(apikey, phone, message):
+    import urllib.request
+    import urllib.parse
+    try:
+        encoded_text = urllib.parse.quote(message)
+        encoded_phone = urllib.parse.quote(phone)
+        encoded_apikey = urllib.parse.quote(apikey)
+        url = f"https://api.callmebot.com/whatsapp.php?phone={encoded_phone}&text={encoded_text}&apikey={encoded_apikey}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            response.read()
+    except Exception as e:
+        print(f"Failed to send WhatsApp notification: {e}")
+
+def trigger_job_notifications(params, job_size_gb, is_end_of_job=False):
+    settings = load_settings()
+    min_size = settings.get("notify_min_size", 10)
+    if job_size_gb < min_size:
+        return
+    if settings.get("notify_only_end") and not is_end_of_job:
+        return
+        
+    media_type = params.get("media_type", "unknown")
+    project_name = params.get("project_name", "Unbekannt")
+    
+    title = "Medienwerkzeug Job Fertig"
+    message = f"Der Job '{project_name}' ({media_type}) mit einer Größe von {job_size_gb:.2f} GB wurde erfolgreich verarbeitet."
+    
+    if settings.get("notify_macos"):
+        send_macos_notification(title, message)
+        
+    if settings.get("notify_telegram"):
+        token = settings.get("telegram_token")
+        chat_id = settings.get("telegram_chat_id")
+        if token and chat_id:
+            send_telegram_notification(token, chat_id, f"🚀 {title}\n\n{message}")
+            
+    if settings.get("notify_whatsapp"):
+        apikey = settings.get("whatsapp_apikey")
+        phone = settings.get("whatsapp_phone")
+        if apikey and phone:
+            send_whatsapp_notification(apikey, phone, f"🚀 {title}\n\n{message}")
+
+def open_folders_post_processing(params):
+    settings = load_settings()
+    outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
+    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    pcloud_dir = settings.get("pcloud_dir", os.path.expanduser("~/pCloud Drive"))
+    
+    media_type = params.get("media_type")
+    
+    if settings.get("open_outbox_finder"):
+        if os.path.exists(outbox_root):
+            try:
+                subprocess.run(["open", outbox_root])
+            except: pass
+
+    if settings.get("open_nas_finder"):
+        nas_dir = None
+        nas_destination_id = params.get("nas_destination_id") or params.get("destination_id")
+        if nas_destination_id:
+            sync_cats = settings.get("sync_categories", [])
+            found_cat = None
+            for cat in sync_cats:
+                if cat.get("id") == str(nas_destination_id):
+                    found_cat = cat
+                    break
+            if found_cat:
+                nas_dir = os.path.join(nas_root, found_cat.get("nas_sub", "").lstrip("/"))
+                
+                if media_type == "tv":
+                    show_name = params.get("nas_show_folder") or params.get("show_name")
+                    if show_name:
+                        show_dir_name = clean_series_name_for_fs(show_name)
+                        nas_dir = os.path.join(nas_dir, show_dir_name)
+                elif media_type == "movie":
+                    movie_name = params.get("movie_name")
+                    if movie_name:
+                        movie_dir_name = limit_filename_length(sanitize_filename(movie_name))
+                        nas_dir = os.path.join(nas_dir, movie_dir_name)
+                        
+        if not nas_dir:
+            nas_dir = nas_root
+            
+        if os.path.exists(nas_dir):
+            try:
+                subprocess.run(["open", nas_dir])
+            except: pass
+            
+    if settings.get("open_pcloud_finder"):
+        if os.path.exists(pcloud_dir):
+            try:
+                subprocess.run(["open", pcloud_dir])
+            except: pass
+
 def process_worker(params):
     media_type = params.get("media_type")
     project_name = params.get("project_name", "")
@@ -857,7 +1174,36 @@ def process_worker(params):
     else:
         current_dir = inbox_root
         
-    log_message(f"=== STARTE VERARBEITUNG IN: {current_dir} ===")
+    job_size_gb = 0.0
+    try:
+        if project_name:
+            job_size_gb = get_dir_size_gb(current_dir)
+        else:
+            if media_type == "tv" and mappings:
+                total_bytes = 0
+                for f in mappings.keys():
+                    fp = os.path.join(current_dir, f)
+                    if os.path.exists(fp):
+                        total_bytes += os.path.getsize(fp)
+                job_size_gb = total_bytes / (1024 * 1024 * 1024)
+            elif media_type == "movie":
+                total_bytes = 0
+                explicit_renames_check = params.get("explicit_renames")
+                if explicit_renames_check is not None:
+                    v_files = [r["old"] for r in explicit_renames_check]
+                else:
+                    v_files = [f for f in os.listdir(current_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov')) and not f.startswith(".")]
+                for f in v_files:
+                    fp = os.path.join(current_dir, f)
+                    if os.path.exists(fp):
+                        total_bytes += os.path.getsize(fp)
+                job_size_gb = total_bytes / (1024 * 1024 * 1024)
+            else:
+                job_size_gb = get_dir_size_gb(current_dir)
+    except Exception as e:
+        print(f"Fehler bei der Berechnung der Jobgröße: {e}")
+        
+    log_message(f"=== STARTE VERARBEITUNG IN: {current_dir} (Groesse: {job_size_gb:.2f} GB) ===")
     
     explicit_renames = params.get("explicit_renames")
     explicit_subs = params.get("explicit_subs")
@@ -912,6 +1258,10 @@ def process_worker(params):
         log_message(f"Typ: Serie | Name: {show_name} (Bereinigt: {clean_show_name}) | Staffel: {season}")
         
         # 1. Generate tvshow.nfo and download show artwork (poster.jpg, fanart.jpg)
+        with active_jobs_lock:
+            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                active_jobs[task_id]["pipeline"]["metadata"]["status"] = "running"
+                active_jobs[task_id]["pipeline"]["metadata"]["progress"] = 50
         if show_id and provider:
             log_message("Generiere tvshow.nfo und lade Poster/Fanart...")
             try:
@@ -1051,6 +1401,11 @@ def process_worker(params):
                         def nas_progress_cb(percent, msg):
                             nas_pct[file_idx] = percent
                             update_global_job_progress()
+                            with active_jobs_lock:
+                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                    active_jobs[task_id]["pipeline"]["nas"]["status"] = "running"
+                                    avg_nas = sum(nas_pct) / N
+                                    active_jobs[task_id]["pipeline"]["nas"]["progress"] = int(avg_nas)
                             
                         os.makedirs(dest_dir_nas, exist_ok=True)
                         success = run_rsync_with_progress(
@@ -1095,6 +1450,10 @@ def process_worker(params):
                             nonlocal pcloud_pct
                             pcloud_pct = percent
                             update_global_job_progress()
+                            with active_jobs_lock:
+                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                    active_jobs[task_id]["pipeline"]["pcloud"]["status"] = "running"
+                                    active_jobs[task_id]["pipeline"]["pcloud"]["progress"] = percent
                             
                         copy_to_pcloud(
                             dest_show_dir_outbox,
@@ -1105,6 +1464,10 @@ def process_worker(params):
                         pcloud_pct = 100
                         log_message("[Transfer Thread]: pCloud-Upload fertig.")
                         update_global_job_progress()
+                        with active_jobs_lock:
+                            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                active_jobs[task_id]["pipeline"]["pcloud"]["status"] = "done"
+                                active_jobs[task_id]["pipeline"]["pcloud"]["progress"] = 100
                         
                 except Exception as e:
                     log_message(f"❌ [Transfer Thread] Fehler: {e}")
@@ -1225,6 +1588,12 @@ def process_worker(params):
                     log_message(f"Episode NFO Status: {res}")
                 except Exception as e:
                     log_message(f"Fehler bei Episode NFO: {e}")
+            with active_jobs_lock:
+                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                    current_prog = 50 + int(50 * (file_idx + 1) / N)
+                    active_jobs[task_id]["pipeline"]["metadata"]["progress"] = min(100, current_prog)
+                    if file_idx == N - 1:
+                        active_jobs[task_id]["pipeline"]["metadata"]["status"] = "done"
 
             # H.265 Conversion
             final_filename = target_filename
@@ -1252,6 +1621,11 @@ def process_worker(params):
                         def ffmpeg_progress_cb(percent, msg):
                             conv_pct[file_idx] = percent
                             update_global_job_progress()
+                            with active_jobs_lock:
+                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                    active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
+                                    avg_conv = sum(conv_pct) / N
+                                    active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
                         success = run_ffmpeg_with_progress(ffmpeg_cmd, target_filepath, task_id=ffmpeg_progress_cb, log_queue=log_queue)
                         if success and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
                             log_message("Konvertierung erfolgreich beendet.")
@@ -1331,6 +1705,12 @@ def process_worker(params):
                 nas_pct[file_idx] = 100
                 update_global_job_progress()
                 
+        with active_jobs_lock:
+            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                if active_jobs[task_id]["pipeline"]["convert"]["status"] == "running":
+                    active_jobs[task_id]["pipeline"]["convert"]["status"] = "done"
+                    active_jobs[task_id]["pipeline"]["convert"]["progress"] = 100
+                    
         # Move show-level files to local Output
         nas_serien = destination if destination else f"{nas_root}/Serien"
         rel_dest = os.path.relpath(nas_serien, nas_root)
@@ -1372,6 +1752,21 @@ def process_worker(params):
         transfer_queue.put(None)
         transfer_thread.join()
         
+        with active_jobs_lock:
+            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                if active_jobs[task_id]["pipeline"]["nas"]["status"] == "running":
+                    active_jobs[task_id]["pipeline"]["nas"]["status"] = "done"
+                    active_jobs[task_id]["pipeline"]["nas"]["progress"] = 100
+                if active_jobs[task_id]["pipeline"]["pcloud"]["status"] == "running":
+                    active_jobs[task_id]["pipeline"]["pcloud"]["status"] = "done"
+                    active_jobs[task_id]["pipeline"]["pcloud"]["progress"] = 100
+        
+        try:
+            trigger_job_notifications(params, job_size_gb, is_end_of_job=True)
+            open_folders_post_processing(params)
+        except Exception as e:
+            log_message(f"Fehler bei Benachrichtigungen/Finder-Öffnung: {e}")
+        
         if transfer_errors:
             raise transfer_errors[0]
 
@@ -1402,6 +1797,10 @@ def process_worker(params):
             return
             
         clean_movie_name = limit_filename_length(sanitize_filename(movie_name))
+        with active_jobs_lock:
+            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                active_jobs[task_id]["pipeline"]["metadata"]["status"] = "running"
+                active_jobs[task_id]["pipeline"]["metadata"]["progress"] = 50
         
         # Setup progress tracking
         N = len(video_files)
@@ -1493,6 +1892,11 @@ def process_worker(params):
                         def nas_progress_cb(percent, msg):
                             nas_pct[file_idx] = percent
                             update_global_job_progress()
+                            with active_jobs_lock:
+                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                    active_jobs[task_id]["pipeline"]["nas"]["status"] = "running"
+                                    avg_nas = sum(nas_pct) / N
+                                    active_jobs[task_id]["pipeline"]["nas"]["progress"] = int(avg_nas)
                             
                         os.makedirs(dest_movie_dir_nas, exist_ok=True)
                         success = run_rsync_with_progress(
@@ -1518,6 +1922,11 @@ def process_worker(params):
                         def pcloud_progress_cb(percent, msg):
                             pcloud_pct[file_idx] = percent
                             update_global_job_progress()
+                            with active_jobs_lock:
+                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                    active_jobs[task_id]["pipeline"]["pcloud"]["status"] = "running"
+                                    avg_pcloud = sum(pcloud_pct) / N
+                                    active_jobs[task_id]["pipeline"]["pcloud"]["progress"] = int(avg_pcloud)
                             
                         copy_to_pcloud(
                             dest_movie_dir_outbox,
@@ -1528,6 +1937,10 @@ def process_worker(params):
                         pcloud_pct[file_idx] = 100
                         log_message(f"[Transfer Thread]: pCloud-Upload fertig für {clean_movie_name}.")
                         update_global_job_progress()
+                        with active_jobs_lock:
+                            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                active_jobs[task_id]["pipeline"]["pcloud"]["status"] = "done"
+                                active_jobs[task_id]["pipeline"]["pcloud"]["progress"] = 100
                         
                 except Exception as e:
                     log_message(f"❌ [Transfer Thread] Fehler: {e}")
@@ -1566,6 +1979,12 @@ def process_worker(params):
                     log_message(f"Movie NFO Status: {res}")
                 except Exception as e:
                     log_message(f"Fehler bei NFO-Erstellung: {e}")
+            with active_jobs_lock:
+                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                    current_prog = 50 + int(50 * (file_idx + 1) / N)
+                    active_jobs[task_id]["pipeline"]["metadata"]["progress"] = min(100, current_prog)
+                    if file_idx == N - 1:
+                        active_jobs[task_id]["pipeline"]["metadata"]["status"] = "done"
             
             # H.265 Conversion
             final_filename = target_filename
@@ -1593,6 +2012,11 @@ def process_worker(params):
                         def ffmpeg_progress_cb(percent, msg):
                             conv_pct[file_idx] = percent
                             update_global_job_progress()
+                            with active_jobs_lock:
+                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                    active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
+                                    avg_conv = sum(conv_pct) / N
+                                    active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
                         success = run_ffmpeg_with_progress(ffmpeg_cmd, target_filepath, task_id=ffmpeg_progress_cb, log_queue=log_queue)
                         if success and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
                             log_message("Konvertierung erfolgreich.")
@@ -1700,9 +2124,30 @@ def process_worker(params):
                 pcloud_pct[file_idx] = 100
                 update_global_job_progress()
                 
+        with active_jobs_lock:
+            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                if active_jobs[task_id]["pipeline"]["convert"]["status"] == "running":
+                    active_jobs[task_id]["pipeline"]["convert"]["status"] = "done"
+                    active_jobs[task_id]["pipeline"]["convert"]["progress"] = 100
+                    
         # Send Sentinel and join
         transfer_queue.put(None)
         transfer_thread.join()
+        
+        with active_jobs_lock:
+            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                if active_jobs[task_id]["pipeline"]["nas"]["status"] == "running":
+                    active_jobs[task_id]["pipeline"]["nas"]["status"] = "done"
+                    active_jobs[task_id]["pipeline"]["nas"]["progress"] = 100
+                if active_jobs[task_id]["pipeline"]["pcloud"]["status"] == "running":
+                    active_jobs[task_id]["pipeline"]["pcloud"]["status"] = "done"
+                    active_jobs[task_id]["pipeline"]["pcloud"]["progress"] = 100
+        
+        try:
+            trigger_job_notifications(params, job_size_gb, is_end_of_job=True)
+            open_folders_post_processing(params)
+        except Exception as e:
+            log_message(f"Fehler bei Benachrichtigungen/Finder-Öffnung: {e}")
         
         if transfer_errors:
             raise transfer_errors[0]
@@ -2389,6 +2834,12 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             self.handle_api_series_detect(query)
         elif path == "/api/metadata/fetch":
             self.handle_api_metadata_fetch(query)
+        elif path == "/api/system/open-folder":
+            self.handle_api_system_open_folder(query)
+        elif path == "/api/joke":
+            self.handle_api_joke()
+        elif path == "/api/youtube/subscriptions":
+            self.handle_api_get_subscriptions()
         else:
             self.handle_static_files(path)
             
@@ -2445,6 +2896,10 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             self.handle_api_estimate_conversion(params)
         elif path == "/api/queue/clear":
             self.handle_api_queue_clear()
+        elif path == "/api/youtube/subscriptions":
+            self.handle_api_post_subscriptions(params)
+        elif path == "/api/youtube/subscriptions/check":
+            self.handle_api_check_subscriptions()
         else:
             self.send_error(404, "Not found")
 
@@ -2697,7 +3152,102 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             else:
                 matches[file] = None
                 
-        self.send_json({"matches": matches})
+        # Duplicate detection logic
+        duplicates = {}
+        nas_destination_id = params.get("nas_destination_id")
+        nas_show_folder = params.get("nas_show_folder")
+        show_name = params.get("show_name")
+        
+        settings = load_settings()
+        nas_root = settings.get("nas_root", "/Volumes/Kino")
+        
+        show_dir = None
+        if show_name or nas_show_folder:
+            destination = None
+            if nas_destination_id:
+                sync_cats = settings.get("sync_categories", [])
+                found_cat = None
+                for cat in sync_cats:
+                    if cat.get("id") == str(nas_destination_id):
+                        found_cat = cat
+                        break
+                if found_cat:
+                    destination = os.path.join(nas_root, found_cat.get("nas_sub", "").lstrip("/"))
+            if not destination:
+                destination = os.path.join(nas_root, "Serien")
+                
+            clean_show_name = clean_series_name_for_fs(nas_show_folder or show_name)
+            if clean_show_name:
+                show_dir = os.path.join(destination, clean_show_name)
+                
+        def check_duplicate(ep_season, ep_num):
+            if not show_dir or not os.path.exists(show_dir) or ep_season is None or ep_num is None:
+                return None
+            pats = [
+                f"s{ep_season:02d}e{ep_num:02d}",
+                f"s{ep_season:02d}e{ep_num:03d}",
+                f"s{ep_season}e{ep_num:02d}",
+                f"s{ep_season:02d}e{ep_num}",
+            ]
+            for root, _, files in os.walk(show_dir):
+                for f in files:
+                    if f.startswith('.'):
+                        continue
+                    fl = f.lower()
+                    matched = False
+                    for pat in pats:
+                        if pat in fl:
+                            matched = True
+                            break
+                    if not matched and ep_season == 1:
+                        pat_iso_1 = f" - {ep_num:02d} "
+                        pat_iso_2 = f" - {ep_num:02d}."
+                        pat_iso_3 = f" - {ep_num:03d} "
+                        pat_iso_4 = f" - {ep_num:03d}."
+                        if pat_iso_1 in fl or pat_iso_2 in fl or pat_iso_3 in fl or pat_iso_4 in fl:
+                            matched = True
+                    if matched:
+                        details = {"filename": f}
+                        filepath = os.path.join(root, f)
+                        try:
+                            size_bytes = os.path.getsize(filepath)
+                            details["size_gb"] = size_bytes / (1024 * 1024 * 1024)
+                            cmd = [
+                                "ffprobe", "-v", "error", "-select_streams", "v:0",
+                                "-show_entries", "stream=width,height", "-of", "csv=p=0",
+                                filepath
+                            ]
+                            res = subprocess.run(cmd, capture_output=True, text=True, timeout=2.0)
+                            if res.returncode == 0:
+                                dimensions = res.stdout.strip().split(',')
+                                if len(dimensions) == 2:
+                                    details["resolution"] = f"{dimensions[0]}x{dimensions[1]}"
+                        except Exception:
+                            pass
+                        return details
+            return None
+
+        for file in filenames:
+            matched_ep = matches.get(file)
+            if matched_ep:
+                import re
+                match = re.match(r"^S(\d+)E(\d+)$", str(matched_ep), re.IGNORECASE)
+                if match:
+                    ep_season = int(match.group(1))
+                    ep_num = int(match.group(2))
+                else:
+                    try:
+                        ep_num = int(matched_ep)
+                        ep_season = int(season)
+                    except (ValueError, TypeError):
+                        ep_num = None
+                        ep_season = None
+                
+                dup_details = check_duplicate(ep_season, ep_num)
+                if dup_details:
+                    duplicates[file] = dup_details
+                    
+        self.send_json({"matches": matches, "duplicates": duplicates})
 
     def handle_api_estimate_conversion(self, params):
         project_name = params.get("project_name", "")
@@ -3948,6 +4498,77 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             
         self.send_json(result)
 
+    def handle_api_system_open_folder(self, query):
+        path_list = query.get("path")
+        category_id_list = query.get("category_id")
+        
+        folder_path = None
+        
+        if path_list:
+            folder_path = path_list[0]
+        elif category_id_list:
+            category_id = category_id_list[0]
+            folder_name = query.get("folder_name", [""])[0]
+            
+            settings = load_settings()
+            nas_root = settings.get("nas_root", "/Volumes/Kino")
+            sync_categories = settings.get("sync_categories", [])
+            
+            category = None
+            for cat in sync_categories:
+                if str(cat.get("id")) == str(category_id):
+                    category = cat
+                    break
+                    
+            if not category:
+                self.send_json({"error": f"Kategorie mit ID {category_id} nicht gefunden."})
+                return
+                
+            nas_sub = category.get("nas_sub", "").lstrip("/")
+            cat_path = os.path.join(nas_root, nas_sub)
+            
+            if folder_name:
+                specific_path = os.path.join(cat_path, folder_name)
+                if os.path.exists(specific_path):
+                    folder_path = specific_path
+                else:
+                    folder_path = cat_path
+            else:
+                folder_path = cat_path
+                
+        if not folder_path:
+            self.send_json({"error": "Pfad oder Kategorie-Parameter fehlt."})
+            return
+            
+        if not os.path.exists(folder_path):
+            self.send_json({"error": f"Pfad existiert nicht: {folder_path}. Ist das NAS gemountet?"})
+            return
+            
+        try:
+            subprocess.run(["open", folder_path], check=True)
+            self.send_json({"success": True, "msg": f"Ordner {folder_path} im Finder geöffnet."})
+        except Exception as e:
+            self.send_json({"error": f"Fehler beim Öffnen des Ordners: {str(e)}"})
+
+    def handle_api_joke(self):
+        joke = get_random_joke()
+        self.send_json({"joke": joke})
+
+    def handle_api_get_subscriptions(self):
+        settings = load_settings()
+        self.send_json({"subscriptions": settings.get("youtube_subscriptions", [])})
+        
+    def handle_api_post_subscriptions(self, params):
+        subs = params.get("subscriptions", [])
+        settings = load_settings()
+        settings["youtube_subscriptions"] = subs
+        save_settings(settings)
+        self.send_json({"status": "success"})
+        
+    def handle_api_check_subscriptions(self):
+        trigger_youtube_subscriptions_check()
+        self.send_json({"status": "success", "message": "Überprüfung gestartet"})
+
     def handle_api_process(self, params):
         task_id = str(uuid.uuid4())
         params["task_id"] = task_id
@@ -3959,6 +4580,14 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
         if media_type == "youtube":
             name = "YouTube Download"
             
+        convert = params.get("convert", False)
+        copy_to_nas = params.get("copy_to_nas", True)
+        copy_to_pcloud = params.get("copy_to_pcloud", False)
+        show_id = params.get("show_id")
+        movie_id = params.get("movie_id")
+        provider = params.get("provider")
+        has_metadata = (show_id and provider) or (movie_id and provider)
+        
         job_info = {
             "id": task_id,
             "type": media_type,
@@ -3967,7 +4596,13 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             "progress": 0,
             "message": "Wartet in der Schlange...",
             "timestamp": time.time(),
-            "params": params
+            "params": params,
+            "pipeline": {
+                "metadata": {"status": "pending" if has_metadata else "skipped", "progress": 0},
+                "convert": {"status": "pending" if convert else "skipped", "progress": 0},
+                "nas": {"status": "pending" if copy_to_nas else "skipped", "progress": 0},
+                "pcloud": {"status": "pending" if copy_to_pcloud else "skipped", "progress": 0}
+            }
         }
         
         with active_jobs_lock:
@@ -3994,7 +4629,8 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                     "status": j["status"],
                     "progress": j["progress"],
                     "message": j["message"],
-                    "timestamp": j["timestamp"]
+                    "timestamp": j["timestamp"],
+                    "pipeline": j.get("pipeline")
                 })
         jobs_list.sort(key=lambda x: x["timestamp"])
         self.send_json({"jobs": jobs_list})
@@ -4300,6 +4936,11 @@ def run_server():
     launch_url = f"http://127.0.0.1:8000/?v={int(time.time())}"
     
     try:
+        fetch_online_jokes_async()
+    except Exception as e:
+        print(f"Jokes-Update fehlgeschlagen: {e}")
+        
+    try:
         server_address = ('127.0.0.1', 8000)
         httpd = ThreadingHTTPServer(server_address, GUIRequestHandler)
         print("Server started on http://127.0.0.1:8000")
@@ -4313,6 +4954,9 @@ def run_server():
         
         # Start background job worker
         threading.Thread(target=job_queue_worker, daemon=True).start()
+        
+        # Start background YouTube subscriptions monitoring thread
+        threading.Thread(target=check_youtube_subscriptions_loop, daemon=True).start()
         
         # Block and serve requests forever
         httpd.serve_forever()

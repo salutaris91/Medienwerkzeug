@@ -31,7 +31,9 @@ document.addEventListener("DOMContentLoaded", () => {
     initQueue();
     
     // Load settings and status immediately
-    loadSettings();
+    loadSettings().then(() => {
+        triggerLaunchJoke();
+    });
     loadStatus();
     
     // Periodic status check (every 6 seconds)
@@ -215,6 +217,20 @@ function initViews() {
             document.getElementById("view-settings").classList.remove("hidden");
             
             loadSettings();
+        });
+    }
+
+    // YouTube Abos Nav
+    const navYtAbos = document.getElementById("nav-youtube-abos");
+    if(navYtAbos) {
+        navYtAbos.addEventListener("click", () => {
+            document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
+            navYtAbos.classList.add("active");
+            
+            document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+            document.getElementById("view-youtube-abos").classList.remove("hidden");
+            
+            loadSubscriptions();
         });
     }
 }
@@ -633,9 +649,13 @@ function selectProject(projectName) {
             item.classList.remove("active");
         }
     });
-    // Also remove active from tools nav
+    // Also remove active from system navs
     const navTools = document.getElementById("nav-tools-dashboard");
     if(navTools) navTools.classList.remove("active");
+    const navSettings = document.getElementById("nav-settings-dashboard");
+    if(navSettings) navSettings.classList.remove("active");
+    const navYtAbos = document.getElementById("nav-youtube-abos");
+    if(navYtAbos) navYtAbos.classList.remove("active");
     
     // Hide context panels and reset mode cards on new project selection
     document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
@@ -1290,6 +1310,9 @@ async function fetchEpisodes() {
         });
 
         let matches = {};
+        let duplicates = {};
+        const nasDestEl = document.getElementById("series-nas-destination");
+        const nasFolderEl = document.getElementById("series-nas-folder-override");
         if (videoFiles.length > 0) {
             try {
                 const matchResponse = await fetch('/api/match-episodes', {
@@ -1299,19 +1322,23 @@ async function fetchEpisodes() {
                         provider: selectedShow.provider,
                         show_id: selectedShow.id,
                         season: season,
-                        filenames: videoFiles
+                        filenames: videoFiles,
+                        show_name: selectedShow.name,
+                        nas_destination_id: nasDestEl ? nasDestEl.value : null,
+                        nas_show_folder: nasFolderEl ? nasFolderEl.value : null
                     })
                 });
                 if (matchResponse.ok) {
                     const matchData = await matchResponse.json();
                     matches = matchData.matches || {};
+                    duplicates = matchData.duplicates || {};
                 }
             } catch (err) {
                 console.error("Error matching episodes:", err);
             }
         }
         
-        renderMatchingMatrix(matches);
+        renderMatchingMatrix(matches, duplicates);
         execPanel.classList.remove("hidden");
         
     } catch (e) {
@@ -1319,7 +1346,7 @@ async function fetchEpisodes() {
     }
 }
 
-function renderMatchingMatrix(matches = {}) {
+function renderMatchingMatrix(matches = {}, duplicates = {}) {
     const container = document.getElementById("matching-panel-container");
     
     // Filter only local video files
@@ -1461,7 +1488,16 @@ function renderMatchingMatrix(matches = {}) {
         
         html += `
             <div class="matching-row" data-file="${file}">
-                <div class="match-file" title="${file}">${file}</div>
+                <div class="match-file" title="${file}">
+                    <div style="word-break: break-all;">${file}</div>
+                    ${duplicates[file] ? `
+                        <div class="duplicate-badge" style="margin-top: 5px; font-size: 11px; color: #ffb300; background: rgba(255, 179, 0, 0.08); border: 1px solid rgba(255, 179, 0, 0.25); padding: 4px 8px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 6px; font-weight: normal; line-height: 1.2; max-width: 100%; box-sizing: border-box;">
+                            <span>⚠️ Bereits auf NAS:</span>
+                            <span style="font-weight: 500; opacity: 0.9; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 150px;" title="${duplicates[file].filename}">${duplicates[file].filename}</span>
+                            <span style="opacity: 0.6; font-size: 10px;">(${duplicates[file].size_gb.toFixed(2)} GB${duplicates[file].resolution ? `, ${duplicates[file].resolution}` : ''})</span>
+                        </div>
+                    ` : ''}
+                </div>
                 <div class="match-selection">
                     <div style="display: flex; gap: 8px; width: 100%;">
                         <input type="text" class="match-search-input" id="match-search-${index}" placeholder="🔍 Filtern..." style="flex: 0 0 35%; min-width: 80px;">
@@ -2511,6 +2547,340 @@ function stopYtTaskPolling() {
     activeYtTaskId = null;
 }
 
+// ==========================================================================
+// YOUTUBE SUBSCRIPTIONS MONITORING HANDLERS
+// ==========================================================================
+let currentSubscriptions = [];
+
+async function loadSubscriptions() {
+    try {
+        const [settingsRes, subsRes] = await Promise.all([
+            fetch("/api/settings"),
+            fetch("/api/youtube/subscriptions")
+        ]);
+        
+        if (settingsRes.ok) {
+            currentSettings = await settingsRes.json();
+        }
+        
+        // Render target category options in dropdown
+        const select = document.getElementById("abo-destination");
+        if (select) {
+            select.innerHTML = "";
+            const cats = currentSettings.sync_categories || [];
+            cats.forEach(c => {
+                const opt = document.createElement("option");
+                opt.value = c.id;
+                opt.textContent = c.name;
+                select.appendChild(opt);
+            });
+            if (cats.length === 0) {
+                const opt = document.createElement("option");
+                opt.value = "";
+                opt.textContent = "Keine Zielkategorien definiert";
+                select.appendChild(opt);
+            }
+        }
+        
+        if (subsRes.ok) {
+            const data = await subsRes.json();
+            currentSubscriptions = data.subscriptions || [];
+            renderSubscriptionsList();
+        }
+    } catch (e) {
+        console.error("Error loading subscriptions:", e);
+        const listContainer = document.getElementById("youtube-abos-list");
+        if (listContainer) {
+            listContainer.innerHTML = `<div style="text-align:center; padding:30px; color:var(--danger);">Fehler beim Laden der Abonnements.</div>`;
+        }
+    }
+}
+
+function renderSubscriptionsList() {
+    const listContainer = document.getElementById("youtube-abos-list");
+    if (!listContainer) return;
+    
+    if (currentSubscriptions.length === 0) {
+        listContainer.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-muted);">Keine aktiven Abonnements vorhanden. Füge oben ein neues hinzu.</div>`;
+        return;
+    }
+    
+    listContainer.innerHTML = "";
+    
+    currentSubscriptions.forEach((sub) => {
+        const item = document.createElement("div");
+        item.className = "subscription-item";
+        item.dataset.id = sub.id;
+        
+        // Inline premium styles with transitions
+        item.style.background = "rgba(255, 255, 255, 0.02)";
+        item.style.border = "1px solid var(--border-glass)";
+        item.style.borderRadius = "var(--radius-md)";
+        item.style.padding = "15px 20px";
+        item.style.display = "flex";
+        item.style.justifyContent = "space-between";
+        item.style.alignItems = "center";
+        item.style.gap = "15px";
+        item.style.flexWrap = "wrap";
+        item.style.transition = "all 0.3s ease";
+        
+        // Find category name
+        const cats = currentSettings.sync_categories || [];
+        const cat = cats.find(c => c.id === sub.destination_id);
+        const catName = cat ? cat.name : (sub.destination_id || "Unbekannt");
+        
+        // Format last checked timestamp
+        let lastCheckedStr = "Nie";
+        if (sub.last_checked) {
+            const date = new Date(sub.last_checked * 1000);
+            lastCheckedStr = date.toLocaleString('de-DE', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+        }
+        
+        // Info column
+        const infoCol = document.createElement("div");
+        infoCol.style.flex = "1";
+        infoCol.style.minWidth = "250px";
+        
+        const titleRow = document.createElement("div");
+        titleRow.style.display = "flex";
+        titleRow.style.alignItems = "center";
+        titleRow.style.gap = "10px";
+        titleRow.style.marginBottom = "5px";
+        
+        const titleSpan = document.createElement("span");
+        titleSpan.style.fontWeight = "600";
+        titleSpan.style.fontSize = "15px";
+        titleSpan.style.color = "var(--text-main)";
+        titleSpan.textContent = sub.name;
+        titleRow.appendChild(titleSpan);
+        
+        // Active indicator badge
+        const activeBadge = document.createElement("span");
+        activeBadge.style.fontSize = "10px";
+        activeBadge.style.fontWeight = "bold";
+        activeBadge.style.padding = "2px 6px";
+        activeBadge.style.borderRadius = "4px";
+        activeBadge.style.transition = "all 0.3s ease";
+        
+        const updateBadge = (isEnabled) => {
+            if (isEnabled) {
+                activeBadge.style.background = "rgba(16, 185, 129, 0.15)";
+                activeBadge.style.color = "var(--success)";
+                activeBadge.textContent = "AKTIV";
+                item.style.opacity = "1";
+                item.style.borderColor = "var(--border-glass)";
+            } else {
+                activeBadge.style.background = "rgba(239, 68, 68, 0.15)";
+                activeBadge.style.color = "var(--danger)";
+                activeBadge.textContent = "DEAKTIVIERT";
+                item.style.opacity = "0.6";
+                item.style.borderColor = "transparent";
+            }
+        };
+        updateBadge(sub.enabled);
+        titleRow.appendChild(activeBadge);
+        infoCol.appendChild(titleRow);
+        
+        // Details row
+        const detailsRow = document.createElement("div");
+        detailsRow.style.fontSize = "12.5px";
+        detailsRow.style.color = "var(--text-muted)";
+        detailsRow.style.display = "flex";
+        detailsRow.style.flexWrap = "wrap";
+        detailsRow.style.gap = "15px";
+        
+        // URL link
+        const urlItem = document.createElement("div");
+        urlItem.innerHTML = `🔗 <a href="${sub.url}" target="_blank" style="color: var(--accent); text-decoration: none;">Link öffnen</a>`;
+        detailsRow.appendChild(urlItem);
+        
+        // Filter badge
+        if (sub.search_filter && sub.search_filter.trim() !== "") {
+            const filterItem = document.createElement("div");
+            filterItem.innerHTML = `🔍 Filter: <span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; color: var(--text-main); font-weight: 500;">"${sub.search_filter}"</span>`;
+            detailsRow.appendChild(filterItem);
+        }
+        
+        // Category badge
+        const catItem = document.createElement("div");
+        catItem.innerHTML = `📁 Ziel: <span style="color: var(--text-main); font-weight: 500;">${catName}</span>`;
+        detailsRow.appendChild(catItem);
+        
+        // Last checked timestamp
+        const timeItem = document.createElement("div");
+        timeItem.innerHTML = `⏱️ Letzter Check: ${lastCheckedStr}`;
+        detailsRow.appendChild(timeItem);
+        
+        infoCol.appendChild(detailsRow);
+        item.appendChild(infoCol);
+        
+        // Controls column (Toggle + Delete)
+        const ctrlCol = document.createElement("div");
+        ctrlCol.style.display = "flex";
+        ctrlCol.style.alignItems = "center";
+        ctrlCol.style.gap = "20px";
+        
+        // Toggle Switch Container
+        const switchLabel = document.createElement("label");
+        switchLabel.className = "checkbox-container";
+        switchLabel.style.margin = "0";
+        switchLabel.style.paddingLeft = "28px";
+        switchLabel.style.fontSize = "13px";
+        switchLabel.style.fontWeight = "500";
+        
+        const switchInput = document.createElement("input");
+        switchInput.type = "checkbox";
+        switchInput.checked = !!sub.enabled;
+        
+        const switchCheckmark = document.createElement("span");
+        switchCheckmark.className = "checkmark";
+        
+        const statusText = document.createTextNode(sub.enabled ? "Aktiv" : "Aus");
+        
+        switchInput.addEventListener("change", async (e) => {
+            const isEnabled = e.target.checked;
+            sub.enabled = isEnabled;
+            statusText.textContent = isEnabled ? "Aktiv" : "Aus";
+            updateBadge(isEnabled);
+            
+            // Background save without full list refresh
+            await saveAllSubscriptions();
+        });
+        
+        switchLabel.appendChild(switchInput);
+        switchLabel.appendChild(switchCheckmark);
+        switchLabel.appendChild(statusText);
+        
+        ctrlCol.appendChild(switchLabel);
+        
+        // Delete button
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "btn btn-danger btn-sm";
+        deleteBtn.innerHTML = "🗑️ Löschen";
+        deleteBtn.addEventListener("click", async () => {
+            if (confirm(`Abonnement "${sub.name}" wirklich löschen?`)) {
+                // Visual fadeout effect
+                item.style.transform = "scale(0.9)";
+                item.style.opacity = "0";
+                
+                setTimeout(async () => {
+                    currentSubscriptions = currentSubscriptions.filter(s => s.id !== sub.id);
+                    item.remove();
+                    await saveAllSubscriptions();
+                    if (currentSubscriptions.length === 0) {
+                        renderSubscriptionsList();
+                    }
+                }, 300);
+            }
+        });
+        ctrlCol.appendChild(deleteBtn);
+        
+        item.appendChild(ctrlCol);
+        listContainer.appendChild(item);
+    });
+}
+
+async function saveAllSubscriptions() {
+    try {
+        const response = await fetch("/api/youtube/subscriptions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ subscriptions: currentSubscriptions })
+        });
+        if (!response.ok) {
+            throw new Error("Fehler beim Speichern");
+        }
+        appendConsoleLog("[System]: YouTube-Abonnements erfolgreich aktualisiert.");
+    } catch (e) {
+        console.error("Error saving subscriptions:", e);
+        alert("Fehler beim Speichern der Abonnements!");
+    }
+}
+
+async function addSubscription() {
+    const nameInput = document.getElementById("abo-name");
+    const urlInput = document.getElementById("abo-url");
+    const filterInput = document.getElementById("abo-filter");
+    const destSelect = document.getElementById("abo-destination");
+    
+    if (!nameInput || !urlInput) return;
+    
+    const name = nameInput.value.trim();
+    const url = urlInput.value.trim();
+    const filter = filterInput ? filterInput.value.trim() : "";
+    const destinationId = destSelect ? destSelect.value : "";
+    
+    if (!name || !url) {
+        alert("Bitte geben Sie einen Namen und eine YouTube-URL ein!");
+        return;
+    }
+    
+    // Generate UUID
+    const newId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+    
+    const newSub = {
+        id: newId,
+        name: name,
+        url: url,
+        search_filter: filter,
+        destination_id: destinationId,
+        enabled: true,
+        last_checked: null,
+        downloaded_ids: []
+    };
+    
+    currentSubscriptions.push(newSub);
+    
+    // Reset form inputs
+    nameInput.value = "";
+    urlInput.value = "";
+    if (filterInput) filterInput.value = "";
+    
+    // Optimistic render and background save
+    renderSubscriptionsList();
+    await saveAllSubscriptions();
+}
+
+async function checkAllSubscriptions() {
+    const btn = document.getElementById("btn-check-all-abos");
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = "🔄 Prüfe...";
+    }
+    
+    appendConsoleLog("[System]: Starte manuelle Prüfung aller YouTube Abos...");
+    
+    try {
+        const response = await fetch("/api/youtube/subscriptions/check", {
+            method: "POST"
+        });
+        if (response.ok) {
+            appendConsoleLog("✅ YouTube Abo-Überprüfung im Hintergrund gestartet.");
+            alert("Abo-Überprüfung im Hintergrund gestartet! Das kann einige Minuten dauern.");
+        } else {
+            throw new Error("API meldet Fehler");
+        }
+    } catch (e) {
+        console.error("Error checking subscriptions:", e);
+        appendConsoleLog(`❌ Fehler beim Starten der Abo-Überprüfung: ${e}`);
+        alert("Fehler beim Starten der Abo-Überprüfung!");
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = "🔄 Jetzt alle prüfen";
+        }
+    }
+}
+
 
 // Helper clean project
 async function cleanCurrentProject() {
@@ -3147,6 +3517,22 @@ function initEventListeners() {
     document.getElementById("btn-yt-cut-done").addEventListener("click", markYtCutDone);
     document.getElementById("btn-yt-finalize-mapping").addEventListener("click", finalizeYtMapping);
 
+    // YouTube subscriptions event listeners
+    const btnAddAbo = document.getElementById("btn-add-abo");
+    if (btnAddAbo) {
+        btnAddAbo.addEventListener("click", addSubscription);
+    }
+    const btnCheckAllAbos = document.getElementById("btn-check-all-abos");
+    if (btnCheckAllAbos) {
+        btnCheckAllAbos.addEventListener("click", checkAllSubscriptions);
+    }
+    const urlAboInput = document.getElementById("abo-url");
+    if (urlAboInput) {
+        urlAboInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") addSubscription();
+        });
+    }
+
     
     // Tools Tab
     document.getElementById("tool-btn-pull-files").addEventListener("click", runToolPullFiles);
@@ -3341,6 +3727,31 @@ async function loadSettings() {
             if (checkDepUpdatesEl) {
                 checkDepUpdatesEl.checked = !!currentSettings.check_dependency_updates;
             }
+            
+            const setCheckbox = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.checked = !!val;
+            };
+            const setInputVal = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.value = val !== undefined ? val : "";
+            };
+
+            setCheckbox("settings-open-outbox-finder", currentSettings.open_outbox_finder);
+            setCheckbox("settings-open-nas-finder", currentSettings.open_nas_finder);
+            setCheckbox("settings-open-pcloud-finder", currentSettings.open_pcloud_finder);
+            
+            setCheckbox("settings-notify-macos", currentSettings.notify_macos);
+            setCheckbox("settings-notify-telegram", currentSettings.notify_telegram);
+            setInputVal("settings-telegram-token", currentSettings.telegram_token);
+            setInputVal("settings-telegram-chat-id", currentSettings.telegram_chat_id);
+            setCheckbox("settings-notify-whatsapp", currentSettings.notify_whatsapp);
+            setInputVal("settings-whatsapp-apikey", currentSettings.whatsapp_apikey);
+            setInputVal("settings-whatsapp-phone", currentSettings.whatsapp_phone);
+            setInputVal("settings-notify-min-size", currentSettings.notify_min_size !== undefined ? currentSettings.notify_min_size : 10);
+            setCheckbox("settings-notify-only-end", currentSettings.notify_only_end !== false); // default to true
+
+            setCheckbox("settings-show-jokes", currentSettings.show_jokes !== false); // default to true
             
             if (!currentSettings.import_sources) currentSettings.import_sources = [];
             if (!currentSettings.sync_categories) currentSettings.sync_categories = [];
@@ -3608,6 +4019,23 @@ document.addEventListener("DOMContentLoaded", () => {
                 nas_root: document.getElementById("settings-nas-root").value,
                 pcloud_dir: document.getElementById("settings-pcloud-dir").value,
                 check_dependency_updates: checkDepUpdatesEl ? checkDepUpdatesEl.checked : false,
+                
+                open_outbox_finder: document.getElementById("settings-open-outbox-finder")?.checked || false,
+                open_nas_finder: document.getElementById("settings-open-nas-finder")?.checked || false,
+                open_pcloud_finder: document.getElementById("settings-open-pcloud-finder")?.checked || false,
+                
+                notify_macos: document.getElementById("settings-notify-macos")?.checked || false,
+                notify_telegram: document.getElementById("settings-notify-telegram")?.checked || false,
+                telegram_token: document.getElementById("settings-telegram-token")?.value || "",
+                telegram_chat_id: document.getElementById("settings-telegram-chat-id")?.value || "",
+                notify_whatsapp: document.getElementById("settings-notify-whatsapp")?.checked || false,
+                whatsapp_apikey: document.getElementById("settings-whatsapp-apikey")?.value || "",
+                whatsapp_phone: document.getElementById("settings-whatsapp-phone")?.value || "",
+                notify_min_size: parseInt(document.getElementById("settings-notify-min-size")?.value, 10) || 0,
+                notify_only_end: document.getElementById("settings-notify-only-end")?.checked || false,
+
+                show_jokes: document.getElementById("settings-show-jokes")?.checked || false,
+                
                 import_sources: currentSettings.import_sources.filter(s => s.trim() !== ""),
                 sync_categories: currentSettings.sync_categories.filter(c => c.id.trim() !== "" && c.name.trim() !== "")
             };
@@ -4036,6 +4464,30 @@ document.addEventListener("DOMContentLoaded", () => {
     updateSizeEstimation("movie");
     updateSizeEstimation("series");
 
+    document.getElementById("btn-open-nas-folder-series")?.addEventListener("click", async () => {
+        const catSelect = document.getElementById("series-nas-destination");
+        const folderInput = document.getElementById("series-nas-folder-override");
+        if (!catSelect) return;
+        const catId = catSelect.value;
+        const folderName = folderInput ? folderInput.value.trim() : "";
+        
+        try {
+            const res = await fetch(`/api/system/open-folder?category_id=${catId}&folder_name=${encodeURIComponent(folderName)}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    appendConsoleLog(`[System]: ${data.msg || "Ordner im Finder geöffnet."}`);
+                }
+            } else {
+                alert("Fehler beim Senden der Anfrage an den Server.");
+            }
+        } catch (err) {
+            alert("Fehler beim Öffnen des Ordners: " + err.message);
+        }
+    });
+
     document.getElementById("btn-preview-close")?.addEventListener("click", closePreviewModal);
     document.getElementById("btn-preview-cancel")?.addEventListener("click", closePreviewModal);
     
@@ -4257,6 +4709,70 @@ function renderQueue(jobs) {
             `;
         }
 
+        let pipelineHtml = "";
+        if (job.pipeline) {
+            const steps = [
+                { key: "metadata", label: "Metadaten" },
+                { key: "convert", label: "Konvertierung" },
+                { key: "nas", label: "NAS-Kopieren" },
+                { key: "pcloud", label: "pCloud" }
+            ];
+            
+            pipelineHtml = `<div class="pipeline-container" style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; gap: 4px; background: rgba(0,0,0,0.25); padding: 8px; border-radius: var(--radius-md); box-sizing: border-box; width: 100%;">`;
+            
+            steps.forEach((step, idx) => {
+                const sData = job.pipeline[step.key];
+                if (!sData) return;
+                
+                let stepColor = "rgba(255, 255, 255, 0.05)";
+                let stepIcon = "⚪";
+                let textColor = "var(--text-muted)";
+                let borderStyle = "1px solid rgba(255,255,255,0.05)";
+                
+                if (sData.status === "running") {
+                    stepColor = "rgba(0, 229, 255, 0.1)";
+                    stepIcon = "🔄 animate-spin";
+                    textColor = "#00e5ff";
+                    borderStyle = "1px solid rgba(0, 229, 255, 0.3)";
+                } else if (sData.status === "done") {
+                    stepColor = "rgba(76, 175, 80, 0.1)";
+                    stepIcon = "✅";
+                    textColor = "#4caf50";
+                    borderStyle = "1px solid rgba(76, 175, 80, 0.3)";
+                } else if (sData.status === "error") {
+                    stepColor = "rgba(244, 67, 54, 0.1)";
+                    stepIcon = "❌";
+                    textColor = "#f44336";
+                    borderStyle = "1px solid rgba(244, 67, 54, 0.3)";
+                } else if (sData.status === "skipped") {
+                    stepColor = "rgba(255, 255, 255, 0.02)";
+                    stepIcon = "➖";
+                    textColor = "rgba(255,255,255,0.15)";
+                    borderStyle = "1px solid rgba(255,255,255,0.02)";
+                }
+                
+                // Add spinning animation inline style for animate-spin
+                const isSpinning = stepIcon.includes("animate-spin") ? "animation: spin 2s linear infinite;" : "";
+                const cleanIcon = stepIcon.replace(" animate-spin", "");
+                
+                pipelineHtml += `
+                    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px; border-radius: var(--radius-sm); background: ${stepColor}; border: ${borderStyle}; text-align: center; box-sizing: border-box;">
+                        <span style="font-size: 13px; line-height: 1; display: inline-block; ${isSpinning}">${cleanIcon}</span>
+                        <span style="font-size: 9px; font-weight: 500; color: ${textColor}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; display: block;" title="${step.label}">${step.label}</span>
+                        ${sData.status === "running" ? `<span style="font-size: 9px; color: ${textColor}; font-weight: bold; display: block;">${sData.progress}%</span>` : ""}
+                    </div>
+                `;
+                
+                if (idx < steps.length - 1) {
+                    pipelineHtml += `
+                        <div style="font-size: 9px; color: rgba(255,255,255,0.15); font-weight: bold; flex: 0 0 auto;">➔</div>
+                    `;
+                }
+            });
+            
+            pipelineHtml += `</div>`;
+        }
+
         const card = document.createElement("div");
         card.style.cssText = "background: rgba(20,20,30,0.5); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); padding: 15px;";
         
@@ -4267,9 +4783,35 @@ function renderQueue(jobs) {
             </div>
             <div style="font-size:12px; color:var(--text-muted);">${job.message || ""}</div>
             ${progressHtml}
+            ${pipelineHtml}
         `;
         list.appendChild(card);
     });
+
+    // Check for newly finished jobs to show joke
+    jobs.forEach(job => {
+        if (job.status === "done" || job.status === "error") {
+            if (!knownFinishedJobs.has(job.id)) {
+                if (!isFirstQueuePoll && job.status === "done") {
+                    // Newly finished job! Trigger joke!
+                    if (currentSettings && currentSettings.show_jokes !== false) {
+                        fetch("/api/joke")
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.joke) {
+                                    showJokeModal(data.joke);
+                                }
+                            }).catch(err => console.error(err));
+                    }
+                }
+                knownFinishedJobs.add(job.id);
+            }
+        }
+    });
+    
+    if (isFirstQueuePoll && jobs.length > 0) {
+        isFirstQueuePoll = false;
+    }
 }
 
 function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId) {
@@ -4546,6 +5088,89 @@ async function autoMatchNasFolder(inputId, destSelectId, originalCleanedName) {
         }
     } catch (e) {
         console.error("Error auto matching NAS folder:", e);
+    }
+}
+
+let isFirstQueuePoll = true;
+let knownFinishedJobs = new Set();
+
+function showJokeModal(jokeText) {
+    const existing = document.getElementById("joke-modal");
+    if (existing) existing.remove();
+
+    const modal = document.createElement("div");
+    modal.id = "joke-modal";
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(8px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    `;
+
+    const content = document.createElement("div");
+    content.style.cssText = `
+        background: rgba(30, 30, 45, 0.95);
+        border: 1px solid var(--border-glass);
+        border-radius: var(--radius-lg);
+        padding: 30px;
+        width: 90%;
+        max-width: 450px;
+        text-align: center;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        transform: scale(0.9);
+        transition: transform 0.3s ease;
+    `;
+
+    content.innerHTML = `
+        <div style="font-size: 40px; margin-bottom: 15px;">🎭</div>
+        <h3 style="margin-top: 0; color: var(--text-main); font-size: 18px; font-weight: 600; letter-spacing: 0.5px;">Witz des Tages</h3>
+        <p style="font-size: 14px; color: var(--text-main); line-height: 1.6; margin: 20px 0; font-style: italic;">"${jokeText}"</p>
+        <button id="btn-close-joke" class="btn btn-primary" style="margin-top: 10px; min-width: 120px;">Hahaha! 😂</button>
+    `;
+
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+
+    setTimeout(() => {
+        modal.style.opacity = "1";
+        content.style.transform = "scale(1)";
+    }, 10);
+
+    const closeBtn = content.querySelector("#btn-close-joke");
+    const closeModal = () => {
+        modal.style.opacity = "0";
+        content.style.transform = "scale(0.9)";
+        setTimeout(() => modal.remove(), 300);
+    };
+
+    closeBtn.addEventListener("click", closeModal);
+    modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeModal();
+    });
+}
+
+async function triggerLaunchJoke() {
+    if (currentSettings && currentSettings.show_jokes !== false) {
+        try {
+            const res = await fetch("/api/joke");
+            if (res.ok) {
+                const data = await res.json();
+                if (data.joke) {
+                    showJokeModal(data.joke);
+                }
+            }
+        } catch (e) {
+            console.error("Failed to load joke:", e);
+        }
     }
 }
 
