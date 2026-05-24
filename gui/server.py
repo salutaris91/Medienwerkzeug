@@ -1124,7 +1124,17 @@ def process_worker(params):
         if found_cat:
             explicit_pcloud_base = found_cat.get('pcloud_remote')
 
-    
+    # Resolve local destination path
+    local_destination_id = params.get("local_destination_id")
+    local_destination_path = None
+    if local_destination_id:
+        sync_cats = settings.get("sync_categories", [])
+        for cat in sync_cats:
+            if cat.get("id") == str(local_destination_id):
+                nas_sub = cat.get("nas_sub", "")
+                local_destination_path = os.path.join(outbox_root, nas_sub.lstrip("/"))
+                break
+
     if project_name:
         current_dir = os.path.join(inbox_root, project_name)
     else:
@@ -2608,6 +2618,53 @@ def process_worker(params):
                 pcloud_target = destination if destination else f"{nas_root}/Sonstiges"
                 pcloud_success = copy_to_pcloud(dest_dir_outbox, pcloud_target, task_id=task_id, explicit_remote_base=explicit_pcloud_base)
                 if not pcloud_success:
+                    all_transfers_successful = False
+
+            # Copy to local folder if requested
+            copy_to_local = params.get("copy_to_local", False)
+            if copy_to_local and local_destination_path:
+                try:
+                    # Build structured destination path
+                    local_dest_dir = local_destination_path
+                    if metadata_mode == "tv" and show_id:
+                        local_dest_dir = os.path.join(local_destination_path, clean_show_name, f"Staffel {int(season)}", clean_base)
+                    elif metadata_mode == "movie" and movie_id:
+                        local_dest_dir = os.path.join(local_destination_path, clean_base)
+                    else:
+                        # General YouTube: use video title as folder name
+                        yt_title = sanitize_filename(params.get("yt_title", "YouTube Download"))
+                        local_dest_dir = os.path.join(local_destination_path, limit_filename_length(yt_title))
+                    
+                    os.makedirs(local_dest_dir, exist_ok=True)
+                    log_message(f"Kopiere in lokalen Ordner: {local_dest_dir}...")
+                    
+                    # Copy video file
+                    src_video = os.path.join(dest_dir_outbox, target_filename) if transfer_successful else filepath
+                    shutil.copy2(src_video, os.path.join(local_dest_dir, target_filename))
+                    
+                    # Copy accompanying files (NFOs, subtitles)
+                    source_dir = dest_dir_outbox if transfer_successful else temp_dir
+                    for f in os.listdir(source_dir):
+                        f_path = os.path.join(source_dir, f)
+                        if os.path.isfile(f_path) and f != target_filename:
+                            shutil.copy2(f_path, os.path.join(local_dest_dir, f))
+                    
+                    # Copy show-level files for series
+                    if metadata_mode == "tv" and show_id and dest_show_dir_outbox and os.path.isdir(dest_show_dir_outbox):
+                        local_show_dir = os.path.join(local_destination_path, clean_show_name)
+                        os.makedirs(local_show_dir, exist_ok=True)
+                        for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]:
+                            src = os.path.join(dest_show_dir_outbox, f)
+                            if os.path.exists(src):
+                                shutil.copy2(src, os.path.join(local_show_dir, f))
+                    
+                    log_message(f"  ✅ Erfolgreich in lokalen Ordner kopiert: {local_dest_dir}")
+                    
+                    # Open local folder if setting is enabled
+                    if settings.get("open_outbox_finder"):
+                        subprocess.run(["open", local_dest_dir])
+                except Exception as e:
+                    log_message(f"  ❌ Fehler beim Kopieren in lokalen Ordner: {e}")
                     all_transfers_successful = False
                     
             # Clean up temp folder OR open it on failure

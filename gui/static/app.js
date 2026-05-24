@@ -2409,9 +2409,11 @@ async function startYtPipeline() {
         metadata_mode: mode,
         copy_to_nas: document.getElementById("yt-option-copy-nas").checked,
         copy_to_pcloud: document.getElementById("yt-option-copy-pcloud").checked,
+        copy_to_local: document.getElementById("yt-option-copy-local").checked,
         destination_id: document.getElementById("yt-nas-destination").value,
         nas_destination_id: document.getElementById("yt-nas-destination").value,
-        pcloud_destination_id: document.getElementById("yt-pcloud-destination").value
+        pcloud_destination_id: document.getElementById("yt-pcloud-destination").value,
+        local_destination_id: document.getElementById("yt-local-destination").value
     };
     
     // Enrich details based on mode
@@ -3851,6 +3853,7 @@ async function loadSettings() {
 function updateDestinationDropdowns() {
     const nasSelects = ["movie-nas-destination", "series-nas-destination", "yt-nas-destination"];
     const pcloudSelects = ["movie-pcloud-destination", "series-pcloud-destination", "yt-pcloud-destination"];
+    const localSelects = ["yt-local-destination"];
     
     nasSelects.forEach(selId => {
         const select = document.getElementById(selId);
@@ -3901,6 +3904,26 @@ function updateDestinationDropdowns() {
             }
         }
     });
+    
+    localSelects.forEach(selId => {
+        const select = document.getElementById(selId);
+        if (!select) return;
+        
+        const currentVal = select.value;
+        select.innerHTML = "";
+        
+        const outboxDir = currentSettings.outbox_dir || "~/Downloads/Medien Output";
+        currentSettings.sync_categories.forEach(cat => {
+            const opt = document.createElement("option");
+            opt.value = cat.id;
+            opt.textContent = `${cat.name} (${outboxDir}${cat.nas_sub})`;
+            select.appendChild(opt);
+        });
+        
+        if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
+            select.value = currentVal;
+        }
+    });
 }
 
 function setupDestinationToggles() {
@@ -3910,7 +3933,8 @@ function setupDestinationToggles() {
         { cb: "series-option-copy-nas", container: "series-nas-destination-container" },
         { cb: "series-option-copy-pcloud", container: "series-pcloud-destination-container" },
         { cb: "yt-option-copy-nas", container: "yt-nas-destination-container" },
-        { cb: "yt-option-copy-pcloud", container: "yt-pcloud-destination-container" }
+        { cb: "yt-option-copy-pcloud", container: "yt-pcloud-destination-container" },
+        { cb: "yt-option-copy-local", container: "yt-local-destination-container" }
     ];
     
     pairs.forEach(({ cb, container }) => {
@@ -4438,6 +4462,11 @@ function saveConversionSettings() {
         seriesOptionAbsoluteNumbering: document.getElementById("series-option-absolute-numbering")?.checked,
         seriesQualitySlider: document.getElementById("series-quality-slider")?.value,
 
+        ytOptionCopyNas: document.getElementById("yt-option-copy-nas")?.checked,
+        ytOptionCopyPcloud: document.getElementById("yt-option-copy-pcloud")?.checked,
+        ytOptionCopyLocal: document.getElementById("yt-option-copy-local")?.checked,
+        ytLocalDestination: document.getElementById("yt-local-destination")?.value,
+
         toolQualitySlider: document.getElementById("tool-quality-slider")?.value
     };
     localStorage.setItem("conversionSettings", JSON.stringify(settings));
@@ -4479,6 +4508,14 @@ function loadConversionSettings() {
         setCheckbox("series-option-absolute-numbering", settings.seriesOptionAbsoluteNumbering);
         setSlider("series-quality-slider", "series-quality-val", settings.seriesQualitySlider);
 
+        setCheckbox("yt-option-copy-nas", settings.ytOptionCopyNas);
+        setCheckbox("yt-option-copy-pcloud", settings.ytOptionCopyPcloud);
+        setCheckbox("yt-option-copy-local", settings.ytOptionCopyLocal);
+        const ytLocalDest = document.getElementById("yt-local-destination");
+        if (ytLocalDest && settings.ytLocalDestination) {
+            ytLocalDest.value = settings.ytLocalDestination;
+        }
+
         setSlider("tool-quality-slider", "tool-quality-val", settings.toolQualitySlider);
     } catch (e) {
         console.error("Error loading conversion settings:", e);
@@ -4510,6 +4547,11 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("series-option-copy-nas")?.addEventListener("change", saveConversionSettings);
     document.getElementById("series-option-copy-pcloud")?.addEventListener("change", saveConversionSettings);
     document.getElementById("series-option-absolute-numbering")?.addEventListener("change", saveConversionSettings);
+
+    document.getElementById("yt-option-copy-nas")?.addEventListener("change", saveConversionSettings);
+    document.getElementById("yt-option-copy-pcloud")?.addEventListener("change", saveConversionSettings);
+    document.getElementById("yt-option-copy-local")?.addEventListener("change", saveConversionSettings);
+    document.getElementById("yt-local-destination")?.addEventListener("change", saveConversionSettings);
 
     // Movie quality slider
     const movieSlider = document.getElementById("movie-quality-slider");
