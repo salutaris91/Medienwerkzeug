@@ -1764,6 +1764,15 @@ def process_worker(params):
 
     elif media_type == "movie":
         movie_name = params.get("movie_name")
+        if movie_name:
+            movie_name = re.sub(r"\s*\(Mediathek.*?\)", "", movie_name)
+            movie_name = re.sub(r"\s*\(Freie Mediathek.*?\)", "", movie_name).strip()
+            movie_overrides = nfo_overrides.get("movie") if nfo_overrides else None
+            if movie_overrides and movie_overrides.get("year"):
+                year = str(movie_overrides.get("year")).strip()
+                if year.isdigit() and len(year) == 4:
+                    movie_name = re.sub(r"\s*\(\d{4}\)$", "", movie_name).strip()
+                    movie_name = f"{movie_name} ({year})"
         movie_id = params.get("movie_id")
         provider = params.get("provider")
         dest_movies = destination if destination else f"{nas_root}/Filme"
@@ -3994,6 +4003,15 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
         
         if media_type == "movie":
             movie_name = params.get("movie_name", "Unbekannter Film")
+            if movie_name:
+                movie_name = re.sub(r"\s*\(Mediathek.*?\)", "", movie_name)
+                movie_name = re.sub(r"\s*\(Freie Mediathek.*?\)", "", movie_name).strip()
+                movie_overrides = nfo_overrides.get("movie") if nfo_overrides else None
+                if movie_overrides and movie_overrides.get("year"):
+                    year = str(movie_overrides.get("year")).strip()
+                    if year.isdigit() and len(year) == 4:
+                        movie_name = re.sub(r"\s*\(\d{4}\)$", "", movie_name).strip()
+                        movie_name = f"{movie_name} ({year})"
             dest_movies = destination if destination else f"{nas_root}/Filme"
             clean_movie_name = limit_filename_length(sanitize_filename(movie_name))
             

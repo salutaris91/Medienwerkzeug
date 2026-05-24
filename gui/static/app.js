@@ -1988,10 +1988,20 @@ async function executeMovieWorkflow() {
     const pcloudDestId = document.getElementById("movie-pcloud-destination").value;
     const quality = document.getElementById("movie-quality-slider") ? parseInt(document.getElementById("movie-quality-slider").value, 10) : 60;
     
+    let titleVal = document.getElementById("movie-nfo-title")?.value?.trim() || selectedMovie.name;
+    titleVal = titleVal.replace(/\s*\(Mediathek.*?\)/g, "").replace(/\s*\(Freie Mediathek.*?\)/g, "").trim();
+    
+    const yearVal = document.getElementById("movie-nfo-year")?.value?.trim();
+    let finalMovieName = titleVal;
+    if (yearVal && /^\d{4}$/.test(yearVal)) {
+        titleVal = titleVal.replace(/\s*\(\d{4}\)$/, "").trim();
+        finalMovieName = `${titleVal} (${yearVal})`;
+    }
+
     const payload = {
         media_type: "movie",
         project_name: currentProject,
-        movie_name: selectedMovie.name,
+        movie_name: finalMovieName,
         movie_id: selectedMovie.id,
         provider: selectedMovie.provider,
         convert: convert,
