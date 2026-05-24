@@ -22,6 +22,79 @@ let ytStatusInterval = null;
 
 
 // ==========================================================================
+// NAS SEASONS INFO
+// ==========================================================================
+async function fetchNasSeasons() {
+    const folderInput = document.getElementById("series-nas-folder-override");
+    const destSelect = document.getElementById("series-nas-destination");
+    const infoContainer = document.getElementById("selected-show-nas-seasons-info");
+    if (!infoContainer) return;
+    
+    const folderName = folderInput ? folderInput.value.trim() : "";
+    if (!folderName) {
+        infoContainer.innerHTML = "";
+        return;
+    }
+    
+    const destId = destSelect ? destSelect.value : "";
+    infoContainer.innerHTML = '<span style="color:var(--text-muted); font-style:italic;">Lade Staffelinfo vom NAS...</span>';
+    
+    try {
+        const res = await fetch(`/api/nas-seasons?folder=${encodeURIComponent(folderName)}&destination_id=${encodeURIComponent(destId)}`);
+        if (!res.ok) throw new Error("Fehler beim Laden");
+        const data = await res.json();
+        
+        if (data.seasons && data.seasons.length > 0) {
+            const badges = data.seasons.map(s => {
+                const episodeText = s.episodes === 1 ? "1 Episode" : `${s.episodes} Episoden`;
+                return `<span style="display:inline-block; padding:2px 8px; margin:2px 4px 2px 0; border-radius:var(--radius-sm); background:rgba(139,92,246,0.15); color:var(--accent); font-size:11px; font-weight:500;">${s.name} <span style='opacity:0.7'>(${episodeText})</span></span>`;
+            }).join("");
+            infoContainer.innerHTML = `<span style="font-size:11px; color:var(--text-muted);">📂 Auf NAS vorhanden:</span><br>${badges}`;
+        } else {
+            infoContainer.innerHTML = '<span style="font-size:11px; color:var(--text-muted);">📂 Keine Staffeln auf dem NAS gefunden.</span>';
+        }
+    } catch (e) {
+        console.error("Error fetching NAS seasons:", e);
+        infoContainer.innerHTML = "";
+    }
+}
+
+async function fetchYtNasSeasons() {
+    const folderInput = document.getElementById("yt-series-nas-folder-override");
+    const destSelect = document.getElementById("yt-nas-destination");
+    const infoContainer = document.getElementById("yt-selected-series-nas-seasons-info");
+    if (!infoContainer) return;
+    
+    const folderName = folderInput ? folderInput.value.trim() : "";
+    if (!folderName) {
+        infoContainer.innerHTML = "";
+        return;
+    }
+    
+    const destId = destSelect ? destSelect.value : "";
+    infoContainer.innerHTML = '<span style="color:var(--text-muted); font-style:italic;">Lade Staffelinfo vom NAS...</span>';
+    
+    try {
+        const res = await fetch(`/api/nas-seasons?folder=${encodeURIComponent(folderName)}&destination_id=${encodeURIComponent(destId)}`);
+        if (!res.ok) throw new Error("Fehler beim Laden");
+        const data = await res.json();
+        
+        if (data.seasons && data.seasons.length > 0) {
+            const badges = data.seasons.map(s => {
+                const episodeText = s.episodes === 1 ? "1 Episode" : `${s.episodes} Episoden`;
+                return `<span style="display:inline-block; padding:2px 8px; margin:2px 4px 2px 0; border-radius:var(--radius-sm); background:rgba(139,92,246,0.15); color:var(--accent); font-size:11px; font-weight:500;">${s.name} <span style='opacity:0.7'>(${episodeText})</span></span>`;
+            }).join("");
+            infoContainer.innerHTML = `<span style="font-size:11px; color:var(--text-muted);">📂 Auf NAS vorhanden:</span><br>${badges}`;
+        } else {
+            infoContainer.innerHTML = '<span style="font-size:11px; color:var(--text-muted);">📂 Keine Staffeln auf dem NAS gefunden.</span>';
+        }
+    } catch (e) {
+        console.error("Error fetching YT NAS seasons:", e);
+        infoContainer.innerHTML = "";
+    }
+}
+
+// ==========================================================================
 // INITIALIZATION
 // ==========================================================================
 document.addEventListener("DOMContentLoaded", () => {
@@ -2971,26 +3044,22 @@ async function runToolPullFiles() {
     expandConsole();
     appendConsoleLog("[System]: Verschiebe Dateien aus Unterordnern nach oben...");
     
-    const payload = {
-        media_type: "youtube", // abuse youtube handler to run arbitrary script in currentProject
-        // Wait, instead of abuse, let's implement clean script execution for tools
-        // Or we can just send it as a process post. Let's make server handle this.
-    };
-    
-    // Let's implement tool actions directly on server in process_worker if we want, or do it client side
-    // Actually pulling files can be done via tool API or background worker.
-    // Let's check how we can do it: we can trigger a POST /api/process with media_type: "tool_pull_files"
     const targetPath = document.getElementById("tools-target-path").value || currentProject;
     
-    const response = await fetch("/api/process", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            media_type: "tool_pull_files",
-            project_name: targetPath
-        })
-    });
-    if (response.ok) connectLogStream();
+    try {
+        const response = await fetch("/api/process", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                media_type: "tool_pull_files",
+                project_name: targetPath
+            })
+        });
+        if (response.ok) connectLogStream();
+    } catch (e) {
+        console.error("Error in runToolPullFiles:", e);
+        appendConsoleLog(`[System]: ❌ Fehler beim Verschieben: ${e.message}`);
+    }
 }
 async function runToolClean() {
     const targetPath = document.getElementById("tools-target-path").value || currentProject;
@@ -3249,9 +3318,7 @@ async function executePathsClean() {
             if (dirsDeletedCount > 0) {
                 appendConsoleLog(`[System]: -> ${dirsDeletedCount} leere Ordner bereinigt.`);
             }
-            if (typeof loadProjects === "function") {
-                loadProjects();
-            }
+            loadStatus();
         } else {
             appendConsoleLog(`[System]: ❌ Fehler beim Löschen: ${data.error || 'Unbekannter Fehler'}`);
             alert(`Fehler beim Löschen: ${data.error}`);
@@ -3267,16 +3334,21 @@ async function runToolConvert() {
     appendConsoleLog("[System]: Starte Batch-H.265-Konvertierung...");
     const targetPath = document.getElementById("tools-target-path").value || currentProject;
     const quality = document.getElementById("tool-quality-slider") ? parseInt(document.getElementById("tool-quality-slider").value, 10) : 60;
-    const response = await fetch("/api/process", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            media_type: "tool_batch_convert",
-            project_name: targetPath,
-            quality: quality
-        })
-    });
-    if (response.ok) connectLogStream();
+    try {
+        const response = await fetch("/api/process", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                media_type: "tool_batch_convert",
+                project_name: targetPath,
+                quality: quality
+            })
+        });
+        if (response.ok) connectLogStream();
+    } catch (e) {
+        console.error("Error in runToolConvert:", e);
+        appendConsoleLog(`[System]: ❌ Fehler bei der Konvertierung: ${e.message}`);
+    }
 }
 
 async function runToolGeneric(toolType, logMsg, extraParams = {}) {

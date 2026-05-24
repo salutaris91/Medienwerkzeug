@@ -510,7 +510,7 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False):
     if success and move and os.path.isdir(src):
         try:
             shutil.rmtree(src)
-        except:
+        except Exception:
             pass
             
     return success
@@ -2853,6 +2853,8 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             self.handle_api_check_dependencies(query)
         elif path == "/api/nas-series":
             self.handle_api_nas_series(query)
+        elif path == "/api/nas-seasons":
+            self.handle_api_nas_seasons(query)
         elif path == "/api/series/detect":
             self.handle_api_series_detect(query)
         elif path == "/api/metadata/fetch":
@@ -3319,6 +3321,19 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
         if not target_path or not os.path.exists(target_path):
             self.send_error(400, "Invalid path")
             return
+        # Security: only allow toggling visibility within known media directories
+        settings = load_settings()
+        allowed_roots = [
+            os.path.abspath(os.path.expanduser("~/Downloads/Medien Input")),
+            os.path.abspath(os.path.expanduser("~/Downloads/Medien Output")),
+            os.path.abspath(settings.get("inbox_dir", "")),
+            os.path.abspath(settings.get("outbox_dir", "")),
+            os.path.abspath(settings.get("nas_root", "/Volumes/Kino")),
+        ]
+        abs_target = os.path.abspath(target_path)
+        if not any(abs_target.startswith(root + os.sep) or abs_target == root for root in allowed_roots if root):
+            self.send_error(403, "Path not in allowed directories")
+            return
             
         try:
             flag = "hidden" if hide else "nohidden"
@@ -3511,6 +3526,9 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             if inbox_dir and os.path.exists(inbox_dir):
                 for f in inbox_files:
                     path_f = os.path.join(inbox_dir, f)
+                    path_f = os.path.abspath(path_f)
+                    if not path_f.startswith(os.path.abspath(inbox_dir) + os.sep):
+                        continue
                     if os.path.exists(path_f):
                         try:
                             os.remove(path_f)
@@ -3522,6 +3540,9 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             if outbox_dir and os.path.exists(outbox_dir):
                 for f in output_files:
                     path_f = os.path.join(outbox_dir, f)
+                    path_f = os.path.abspath(path_f)
+                    if not path_f.startswith(os.path.abspath(outbox_dir) + os.sep):
+                        continue
                     if os.path.exists(path_f):
                         try:
                             os.remove(path_f)
@@ -3576,6 +3597,10 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             # Neuer interaktiver Modus: Lösche nur, was der Benutzer ausgewählt hat
             for f in explicit_files:
                 path_f = os.path.join(target_dir, f)
+                # Security: prevent path traversal
+                path_f = os.path.abspath(path_f)
+                if not path_f.startswith(os.path.abspath(target_dir) + os.sep) and path_f != os.path.abspath(target_dir):
+                    continue
                 if os.path.exists(path_f):
                     try:
                         os.remove(path_f)
@@ -3886,8 +3911,7 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             
         self.send_json({"info": info})
 
-    def handle_api_fetch_episodes(self):
-        pass # Implemented below in actual request handling
+
 
     def handle_api_fetch_episodes(self, query):
         provider = query.get("provider", ["tmdb_tv"])[0]
@@ -4311,6 +4335,91 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             "folder_destinations": {k: folder_to_dest[k] for k in deduped.keys() if k in folder_to_dest}
         })
 
+    def handle_api_nas_seasons(self, query):
+        """Return existing season folders and episode counts for a show on the NAS."""
+        folder_name = query.get("folder", [""])[0] if isinstance(query.get("folder"), list) else query.get("folder", "")
+        destination_id = query.get("destination_id", [""])[0] if isinstance(query.get("destination_id"), list) else query.get("destination_id", "")
+        
+        if not folder_name:
+            self.send_json({"seasons": []})
+            return
+            
+        settings = load_settings()
+        nas_root = settings.get("nas_root", "/Volumes/Kino")
+        outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
+        sync_cats = settings.get("sync_categories", [])
+        
+        # Resolve which NAS destinations to scan
+        destinations = []
+        if destination_id and destination_id != "all":
+            for cat in sync_cats:
+                if cat.get("id") == str(destination_id):
+                    nas_sub = cat.get("nas_sub", "")
+                    if nas_sub:
+                        destinations.append(f"{nas_root}{nas_sub}")
+                    break
+        else:
+            for cat in sync_cats:
+                nas_sub = cat.get("nas_sub", "")
+                if nas_sub:
+                    destinations.append(f"{nas_root}{nas_sub}")
+        
+        if not destinations:
+            destinations = [os.path.join(nas_root, "Serien")]
+        
+        seasons = []
+        video_extensions = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv'}
+        
+        for dest in destinations:
+            show_path = os.path.join(dest, folder_name)
+            # Also check outbox mirror
+            rel_dest = os.path.relpath(dest, nas_root)
+            outbox_show_path = os.path.join(outbox_root, rel_dest, folder_name)
+            
+            for base_path in [show_path, outbox_show_path]:
+                if not os.path.isdir(base_path):
+                    continue
+                try:
+                    for entry in sorted(os.listdir(base_path)):
+                        entry_path = os.path.join(base_path, entry)
+                        if not os.path.isdir(entry_path) or entry.startswith('.'):
+                            continue
+                        # Match "Staffel X" pattern
+                        if entry.lower().startswith("staffel ") or entry.lower().startswith("season ") or entry.lower().startswith("specials"):
+                            # Count video files in this season dir (including subdirs)
+                            episode_count = 0
+                            for root, dirs, files in os.walk(entry_path):
+                                for f in files:
+                                    ext = os.path.splitext(f)[1].lower()
+                                    if ext in video_extensions and not f.startswith('.'):
+                                        episode_count += 1
+                            
+                            # Check if this season is already in our list
+                            existing = next((s for s in seasons if s["name"] == entry), None)
+                            if existing:
+                                existing["episodes"] = max(existing["episodes"], episode_count)
+                                if "NAS" not in existing["source"]:
+                                    existing["source"] += " + NAS" if base_path == show_path else ""
+                            else:
+                                source = "NAS" if base_path == show_path else "Outbox"
+                                seasons.append({
+                                    "name": entry,
+                                    "episodes": episode_count,
+                                    "source": source
+                                })
+                except Exception as e:
+                    print(f"Error scanning seasons in {base_path}: {e}")
+        
+        # Sort seasons naturally
+        def season_sort_key(s):
+            import re
+            match = re.search(r'(\d+)', s["name"])
+            return int(match.group(1)) if match else 999
+        
+        seasons.sort(key=season_sort_key)
+        
+        self.send_json({"seasons": seasons, "folder": folder_name})
+
     def handle_api_series_detect(self, query):
         project_name = ""
         if "project_name" in query and len(query["project_name"]) > 0:
@@ -4575,6 +4684,11 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             
         if not os.path.exists(folder_path):
             self.send_json({"error": f"Pfad existiert nicht: {folder_path}. Ist das NAS gemountet?"})
+            return
+            
+        # Security: verify path is a directory, not an executable
+        if not os.path.isdir(folder_path):
+            self.send_json({"error": f"Pfad ist kein Ordner: {folder_path}"})
             return
             
         try:

@@ -218,7 +218,7 @@ def get_show_info(provider, show_id):
             if len(seasons) > 20:
                 info_str = f"Staffeln vorhanden: {seasons[0]} bis {seasons[-1]}"
             return info_str
-    except:
+    except Exception:
         pass
     return "Keine Info zur Staffelstruktur gefunden."
 
@@ -561,7 +561,7 @@ def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     try:
         html = urllib.request.urlopen(req).read().decode('utf-8', errors='ignore')
-    except: return {}
+    except Exception: return {}
     
     title_m = re.search(r'<title>OFDb - (.*?) \(\d{4}\)</title>', html)
     title = title_m.group(1) if title_m else filename_base
@@ -634,7 +634,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
         if needs_nfo:
             try:
                 meta = json.loads(tmdb_id) if isinstance(tmdb_id, str) else tmdb_id
-            except:
+            except Exception:
                 meta = {"title": filename_base, "year": "", "plot": ""}
             title = meta.get("title", filename_base)
             year = meta.get("year", "")
@@ -788,14 +788,14 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
         try:
             p_url = f"https://image.tmdb.org/t/p/original{data['poster_path']}"
             urllib.request.urlretrieve(p_url, poster_path)
-        except:
+        except Exception:
             needs_poster = False
             
     if needs_fanart and data.get('backdrop_path'):
         try:
             b_url = f"https://image.tmdb.org/t/p/original{data['backdrop_path']}"
             urllib.request.urlretrieve(b_url, fanart_path)
-        except:
+        except Exception:
             needs_fanart = False
             
     return {"nfo": needs_nfo, "poster": needs_poster, "fanart": needs_fanart}
@@ -804,7 +804,7 @@ def fetch_show_nfo_data(provider, show_id):
     if provider == "manual":
         try:
             meta = json.loads(show_id) if isinstance(show_id, str) else show_id
-        except:
+        except Exception:
             meta = {"title": show_id or "Manuelle Serie", "plot": "", "year": ""}
         return {
             "title": meta.get("title", "Manuelle Serie"),
@@ -826,7 +826,7 @@ def fetch_show_nfo_data(provider, show_id):
                 title = entries[0].get("playlist_title") or entries[0].get("playlist") or entries[0].get("title") or "YouTube/Mediathek Serie"
                 plot = entries[0].get("description") or ""
             return {"title": title, "plot": plot, "year": ""}
-        except:
+        except Exception:
             return {"title": "YouTube/Mediathek Serie", "plot": "", "year": ""}
     elif provider == "tvdb":
         try:
@@ -870,7 +870,7 @@ def fetch_movie_nfo_data(provider, movie_id):
     if provider == "manual" or (isinstance(movie_id, str) and movie_id.startswith("{")):
         try:
             meta = json.loads(movie_id) if isinstance(movie_id, str) else movie_id
-        except:
+        except Exception:
             meta = {"title": "Manueller Film", "year": "", "plot": ""}
         return {
             "title": meta.get("title", ""),
@@ -910,7 +910,7 @@ def fetch_movie_nfo_data(provider, movie_id):
                 elif entry.get("release_year"):
                     year = str(entry.get("release_year"))
             return {"title": title, "plot": plot, "year": year}
-        except:
+        except Exception:
             return {"title": "", "plot": "", "year": ""}
     else: # TMDB
         try:
@@ -942,7 +942,7 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
                 "plot": ep_data.get("plot", ""),
                 "aired": ""
             }
-        except:
+        except Exception:
             return {"title": f"Folge {episode}", "plot": "", "aired": ""}
     elif provider == "ytdlp":
         try:
@@ -975,7 +975,7 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
                         d = matched_entry.get("upload_date")
                         aired = f"{d[:4]}-{d[4:6]}-{d[6:8]}"
             return {"title": ep_title, "plot": ep_plot, "aired": aired}
-        except:
+        except Exception:
             return {"title": f"Folge {episode}", "plot": "", "aired": ""}
     elif provider == "tvdb":
         try:
@@ -1067,7 +1067,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
     if provider == "manual":
         try:
             meta = json.loads(show_id) if isinstance(show_id, str) else show_id
-        except:
+        except Exception:
             meta = {"title": show_id or "Manuelle Serie", "plot": "", "year": ""}
         
         nfo_path = os.path.join(target_folder, "tvshow.nfo")
@@ -1297,13 +1297,13 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         try:
             p_url = f"https://image.tmdb.org/t/p/original{data['poster_path']}"
             urllib.request.urlretrieve(p_url, poster_path)
-        except:
+        except Exception:
             needs_poster = False
     if needs_fanart and data.get('backdrop_path'):
         try:
             b_url = f"https://image.tmdb.org/t/p/original{data['backdrop_path']}"
             urllib.request.urlretrieve(b_url, fanart_path)
-        except:
+        except Exception:
             needs_fanart = False
             
     return {"nfo": needs_nfo, "poster": needs_poster, "fanart": needs_fanart}
@@ -1625,7 +1625,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
         try:
             t_url = f"https://image.tmdb.org/t/p/original{data['still_path']}"
             urllib.request.urlretrieve(t_url, thumb_path)
-        except:
+        except Exception:
             needs_thumb = False
             
     return {"nfo": needs_nfo, "thumb": needs_thumb}
@@ -1785,7 +1785,7 @@ def guess_season(provider, show_id, filenames_json_or_list):
     if isinstance(filenames_json_or_list, str):
         try:
             filenames = json.loads(filenames_json_or_list)
-        except:
+        except Exception:
             return None
     else:
         filenames = filenames_json_or_list
@@ -2091,7 +2091,7 @@ def fetch_mediathek_episodes(topic):
                     try:
                         import datetime
                         date_str = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
-                    except:
+                    except Exception:
                         pass
                 
                 ep_num = str(idx + 1)
@@ -2132,7 +2132,7 @@ def fetch_ytdlp_url_metadata(url):
             if line:
                 try:
                     entries.append(json.loads(line))
-                except:
+                except Exception:
                     pass
                     
         if not entries:
@@ -2144,7 +2144,7 @@ def fetch_ytdlp_url_metadata(url):
                 if line:
                     try:
                         entries.append(json.loads(line))
-                    except:
+                    except Exception:
                         pass
                         
         YTDLP_CACHE[url] = entries
