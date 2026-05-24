@@ -126,7 +126,11 @@ def clean_series_name_for_fs(name):
     # Remove search-related suffixes in parentheses (case-insensitive)
     name = re.sub(r'\s*\((?:Mediathek\s+(?:Serie|Film)\s+aus\s+URL|Freie\s+Mediathek-Suche|fernsehserien\.de\s+URL|\d*\s*Videos?\s+via\s+URL)\)', '', name, flags=re.IGNORECASE)
     # Remove channel/bracket tags like [ARTE], [ARTE.DE], [ZDF], [TMDB_TV] (case-insensitive, optional trailing spaces/dots/chars/underscores)
-    name = re.sub(r'\s*\[[A-Za-z0-9\._-]+\]\s*$', '', name)
+    while True:
+        new_name = re.sub(r'\s*\[[A-Za-z0-9\._-]+\]\s*$', '', name)
+        if new_name == name:
+            break
+        name = new_name
     # Replace underscores with spaces
     name = name.replace('_', ' ')
     # Also strip any trailing spaces, dots, or dashes that may be left over
