@@ -2988,6 +2988,8 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             self.handle_api_guess_season(params)
         elif path == "/api/match-episodes":
             self.handle_api_match_episodes(params)
+        elif path == "/api/check-nas-duplicate":
+            self.handle_api_check_nas_duplicate(params)
         elif path == "/api/estimate-conversion":
             self.handle_api_estimate_conversion(params)
         elif path == "/api/queue/clear":
@@ -3345,6 +3347,104 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                     duplicates[file] = dup_details
                     
         self.send_json({"matches": matches, "duplicates": duplicates})
+
+    def handle_api_check_nas_duplicate(self, params):
+        """Check if a specific episode already exists on NAS."""
+        ep_num = params.get("episode")
+        ep_season = params.get("season")
+        show_name = params.get("show_name")
+        nas_show_folder = params.get("nas_show_folder")
+        nas_destination_id = params.get("nas_destination_id")
+        
+        if ep_num is None or ep_season is None:
+            self.send_json({"duplicate": None})
+            return
+        
+        try:
+            ep_num = int(ep_num)
+            ep_season = int(ep_season)
+        except (ValueError, TypeError):
+            self.send_json({"duplicate": None})
+            return
+        
+        settings = load_settings()
+        nas_root = settings.get("nas_root", "/Volumes/Kino")
+        
+        destination = None
+        if nas_destination_id:
+            sync_cats = settings.get("sync_categories", [])
+            for cat in sync_cats:
+                if cat.get("id") == str(nas_destination_id):
+                    destination = os.path.join(nas_root, cat.get("nas_sub", "").lstrip("/"))
+                    break
+        if not destination:
+            destination = os.path.join(nas_root, "Serien")
+        
+        clean_show_name = clean_series_name_for_fs(nas_show_folder or show_name or "")
+        if not clean_show_name:
+            self.send_json({"duplicate": None})
+            return
+        
+        # Also check outbox for matched series name
+        outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
+        rel_dest = os.path.relpath(destination, nas_root)
+        outbox_serien = os.path.join(outbox_root, rel_dest)
+        clean_show_name = get_matched_series_name(destination, outbox_serien, limit_filename_length(sanitize_filename(clean_show_name)))
+        
+        show_dir = os.path.join(destination, clean_show_name)
+        
+        if not os.path.exists(show_dir):
+            self.send_json({"duplicate": None})
+            return
+        
+        # Search for matching episode files
+        pats = [
+            f"s{ep_season:02d}e{ep_num:02d}",
+            f"s{ep_season:02d}e{ep_num:03d}",
+            f"s{ep_season}e{ep_num:02d}",
+            f"s{ep_season:02d}e{ep_num}",
+        ]
+        for root, _, files in os.walk(show_dir):
+            for f in files:
+                if f.startswith('.'):
+                    continue
+                fl = f.lower()
+                matched = False
+                for pat in pats:
+                    if pat in fl:
+                        matched = True
+                        break
+                if not matched and ep_season == 1:
+                    for suffix in [f" - {ep_num:02d} ", f" - {ep_num:02d}.", f" - {ep_num:03d} ", f" - {ep_num:03d}."]:
+                        if suffix in fl:
+                            matched = True
+                            break
+                if matched:
+                    # Only count video files as duplicates
+                    ext = os.path.splitext(f)[1].lower()
+                    if ext not in ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts'):
+                        continue
+                    details = {"filename": f}
+                    filepath = os.path.join(root, f)
+                    try:
+                        size_bytes = os.path.getsize(filepath)
+                        details["size_gb"] = size_bytes / (1024 * 1024 * 1024)
+                        cmd = [
+                            "ffprobe", "-v", "error", "-select_streams", "v:0",
+                            "-show_entries", "stream=width,height", "-of", "csv=p=0",
+                            filepath
+                        ]
+                        res = subprocess.run(cmd, capture_output=True, text=True, timeout=2.0)
+                        if res.returncode == 0:
+                            dimensions = res.stdout.strip().split(',')
+                            if len(dimensions) == 2:
+                                details["resolution"] = f"{dimensions[0]}x{dimensions[1]}"
+                    except Exception:
+                        pass
+                    self.send_json({"duplicate": details})
+                    return
+        
+        self.send_json({"duplicate": None})
 
     def handle_api_estimate_conversion(self, params):
         project_name = params.get("project_name", "")
@@ -4256,13 +4356,30 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                         for sf in all_files:
                             sbasename = os.path.basename(sf)
                             sext = os.path.splitext(sf)[1].lower()
-                            if sbasename.startswith(base_old) and sf != f and sext in sub_exts:
-                                preview["subs"].append({"old": sf, "new": f"{clean_title}{sext}"})
+                            if sbasename.startswith(base_old) and sf != f:
+                                if sext in sub_exts:
+                                    # Subtitle: rename to match video name
+                                    preview["subs"].append({"old": sf, "new": f"{clean_title}{sext}"})
+                                elif sext in ('.nfo',):
+                                    # NFO file: rename to match video name
+                                    preview["subs"].append({"old": sf, "new": f"{clean_title}.nfo"})
+                                elif sext in ('.jpg', '.png'):
+                                    # Image file: preserve suffix like -poster, -fanart, -thumb
+                                    sbase_no_ext = os.path.splitext(sbasename)[0]
+                                    suffix_after_base = sbase_no_ext[len(base_old):]  # e.g. "-poster", "-fanart"
+                                    if suffix_after_base:
+                                        preview["subs"].append({"old": sf, "new": f"{clean_title}{suffix_after_base}{sext}"})
+                                    else:
+                                        preview["subs"].append({"old": sf, "new": f"{clean_title}{sext}"})
                     else:
                         pass
                 elif ext in sub_exts:
                     pass # Handled above or ignored
-                elif basename.lower() in good_meta or (ext in ('.nfo', '.jpg', '.png') and ('poster' in basename.lower() or 'fanart' in basename.lower())):
+                elif basename.lower() in good_meta:
+                    # Show-level metadata files (tvshow.nfo, poster.jpg, fanart.jpg, season.nfo) — keep as-is
+                    preview["subs"].append({"old": f, "new": basename})
+                elif ext in ('.nfo', '.jpg', '.png') and ('poster' in basename.lower() or 'fanart' in basename.lower()):
+                    # Standalone poster/fanart not matching any video — keep as-is
                     preview["subs"].append({"old": f, "new": basename})
                 else:
                     preview["junk"].append(f)

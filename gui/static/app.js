@@ -1563,13 +1563,13 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
             <div class="matching-row" data-file="${file}">
                 <div class="match-file" title="${file}">
                     <div style="word-break: break-all;">${file}</div>
-                    ${duplicates[file] ? `
+                    <div class="duplicate-badge-container" id="dup-badge-${index}">${duplicates[file] ? `
                         <div class="duplicate-badge" style="margin-top: 5px; font-size: 11px; color: #ffb300; background: rgba(255, 179, 0, 0.08); border: 1px solid rgba(255, 179, 0, 0.25); padding: 4px 8px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 6px; font-weight: normal; line-height: 1.2; max-width: 100%; box-sizing: border-box;">
                             <span>⚠️ Bereits auf NAS:</span>
                             <span style="font-weight: 500; opacity: 0.9; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 150px;" title="${duplicates[file].filename}">${duplicates[file].filename}</span>
                             <span style="opacity: 0.6; font-size: 10px;">(${duplicates[file].size_gb.toFixed(2)} GB${duplicates[file].resolution ? `, ${duplicates[file].resolution}` : ''})</span>
                         </div>
-                    ` : ''}
+                    ` : ''}</div>
                 </div>
                 <div class="match-selection">
                     <div style="display: flex; gap: 8px; width: 100%;">
@@ -1645,7 +1645,74 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     }
                 }
             };
-            select.addEventListener("change", updateInfo);
+            
+            const checkNasDuplicate = async () => {
+                const val = select.value;
+                const badgeContainer = document.getElementById(`dup-badge-${index}`);
+                if (!badgeContainer) return;
+                
+                if (val === 'skip') {
+                    badgeContainer.innerHTML = '';
+                    return;
+                }
+                
+                // Parse season/episode from the selected value
+                let epSeason, epNum;
+                const seMatch = val.match(/^S(\d+)E(\d+)$/i);
+                if (seMatch) {
+                    epSeason = parseInt(seMatch[1], 10);
+                    epNum = parseInt(seMatch[2], 10);
+                } else {
+                    epSeason = parseInt(document.getElementById("series-season-num")?.value || "1", 10);
+                    epNum = parseInt(val, 10);
+                }
+                
+                if (isNaN(epSeason) || isNaN(epNum)) {
+                    badgeContainer.innerHTML = '';
+                    return;
+                }
+                
+                const nasDestEl = document.getElementById("series-nas-destination");
+                const nasFolderEl = document.getElementById("series-nas-folder-override");
+                
+                try {
+                    badgeContainer.innerHTML = '<div style="margin-top: 5px; font-size: 10px; color: var(--text-muted);">🔍 Prüfe NAS...</div>';
+                    const response = await fetch('/api/check-nas-duplicate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            episode: epNum,
+                            season: epSeason,
+                            show_name: selectedShow?.name || '',
+                            nas_show_folder: nasFolderEl?.value || null,
+                            nas_destination_id: nasDestEl?.value || null
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.duplicate) {
+                            const d = data.duplicate;
+                            badgeContainer.innerHTML = `
+                                <div class="duplicate-badge" style="margin-top: 5px; font-size: 11px; color: #ffb300; background: rgba(255, 179, 0, 0.08); border: 1px solid rgba(255, 179, 0, 0.25); padding: 4px 8px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 6px; font-weight: normal; line-height: 1.2; max-width: 100%; box-sizing: border-box;">
+                                    <span>⚠️ Bereits auf NAS:</span>
+                                    <span style="font-weight: 500; opacity: 0.9; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 150px;" title="${d.filename}">${d.filename}</span>
+                                    <span style="opacity: 0.6; font-size: 10px;">(${d.size_gb.toFixed(2)} GB${d.resolution ? `, ${d.resolution}` : ''})</span>
+                                </div>`;
+                        } else {
+                            badgeContainer.innerHTML = '';
+                        }
+                    }
+                } catch (err) {
+                    console.error("NAS duplicate check error:", err);
+                    badgeContainer.innerHTML = '';
+                }
+            };
+            
+            select.addEventListener("change", () => {
+                updateInfo();
+                checkNasDuplicate();
+            });
             updateInfo();
 
             if (search) {
