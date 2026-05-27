@@ -201,6 +201,16 @@ def log_message(msg):
     log_queue.put(msg)
     print(msg)
 
+def update_task_pipeline_status(task_id, step, status, progress=None):
+    if not task_id:
+        return
+    with active_jobs_lock:
+        if task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+            if step in active_jobs[task_id]["pipeline"]:
+                active_jobs[task_id]["pipeline"][step]["status"] = status
+                if progress is not None:
+                    active_jobs[task_id]["pipeline"][step]["progress"] = progress
+
 def get_local_version(cmd, args, version_pattern, split_line=False):
     import shutil
     import subprocess
@@ -585,6 +595,9 @@ def run_ytdlp_with_progress(cmd, task_id=None, log_queue=None):
                     if task_id in active_jobs:
                         active_jobs[task_id]["progress"] = percent
                         active_jobs[task_id]["message"] = f"Download: {percent}%"
+                        if "pipeline" in active_jobs[task_id] and "metadata" in active_jobs[task_id]["pipeline"]:
+                            active_jobs[task_id]["pipeline"]["metadata"]["progress"] = percent
+                            active_jobs[task_id]["pipeline"]["metadata"]["status"] = "running"
                         
     proc.wait()
     return proc.returncode == 0
@@ -1035,7 +1048,8 @@ def check_single_subscription(sub):
                             "metadata": {"status": "pending", "progress": 0},
                             "convert": {"status": "pending", "progress": 0},
                             "nas": {"status": "pending" if sub_copy_to_nas else "skipped", "progress": 0},
-                            "pcloud": {"status": "pending" if sub_copy_to_pcloud else "skipped", "progress": 0}
+                            "pcloud": {"status": "pending" if sub_copy_to_pcloud else "skipped", "progress": 0},
+                            "local": {"status": "pending" if sub_copy_to_local else "skipped", "progress": 0}
                         }
                     }
                     
@@ -2442,8 +2456,8 @@ def process_worker(params):
         inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
         nas_root = settings.get("nas_root", "/Volumes/Kino")
         
-        # Temp dir inside Downloads/Medien Input/temp_yt_<task_id>
-        temp_dir = os.path.join(inbox_root, f"temp_yt_{task_id}")
+        # Temp dir inside Downloads/Medien Input/.temp_yt_<task_id>
+        temp_dir = os.path.join(inbox_root, f".temp_yt_{task_id}")
         os.makedirs(temp_dir, exist_ok=True)
         
         # Setup task state
@@ -2458,6 +2472,8 @@ def process_worker(params):
         with active_yt_tasks_lock:
             active_yt_tasks[task_id] = task_info
             
+        update_task_pipeline_status(task_id, "metadata", "running", 0)
+        
         log_message(f"=== STARTE YOUTUBE DOWNLOAD PIPELINE FUER TASK {task_id} ===")
         log_message(f"Ziel-Temp-Ordner: {temp_dir}")
         
@@ -2521,6 +2537,12 @@ def process_worker(params):
                     
                 log_message("Download erfolgreich beendet.")
                 downloaded_files = [f for f in os.listdir(temp_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov', '.mp3', '.m4a')) and not f.startswith(".")]
+                
+                update_task_pipeline_status(task_id, "metadata", "done", 100)
+                
+                # Mark convert as skipped if we don't do any post-processing split/cut
+                if not (split_chapters or trim_start or trim_end or open_losslesscut):
+                    update_task_pipeline_status(task_id, "convert", "skipped")
             
             else: # youtube_merge
                 urls = params.get("yt_urls", [])
@@ -2539,7 +2561,7 @@ def process_worker(params):
                             active_jobs[task_id]["message"] = f"Lade Teil {idx} von {num_urls}..."
                     
                     part_output = f"part_{idx:02d}.%(ext)s"
-                    cmd = ["yt-dlp", "-P", temp_dir, "--output", part_output, "--merge-output-format", "mp4", "-f", "bv*+ba/b", "--cookies-from-browser", "chrome", part_url]
+                    cmd = ["yt-dlp", "-P", temp_dir, "--output", part_output, "--merge-output-format", "mkv", "--remux-video", "mkv", "-f", "bv*+ba/b", "--cookies-from-browser", "chrome", part_url]
                     
                     log_message(f"Lade Teil {idx}/{num_urls}: {' '.join(cmd)}")
                     success = run_ytdlp_with_progress(cmd, task_id=None, log_queue=log_queue)
@@ -2549,11 +2571,11 @@ def process_worker(params):
                     if not success:
                         raise RuntimeError(f"Download von Teil {idx} ({part_url}) fehlgeschlagen.")
                 
-                files = sorted([f for f in os.listdir(temp_dir) if f.startswith("part_") and f.lower().endswith(".mp4")])
+                files = sorted([f for f in os.listdir(temp_dir) if f.startswith("part_") and f.lower().endswith(".mkv")])
                 if not files:
                     raise RuntimeError("Keine heruntergeladenen Teile gefunden.")
                 
-                final_name = f"{sanitize_filename(final_title)}.mp4"
+                final_name = f"{sanitize_filename(final_title)}.mkv"
                 final_path = os.path.join(temp_dir, final_name)
                 
                 if len(files) < 2:
@@ -2564,6 +2586,9 @@ def process_worker(params):
                         if task_id in active_jobs:
                             active_jobs[task_id]["progress"] = 90
                             active_jobs[task_id]["message"] = "Füge Teile zusammen (FFmpeg)..."
+                    
+                    update_task_pipeline_status(task_id, "metadata", "done", 100)
+                    update_task_pipeline_status(task_id, "convert", "running", 0)
                     
                     inputs_txt_path = os.path.join(temp_dir, "inputs.txt")
                     with open(inputs_txt_path, "w", encoding="utf-8") as f_inputs:
@@ -2577,13 +2602,18 @@ def process_worker(params):
                         raise RuntimeError(f"FFmpeg-Zusammenfügen fehlgeschlagen: {ffmpeg_res.stderr}")
                     
                     log_message("FFmpeg-Zusammenfügen erfolgreich.")
+                    update_task_pipeline_status(task_id, "convert", "done", 100)
                     
                     # Cleanup downloaded parts
                     for f in files:
-                        try: os.remove(os.path.join(temp_dir, f))
-                        except Exception: pass
-                    try: os.remove(inputs_txt_path)
-                    except Exception: pass
+                        try:
+                            os.remove(os.path.join(temp_dir, f))
+                        except Exception as e:
+                            log_message(f"  ❌ Fehler beim Löschen von Teil {f}: {e}")
+                    try:
+                        os.remove(inputs_txt_path)
+                    except Exception as e:
+                        log_message(f"  ❌ Fehler beim Löschen von inputs.txt: {e}")
                 
                 # Clear pending videos in subscription if needed
                 if subscription_id and video_ids_to_remove:
@@ -2613,6 +2643,7 @@ def process_worker(params):
                 lossless_path = "/Applications/LosslessCut.app"
                 if os.path.exists(lossless_path):
                     log_message(f"🎬 Oeffne {primary_file} in LosslessCut...")
+                    update_task_pipeline_status(task_id, "convert", "running", 50)
                     subprocess.run(["open", "-a", "LosslessCut", primary_filepath])
                     
                     # Update state and wait for GUI event
@@ -2637,6 +2668,7 @@ def process_worker(params):
                     else:
                         log_message("Keine Schnittdateien gefunden. Verwende Originaldatei.")
                         downloaded_files = [primary_file]
+                    update_task_pipeline_status(task_id, "convert", "done", 100)
                 else:
                     log_message("⚠️ LosslessCut.app nicht unter /Applications gefunden. Ueberspringe...")
             
@@ -2651,6 +2683,7 @@ def process_worker(params):
             if metadata_mode == "tv" and show_id and len(downloaded_files) > 1:
                 task_info["state"] = "waiting_for_mapping"
                 log_message("⏳ Warte auf Zuweisung der Video-Kapitel/Segmente im Web-Interface...")
+                update_task_pipeline_status(task_id, "metadata", "running", 90)
                 task_info["mapping_event"].wait()
                 
                 mapping = task_info.get("mapping", {})
@@ -2844,7 +2877,9 @@ def process_worker(params):
 
                 # Copy to NAS if requested
                 if copy_to_nas and destination and transfer_successful:
+                    update_task_pipeline_status(task_id, "nas", "running", 0)
                     if not ensure_nas_mounted():
+                        update_task_pipeline_status(task_id, "nas", "error", 0)
                         raise RuntimeError("NAS konnte nicht gemountet werden. Kopiervorgang abgebrochen.")
                     dest_dir_nas = destination
                     if metadata_mode == "tv" and show_id:
@@ -2868,9 +2903,11 @@ def process_worker(params):
                                 suffix = "-poster.jpg" if art_name == "poster.jpg" else "-fanart.jpg"
                                 shutil.copy(art_src, os.path.join(dest_dir_nas, f"{clean_base}{suffix}"))
                         log_message(f"  ✅ Erfolgreich auf NAS kopiert.")
+                        update_task_pipeline_status(task_id, "nas", "done", 100)
                         subprocess.run(["open", dest_dir_nas])
                     except Exception as e:
                         log_message(f"  ❌ Fehler bei NAS-Kopie: {e}")
+                        update_task_pipeline_status(task_id, "nas", "error", 0)
                         all_transfers_successful = False
                         
             # Move show-level files in series mode to outbox
@@ -2911,6 +2948,7 @@ def process_worker(params):
                     all_transfers_successful = False
                     
             if params.get("copy_to_pcloud") and (destination or explicit_pcloud_base):
+                update_task_pipeline_status(task_id, "pcloud", "running", 0)
                 dest_dir_outbox = outbox_dest
                 if metadata_mode == "tv" and show_id:
                     dest_dir_outbox = os.path.join(outbox_dest, clean_show_name)
@@ -2919,11 +2957,15 @@ def process_worker(params):
                 pcloud_target = destination if destination else f"{nas_root}/Sonstiges"
                 pcloud_success = copy_to_pcloud(dest_dir_outbox, pcloud_target, task_id=task_id, explicit_remote_base=explicit_pcloud_base)
                 if not pcloud_success:
+                    update_task_pipeline_status(task_id, "pcloud", "error", 0)
                     all_transfers_successful = False
+                else:
+                    update_task_pipeline_status(task_id, "pcloud", "done", 100)
 
             # Copy to local folder if requested
             copy_to_local = params.get("copy_to_local", False)
             if copy_to_local and local_destination_path:
+                update_task_pipeline_status(task_id, "local", "running", 0)
                 try:
                     # Build structured destination path
                     local_dest_dir = local_destination_path
@@ -2948,7 +2990,8 @@ def process_worker(params):
                     for f in os.listdir(source_dir):
                         f_path = os.path.join(source_dir, f)
                         if os.path.isfile(f_path) and f != target_filename:
-                            shutil.copy2(f_path, os.path.join(local_dest_dir, f))
+                            if f.startswith(clean_base) or f in ["poster.jpg", "fanart.jpg"]:
+                                shutil.copy2(f_path, os.path.join(local_dest_dir, f))
                     
                     # Copy show-level files for series
                     if metadata_mode == "tv" and show_id and dest_show_dir_outbox and os.path.isdir(dest_show_dir_outbox):
@@ -2964,12 +3007,14 @@ def process_worker(params):
                                     shutil.copy2(src, dest_f)
                     
                     log_message(f"  ✅ Erfolgreich in lokalen Ordner kopiert: {local_dest_dir}")
+                    update_task_pipeline_status(task_id, "local", "done", 100)
                     
                     # Open local folder if setting is enabled
                     if settings.get("open_outbox_finder"):
                         subprocess.run(["open", local_dest_dir])
                 except Exception as e:
                     log_message(f"  ❌ Fehler beim Kopieren in lokalen Ordner: {e}")
+                    update_task_pipeline_status(task_id, "local", "error", 0)
                     all_transfers_successful = False
                     
             # Clean up temp folder OR open it on failure
@@ -2977,8 +3022,8 @@ def process_worker(params):
                 try:
                     shutil.rmtree(temp_dir)
                     log_message("Temporärer Ordner bereinigt.")
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_message(f"  ❌ Fehler beim Bereinigen des temporären Ordners: {e}")
             else:
                 log_message(f"⚠️  Übertragung fehlgeschlagen. Der temporäre Ordner '{temp_dir}' wurde NICHT gelöscht.")
                 # Open temp folder in Finder so the user can access files manually
@@ -5332,7 +5377,8 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                     "metadata": {"status": "pending", "progress": 0},
                     "convert": {"status": "pending", "progress": 0},
                     "nas": {"status": "pending" if sub_copy_to_nas else "skipped", "progress": 0},
-                    "pcloud": {"status": "pending" if sub_copy_to_pcloud else "skipped", "progress": 0}
+                    "pcloud": {"status": "pending" if sub_copy_to_pcloud else "skipped", "progress": 0},
+                    "local": {"status": "pending" if sub_copy_to_local else "skipped", "progress": 0}
                 }
             }
             
@@ -5412,7 +5458,7 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
         search_query = re.sub(r"\s*-\s*$", "", search_query).strip()
         search_query = re.sub(r"\s+", " ", search_query)
         
-        cmd = ["yt-dlp", "--playlist-end", "15", "--dump-json", "--flat-playlist", f"ytsearch15:{search_query}"]
+        cmd = ["yt-dlp", "--playlist-end", "50", "--dump-json", "--flat-playlist", f"ytsearch50:{search_query}"]
         
         try:
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
@@ -5458,14 +5504,21 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             
         settings = load_settings()
         
-        sub_copy_to_nas = True
-        sub_copy_to_pcloud = False
-        sub_copy_to_local = False
-        sub_nas_dest = ""
-        sub_pcloud_dest = ""
-        sub_local_dest = ""
-        
-        if subscription_id:
+        if "copy_to_nas" in params:
+            sub_copy_to_nas = params.get("copy_to_nas", False)
+            sub_copy_to_pcloud = params.get("copy_to_pcloud", False)
+            sub_copy_to_local = params.get("copy_to_local", False)
+            sub_nas_dest = params.get("nas_destination_id", "")
+            sub_pcloud_dest = params.get("pcloud_destination_id", "")
+            sub_local_dest = params.get("local_destination_id", "")
+        elif subscription_id:
+            sub_copy_to_nas = True
+            sub_copy_to_pcloud = False
+            sub_copy_to_local = False
+            sub_nas_dest = ""
+            sub_pcloud_dest = ""
+            sub_local_dest = ""
+            
             subs = settings.get("youtube_subscriptions", [])
             for s in subs:
                 if s.get("id") == subscription_id:
@@ -5476,6 +5529,13 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                     sub_pcloud_dest = s.get("pcloud_destination_id", "")
                     sub_local_dest = s.get("local_destination_id", "")
                     break
+        else:
+            sub_copy_to_nas = True
+            sub_copy_to_pcloud = False
+            sub_copy_to_local = False
+            sub_nas_dest = ""
+            sub_pcloud_dest = ""
+            sub_local_dest = ""
                     
         import uuid
         import time
@@ -5514,7 +5574,8 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                 "metadata": {"status": "pending", "progress": 0},
                 "convert": {"status": "pending", "progress": 0},
                 "nas": {"status": "pending" if sub_copy_to_nas else "skipped", "progress": 0},
-                "pcloud": {"status": "pending" if sub_copy_to_pcloud else "skipped", "progress": 0}
+                "pcloud": {"status": "pending" if sub_copy_to_pcloud else "skipped", "progress": 0},
+                "local": {"status": "pending" if sub_copy_to_local else "skipped", "progress": 0}
             }
         }
         
@@ -5771,6 +5832,7 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
         convert = params.get("convert", False)
         copy_to_nas = params.get("copy_to_nas", True)
         copy_to_pcloud = params.get("copy_to_pcloud", False)
+        copy_to_local = params.get("copy_to_local", False)
         show_id = params.get("show_id")
         movie_id = params.get("movie_id")
         provider = params.get("provider")
@@ -5789,7 +5851,8 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                 "metadata": {"status": "pending" if has_metadata else "skipped", "progress": 0},
                 "convert": {"status": "pending" if convert else "skipped", "progress": 0},
                 "nas": {"status": "pending" if copy_to_nas else "skipped", "progress": 0},
-                "pcloud": {"status": "pending" if copy_to_pcloud else "skipped", "progress": 0}
+                "pcloud": {"status": "pending" if copy_to_pcloud else "skipped", "progress": 0},
+                "local": {"status": "pending" if copy_to_local else "skipped", "progress": 0}
             }
         }
         
@@ -6108,9 +6171,10 @@ def job_queue_worker():
             process_worker(params)
             
             with active_jobs_lock:
-                active_jobs[task_id]["status"] = "done"
-                active_jobs[task_id]["progress"] = 100
-                active_jobs[task_id]["message"] = "Erfolgreich beendet"
+                if active_jobs[task_id]["status"] != "error":
+                    active_jobs[task_id]["status"] = "done"
+                    active_jobs[task_id]["progress"] = 100
+                    active_jobs[task_id]["message"] = "Erfolgreich beendet"
         except Exception as e:
             with active_jobs_lock:
                 active_jobs[task_id]["status"] = "error"

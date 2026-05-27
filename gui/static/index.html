@@ -999,6 +999,34 @@
                         <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:5px;">Name für die fertige Datei (ohne Endung):</label>
                         <input type="text" id="yt-merge-title" style="width:100%;" placeholder="z.B. Die große Doku">
                     </div>
+
+                    <div style="font-weight: 600; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; margin-top: 15px;">Ziel & Transfer:</div>
+                    <div class="options-grid" style="display:flex; flex-direction:column; gap:10px; margin-bottom: 20px;">
+                        <label class="checkbox-container" for="yt-merge-option-copy-nas">
+                            <input type="checkbox" id="yt-merge-option-copy-nas" checked>
+                            <span class="checkmark"></span> Auf NAS kopieren
+                        </label>
+                        <label class="checkbox-container" for="yt-merge-option-copy-pcloud">
+                            <input type="checkbox" id="yt-merge-option-copy-pcloud">
+                            <span class="checkmark"></span> Auch in pCloud sichern
+                        </label>
+                        <label class="checkbox-container" for="yt-merge-option-copy-local">
+                            <input type="checkbox" id="yt-merge-option-copy-local">
+                            <span class="checkmark"></span> In lokalen Ordner speichern
+                        </label>
+                        <div class="form-group" id="yt-merge-nas-destination-container">
+                            <label for="yt-merge-nas-destination">Zielordner (NAS):</label>
+                            <select id="yt-merge-nas-destination" class="form-select" style="width:100%;"></select>
+                        </div>
+                        <div class="form-group hidden" id="yt-merge-pcloud-destination-container" style="margin-top: 5px;">
+                            <label for="yt-merge-pcloud-destination">Zielordner (pCloud):</label>
+                            <select id="yt-merge-pcloud-destination" class="form-select" style="width:100%;"></select>
+                        </div>
+                        <div class="form-group hidden" id="yt-merge-local-destination-container" style="margin-top: 5px;">
+                            <label for="yt-merge-local-destination">Zielordner (Lokal):</label>
+                            <select id="yt-merge-local-destination" class="form-select" style="width:100%;"></select>
+                        </div>
+                    </div>
                     
                     <div style="display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px;">
                         <button class="btn btn-secondary" id="btn-cancel-yt-merge">Abbrechen</button>

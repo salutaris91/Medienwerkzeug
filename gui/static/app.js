@@ -4614,9 +4614,9 @@ async function loadSettings() {
 }
 
 function updateDestinationDropdowns() {
-    const nasSelects = ["movie-nas-destination", "series-nas-destination", "yt-nas-destination", "abo-nas-destination"];
-    const pcloudSelects = ["movie-pcloud-destination", "series-pcloud-destination", "yt-pcloud-destination", "abo-pcloud-destination"];
-    const localSelects = ["yt-local-destination", "abo-local-destination"];
+    const nasSelects = ["movie-nas-destination", "series-nas-destination", "yt-nas-destination", "abo-nas-destination", "yt-merge-nas-destination"];
+    const pcloudSelects = ["movie-pcloud-destination", "series-pcloud-destination", "yt-pcloud-destination", "abo-pcloud-destination", "yt-merge-pcloud-destination"];
+    const localSelects = ["yt-local-destination", "abo-local-destination", "yt-merge-local-destination"];
     
     nasSelects.forEach(selId => {
         const select = document.getElementById(selId);
@@ -4733,7 +4733,10 @@ function setupDestinationToggles() {
         { cb: "yt-option-copy-local", container: "yt-local-destination-container" },
         { cb: "abo-copy-nas", container: "abo-nas-destination-container" },
         { cb: "abo-copy-pcloud", container: "abo-pcloud-destination-container" },
-        { cb: "abo-copy-local", container: "abo-local-destination-container" }
+        { cb: "abo-copy-local", container: "abo-local-destination-container" },
+        { cb: "yt-merge-option-copy-nas", container: "yt-merge-nas-destination-container" },
+        { cb: "yt-merge-option-copy-pcloud", container: "yt-merge-pcloud-destination-container" },
+        { cb: "yt-merge-option-copy-local", container: "yt-merge-local-destination-container" }
     ];
     
     pairs.forEach(({ cb, container }) => {
@@ -5727,6 +5730,9 @@ function renderQueue(jobs) {
                 { key: "nas", label: "NAS-Kopieren" },
                 { key: "pcloud", label: "pCloud" }
             ];
+            if (job.pipeline.local) {
+                steps.push({ key: "local", label: "Lokal-Kopieren" });
+            }
             
             pipelineHtml = `<div class="pipeline-container" style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; gap: 4px; background: rgba(0,0,0,0.25); padding: 8px; border-radius: var(--radius-md); box-sizing: border-box; width: 100%;">`;
             
@@ -6364,6 +6370,47 @@ function openYtMergeModal(initialTitle, initialUrl, initialThumbnail, subId, vid
     
     modal.classList.remove("hidden");
     
+    // Load subscription settings if available
+    let copyToNas = true;
+    let copyToPcloud = false;
+    let copyToLocal = false;
+    let nasDest = "";
+    let pcloudDest = "";
+    let localDest = "";
+    
+    if (subId && currentSettings && currentSettings.youtube_subscriptions) {
+        const sub = currentSettings.youtube_subscriptions.find(s => s.id === subId);
+        if (sub) {
+            copyToNas = sub.copy_to_nas !== false;
+            copyToPcloud = !!sub.copy_to_pcloud;
+            copyToLocal = !!sub.copy_to_local;
+            nasDest = sub.nas_destination_id || sub.destination_id || "";
+            pcloudDest = sub.pcloud_destination_id || "";
+            localDest = sub.local_destination_id || "";
+        }
+    }
+    
+    const cbNas = document.getElementById("yt-merge-option-copy-nas");
+    const cbPcloud = document.getElementById("yt-merge-option-copy-pcloud");
+    const cbLocal = document.getElementById("yt-merge-option-copy-local");
+    
+    if (cbNas) cbNas.checked = copyToNas;
+    if (cbPcloud) cbPcloud.checked = copyToPcloud;
+    if (cbLocal) cbLocal.checked = copyToLocal;
+    
+    // Trigger change event to sync visibility
+    if (cbNas) cbNas.dispatchEvent(new Event("change"));
+    if (cbPcloud) cbPcloud.dispatchEvent(new Event("change"));
+    if (cbLocal) cbLocal.dispatchEvent(new Event("change"));
+    
+    const selNas = document.getElementById("yt-merge-nas-destination");
+    const selPcloud = document.getElementById("yt-merge-pcloud-destination");
+    const selLocal = document.getElementById("yt-merge-local-destination");
+    
+    if (selNas && nasDest) selNas.value = nasDest;
+    if (selPcloud && pcloudDest) selPcloud.value = pcloudDest;
+    if (selLocal && localDest) selLocal.value = localDest;
+    
     // Set default final title (clean up part/episode indicators)
     let cleanTitle = initialTitle;
     const patterns = [
@@ -6588,6 +6635,14 @@ document.addEventListener("DOMContentLoaded", () => {
             btnStart.disabled = true;
             btnStart.textContent = "⌛ Starte Merge...";
             
+            const copyToNas = document.getElementById("yt-merge-option-copy-nas")?.checked ?? false;
+            const copyToPcloud = document.getElementById("yt-merge-option-copy-pcloud")?.checked ?? false;
+            const copyToLocal = document.getElementById("yt-merge-option-copy-local")?.checked ?? false;
+            
+            const nasDest = document.getElementById("yt-merge-nas-destination")?.value || "";
+            const pcloudDest = document.getElementById("yt-merge-pcloud-destination")?.value || "";
+            const localDest = document.getElementById("yt-merge-local-destination")?.value || "";
+            
             try {
                 const res = await fetch("/api/youtube/merge", {
                     method: "POST",
@@ -6597,7 +6652,13 @@ document.addEventListener("DOMContentLoaded", () => {
                         title: finalTitle,
                         subscription_id: mergeSubId,
                         video_ids_to_remove: videoIdsToRemove,
-                        thumbnail: selectedItems[0].thumbnail || ""
+                        thumbnail: selectedItems[0].thumbnail || "",
+                        copy_to_nas: copyToNas,
+                        copy_to_pcloud: copyToPcloud,
+                        copy_to_local: copyToLocal,
+                        nas_destination_id: nasDest,
+                        pcloud_destination_id: pcloudDest,
+                        local_destination_id: localDest
                     })
                 });
                 

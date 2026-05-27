@@ -1231,6 +1231,9 @@ select:focus {
     max-width: 500px;
     text-align: center;
     animation: modal-enter 0.3s ease;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    box-sizing: border-box;
 }
 
 @keyframes modal-enter {
