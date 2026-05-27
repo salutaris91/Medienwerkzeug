@@ -3972,6 +3972,27 @@ async function runToolGeneric(toolType, logMsg, extraParams = {}) {
 // EVENT LISTENERS BINDINGS
 // ==========================================================================
 function initEventListeners() {
+    // Settings Sub-Tabs navigation click listeners
+    const settingsTabButtons = document.querySelectorAll(".settings-tab-btn");
+    settingsTabButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const targetTabId = btn.getAttribute("data-settings-tab");
+            
+            // Toggle active button class
+            settingsTabButtons.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            
+            // Toggle visible tab panel
+            document.querySelectorAll(".settings-tab-panel").forEach(panel => {
+                if (panel.id === `settings-${targetTabId}`) {
+                    panel.classList.remove("hidden");
+                } else {
+                    panel.classList.add("hidden");
+                }
+            });
+        });
+    });
+
     // Refresh & Clean
     document.getElementById("btn-scan-project").addEventListener("click", () => scanProject(currentProject));
     document.getElementById("btn-clean-project").addEventListener("click", cleanCurrentProject);

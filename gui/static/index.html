@@ -573,215 +573,232 @@
                                     <td colspan="6" class="text-center" style="padding: 30px; color: var(--text-muted);">
                                         Keine Verlaufsdaten vorhanden.
                                     </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- STATE: SETTINGS DASHBOARD -->
+                                 <!-- STATE: SETTINGS DASHBOARD -->
             <div id="view-settings" class="view-panel hidden">
                 <div class="card" style="margin-bottom: 25px;">
                     <div style="font-size: 48px; margin-bottom: 10px;">⚙️</div>
                     <h2>Einstellungen</h2>
                     <p class="section-desc" style="margin-bottom: 20px;">Passe die globalen Pfade für das Medienwerkzeug an. Diese Werte werden für das Importieren und Verschieben verwendet.</p>
                     
-                    <div class="form-group" style="margin-bottom: 15px; max-width: 700px;">
-                        <label for="settings-inbox-dir" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Medien Input (Inbox):</label>
-                        <div style="display: flex; gap: 10px;">
-                            <input type="text" id="settings-inbox-dir" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
-                            <button id="btn-settings-browse-inbox" class="btn btn-secondary" aria-label="Inbox-Pfad durchsuchen">🔍</button>
-                            <button id="btn-settings-toggle-inbox" class="btn btn-secondary" title="Im Finder sichtbar/unsichtbar machen" aria-label="Inbox Sichtbarkeit im Finder umschalten">👁️</button>
+                    <!-- Sub-Tabs Navigation -->
+                    <div class="settings-tabs-nav">
+                        <button class="settings-tab-btn active" data-settings-tab="tab-paths">📂 Pfade & Ordner</button>
+                        <button class="settings-tab-btn" data-settings-tab="tab-sync">🔄 Import & Sync</button>
+                        <button class="settings-tab-btn" data-settings-tab="tab-notifications">🔔 Benachrichtigungen</button>
+                        <button class="settings-tab-btn" data-settings-tab="tab-appearance">🎨 Darstellung & Tools</button>
+                    </div>
+
+                    <!-- TAB 1: PATHS & DIRECTORIES -->
+                    <div id="settings-tab-paths" class="settings-tab-panel">
+                        <div class="form-group" style="margin-bottom: 15px; max-width: 700px;">
+                            <label for="settings-inbox-dir" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Medien Input (Inbox):</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="settings-inbox-dir" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
+                                <button id="btn-settings-browse-inbox" class="btn btn-secondary" aria-label="Inbox-Pfad durchsuchen">🔍</button>
+                                <button id="btn-settings-toggle-inbox" class="btn btn-secondary" title="Im Finder sichtbar/unsichtbar machen" aria-label="Inbox Sichtbarkeit im Finder umschalten">👁️</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 15px; max-width: 700px;">
+                            <label for="settings-outbox-dir" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Medien Output (Outbox):</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="settings-outbox-dir" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
+                                <button id="btn-settings-browse-outbox" class="btn btn-secondary" aria-label="Outbox-Pfad durchsuchen">🔍</button>
+                                <button id="btn-settings-toggle-outbox" class="btn btn-secondary" title="Im Finder sichtbar/unsichtbar machen" aria-label="Outbox Sichtbarkeit im Finder umschalten">👁️</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 15px; max-width: 700px;">
+                            <label for="settings-nas-root" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">NAS Wurzelverzeichnis:</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="settings-nas-root" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
+                                <button id="btn-settings-browse-nas" class="btn btn-secondary" aria-label="NAS-Pfad durchsuchen">🔍</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 15px; max-width: 700px;">
+                            <label for="settings-pcloud-dir" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">pCloud Sync-Ordner (lokal):</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="settings-pcloud-dir" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
+                                <button id="btn-settings-browse-pcloud" class="btn btn-secondary" aria-label="pCloud-Pfad durchsuchen">🔍</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 25px; max-width: 700px;">
+                            <span class="form-label-style">Eigene lokale Download-Ordner (YouTube Downloader):</span>
+                            <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 10px;">Diese Ordner erscheinen als Ziel im YouTube-Downloader unter „In lokalen Ordner speichern". Der Input- und Output-Ordner sind automatisch verfügbar.</p>
+                            <div id="settings-local-folders-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom: 10px;">
+                                <!-- Dynamically populated -->
+                            </div>
+                            <button id="btn-settings-add-local-folder" class="btn btn-secondary btn-sm">➕ Neuen Ordner hinzufügen</button>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
+                            <span class="form-label-style">Verarbeitungs-Abschluss (Auto-Finder):</span>
+                            <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Wähle aus, welche Verzeichnisse nach erfolgreicher Verarbeitung automatisch im Finder geöffnet werden sollen.</p>
+                            <div class="options-grid" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; max-width:700px;">
+                                <label class="checkbox-container" for="settings-open-outbox-finder">
+                                    <input type="checkbox" id="settings-open-outbox-finder">
+                                    <span class="checkmark"></span> Output (Outbox) öffnen
+                                </label>
+                                <label class="checkbox-container" for="settings-open-nas-finder">
+                                    <input type="checkbox" id="settings-open-nas-finder">
+                                    <span class="checkmark"></span> NAS-Ordner öffnen
+                                </label>
+                                <label class="checkbox-container" for="settings-open-pcloud-finder">
+                                    <input type="checkbox" id="settings-open-pcloud-finder">
+                                    <span class="checkmark"></span> pCloud-Ordner öffnen
+                                </label>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="form-group" style="margin-bottom: 15px; max-width: 700px;">
-                        <label for="settings-outbox-dir" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Medien Output (Outbox):</label>
-                        <div style="display: flex; gap: 10px;">
-                            <input type="text" id="settings-outbox-dir" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
-                            <button id="btn-settings-browse-outbox" class="btn btn-secondary" aria-label="Outbox-Pfad durchsuchen">🔍</button>
-                            <button id="btn-settings-toggle-outbox" class="btn btn-secondary" title="Im Finder sichtbar/unsichtbar machen" aria-label="Outbox Sichtbarkeit im Finder umschalten">👁️</button>
+                    <!-- TAB 2: IMPORT & SYNC -->
+                    <div id="settings-tab-sync" class="settings-tab-panel hidden">
+                        <div class="form-group" style="margin-bottom: 25px; max-width: 700px;">
+                            <span class="form-label-style">Globale Import-Quellen (z.B. StreamFab):</span>
+                            <div id="settings-import-sources-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom: 10px;">
+                                <!-- Dynamically populated -->
+                            </div>
+                            <button id="btn-settings-add-source" class="btn btn-secondary btn-sm">➕ Neue Quelle hinzufügen</button>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
+                            <span class="form-label-style">Sync-Kategorien (NAS & pCloud):</span>
+                            <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 10px;">Lege fest, welche Optionen beim Klick auf "NAS Syncing" oder "pCloud Syncing" angeboten werden und wohin die Dateien kopiert werden sollen.</p>
+                            <div id="settings-sync-categories-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom: 10px;">
+                                <!-- Dynamically populated -->
+                            </div>
+                            <button id="btn-settings-add-category" class="btn btn-secondary btn-sm">➕ Neue Kategorie hinzufügen</button>
                         </div>
                     </div>
 
-                    <div class="form-group" style="margin-bottom: 15px; max-width: 700px;">
-                        <label for="settings-nas-root" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">NAS Wurzelverzeichnis:</label>
-                        <div style="display: flex; gap: 10px;">
-                            <input type="text" id="settings-nas-root" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
-                            <button id="btn-settings-browse-nas" class="btn btn-secondary" aria-label="NAS-Pfad durchsuchen">🔍</button>
-                        </div>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 15px; max-width: 700px;">
-                        <label for="settings-pcloud-dir" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">pCloud Sync-Ordner (lokal):</label>
-                        <div style="display: flex; gap: 10px;">
-                            <input type="text" id="settings-pcloud-dir" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
-                            <button id="btn-settings-browse-pcloud" class="btn btn-secondary" aria-label="pCloud-Pfad durchsuchen">🔍</button>
-                        </div>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 25px; max-width: 700px;">
-                        <span class="form-label-style">Globale Import-Quellen (z.B. StreamFab):</span>
-                        <div id="settings-import-sources-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom: 10px;">
-                            <!-- Dynamically populated -->
-                        </div>
-                        <button id="btn-settings-add-source" class="btn btn-secondary btn-sm">➕ Neue Quelle hinzufügen</button>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 25px; max-width: 700px;">
-                        <span class="form-label-style">Eigene lokale Download-Ordner (YouTube Downloader):</span>
-                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 10px;">Diese Ordner erscheinen als Ziel im YouTube-Downloader unter „In lokalen Ordner speichern". Der Input- und Output-Ordner sind automatisch verfügbar.</p>
-                        <div id="settings-local-folders-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom: 10px;">
-                            <!-- Dynamically populated -->
-                        </div>
-                        <button id="btn-settings-add-local-folder" class="btn btn-secondary btn-sm">➕ Neuen Ordner hinzufügen</button>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
-                        <span class="form-label-style">Verarbeitungs-Abschluss (Auto-Finder):</span>
-                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Wähle aus, welche Verzeichnisse nach erfolgreicher Verarbeitung automatisch im Finder geöffnet werden sollen.</p>
-                        <div class="options-grid" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; max-width:700px;">
-                            <label class="checkbox-container" for="settings-open-outbox-finder">
-                                <input type="checkbox" id="settings-open-outbox-finder">
-                                <span class="checkmark"></span> Output (Outbox) öffnen
-                            </label>
-                            <label class="checkbox-container" for="settings-open-nas-finder">
-                                <input type="checkbox" id="settings-open-nas-finder">
-                                <span class="checkmark"></span> NAS-Ordner öffnen
-                            </label>
-                            <label class="checkbox-container" for="settings-open-pcloud-finder">
-                                <input type="checkbox" id="settings-open-pcloud-finder">
-                                <span class="checkmark"></span> pCloud-Ordner öffnen
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
-                        <span class="form-label-style">Benachrichtigungen:</span>
-                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Lass dich benachrichtigen, wenn langwierige Konvertierungs- und Übertragungs-Jobs fertiggestellt wurden.</p>
-                        
-                        <div style="display:flex; flex-direction:column; gap:15px; max-width:700px;">
-                            <label class="checkbox-container" for="settings-notify-macos">
-                                <input type="checkbox" id="settings-notify-macos">
-                                <span class="checkmark"></span> macOS Systembenachrichtigung senden
-                            </label>
+                    <!-- TAB 3: NOTIFICATIONS -->
+                    <div id="settings-tab-notifications" class="settings-tab-panel hidden">
+                        <div class="form-group" style="margin-bottom: 25px; max-width: 900px;">
+                            <span class="form-label-style">Benachrichtigungen:</span>
+                            <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Lass dich benachrichtigen, wenn langwierige Konvertierungs- und Übertragungs-Jobs fertiggestellt wurden.</p>
                             
-                            <div style="padding: 10px; border: 1px solid var(--border-glass); border-radius: var(--radius-sm); background: rgba(255,255,255,0.01);">
-                                <label class="checkbox-container" for="settings-notify-telegram" style="margin-bottom:10px;">
-                                    <input type="checkbox" id="settings-notify-telegram">
-                                    <span class="checkmark"></span> Telegram-Nachricht senden
+                            <div style="display:flex; flex-direction:column; gap:15px; max-width:700px;">
+                                <label class="checkbox-container" for="settings-notify-macos">
+                                    <input type="checkbox" id="settings-notify-macos">
+                                    <span class="checkmark"></span> macOS Systembenachrichtigung senden
                                 </label>
-                                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                                    <div style="flex:1; min-width:200px;">
-                                        <label for="settings-telegram-token" style="font-size:11px; color:var(--text-muted);">Bot Token:</label>
-                                        <input type="text" id="settings-telegram-token" style="width:100%;">
-                                    </div>
-                                    <div style="flex:1; min-width:150px;">
-                                        <label style="font-size:11px; color:var(--text-muted);" for="settings-telegram-chat-id">Chat ID:</label>
-                                        <input type="text" id="settings-telegram-chat-id" style="width:100%;">
+                                
+                                <div style="padding: 10px; border: 1px solid var(--border-glass); border-radius: var(--radius-sm); background: rgba(255,255,255,0.01);">
+                                    <label class="checkbox-container" for="settings-notify-telegram" style="margin-bottom:10px;">
+                                        <input type="checkbox" id="settings-notify-telegram">
+                                        <span class="checkmark"></span> Telegram-Nachricht senden
+                                    </label>
+                                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                        <div style="flex:1; min-width:200px;">
+                                            <label for="settings-telegram-token" style="font-size:11px; color:var(--text-muted);">Bot Token:</label>
+                                            <input type="text" id="settings-telegram-token" style="width:100%;">
+                                        </div>
+                                        <div style="flex:1; min-width:150px;">
+                                            <label style="font-size:11px; color:var(--text-muted);" for="settings-telegram-chat-id">Chat ID:</label>
+                                            <input type="text" id="settings-telegram-chat-id" style="width:100%;">
+                                        </div>
                                     </div>
                                 </div>
+                                
+                                <div style="padding: 10px; border: 1px solid var(--border-glass); border-radius: var(--radius-sm); background: rgba(255,255,255,0.01);">
+                                    <label class="checkbox-container" for="settings-notify-whatsapp" style="margin-bottom:10px;">
+                                        <input type="checkbox" id="settings-notify-whatsapp">
+                                        <span class="checkmark"></span> WhatsApp-Nachricht senden (CallMeBot)
+                                    </label>
+                                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                        <div style="flex:1; min-width:200px;">
+                                            <label for="settings-whatsapp-apikey" style="font-size:11px; color:var(--text-muted);">API Key:</label>
+                                            <input type="text" id="settings-whatsapp-apikey" style="width:100%;" placeholder="apikey von CallMeBot">
+                                        </div>
+                                        <div style="flex:1; min-width:150px;">
+                                            <label for="settings-whatsapp-phone" style="font-size:11px; color:var(--text-muted);">Handynummer:</label>
+                                            <input type="text" id="settings-whatsapp-phone" style="width:100%;" placeholder="+49123456789">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style="display:flex; gap:15px; align-items:center; flex-wrap:wrap;">
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <label for="settings-notify-min-size" style="font-size:12px; color:var(--text-muted); margin-bottom:0;">Nur ab einer Job-Größe von:</label>
+                                        <input type="number" id="settings-notify-min-size" min="0" value="10" style="width:70px; padding:4px;">
+                                        <span style="font-size:12px; color:var(--text-muted);">GB</span>
+                                    </div>
+                                    <label class="checkbox-container" for="settings-notify-only-end" style="margin-bottom:0;">
+                                        <input type="checkbox" id="settings-notify-only-end" checked>
+                                        <span class="checkmark"></span> Nur am Ende des gesamten Jobs benachrichtigen
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 4: APPEARANCE & TOOLS -->
+                    <div id="settings-tab-appearance" class="settings-tab-panel hidden">
+                        <div class="form-group" style="margin-bottom: 25px; max-width: 900px;">
+                            <span class="form-label-style">Farbthema (App Design):</span>
+                            <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Passe das Aussehen des Medienwerkzeugs nach deinem Geschmack an.</p>
+                            <select id="settings-app-theme" style="max-width: 320px; padding: 10px 14px; border-radius: var(--radius-md); background: var(--bg-input, rgba(0, 0, 0, 0.4)); border: 1px solid var(--border-glass); color: var(--text-main);">
+                                <option value="deep-space">🌌 Deep Space (Standard)</option>
+                                <option value="nordic-slate">🏔️ Nordic Slate (Kühles Anthrazit)</option>
+                                <option value="amber-warmth">🍂 Amber Warmth (Gemütliches Braun)</option>
+                                <option value="apple-silver">🍎 Apple Silver (Edles Silber-Weiß)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
+                            <span class="form-label-style">Witz des Tages (Flachwitze):</span>
+                            <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Blende Witze nach Fertigstellung von Aufgaben ein.</p>
+                            <label class="checkbox-container" for="settings-show-jokes">
+                                <input type="checkbox" id="settings-show-jokes" checked>
+                                <span class="checkmark"></span> Flachwitze / Dad Jokes einblenden
+                            </label>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
+                            <span class="form-label-style">Zitat des Tages:</span>
+                            <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Blende ein inspirierendes Zitat beim Programmstart ein.</p>
+                            <label class="checkbox-container" for="settings-show-quote">
+                                <input type="checkbox" id="settings-show-quote" checked>
+                                <span class="checkmark"></span> Zitat beim Starten der App einblenden
+                            </label>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
+                            <span class="form-label-style">Abhängigkeiten & CLI-Tools:</span>
+                            <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Prüfe systemkritische Tools wie yt-dlp, rclone, ffmpeg und deno auf installierte Versionen und neue Updates.</p>
+                            
+                            <div style="display: flex; align-items: center; justify-content: space-between; max-width: 700px; margin-bottom: 20px; gap: 15px; flex-wrap: wrap;">
+                                <label for="settings-check-dependency-updates" style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                                    <input type="checkbox" id="settings-check-dependency-updates" style="width:16px; height:16px;">
+                                    <span>Abhängigkeiten beim Start auf Updates prüfen</span>
+                                </label>
+                                <button id="btn-check-dependencies" class="btn btn-secondary btn-sm" style="display: flex; align-items: center; gap: 5px; padding: 6px 12px;">
+                                    🔄 Jetzt prüfen
+                                </button>
                             </div>
                             
-                            <div style="padding: 10px; border: 1px solid var(--border-glass); border-radius: var(--radius-sm); background: rgba(255,255,255,0.01);">
-                                <label class="checkbox-container" for="settings-notify-whatsapp" style="margin-bottom:10px;">
-                                    <input type="checkbox" id="settings-notify-whatsapp">
-                                    <span class="checkmark"></span> WhatsApp-Nachricht senden (CallMeBot)
-                                </label>
-                                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                                    <div style="flex:1; min-width:200px;">
-                                        <label for="settings-whatsapp-apikey" style="font-size:11px; color:var(--text-muted);">API Key:</label>
-                                        <input type="text" id="settings-whatsapp-apikey" style="width:100%;" placeholder="apikey von CallMeBot">
-                                    </div>
-                                    <div style="flex:1; min-width:150px;">
-                                        <label for="settings-whatsapp-phone" style="font-size:11px; color:var(--text-muted);">Handynummer:</label>
-                                        <input type="text" id="settings-whatsapp-phone" style="width:100%;" placeholder="+49123456789">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div style="display:flex; gap:15px; align-items:center; flex-wrap:wrap;">
-                                <div style="display:flex; align-items:center; gap:8px;">
-                                    <label for="settings-notify-min-size" style="font-size:12px; color:var(--text-muted); margin-bottom:0;">Nur ab einer Job-Größe von:</label>
-                                    <input type="number" id="settings-notify-min-size" min="0" value="10" style="width:70px; padding:4px;">
-                                    <span style="font-size:12px; color:var(--text-muted);">GB</span>
-                                </div>
-                                <label class="checkbox-container" for="settings-notify-only-end" style="margin-bottom:0;">
-                                    <input type="checkbox" id="settings-notify-only-end" checked>
-                                    <span class="checkmark"></span> Nur am Ende des gesamten Jobs benachrichtigen
-                                </label>
+                            <!-- Status Grid Container -->
+                            <div id="dependency-status-list" class="dependency-status-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; max-width: 900px;">
+                                <!-- Dynamically populated -->
                             </div>
                         </div>
-                    </div>
 
-                    <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
-                        <span class="form-label-style">Farbthema (App Design):</span>
-                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Passe das Aussehen des Medienwerkzeugs nach deinem Geschmack an.</p>
-                        <select id="settings-app-theme" style="max-width: 320px; padding: 10px 14px; border-radius: var(--radius-md); background: var(--bg-input, rgba(0, 0, 0, 0.4)); border: 1px solid var(--border-glass); color: var(--text-main);">
-                            <option value="deep-space">🌌 Deep Space (Standard)</option>
-                            <option value="nordic-slate">🏔️ Nordic Slate (Kühles Anthrazit)</option>
-                            <option value="amber-warmth">🍂 Amber Warmth (Gemütliches Braun)</option>
-                            <option value="apple-silver">🍎 Apple Silver (Edles Silber-Weiß)</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
-                        <span class="form-label-style">Witz des Tages (Flachwitze):</span>
-                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Blende Witze nach Fertigstellung von Aufgaben ein.</p>
-                        <label class="checkbox-container" for="settings-show-jokes">
-                            <input type="checkbox" id="settings-show-jokes" checked>
-                            <span class="checkmark"></span> Flachwitze / Dad Jokes einblenden
-                        </label>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
-                        <span class="form-label-style">Zitat des Tages:</span>
-                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Blende ein inspirierendes Zitat beim Programmstart ein.</p>
-                        <label class="checkbox-container" for="settings-show-quote">
-                            <input type="checkbox" id="settings-show-quote" checked>
-                            <span class="checkmark"></span> Zitat beim Starten der App einblenden
-                        </label>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
-                        <span class="form-label-style">Sync-Kategorien (NAS & pCloud):</span>
-                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 10px;">Lege fest, welche Optionen beim Klick auf "NAS Syncing" or "pCloud Syncing" angeboten werden und wohin die Dateien kopiert werden sollen.</p>
-                        <div id="settings-sync-categories-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom: 10px;">
-                            <!-- Dynamically populated -->
-                        </div>
-                        <button id="btn-settings-add-category" class="btn btn-secondary btn-sm">➕ Neue Kategorie hinzufügen</button>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
-                        <span class="form-label-style">Abhängigkeiten & CLI-Tools:</span>
-                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Prüfe systemkritische Tools wie yt-dlp, rclone, ffmpeg und deno auf installierte Versionen und neue Updates.</p>
-                        
-                        <div style="display: flex; align-items: center; justify-content: space-between; max-width: 700px; margin-bottom: 20px; gap: 15px; flex-wrap: wrap;">
-                            <label for="settings-check-dependency-updates" style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-                                <input type="checkbox" id="settings-check-dependency-updates" style="width:16px; height:16px;">
-                                <span>Abhängigkeiten beim Start auf Updates prüfen</span>
-                            </label>
-                            <button id="btn-check-dependencies" class="btn btn-secondary btn-sm" style="display: flex; align-items: center; gap: 5px; padding: 6px 12px;">
-                                🔄 Jetzt prüfen
+                        <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
+                            <span class="form-label-style">System-Aktionen:</span>
+                            <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Starte den Python-Server neu, falls du Code-Änderungen eingespielt hast oder der Server blockiert ist.</p>
+                            <button id="btn-restart-server" class="btn btn-danger" style="display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: var(--radius-sm);">
+                                🔄 Server neu starten
                             </button>
                         </div>
-                        
-                        <!-- Status Grid Container -->
-                        <div id="dependency-status-list" class="dependency-status-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; max-width: 900px;">
-                            <!-- Dynamically populated -->
-                        </div>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
-                        <span class="form-label-style">System-Aktionen:</span>
-                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Starte den Python-Server neu, falls du Code-Änderungen eingespielt hast oder der Server blockiert ist.</p>
-                        <button id="btn-restart-server" class="btn btn-danger" style="display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: var(--radius-sm);">
-                            🔄 Server neu starten
-                        </button>
                     </div>
 
                     <div style="max-width: 700px; display: flex; justify-content: flex-end; padding-top: 15px; border-top: 1px solid var(--border-glass);">
+                        <button class="btn btn-accent btn-lg" id="btn-save-settings" style="width: 200px;">💾 Speichern</button>
+                    </div>
+                </div>
+            </div>tent: flex-end; padding-top: 15px; border-top: 1px solid var(--border-glass);">
                         <button class="btn btn-accent btn-lg" id="btn-save-settings" style="width: 200px;">💾 Speichern</button>
                     </div>
                 </div>
