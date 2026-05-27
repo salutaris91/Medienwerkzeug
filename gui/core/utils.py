@@ -164,7 +164,10 @@ def save_konv_history(history_data):
 SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "settings.json")
 settings_lock = threading.Lock()
 
+_cached_settings = None
+
 def load_settings():
+    global _cached_settings
     default_settings = {
         "inbox_dir": os.path.expanduser("~/Downloads/Medien Input"),
         "outbox_dir": os.path.expanduser("~/Downloads/Medien Output"),
@@ -185,6 +188,8 @@ def load_settings():
         "notify_min_size": 10,
         "notify_only_end": True,
         "show_jokes": True,
+        "show_quote": True,
+        "app_theme": "deep-space",
         "sync_categories": [
             {"id": "1", "name": "Filme", "nas_sub": "/Filme", "pcloud_remote": "pcloud:03_Filme"},
             {"id": "2", "name": "Serien", "nas_sub": "/Serien", "pcloud_remote": "pcloud:04_Serien"},
@@ -195,7 +200,17 @@ def load_settings():
         ],
         "youtube_subscriptions": []
     }
+    
+    # Check import sources in default settings to match what might have been set
+    # Wait, let's keep the exact original default_settings dictionary values to prevent changes in default values.
+    # The original default_settings was:
+    #     "import_sources": [os.path.expanduser("~/Documents/StreamFab/StreamFab")],
+    # Let's restore that exactly.
     with settings_lock:
+        if _cached_settings is not None:
+            import copy
+            return copy.deepcopy(_cached_settings)
+            
         if os.path.exists(SETTINGS_FILE):
             try:
                 with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
@@ -203,16 +218,23 @@ def load_settings():
                     for k, v in default_settings.items():
                         if k not in settings:
                             settings[k] = v
-                    return settings
+                    _cached_settings = settings
+                    import copy
+                    return copy.deepcopy(_cached_settings)
             except Exception:
                 return default_settings
-        return default_settings
+        _cached_settings = default_settings
+        import copy
+        return copy.deepcopy(_cached_settings)
 
 def save_settings(settings):
+    global _cached_settings
     with settings_lock:
         try:
             with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
                 json.dump(settings, f, indent=4, ensure_ascii=False)
+            import copy
+            _cached_settings = copy.deepcopy(settings)
             return True
         except Exception:
             return False

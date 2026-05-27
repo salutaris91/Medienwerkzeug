@@ -3,8 +3,16 @@ import json
 import urllib.request
 import urllib.parse
 import re
-
 import os
+import time
+import xml.sax.saxutils
+
+def escape_xml(s):
+    if s is None:
+        return ""
+    # Standard XML escaping for &, <, >
+    # Also escape double/single quotes to be safe in attributes/text
+    return xml.sax.saxutils.escape(str(s), {'"': '&quot;', "'": '&apos;'})
 
 # --- .env Datei parsen (Hausregel #1: Keine Secrets im Code) ---
 env_path = os.path.join(os.path.dirname(__file__), '.env')
@@ -18,10 +26,13 @@ if os.path.exists(env_path):
 
 TVDB_API_KEY = os.environ.get("TVDB_API_KEY", "")
 tvdb_token = None
+tvdb_token_time = 0
 
 def get_tvdb_token():
-    global tvdb_token
-    if tvdb_token: return tvdb_token
+    global tvdb_token, tvdb_token_time
+    now = time.time()
+    if tvdb_token and (now - tvdb_token_time < 12 * 3600):
+        return tvdb_token
     try:
         url = "https://api4.thetvdb.com/v4/login"
         data = json.dumps({"apikey": TVDB_API_KEY}).encode('utf-8')
@@ -29,6 +40,7 @@ def get_tvdb_token():
         with urllib.request.urlopen(req) as response:
             res = json.loads(response.read().decode())
             tvdb_token = res.get('data', {}).get('token')
+            tvdb_token_time = time.time()
             return tvdb_token
     except urllib.error.URLError as e:
         print(f"[TVDB Login Error] Netzwerk/Timeout Fehler: {e}", file=sys.stderr)
@@ -580,13 +592,13 @@ def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=
             actors.append(actor_name)
             
     xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<movie>\n  <lockdata>true</lockdata>\n'
-    xml += f"  <title>{title.replace('&', '&amp;')}</title>\n"
-    xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
-    xml += f"  <year>{year}</year>\n"
+    xml += f"  <title>{escape_xml(title)}</title>\n"
+    xml += f"  <plot>{escape_xml(plot)}</plot>\n"
+    xml += f"  <year>{escape_xml(year)}</year>\n"
     
     for a in actors[:15]:
         xml += "  <actor>\n"
-        xml += f"    <name>{a.replace('&', '&amp;')}</name>\n"
+        xml += f"    <name>{escape_xml(a)}</name>\n"
         xml += "  </actor>\n"
     xml += "</movie>\n"
     
@@ -619,11 +631,11 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<movie>\n  <lockdata>true</lockdata>\n'
-            xml += f"  <title>{title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+            xml += f"  <title>{escape_xml(title)}</title>\n"
             if plot:
-                xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+                xml += f"  <plot>{escape_xml(plot)}</plot>\n"
             if year:
-                xml += f"  <year>{year}</year>\n"
+                xml += f"  <year>{escape_xml(year)}</year>\n"
             xml += "  <mw_provider>mediathek</mw_provider>\n"
             xml += '</movie>\n'
             with open(nfo_path, 'w', encoding='utf-8') as f:
@@ -646,11 +658,11 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<movie>\n  <lockdata>true</lockdata>\n'
-            xml += f"  <title>{title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+            xml += f"  <title>{escape_xml(title)}</title>\n"
             if plot:
-                xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+                xml += f"  <plot>{escape_xml(plot)}</plot>\n"
             if year:
-                xml += f"  <year>{year}</year>\n"
+                xml += f"  <year>{escape_xml(year)}</year>\n"
             xml += "  <mw_provider>manual</mw_provider>\n"
             xml += '</movie>\n'
             with open(nfo_path, 'w', encoding='utf-8') as f:
@@ -685,13 +697,13 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             if needs_nfo:
                 xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 xml += '<movie>\n  <lockdata>true</lockdata>\n'
-                xml += f"  <title>{title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+                xml += f"  <title>{escape_xml(title)}</title>\n"
                 if plot:
-                    xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+                    xml += f"  <plot>{escape_xml(plot)}</plot>\n"
                 if year:
-                    xml += f"  <year>{year}</year>\n"
+                    xml += f"  <year>{escape_xml(year)}</year>\n"
                 if studio:
-                    xml += f"  <studio>{studio.replace('&', '&amp;').replace('<', '&lt;')}</studio>\n"
+                    xml += f"  <studio>{escape_xml(studio)}</studio>\n"
                 xml += "  <mw_provider>ytdlp</mw_provider>\n"
                 xml += '</movie>\n'
                 with open(nfo_path, 'w', encoding='utf-8') as f:
@@ -752,29 +764,29 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<movie>\n  <lockdata>true</lockdata>\n'
-        xml += f"  <title>{title.replace('&', '&amp;')}</title>\n"
-        xml += f"  <originaltitle>{data.get('original_title', '').replace('&', '&amp;')}</originaltitle>\n"
-        xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+        xml += f"  <title>{escape_xml(title)}</title>\n"
+        xml += f"  <originaltitle>{escape_xml(data.get('original_title', ''))}</originaltitle>\n"
+        xml += f"  <plot>{escape_xml(plot)}</plot>\n"
         if fsk:
             xml += f"  <mpaa>FSK {fsk}</mpaa>\n"
         for pc in data.get('production_companies', []):
             if pc.get('name'):
-                xml += f"  <studio>{pc.get('name').replace('&', '&amp;')}</studio>\n"
-        xml += f"  <year>{year}</year>\n"
+                xml += f"  <studio>{escape_xml(pc.get('name'))}</studio>\n"
+        xml += f"  <year>{escape_xml(year)}</year>\n"
         if data.get('release_date'):
-            xml += f"  <premiered>{data.get('release_date', '')}</premiered>\n"
+            xml += f"  <premiered>{escape_xml(data.get('release_date', ''))}</premiered>\n"
         xml += f"  <rating>{data.get('vote_average', 0)}</rating>\n"
         if studio:
-            xml += f"  <studio>{studio.replace('&', '&amp;').replace('<', '&lt;')}</studio>\n"
+            xml += f"  <studio>{escape_xml(studio)}</studio>\n"
         xml += f"  <tmdbid>{tmdb_id}</tmdbid>\n"
         
         for g in data.get('genres', []):
-            xml += f"  <genre>{g.get('name', '')}</genre>\n"
+            xml += f"  <genre>{escape_xml(g.get('name', ''))}</genre>\n"
             
         for c in data.get('credits', {}).get('cast', [])[:15]:
             xml += "  <actor>\n"
-            xml += f"    <name>{c.get('name', '').replace('&', '&amp;')}</name>\n"
-            xml += f"    <role>{c.get('character', '').replace('&', '&amp;')}</role>\n"
+            xml += f"    <name>{escape_xml(c.get('name', ''))}</name>\n"
+            xml += f"    <role>{escape_xml(c.get('character', ''))}</role>\n"
             if c.get('profile_path'):
                 xml += f"    <thumb>https://image.tmdb.org/t/p/w500{c.get('profile_path')}</thumb>\n"
             xml += "  </actor>\n"
@@ -1071,6 +1083,8 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
             meta = {"title": show_id or "Manuelle Serie", "plot": "", "year": ""}
         
         nfo_path = os.path.join(target_folder, "tvshow.nfo")
+        if os.path.exists(nfo_path):
+            return {"nfo": False, "poster": False, "fanart": False, "msg": "tvshow.nfo existiert bereits"}
         title = meta.get("title", "Manuelle Serie")
         plot = meta.get("plot", "")
         year = meta.get("year", "")
@@ -1081,11 +1095,11 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
-        xml += f"  <title>{title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+        xml += f"  <title>{escape_xml(title)}</title>\n"
         if plot:
-            xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+            xml += f"  <plot>{escape_xml(plot)}</plot>\n"
         if year:
-            xml += f"  <year>{year}</year>\n"
+            xml += f"  <year>{escape_xml(year)}</year>\n"
         xml += "  <mw_provider>manual</mw_provider>\n"
         xml += '</tvshow>\n'
         with open(nfo_path, 'w', encoding='utf-8') as f:
@@ -1094,6 +1108,8 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         
     if provider == "mediathek":
         nfo_path = os.path.join(target_folder, "tvshow.nfo")
+        if os.path.exists(nfo_path):
+            return {"nfo": False, "poster": False, "fanart": False, "msg": "tvshow.nfo existiert bereits"}
         title = show_id
         plot = ""
         year = ""
@@ -1104,11 +1120,11 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
             
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
-        xml += f"  <title>{title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+        xml += f"  <title>{escape_xml(title)}</title>\n"
         if plot:
-            xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+            xml += f"  <plot>{escape_xml(plot)}</plot>\n"
         if year:
-            xml += f"  <year>{year}</year>\n"
+            xml += f"  <year>{escape_xml(year)}</year>\n"
         xml += f"  <mw_provider>mediathek</mw_provider>\n"
         xml += f"  <mw_showid>{show_id}</mw_showid>\n"
         xml += '</tvshow>\n'
@@ -1118,6 +1134,8 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         
     if provider == "ytdlp":
         nfo_path = os.path.join(target_folder, "tvshow.nfo")
+        if os.path.exists(nfo_path):
+            return {"nfo": False, "poster": False, "fanart": False, "msg": "tvshow.nfo existiert bereits"}
         entries = fetch_ytdlp_url_metadata(show_id)
         title = "YouTube/Mediathek Serie"
         plot = ""
@@ -1132,9 +1150,9 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
             
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
-        xml += f"  <title>{title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+        xml += f"  <title>{escape_xml(title)}</title>\n"
         if plot:
-            xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+            xml += f"  <plot>{escape_xml(plot)}</plot>\n"
         if year:
             xml += f"  <year>{year}</year>\n"
         xml += "  <mw_provider>ytdlp</mw_provider>\n"
@@ -1198,29 +1216,29 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
                 
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
-            xml += f"  <title>{title.replace('&', '&amp;')}</title>\n"
-            xml += f"  <originaltitle>{original_title.replace('&', '&amp;')}</originaltitle>\n"
-            xml += f"  <plot>{plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
-            xml += f"  <year>{year}</year>\n"
-            xml += f"  <premiered>{data.get('firstAired', '')}</premiered>\n"
+            xml += f"  <title>{escape_xml(title)}</title>\n"
+            xml += f"  <originaltitle>{escape_xml(original_title)}</originaltitle>\n"
+            xml += f"  <plot>{escape_xml(plot)}</plot>\n"
+            xml += f"  <year>{escape_xml(year)}</year>\n"
+            xml += f"  <premiered>{escape_xml(data.get('firstAired', ''))}</premiered>\n"
             xml += f"  <rating>{data.get('score', 0)}</rating>\n"
             status = data.get('status', {}).get('name') if isinstance(data.get('status'), dict) else ''
             if status:
-                xml += f"  <status>{status}</status>\n"
+                xml += f"  <status>{escape_xml(status)}</status>\n"
             if fsk:
                 xml += f"  <mpaa>FSK {fsk}</mpaa>\n"
             for comp in data.get('companies', []):
                 if comp.get('name'):
-                    xml += f"  <studio>{comp.get('name').replace('&', '&amp;')}</studio>\n"
+                    xml += f"  <studio>{escape_xml(comp.get('name'))}</studio>\n"
             xml += f"  <tvdbid>{show_id}</tvdbid>\n"
             xml += f"  <mw_provider>{provider}</mw_provider>\n"
             xml += f"  <mw_showid>{show_id}</mw_showid>\n"
             for g in data.get('genres', []):
-                xml += f"  <genre>{g.get('name', '')}</genre>\n"
+                xml += f"  <genre>{escape_xml(g.get('name', ''))}</genre>\n"
             for c in data.get('characters', [])[:15]:
                 xml += "  <actor>\n"
-                xml += f"    <name>{c.get('personName', '').replace('&', '&amp;')}</name>\n"
-                xml += f"    <role>{c.get('name', '').replace('&', '&amp;')}</role>\n"
+                xml += f"    <name>{escape_xml(c.get('personName', ''))}</name>\n"
+                xml += f"    <role>{escape_xml(c.get('name', ''))}</role>\n"
                 if c.get('image'):
                     xml += f"    <thumb>{c.get('image')}</thumb>\n"
                 xml += "  </actor>\n"
@@ -1264,28 +1282,28 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
             
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
-        xml += f"  <title>{data.get('name', '').replace('&', '&amp;')}</title>\n"
-        xml += f"  <originaltitle>{data.get('original_name', '').replace('&', '&amp;')}</originaltitle>\n"
-        xml += f"  <plot>{plot.replace('&', '&amp;')}</plot>\n"
-        xml += f"  <year>{year}</year>\n"
-        xml += f"  <premiered>{data.get('first_air_date', '')}</premiered>\n"
+        xml += f"  <title>{escape_xml(data.get('name', ''))}</title>\n"
+        xml += f"  <originaltitle>{escape_xml(data.get('original_name', ''))}</originaltitle>\n"
+        xml += f"  <plot>{escape_xml(plot)}</plot>\n"
+        xml += f"  <year>{escape_xml(year)}</year>\n"
+        xml += f"  <premiered>{escape_xml(data.get('first_air_date', ''))}</premiered>\n"
         xml += f"  <rating>{data.get('vote_average', 0)}</rating>\n"
         if data.get('status'):
-            xml += f"  <status>{data.get('status')}</status>\n"
+            xml += f"  <status>{escape_xml(data.get('status'))}</status>\n"
         if fsk:
             xml += f"  <mpaa>FSK {fsk}</mpaa>\n"
         for net in data.get('networks', []):
             if net.get('name'):
-                xml += f"  <studio>{net.get('name').replace('&', '&amp;')}</studio>\n"
+                xml += f"  <studio>{escape_xml(net.get('name'))}</studio>\n"
         xml += f"  <tmdbid>{show_id}</tmdbid>\n"
         xml += f"  <mw_provider>{provider}</mw_provider>\n"
         xml += f"  <mw_showid>{show_id}</mw_showid>\n"
         for g in data.get('genres', []):
-            xml += f"  <genre>{g.get('name', '')}</genre>\n"
+            xml += f"  <genre>{escape_xml(g.get('name', ''))}</genre>\n"
         for c in data.get('credits', {}).get('cast', [])[:15]:
             xml += "  <actor>\n"
-            xml += f"    <name>{c.get('name', '').replace('&', '&amp;')}</name>\n"
-            xml += f"    <role>{c.get('character', '').replace('&', '&amp;')}</role>\n"
+            xml += f"    <name>{escape_xml(c.get('name', ''))}</name>\n"
+            xml += f"    <role>{escape_xml(c.get('character', ''))}</role>\n"
             if c.get('profile_path'):
                 xml += f"    <thumb>https://image.tmdb.org/t/p/w500{c.get('profile_path')}</thumb>\n"
             xml += "  </actor>\n"
@@ -1340,11 +1358,11 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
         if needs_nfo:
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
-            xml += f"  <title>{ep_title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+            xml += f"  <title>{escape_xml(ep_title)}</title>\n"
             xml += f"  <season>{nfo_season}</season>\n"
             xml += f"  <episode>{ep_num}</episode>\n"
             if ep_plot:
-                xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+                xml += f"  <plot>{escape_xml(ep_plot)}</plot>\n"
             if ep_aired:
                 xml += f"  <aired>{ep_aired}</aired>\n"
             xml += '</episodedetails>\n'
@@ -1366,11 +1384,11 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                 
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
-            xml += f"  <title>{ep_title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+            xml += f"  <title>{escape_xml(ep_title)}</title>\n"
             xml += f"  <season>{nfo_season}</season>\n"
             xml += f"  <episode>{nfo_episode}</episode>\n"
             if ep_plot:
-                xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+                xml += f"  <plot>{escape_xml(ep_plot)}</plot>\n"
             if ep_aired:
                 xml += f"  <aired>{ep_aired}</aired>\n"
             xml += '</episodedetails>\n'
@@ -1420,11 +1438,11 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             if needs_nfo:
                 xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
-                xml += f"  <title>{ep_title.replace('&', '&amp;').replace('<', '&lt;')}</title>\n"
+                xml += f"  <title>{escape_xml(ep_title)}</title>\n"
                 xml += f"  <season>{nfo_season}</season>\n"
                 xml += f"  <episode>{nfo_episode}</episode>\n"
                 if ep_plot:
-                    xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+                    xml += f"  <plot>{escape_xml(ep_plot)}</plot>\n"
                 if ep_aired:
                     xml += f"  <aired>{ep_aired}</aired>\n"
                 xml += '</episodedetails>\n'
@@ -1546,13 +1564,12 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
             if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
             
-        if needs_nfo:
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
-            xml += f"  <title>{ep_title.replace('&', '&amp;')}</title>\n"
+            xml += f"  <title>{escape_xml(ep_title)}</title>\n"
             xml += f"  <season>{nfo_season}</season>\n"
             xml += f"  <episode>{nfo_episode}</episode>\n"
-            xml += f"  <plot>{ep_plot.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+            xml += f"  <plot>{escape_xml(ep_plot)}</plot>\n"
             if ep_aired:
                 xml += f"  <aired>{ep_aired}</aired>\n"
             xml += f"  <rating>{ep_data.get('score', 0)}</rating>\n"
@@ -1610,10 +1627,10 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
-        xml += f"  <title>{ep_title.replace('&', '&amp;')}</title>\n"
+        xml += f"  <title>{escape_xml(ep_title)}</title>\n"
         xml += f"  <season>{nfo_season}</season>\n"
         xml += f"  <episode>{nfo_episode}</episode>\n"
-        xml += f"  <plot>{ep_plot.replace('&', '&amp;')}</plot>\n"
+        xml += f"  <plot>{escape_xml(ep_plot)}</plot>\n"
         if ep_aired:
             xml += f"  <aired>{ep_aired}</aired>\n"
         xml += f"  <rating>{data.get('vote_average', 0)}</rating>\n"
@@ -1641,11 +1658,11 @@ def generate_youtube_nfo(json_path, nfo_path, nfo_type):
     except Exception as e:
         return {"error": str(e)}
         
-    title = data.get('title', '').replace('&', '&amp;').replace('<', '&lt;')
-    plot = data.get('description', '').replace('&', '&amp;').replace('<', '&lt;')
+    title = escape_xml(data.get('title', ''))
+    plot = escape_xml(data.get('description', ''))
     year = data.get('upload_date', '')[:4] if data.get('upload_date') else ''
     premiered = f"{year}-{data['upload_date'][4:6]}-{data['upload_date'][6:8]}" if len(data.get('upload_date', '')) == 8 else ''
-    channel = data.get('uploader', '').replace('&', '&amp;').replace('<', '&lt;')
+    channel = escape_xml(data.get('uploader', ''))
     
     xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
     if nfo_type == "movie":
@@ -2147,6 +2164,9 @@ def fetch_ytdlp_url_metadata(url):
                     except Exception:
                         pass
                         
+        if len(YTDLP_CACHE) >= 100:
+            first_key = next(iter(YTDLP_CACHE))
+            YTDLP_CACHE.pop(first_key, None)
         YTDLP_CACHE[url] = entries
         return entries
     except Exception as e:

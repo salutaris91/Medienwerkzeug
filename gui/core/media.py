@@ -108,11 +108,15 @@ def konvertierung_schaetzen(filepath, quality, codec="hevc"):
     # Fallback to history if test encode failed
     return get_historical_ratio(quality, codec)
 
-def add_conversion_to_history(quality, codec, ratio):
+def add_conversion_to_history(quality, codec, ratio, size_in=None, size_out=None):
+    import time
     history = utils.load_konv_history()
     history.append({
         "quality": int(quality) if str(quality).isdigit() else quality,
         "codec": codec,
-        "ratio": round(ratio, 4)
+        "ratio": round(ratio, 4),
+        "size_in": size_in,
+        "size_out": size_out,
+        "timestamp": time.time()
     })
     utils.save_konv_history(history)

@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Medienwerkzeug - Automatisches Umbennen, Konvertieren und Kopieren von Filmen und Serien auf das NAS.">
+    <meta name="color-scheme" content="dark">
     <title>Medienwerkzeug v5.0 (Master-Detail)</title>
     <link rel="stylesheet" href="style.css?v=26">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -43,13 +45,13 @@
     <div class="master-detail-layout">
         
         <!-- ==================== LEFT SIDEBAR (MASTER) ==================== -->
-        <aside class="master-sidebar">
+        <nav class="master-sidebar" aria-label="Hauptnavigation">
             <button class="btn btn-primary" style="width: 100%; margin-bottom: 20px; font-weight: 600;" id="master-btn-youtube">
                 ➕ Neues YouTube Video
             </button>
 
             <div class="sidebar-section">
-                <h3>Projektordner</h3>
+                <h2>Projektordner</h2>
                 <p class="section-desc" style="font-size:12px; margin-bottom:10px;">Medien Input / Streamfab</p>
                 <div class="project-list" id="project-list-container">
                     <div class="loading-spinner"></div>
@@ -57,24 +59,27 @@
             </div>
 
             <div class="sidebar-section" style="margin-top: 60px;">
-                <h3>System</h3>
+                <h2>System</h2>
                 <div class="nav-list" style="margin-top: 10px;">
-                    <div class="project-item" id="nav-tools-dashboard" style="margin-bottom: 10px;">
+                    <button class="project-item" id="nav-tools-dashboard" style="margin-bottom: 10px; width: 100%; border: 1px solid var(--border-glass); text-align: left; font-family: inherit; color: inherit;">
                         <span class="project-item-name">🛠️ Werkzeuge</span>
-                    </div>
-                    <div class="project-item" id="nav-youtube-abos" style="margin-bottom: 10px;">
+                    </button>
+                    <button class="project-item" id="nav-dashboard" style="margin-bottom: 10px; width: 100%; border: 1px solid var(--border-glass); text-align: left; font-family: inherit; color: inherit;">
+                        <span class="project-item-name">📊 Dashboard</span>
+                    </button>
+                    <button class="project-item" id="nav-youtube-abos" style="margin-bottom: 10px; width: 100%; border: 1px solid var(--border-glass); text-align: left; font-family: inherit; color: inherit;">
                         <span class="project-item-name">📺 YouTube Abos</span>
-                    </div>
-                    <div class="project-item" id="nav-settings-dashboard" style="margin-bottom: 10px;">
+                    </button>
+                    <button class="project-item" id="nav-settings-dashboard" style="margin-bottom: 10px; width: 100%; border: 1px solid var(--border-glass); text-align: left; font-family: inherit; color: inherit;">
                         <span class="project-item-name">⚙️ Einstellungen</span>
-                    </div>
-                    <div class="project-item" id="nav-queue-dashboard" style="margin-bottom: 10px;">
+                    </button>
+                    <button class="project-item" id="nav-queue-dashboard" style="margin-bottom: 10px; width: 100%; border: 1px solid var(--border-glass); text-align: left; font-family: inherit; color: inherit; display: flex; justify-content: space-between; align-items: center;">
                         <span class="project-item-name">📋 Warteschlange</span>
                         <span id="queue-badge" class="badge hidden" style="background:var(--accent); color:white; border-radius:12px; padding:2px 8px; font-size:12px; margin-left:auto; display:inline-block;">0</span>
-                    </div>
+                    </button>
                 </div>
             </div>
-        </aside>
+        </nav>
 
         <!-- ==================== RIGHT MAIN AREA (DETAIL) ==================== -->
         <main class="detail-content">
@@ -120,13 +125,13 @@
                 </div>
 
                 <!-- Modus Auswahl Kacheln -->
-                <div id="folder-mode-selector" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:20px; margin-bottom:30px;">
-                    <div class="mode-card" id="mode-movie">
+                <div id="folder-mode-selector" role="radiogroup" aria-label="Verarbeitungsmodus" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:20px; margin-bottom:30px;">
+                    <div class="mode-card" id="mode-movie" role="radio" aria-checked="false" tabindex="0">
                         <div class="mode-icon">🎬</div>
                         <h3>Film</h3>
                         <p>Einzelfilm verarbeiten (TMDb)</p>
                     </div>
-                    <div class="mode-card" id="mode-series">
+                    <div class="mode-card" id="mode-series" role="radio" aria-checked="false" tabindex="0">
                         <div class="mode-icon">📺</div>
                         <h3>Serie</h3>
                         <p>Episoden zuordnen (TVDb)</p>
@@ -175,15 +180,15 @@
                             <summary style="cursor: pointer; font-weight: 500; color: var(--text-main); font-size: 13px;">🎬 Film-Metadaten (movie.nfo) bearbeiten</summary>
                             <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
                                 <div>
-                                    <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Filmtitel:</label>
+                                    <label for="movie-nfo-title" style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Filmtitel:</label>
                                     <input type="text" id="movie-nfo-title" style="width:100%;">
                                 </div>
                                 <div>
-                                    <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Jahr:</label>
+                                    <label for="movie-nfo-year" style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Jahr:</label>
                                     <input type="text" id="movie-nfo-year" style="width:100%;">
                                 </div>
                                 <div>
-                                    <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Beschreibung / Plot:</label>
+                                    <label for="movie-nfo-plot" style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Beschreibung / Plot:</label>
                                     <textarea id="movie-nfo-plot" rows="3" style="width:100%; resize:vertical;"></textarea>
                                 </div>
                             </div>
@@ -193,19 +198,19 @@
                     <div class="execution-options-panel" style="margin-top: 25px; padding-top:20px; border-top:1px solid var(--border-glass);">
                         <h4>Verarbeitungs-Optionen</h4>
                         <div class="options-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="movie-option-convert">
                                 <input type="checkbox" id="movie-option-convert">
                                 <span class="checkmark"></span> Nach H.265 konvertieren
                             </label>
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="movie-option-delete">
                                 <input type="checkbox" id="movie-option-delete" checked>
                                 <span class="checkmark"></span> Original löschen
                             </label>
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="movie-option-copy-nas">
                                 <input type="checkbox" id="movie-option-copy-nas" checked>
                                 <span class="checkmark"></span> Auf NAS verschieben
                             </label>
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="movie-option-copy-pcloud">
                                 <input type="checkbox" id="movie-option-copy-pcloud">
                                 <span class="checkmark"></span> Auch in pCloud sichern
                             </label>
@@ -272,13 +277,13 @@
                     </div>
 
                     <div class="form-group" style="margin-top:20px; position: relative;">
-                        <label style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-                            <span>Serienname / Ordnername auf NAS (anpassbar):</span>
+                        <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom: 6px;">
+                            <label for="series-nas-folder-override" style="display:inline; margin-bottom:0; font-size: 13px; font-weight: 500; color: var(--text-muted);">Serienname / Ordnername auf NAS (anpassbar):</label>
                             <div style="display: flex; gap: 8px;">
                                 <button class="btn btn-secondary btn-xs" id="btn-load-nas-series" type="button" style="padding:2px 8px; font-size:11px;">NAS laden</button>
-                                <button class="btn btn-secondary btn-xs" id="btn-open-nas-folder-series" type="button" style="padding:2px 8px; font-size:11px;" title="Serienordner im Finder öffnen">📂 Finder</button>
+                                <button class="btn btn-secondary btn-xs" id="btn-open-nas-folder-series" type="button" style="padding:2px 8px; font-size:11px;" title="Serienordner im Finder öffnen" aria-label="Serienordner im Finder öffnen">📂 Finder</button>
                             </div>
-                        </label>
+                        </div>
                         <input type="text" id="series-nas-folder-override" placeholder="Automatisch (z.B. Sendung mit der Maus)" style="width:100%; margin-top:5px;" autocomplete="off">
                         <div id="series-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
                     </div>
@@ -294,15 +299,15 @@
                             <summary style="cursor: pointer; font-weight: 500; color: var(--text-main); font-size: 13px;">📁 Serien-Metadaten (tvshow.nfo) bearbeiten</summary>
                             <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
                                 <div>
-                                    <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Serientitel:</label>
+                                    <label for="series-nfo-title" style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Serientitel:</label>
                                     <input type="text" id="series-nfo-title" style="width:100%;">
                                 </div>
                                 <div>
-                                    <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Jahr / Erstausstrahlung:</label>
+                                    <label for="series-nfo-year" style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Jahr / Erstausstrahlung:</label>
                                     <input type="text" id="series-nfo-year" style="width:100%;">
                                 </div>
                                 <div>
-                                    <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Beschreibung / Plot:</label>
+                                    <label for="series-nfo-plot" style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Beschreibung / Plot:</label>
                                     <textarea id="series-nfo-plot" rows="3" style="width:100%; resize:vertical;"></textarea>
                                 </div>
                             </div>
@@ -313,7 +318,7 @@
                                 <label for="series-season-num">Staffel:</label>
                                 <input type="number" id="series-season-num" min="1" value="1" style="width: 80px;">
                             </div>
-                            <label class="checkbox-container" style="margin-bottom:0;">
+                            <label class="checkbox-container" for="series-all-seasons" style="margin-bottom:0;">
                                 <input type="checkbox" id="series-all-seasons">
                                 <span class="checkmark"></span> Alle Staffeln
                             </label>
@@ -328,23 +333,23 @@
                     <div class="execution-options-panel hidden" id="series-execution-panel" style="margin-top: 25px; padding-top:20px; border-top:1px solid var(--border-glass);">
                         <h4>Verarbeitungs-Optionen</h4>
                         <div class="options-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="series-option-convert">
                                 <input type="checkbox" id="series-option-convert" checked>
                                 <span class="checkmark"></span> Nach H.265 konvertieren
                             </label>
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="series-option-delete">
                                 <input type="checkbox" id="series-option-delete" checked>
                                 <span class="checkmark"></span> Original löschen
                             </label>
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="series-option-copy-nas">
                                 <input type="checkbox" id="series-option-copy-nas" checked>
                                 <span class="checkmark"></span> Auf NAS verschieben
                             </label>
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="series-option-copy-pcloud">
                                 <input type="checkbox" id="series-option-copy-pcloud">
                                 <span class="checkmark"></span> Auch in pCloud sichern
                             </label>
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="series-option-absolute-numbering">
                                 <input type="checkbox" id="series-option-absolute-numbering">
                                 <span class="checkmark"></span> Absolutes Nummerieren (Staffel 1)
                             </label>
@@ -431,11 +436,11 @@
                 
                 <div class="card" style="margin-top: -40px; margin-bottom: 40px; background: rgba(20,20,30,0.5); padding: 15px; border-radius: var(--radius-lg); border: 1px solid var(--border-glass);">
                     <h3 style="margin-top:0; font-size:14px; color:var(--text-muted); margin-bottom: 10px;">Transfer-Optionen (Für NAS & pCloud Sync)</h3>
-                    <label style="display:flex; align-items:center; gap:10px; margin-bottom:8px; cursor:pointer;">
+                    <label for="opt-open-after" style="display:flex; align-items:center; gap:10px; margin-bottom:8px; cursor:pointer;">
                         <input type="checkbox" id="opt-open-after" style="width:16px; height:16px;">
                         <span>Nach erfolgreicher Übertragung Zielordner im Finder öffnen</span>
                     </label>
-                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                    <label for="opt-delete-original" style="display:flex; align-items:center; gap:10px; cursor:pointer;">
                         <input type="checkbox" id="opt-delete-original" style="width:16px; height:16px;">
                         <span style="color: #ff6b6b;">Originaldateien/Ordner nach erfolgreichem Transfer von der Festplatte löschen</span>
                     </label>
@@ -457,6 +462,124 @@
                 </div>
             </div>
 
+            <!-- STATE: STATS DASHBOARD -->
+            <div id="view-dashboard" class="view-panel hidden">
+                <div class="card" style="margin-bottom: 25px;">
+                    <div style="font-size: 48px; margin-bottom: 10px;">📊</div>
+                    <h2>Statistik-Dashboard</h2>
+                    <p class="section-desc" style="margin-bottom: 20px;">Visualisiere deine Speicherersparnis durch effizientes HEVC-Transkodieren und die aktuelle Belegung deines NAS-Speichers.</p>
+                </div>
+                
+                <div class="dashboard-grid">
+                    <!-- NAS STORAGE CARD -->
+                    <div class="card" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 250px;">
+                        <span class="stat-label">NAS Speicherbelegung</span>
+                        <div style="position: relative; width: 140px; height: 140px; margin: 15px 0;">
+                            <svg width="140" height="140" class="nas-circle-svg">
+                                <circle cx="70" cy="70" r="58" class="nas-circle-bg"></circle>
+                                <circle cx="70" cy="70" r="58" class="nas-circle-progress" id="nas-usage-circle" stroke-dasharray="364.4" stroke-dashoffset="364.4"></circle>
+                            </svg>
+                            <div style="position: absolute; top: 0; left: 0; width: 140px; height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                                <span id="nas-usage-percent-text" style="font-size: 24px; font-weight: 800; font-family: 'Outfit';">0%</span>
+                                <span style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Belegt</span>
+                            </div>
+                        </div>
+                        <div id="nas-usage-detail-text" style="font-size: 13px; font-weight: 500;">Scanne NAS...</div>
+                        <div id="nas-usage-path-text" style="font-size: 11px; color: var(--text-muted); margin-top: 4px; word-break: break-all;">-</div>
+                    </div>
+                    
+                    <!-- SAVINGS CARD -->
+                    <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; min-height: 250px;">
+                        <div>
+                            <span class="stat-label">Gesamte Ersparnis</span>
+                            <div id="stats-saved-space" class="stat-value">0 GB</div>
+                            <div style="font-size: 14px; font-weight: 500; margin-top: 5px;">
+                                Reduktion um <span id="stats-saved-percent" style="color: var(--accent); font-weight: 700;">0%</span> des Speicherplatzes
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 15px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted);">
+                                <span>Vorher: <span id="stats-size-in">-</span></span>
+                                <span>Nachher: <span id="stats-size-out">-</span></span>
+                            </div>
+                            <div class="progress-bar-flat">
+                                <div id="stats-savings-bar" class="progress-fill-flat" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-footer" style="border-top: 1px solid var(--border-glass); padding-top: 10px; margin-top: 10px;">
+                            Durchgeführt für <span id="stats-total-files" class="highlight">0</span> Videodateien.
+                        </div>
+                    </div>
+
+                    <!-- RATIO CARD -->
+                    <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; min-height: 250px;">
+                        <div>
+                            <span class="stat-label">Durchschnittliche Rate</span>
+                            <div id="stats-average-ratio" class="stat-value">0.00x</div>
+                            <div style="font-size: 13px; color: var(--text-muted); margin-top: 8px;">
+                                Jede Datei benötigt im Durchschnitt nur noch <span id="stats-average-ratio-percent" style="color: var(--primary); font-weight: 600;">0%</span> ihrer ursprünglichen Größe.
+                            </div>
+                        </div>
+                        <div style="border-top: 1px solid var(--border-glass); padding-top: 10px; font-size: 12px; color: var(--text-muted);">
+                            🚀 <span style="font-weight: 500; color: var(--text-main);">HEVC Hardware Beschleunigung</span> aktiv via VideoToolbox.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- HISTORISCHE ENTWICKLUNG (BAR CHART) -->
+                <div class="card" style="margin-bottom: 25px;">
+                    <div class="card-header-actions" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="margin: 0;">Letzte Konvertierungen & Speicherplatzreduktion</h3>
+                        <span style="font-size: 11px; color: var(--text-muted); padding: 4px 8px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass);">Die letzten 15 Dateien</span>
+                    </div>
+                    
+                    <div id="dashboard-bar-chart" class="bar-chart-container">
+                        <!-- Bars dynamically loaded by JavaScript -->
+                    </div>
+                    
+                    <div style="display: flex; justify-content: center; gap: 20px; font-size: 11px; color: var(--text-muted);">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <div style="width: 12px; height: 12px; background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.25); border-radius: 2px;"></div>
+                            Originalgröße
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <div style="width: 12px; height: 12px; background: linear-gradient(180deg, var(--primary) 0%, rgba(var(--primary-rgb), 0.3) 100%); border-radius: 2px;"></div>
+                            Zielgröße (Nachher)
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TABLE OF RECENT CONVERSIONS -->
+                <div class="card" style="margin-bottom: 25px;">
+                    <h3>Detailliertes Konvertierungsprotokoll</h3>
+                    <p class="section-desc" style="margin-bottom: 15px;">Chronologische Liste aller durchgeführten Videokomprimierungen.</p>
+                    
+                    <div style="max-height: 350px; overflow-y: auto; border: 1px solid var(--border-glass); border-radius: var(--radius-sm);">
+                        <table class="files-table" style="margin-bottom: 0;">
+                            <thead>
+                                <tr>
+                                    <th scope="col" style="position: sticky; top: 0; background: var(--bg-card); z-index: 2;">Datum</th>
+                                    <th scope="col" style="position: sticky; top: 0; background: var(--bg-card); z-index: 2;">Codec/Qualität</th>
+                                    <th scope="col" style="position: sticky; top: 0; background: var(--bg-card); z-index: 2;">Größe Vorher</th>
+                                    <th scope="col" style="position: sticky; top: 0; background: var(--bg-card); z-index: 2;">Größe Nachher</th>
+                                    <th scope="col" style="position: sticky; top: 0; background: var(--bg-card); z-index: 2;">Ersparnis</th>
+                                    <th scope="col" style="position: sticky; top: 0; background: var(--bg-card); z-index: 2;">Verhältnis</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboard-history-tbody">
+                                <tr>
+                                    <td colspan="6" class="text-center" style="padding: 30px; color: var(--text-muted);">
+                                        Keine Verlaufsdaten vorhanden.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- STATE: SETTINGS DASHBOARD -->
             <div id="view-settings" class="view-panel hidden">
                 <div class="card" style="margin-bottom: 25px;">
@@ -468,8 +591,8 @@
                         <label for="settings-inbox-dir" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Medien Input (Inbox):</label>
                         <div style="display: flex; gap: 10px;">
                             <input type="text" id="settings-inbox-dir" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
-                            <button id="btn-settings-browse-inbox" class="btn btn-secondary">🔍</button>
-                            <button id="btn-settings-toggle-inbox" class="btn btn-secondary" title="Im Finder sichtbar/unsichtbar machen">👁️</button>
+                            <button id="btn-settings-browse-inbox" class="btn btn-secondary" aria-label="Inbox-Pfad durchsuchen">🔍</button>
+                            <button id="btn-settings-toggle-inbox" class="btn btn-secondary" title="Im Finder sichtbar/unsichtbar machen" aria-label="Inbox Sichtbarkeit im Finder umschalten">👁️</button>
                         </div>
                     </div>
 
@@ -477,8 +600,8 @@
                         <label for="settings-outbox-dir" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Medien Output (Outbox):</label>
                         <div style="display: flex; gap: 10px;">
                             <input type="text" id="settings-outbox-dir" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
-                            <button id="btn-settings-browse-outbox" class="btn btn-secondary">🔍</button>
-                            <button id="btn-settings-toggle-outbox" class="btn btn-secondary" title="Im Finder sichtbar/unsichtbar machen">👁️</button>
+                            <button id="btn-settings-browse-outbox" class="btn btn-secondary" aria-label="Outbox-Pfad durchsuchen">🔍</button>
+                            <button id="btn-settings-toggle-outbox" class="btn btn-secondary" title="Im Finder sichtbar/unsichtbar machen" aria-label="Outbox Sichtbarkeit im Finder umschalten">👁️</button>
                         </div>
                     </div>
 
@@ -486,7 +609,7 @@
                         <label for="settings-nas-root" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">NAS Wurzelverzeichnis:</label>
                         <div style="display: flex; gap: 10px;">
                             <input type="text" id="settings-nas-root" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
-                            <button id="btn-settings-browse-nas" class="btn btn-secondary">🔍</button>
+                            <button id="btn-settings-browse-nas" class="btn btn-secondary" aria-label="NAS-Pfad durchsuchen">🔍</button>
                         </div>
                     </div>
 
@@ -494,12 +617,12 @@
                         <label for="settings-pcloud-dir" style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">pCloud Sync-Ordner (lokal):</label>
                         <div style="display: flex; gap: 10px;">
                             <input type="text" id="settings-pcloud-dir" class="form-select" style="flex: 1; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); background: var(--bg-surface); color: var(--text-main);">
-                            <button id="btn-settings-browse-pcloud" class="btn btn-secondary">🔍</button>
+                            <button id="btn-settings-browse-pcloud" class="btn btn-secondary" aria-label="pCloud-Pfad durchsuchen">🔍</button>
                         </div>
                     </div>
 
                     <div class="form-group" style="margin-bottom: 25px; max-width: 700px;">
-                        <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Globale Import-Quellen (z.B. StreamFab):</label>
+                        <span class="form-label-style">Globale Import-Quellen (z.B. StreamFab):</span>
                         <div id="settings-import-sources-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom: 10px;">
                             <!-- Dynamically populated -->
                         </div>
@@ -507,7 +630,7 @@
                     </div>
 
                     <div class="form-group" style="margin-bottom: 25px; max-width: 700px;">
-                        <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Eigene lokale Download-Ordner (YouTube Downloader):</label>
+                        <span class="form-label-style">Eigene lokale Download-Ordner (YouTube Downloader):</span>
                         <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 10px;">Diese Ordner erscheinen als Ziel im YouTube-Downloader unter „In lokalen Ordner speichern". Der Input- und Output-Ordner sind automatisch verfügbar.</p>
                         <div id="settings-local-folders-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom: 10px;">
                             <!-- Dynamically populated -->
@@ -516,18 +639,18 @@
                     </div>
 
                     <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
-                        <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Verarbeitungs-Abschluss (Auto-Finder):</label>
+                        <span class="form-label-style">Verarbeitungs-Abschluss (Auto-Finder):</span>
                         <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Wähle aus, welche Verzeichnisse nach erfolgreicher Verarbeitung automatisch im Finder geöffnet werden sollen.</p>
                         <div class="options-grid" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; max-width:700px;">
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="settings-open-outbox-finder">
                                 <input type="checkbox" id="settings-open-outbox-finder">
                                 <span class="checkmark"></span> Output (Outbox) öffnen
                             </label>
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="settings-open-nas-finder">
                                 <input type="checkbox" id="settings-open-nas-finder">
                                 <span class="checkmark"></span> NAS-Ordner öffnen
                             </label>
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="settings-open-pcloud-finder">
                                 <input type="checkbox" id="settings-open-pcloud-finder">
                                 <span class="checkmark"></span> pCloud-Ordner öffnen
                             </label>
@@ -535,44 +658,44 @@
                     </div>
 
                     <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
-                        <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Benachrichtigungen:</label>
+                        <span class="form-label-style">Benachrichtigungen:</span>
                         <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Lass dich benachrichtigen, wenn langwierige Konvertierungs- und Übertragungs-Jobs fertiggestellt wurden.</p>
                         
                         <div style="display:flex; flex-direction:column; gap:15px; max-width:700px;">
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="settings-notify-macos">
                                 <input type="checkbox" id="settings-notify-macos">
                                 <span class="checkmark"></span> macOS Systembenachrichtigung senden
                             </label>
                             
                             <div style="padding: 10px; border: 1px solid var(--border-glass); border-radius: var(--radius-sm); background: rgba(255,255,255,0.01);">
-                                <label class="checkbox-container" style="margin-bottom:10px;">
+                                <label class="checkbox-container" for="settings-notify-telegram" style="margin-bottom:10px;">
                                     <input type="checkbox" id="settings-notify-telegram">
                                     <span class="checkmark"></span> Telegram-Nachricht senden
                                 </label>
                                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
                                     <div style="flex:1; min-width:200px;">
-                                        <label style="font-size:11px; color:var(--text-muted);">Bot Token:</label>
+                                        <label for="settings-telegram-token" style="font-size:11px; color:var(--text-muted);">Bot Token:</label>
                                         <input type="text" id="settings-telegram-token" style="width:100%;">
                                     </div>
                                     <div style="flex:1; min-width:150px;">
-                                        <label style="font-size:11px; color:var(--text-muted);">Chat ID:</label>
+                                        <label style="font-size:11px; color:var(--text-muted);" for="settings-telegram-chat-id">Chat ID:</label>
                                         <input type="text" id="settings-telegram-chat-id" style="width:100%;">
                                     </div>
                                 </div>
                             </div>
                             
                             <div style="padding: 10px; border: 1px solid var(--border-glass); border-radius: var(--radius-sm); background: rgba(255,255,255,0.01);">
-                                <label class="checkbox-container" style="margin-bottom:10px;">
+                                <label class="checkbox-container" for="settings-notify-whatsapp" style="margin-bottom:10px;">
                                     <input type="checkbox" id="settings-notify-whatsapp">
                                     <span class="checkmark"></span> WhatsApp-Nachricht senden (CallMeBot)
                                 </label>
                                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
                                     <div style="flex:1; min-width:200px;">
-                                        <label style="font-size:11px; color:var(--text-muted);">API Key:</label>
+                                        <label for="settings-whatsapp-apikey" style="font-size:11px; color:var(--text-muted);">API Key:</label>
                                         <input type="text" id="settings-whatsapp-apikey" style="width:100%;" placeholder="apikey von CallMeBot">
                                     </div>
                                     <div style="flex:1; min-width:150px;">
-                                        <label style="font-size:11px; color:var(--text-muted);">Handynummer:</label>
+                                        <label for="settings-whatsapp-phone" style="font-size:11px; color:var(--text-muted);">Handynummer:</label>
                                         <input type="text" id="settings-whatsapp-phone" style="width:100%;" placeholder="+49123456789">
                                     </div>
                                 </div>
@@ -584,7 +707,7 @@
                                     <input type="number" id="settings-notify-min-size" min="0" value="10" style="width:70px; padding:4px;">
                                     <span style="font-size:12px; color:var(--text-muted);">GB</span>
                                 </div>
-                                <label class="checkbox-container" style="margin-bottom:0;">
+                                <label class="checkbox-container" for="settings-notify-only-end" style="margin-bottom:0;">
                                     <input type="checkbox" id="settings-notify-only-end" checked>
                                     <span class="checkmark"></span> Nur am Ende des gesamten Jobs benachrichtigen
                                 </label>
@@ -593,17 +716,37 @@
                     </div>
 
                     <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
-                        <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Witz des Tages (Flachwitze):</label>
-                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Blende Witze beim Programmstart oder nach Fertigstellung von Aufgaben ein.</p>
-                        <label class="checkbox-container">
+                        <span class="form-label-style">Farbthema (App Design):</span>
+                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Passe das Aussehen des Medienwerkzeugs nach deinem Geschmack an.</p>
+                        <select id="settings-app-theme" style="max-width: 320px; padding: 10px 14px; border-radius: var(--radius-md); background: var(--bg-input, rgba(0, 0, 0, 0.4)); border: 1px solid var(--border-glass); color: var(--text-main);">
+                            <option value="deep-space">🌌 Deep Space (Standard)</option>
+                            <option value="nordic-slate">🏔️ Nordic Slate (Kühles Anthrazit)</option>
+                            <option value="amber-warmth">🍂 Amber Warmth (Gemütliches Braun)</option>
+                            <option value="apple-silver">🍎 Apple Silver (Edles Silber-Weiß)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
+                        <span class="form-label-style">Witz des Tages (Flachwitze):</span>
+                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Blende Witze nach Fertigstellung von Aufgaben ein.</p>
+                        <label class="checkbox-container" for="settings-show-jokes">
                             <input type="checkbox" id="settings-show-jokes" checked>
                             <span class="checkmark"></span> Flachwitze / Dad Jokes einblenden
                         </label>
                     </div>
 
                     <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
-                        <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Sync-Kategorien (NAS & pCloud):</label>
-                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 10px;">Lege fest, welche Optionen beim Klick auf "NAS Syncing" oder "pCloud Syncing" angeboten werden und wohin die Dateien kopiert werden sollen.</p>
+                        <span class="form-label-style">Zitat des Tages:</span>
+                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Blende ein inspirierendes Zitat beim Programmstart ein.</p>
+                        <label class="checkbox-container" for="settings-show-quote">
+                            <input type="checkbox" id="settings-show-quote" checked>
+                            <span class="checkmark"></span> Zitat beim Starten der App einblenden
+                        </label>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
+                        <span class="form-label-style">Sync-Kategorien (NAS & pCloud):</span>
+                        <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 10px;">Lege fest, welche Optionen beim Klick auf "NAS Syncing" or "pCloud Syncing" angeboten werden und wohin die Dateien kopiert werden sollen.</p>
                         <div id="settings-sync-categories-container" style="display:flex; flex-direction:column; gap:10px; margin-bottom: 10px;">
                             <!-- Dynamically populated -->
                         </div>
@@ -611,11 +754,11 @@
                     </div>
 
                     <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
-                        <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">Abhängigkeiten & CLI-Tools:</label>
+                        <span class="form-label-style">Abhängigkeiten & CLI-Tools:</span>
                         <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Prüfe systemkritische Tools wie yt-dlp, rclone, ffmpeg und deno auf installierte Versionen und neue Updates.</p>
                         
                         <div style="display: flex; align-items: center; justify-content: space-between; max-width: 700px; margin-bottom: 20px; gap: 15px; flex-wrap: wrap;">
-                            <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                            <label for="settings-check-dependency-updates" style="display:flex; align-items:center; gap:10px; cursor:pointer;">
                                 <input type="checkbox" id="settings-check-dependency-updates" style="width:16px; height:16px;">
                                 <span>Abhängigkeiten beim Start auf Updates prüfen</span>
                             </label>
@@ -631,7 +774,7 @@
                     </div>
 
                     <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
-                        <label style="font-size: 13px; color: var(--text-muted); margin-bottom: 5px; display: block;">System-Aktionen:</label>
+                        <span class="form-label-style">System-Aktionen:</span>
                         <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Starte den Python-Server neu, falls du Code-Änderungen eingespielt hast oder der Server blockiert ist.</p>
                         <button id="btn-restart-server" class="btn btn-danger" style="display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: var(--radius-sm);">
                             🔄 Server neu starten
@@ -709,10 +852,10 @@
                                     <input type="number" id="yt-series-season" min="1" value="1" style="width:60px;">
                                 </div>
                                 <div class="form-group" style="margin-top:15px; position: relative;">
-                                    <label style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-                                        <span>Serienname / Ordnername auf NAS (anpassbar):</span>
-                                        <button class="btn btn-secondary btn-xs" id="btn-load-yt-nas-series" type="button" style="padding:2px 8px; font-size:11px;">NAS laden</button>
-                                    </label>
+                                    <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom: 6px;">
+                                        <label for="yt-series-nas-folder-override" style="display:inline; margin-bottom:0; font-size: 13px; font-weight: 500; color: var(--text-muted);">Serienname / Ordnername auf NAS (anpassbar):</label>
+                                        <button class="btn btn-secondary btn-xs" id="btn-load-yt-nas-series" type="button" style="padding:2px 8px; font-size:11px;" aria-label="NAS laden">NAS laden</button>
+                                    </div>
                                     <input type="text" id="yt-series-nas-folder-override" placeholder="Automatisch (z.B. Sendung mit der Maus)" style="width:100%; margin-top:5px;" autocomplete="off">
                                     <div id="yt-series-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
                                 </div>
@@ -727,41 +870,41 @@
                             <label for="yt-format-select">Qualität:</label>
                             <select id="yt-format-select" class="form-select" style="width:100%;"></select>
                         </div>
-                        <div class="form-group" style="margin-top:10px;">
-                            <label>Untertitel laden:</label>
+                        <div class="form-group">
+                            <span class="form-label-style">Untertitel laden:</span>
                             <div id="yt-subtitles-container" class="subs-checkboxes-list"></div>
                         </div>
 
                         <h3 style="margin-top: 20px;">Schnitt</h3>
                         <div class="options-grid" style="display:flex; flex-direction:column; gap:10px;">
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="yt-split-chapters">
                                 <input type="checkbox" id="yt-split-chapters">
                                 <span class="checkmark"></span> Kapitel aufteilen
                             </label>
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="yt-open-losslesscut">
                                 <input type="checkbox" id="yt-open-losslesscut" checked>
                                 <span class="checkmark"></span> In LosslessCut öffnen
                             </label>
                         </div>
                         <div class="form-group custom-trim-fields hidden" id="yt-custom-trim-panel" style="margin-top: 15px;">
-                            <label>Manueller Ausschnitt:</label>
+                            <span class="form-label-style">Manueller Ausschnitt:</span>
                             <div style="display: flex; gap: 10px;">
-                                <input type="text" id="yt-trim-start" placeholder="00:00:00" style="width: 100px;">
-                                <input type="text" id="yt-trim-end" placeholder="00:10:00" style="width: 100px;">
+                                <input type="text" id="yt-trim-start" placeholder="00:00:00" style="width: 100px;" aria-label="Ausschnitt Startzeit">
+                                <input type="text" id="yt-trim-end" placeholder="00:10:00" style="width: 100px;" aria-label="Ausschnitt Endzeit">
                             </div>
                         </div>
 
                         <h3 style="margin-top: 25px;">Ziel & Transfer</h3>
                         <div class="options-grid" style="display:flex; flex-direction:column; gap:10px;">
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="yt-option-copy-nas">
                                 <input type="checkbox" id="yt-option-copy-nas" checked>
                                 <span class="checkmark"></span> Auf NAS kopieren
                             </label>
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="yt-option-copy-pcloud">
                                 <input type="checkbox" id="yt-option-copy-pcloud">
                                 <span class="checkmark"></span> Auch in pCloud sichern
                             </label>
-                            <label class="checkbox-container">
+                            <label class="checkbox-container" for="yt-option-copy-local">
                                 <input type="checkbox" id="yt-option-copy-local">
                                 <span class="checkmark"></span> In lokalen Ordner speichern
                             </label>
@@ -811,6 +954,82 @@
                     <button class="btn btn-accent btn-lg" id="btn-yt-finalize-mapping">🚀 Zuweisung abschließen</button>
                 </div>
             </div>
+
+            <!-- YouTube Part Merge Modal -->
+            <div class="modal-overlay hidden" id="yt-merge-modal">
+                <div class="modal-card" style="max-width: 700px; text-align: left;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px;">
+                        <h2 style="margin:0; font-size:18px;">🔗 Mehrteiliges Video zusammenfügen</h2>
+                        <button id="btn-close-yt-merge" style="background:none; border:none; color:var(--text-muted); font-size:24px; cursor:pointer; line-height: 1;">&times;</button>
+                    </div>
+                    <p style="font-size:13px; color:var(--text-muted); margin-bottom: 15px;">
+                        Wähle die Teile aus, die du herunterladen und zusammenfügen möchtest. Du kannst die Reihenfolge anpassen. Die Videos werden verlustfrei über den FFmpeg <code>concat</code>-Demuxer verschmolzen.
+                    </p>
+                    
+                    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); padding: 10px 15px; border-radius: var(--radius-sm); font-size: 13px; margin-bottom: 15px;">
+                        <strong>Suchbegriff für YouTube:</strong> <span id="yt-merge-query" style="font-family: monospace; color: var(--accent);"></span>
+                    </div>
+
+                    <div style="font-weight: 600; font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">Videos in Merge-Reihenfolge:</div>
+                    <div id="yt-merge-list" style="margin-bottom: 20px; max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 5px;">
+                        <!-- Dynamisch befüllt -->
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:5px;">Name für die fertige Datei (ohne Endung):</label>
+                        <input type="text" id="yt-merge-title" style="width:100%;" placeholder="z.B. Die große Doku">
+                    </div>
+                    
+                    <div style="display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px;">
+                        <button class="btn btn-secondary" id="btn-cancel-yt-merge">Abbrechen</button>
+                        <button class="btn btn-accent" id="btn-start-yt-merge">🚀 Teile zusammenfügen & laden</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Duplicate Compare & Upgrade Modal -->
+            <div class="modal-overlay hidden" id="duplicate-compare-modal">
+                <div class="modal-card" style="max-width: 800px; text-align: left;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px;">
+                        <h2 style="margin:0; font-size:18px;">⚠️ Konfliktlöser: Video-Qualitäts-Vergleich</h2>
+                        <button id="btn-close-dup-compare" style="background:none; border:none; color:var(--text-muted); font-size:24px; cursor:pointer; line-height: 1;">&times;</button>
+                    </div>
+                    <p style="font-size:13px; color:var(--text-muted); margin-bottom: 20px;">
+                        Die Episode existiert bereits auf dem NAS. Vergleiche die Eigenschaften unten, um zu entscheiden, ob du die existierende Datei mit der neuen, möglicherweise besseren Version ersetzen (Upgrade) oder beide Versionen behalten möchtest.
+                    </p>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
+                        <!-- Neue Datei (Links) -->
+                        <div style="background: rgba(16, 185, 129, 0.03); border: 1px solid rgba(16, 185, 129, 0.15); border-radius: var(--radius-md); padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                            <h3 style="margin-top:0; margin-bottom:5px; font-size:14px; color:var(--success); font-weight:600; display:flex; align-items:center; gap:6px;">✨ Neue Version (Input)</h3>
+                            <div style="font-size:12.5px; word-break:break-all;"><strong>Name:</strong> <span id="dup-new-name">Lade...</span></div>
+                            <div style="font-size:12.5px;"><strong>Auflösung:</strong> <span id="dup-new-res">-</span></div>
+                            <div style="font-size:12.5px;"><strong>Dateigröße:</strong> <span id="dup-new-size">-</span></div>
+                            <div style="font-size:12.5px;"><strong>Video Codec:</strong> <span id="dup-new-vcodec">-</span></div>
+                            <div style="font-size:12.5px;"><strong>Audio Codec:</strong> <span id="dup-new-acodec">-</span></div>
+                            <div style="font-size:12.5px;"><strong>Bitrate:</strong> <span id="dup-new-bitrate">-</span></div>
+                            <div style="font-size:12.5px;"><strong>Dauer:</strong> <span id="dup-new-duration">-</span></div>
+                        </div>
+                        
+                        <!-- Existierende Datei (Rechts) -->
+                        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                            <h3 style="margin-top:0; margin-bottom:5px; font-size:14px; color:var(--text-muted); font-weight:600; display:flex; align-items:center; gap:6px;">💾 Auf NAS vorhanden</h3>
+                            <div style="font-size:12.5px; word-break:break-all;"><strong>Name:</strong> <span id="dup-exist-name">Lade...</span></div>
+                            <div style="font-size:12.5px;"><strong>Auflösung:</strong> <span id="dup-exist-res">-</span></div>
+                            <div style="font-size:12.5px;"><strong>Dateigröße:</strong> <span id="dup-exist-size">-</span></div>
+                            <div style="font-size:12.5px;"><strong>Video Codec:</strong> <span id="dup-exist-vcodec">-</span></div>
+                            <div style="font-size:12.5px;"><strong>Audio Codec:</strong> <span id="dup-exist-acodec">-</span></div>
+                            <div style="font-size:12.5px;"><strong>Bitrate:</strong> <span id="dup-exist-bitrate">-</span></div>
+                            <div style="font-size:12.5px;"><strong>Dauer:</strong> <span id="dup-exist-duration">-</span></div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px;">
+                        <button class="btn btn-secondary" id="btn-dup-keep-both">Beide behalten</button>
+                        <button class="btn btn-success" id="btn-dup-upgrade" style="font-weight: 600;">🗑️ Vorhandene löschen & Upgrade</button>
+                    </div>
+                </div>
+            </div>
             
             <!-- STATE: YOUTUBE ABOS -->
             <div id="view-youtube-abos" class="view-panel hidden">
@@ -833,17 +1052,78 @@
                                 <input type="text" id="abo-name" placeholder="z.B. ARD Dokus" style="width:100%;">
                             </div>
                             <div>
-                                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:5px;">YouTube Kanal / Playlist URL:</label>
-                                <input type="text" id="abo-url" placeholder="https://www.youtube.com/..." style="width:100%;">
+                                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:5px;">YouTube Kanal / Playlist / Suchbegriff:</label>
+                                <input type="text" id="abo-url" placeholder="https://www.youtube.com/ oder Suchbegriff" style="width:100%;">
                             </div>
                             <div>
                                 <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:5px;">Suchfilter (optional):</label>
                                 <input type="text" id="abo-filter" placeholder="z.B. Natur" style="width:100%;">
                             </div>
                             <div>
-                                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:5px;">Zielkategorie (NAS):</label>
-                                <select id="abo-destination" class="form-select" style="width:100%; height:38px; padding: 0 10px; background: var(--bg-surface); border: 1px solid var(--border-glass); color: var(--text-main); border-radius: var(--radius-sm);">
+                                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:5px;">Ausschließen-Wörter (Komma-separiert):</label>
+                                <input type="text" id="abo-exclude" placeholder="z.B. Trailer, Let's Play, Shorts" style="width:100%;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:5px;">Modus:</label>
+                                <select id="abo-mode" class="form-select" style="width:100%; height:38px; padding: 0 10px; background: var(--bg-surface); border: 1px solid var(--border-glass); color: var(--text-main); border-radius: var(--radius-sm);">
+                                    <option value="auto">Direkt laden</option>
+                                    <option value="manual">In Freigabeliste ablegen</option>
                                 </select>
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:5px;">Aktualisierung:</label>
+                                <select id="abo-schedule" class="form-select" style="width:100%; height:38px; padding: 0 10px; background: var(--bg-surface); border: 1px solid var(--border-glass); color: var(--text-main); border-radius: var(--radius-sm);">
+                                    <option value="hourly">Stündlich</option>
+                                    <option value="daily">Einmal am Tag</option>
+                                    <option value="on_startup">Beim Start der App</option>
+                                    <option value="manual">Nur manuell</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: center; height: 100%; margin-top: auto; padding-bottom: 8px;">
+                                <label class="checkbox-container" for="abo-filter-german" style="font-size:13px; font-weight:600; margin-bottom:0;">
+                                    <input type="checkbox" id="abo-filter-german">
+                                    <span class="checkmark"></span> Nur deutsche Videos
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Destinations & Transfer Options -->
+                        <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px;">
+                            <h4 style="margin: 0 0 12px 0; font-size: 13px; color: var(--text-muted); font-weight: 600;">Ziele & Transfer:</h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px;">
+                                <!-- NAS -->
+                                <div style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.03); padding: 12px; border-radius: var(--radius-sm);">
+                                    <label class="checkbox-container" for="abo-copy-nas" style="font-size:12.5px; font-weight:600; margin-bottom:8px;">
+                                        <input type="checkbox" id="abo-copy-nas" checked>
+                                        <span class="checkmark"></span> Auf NAS kopieren
+                                    </label>
+                                    <div id="abo-nas-destination-container">
+                                        <select id="abo-nas-destination" class="form-select" style="width:100%; height:34px; padding: 0 8px; background: var(--bg-surface); border: 1px solid var(--border-glass); color: var(--text-main); border-radius: var(--radius-sm); font-size:12px;">
+                                        </select>
+                                    </div>
+                                </div>
+                                <!-- pCloud -->
+                                <div style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.03); padding: 12px; border-radius: var(--radius-sm);">
+                                    <label class="checkbox-container" for="abo-copy-pcloud" style="font-size:12.5px; font-weight:600; margin-bottom:8px;">
+                                        <input type="checkbox" id="abo-copy-pcloud">
+                                        <span class="checkmark"></span> Auch in pCloud sichern
+                                    </label>
+                                    <div id="abo-pcloud-destination-container">
+                                        <select id="abo-pcloud-destination" class="form-select" style="width:100%; height:34px; padding: 0 8px; background: var(--bg-surface); border: 1px solid var(--border-glass); color: var(--text-main); border-radius: var(--radius-sm); font-size:12px;">
+                                        </select>
+                                    </div>
+                                </div>
+                                <!-- Local -->
+                                <div style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.03); padding: 12px; border-radius: var(--radius-sm);">
+                                    <label class="checkbox-container" for="abo-copy-local" style="font-size:12.5px; font-weight:600; margin-bottom:8px;">
+                                        <input type="checkbox" id="abo-copy-local">
+                                        <span class="checkmark"></span> In lokalen Ordner speichern
+                                    </label>
+                                    <div id="abo-local-destination-container">
+                                        <select id="abo-local-destination" class="form-select" style="width:100%; height:34px; padding: 0 8px; background: var(--bg-surface); border: 1px solid var(--border-glass); color: var(--text-main); border-radius: var(--radius-sm); font-size:12px;">
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <button class="btn btn-primary" id="btn-add-abo" style="margin-top:15px; font-weight:600;">➕ Abo hinzufügen</button>
@@ -865,12 +1145,12 @@
         <div class="console-header" id="console-header-toggle">
             <div class="console-title">
                 <span class="console-icon">💻</span>
-                <h3>Ausgabe-Konsole</h3>
+                <h2>Ausgabe-Konsole</h2>
                 <span class="pulse-indicator hidden" id="console-pulse">● Aktiv</span>
             </div>
             <div class="console-actions">
                 <button class="btn btn-sm btn-secondary" id="btn-clear-console">Clear</button>
-                <button class="console-toggle-btn" id="console-toggle-btn-icon">▲</button>
+                <button class="console-toggle-btn" id="console-toggle-btn-icon" aria-label="Konsole maximieren/minimieren">▲</button>
             </div>
         </div>
         <div class="console-body" id="console-body-text">
@@ -885,7 +1165,7 @@
             <h2 style="margin:0; font-size:20px;">📋 Warteschlange</h2>
             <div style="display:flex; gap:10px; align-items:center;">
                 <button id="btn-clear-queue" class="btn btn-secondary btn-sm" style="padding:5px 10px;">🗑️ Leeren</button>
-                <button id="btn-close-queue" class="btn btn-secondary" style="padding:5px 10px; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">✕</button>
+                <button id="btn-close-queue" class="btn btn-secondary" style="padding:5px 10px; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center;" aria-label="Warteschlange schließen">✕</button>
             </div>
         </div>
         <div id="queue-list" style="padding:20px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:15px;">
@@ -893,7 +1173,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=31"></script>
 <!-- Preview Modal Overlay -->
 <div id="preview-modal-overlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); backdrop-filter:blur(10px); z-index:9999; display:flex; justify-content:center; align-items:center; opacity:0; transition:opacity 0.3s;">
     <div id="preview-modal" style="background:var(--bg-main); border:1px solid var(--border-glass); border-radius:var(--radius-lg); width:90%; max-width:800px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 20px 50px rgba(0,0,0,0.5); transform:translateY(20px); transition:transform 0.3s;">
@@ -901,7 +1180,7 @@
         <!-- Header -->
         <div style="padding:20px; border-bottom:1px solid var(--border-glass); display:flex; justify-content:space-between; align-items:center; background:rgba(20,20,30,0.5); border-radius:var(--radius-lg) var(--radius-lg) 0 0;">
             <h2 style="margin:0; font-size:18px; color:var(--text-main);">📋 Vorschau & Bereinigung</h2>
-            <button id="btn-preview-close" class="btn" style="background:transparent; border:none; color:var(--text-muted); font-size:24px; padding:0; cursor:pointer;">&times;</button>
+            <button id="btn-preview-close" class="btn" style="background:transparent; border:none; color:var(--text-muted); font-size:24px; padding:0; cursor:pointer;" aria-label="Vorschau schließen">&times;</button>
         </div>
         
         <!-- Body -->
@@ -966,7 +1245,7 @@
         <!-- Header -->
         <div style="padding:20px; border-bottom:1px solid var(--border-glass); display:flex; justify-content:space-between; align-items:center; background:rgba(20,20,30,0.5); border-radius:var(--radius-lg) var(--radius-lg) 0 0;">
             <h2 style="margin:0; font-size:18px; color:var(--text-main);">🗑 Ordner interaktiv aufräumen</h2>
-            <button id="btn-clean-close" class="btn" style="background:transparent; border:none; color:var(--text-muted); font-size:24px; padding:0; cursor:pointer;">&times;</button>
+            <button id="btn-clean-close" class="btn" style="background:transparent; border:none; color:var(--text-muted); font-size:24px; padding:0; cursor:pointer;" aria-label="Aufräumen schließen">&times;</button>
         </div>
         <!-- Body -->
         <div style="padding:20px; overflow-y:auto; flex:1;">
@@ -990,7 +1269,7 @@
         <!-- Header -->
         <div style="padding:20px; border-bottom:1px solid var(--border-glass); display:flex; justify-content:space-between; align-items:center; background:rgba(20,20,30,0.5); border-radius:var(--radius-lg) var(--radius-lg) 0 0;">
             <h2 style="margin:0; font-size:18px; color:var(--text-main); display:flex; align-items:center; gap:8px;">🗑️ Medienpfade bereinigen</h2>
-            <button id="btn-paths-clean-close" class="btn" style="background:transparent; border:none; color:var(--text-muted); font-size:24px; padding:0; cursor:pointer;">&times;</button>
+            <button id="btn-paths-clean-close" class="btn" style="background:transparent; border:none; color:var(--text-muted); font-size:24px; padding:0; cursor:pointer;" aria-label="Medienpfade bereinigen schließen">&times;</button>
         </div>
         
         <!-- Phase 1: Selector -->
@@ -1055,5 +1334,6 @@
     </div>
 </div>
 
+    <script src="app.js?v=31"></script>
 </body>
 </html>

@@ -798,26 +798,54 @@ def get_random_joke():
         
     return "Was ist gelb und kann nicht schwimmen? Ein Bagger!"
 
+def is_text_german(text):
+    import re
+    if not text:
+        return False
+    text_lower = text.lower()
+    # 1. Check for German-specific characters
+    if any(c in text_lower for c in ['ä', 'ö', 'ü', 'ß']):
+        return True
+        
+    # 2. Distinctive German words (stop words + common terms)
+    GERMAN_DISTINCTIVE = {
+        'der', 'die', 'das', 'und', 'ist', 'zu', 'den', 'von', 'mit', 'auf', 'für', 'ein', 'eine', 
+        'im', 'dem', 'des', 'aus', 'nicht', 'sich', 'wie', 'aber', 'oder', 'bei', 'nur', 
+        'einen', 'einem', 'einer', 'eines', 'als', 'auch', 'nach', 'vor', 'über', 'mehr', 
+        'durch', 'unter', 'wir', 'ihr', 'was', 'wer', 'wo', 'wenn', 'dann', 'alle', 'doch',
+        'folge', 'staffel', 'deutsch', 'deutsche', 'deutscher', 'deutsches', 'hörbuch', 
+        'schauspieler', 'heute', 'damals', 'ganzer', 'film', 'kinderserie', 'kindheit', 
+        'erinnerungen', 'freunde', 'welt', 'macht', 'ausflug', 'neue', 'rummelplatz', 'suchen',
+        'suche', 'zieht', 'villa'
+    }
+    
+    words = re.findall(r'\b[a-z]+\b', text_lower)
+    matches = [w for w in words if w in GERMAN_DISTINCTIVE]
+    if len(matches) >= 2:
+        return True
+    if len(matches) == 1 and any(w in matches for w in ['deutsch', 'deutscher', 'deutsche', 'deutsches', 'und', 'das', 'ist', 'film', 'folge', 'staffel']):
+        return True
+        
+    return False
+
 def check_single_subscription(sub):
     import uuid
     import time
     url = sub.get("url")
-    search_filter = sub.get("search_filter", "").lower().strip()
-    downloaded_ids = sub.get("downloaded_ids", [])
-    destination_id = sub.get("destination_id")
-    
+    if url and not (url.startswith("http://") or url.startswith("https://")):
+        url = f"ytsearch50:{url}"
+        
     if not url:
         return
         
-    cmd = ["yt-dlp", "--flat-playlist", "--playlist-end", "10", "--dump-json", url]
+    cmd = ["yt-dlp", "--playlist-end", "50", "--dump-json", "--flat-playlist", url]
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
         if res.returncode != 0:
-            print(f"[YouTube Abo-Überwachung] yt-dlp Fehler für {sub.get('name')}: {res.stderr}")
+            log_message(f"[YouTube Abo-Überwachung] yt-dlp Fehler für {sub.get('name')}: {res.stderr}")
             return
             
         lines = res.stdout.strip().split('\n')
-        new_downloads = 0
         
         settings = load_settings()
         sub_in_settings = None
@@ -829,6 +857,44 @@ def check_single_subscription(sub):
         if not sub_in_settings:
             return
             
+        has_changes = False
+        
+        # Fetch channel avatar if not already present
+        if not sub_in_settings.get("avatar_url") and not (url.startswith("ytsearch")):
+            try:
+                avatar_cmd = ["yt-dlp", "--dump-single-json", "--playlist-items", "0", url]
+                avatar_res = subprocess.run(avatar_cmd, capture_output=True, text=True, timeout=10)
+                if avatar_res.returncode == 0:
+                    playlist_data = json.loads(avatar_res.stdout)
+                    thumbnails = playlist_data.get("thumbnails", [])
+                    avatar_url = ""
+                    for t in thumbnails:
+                        if t.get("id") == "avatar_uncropped" or t.get("id") == "avatar":
+                            avatar_url = t.get("url")
+                            break
+                    if not avatar_url and thumbnails:
+                        sorted_thumbs = sorted(thumbnails, key=lambda x: x.get("preference", 0), reverse=True)
+                        if sorted_thumbs:
+                            avatar_url = sorted_thumbs[0].get("url")
+                    if avatar_url:
+                        sub_in_settings["avatar_url"] = avatar_url
+                        has_changes = True
+            except Exception as av_err:
+                log_message(f"[YouTube Abo-Überwachung] Fehler beim Laden des Kanallogos: {av_err}")
+                
+        auto_download = sub_in_settings.get("auto_download", True)
+        filter_german = sub_in_settings.get("filter_german", False)
+        search_filter = sub_in_settings.get("search_filter", "").lower().strip()
+        exclude_keywords = [w.strip().lower() for w in sub_in_settings.get("exclude_keywords", "").split(",") if w.strip()]
+        last_checked_ts = sub_in_settings.get("last_checked_timestamp", 0)
+        
+        downloaded_ids = sub_in_settings.get("downloaded_ids", [])
+        pending_videos = sub_in_settings.get("pending_videos", [])
+        pending_ids = [v.get("id") for v in pending_videos if v.get("id")]
+        
+        new_downloads = 0
+        max_timestamp = last_checked_ts
+        
         for line in lines:
             if not line.strip():
                 continue
@@ -838,80 +904,198 @@ def check_single_subscription(sub):
                 v_title = video_data.get("title", "")
                 v_url = video_data.get("url") or f"https://www.youtube.com/watch?v={v_id}"
                 
-                if not v_id or v_id in downloaded_ids:
+                if not v_id or v_id in downloaded_ids or v_id in pending_ids:
                     continue
                     
+                # Exclude keywords check
+                if exclude_keywords:
+                    title_lower = v_title.lower()
+                    if any(kw in title_lower for kw in exclude_keywords):
+                        log_message(f"[YouTube Abo-Überwachung] Video übersprungen wegen Ausschluss-Keyword: {v_title}")
+                        if v_id not in downloaded_ids:
+                            downloaded_ids.append(v_id)
+                            has_changes = True
+                        continue
+                        
+                # Get video timestamp and/or check German language filter
+                detail_data = None
+                v_timestamp = video_data.get("timestamp")
+                if not v_timestamp and video_data.get("upload_date"):
+                    try:
+                        from datetime import datetime
+                        v_timestamp = datetime.strptime(video_data.get("upload_date"), "%Y%m%d").timestamp()
+                    except Exception:
+                        pass
+                        
+                need_details = (not v_timestamp) or filter_german
+                if need_details:
+                    detail_cmd = ["yt-dlp", "--dump-json", v_url]
+                    try:
+                        detail_res = subprocess.run(detail_cmd, capture_output=True, text=True, timeout=10)
+                        if detail_res.returncode == 0:
+                            detail_data = json.loads(detail_res.stdout)
+                            video_data = detail_data
+                            v_timestamp = video_data.get("timestamp")
+                            if not v_timestamp and video_data.get("upload_date"):
+                                try:
+                                    from datetime import datetime
+                                    v_timestamp = datetime.strptime(video_data.get("upload_date"), "%Y%m%d").timestamp()
+                                except Exception:
+                                    pass
+                        else:
+                            log_message(f"[YouTube Abo-Überwachung] Detail-Fehler für {v_title}: {detail_res.stderr}")
+                    except Exception as detail_err:
+                        log_message(f"[YouTube Abo-Überwachung] Detail-Timeout/Fehler für {v_title}: {detail_err}")
+                
+                # Check timestamp
+                if v_timestamp:
+                    if v_timestamp <= last_checked_ts:
+                        if v_id not in downloaded_ids:
+                            downloaded_ids.append(v_id)
+                            has_changes = True
+                        continue
+                    if v_timestamp > max_timestamp:
+                        max_timestamp = v_timestamp
+                        
                 # Search filter check
                 if search_filter:
                     if search_filter not in v_title.lower():
                         continue
                         
-                print(f"[YouTube Abo-Überwachung]: Neuer Treffer für Abo '{sub.get('name')}': {v_title} ({v_url})")
-                
-                # Start job!
-                task_id = str(uuid.uuid4())
-                job_params = {
-                    "media_type": "youtube",
-                    "yt_url": v_url,
-                    "yt_format": "best",
-                    "yt_embed_thumbnail": True,
-                    "copy_to_nas": True,
-                    "destination_id": destination_id,
-                    "project_name": "",
-                    "task_id": task_id
-                }
-                
-                job_info = {
-                    "id": task_id,
-                    "type": "youtube",
-                    "name": f"Abo: {v_title[:40]}",
-                    "status": "queued",
-                    "progress": 0,
-                    "message": "Automatisch gestartet...",
-                    "timestamp": time.time(),
-                    "params": job_params,
-                    "pipeline": {
-                        "metadata": {"status": "pending", "progress": 0},
-                        "convert": {"status": "pending", "progress": 0},
-                        "nas": {"status": "pending", "progress": 0},
-                        "pcloud": {"status": "pending", "progress": 0}
-                    }
-                }
-                
-                with active_jobs_lock:
-                    active_jobs[task_id] = job_info
+                # German language filter check
+                if filter_german:
+                    is_german = is_text_german(v_title)
+                    if not is_german and detail_data:
+                        v_lang = str(detail_data.get("language") or "").lower()
+                        if v_lang.startswith("de"):
+                            is_german = True
+                        if not is_german:
+                            is_german = is_text_german(detail_data.get("description", ""))
+                            
+                    if not is_german:
+                        continue
+                        
+                if not auto_download:
+                    v_thumb = video_data.get("thumbnail") or ""
+                    if not v_thumb and video_data.get("thumbnails"):
+                        v_thumb = video_data.get("thumbnails")[0].get("url") or ""
+                    v_channel = video_data.get("uploader") or video_data.get("channel") or sub.get("name") or "Unbekannt"
+                    v_published = video_data.get("upload_date") or ""
                     
-                job_queue.put(job_info)
-                
-                # Mark as downloaded
-                downloaded_ids.append(v_id)
-                new_downloads += 1
-                
+                    pending_videos.append({
+                        "id": v_id,
+                        "title": v_title,
+                        "url": v_url,
+                        "thumbnail": v_thumb,
+                        "channel": v_channel,
+                        "published_at": v_published
+                    })
+                    if len(pending_videos) > 100:
+                        pending_videos.pop(0)
+                        
+                    pending_ids.append(v_id)
+                    has_changes = True
+                    log_message(f"[YouTube Abo-Überwachung]: Neues Video in Inbox für Abo '{sub.get('name')}': {v_title}")
+                else:
+                    log_message(f"[YouTube Abo-Überwachung]: Neuer Treffer für Abo '{sub.get('name')}': {v_title} ({v_url})")
+                    task_id = str(uuid.uuid4())
+                    sub_copy_to_nas = sub_in_settings.get("copy_to_nas", True)
+                    sub_copy_to_pcloud = sub_in_settings.get("copy_to_pcloud", False)
+                    sub_copy_to_local = sub_in_settings.get("copy_to_local", False)
+                    sub_nas_dest = sub_in_settings.get("nas_destination_id", sub_in_settings.get("destination_id"))
+                    sub_pcloud_dest = sub_in_settings.get("pcloud_destination_id")
+                    sub_local_dest = sub_in_settings.get("local_destination_id")
+                    
+                    job_params = {
+                        "media_type": "youtube",
+                        "yt_url": v_url,
+                        "yt_format": "best",
+                        "yt_embed_thumbnail": True,
+                        "copy_to_nas": sub_copy_to_nas,
+                        "copy_to_pcloud": sub_copy_to_pcloud,
+                        "copy_to_local": sub_copy_to_local,
+                        "destination_id": sub_nas_dest,
+                        "nas_destination_id": sub_nas_dest,
+                        "pcloud_destination_id": sub_pcloud_dest,
+                        "local_destination_id": sub_local_dest,
+                        "project_name": "",
+                        "task_id": task_id
+                    }
+                    
+                    job_info = {
+                        "id": task_id,
+                        "type": "youtube",
+                        "name": f"Abo: {v_title[:40]}",
+                        "status": "queued",
+                        "progress": 0,
+                        "message": "Automatisch gestartet...",
+                        "timestamp": time.time(),
+                        "params": job_params,
+                        "pipeline": {
+                            "metadata": {"status": "pending", "progress": 0},
+                            "convert": {"status": "pending", "progress": 0},
+                            "nas": {"status": "pending" if sub_copy_to_nas else "skipped", "progress": 0},
+                            "pcloud": {"status": "pending" if sub_copy_to_pcloud else "skipped", "progress": 0}
+                        }
+                    }
+                    
+                    with active_jobs_lock:
+                        active_jobs[task_id] = job_info
+                        
+                    job_queue.put(job_info)
+                    downloaded_ids.append(v_id)
+                    new_downloads += 1
+                    has_changes = True
+                    
             except Exception as ex:
-                print(f"[YouTube Abo-Überwachung] Fehler bei Video-Verarbeitung: {ex}")
+                log_message(f"[YouTube Abo-Überwachung] Fehler bei Video-Verarbeitung: {ex}")
                 
-        if new_downloads > 0:
+        sub_in_settings["last_checked"] = time.time()
+        sub_in_settings["last_checked_timestamp"] = max_timestamp
+        if has_changes:
             sub_in_settings["downloaded_ids"] = downloaded_ids
-            sub_in_settings["last_checked"] = time.time()
-            save_settings(settings)
-            
+            sub_in_settings["pending_videos"] = pending_videos
+        save_settings(settings)
+        
     except Exception as e:
-        print(f"[YouTube Abo-Überwachung] Fehler bei Check für {sub.get('name')}: {e}")
+        log_message(f"[YouTube Abo-Überwachung] Fehler bei Check für {sub.get('name')}: {e}")
 
 def check_youtube_subscriptions_loop():
     # Delay initial check slightly
     time.sleep(10)
+    is_startup = True
     while True:
         try:
             settings = load_settings()
             subs = settings.get("youtube_subscriptions", [])
             active_subs = [s for s in subs if s.get("enabled")]
             if active_subs:
-                print(f"[YouTube Abo-Überwachung]: Starte turnusmäßigen Check für {len(active_subs)} Abos...")
+                now = time.time()
+                subs_to_check = []
                 for sub in active_subs:
-                    check_single_subscription(sub)
+                    schedule = sub.get("schedule", "hourly")
+                    last_checked = sub.get("last_checked") or 0
+                    
+                    if is_startup:
+                        if schedule == "on_startup" or schedule == "hourly":
+                            subs_to_check.append(sub)
+                        elif schedule == "daily":
+                            if now - last_checked >= 23 * 3600:
+                                subs_to_check.append(sub)
+                    else:
+                        if schedule == "hourly":
+                            subs_to_check.append(sub)
+                        elif schedule == "daily":
+                            if now - last_checked >= 23 * 3600:
+                                subs_to_check.append(sub)
+                                
+                if subs_to_check:
+                    log_message(f"[YouTube Abo-Überwachung]: Starte turnusmäßigen Check für {len(subs_to_check)} Abos (Startup={is_startup})...")
+                    for sub in subs_to_check:
+                        check_single_subscription(sub)
         except Exception as e:
-            print(f"[YouTube Abo-Überwachung] Fehler: {e}")
+            log_message(f"[YouTube Abo-Überwachung] Fehler im Background Loop: {e}")
+        is_startup = False
         time.sleep(3600)  # Check every hour
 
 def trigger_youtube_subscriptions_check():
@@ -921,11 +1105,11 @@ def trigger_youtube_subscriptions_check():
             subs = settings.get("youtube_subscriptions", [])
             active_subs = [s for s in subs if s.get("enabled")]
             if active_subs:
-                print(f"[YouTube Abo-Überwachung]: Starte manuell getriggerten Check für {len(active_subs)} Abos...")
+                log_message(f"[YouTube Abo-Überwachung]: Starte manuell getriggerten Check für {len(active_subs)} Abos...")
                 for sub in active_subs:
                     check_single_subscription(sub)
         except Exception as e:
-            print(f"[YouTube Abo-Überwachung] Manuelle Überwachung Fehler: {e}")
+            log_message(f"[YouTube Abo-Überwachung] Manuelle Überwachung Fehler: {e}")
             
     threading.Thread(target=target, daemon=True).start()
 
@@ -1317,7 +1501,7 @@ def process_worker(params):
             w_nas = 0.5
             w_pcloud = 0.0
 
-        progress_lock = threading.Lock()
+        progress_lock = threading.RLock()
 
         def update_global_job_progress():
             with progress_lock:
@@ -1426,7 +1610,11 @@ def process_worker(params):
                         for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]:
                             p_src = os.path.join(dest_show_dir_outbox, f)
                             if os.path.exists(p_src):
-                                shutil.copy(p_src, os.path.join(dest_show_dir_nas, f))
+                                p_dest = os.path.join(dest_show_dir_nas, f)
+                                if os.path.exists(p_dest):
+                                    log_message(f"[Transfer Thread]: {f} existiert bereits auf NAS. Wird nicht überschrieben.")
+                                else:
+                                    shutil.copy(p_src, p_dest)
                         log_message("[Transfer Thread]: Serien-Metadaten kopiert.")
                         settings = load_settings()
                         if settings.get("open_nas_finder"):
@@ -1441,14 +1629,15 @@ def process_worker(params):
                         
                         def pcloud_progress_cb(percent, msg):
                             nonlocal pcloud_pct, pcloud_speed
-                            pcloud_pct = percent
-                            speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
-                            if speed_match:
-                                pcloud_speed = speed_match.group(1)
-                            else:
-                                speed_match_raw = re.search(r'([\d.]+\s*[kKMG]i?B/s)', msg)
-                                if speed_match_raw:
-                                    pcloud_speed = speed_match_raw.group(1)
+                            with progress_lock:
+                                pcloud_pct = percent
+                                speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
+                                if speed_match:
+                                    pcloud_speed = speed_match.group(1)
+                                else:
+                                    speed_match_raw = re.search(r'([\d.]+\s*[kKMG]i?B/s)', msg)
+                                    if speed_match_raw:
+                                        pcloud_speed = speed_match_raw.group(1)
                             update_global_job_progress()
                             with active_jobs_lock:
                                 if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
@@ -1462,7 +1651,8 @@ def process_worker(params):
                             explicit_remote_base=explicit_pcloud_base
                         )
                         if success:
-                            pcloud_pct = 100
+                            with progress_lock:
+                                pcloud_pct = 100
                             log_message("[Transfer Thread]: pCloud-Upload fertig.")
                             update_global_job_progress()
                             with active_jobs_lock:
@@ -1640,7 +1830,7 @@ def process_worker(params):
                                 size_out = os.path.getsize(temp_output)
                                 if size_in > 0:
                                     ratio = size_out / size_in
-                                    media.add_conversion_to_history(quality, "hevc", ratio)
+                                    media.add_conversion_to_history(quality, "hevc", ratio, size_in, size_out)
                                     log_message(f"Konvertierungs-Verhältnis erfasst: {ratio:.4f}")
                             except Exception as e:
                                 log_message(f"Fehler beim Erfassen des Konvertierungs-Verhältnisses: {e}")
@@ -1727,8 +1917,12 @@ def process_worker(params):
             for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]:
                 p_src = os.path.join(current_dir, f)
                 if os.path.exists(p_src):
-                    shutil.move(p_src, os.path.join(dest_show_dir_outbox, f))
-                    log_message(f"Serien-Metadatei in Output-Ordner verschoben: {f}")
+                    p_dest = os.path.join(dest_show_dir_outbox, f)
+                    if os.path.exists(p_dest):
+                        log_message(f"Serien-Metadatei existiert bereits im Output-Ordner und wird nicht überschrieben: {f}")
+                    else:
+                        shutil.move(p_src, p_dest)
+                        log_message(f"Serien-Metadatei in Output-Ordner verschoben: {f}")
             # Open local destination in Finder
             if settings.get("open_outbox_finder"):
                 subprocess.run(["open", dest_show_dir_outbox])
@@ -1752,7 +1946,8 @@ def process_worker(params):
                 "explicit_pcloud_base": explicit_pcloud_base
             })
         else:
-            pcloud_pct = 100
+            with progress_lock:
+                pcloud_pct = 100
             update_global_job_progress()
             
         # Send Sentinel and join
@@ -1952,14 +2147,15 @@ def process_worker(params):
                         log_message(f"[Transfer Thread]: Starte pCloud-Upload für {clean_movie_name}...")
                         
                         def pcloud_progress_cb(percent, msg):
-                            pcloud_pct[file_idx] = percent
-                            speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
-                            if speed_match:
-                                pcloud_speeds[file_idx] = speed_match.group(1)
-                            else:
-                                speed_match_raw = re.search(r'([\d.]+\s*[kKMG]i?B/s)', msg)
-                                if speed_match_raw:
-                                    pcloud_speeds[file_idx] = speed_match_raw.group(1)
+                            with progress_lock:
+                                pcloud_pct[file_idx] = percent
+                                speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
+                                if speed_match:
+                                    pcloud_speeds[file_idx] = speed_match.group(1)
+                                else:
+                                    speed_match_raw = re.search(r'([\d.]+\s*[kKMG]i?B/s)', msg)
+                                    if speed_match_raw:
+                                        pcloud_speeds[file_idx] = speed_match_raw.group(1)
                             update_global_job_progress()
                             with active_jobs_lock:
                                 if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
@@ -1974,7 +2170,8 @@ def process_worker(params):
                             explicit_remote_base=explicit_pcloud_base
                         )
                         if success:
-                            pcloud_pct[file_idx] = 100
+                            with progress_lock:
+                                pcloud_pct[file_idx] = 100
                             log_message(f"[Transfer Thread]: pCloud-Upload fertig für {clean_movie_name}.")
                             update_global_job_progress()
                             with active_jobs_lock:
@@ -2071,7 +2268,7 @@ def process_worker(params):
                                 size_out = os.path.getsize(temp_output)
                                 if size_in > 0:
                                     ratio = size_out / size_in
-                                    media.add_conversion_to_history(quality, "hevc", ratio)
+                                    media.add_conversion_to_history(quality, "hevc", ratio, size_in, size_out)
                                     log_message(f"Konvertierungs-Verhältnis erfasst: {ratio:.4f}")
                             except Exception as e:
                                 log_message(f"Fehler beim Erfassen des Konvertierungs-Verhältnisses: {e}")
@@ -2168,7 +2365,8 @@ def process_worker(params):
                     "explicit_pcloud_base": explicit_pcloud_base
                 })
             else:
-                pcloud_pct[file_idx] = 100
+                with progress_lock:
+                    pcloud_pct[file_idx] = 100
                 update_global_job_progress()
                 
         with active_jobs_lock:
@@ -2208,7 +2406,7 @@ def process_worker(params):
             except Exception as e:
                 log_message(f"Fehler beim Bereinigen des Projekt-Ordners: {e}")
                     
-    elif media_type == "youtube":
+    elif media_type in ["youtube", "youtube_merge"]:
         task_id = params.get("task_id")
         url = params.get("yt_url")
         format_opt = params.get("yt_format", "best")
@@ -2239,7 +2437,6 @@ def process_worker(params):
         provider = params.get("provider")
         
         copy_to_nas = params.get("copy_to_nas", False)
-        # Use destination resolved at the beginning of process_worker instead of overwriting it
         
         settings = load_settings()
         inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
@@ -2265,66 +2462,148 @@ def process_worker(params):
         log_message(f"Ziel-Temp-Ordner: {temp_dir}")
         
         try:
-            # Build yt-dlp command
-            cmd = ["yt-dlp", "--newline", "-P", temp_dir]
+            if media_type == "youtube":
+                # Build yt-dlp command
+                cmd = ["yt-dlp", "--newline", "-P", temp_dir]
+                
+                # Format selection
+                if format_opt == "audio":
+                    cmd.extend(["-f", "ba", "-x", "--audio-format", "mp3"])
+                elif format_opt == "best":
+                    cmd.extend(["-f", "bv*+ba/b"])
+                elif "_h264" in format_opt:
+                    h_val = format_opt.split("p_")[0]
+                    cmd.extend(["-f", f"bestvideo[height<={h_val}][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<={h_val}]+bestaudio/best"])
+                elif "_vp9" in format_opt:
+                    h_val = format_opt.split("p_")[0]
+                    cmd.extend(["-f", f"bestvideo[height<={h_val}][vcodec^=vp09]+bestaudio/bestvideo[height<={h_val}][vcodec^=vp9]+bestaudio/bestvideo[height<={h_val}]+bestaudio/best"])
+                elif "_av1" in format_opt:
+                    h_val = format_opt.split("p_")[0]
+                    cmd.extend(["-f", f"bestvideo[height<={h_val}][vcodec^=av01]+bestaudio/bestvideo[height<={h_val}]+bestaudio/best"])
+                elif format_opt.endswith("p"):
+                    h_val = format_opt[:-1]
+                    cmd.extend(["-f", f"bestvideo[height<={h_val}]+bestaudio/best"])
+                else:
+                    cmd.extend(["-f", "bv*+ba/b"])
+                    
+                # Thumbnail embedding (native yt-dlp, if not splitting chapters or doing LosslessCut where it might strip metadata)
+                if embed_thumb and not (split_chapters or open_losslesscut):
+                    cmd.append("--embed-thumbnail")
+                    
+                # Subtitles
+                if subs:
+                    cmd.extend(["--write-subs", "--embed-subs"])
+                    lang_str = ",".join(subs)
+                    cmd.extend(["--sub-langs", lang_str])
+                    
+                # Trimming / Chapter splitting
+                if split_chapters:
+                    cmd.extend(["--split-chapters", "--force-keyframes-at-cuts"])
+                elif trim_start or trim_end:
+                    t_start = trim_start if trim_start else "00:00:00"
+                    t_end = trim_end if trim_end else "*inf"
+                    cmd.extend(["--download-sections", f"*{t_start}-{t_end}"])
+                    
+                cmd.extend(["--cookies-from-browser", "chrome"])
+                cmd.append(url)
+                
+                log_message(f"Fuehre aus: {' '.join(cmd)}")
+                success = run_ytdlp_with_progress(cmd, task_id=task_id, log_queue=log_queue)
+                
+                # If fail, retry without cookies
+                if not success:
+                    log_message("Download mit Cookies fehlgeschlagen. Versuche ohne Cookies...")
+                    cmd_fallback = [x for x in cmd if x != "chrome" and x != "--cookies-from-browser"]
+                    success = run_ytdlp_with_progress(cmd_fallback, task_id=task_id, log_queue=log_queue)
+                    
+                if not success:
+                    raise RuntimeError("Download vollständig fehlgeschlagen.")
+                    
+                log_message("Download erfolgreich beendet.")
+                downloaded_files = [f for f in os.listdir(temp_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov', '.mp3', '.m4a')) and not f.startswith(".")]
             
-            # Format selection
-            if format_opt == "audio":
-                cmd.extend(["-f", "ba", "-x", "--audio-format", "mp3"])
-            elif format_opt == "best":
-                cmd.extend(["-f", "bv*+ba/b"])
-            elif "_h264" in format_opt:
-                h_val = format_opt.split("p_")[0]
-                cmd.extend(["-f", f"bestvideo[height<={h_val}][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<={h_val}]+bestaudio/best"])
-            elif "_vp9" in format_opt:
-                h_val = format_opt.split("p_")[0]
-                cmd.extend(["-f", f"bestvideo[height<={h_val}][vcodec^=vp09]+bestaudio/bestvideo[height<={h_val}][vcodec^=vp9]+bestaudio/bestvideo[height<={h_val}]+bestaudio/best"])
-            elif "_av1" in format_opt:
-                h_val = format_opt.split("p_")[0]
-                cmd.extend(["-f", f"bestvideo[height<={h_val}][vcodec^=av01]+bestaudio/bestvideo[height<={h_val}]+bestaudio/best"])
-            elif format_opt.endswith("p"):
-                h_val = format_opt[:-1]
-                cmd.extend(["-f", f"bestvideo[height<={h_val}]+bestaudio/best"])
-            else:
-                cmd.extend(["-f", "bv*+ba/b"])
+            else: # youtube_merge
+                urls = params.get("yt_urls", [])
+                final_title = params.get("title", "Merged Video")
+                subscription_id = params.get("subscription_id")
+                video_ids_to_remove = params.get("video_ids_to_remove", [])
+                num_urls = len(urls)
                 
-            # Thumbnail embedding (native yt-dlp, if not splitting chapters or doing LosslessCut where it might strip metadata)
-            if embed_thumb and not (split_chapters or open_losslesscut):
-                cmd.append("--embed-thumbnail")
+                log_message(f"=== STARTE YOUTUBE MERGE PIPELINE FUER TASK {task_id} ===")
                 
-            # Subtitles
-            if subs:
-                cmd.extend(["--write-subs", "--embed-subs"])
-                lang_str = ",".join(subs)
-                cmd.extend(["--sub-langs", lang_str])
+                # Download parts sequentially
+                for idx, part_url in enumerate(urls, 1):
+                    with active_jobs_lock:
+                        if task_id in active_jobs:
+                            active_jobs[task_id]["progress"] = int(((idx - 1) / num_urls) * 90)
+                            active_jobs[task_id]["message"] = f"Lade Teil {idx} von {num_urls}..."
+                    
+                    part_output = f"part_{idx:02d}.%(ext)s"
+                    cmd = ["yt-dlp", "-P", temp_dir, "--output", part_output, "--merge-output-format", "mp4", "-f", "bv*+ba/b", "--cookies-from-browser", "chrome", part_url]
+                    
+                    log_message(f"Lade Teil {idx}/{num_urls}: {' '.join(cmd)}")
+                    success = run_ytdlp_with_progress(cmd, task_id=None, log_queue=log_queue)
+                    if not success:
+                        cmd_fallback = [x for x in cmd if x != "chrome" and x != "--cookies-from-browser"]
+                        success = run_ytdlp_with_progress(cmd_fallback, task_id=None, log_queue=log_queue)
+                    if not success:
+                        raise RuntimeError(f"Download von Teil {idx} ({part_url}) fehlgeschlagen.")
                 
-            # Trimming / Chapter splitting
-            if split_chapters:
-                cmd.extend(["--split-chapters", "--force-keyframes-at-cuts"])
-            elif trim_start or trim_end:
-                t_start = trim_start if trim_start else "00:00:00"
-                t_end = trim_end if trim_end else "*inf"
-                cmd.extend(["--download-sections", f"*{t_start}-{t_end}"])
+                files = sorted([f for f in os.listdir(temp_dir) if f.startswith("part_") and f.lower().endswith(".mp4")])
+                if not files:
+                    raise RuntimeError("Keine heruntergeladenen Teile gefunden.")
                 
-            cmd.extend(["--cookies-from-browser", "chrome"])
-            cmd.append(url)
-            
-            log_message(f"Fuehre aus: {' '.join(cmd)}")
-            success = run_ytdlp_with_progress(cmd, task_id=task_id, log_queue=log_queue)
-            
-            # If fail, retry without cookies
-            if not success:
-                log_message("Download mit Cookies fehlgeschlagen. Versuche ohne Cookies...")
-                cmd_fallback = [x for x in cmd if x != "chrome" and x != "--cookies-from-browser"]
-                success = run_ytdlp_with_progress(cmd_fallback, task_id=task_id, log_queue=log_queue)
+                final_name = f"{sanitize_filename(final_title)}.mp4"
+                final_path = os.path.join(temp_dir, final_name)
                 
-            if not success:
-                raise RuntimeError("Download vollständig fehlgeschlagen.")
+                if len(files) < 2:
+                    log_message("Nur ein Teil heruntergeladen. Überspringe FFmpeg-Concat.")
+                    os.rename(os.path.join(temp_dir, files[0]), final_path)
+                else:
+                    with active_jobs_lock:
+                        if task_id in active_jobs:
+                            active_jobs[task_id]["progress"] = 90
+                            active_jobs[task_id]["message"] = "Füge Teile zusammen (FFmpeg)..."
+                    
+                    inputs_txt_path = os.path.join(temp_dir, "inputs.txt")
+                    with open(inputs_txt_path, "w", encoding="utf-8") as f_inputs:
+                        for f in files:
+                            f_inputs.write(f"file '{f}'\n")
+                    
+                    ffmpeg_cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", inputs_txt_path, "-c", "copy", final_path]
+                    log_message(f"Führe FFmpeg aus: {' '.join(ffmpeg_cmd)}")
+                    ffmpeg_res = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
+                    if ffmpeg_res.returncode != 0:
+                        raise RuntimeError(f"FFmpeg-Zusammenfügen fehlgeschlagen: {ffmpeg_res.stderr}")
+                    
+                    log_message("FFmpeg-Zusammenfügen erfolgreich.")
+                    
+                    # Cleanup downloaded parts
+                    for f in files:
+                        try: os.remove(os.path.join(temp_dir, f))
+                        except Exception: pass
+                    try: os.remove(inputs_txt_path)
+                    except Exception: pass
                 
-            log_message("Download erfolgreich beendet.")
-            
-            # Find downloaded files
-            downloaded_files = [f for f in os.listdir(temp_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov', '.mp3', '.m4a')) and not f.startswith(".")]
+                # Clear pending videos in subscription if needed
+                if subscription_id and video_ids_to_remove:
+                    try:
+                        settings_save = load_settings()
+                        for s in settings_save.get("youtube_subscriptions", []):
+                            if s.get("id") == subscription_id:
+                                pending = s.get("pending_videos", [])
+                                s["pending_videos"] = [v for v in pending if v.get("id") not in video_ids_to_remove]
+                                downloaded_ids = s.get("downloaded_ids", [])
+                                for vid in video_ids_to_remove:
+                                    if vid not in downloaded_ids:
+                                        downloaded_ids.append(vid)
+                                s["downloaded_ids"] = downloaded_ids
+                                save_settings(settings_save)
+                                break
+                    except Exception as sub_clean_err:
+                        log_message(f"Fehler beim Bereinigen der Freigabeliste nach Merge: {sub_clean_err}")
+                
+                downloaded_files = [final_name]
             
             # If LosslessCut is checked and we have video files
             if open_losslesscut and downloaded_files:
@@ -2603,8 +2882,12 @@ def process_worker(params):
                     for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]:
                         p_src = os.path.join(temp_dir, f)
                         if os.path.exists(p_src):
-                            shutil.move(p_src, os.path.join(dest_show_dir_outbox, f))
-                            log_message(f"Serien-Metadatei verschoben: {f}")
+                            p_dest = os.path.join(dest_show_dir_outbox, f)
+                            if os.path.exists(p_dest):
+                                log_message(f"Serien-Metadatei existiert bereits in Output und wird nicht überschrieben: {f}")
+                            else:
+                                shutil.move(p_src, p_dest)
+                                log_message(f"Serien-Metadatei verschoben: {f}")
                 except Exception as e:
                     log_message(f"Fehler beim Verschieben der Serien-Metadaten in Output: {e}")
                     all_transfers_successful = False
@@ -2617,8 +2900,12 @@ def process_worker(params):
                     for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]:
                         p_src = os.path.join(dest_show_dir_outbox, f) if dest_show_dir_outbox else os.path.join(temp_dir, f)
                         if os.path.exists(p_src):
-                            shutil.copy(p_src, os.path.join(dest_show_dir_nas, f))
-                            log_message(f"Serien-Metadatei auf NAS kopiert: {f}")
+                            p_dest = os.path.join(dest_show_dir_nas, f)
+                            if os.path.exists(p_dest):
+                                log_message(f"Serien-Metadatei existiert bereits auf NAS und wird nicht überschrieben: {f}")
+                            else:
+                                shutil.copy(p_src, p_dest)
+                                log_message(f"Serien-Metadatei auf NAS kopiert: {f}")
                 except Exception as e:
                     log_message(f"Fehler beim Kopieren der Serien-Metadaten auf NAS: {e}")
                     all_transfers_successful = False
@@ -2670,7 +2957,11 @@ def process_worker(params):
                         for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]:
                             src = os.path.join(dest_show_dir_outbox, f)
                             if os.path.exists(src):
-                                shutil.copy2(src, os.path.join(local_show_dir, f))
+                                dest_f = os.path.join(local_show_dir, f)
+                                if os.path.exists(dest_f):
+                                    log_message(f"Serien-Metadatei existiert bereits im lokalen Zielordner und wird nicht überschrieben: {f}")
+                                else:
+                                    shutil.copy2(src, dest_f)
                     
                     log_message(f"  ✅ Erfolgreich in lokalen Ordner kopiert: {local_dest_dir}")
                     
@@ -2781,7 +3072,7 @@ def process_worker(params):
                                 size_out = os.path.getsize(temp_output)
                                 if size_in > 0:
                                     ratio = size_out / size_in
-                                    media.add_conversion_to_history(quality, "hevc", ratio)
+                                    media.add_conversion_to_history(quality, "hevc", ratio, size_in, size_out)
                                     log_message(f"Konvertierungs-Verhältnis erfasst: {ratio:.4f}")
                             except Exception as e:
                                 log_message(f"Fehler beim Erfassen des Konvertierungs-Verhältnisses: {e}")
@@ -2934,8 +3225,16 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             self.handle_api_system_open_folder(query)
         elif path == "/api/joke":
             self.handle_api_joke()
+        elif path == "/api/quote":
+            self.handle_api_quote()
         elif path == "/api/youtube/subscriptions":
             self.handle_api_get_subscriptions()
+        elif path == "/api/youtube/search-parts":
+            self.handle_api_youtube_search_parts(query)
+        elif path == "/api/media/compare-files":
+            self.handle_api_media_compare(query)
+        elif path == "/api/stats":
+            self.handle_api_stats()
         else:
             self.handle_static_files(path)
             
@@ -2996,8 +3295,16 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             self.handle_api_queue_clear()
         elif path == "/api/youtube/subscriptions":
             self.handle_api_post_subscriptions(params)
+        elif path == "/api/youtube/merge":
+            self.handle_api_youtube_merge(params)
         elif path == "/api/youtube/subscriptions/check":
             self.handle_api_check_subscriptions()
+        elif path == "/api/youtube/subscriptions/approve":
+            self.handle_api_subscriptions_approve(params)
+        elif path == "/api/youtube/subscriptions/ignore":
+            self.handle_api_subscriptions_ignore(params)
+        elif path == "/api/media/resolve-duplicate":
+            self.handle_api_resolve_duplicate(params)
         else:
             self.send_error(404, "Not found")
 
@@ -3306,9 +3613,8 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                         pat_iso_4 = f" - {ep_num:03d}."
                         if pat_iso_1 in fl or pat_iso_2 in fl or pat_iso_3 in fl or pat_iso_4 in fl:
                             matched = True
-                    if matched:
-                        details = {"filename": f}
                         filepath = os.path.join(root, f)
+                        details = {"filename": f, "path": filepath}
                         try:
                             size_bytes = os.path.getsize(filepath)
                             details["size_gb"] = size_bytes / (1024 * 1024 * 1024)
@@ -3424,8 +3730,8 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                     ext = os.path.splitext(f)[1].lower()
                     if ext not in ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts'):
                         continue
-                    details = {"filename": f}
                     filepath = os.path.join(root, f)
+                    details = {"filename": f, "path": filepath}
                     try:
                         size_bytes = os.path.getsize(filepath)
                         details["size_gb"] = size_bytes / (1024 * 1024 * 1024)
@@ -4418,6 +4724,10 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                     dest_str += "\n☁️ pCloud: (Kein Mapping gefunden)"
             else:
                 dest_str += "\n☁️ pCloud: (nicht aktiv)"
+            
+            if params.get("copy_to_nas", True) and os.path.exists(dest_show_dir):
+                if any(os.path.exists(os.path.join(dest_show_dir, f)) for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]):
+                    dest_str += "\n⚠️ Serie existiert bereits auf NAS mit vorhandenen Metadaten (tvshow.nfo, poster.jpg, fanart.jpg). Diese Dateien werden nicht überschrieben."
             preview["destination"] = dest_str
             
         # Season year warning
@@ -4889,6 +5199,49 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
         joke = get_random_joke()
         self.send_json({"joke": joke})
 
+    def handle_api_quote(self):
+        import urllib.request
+        import urllib.error
+        import random
+        
+        try:
+            url = "https://api.zitat-service.de/v1/quote?language=de"
+            req = urllib.request.Request(
+                url, 
+                headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'}
+            )
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                if data.get("quote"):
+                    self.send_json(data)
+                    return
+        except Exception as e:
+            log_message(f"[Zitat API] Fehler beim Abrufen des Online-Zitats: {e}")
+            
+        backup_quotes = [
+            {
+                "quote": "Wenn du die Absicht hast, dich zu erneuern, tu es jeden Tag.",
+                "authorName": "Konfuzius"
+            },
+            {
+                "quote": "Die beste Methode, das Leben zu meistern, ist, es als ein Abenteuer zu betrachten.",
+                "authorName": "Unbekannt"
+            },
+            {
+                "quote": "Wege entstehen dadurch, dass man sie geht.",
+                "authorName": "Franz Kafka"
+            },
+            {
+                "quote": "Auch aus Steinen, die einem in den Weg gelegt werden, kann man Schönes bauen.",
+                "authorName": "Johann Wolfgang von Goethe"
+            },
+            {
+                "quote": "Fantasie ist wichtiger als Wissen, denn Wissen ist begrenzt.",
+                "authorName": "Albert Einstein"
+            }
+        ]
+        self.send_json(random.choice(backup_quotes))
+
     def handle_api_get_subscriptions(self):
         settings = load_settings()
         self.send_json({"subscriptions": settings.get("youtube_subscriptions", [])})
@@ -4903,6 +5256,506 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
     def handle_api_check_subscriptions(self):
         trigger_youtube_subscriptions_check()
         self.send_json({"status": "success", "message": "Überprüfung gestartet"})
+
+    def handle_api_subscriptions_approve(self, params):
+        subscription_id = params.get("subscription_id")
+        video_id = params.get("video_id")
+        if not subscription_id or not video_id:
+            self.send_error(400, "Missing subscription_id or video_id")
+            return
+            
+        settings = load_settings()
+        subs = settings.get("youtube_subscriptions", [])
+        target_sub = None
+        for s in subs:
+            if s.get("id") == subscription_id:
+                target_sub = s
+                break
+                
+        if not target_sub:
+            self.send_error(404, "Subscription not found")
+            return
+            
+        pending = target_sub.get("pending_videos", [])
+        video = None
+        for v in pending:
+            if v.get("id") == video_id:
+                video = v
+                break
+                
+        if video:
+            pending.remove(video)
+            downloaded_ids = target_sub.get("downloaded_ids", [])
+            if video_id not in downloaded_ids:
+                downloaded_ids.append(video_id)
+            target_sub["pending_videos"] = pending
+            target_sub["downloaded_ids"] = downloaded_ids
+            save_settings(settings)
+            
+            # Queue download job
+            import uuid
+            import time
+            task_id = str(uuid.uuid4())
+            sub_copy_to_nas = target_sub.get("copy_to_nas", True)
+            sub_copy_to_pcloud = target_sub.get("copy_to_pcloud", False)
+            sub_copy_to_local = target_sub.get("copy_to_local", False)
+            sub_nas_dest = target_sub.get("nas_destination_id", target_sub.get("destination_id"))
+            sub_pcloud_dest = target_sub.get("pcloud_destination_id")
+            sub_local_dest = target_sub.get("local_destination_id")
+            
+            job_params = {
+                "media_type": "youtube",
+                "yt_url": video.get("url"),
+                "yt_format": "best",
+                "yt_embed_thumbnail": True,
+                "copy_to_nas": sub_copy_to_nas,
+                "copy_to_pcloud": sub_copy_to_pcloud,
+                "copy_to_local": sub_copy_to_local,
+                "destination_id": sub_nas_dest,
+                "nas_destination_id": sub_nas_dest,
+                "pcloud_destination_id": sub_pcloud_dest,
+                "local_destination_id": sub_local_dest,
+                "project_name": "",
+                "task_id": task_id
+            }
+            
+            job_info = {
+                "id": task_id,
+                "type": "youtube",
+                "name": f"Abo: {video.get('title', '')[:40]}",
+                "status": "queued",
+                "progress": 0,
+                "message": "Manuell freigegeben...",
+                "timestamp": time.time(),
+                "params": job_params,
+                "pipeline": {
+                    "metadata": {"status": "pending", "progress": 0},
+                    "convert": {"status": "pending", "progress": 0},
+                    "nas": {"status": "pending" if sub_copy_to_nas else "skipped", "progress": 0},
+                    "pcloud": {"status": "pending" if sub_copy_to_pcloud else "skipped", "progress": 0}
+                }
+            }
+            
+            with active_jobs_lock:
+                active_jobs[task_id] = job_info
+                
+            job_queue.put(job_info)
+            
+            self.send_json({"status": "success", "message": "Video freigegeben und Download gestartet"})
+        else:
+            self.send_json({"status": "success", "message": "Video war nicht in Freigabeliste oder wurde bereits verarbeitet"})
+
+    def handle_api_subscriptions_ignore(self, params):
+        subscription_id = params.get("subscription_id")
+        video_id = params.get("video_id")
+        if not subscription_id or not video_id:
+            self.send_error(400, "Missing subscription_id or video_id")
+            return
+            
+        settings = load_settings()
+        subs = settings.get("youtube_subscriptions", [])
+        target_sub = None
+        for s in subs:
+            if s.get("id") == subscription_id:
+                target_sub = s
+                break
+                
+        if not target_sub:
+            self.send_error(404, "Subscription not found")
+            return
+            
+        pending = target_sub.get("pending_videos", [])
+        video = None
+        for v in pending:
+            if v.get("id") == video_id:
+                video = v
+                break
+                
+        if video:
+            pending.remove(video)
+            downloaded_ids = target_sub.get("downloaded_ids", [])
+            if video_id not in downloaded_ids:
+                downloaded_ids.append(video_id)
+            target_sub["pending_videos"] = pending
+            target_sub["downloaded_ids"] = downloaded_ids
+            save_settings(settings)
+            
+            self.send_json({"status": "success", "message": "Video ignoriert"})
+        else:
+            self.send_json({"status": "success", "message": "Video war nicht in Freigabeliste oder wurde bereits verarbeitet"})
+
+    def handle_api_youtube_search_parts(self, query):
+        titles = query.get("title", [])
+        title = titles[0] if titles else ""
+        if not title:
+            self.send_error(400, "Missing title")
+            return
+            
+        import re
+        patterns = [
+            r"\bteil\s*\d+\b",
+            r"\bpart\s*\d+\b",
+            r"\bepisode\s*\d+\b",
+            r"#\s*\d+\b",
+            r"\b\d+\s*/\s*\d+\b",
+            r"\b\d+\s*von\s*\d+\b",
+            r"\b\d+\.\s*teil\b",
+            r"\b\d+\.\s*part\b"
+        ]
+        
+        search_query = title
+        for pattern in patterns:
+            clean_title = re.sub(pattern, "", search_query, flags=re.IGNORECASE).strip()
+            if clean_title:
+                search_query = clean_title
+        
+        search_query = re.sub(r"\s*-\s*$", "", search_query).strip()
+        search_query = re.sub(r"\s+", " ", search_query)
+        
+        cmd = ["yt-dlp", "--playlist-end", "15", "--dump-json", "--flat-playlist", f"ytsearch15:{search_query}"]
+        
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            results = []
+            if res.returncode == 0:
+                lines = res.stdout.strip().split('\n')
+                for line in lines:
+                    if not line.strip():
+                        continue
+                    try:
+                        video_data = json.loads(line)
+                        v_id = video_data.get("id")
+                        v_title = video_data.get("title", "")
+                        v_url = video_data.get("url") or f"https://www.youtube.com/watch?v={v_id}"
+                        v_thumb = video_data.get("thumbnail") or ""
+                        if not v_thumb and video_data.get("thumbnails"):
+                            v_thumb = video_data.get("thumbnails")[0].get("url") or ""
+                        v_channel = video_data.get("uploader") or video_data.get("channel") or ""
+                        
+                        results.append({
+                            "id": v_id,
+                            "title": v_title,
+                            "url": v_url,
+                            "thumbnail": v_thumb,
+                            "channel": v_channel
+                        })
+                    except Exception:
+                        pass
+            
+            self.send_json({"query": search_query, "results": results})
+        except Exception as e:
+            self.send_error(500, f"Error searching YouTube: {e}")
+
+    def handle_api_youtube_merge(self, params):
+        urls = params.get("urls", [])
+        title = params.get("title", "Merged Video")
+        subscription_id = params.get("subscription_id")
+        video_ids_to_remove = params.get("video_ids_to_remove", [])
+        
+        if not urls:
+            self.send_error(400, "Missing urls")
+            return
+            
+        settings = load_settings()
+        
+        sub_copy_to_nas = True
+        sub_copy_to_pcloud = False
+        sub_copy_to_local = False
+        sub_nas_dest = ""
+        sub_pcloud_dest = ""
+        sub_local_dest = ""
+        
+        if subscription_id:
+            subs = settings.get("youtube_subscriptions", [])
+            for s in subs:
+                if s.get("id") == subscription_id:
+                    sub_copy_to_nas = s.get("copy_to_nas", True)
+                    sub_copy_to_pcloud = s.get("copy_to_pcloud", False)
+                    sub_copy_to_local = s.get("copy_to_local", False)
+                    sub_nas_dest = s.get("nas_destination_id", s.get("destination_id", ""))
+                    sub_pcloud_dest = s.get("pcloud_destination_id", "")
+                    sub_local_dest = s.get("local_destination_id", "")
+                    break
+                    
+        import uuid
+        import time
+        task_id = str(uuid.uuid4())
+        
+        first_thumb = params.get("thumbnail", "")
+        
+        job_params = {
+            "media_type": "youtube_merge",
+            "yt_urls": urls,
+            "title": title,
+            "subscription_id": subscription_id,
+            "video_ids_to_remove": video_ids_to_remove,
+            "copy_to_nas": sub_copy_to_nas,
+            "copy_to_pcloud": sub_copy_to_pcloud,
+            "copy_to_local": sub_copy_to_local,
+            "destination_id": sub_nas_dest,
+            "nas_destination_id": sub_nas_dest,
+            "pcloud_destination_id": sub_pcloud_dest,
+            "local_destination_id": sub_local_dest,
+            "yt_thumbnail": first_thumb,
+            "yt_title": title,
+            "task_id": task_id
+        }
+        
+        job_info = {
+            "id": task_id,
+            "type": "youtube_merge",
+            "name": f"Merge: {title[:40]}",
+            "status": "queued",
+            "progress": 0,
+            "message": "In der Warteschlange...",
+            "timestamp": time.time(),
+            "params": job_params,
+            "pipeline": {
+                "metadata": {"status": "pending", "progress": 0},
+                "convert": {"status": "pending", "progress": 0},
+                "nas": {"status": "pending" if sub_copy_to_nas else "skipped", "progress": 0},
+                "pcloud": {"status": "pending" if sub_copy_to_pcloud else "skipped", "progress": 0}
+            }
+        }
+        
+        with active_jobs_lock:
+            active_jobs[task_id] = job_info
+            
+        job_queue.put(job_info)
+        self.send_json({"status": "success", "task_id": task_id, "message": "Zusammenfügen gestartet"})
+
+    def handle_api_media_compare(self, query):
+        new_paths = query.get("new_path", [])
+        existing_paths = query.get("existing_path", [])
+        
+        new_path = new_paths[0] if new_paths else ""
+        existing_path = existing_paths[0] if existing_paths else ""
+        
+        if not new_path or not existing_path:
+            self.send_error(400, "Missing new_path or existing_path")
+            return
+            
+        # Security validation for paths
+        settings = load_settings()
+        inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
+        nas_root = settings.get("nas_root", "/Volumes/Kino")
+        
+        # Ensure we only check files in allowed directories
+        abs_new = os.path.abspath(new_path)
+        abs_existing = os.path.abspath(existing_path)
+        
+        if not (abs_new.startswith(os.path.abspath(inbox_root) + os.sep) or abs_new == os.path.abspath(inbox_root)):
+            self.send_error(403, "Forbidden new_path")
+            return
+            
+        if not (abs_existing.startswith(os.path.abspath(nas_root) + os.sep) or abs_existing == os.path.abspath(nas_root)):
+            self.send_error(403, "Forbidden existing_path")
+            return
+            
+        def get_media_compare_details(filepath):
+            details = {
+                "path": filepath,
+                "filename": os.path.basename(filepath),
+                "size_bytes": 0,
+                "size_readable": "0 B",
+                "resolution": "Unbekannt",
+                "video_codec": "Unbekannt",
+                "audio_codec": "Unbekannt",
+                "bitrate_kbps": "Unbekannt",
+                "duration_str": "Unbekannt"
+            }
+            if not filepath or not os.path.exists(filepath):
+                return details
+            try:
+                size_bytes = os.path.getsize(filepath)
+                details["size_bytes"] = size_bytes
+                if size_bytes >= 1024**3:
+                    details["size_readable"] = f"{size_bytes / (1024**3):.2f} GB"
+                elif size_bytes >= 1024**2:
+                    details["size_readable"] = f"{size_bytes / (1024**2):.1f} MB"
+                else:
+                    details["size_readable"] = f"{size_bytes / 1024:.1f} KB"
+                
+                cmd = [
+                    "ffprobe", "-v", "error",
+                    "-show_entries", "stream=width,height,codec_name,codec_type:format=duration,bit_rate",
+                    "-of", "json",
+                    filepath
+                ]
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=3.0)
+                if res.returncode == 0:
+                    info = json.loads(res.stdout)
+                    streams = info.get("streams", [])
+                    format_info = info.get("format", {})
+                    for s in streams:
+                        codec_type = s.get("codec_type")
+                        if codec_type == "video":
+                            details["video_codec"] = s.get("codec_name", "Unbekannt").upper()
+                            w = s.get("width")
+                            h = s.get("height")
+                            if w and h:
+                                details["resolution"] = f"{w}x{h}"
+                        elif codec_type == "audio":
+                            details["audio_codec"] = s.get("codec_name", "Unbekannt").upper()
+                    
+                    duration = format_info.get("duration")
+                    if duration:
+                        try:
+                            dur_secs = float(duration)
+                            mins, secs = divmod(int(dur_secs), 60)
+                            hours, mins = divmod(mins, 60)
+                            if hours > 0:
+                                details["duration_str"] = f"{hours}h {mins}m {secs}s"
+                            else:
+                                details["duration_str"] = f"{mins}m {secs}s"
+                        except Exception:
+                            pass
+                    
+                    bitrate = format_info.get("bit_rate")
+                    if bitrate:
+                        try:
+                            details["bitrate_kbps"] = f"{int(bitrate) / 1000:.0f} kbps"
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            return details
+            
+        new_details = get_media_compare_details(new_path)
+        existing_details = get_media_compare_details(existing_path)
+        
+        self.send_json({
+            "new_file": new_details,
+            "existing_file": existing_details
+        })
+
+    def handle_api_resolve_duplicate(self, params):
+        action = params.get("action")
+        new_path = params.get("new_path")
+        existing_path = params.get("existing_path")
+        
+        if not existing_path or not os.path.exists(existing_path):
+            self.send_error(400, "Invalid existing_path")
+            return
+            
+        # Security validation for paths
+        settings = load_settings()
+        nas_root = settings.get("nas_root", "/Volumes/Kino")
+        abs_existing = os.path.abspath(existing_path)
+        
+        if not (abs_existing.startswith(os.path.abspath(nas_root) + os.sep) or abs_existing == os.path.abspath(nas_root)):
+            self.send_error(403, "Forbidden existing_path")
+            return
+            
+        if action == "upgrade":
+            try:
+                os.remove(existing_path)
+                log_message(f"🗑️ [Dubletten-Upgrade] Existierende Datei auf NAS gelöscht: {existing_path}")
+                
+                # Delete corresponding nfo / artwork if present
+                base_path = os.path.splitext(existing_path)[0]
+                for ext in [".nfo", ".srt", "-poster.jpg", "-fanart.jpg"]:
+                    art_file = base_path + ext
+                    if os.path.exists(art_file):
+                        try:
+                            os.remove(art_file)
+                            log_message(f"  🗑️ Zugehörige Datei gelöscht: {art_file}")
+                        except Exception:
+                            pass
+                            
+                self.send_json({"status": "success", "message": "Existierende Datei gelöscht. Bereit für Upgrade."})
+            except Exception as e:
+                self.send_error(500, f"Error deleting file: {e}")
+        else:
+            self.send_json({"status": "success", "message": "Keine Aktion ausgeführt."})
+
+    def handle_api_stats(self):
+        try:
+            settings = load_settings()
+            nas_root = settings.get("nas_root", "/Volumes/Kino")
+            
+            # NAS Storage Info
+            nas_info = {
+                "path": nas_root,
+                "total": 0,
+                "used": 0,
+                "free": 0,
+                "used_percent": 0.0,
+                "available": False
+            }
+            if os.path.exists(nas_root):
+                try:
+                    usage = shutil.disk_usage(nas_root)
+                    nas_info["total"] = usage.total
+                    nas_info["used"] = usage.used
+                    nas_info["free"] = usage.free
+                    if usage.total > 0:
+                        nas_info["used_percent"] = round((usage.used / usage.total) * 100, 2)
+                    nas_info["available"] = True
+                except Exception as e:
+                    nas_info["error"] = str(e)
+            else:
+                nas_info["error"] = "NAS Pfad existiert nicht oder ist nicht eingehängt."
+
+            # Conversion savings calculations
+            history = utils.load_konv_history()
+            
+            total_files = len(history)
+            size_in_total = 0
+            size_out_total = 0
+            ratios = []
+            
+            # We estimate legacy files: e.g. 1.5 GB input size if size_in/size_out are missing
+            LEGACY_ESTIMATED_SIZE_IN = 1.5 * 1024 * 1024 * 1024 # 1.5 GB
+            
+            cleaned_history = []
+            
+            for entry in history:
+                ratio = entry.get("ratio", 0.5)
+                ratios.append(ratio)
+                
+                size_in = entry.get("size_in")
+                size_out = entry.get("size_out")
+                
+                if size_in is None or size_out is None:
+                    # Legacy fallback
+                    size_in = LEGACY_ESTIMATED_SIZE_IN
+                    size_out = size_in * ratio
+                
+                size_in_total += size_in
+                size_out_total += size_out
+                
+                # Format entry for frontend visualization
+                cleaned_history.append({
+                    "quality": entry.get("quality", "Unbekannt"),
+                    "codec": entry.get("codec", "hevc"),
+                    "ratio": ratio,
+                    "size_in": size_in,
+                    "size_out": size_out,
+                    "timestamp": entry.get("timestamp", 0)
+                })
+            
+            saved_bytes = max(0, size_in_total - size_out_total)
+            avg_ratio = sum(ratios) / len(ratios) if ratios else 0.5
+            
+            # Sort history by timestamp descending
+            cleaned_history.sort(key=lambda x: x["timestamp"], reverse=True)
+            
+            response = {
+                "nas": nas_info,
+                "stats": {
+                    "total_files": total_files,
+                    "size_in_total": size_in_total,
+                    "size_out_total": size_out_total,
+                    "saved_bytes": saved_bytes,
+                    "average_ratio": round(avg_ratio, 4),
+                    "ratio_percent": round((1 - avg_ratio) * 100, 2) if avg_ratio <= 1 else 0.0
+                },
+                "history": cleaned_history[:50]
+            }
+            self.send_json(response)
+        except Exception as e:
+            self.send_error(500, f"Error generating stats: {e}")
 
     def handle_api_process(self, params):
         task_id = str(uuid.uuid4())

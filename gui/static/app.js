@@ -19,7 +19,29 @@ let ytSelectedShow = null;
 let ytEpisodesData = {};
 let activeYtTaskId = null;
 let ytStatusInterval = null;
+function escapeHTML(str) {
+    if (str === null || str === undefined) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
 
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+function getCatIdBySub(sub, fallbackId) {
+    const cats = (typeof currentSettings !== "undefined" && currentSettings.sync_categories) || [];
+    const found = cats.find(c => c.nas_sub === sub);
+    return found ? found.id : fallbackId;
+}
 
 // ==========================================================================
 // NAS SEASONS INFO
@@ -98,6 +120,12 @@ async function fetchYtNasSeasons() {
 // INITIALIZATION
 // ==========================================================================
 document.addEventListener("DOMContentLoaded", () => {
+    // Apply theme from localStorage immediately to prevent flashes on load
+    const savedTheme = localStorage.getItem("app_theme");
+    if (savedTheme) {
+        applyTheme(savedTheme);
+    }
+
     initViews();
     initConsole();
     initEventListeners();
@@ -105,8 +133,39 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // Load settings and status immediately
     loadSettings().then(() => {
-        triggerLaunchJoke();
+        triggerLaunchQuote();
+        // initCardParallaxAndGlow();
     });
+    
+    const themeSelect = document.getElementById("settings-app-theme");
+    if (themeSelect) {
+        themeSelect.addEventListener("change", async function() {
+            const newTheme = this.value;
+            applyTheme(newTheme);
+            
+            // Auto-save setting to backend settings.json
+            if (currentSettings) {
+                currentSettings.app_theme = newTheme;
+                try {
+                    const payload = {
+                        ...currentSettings,
+                        app_theme: newTheme,
+                        import_sources: (currentSettings.import_sources || []).filter(s => s.trim() !== ""),
+                        sync_categories: (currentSettings.sync_categories || []).filter(c => c.id.trim() !== "" && c.name.trim() !== ""),
+                        local_download_folders: (currentSettings.local_download_folders || []).filter(f => f.path && f.path.trim() !== "")
+                    };
+                    await fetch("/api/settings", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload)
+                    });
+                } catch (e) {
+                    console.error("Fehler beim automatischen Speichern des Themes:", e);
+                }
+            }
+        });
+    }
+    
     loadStatus();
     
     // Periodic status check (every 6 seconds)
@@ -207,10 +266,23 @@ function initViews() {
     modes.forEach(mode => {
         const card = document.getElementById(`mode-${mode}`);
         if(card) {
+            card.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    card.click();
+                }
+            });
             card.addEventListener("click", () => {
                 // UI styling
-                modes.forEach(m => document.getElementById(`mode-${m}`)?.classList.remove("active"));
+                modes.forEach(m => {
+                    const el = document.getElementById(`mode-${m}`);
+                    if (el) {
+                        el.classList.remove("active");
+                        el.setAttribute("aria-checked", "false");
+                    }
+                });
                 card.classList.add("active");
+                card.setAttribute("aria-checked", "true");
                 
                 document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
                 
@@ -225,11 +297,7 @@ function initViews() {
                         cleanedQuery = cleanedQuery.replace(/\([0-9]{4}\)/g, "").replace(/_/g, " ").trim();
                     }
                     
-                    const getCatIdBySub = (sub, fallbackId) => {
-                        const cats = currentSettings.sync_categories || [];
-                        const found = cats.find(c => c.nas_sub === sub);
-                        return found ? found.id : fallbackId;
-                    };
+
                     
                     if (mode === "movie") {
                         const isDoku = currentProjectIsDoku || (cleanedQuery && (cleanedQuery.toLowerCase().includes("doku") || cleanedQuery.toLowerCase().includes("dokumentation")));
@@ -259,6 +327,9 @@ function initViews() {
         }
     });
     
+    // Dashboard Nav
+    const navDashboard = document.getElementById("nav-dashboard");
+
     // Tools Dashboard Nav
     const navTools = document.getElementById("nav-tools-dashboard");
     if(navTools) {
@@ -266,6 +337,7 @@ function initViews() {
             // Remove active from inbox items
             document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
             navTools.classList.add("active");
+            if(navDashboard) navDashboard.classList.remove("active");
             
             // Show only tools view
             document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
@@ -279,12 +351,31 @@ function initViews() {
         });
     }
 
+    if(navDashboard) {
+        navDashboard.addEventListener("click", () => {
+            document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
+            navDashboard.classList.add("active");
+            if(navTools) navTools.classList.remove("active");
+            if(navSettings) navSettings.classList.remove("active");
+            if(navYtAbos) navYtAbos.classList.remove("active");
+            
+            document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+            document.getElementById("view-dashboard").classList.remove("hidden");
+            document.getElementById("view-dashboard").classList.add("active");
+            
+            loadDashboard();
+        });
+    }
+
     // Settings Dashboard Nav
     const navSettings = document.getElementById("nav-settings-dashboard");
     if(navSettings) {
         navSettings.addEventListener("click", () => {
             document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
             navSettings.classList.add("active");
+            if(navDashboard) navDashboard.classList.remove("active");
+            if(navTools) navTools.classList.remove("active");
+            if(navYtAbos) navYtAbos.classList.remove("active");
             
             document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
             document.getElementById("view-settings").classList.remove("hidden");
@@ -299,6 +390,9 @@ function initViews() {
         navYtAbos.addEventListener("click", () => {
             document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
             navYtAbos.classList.add("active");
+            if(navDashboard) navDashboard.classList.remove("active");
+            if(navTools) navTools.classList.remove("active");
+            if(navSettings) navSettings.classList.remove("active");
             
             document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
             document.getElementById("view-youtube-abos").classList.remove("hidden");
@@ -407,6 +501,7 @@ function connectLogStream() {
 // STATUS & BADGES
 // ==========================================================================
 async function loadStatus() {
+    if (document.visibilityState === "hidden") return;
     try {
         const response = await fetch("/api/status");
         if (!response.ok) return;
@@ -456,17 +551,18 @@ function renderProjectList(projects) {
     
     // Save current active list name to keep it selected
     let html = `
-        <div class="project-item ${currentProject === "" ? "active" : ""}" data-project="">
+        <button class="project-item ${currentProject === "" ? "active" : ""}" data-project="" style="width: 100%; border: 1px solid var(--border-glass); text-align: left; font-family: inherit; color: inherit;">
             <span class="project-item-name">📁 Hauptinbox (Root)</span>
-        </div>
+        </button>
     `;
     
     projects.forEach(p => {
+        const escapedP = escapeHTML(p);
         html += `
-            <div class="project-item ${currentProject === p ? "active" : ""}" data-project="${p}">
-                <span class="project-item-name">📁 ${p}</span>
-                <span class="project-item-delete" title="Ordner löschen" data-project="${p}">🗑️</span>
-            </div>
+            <button class="project-item ${currentProject === p ? "active" : ""}" data-project="${escapedP}" style="width: 100%; border: 1px solid var(--border-glass); text-align: left; font-family: inherit; color: inherit; display: flex; justify-content: space-between; align-items: center;">
+                <span class="project-item-name">📁 ${escapedP}</span>
+                <span class="project-item-delete" title="Ordner löschen" data-project="${escapedP}">🗑️</span>
+            </button>
         `;
     });
     
@@ -729,10 +825,18 @@ function selectProject(projectName) {
     if(navSettings) navSettings.classList.remove("active");
     const navYtAbos = document.getElementById("nav-youtube-abos");
     if(navYtAbos) navYtAbos.classList.remove("active");
+    const navDashboard = document.getElementById("nav-dashboard");
+    if(navDashboard) navDashboard.classList.remove("active");
     
     // Hide context panels and reset mode cards on new project selection
     document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
-    ["movie", "series", "doku", "tools"].forEach(m => document.getElementById(`mode-${m}`)?.classList.remove("active"));
+    ["movie", "series", "doku", "tools"].forEach(m => {
+        const el = document.getElementById(`mode-${m}`);
+        if (el) {
+            el.classList.remove("active");
+            el.setAttribute("aria-checked", "false");
+        }
+    });
     
     scanProject(projectName);
 }
@@ -788,20 +892,26 @@ async function scanProject(project) {
             
             let actionHtml = "";
             if (!isDir && isVideo) {
-                const safeProject = project.replace(/'/g, "\\'");
-                const safeName = name.replace(/'/g, "\\'");
-                actionHtml = `<button class="btn btn-sm" onclick="splitProjectFile('${safeProject}', '${safeName}')" title="In ein separates Projekt abspalten" style="background: rgba(255, 255, 255, 0.1); border: 1px solid var(--border-glass); color: var(--text-normal); cursor: pointer; padding: 3px 8px; border-radius: var(--radius-sm); font-size: 0.7rem; transition: all 0.2s ease;">Trennen</button>`;
+                actionHtml = `<button class="btn btn-sm btn-split-file" data-project="${escapeHTML(project)}" data-file="${escapeHTML(name)}" title="In ein separates Projekt abspalten" style="background: rgba(255, 255, 255, 0.1); border: 1px solid var(--border-glass); color: var(--text-normal); cursor: pointer; padding: 3px 8px; border-radius: var(--radius-sm); font-size: 0.7rem; transition: all 0.2s ease;">Trennen</button>`;
             }
             
             rowsHtml += `
                 <tr>
-                    <td>${name}</td>
+                    <td>${escapeHTML(name)}</td>
                     <td><span class="${badgeClass}">${isDir ? "ORDNER" : ext.toUpperCase()}</span></td>
                     <td style="text-align:right;">${actionHtml}</td>
                 </tr>
             `;
         });
         tbody.innerHTML = rowsHtml;
+        
+        tbody.querySelectorAll(".btn-split-file").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const proj = btn.getAttribute("data-project");
+                const fname = btn.getAttribute("data-file");
+                splitProjectFile(proj, fname);
+            });
+        });
         
         // Render statistics
         if (data.ext_counts && Object.keys(data.ext_counts).length > 0) {
@@ -988,11 +1098,7 @@ async function searchSeries() {
     resultsContainer.innerHTML = '<div class="loading-spinner"></div>';
     
     try {
-        const getCatIdBySub = (sub, fallbackId) => {
-            const cats = currentSettings.sync_categories || [];
-            const found = cats.find(c => c.nas_sub === sub);
-            return found ? found.id : fallbackId;
-        };
+
         const destId = getCatIdBySub("/Dokus/Doku-Serien", "4");
         const nasDestSelect = document.getElementById("series-nas-destination");
         const isDokuDest = nasDestSelect && nasDestSelect.value === destId;
@@ -1048,10 +1154,14 @@ async function searchSeries() {
                 }
             }
             
+            const escapedId = escapeHTML(item.id);
+            const escapedName = escapeHTML(item.name);
+            const escapedProvider = escapeHTML(item.provider);
+            const escapedMediaType = escapeHTML(item.media_type);
             html += `
-                <div class="search-item" data-id="${item.id}" data-name="${item.name}" data-provider="${item.provider}" data-media-type="${item.media_type}">
-                    <div class="search-item-name">${badge}${item.name}</div>
-                    <div class="search-item-provider">Metadatendienst: ${item.provider}</div>
+                <div class="search-item" data-id="${escapedId}" data-name="${escapedName}" data-provider="${escapedProvider}" data-media-type="${escapedMediaType}">
+                    <div class="search-item-name">${badge}${escapedName}</div>
+                    <div class="search-item-provider">Metadatendienst: ${escapedProvider}</div>
                 </div>
             `;
         });
@@ -1284,11 +1394,7 @@ async function selectShow(show) {
     const nameLower = show.name.toLowerCase();
     const isDoku = nameLower.includes("doku") || nameLower.includes("dokumentation") || currentProjectIsDoku;
     if (isDoku) {
-        const getCatIdBySub = (sub, fallbackId) => {
-            const cats = currentSettings.sync_categories || [];
-            const found = cats.find(c => c.nas_sub === sub);
-            return found ? found.id : fallbackId;
-        };
+
         const destId = getCatIdBySub("/Dokus/Doku-Serien", "4");
         
         const nasSelect = document.getElementById("series-nas-destination");
@@ -1564,7 +1670,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                 <div class="match-file" title="${file}">
                     <div style="word-break: break-all;">${file}</div>
                     <div class="duplicate-badge-container" id="dup-badge-${index}">${duplicates[file] ? `
-                        <div class="duplicate-badge" style="margin-top: 5px; font-size: 11px; color: #ffb300; background: rgba(255, 179, 0, 0.08); border: 1px solid rgba(255, 179, 0, 0.25); padding: 4px 8px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 6px; font-weight: normal; line-height: 1.2; max-width: 100%; box-sizing: border-box;">
+                        <div class="duplicate-badge" data-existing-path="${duplicates[file].path}" data-existing-filename="${duplicates[file].filename}" data-new-file="${file}" data-badge-id="dup-badge-${index}" style="margin-top: 5px; font-size: 11px; color: #ffb300; background: rgba(255, 179, 0, 0.08); border: 1px solid rgba(255, 179, 0, 0.25); padding: 4px 8px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 6px; font-weight: normal; line-height: 1.2; max-width: 100%; box-sizing: border-box; cursor: pointer;" title="Klicken für Video-Vergleich & Upgrade">
                             <span>⚠️ Bereits auf NAS:</span>
                             <span style="font-weight: 500; opacity: 0.9; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 150px;" title="${duplicates[file].filename}">${duplicates[file].filename}</span>
                             <span style="opacity: 0.6; font-size: 10px;">(${duplicates[file].size_gb.toFixed(2)} GB${duplicates[file].resolution ? `, ${duplicates[file].resolution}` : ''})</span>
@@ -1693,8 +1799,8 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                         const data = await response.json();
                         if (data.duplicate) {
                             const d = data.duplicate;
-                            badgeContainer.innerHTML = `
-                                <div class="duplicate-badge" style="margin-top: 5px; font-size: 11px; color: #ffb300; background: rgba(255, 179, 0, 0.08); border: 1px solid rgba(255, 179, 0, 0.25); padding: 4px 8px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 6px; font-weight: normal; line-height: 1.2; max-width: 100%; box-sizing: border-box;">
+                             badgeContainer.innerHTML = `
+                                <div class="duplicate-badge" data-existing-path="${d.path}" data-existing-filename="${d.filename}" data-new-file="${file}" data-badge-id="dup-badge-${index}" style="margin-top: 5px; font-size: 11px; color: #ffb300; background: rgba(255, 179, 0, 0.08); border: 1px solid rgba(255, 179, 0, 0.25); padding: 4px 8px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 6px; font-weight: normal; line-height: 1.2; max-width: 100%; box-sizing: border-box; cursor: pointer;" title="Klicken für Video-Vergleich & Upgrade">
                                     <span>⚠️ Bereits auf NAS:</span>
                                     <span style="font-weight: 500; opacity: 0.9; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 150px;" title="${d.filename}">${d.filename}</span>
                                     <span style="opacity: 0.6; font-size: 10px;">(${d.size_gb.toFixed(2)} GB${d.resolution ? `, ${d.resolution}` : ''})</span>
@@ -1790,7 +1896,10 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                 try {
                     const response = await fetch(`/api/metadata/fetch?media_type=episode&provider=${selectedShow.provider}&show_id=${selectedShow.id}&season=${epSeason}&episode=${epNum}`);
                     if (response.ok) {
-                        const data = await response.json();
+                        const cacheKeys = Object.keys(fetchedEpisodeMetadataCache);
+                        if (cacheKeys.length >= 500) {
+                            delete fetchedEpisodeMetadataCache[cacheKeys[0]];
+                        }
                         fetchedEpisodeMetadataCache[cacheKey] = data;
                         if (select.value === val) {
                             if (epTitleInput) epTitleInput.value = data.title || "";
@@ -1839,11 +1948,7 @@ async function searchMovie() {
     resultsContainer.innerHTML = '<div class="loading-spinner"></div>';
     
     try {
-        const getCatIdBySub = (sub, fallbackId) => {
-            const cats = currentSettings.sync_categories || [];
-            const found = cats.find(c => c.nas_sub === sub);
-            return found ? found.id : fallbackId;
-        };
+
         const destId = getCatIdBySub("/Dokus/Einzelne Dokus", "3");
         const nasDestSelect = document.getElementById("movie-nas-destination");
         const isDokuDest = nasDestSelect && nasDestSelect.value === destId;
@@ -1900,10 +2005,14 @@ async function searchMovie() {
                 }
             }
             
+            const escapedId = escapeHTML(item.id);
+            const escapedName = escapeHTML(item.name);
+            const escapedProvider = escapeHTML(item.provider);
+            const escapedMediaType = escapeHTML(item.media_type);
             html += `
-                <div class="search-item" data-id="${item.id}" data-name="${item.name}" data-provider="${item.provider}" data-media-type="${item.media_type}">
-                    <div class="search-item-name">${badge}${item.name}</div>
-                    <div class="search-item-provider">Metadatendienst: ${item.provider}</div>
+                <div class="search-item" data-id="${escapedId}" data-name="${escapedName}" data-provider="${escapedProvider}" data-media-type="${escapedMediaType}">
+                    <div class="search-item-name">${badge}${escapedName}</div>
+                    <div class="search-item-provider">Metadatendienst: ${escapedProvider}</div>
                 </div>
             `;
         });
@@ -1976,11 +2085,7 @@ function selectMovie(movie) {
     const nameLower = movie.name.toLowerCase();
     const isDoku = nameLower.includes("doku") || nameLower.includes("dokumentation") || currentProjectIsDoku;
     if (isDoku) {
-        const getCatIdBySub = (sub, fallbackId) => {
-            const cats = currentSettings.sync_categories || [];
-            const found = cats.find(c => c.nas_sub === sub);
-            return found ? found.id : fallbackId;
-        };
+
         const destId = getCatIdBySub("/Dokus/Einzelne Dokus", "3");
         
         const nasSelect = document.getElementById("movie-nas-destination");
@@ -2324,10 +2429,13 @@ async function searchYtMovie() {
         
         let html = "";
         data.forEach(item => {
+            const escapedId = escapeHTML(item.id);
+            const escapedName = escapeHTML(item.name);
+            const escapedProvider = escapeHTML(item.provider);
             html += `
-                <div class="search-item yt-movie-search-item" data-id="${item.id}" data-name="${item.name}" data-provider="${item.provider}">
-                    <div class="search-item-name">${item.name}</div>
-                    <div class="search-item-provider">Metadatendienst: ${item.provider}</div>
+                <div class="search-item yt-movie-search-item" data-id="${escapedId}" data-name="${escapedName}" data-provider="${escapedProvider}">
+                    <div class="search-item-name">${escapedName}</div>
+                    <div class="search-item-provider">Metadatendienst: ${escapedProvider}</div>
                 </div>
             `;
         });
@@ -2383,10 +2491,13 @@ async function searchYtSeries() {
         
         let html = "";
         data.forEach(item => {
+            const escapedId = escapeHTML(item.id);
+            const escapedName = escapeHTML(item.name);
+            const escapedProvider = escapeHTML(item.provider);
             html += `
-                <div class="search-item yt-series-search-item" data-id="${item.id}" data-name="${item.name}" data-provider="${item.provider}">
-                    <div class="search-item-name">${item.name}</div>
-                    <div class="search-item-provider">Metadatendienst: ${item.provider}</div>
+                <div class="search-item yt-series-search-item" data-id="${escapedId}" data-name="${escapedName}" data-provider="${escapedProvider}">
+                    <div class="search-item-name">${escapedName}</div>
+                    <div class="search-item-provider">Metadatendienst: ${escapedProvider}</div>
                 </div>
             `;
         });
@@ -2713,25 +2824,7 @@ async function loadSubscriptions() {
         
         if (settingsRes.ok) {
             currentSettings = await settingsRes.json();
-        }
-        
-        // Render target category options in dropdown
-        const select = document.getElementById("abo-destination");
-        if (select) {
-            select.innerHTML = "";
-            const cats = currentSettings.sync_categories || [];
-            cats.forEach(c => {
-                const opt = document.createElement("option");
-                opt.value = c.id;
-                opt.textContent = c.name;
-                select.appendChild(opt);
-            });
-            if (cats.length === 0) {
-                const opt = document.createElement("option");
-                opt.value = "";
-                opt.textContent = "Keine Zielkategorien definiert";
-                select.appendChild(opt);
-            }
+            updateDestinationDropdowns();
         }
         
         if (subsRes.ok) {
@@ -2759,7 +2852,13 @@ function renderSubscriptionsList() {
     
     listContainer.innerHTML = "";
     
-    currentSubscriptions.forEach((sub) => {
+    // Sort subscriptions: enabled ones at the top, disabled ones at the bottom
+    const sortedSubs = [...currentSubscriptions].sort((a, b) => {
+        if (a.enabled === b.enabled) return 0;
+        return a.enabled ? -1 : 1;
+    });
+    
+    sortedSubs.forEach((sub) => {
         const item = document.createElement("div");
         item.className = "subscription-item";
         item.dataset.id = sub.id;
@@ -2768,18 +2867,21 @@ function renderSubscriptionsList() {
         item.style.background = "rgba(255, 255, 255, 0.02)";
         item.style.border = "1px solid var(--border-glass)";
         item.style.borderRadius = "var(--radius-md)";
-        item.style.padding = "15px 20px";
+        item.style.padding = "12px 20px";
         item.style.display = "flex";
-        item.style.justifyContent = "space-between";
-        item.style.alignItems = "center";
-        item.style.gap = "15px";
-        item.style.flexWrap = "wrap";
+        item.style.flexDirection = "column";
+        item.style.gap = "0";
         item.style.transition = "all 0.3s ease";
+        
+        const headerRow = document.createElement("div");
+        headerRow.style.display = "flex";
+        headerRow.style.justifyContent = "space-between";
+        headerRow.style.alignItems = "center";
+        headerRow.style.gap = "15px";
+        headerRow.style.flexWrap = "wrap";
         
         // Find category name
         const cats = currentSettings.sync_categories || [];
-        const cat = cats.find(c => c.id === sub.destination_id);
-        const catName = cat ? cat.name : (sub.destination_id || "Unbekannt");
         
         // Format last checked timestamp
         let lastCheckedStr = "Nie";
@@ -2804,6 +2906,29 @@ function renderSubscriptionsList() {
         titleRow.style.alignItems = "center";
         titleRow.style.gap = "10px";
         titleRow.style.marginBottom = "5px";
+        
+        // Collapse/Expand Caret
+        const expandCaret = document.createElement("span");
+        expandCaret.style.display = "inline-block";
+        expandCaret.style.marginRight = "6px";
+        expandCaret.style.color = "var(--text-muted)";
+        expandCaret.style.transition = "all 0.2s ease";
+        expandCaret.innerHTML = "▶";
+        titleRow.appendChild(expandCaret);
+        
+        // Show YouTube channel avatar if available
+        if (sub.avatar_url) {
+            const avatarImg = document.createElement("img");
+            avatarImg.src = sub.avatar_url;
+            avatarImg.alt = "Kanal-Logo";
+            avatarImg.style.width = "24px";
+            avatarImg.style.height = "24px";
+            avatarImg.style.borderRadius = "50%";
+            avatarImg.style.objectFit = "cover";
+            avatarImg.style.border = "1px solid rgba(255, 255, 255, 0.15)";
+            avatarImg.style.marginRight = "8px";
+            titleRow.appendChild(avatarImg);
+        }
         
         const titleSpan = document.createElement("span");
         titleSpan.style.fontWeight = "600";
@@ -2839,6 +2964,15 @@ function renderSubscriptionsList() {
         titleRow.appendChild(activeBadge);
         infoCol.appendChild(titleRow);
         
+        // Collapsible details container
+        const detailsContainer = document.createElement("div");
+        detailsContainer.style.display = "none";
+        detailsContainer.style.flexDirection = "column";
+        detailsContainer.style.gap = "15px";
+        detailsContainer.style.marginTop = "15px";
+        detailsContainer.style.paddingTop = "10px";
+        detailsContainer.style.borderTop = "1px solid rgba(255, 255, 255, 0.05)";
+        
         // Details row
         const detailsRow = document.createElement("div");
         detailsRow.style.fontSize = "12.5px";
@@ -2849,7 +2983,7 @@ function renderSubscriptionsList() {
         
         // URL link
         const urlItem = document.createElement("div");
-        urlItem.innerHTML = `🔗 <a href="${sub.url}" target="_blank" style="color: var(--accent); text-decoration: none;">Link öffnen</a>`;
+        urlItem.innerHTML = `🔗 <a href="${sub.url.startsWith('http') ? sub.url : '#'}" target="_blank" style="color: var(--accent); text-decoration: none;">${sub.url.startsWith('http') ? 'Link öffnen' : 'Suchbegriff: "' + sub.url + '"'}</a>`;
         detailsRow.appendChild(urlItem);
         
         // Filter badge
@@ -2859,18 +2993,96 @@ function renderSubscriptionsList() {
             detailsRow.appendChild(filterItem);
         }
         
-        // Category badge
-        const catItem = document.createElement("div");
-        catItem.innerHTML = `📁 Ziel: <span style="color: var(--text-main); font-weight: 500;">${catName}</span>`;
-        detailsRow.appendChild(catItem);
+        // Category/Transfer destination badges
+        const copyToNas = sub.copy_to_nas !== false;
+        if (copyToNas) {
+            const nasId = sub.nas_destination_id || sub.destination_id;
+            const cat = cats.find(c => c.id === nasId);
+            const catName = cat ? cat.name : (nasId || "Unbekannt");
+            const nasItem = document.createElement("div");
+            nasItem.innerHTML = `📁 NAS: <span style="color: var(--text-main); font-weight: 500;">${catName}</span>`;
+            detailsRow.appendChild(nasItem);
+        }
+        
+        const copyToPcloud = !!sub.copy_to_pcloud;
+        if (copyToPcloud) {
+            const pcloudId = sub.pcloud_destination_id || sub.destination_id;
+            const cat = cats.find(c => c.id === pcloudId);
+            const catName = cat ? cat.name : (pcloudId || "Unbekannt");
+            const pcloudItem = document.createElement("div");
+            pcloudItem.innerHTML = `☁️ pCloud: <span style="color: var(--text-main); font-weight: 500;">${catName}</span>`;
+            detailsRow.appendChild(pcloudItem);
+        }
+        
+        const copyToLocal = !!sub.copy_to_local;
+        if (copyToLocal) {
+            const localId = sub.local_destination_id;
+            let localName = localId || "Unbekannt";
+            if (localId === "__inbox__") {
+                localName = "Input-Ordner";
+            } else if (localId === "__outbox__") {
+                localName = "Output-Ordner";
+            } else if (localId && localId.startsWith("__cat_")) {
+                const cat = cats.find(c => c.id === localId.substring(6));
+                localName = cat ? `${cat.name} (Output)` : localId;
+            } else if (localId && localId.startsWith("__custom_")) {
+                try {
+                    const idx = parseInt(localId.substring(9), 10);
+                    const customFolder = (currentSettings.local_download_folders || [])[idx];
+                    localName = customFolder ? customFolder.name : localId;
+                } catch(e) {
+                    localName = localId;
+                }
+            }
+            const localItem = document.createElement("div");
+            localItem.innerHTML = `💻 Lokal: <span style="color: var(--text-main); font-weight: 500;">${localName}</span>`;
+            detailsRow.appendChild(localItem);
+        }
+        
+        if (!copyToNas && !copyToPcloud && !copyToLocal) {
+            const warningItem = document.createElement("div");
+            warningItem.innerHTML = `⚠️ <span style="color: var(--danger); font-weight: 500;">Kein Transferziel aktiviert</span>`;
+            detailsRow.appendChild(warningItem);
+        }
+        
+        // Mode badge
+        const isAuto = sub.auto_download !== false;
+        const modeItem = document.createElement("div");
+        modeItem.innerHTML = `⚙️ Modus: <span style="color: var(--text-main); font-weight: 500;">${isAuto ? "Direkt laden" : "Freigabeliste"}</span>`;
+        detailsRow.appendChild(modeItem);
+        
+        // Schedule badge
+        const schedule = sub.schedule || "hourly";
+        let scheduleText = "Stündlich";
+        if (schedule === "daily") scheduleText = "Täglich";
+        else if (schedule === "on_startup") scheduleText = "Beim App-Start";
+        else if (schedule === "manual") scheduleText = "Nur manuell";
+        
+        const scheduleItem = document.createElement("div");
+        scheduleItem.innerHTML = `🔄 Aktualisierung: <span style="color: var(--text-main); font-weight: 500;">${scheduleText}</span>`;
+        detailsRow.appendChild(scheduleItem);
+
+        // German language filter badge
+        if (sub.filter_german) {
+            const deItem = document.createElement("div");
+            deItem.innerHTML = `🇩🇪 Filter: <span style="background: rgba(16, 185, 129, 0.1); padding: 2px 6px; border-radius: 4px; color: var(--success); font-weight: 500; font-size: 11px;">Nur Deutsch</span>`;
+            detailsRow.appendChild(deItem);
+        }
+        
+        // Exclude keywords badge
+        if (sub.exclude_keywords && sub.exclude_keywords.trim() !== "") {
+            const excludeItem = document.createElement("div");
+            excludeItem.innerHTML = `🚫 Ausschluss: <span style="background: rgba(239, 68, 68, 0.08); padding: 2px 6px; border-radius: 4px; color: var(--danger); font-weight: 500; font-size: 11px;">"${sub.exclude_keywords}"</span>`;
+            detailsRow.appendChild(excludeItem);
+        }
         
         // Last checked timestamp
         const timeItem = document.createElement("div");
         timeItem.innerHTML = `⏱️ Letzter Check: ${lastCheckedStr}`;
         detailsRow.appendChild(timeItem);
         
-        infoCol.appendChild(detailsRow);
-        item.appendChild(infoCol);
+        detailsContainer.appendChild(detailsRow);
+        headerRow.appendChild(infoCol);
         
         // Controls column (Toggle + Delete)
         const ctrlCol = document.createElement("div");
@@ -2903,6 +3115,8 @@ function renderSubscriptionsList() {
             
             // Background save without full list refresh
             await saveAllSubscriptions();
+            // Re-render list to sort disabled ones to the bottom
+            renderSubscriptionsList();
         });
         
         switchLabel.appendChild(switchInput);
@@ -2933,7 +3147,256 @@ function renderSubscriptionsList() {
         });
         ctrlCol.appendChild(deleteBtn);
         
-        item.appendChild(ctrlCol);
+        headerRow.appendChild(ctrlCol);
+        item.appendChild(headerRow);
+        
+        // Render Inbox (pending_videos) if mode is manual
+        const pendingVideos = sub.pending_videos || [];
+        if (!isAuto) {
+            const inboxDiv = document.createElement("div");
+            inboxDiv.style.marginTop = "10px";
+            inboxDiv.style.paddingTop = "15px";
+            inboxDiv.style.borderTop = "1px solid rgba(255, 255, 255, 0.05)";
+            inboxDiv.style.display = "flex";
+            inboxDiv.style.flexDirection = "column";
+            inboxDiv.style.gap = "10px";
+            
+            const inboxHeader = document.createElement("div");
+            inboxHeader.style.display = "flex";
+            inboxHeader.style.justifyContent = "space-between";
+            inboxHeader.style.alignItems = "center";
+            inboxHeader.style.fontSize = "13px";
+            inboxHeader.style.fontWeight = "600";
+            inboxHeader.style.color = "var(--text-muted)";
+            inboxHeader.innerHTML = `📥 Freigabeliste (${pendingVideos.length} ausstehend)`;
+            inboxDiv.appendChild(inboxHeader);
+            
+            if (pendingVideos.length === 0) {
+                const emptyMsg = document.createElement("div");
+                emptyMsg.style.fontSize = "12.5px";
+                emptyMsg.style.color = "var(--text-muted)";
+                emptyMsg.style.fontStyle = "italic";
+                emptyMsg.style.padding = "5px 0";
+                emptyMsg.textContent = "Keine neuen Videos ausstehend.";
+                inboxDiv.appendChild(emptyMsg);
+            } else {
+                const listDiv = document.createElement("div");
+                listDiv.style.display = "flex";
+                listDiv.style.flexDirection = "column";
+                listDiv.style.gap = "8px";
+                
+                pendingVideos.forEach(v => {
+                    const vRow = document.createElement("div");
+                    vRow.style.display = "flex";
+                    vRow.style.alignItems = "center";
+                    vRow.style.justifyContent = "space-between";
+                    vRow.style.gap = "12px";
+                    vRow.style.background = "rgba(255, 255, 255, 0.01)";
+                    vRow.style.border = "1px solid rgba(255, 255, 255, 0.03)";
+                    vRow.style.borderRadius = "var(--radius-sm)";
+                    vRow.style.padding = "8px 12px";
+                    vRow.style.flexWrap = "wrap";
+                    vRow.style.transition = "all 0.3s ease";
+                    
+                    const vLeft = document.createElement("div");
+                    vLeft.style.display = "flex";
+                    vLeft.style.alignItems = "center";
+                    vLeft.style.gap = "12px";
+                    vLeft.style.flex = "1";
+                    vLeft.style.minWidth = "200px";
+                    
+                    if (v.thumbnail) {
+                        const img = document.createElement("img");
+                        img.src = v.thumbnail;
+                        img.alt = "Thumbnail";
+                        img.style.width = "72px";
+                        img.style.height = "40px";
+                        img.style.objectFit = "cover";
+                        img.style.borderRadius = "4px";
+                        img.style.border = "1px solid rgba(255, 255, 255, 0.05)";
+                        vLeft.appendChild(img);
+                    } else {
+                        const imgPlaceholder = document.createElement("div");
+                        imgPlaceholder.style.width = "72px";
+                        imgPlaceholder.style.height = "40px";
+                        imgPlaceholder.style.background = "rgba(255, 255, 255, 0.05)";
+                        imgPlaceholder.style.borderRadius = "4px";
+                        vLeft.appendChild(imgPlaceholder);
+                    }
+                    
+                    const vInfo = document.createElement("div");
+                    vInfo.style.display = "flex";
+                    vInfo.style.flexDirection = "column";
+                    vInfo.style.gap = "2px";
+                    
+                    const vTitle = document.createElement("div");
+                    vTitle.style.fontWeight = "500";
+                    vTitle.style.fontSize = "13px";
+                    vTitle.style.color = "var(--text-main)";
+                    vTitle.textContent = v.title;
+                    vInfo.appendChild(vTitle);
+                    
+                    const vMeta = document.createElement("div");
+                    vMeta.style.fontSize = "11px";
+                    vMeta.style.color = "var(--text-muted)";
+                    vMeta.textContent = `${v.channel || "Unbekannter Kanal"}${v.published_at ? " • " + v.published_at : ""}`;
+                    vInfo.appendChild(vMeta);
+                    
+                    vLeft.appendChild(vInfo);
+                    vRow.appendChild(vLeft);
+                    
+                    const vRight = document.createElement("div");
+                    vRight.style.display = "flex";
+                    vRight.style.gap = "8px";
+                    
+                    const btnApprove = document.createElement("button");
+                    btnApprove.className = "btn btn-success btn-xs";
+                    btnApprove.style.padding = "4px 8px";
+                    btnApprove.style.fontSize = "11px";
+                    btnApprove.style.fontWeight = "600";
+                    btnApprove.innerHTML = "📥 Jetzt laden";
+                    
+                    const btnSearchParts = document.createElement("button");
+                    btnSearchParts.className = "btn btn-accent btn-xs";
+                    btnSearchParts.style.padding = "4px 8px";
+                    btnSearchParts.style.fontSize = "11px";
+                    btnSearchParts.style.fontWeight = "600";
+                    btnSearchParts.innerHTML = "🔍 Teile suchen";
+                    
+                    const btnIgnore = document.createElement("button");
+                    btnIgnore.className = "btn btn-secondary btn-xs";
+                    btnIgnore.style.padding = "4px 8px";
+                    btnIgnore.style.fontSize = "11px";
+                    btnIgnore.style.fontWeight = "600";
+                    btnIgnore.innerHTML = "🗑️ Ignorieren";
+                    
+                    const btnLink = document.createElement("a");
+                    btnLink.href = v.url || `https://www.youtube.com/watch?v=${v.id}`;
+                    btnLink.target = "_blank";
+                    btnLink.className = "btn btn-info btn-xs";
+                    btnLink.style.padding = "4px 8px";
+                    btnLink.style.fontSize = "11px";
+                    btnLink.style.fontWeight = "600";
+                    btnLink.style.textDecoration = "none";
+                    btnLink.innerHTML = "🔗 Link";
+                    
+                    btnApprove.addEventListener("click", async () => {
+                        btnApprove.disabled = true;
+                        btnIgnore.disabled = true;
+                        btnApprove.textContent = "⌛ Starte...";
+                        try {
+                            const res = await fetch("/api/youtube/subscriptions/approve", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ subscription_id: sub.id, video_id: v.id })
+                            });
+                            if (res.ok) {
+                                vRow.style.opacity = "0.5";
+                                vRow.style.transform = "scale(0.98)";
+                                setTimeout(() => {
+                                    vRow.remove();
+                                    sub.pending_videos = sub.pending_videos.filter(pv => pv.id !== v.id);
+                                    if (sub.pending_videos.length === 0) {
+                                        inboxHeader.textContent = "📥 Freigabeliste (0 ausstehend)";
+                                        listDiv.innerHTML = `<div style="font-size:12.5px; color:var(--text-muted); font-style:italic; padding:5px 0;">Keine neuen Videos ausstehend.</div>`;
+                                    } else {
+                                        inboxHeader.textContent = `📥 Freigabeliste (${sub.pending_videos.length} ausstehend)`;
+                                    }
+                                }, 300);
+                                appendConsoleLog(`[System]: Video "${v.title}" zur Warteschlange hinzugefügt.`);
+                            } else {
+                                alert("Fehler beim Freigeben des Videos");
+                                btnApprove.disabled = false;
+                                btnIgnore.disabled = false;
+                                btnApprove.innerHTML = "📥 Jetzt laden";
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            alert("Netzwerkfehler beim Freigeben");
+                            btnApprove.disabled = false;
+                            btnIgnore.disabled = false;
+                            btnApprove.innerHTML = "📥 Jetzt laden";
+                        }
+                    });
+                    
+                    btnIgnore.addEventListener("click", async () => {
+                        btnApprove.disabled = true;
+                        btnIgnore.disabled = true;
+                        btnIgnore.textContent = "⌛ Ignoriere...";
+                        try {
+                            const res = await fetch("/api/youtube/subscriptions/ignore", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ subscription_id: sub.id, video_id: v.id })
+                            });
+                            if (res.ok) {
+                                vRow.style.opacity = "0.5";
+                                vRow.style.transform = "scale(0.98)";
+                                setTimeout(() => {
+                                    vRow.remove();
+                                    sub.pending_videos = sub.pending_videos.filter(pv => pv.id !== v.id);
+                                    if (sub.pending_videos.length === 0) {
+                                        inboxHeader.textContent = "📥 Freigabeliste (0 ausstehend)";
+                                        listDiv.innerHTML = `<div style="font-size:12.5px; color:var(--text-muted); font-style:italic; padding:5px 0;">Keine neuen Videos ausstehend.</div>`;
+                                    } else {
+                                        inboxHeader.textContent = `📥 Freigabeliste (${sub.pending_videos.length} ausstehend)`;
+                                    }
+                                }, 300);
+                                appendConsoleLog(`[System]: Video "${v.title}" als ignoriert markiert.`);
+                            } else {
+                                alert("Fehler beim Ignorieren des Videos");
+                                btnApprove.disabled = false;
+                                btnIgnore.disabled = false;
+                                btnIgnore.innerHTML = "🗑️ Ignorieren";
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            alert("Netzwerkfehler beim Ignorieren");
+                            btnApprove.disabled = false;
+                            btnIgnore.disabled = false;
+                            btnIgnore.innerHTML = "🗑️ Ignorieren";
+                        }
+                    });
+                    
+                    btnSearchParts.addEventListener("click", () => {
+                        openYtMergeModal(v.title, v.url, v.thumbnail, sub.id, v.id);
+                    });
+                    
+                    vRight.appendChild(btnApprove);
+                    vRight.appendChild(btnSearchParts);
+                    vRight.appendChild(btnIgnore);
+                    vRight.appendChild(btnLink);
+                    vRow.appendChild(vRight);
+                    listDiv.appendChild(vRow);
+                });
+                inboxDiv.appendChild(listDiv);
+            }
+            detailsContainer.appendChild(inboxDiv);
+        }
+        
+        // Collapsible states & Click handler
+        let isExpanded = pendingVideos.length > 0;
+        
+        const updateExpandState = () => {
+            if (isExpanded) {
+                detailsContainer.style.display = "flex";
+                expandCaret.innerHTML = "▼";
+                expandCaret.style.color = "var(--accent)";
+            } else {
+                detailsContainer.style.display = "none";
+                expandCaret.innerHTML = "▶";
+                expandCaret.style.color = "var(--text-muted)";
+            }
+        };
+        updateExpandState();
+        
+        infoCol.style.cursor = "pointer";
+        infoCol.addEventListener("click", () => {
+            isExpanded = !isExpanded;
+            updateExpandState();
+        });
+        
+        item.appendChild(detailsContainer);
         listContainer.appendChild(item);
     });
 }
@@ -2959,35 +3422,63 @@ async function addSubscription() {
     const nameInput = document.getElementById("abo-name");
     const urlInput = document.getElementById("abo-url");
     const filterInput = document.getElementById("abo-filter");
-    const destSelect = document.getElementById("abo-destination");
+    const modeSelect = document.getElementById("abo-mode");
+    const scheduleSelect = document.getElementById("abo-schedule");
+    const filterGermanCheck = document.getElementById("abo-filter-german");
+    const excludeInput = document.getElementById("abo-exclude");
+    
+    const copyNasCheck = document.getElementById("abo-copy-nas");
+    const copyPcloudCheck = document.getElementById("abo-copy-pcloud");
+    const copyLocalCheck = document.getElementById("abo-copy-local");
+    const nasDestSelect = document.getElementById("abo-nas-destination");
+    const pcloudDestSelect = document.getElementById("abo-pcloud-destination");
+    const localDestSelect = document.getElementById("abo-local-destination");
     
     if (!nameInput || !urlInput) return;
     
     const name = nameInput.value.trim();
     const url = urlInput.value.trim();
     const filter = filterInput ? filterInput.value.trim() : "";
-    const destinationId = destSelect ? destSelect.value : "";
+    const excludeKeywords = excludeInput ? excludeInput.value.trim() : "";
+    const autoDownload = modeSelect ? (modeSelect.value !== "manual") : true;
+    const schedule = scheduleSelect ? scheduleSelect.value : "hourly";
+    const filterGerman = filterGermanCheck ? !!filterGermanCheck.checked : false;
+    
+    const copyToNas = copyNasCheck ? !!copyNasCheck.checked : true;
+    const copyToPcloud = copyPcloudCheck ? !!copyPcloudCheck.checked : false;
+    const copyToLocal = copyLocalCheck ? !!copyLocalCheck.checked : false;
+    const nasDestId = nasDestSelect ? nasDestSelect.value : "";
+    const pcloudDestId = pcloudDestSelect ? pcloudDestSelect.value : "";
+    const localDestId = localDestSelect ? localDestSelect.value : "";
     
     if (!name || !url) {
-        alert("Bitte geben Sie einen Namen und eine YouTube-URL ein!");
+        alert("Bitte geben Sie einen Namen und eine YouTube-URL oder einen Suchbegriff ein!");
         return;
     }
     
     // Generate UUID
-    const newId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
+    const newId = crypto.randomUUID();
     
     const newSub = {
         id: newId,
         name: name,
         url: url,
         search_filter: filter,
-        destination_id: destinationId,
+        exclude_keywords: excludeKeywords,
+        destination_id: nasDestId, // Fallback/Backward compatibility
+        nas_destination_id: nasDestId,
+        pcloud_destination_id: pcloudDestId,
+        local_destination_id: localDestId,
+        copy_to_nas: copyToNas,
+        copy_to_pcloud: copyToPcloud,
+        copy_to_local: copyToLocal,
         enabled: true,
         last_checked: null,
-        downloaded_ids: []
+        downloaded_ids: [],
+        auto_download: autoDownload,
+        schedule: schedule,
+        filter_german: filterGerman,
+        pending_videos: []
     };
     
     currentSubscriptions.push(newSub);
@@ -2996,6 +3487,23 @@ async function addSubscription() {
     nameInput.value = "";
     urlInput.value = "";
     if (filterInput) filterInput.value = "";
+    if (excludeInput) excludeInput.value = "";
+    if (modeSelect) modeSelect.value = "auto";
+    if (scheduleSelect) scheduleSelect.value = "hourly";
+    if (filterGermanCheck) filterGermanCheck.checked = false;
+    
+    if (copyNasCheck) {
+        copyNasCheck.checked = true;
+        copyNasCheck.dispatchEvent(new Event("change"));
+    }
+    if (copyPcloudCheck) {
+        copyPcloudCheck.checked = false;
+        copyPcloudCheck.dispatchEvent(new Event("change"));
+    }
+    if (copyLocalCheck) {
+        copyLocalCheck.checked = false;
+        copyLocalCheck.dispatchEvent(new Event("change"));
+    }
     
     // Optimistic render and background save
     renderSubscriptionsList();
@@ -3864,6 +4372,166 @@ function renderDependencyStatus(deps) {
     }
 }
 
+async function loadDashboard() {
+    const tableBody = document.getElementById("dashboard-history-tbody");
+    if (tableBody) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 30px;"><div class="loading-spinner"></div> Letzte Statistiken werden geladen...</td></tr>';
+    }
+
+    try {
+        const response = await fetch("/api/stats");
+        if (!response.ok) {
+            throw new Error(`Server antwortete mit Code ${response.status}`);
+        }
+        const data = await response.json();
+
+        // Helper to format bytes
+        const formatBytes = (bytes, decimals = 2) => {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        };
+
+        // 1. NAS Storage Info
+        const circle = document.getElementById("nas-usage-circle");
+        const percentText = document.getElementById("nas-usage-percent-text");
+        const detailText = document.getElementById("nas-usage-detail-text");
+        const pathText = document.getElementById("nas-usage-path-text");
+
+        if (data.nas.available) {
+            const pct = data.nas.used_percent || 0;
+            // stroke dasharray is 364.4 (for radius 58, 2 * Math.PI * 58 = 364.42)
+            const offset = 364.4 - (364.4 * pct / 100);
+            if (circle) {
+                circle.style.strokeDashoffset = offset;
+                circle.classList.remove("warning", "danger");
+                if (pct >= 95) {
+                    circle.classList.add("danger");
+                } else if (pct >= 85) {
+                    circle.classList.add("warning");
+                }
+            }
+            if (percentText) percentText.textContent = pct.toFixed(1) + "%";
+            if (detailText) {
+                detailText.innerHTML = `${formatBytes(data.nas.used)} von ${formatBytes(data.nas.total)} belegt<br><span style="color:var(--text-muted); font-size:11px;">(${formatBytes(data.nas.free)} frei)</span>`;
+            }
+            if (pathText) pathText.textContent = data.nas.path;
+        } else {
+            if (circle) circle.style.strokeDashoffset = 364.4;
+            if (percentText) percentText.textContent = "N/A";
+            if (detailText) detailText.innerHTML = `<span class="text-danger">${data.nas.error || 'NAS nicht erreichbar'}</span>`;
+            if (pathText) pathText.textContent = data.nas.path;
+        }
+
+        // 2. Savings Info
+        const savedSpaceVal = document.getElementById("stats-saved-space");
+        const savedPercentVal = document.getElementById("stats-saved-percent");
+        const sizeInVal = document.getElementById("stats-size-in");
+        const sizeOutVal = document.getElementById("stats-size-out");
+        const savingsBar = document.getElementById("stats-savings-bar");
+        const totalFilesVal = document.getElementById("stats-total-files");
+
+        if (savedSpaceVal) savedSpaceVal.textContent = formatBytes(data.stats.saved_bytes);
+        if (savedPercentVal) savedPercentVal.textContent = data.stats.ratio_percent.toFixed(1) + "%";
+        if (sizeInVal) sizeInVal.textContent = formatBytes(data.stats.size_in_total);
+        if (sizeOutVal) sizeOutVal.textContent = formatBytes(data.stats.size_out_total);
+        if (savingsBar) savingsBar.style.width = data.stats.ratio_percent.toFixed(1) + "%";
+        if (totalFilesVal) totalFilesVal.textContent = data.stats.total_files;
+
+        // 3. Ratio Info
+        const averageRatioVal = document.getElementById("stats-average-ratio");
+        const averageRatioPercentVal = document.getElementById("stats-average-ratio-percent");
+
+        if (averageRatioVal) averageRatioVal.textContent = data.stats.average_ratio.toFixed(2) + "x";
+        if (averageRatioPercentVal) averageRatioPercentVal.textContent = (data.stats.average_ratio * 100).toFixed(1) + "%";
+
+        // 4. Bar Chart for the last 15 entries
+        const barChartContainer = document.getElementById("dashboard-bar-chart");
+        if (barChartContainer) {
+            barChartContainer.innerHTML = "";
+            const historySlice = data.history.slice(0, 15).reverse(); // show chronological order (left to right)
+            
+            if (historySlice.length === 0) {
+                barChartContainer.innerHTML = '<div style="width: 100%; display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-muted);">Keine Konvertierungsdaten für das Diagramm vorhanden.</div>';
+            } else {
+                const maxVal = Math.max(...historySlice.map(h => h.size_in), 1);
+                
+                historySlice.forEach((item, index) => {
+                    const dateObj = new Date(item.timestamp * 1000);
+                    const labelStr = dateObj.toLocaleDateString("de-DE", {day: "2-digit", month: "2-digit"});
+                    const timeStr = dateObj.toLocaleTimeString("de-DE", {hour: "2-digit", minute: "2-digit"});
+                    
+                    const percentSaved = Math.max(0, ((item.size_in - item.size_out) / item.size_in) * 100);
+                    const formattedSaved = formatBytes(item.size_in - item.size_out);
+                    
+                    const heightBg = (item.size_in / maxVal) * 100;
+                    const heightFill = (item.size_out / maxVal) * 100;
+
+                    const col = document.createElement("div");
+                    col.className = "bar-column";
+                    
+                    col.innerHTML = `
+                        <div class="bar-wrapper">
+                            <div class="bar-bg-est" style="height: ${heightBg.toFixed(1)}%;"></div>
+                            <div class="bar-fill-actual" style="height: ${heightFill.toFixed(1)}%;"></div>
+                        </div>
+                        <div class="bar-tooltip">
+                            <strong>${labelStr} ${timeStr}</strong><br>
+                            Codec: ${item.codec} (Q ${item.quality})<br>
+                            Größe vorher: ${formatBytes(item.size_in)}<br>
+                            Größe nachher: ${formatBytes(item.size_out)}<br>
+                            Ersparnis: <span style="color:var(--accent); font-weight:700;">-${formattedSaved} (-${percentSaved.toFixed(1)}%)</span>
+                        </div>
+                        <div class="bar-label" title="${labelStr}">${labelStr}</div>
+                    `;
+                    
+                    barChartContainer.appendChild(col);
+                });
+            }
+        }
+
+        // 5. History Table
+        if (tableBody) {
+            tableBody.innerHTML = "";
+            if (data.history.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 30px; color: var(--text-muted);">Keine Verlaufsdaten vorhanden.</td></tr>';
+            } else {
+                data.history.forEach(item => {
+                    const tr = document.createElement("tr");
+                    
+                    let dateStr = "-";
+                    if (item.timestamp > 0) {
+                        const d = new Date(item.timestamp * 1000);
+                        dateStr = `${d.toLocaleDateString("de-DE")} ${d.toLocaleTimeString("de-DE", {hour: '2-digit', minute:'2-digit'})} Uhr`;
+                    }
+                    
+                    const savedBytes = Math.max(0, item.size_in - item.size_out);
+                    const savedPct = item.size_in > 0 ? ((savedBytes / item.size_in) * 100) : 0;
+                    
+                    tr.innerHTML = `
+                        <td>${dateStr}</td>
+                        <td><span class="badge" style="background:rgba(var(--primary-rgb), 0.15); color:var(--primary);">${item.codec.toUpperCase()} (Q:${item.quality})</span></td>
+                        <td>${formatBytes(item.size_in)}</td>
+                        <td>${formatBytes(item.size_out)}</td>
+                        <td style="color: var(--accent); font-weight:600;">-${formatBytes(savedBytes)} (-${savedPct.toFixed(1)}%)</td>
+                        <td>${item.ratio.toFixed(2)}x</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+            }
+        }
+
+    } catch (error) {
+        console.error("Error loading dashboard data:", error);
+        if (tableBody) {
+            tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger" style="padding: 30px;">Fehler beim Laden der Dashboard-Statistiken: ${error.message}</td></tr>`;
+        }
+    }
+}
+
 async function loadSettings() {
     try {
         const response = await fetch("/api/settings");
@@ -3903,6 +4571,11 @@ async function loadSettings() {
             setCheckbox("settings-notify-only-end", currentSettings.notify_only_end !== false); // default to true
 
             setCheckbox("settings-show-jokes", currentSettings.show_jokes !== false); // default to true
+            setCheckbox("settings-show-quote", currentSettings.show_quote !== false); // default to true
+            
+            const themeVal = currentSettings.app_theme || "deep-space";
+            setInputVal("settings-app-theme", themeVal);
+            applyTheme(themeVal);
             
             if (!currentSettings.import_sources) currentSettings.import_sources = [];
             if (!currentSettings.sync_categories) currentSettings.sync_categories = [];
@@ -3920,9 +4593,9 @@ async function loadSettings() {
 }
 
 function updateDestinationDropdowns() {
-    const nasSelects = ["movie-nas-destination", "series-nas-destination", "yt-nas-destination"];
-    const pcloudSelects = ["movie-pcloud-destination", "series-pcloud-destination", "yt-pcloud-destination"];
-    const localSelects = ["yt-local-destination"];
+    const nasSelects = ["movie-nas-destination", "series-nas-destination", "yt-nas-destination", "abo-nas-destination"];
+    const pcloudSelects = ["movie-pcloud-destination", "series-pcloud-destination", "yt-pcloud-destination", "abo-pcloud-destination"];
+    const localSelects = ["yt-local-destination", "abo-local-destination"];
     
     nasSelects.forEach(selId => {
         const select = document.getElementById(selId);
@@ -4036,7 +4709,10 @@ function setupDestinationToggles() {
         { cb: "series-option-copy-pcloud", container: "series-pcloud-destination-container" },
         { cb: "yt-option-copy-nas", container: "yt-nas-destination-container" },
         { cb: "yt-option-copy-pcloud", container: "yt-pcloud-destination-container" },
-        { cb: "yt-option-copy-local", container: "yt-local-destination-container" }
+        { cb: "yt-option-copy-local", container: "yt-local-destination-container" },
+        { cb: "abo-copy-nas", container: "abo-nas-destination-container" },
+        { cb: "abo-copy-pcloud", container: "abo-pcloud-destination-container" },
+        { cb: "abo-copy-local", container: "abo-local-destination-container" }
     ];
     
     pairs.forEach(({ cb, container }) => {
@@ -4316,6 +4992,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 notify_only_end: document.getElementById("settings-notify-only-end")?.checked || false,
 
                 show_jokes: document.getElementById("settings-show-jokes")?.checked || false,
+                show_quote: document.getElementById("settings-show-quote")?.checked || false,
+                app_theme: document.getElementById("settings-app-theme")?.value || "deep-space",
                 
                 import_sources: currentSettings.import_sources.filter(s => s.trim() !== ""),
                 sync_categories: currentSettings.sync_categories.filter(c => c.id.trim() !== "" && c.name.trim() !== ""),
@@ -4961,6 +5639,7 @@ function initQueue() {
 }
 
 async function pollQueue() {
+    if (document.visibilityState === "hidden") return;
     try {
         const res = await fetch("/api/queue");
         if (!res.ok) return;
@@ -5114,12 +5793,16 @@ function renderQueue(jobs) {
                             }).catch(err => console.error(err));
                     }
                 }
+                if (knownFinishedJobs.size >= 100) {
+                    const firstVal = knownFinishedJobs.values().next().value;
+                    knownFinishedJobs.delete(firstVal);
+                }
                 knownFinishedJobs.add(job.id);
             }
         }
     });
     
-    if (isFirstQueuePoll && jobs.length > 0) {
+    if (isFirstQueuePoll) {
         isFirstQueuePoll = false;
     }
 }
@@ -5313,9 +5996,8 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
         showDropdown(filtered, shouldFocusInnerSearch);
     };
     
-    input.addEventListener("input", () => {
-        filterFolders(false);
-    });
+    const debouncedFilter = debounce(() => filterFolders(false), 250);
+    input.addEventListener("input", debouncedFilter);
     
     // Clear folder cache when destination select changes
     destSelect.addEventListener("change", () => {
@@ -5483,4 +6165,582 @@ async function triggerLaunchJoke() {
         }
     }
 }
+
+async function triggerLaunchQuote() {
+    if (currentSettings && currentSettings.show_quote !== false) {
+        try {
+            const res = await fetch("/api/quote");
+            if (res.ok) {
+                const data = await res.json();
+                if (data.quote) {
+                    showQuoteModal(data);
+                }
+            }
+        } catch (e) {
+            console.error("Failed to load quote:", e);
+        }
+    }
+}
+
+function showQuoteModal(quoteData) {
+    const existing = document.getElementById("quote-modal");
+    if (existing) existing.remove();
+
+    const modal = document.createElement("div");
+    modal.id = "quote-modal";
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(8px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    `;
+
+    const content = document.createElement("div");
+    content.style.cssText = `
+        background: rgba(30, 30, 45, 0.95);
+        border: 1px solid var(--border-glass);
+        border-radius: var(--radius-lg);
+        padding: 35px 30px;
+        width: 90%;
+        max-width: 500px;
+        text-align: center;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        transform: scale(0.9);
+        transition: transform 0.3s ease;
+        position: relative;
+    `;
+
+    const cleanQuote = quoteData.quote.trim();
+    const cleanAuthor = (quoteData.authorName || "Unbekannt").trim();
+    const authorHtml = quoteData.authorLink 
+        ? `<a href="${quoteData.authorLink}" target="_blank" style="color: #c084fc; text-decoration: none; border-bottom: 1px dotted #c084fc; font-weight: 500;">— ${cleanAuthor}</a>`
+        : `<span style="color: var(--text-dark); font-weight: 500;">— ${cleanAuthor}</span>`;
+
+    content.innerHTML = `
+        <div style="font-size: 44px; margin-bottom: 15px; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.3));">✍️</div>
+        <h3 style="margin-top: 0; color: var(--text-muted); font-size: 13px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 20px;">Zitat des Tages</h3>
+        
+        <p style="
+            font-size: 16px; 
+            color: var(--text-main); 
+            line-height: 1.7; 
+            margin: 0 0 20px 0; 
+            font-style: italic;
+            font-weight: 400;
+        ">
+            "${cleanQuote}"
+        </p>
+        
+        <div style="font-size: 14px; margin-bottom: 30px;">
+            ${authorHtml}
+        </div>
+        
+        <button id="btn-close-quote" class="btn btn-primary" style="min-width: 145px; padding: 10px 24px; font-size: 14px; font-weight: 600;">Inspirierend! 🌟</button>
+    `;
+
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+
+    setTimeout(() => {
+        modal.style.opacity = "1";
+        content.style.transform = "scale(1)";
+    }, 10);
+
+    const closeModal = () => {
+        modal.style.opacity = "0";
+        content.style.transform = "scale(0.9)";
+        setTimeout(() => modal.remove(), 300);
+    };
+
+    content.querySelector("#btn-close-quote").addEventListener("click", closeModal);
+    modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeModal();
+    });
+}
+
+function applyTheme(themeName) {
+    if (!themeName) themeName = "deep-space";
+    localStorage.setItem("app_theme", themeName);
+    
+    const themes = ["theme-deep-space", "theme-nordic-slate", "theme-amber-warmth", "theme-apple-silver"];
+    
+    // Prüfe View-Transition Support für flüssige Farbübergänge
+    if (document.startViewTransition) {
+        document.startViewTransition(() => {
+            themes.forEach(t => document.body.classList.remove(t));
+            document.body.classList.add("theme-" + themeName);
+        });
+    } else {
+        themes.forEach(t => document.body.classList.remove(t));
+        document.body.classList.add("theme-" + themeName);
+    }
+}
+
+function initCardParallaxAndGlow() {
+    // Registriere die Listener direkt und exklusiv auf den einzelnen Karten
+    const cards = document.querySelectorAll(".card");
+    cards.forEach(card => {
+        let rect = null;
+        
+        card.addEventListener("mouseenter", () => {
+            rect = card.getBoundingClientRect();
+        });
+        
+        card.addEventListener("mousemove", (e) => {
+            if (!rect) {
+                rect = card.getBoundingClientRect();
+            }
+            
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // Setze CSS Variablen für den radialen Glow
+            card.style.setProperty("--mouse-x", `${x}px`);
+            card.style.setProperty("--mouse-y", `${y}px`);
+            
+            // 3D-Kipp-Effekt
+            const cardWidth = rect.width;
+            const cardHeight = rect.height;
+            const relativeX = (x / cardWidth) - 0.5;
+            const relativeY = (y / cardHeight) - 0.5;
+            
+            const rotateY = relativeX * 6; // Max 3 Grad Rotation
+            const rotateX = -relativeY * 6;
+            
+            card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-2px)`;
+        });
+        
+        card.addEventListener("mouseleave", () => {
+            rect = null;
+            card.style.transform = "none";
+            // Setze Glow zurück außerhalb des Sichtfelds
+            card.style.setProperty("--mouse-x", `-9999px`);
+            card.style.setProperty("--mouse-y", `-9999px`);
+        });
+    });
+}
+
+// YouTube Merge Modal Logic
+let currentMergeItems = [];
+let mergeSubId = null;
+let mergeInitialVideoId = null;
+
+function openYtMergeModal(initialTitle, initialUrl, initialThumbnail, subId, videoId) {
+    mergeSubId = subId;
+    mergeInitialVideoId = videoId;
+    
+    const modal = document.getElementById("yt-merge-modal");
+    if (!modal) return;
+    
+    modal.classList.remove("hidden");
+    
+    // Set default final title (clean up part/episode indicators)
+    let cleanTitle = initialTitle;
+    const patterns = [
+        /\bteil\s*\d+\b/i,
+        /\bpart\s*\d+\b/i,
+        /\bepisode\s*\d+\b/i,
+        /#\s*\d+\b/i,
+        /\b\d+\s*\/\s*\d+\b/i,
+        /\b\d+\s*von\s*\d+\b/i,
+        /\b\d+\.\s*teil\b/i,
+        /\b\d+\.\s*part\b/i
+    ];
+    patterns.forEach(p => {
+        cleanTitle = cleanTitle.replace(p, "");
+    });
+    cleanTitle = cleanTitle.replace(/\s*-\s*$/, "").replace(/\s+/g, " ").trim();
+    
+    document.getElementById("yt-merge-title").value = cleanTitle || initialTitle;
+    document.getElementById("yt-merge-query").textContent = initialTitle;
+    
+    const listContainer = document.getElementById("yt-merge-list");
+    listContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">🔍 Suche nach Teilen auf YouTube...</div>`;
+    
+    fetch(`/api/youtube/search-parts?title=${encodeURIComponent(initialTitle)}`)
+        .then(res => res.json())
+        .then(data => {
+            const results = data.results || [];
+            
+            // Build unique list of items
+            const items = [];
+            
+            // 1. Add our initial video
+            items.push({
+                id: videoId,
+                title: initialTitle,
+                url: initialUrl,
+                thumbnail: initialThumbnail,
+                checked: true,
+                isInitial: true
+            });
+            
+            // 2. Add search results, avoiding duplicates of the initial video
+            results.forEach(r => {
+                if (r.id !== videoId) {
+                    items.push({
+                        id: r.id,
+                        title: r.title,
+                        url: r.url,
+                        thumbnail: r.thumbnail,
+                        checked: false,
+                        isInitial: false
+                    });
+                }
+            });
+            
+            currentMergeItems = items;
+            renderMergeItems();
+        })
+        .catch(err => {
+            console.error(err);
+            listContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--danger);">Fehler bei der Suche nach Teilen.</div>`;
+        });
+}
+
+function renderMergeItems() {
+    const listContainer = document.getElementById("yt-merge-list");
+    if (!listContainer) return;
+    
+    listContainer.innerHTML = "";
+    
+    currentMergeItems.forEach((item, index) => {
+        const row = document.createElement("div");
+        row.className = "merge-item-row";
+        row.style.display = "flex";
+        row.style.alignItems = "center";
+        row.style.justifyContent = "space-between";
+        row.style.gap = "10px";
+        row.style.background = "rgba(255,255,255,0.02)";
+        row.style.border = "1px solid var(--border-glass)";
+        row.style.borderRadius = "var(--radius-sm)";
+        row.style.padding = "8px 12px";
+        row.style.transition = "all 0.2s ease";
+        
+        // Left part: Checkbox + Thumbnail + Title
+        const left = document.createElement("div");
+        left.style.display = "flex";
+        left.style.alignItems = "center";
+        left.style.gap = "10px";
+        left.style.flex = "1";
+        left.style.minWidth = "0";
+        
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = item.checked;
+        checkbox.disabled = item.isInitial; // Initial item must be checked
+        checkbox.style.cursor = item.isInitial ? "default" : "pointer";
+        checkbox.addEventListener("change", (e) => {
+            item.checked = e.target.checked;
+        });
+        left.appendChild(checkbox);
+        
+        if (item.thumbnail) {
+            const img = document.createElement("img");
+            img.src = item.thumbnail;
+            img.style.width = "54px";
+            img.style.height = "30px";
+            img.style.objectFit = "cover";
+            img.style.borderRadius = "2px";
+            left.appendChild(img);
+        } else {
+            const placeholder = document.createElement("div");
+            placeholder.style.width = "54px";
+            placeholder.style.height = "30px";
+            placeholder.style.background = "rgba(255,255,255,0.05)";
+            placeholder.style.borderRadius = "2px";
+            left.appendChild(placeholder);
+        }
+        
+        const info = document.createElement("div");
+        info.style.minWidth = "0";
+        
+        const titleSpan = document.createElement("div");
+        titleSpan.style.fontWeight = "500";
+        titleSpan.style.fontSize = "12px";
+        titleSpan.style.whiteSpace = "nowrap";
+        titleSpan.style.overflow = "hidden";
+        titleSpan.style.textOverflow = "ellipsis";
+        titleSpan.textContent = item.title;
+        titleSpan.title = item.title;
+        info.appendChild(titleSpan);
+        
+        if (item.isInitial) {
+            const badge = document.createElement("span");
+            badge.style.fontSize = "9px";
+            badge.style.background = "rgba(16, 185, 129, 0.15)";
+            badge.style.color = "var(--success)";
+            badge.style.padding = "1px 4px";
+            badge.style.borderRadius = "3px";
+            badge.style.marginLeft = "0px";
+            badge.style.fontWeight = "bold";
+            badge.textContent = "AUSGANGS-VIDEO";
+            info.appendChild(badge);
+        }
+        
+        left.appendChild(info);
+        row.appendChild(left);
+        
+        // Right part: Re-order controls
+        const right = document.createElement("div");
+        right.style.display = "flex";
+        right.style.gap = "4px";
+        
+        const btnUp = document.createElement("button");
+        btnUp.className = "btn btn-secondary btn-xs";
+        btnUp.style.padding = "2px 6px";
+        btnUp.innerHTML = "▲";
+        btnUp.disabled = index === 0;
+        btnUp.addEventListener("click", () => {
+            // Swap with previous
+            const temp = currentMergeItems[index - 1];
+            currentMergeItems[index - 1] = currentMergeItems[index];
+            currentMergeItems[index] = temp;
+            renderMergeItems();
+        });
+        
+        const btnDown = document.createElement("button");
+        btnDown.className = "btn btn-secondary btn-xs";
+        btnDown.style.padding = "2px 6px";
+        btnDown.innerHTML = "▼";
+        btnDown.disabled = index === currentMergeItems.length - 1;
+        btnDown.addEventListener("click", () => {
+            // Swap with next
+            const temp = currentMergeItems[index + 1];
+            currentMergeItems[index + 1] = currentMergeItems[index];
+            currentMergeItems[index] = temp;
+            renderMergeItems();
+        });
+        
+        right.appendChild(btnUp);
+        right.appendChild(btnDown);
+        row.appendChild(right);
+        
+        listContainer.appendChild(row);
+    });
+}
+
+function closeYtMergeModal() {
+    document.getElementById("yt-merge-modal").classList.add("hidden");
+    currentMergeItems = [];
+    mergeSubId = null;
+    mergeInitialVideoId = null;
+}
+
+// Hook up events
+document.addEventListener("DOMContentLoaded", () => {
+    const btnClose = document.getElementById("btn-close-yt-merge");
+    const btnCancel = document.getElementById("btn-cancel-yt-merge");
+    const btnStart = document.getElementById("btn-start-yt-merge");
+    
+    if (btnClose) btnClose.addEventListener("click", closeYtMergeModal);
+    if (btnCancel) btnCancel.addEventListener("click", closeYtMergeModal);
+    
+    if (btnStart) {
+        btnStart.addEventListener("click", async () => {
+            const finalTitleInput = document.getElementById("yt-merge-title");
+            const finalTitle = finalTitleInput ? finalTitleInput.value.trim() : "";
+            
+            if (!finalTitle) {
+                alert("Bitte gib einen Dateinamen an!");
+                return;
+            }
+            
+            const selectedItems = currentMergeItems.filter(item => item.checked);
+            if (selectedItems.length === 0) {
+                alert("Bitte wähle mindestens ein Video aus!");
+                return;
+            }
+            
+            const urls = selectedItems.map(item => item.url);
+            const videoIdsToRemove = selectedItems.map(item => item.id);
+            
+            btnStart.disabled = true;
+            btnStart.textContent = "⌛ Starte Merge...";
+            
+            try {
+                const res = await fetch("/api/youtube/merge", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        urls: urls,
+                        title: finalTitle,
+                        subscription_id: mergeSubId,
+                        video_ids_to_remove: videoIdsToRemove,
+                        thumbnail: selectedItems[0].thumbnail || ""
+                    })
+                });
+                
+                if (res.ok) {
+                    appendConsoleLog(`[System]: Merge-Job für "${finalTitle}" mit ${urls.length} Teilen gestartet.`);
+                    alert("Merge-Job im Hintergrund gestartet!");
+                    closeYtMergeModal();
+                    
+                    // Remove processed videos from UI
+                    loadSubscriptions();
+                } else {
+                    const data = await res.json();
+                    alert(`Fehler beim Starten: ${data.error || 'Serverfehler'}`);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Netzwerkfehler beim Starten des Zusammenfügens.");
+            } finally {
+                btnStart.disabled = false;
+                btnStart.innerHTML = "🚀 Teile zusammenfügen & laden";
+            }
+        });
+    }
+});
+
+// Duplicate Compare Modal Logic
+let activeDuplicateInfo = null;
+
+function openDuplicateCompareModal(existingPath, existingFilename, newFilename, badgeId) {
+    const modal = document.getElementById("duplicate-compare-modal");
+    if (!modal) return;
+    
+    modal.classList.remove("hidden");
+    
+    // Reset fields to loading state
+    document.getElementById("dup-new-name").textContent = newFilename;
+    document.getElementById("dup-new-res").textContent = "Lade...";
+    document.getElementById("dup-new-size").textContent = "Lade...";
+    document.getElementById("dup-new-vcodec").textContent = "Lade...";
+    document.getElementById("dup-new-acodec").textContent = "Lade...";
+    document.getElementById("dup-new-bitrate").textContent = "Lade...";
+    document.getElementById("dup-new-duration").textContent = "Lade...";
+    
+    document.getElementById("dup-exist-name").textContent = existingFilename;
+    document.getElementById("dup-exist-res").textContent = "Lade...";
+    document.getElementById("dup-exist-size").textContent = "Lade...";
+    document.getElementById("dup-exist-vcodec").textContent = "Lade...";
+    document.getElementById("dup-exist-acodec").textContent = "Lade...";
+    document.getElementById("dup-exist-bitrate").textContent = "Lade...";
+    document.getElementById("dup-exist-duration").textContent = "Lade...";
+    
+    const projName = typeof activeProject === "string" ? activeProject : "";
+    const newPath = currentSettings.inbox_dir + "/" + (projName ? projName + "/" : "") + newFilename;
+    
+    activeDuplicateInfo = {
+        new_path: newPath,
+        existing_path: existingPath,
+        badge_id: badgeId
+    };
+    
+    fetch(`/api/media/compare-files?new_path=${encodeURIComponent(newPath)}&existing_path=${encodeURIComponent(existingPath)}`)
+        .then(res => {
+            if (!res.ok) throw new Error("HTTP Fehler");
+            return res.json();
+        })
+        .then(data => {
+            const n = data.new_file;
+            const e = data.existing_file;
+            
+            document.getElementById("dup-new-res").textContent = n.resolution;
+            document.getElementById("dup-new-size").textContent = n.size_readable;
+            document.getElementById("dup-new-vcodec").textContent = n.video_codec;
+            document.getElementById("dup-new-acodec").textContent = n.audio_codec;
+            document.getElementById("dup-new-bitrate").textContent = n.bitrate_kbps;
+            document.getElementById("dup-new-duration").textContent = n.duration_str;
+            
+            document.getElementById("dup-exist-res").textContent = e.resolution;
+            document.getElementById("dup-exist-size").textContent = e.size_readable;
+            document.getElementById("dup-exist-vcodec").textContent = e.video_codec;
+            document.getElementById("dup-exist-acodec").textContent = e.audio_codec;
+            document.getElementById("dup-exist-bitrate").textContent = e.bitrate_kbps;
+            document.getElementById("dup-exist-duration").textContent = e.duration_str;
+        })
+        .catch(err => {
+            console.error("Comparison error:", err);
+            ["new", "exist"].forEach(prefix => {
+                document.getElementById(`dup-${prefix}-res`).textContent = "Fehler";
+                document.getElementById(`dup-${prefix}-size`).textContent = "Fehler beim Laden";
+            });
+        });
+}
+
+function closeDuplicateCompareModal() {
+    document.getElementById("duplicate-compare-modal").classList.add("hidden");
+    activeDuplicateInfo = null;
+}
+
+// Global click event delegation for duplicate badges
+document.addEventListener("click", (e) => {
+    const badge = e.target.closest(".duplicate-badge");
+    if (badge) {
+        const existingPath = badge.getAttribute("data-existing-path");
+        const existingFilename = badge.getAttribute("data-existing-filename");
+        const newFile = badge.getAttribute("data-new-file");
+        const badgeId = badge.getAttribute("data-badge-id");
+        
+        if (existingPath && newFile) {
+            openDuplicateCompareModal(existingPath, existingFilename, newFile, badgeId);
+        }
+    }
+});
+
+// Hook up duplicate modal events
+document.addEventListener("DOMContentLoaded", () => {
+    const btnClose = document.getElementById("btn-close-dup-compare");
+    const btnKeep = document.getElementById("btn-dup-keep-both");
+    const btnUpgrade = document.getElementById("btn-dup-upgrade");
+    
+    if (btnClose) btnClose.addEventListener("click", closeDuplicateCompareModal);
+    if (btnKeep) btnKeep.addEventListener("click", closeDuplicateCompareModal);
+    
+    if (btnUpgrade) {
+        btnUpgrade.addEventListener("click", async () => {
+            if (!activeDuplicateInfo) return;
+            
+            if (confirm("Möchtest du die existierende Datei auf dem NAS wirklich löschen? Dieser Schritt kann nicht rückgängig gemacht werden.")) {
+                btnUpgrade.disabled = true;
+                btnUpgrade.textContent = "⌛ Führe Upgrade aus...";
+                
+                try {
+                    const res = await fetch("/api/media/resolve-duplicate", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            action: "upgrade",
+                            new_path: activeDuplicateInfo.new_path,
+                            existing_path: activeDuplicateInfo.existing_path
+                        })
+                    });
+                    
+                    if (res.ok) {
+                        appendConsoleLog(`[System]: Vorhandene Datei auf NAS gelöscht: ${activeDuplicateInfo.existing_path}`);
+                        alert("Upgrade erfolgreich vorbereitet! Die alte Datei auf dem NAS wurde gelöscht. Klicke jetzt auf 'Zuweisung starten', um das neue Video dorthin zu kopieren.");
+                        
+                        const badgeContainer = document.getElementById(activeDuplicateInfo.badge_id);
+                        if (badgeContainer) {
+                            badgeContainer.innerHTML = "";
+                        }
+                        
+                        closeDuplicateCompareModal();
+                    } else {
+                        const data = await res.json();
+                        alert(`Fehler beim Upgrade: ${data.error || 'Serverfehler'}`);
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert("Netzwerkfehler beim Ausführen des Upgrades.");
+                } finally {
+                    btnUpgrade.disabled = false;
+                    btnUpgrade.innerHTML = "🗑️ Vorhandene löschen & Upgrade";
+                }
+            }
+        });
+    }
+});
+
 

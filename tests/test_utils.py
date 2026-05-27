@@ -1916,5 +1916,181 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             server.load_settings = orig_load_settings
             server.media.konvertierung_schaetzen = original_konvertierung_schaetzen
 
+    def test_api_subscriptions_approve_and_ignore(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        
+        orig_load_settings = server.load_settings
+        orig_save_settings = server.save_settings
+        
+        saved_settings = []
+        mock_subs = [
+            {
+                "id": "sub_1",
+                "name": "My Subscription",
+                "url": "https://youtube.com/channel/abc",
+                "destination_id": "1",
+                "nas_destination_id": "1",
+                "pcloud_destination_id": "2",
+                "local_destination_id": "__inbox__",
+                "copy_to_nas": True,
+                "copy_to_pcloud": True,
+                "copy_to_local": True,
+                "enabled": True,
+                "auto_download": False,
+                "pending_videos": [
+                    {
+                        "id": "vid_123",
+                        "title": "Amazing Video",
+                        "url": "https://youtube.com/watch?v=vid_123",
+                        "thumbnail": "thumb.jpg",
+                        "channel": "Awesome Channel",
+                        "published_at": "2026-05-24"
+                    }
+                ],
+                "downloaded_ids": []
+            }
+        ]
+        
+        server.load_settings = lambda: {"youtube_subscriptions": mock_subs}
+        def mock_save(sett):
+            saved_settings.append(sett)
+        server.save_settings = mock_save
+        
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+                self.sent_error = None
+            def send_json(self, data):
+                self.sent_json = data
+            def send_error(self, code, message=None):
+                self.sent_error = (code, message)
+                
+        dummy = DummyHandler()
+        
+        try:
+            # 1. Test approve
+            params = {
+                "subscription_id": "sub_1",
+                "video_id": "vid_123"
+            }
+            
+            # Mock job queue and active jobs
+            orig_active_jobs = server.active_jobs
+            server.active_jobs = {}
+            
+            GUIRequestHandler.handle_api_subscriptions_approve(dummy, params)
+            
+            self.assertIsNotNone(dummy.sent_json)
+            self.assertEqual(dummy.sent_json.get("status"), "success")
+            
+            # Verify saved settings
+            self.assertEqual(len(saved_settings), 1)
+            updated_subs = saved_settings[0]["youtube_subscriptions"]
+            self.assertEqual(len(updated_subs[0]["pending_videos"]), 0)
+            self.assertIn("vid_123", updated_subs[0]["downloaded_ids"])
+            
+            # Verify job is queued
+            self.assertEqual(len(server.active_jobs), 1)
+            queued_job = list(server.active_jobs.values())[0]
+            self.assertEqual(queued_job["params"]["yt_url"], "https://youtube.com/watch?v=vid_123")
+            self.assertEqual(queued_job["params"]["destination_id"], "1")
+            self.assertEqual(queued_job["params"]["nas_destination_id"], "1")
+            self.assertEqual(queued_job["params"]["pcloud_destination_id"], "2")
+            self.assertEqual(queued_job["params"]["local_destination_id"], "__inbox__")
+            self.assertTrue(queued_job["params"]["copy_to_nas"])
+            self.assertTrue(queued_job["params"]["copy_to_pcloud"])
+            self.assertTrue(queued_job["params"]["copy_to_local"])
+            
+            # 2. Test ignore (re-adding pending video first)
+            mock_subs[0]["pending_videos"] = [{
+                "id": "vid_123",
+                "title": "Amazing Video",
+                "url": "https://youtube.com/watch?v=vid_123",
+                "thumbnail": "thumb.jpg",
+                "channel": "Awesome Channel",
+                "published_at": "2026-05-24"
+            }]
+            mock_subs[0]["downloaded_ids"] = []
+            saved_settings.clear()
+            
+            dummy = DummyHandler()
+            GUIRequestHandler.handle_api_subscriptions_ignore(dummy, params)
+            
+            self.assertIsNotNone(dummy.sent_json)
+            self.assertEqual(dummy.sent_json.get("status"), "success")
+            self.assertEqual(len(saved_settings), 1)
+            updated_subs = saved_settings[0]["youtube_subscriptions"]
+            self.assertEqual(len(updated_subs[0]["pending_videos"]), 0)
+            self.assertIn("vid_123", updated_subs[0]["downloaded_ids"])
+            
+        finally:
+            server.load_settings = orig_load_settings
+            server.save_settings = orig_save_settings
+            server.active_jobs = orig_active_jobs
+
+    def test_preview_show_metadata_warning_on_nas(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        
+        inbox_dir = os.path.join(self.test_dir, "inbox_warn_test")
+        nas_root = os.path.join(self.test_dir, "nas_warn_test")
+        os.makedirs(inbox_dir, exist_ok=True)
+        os.makedirs(nas_root, exist_ok=True)
+        
+        # Create a series directory on NAS with metadata
+        nas_show_dir = os.path.join(nas_root, "Serien", "My Existing Show")
+        os.makedirs(nas_show_dir, exist_ok=True)
+        with open(os.path.join(nas_show_dir, "tvshow.nfo"), "w") as f:
+            f.write("existing show metadata")
+            
+        # Create folder in inbox
+        project_dir = os.path.join(inbox_dir, "My Existing Show")
+        os.makedirs(project_dir, exist_ok=True)
+        with open(os.path.join(project_dir, "episode1.mp4"), "w") as f:
+            f.write("video content")
+            
+        orig_load_settings = server.load_settings
+        server.load_settings = lambda: {
+            "inbox_dir": inbox_dir,
+            "outbox_dir": os.path.join(self.test_dir, "outbox_warn_test"),
+            "nas_root": nas_root,
+            "sync_categories": [
+                {"id": "2", "name": "Serien", "nas_sub": "/Serien"}
+            ]
+        }
+        
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+                
+        dummy = DummyHandler()
+        
+        params = {
+            "media_type": "tv",
+            "project_name": "My Existing Show",
+            "show_name": "My Existing Show",
+            "show_id": "123",
+            "provider": "tmdb_tv",
+            "season": "1",
+            "copy_to_nas": True,
+            "mappings": {
+                "episode1.mp4": "1"
+            }
+        }
+        
+        try:
+            GUIRequestHandler.handle_api_preview_process(dummy, params)
+            result = dummy.sent_json
+            self.assertIsNotNone(result)
+            
+            dest = result.get("destination", "")
+            self.assertIn("⚠️ Serie existiert bereits auf NAS mit vorhandenen Metadaten", dest)
+            self.assertIn("tvshow.nfo", dest)
+        finally:
+            server.load_settings = orig_load_settings
+
 if __name__ == "__main__":
     unittest.main()
