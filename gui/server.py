@@ -2560,8 +2560,30 @@ def process_worker(params):
                             active_jobs[task_id]["progress"] = int(((idx - 1) / num_urls) * 90)
                             active_jobs[task_id]["message"] = f"Lade Teil {idx} von {num_urls}..."
                     
+                    format_opt = params.get("yt_format", "best")
                     part_output = f"part_{idx:02d}.%(ext)s"
-                    cmd = ["yt-dlp", "-P", temp_dir, "--output", part_output, "--merge-output-format", "mkv", "--remux-video", "mkv", "-f", "bv*+ba/b", "--cookies-from-browser", "chrome", part_url]
+                    cmd = ["yt-dlp", "-P", temp_dir, "--output", part_output, "--merge-output-format", "mkv", "--remux-video", "mkv"]
+                    
+                    if format_opt == "audio":
+                        cmd.extend(["-f", "ba", "-x", "--audio-format", "mp3"])
+                    elif format_opt == "best":
+                        cmd.extend(["-f", "bv*+ba/b"])
+                    elif "_h264" in format_opt:
+                        h_val = format_opt.split("p_")[0]
+                        cmd.extend(["-f", f"bestvideo[height<={h_val}][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<={h_val}]+bestaudio/best"])
+                    elif "_vp9" in format_opt:
+                        h_val = format_opt.split("p_")[0]
+                        cmd.extend(["-f", f"bestvideo[height<={h_val}][vcodec^=vp09]+bestaudio/bestvideo[height<={h_val}][vcodec^=vp9]+bestaudio/bestvideo[height<={h_val}]+bestaudio/best"])
+                    elif "_av1" in format_opt:
+                        h_val = format_opt.split("p_")[0]
+                        cmd.extend(["-f", f"bestvideo[height<={h_val}][vcodec^=av01]+bestaudio/bestvideo[height<={h_val}]+bestaudio/best"])
+                    elif format_opt.endswith("p"):
+                        h_val = format_opt[:-1]
+                        cmd.extend(["-f", f"bestvideo[height<={h_val}]+bestaudio/best"])
+                    else:
+                        cmd.extend(["-f", "bv*+ba/b"])
+                        
+                    cmd.extend(["--cookies-from-browser", "chrome", part_url])
                     
                     log_message(f"Lade Teil {idx}/{num_urls}: {' '.join(cmd)}")
                     success = run_ytdlp_with_progress(cmd, task_id=None, log_queue=log_queue)
@@ -5558,6 +5580,7 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             "local_destination_id": sub_local_dest,
             "yt_thumbnail": first_thumb,
             "yt_title": title,
+            "yt_format": params.get("yt_format", "best"),
             "task_id": task_id
         }
         

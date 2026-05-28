@@ -15,7 +15,7 @@
     <!-- Top-Header & Statusbar -->
     <header class="app-header">
         <div class="header-logo">
-            <span class="logo-icon">🚀</span>
+            <img src="logo.png" alt="Medienwerkzeug Logo" class="logo-img">
             <div class="logo-text">
                 <h1>Medienwerkzeug</h1>
                 <span class="version">v5.0 Native Edition</span>
@@ -23,9 +23,9 @@
         </div>
         
         <div class="status-indicators">
-            <button class="btn btn-secondary btn-sm" id="header-queue-btn" style="position: relative; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+            <button class="btn btn-accent" id="header-queue-btn" style="position: relative; font-weight: 700; display: flex; align-items: center; gap: 8px; border: 1px solid var(--accent); box-shadow: 0 0 12px var(--accent-glow);">
                 📋 Warteschlange
-                <span id="header-queue-badge" class="badge hidden" style="background:var(--accent); color:white; border-radius:12px; padding:1px 6px; font-size:11px; display:inline-block;">0</span>
+                <span id="header-queue-badge" class="badge hidden" style="background:var(--bg-base); color:var(--text-main); border-radius:12px; padding:2px 8px; font-size:11px; display:inline-block; font-weight: 700;">0</span>
             </button>
 
             <div class="status-item" id="nas-status-container">
@@ -46,34 +46,45 @@
         
         <!-- ==================== LEFT SIDEBAR (MASTER) ==================== -->
         <nav class="master-sidebar" aria-label="Hauptnavigation">
-            <button class="btn btn-primary" style="width: 100%; margin-bottom: 20px; font-weight: 600;" id="master-btn-youtube">
-                ➕ Neues YouTube Video
+            <button class="btn btn-primary" style="width: 100%; margin-bottom: 20px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;" id="master-btn-home">
+                🏠 Sendezentrale
             </button>
 
-            <div class="sidebar-section">
-                <h2>Projektordner</h2>
-                <p class="section-desc" style="font-size:12px; margin-bottom:10px;">Medien Input / Streamfab</p>
-                <div class="project-list" id="project-list-container">
-                    <div class="loading-spinner"></div>
+            <div class="sidebar-section collapsible-section" id="section-project-folders">
+                <div class="section-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="caret-icon">▶</span>
+                        <h2>Projektordner</h2>
+                    </div>
+                    <span class="badge" id="project-folders-count" style="background: rgba(255, 255, 255, 0.08); padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">0</span>
+                </div>
+                <div class="section-content">
+                    <p class="section-desc" style="font-size:12px; margin-bottom:10px;">Medien Input / Streamfab</p>
+                    <div class="project-list" id="project-list-container">
+                        <div class="loading-spinner"></div>
+                    </div>
                 </div>
             </div>
 
-            <div class="sidebar-section" style="margin-top: 60px;">
+            <div class="sidebar-section" style="margin-top: 30px;">
                 <h2>System</h2>
                 <div class="nav-list" style="margin-top: 10px;">
-                    <button class="project-item" id="nav-tools-dashboard" style="margin-bottom: 10px; width: 100%; border: 1px solid var(--border-glass); text-align: left; font-family: inherit; color: inherit;">
+                    <button class="project-item" id="nav-youtube-downloader">
+                        <span class="project-item-name">🎥 YouTube Downloader</span>
+                    </button>
+                    <button class="project-item" id="nav-tools-dashboard">
                         <span class="project-item-name">🛠️ Werkzeuge</span>
                     </button>
-                    <button class="project-item" id="nav-dashboard" style="margin-bottom: 10px; width: 100%; border: 1px solid var(--border-glass); text-align: left; font-family: inherit; color: inherit;">
+                    <button class="project-item" id="nav-dashboard">
                         <span class="project-item-name">📊 Dashboard</span>
                     </button>
-                    <button class="project-item" id="nav-youtube-abos" style="margin-bottom: 10px; width: 100%; border: 1px solid var(--border-glass); text-align: left; font-family: inherit; color: inherit;">
+                    <button class="project-item" id="nav-youtube-abos">
                         <span class="project-item-name">📺 YouTube Abos</span>
                     </button>
-                    <button class="project-item" id="nav-settings-dashboard" style="margin-bottom: 10px; width: 100%; border: 1px solid var(--border-glass); text-align: left; font-family: inherit; color: inherit;">
+                    <button class="project-item" id="nav-settings-dashboard">
                         <span class="project-item-name">⚙️ Einstellungen</span>
                     </button>
-                    <button class="project-item" id="nav-queue-dashboard" style="margin-bottom: 10px; width: 100%; border: 1px solid var(--border-glass); text-align: left; font-family: inherit; color: inherit; display: flex; justify-content: space-between; align-items: center;">
+                    <button class="project-item" id="nav-queue-dashboard">
                         <span class="project-item-name">📋 Warteschlange</span>
                         <span id="queue-badge" class="badge hidden" style="background:var(--accent); color:white; border-radius:12px; padding:2px 8px; font-size:12px; margin-left:auto; display:inline-block;">0</span>
                     </button>
@@ -84,11 +95,94 @@
         <!-- ==================== RIGHT MAIN AREA (DETAIL) ==================== -->
         <main class="detail-content">
             
-            <!-- STATE: EMPTY / WELCOME -->
-            <div id="view-empty" class="view-panel active" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--text-muted);">
-                <div style="font-size: 64px; margin-bottom: 20px;">🎬</div>
-                <h2>Kein Projekt ausgewählt</h2>
-                <p style="margin-top: 10px;">Wähle links einen Ordner aus deiner Inbox oder starte einen neuen YouTube Download.</p>
+            <div id="view-empty" class="view-panel active" style="padding-bottom: 60px;">
+                <!-- Hero Section -->
+                <div class="homepage-hero">
+                    <span class="hero-badge">🎬 Medienwerkzeug Native v5.0</span>
+                    <h2 class="hero-title">Willkommen in deiner Sendezentrale</h2>
+                    <p class="hero-desc">Automatische Inbox-Bereinigung, TMDb/TVDb Metadaten-Scraping und Hochgeschwindigkeits-Transkodierung in einer nahtlosen Oberfläche.</p>
+                    
+                    <!-- Quick YT Input -->
+                    <div class="hero-action-box">
+                        <input type="text" id="hero-yt-url" placeholder="YouTube- oder Mediathek-Link eingeben, um eine Vorschau zu generieren...">
+                        <button class="btn btn-accent" id="btn-hero-yt-go">🔍 Vorschau generieren</button>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: center; gap: 15px; margin-top: 15px;">
+                        <button class="btn btn-secondary btn-sm" id="btn-hero-yt-abos" style="font-weight: 500;">📺 YouTube-Abos verwalten</button>
+                    </div>
+                </div>
+                
+                <!-- Quick Stats Grid -->
+                <div class="grid-2col" style="margin-top: 30px; gap: 20px;">
+                    <!-- Left: Inbox & Project Status -->
+                    <div class="card interactive-card" id="card-hero-inbox" style="cursor: pointer;">
+                        <div class="card-hero-header">
+                            <span class="card-icon">📥</span>
+                            <h3>Inbox & Projekte</h3>
+                        </div>
+                        <p class="card-hero-text">Kein Projekt ausgewählt. Wähle links einen Ordner aus der Inbox, um ihn zu verarbeiten.</p>
+                        <div class="card-hero-footer" id="hero-inbox-status-text">
+                            Lade Inbox-Status...
+                        </div>
+                    </div>
+                    
+                    <!-- Right: System & Connections -->
+                    <div class="card" id="card-hero-system">
+                        <div class="card-hero-header">
+                            <span class="card-icon">⚙️</span>
+                            <h3>Systemverbindungen</h3>
+                        </div>
+                        <div class="connection-status-row">
+                            <div class="connection-item">
+                                <span class="connection-label">NAS-Server:</span>
+                                <span class="status-badge offline" id="hero-nas-badge">Lade...</span>
+                            </div>
+                            <div class="connection-item" style="margin-top: 10px;">
+                                <span class="connection-label">Import-Quellen:</span>
+                                <span class="status-badge" id="hero-streamfab-badge">Prüfe...</span>
+                            </div>
+                        </div>
+                        <div class="nas-capacity-widget" style="margin-top: 15px; border-top: 1px solid var(--border-glass); padding-top: 15px;">
+                            <span class="form-label-style">NAS Speicherbelegung:</span>
+                            <div class="progress-bar-container" style="height: 8px; margin-top: 8px;">
+                                <div class="progress-bar" id="hero-nas-progress" style="width: 0%; background: var(--accent);"></div>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); margin-top:5px;">
+                                <span id="hero-nas-usage-text">Speicherplatz wird abgerufen...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Left 2: YouTube Abos -->
+                    <div class="card interactive-card" id="card-hero-abos" style="cursor: pointer;">
+                        <div class="card-hero-header">
+                            <span class="card-icon">📺</span>
+                            <h3>YouTube Abonnements</h3>
+                        </div>
+                        <p class="card-hero-text">Automatische Überwachung deiner Lieblingskanäle im Hintergrund.</p>
+                        <div class="card-hero-footer" id="hero-abos-status-text">
+                            Lade Abonnements...
+                        </div>
+                    </div>
+                    
+                    <!-- Right 2: Stats Ring / Savings -->
+                    <div class="card interactive-card" id="card-hero-stats" style="cursor: pointer;">
+                        <div class="card-hero-header">
+                            <span class="card-icon">📊</span>
+                            <h3>Speicherplatz-Ersparnis</h3>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 20px; margin-top: 10px;">
+                            <div class="stats-big-number" id="hero-saved-space" style="font-size: 32px; font-weight: 700; color: var(--accent); font-family: var(--font-sans);">0 GB</div>
+                            <div class="text-muted" style="font-size: 12px; line-height: 1.3;" id="hero-saved-desc">
+                                durch H.265-Transkodierung eingespart
+                            </div>
+                        </div>
+                        <div class="card-hero-footer" id="hero-converted-files-text" style="margin-top: auto;">
+                            Lade Statistik...
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- STATE: FOLDER WORKFLOW -->
@@ -125,7 +219,7 @@
                 </div>
 
                 <!-- Modus Auswahl Kacheln -->
-                <div id="folder-mode-selector" role="radiogroup" aria-label="Verarbeitungsmodus" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:20px; margin-bottom:30px;">
+                <div id="folder-mode-selector" role="radiogroup" aria-label="Verarbeitungsmodus">
                     <div class="mode-card" id="mode-movie" role="radio" aria-checked="false" tabindex="0">
                         <div class="mode-icon">🎬</div>
                         <h3>Film</h3>
@@ -197,7 +291,7 @@
 
                     <div class="execution-options-panel" style="margin-top: 25px; padding-top:20px; border-top:1px solid var(--border-glass);">
                         <h4>Verarbeitungs-Optionen</h4>
-                        <div class="options-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
+                        <div class="options-grid" style="margin-top:15px;">
                             <label class="checkbox-container" for="movie-option-convert">
                                 <input type="checkbox" id="movie-option-convert">
                                 <span class="checkmark"></span> Nach H.265 konvertieren
@@ -332,7 +426,7 @@
 
                     <div class="execution-options-panel hidden" id="series-execution-panel" style="margin-top: 25px; padding-top:20px; border-top:1px solid var(--border-glass);">
                         <h4>Verarbeitungs-Optionen</h4>
-                        <div class="options-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
+                        <div class="options-grid" style="margin-top:15px;">
                             <label class="checkbox-container" for="series-option-convert">
                                 <input type="checkbox" id="series-option-convert" checked>
                                 <span class="checkmark"></span> Nach H.265 konvertieren
@@ -404,7 +498,7 @@
                     </div>
                 </div>
                 
-                <div class="tools-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; padding-bottom: 60px;">
+                <div class="tools-grid" style="padding-bottom: 60px;">
                     <button class="btn btn-secondary card" id="tool-btn-pull-files" style="padding:25px; text-align:left; display:flex; gap:20px; align-items:center; transition: all 0.2s; height: 140px;">
                         <span style="font-size:40px;">📁</span> <div><strong style="font-size:18px;">Dateien hochziehen</strong><br><small class="text-muted">Unterordner auflösen</small></div>
                     </button>
@@ -643,7 +737,7 @@
                         <div class="form-group" style="margin-bottom: 25px; max-width: 900px; padding-top: 15px; border-top: 1px solid var(--border-glass);">
                             <span class="form-label-style">Verarbeitungs-Abschluss (Auto-Finder):</span>
                             <p style="font-size: 12px; color: var(--text-dark); margin-bottom: 15px;">Wähle aus, welche Verzeichnisse nach erfolgreicher Verarbeitung automatisch im Finder geöffnet werden sollen.</p>
-                            <div class="options-grid" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; max-width:700px;">
+                            <div class="options-grid" style="max-width:700px;">
                                 <label class="checkbox-container" for="settings-open-outbox-finder">
                                     <input type="checkbox" id="settings-open-outbox-finder">
                                     <span class="checkmark"></span> Output (Outbox) öffnen
@@ -750,7 +844,8 @@
                                 <option value="deep-space">🌌 Deep Space (Standard)</option>
                                 <option value="nordic-slate">🏔️ Nordic Slate (Kühles Anthrazit)</option>
                                 <option value="amber-warmth">🍂 Amber Warmth (Gemütliches Braun)</option>
-                                <option value="apple-silver">🍎 Apple Silver (Edles Silber-Weiß)</option>
+                                <option value="apple-black">🍎 Apple Obsidian (MacBook Pro Schwarz)</option>
+                                <option value="superfood-light">🌸 Superfood Light (Sagenhaft Fruchtig)</option>
                             </select>
                         </div>
 
@@ -826,59 +921,71 @@
                     </div>
                 </div>
 
-                <div class="grid-layout hidden" id="yt-details-panel" style="grid-template-columns: 1fr 1fr; gap:20px; margin-top:20px;">
+                <div class="grid-2col hidden" id="yt-details-panel" style="margin-top:20px;">
                     <!-- Left: Metadata -->
                     <div class="card">
                         <h3>Video Info</h3>
                         <div id="yt-video-info-preview"></div>
                         <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border-glass);">
                         
-                        <h3>Tagging Modus</h3>
-                        <div class="form-group">
-                            <label for="yt-meta-mode">Typ:</label>
-                            <select id="yt-meta-mode" class="form-select" style="width:100%;">
-                                <option value="youtube">Allgemein (YouTube)</option>
-                                <option value="movie">Film (TMDb)</option>
-                                <option value="tv">Serie (TMDb/TVDb)</option>
-                            </select>
-                        </div>
+                        <div id="yt-tagging-section">
+                            <h3>Tagging Modus</h3>
+                            <div class="form-group">
+                                <label for="yt-meta-mode">Typ:</label>
+                                <select id="yt-meta-mode" class="form-select" style="width:100%;">
+                                    <option value="youtube">Allgemein (YouTube)</option>
+                                    <option value="movie">Film (TMDb)</option>
+                                    <option value="tv">Serie (TMDb/TVDb)</option>
+                                </select>
+                            </div>
 
-                        <!-- Movie Search -->
-                        <div id="yt-movie-search-section" class="hidden" style="margin-top:15px;">
-                            <div class="search-input-group" style="display:flex; gap:10px;">
-                                <input type="text" id="yt-movie-search-query" placeholder="Filmname..." style="flex:1;">
-                                <button class="btn btn-primary btn-sm" id="btn-search-yt-movie">Suchen</button>
-                            </div>
-                            <div id="yt-movie-search-results" style="margin-top:10px;"></div>
-                            <div class="selected-show-card hidden" id="yt-selected-movie-card">
-                                <h4 id="yt-selected-movie-title">Ausgewählter Film</h4>
-                                <p class="text-muted" id="yt-selected-movie-info"></p>
-                            </div>
-                        </div>
-
-                        <!-- Series Search -->
-                        <div id="yt-series-search-section" class="hidden" style="margin-top:15px;">
-                            <div class="search-input-group" style="display:flex; gap:10px;">
-                                <input type="text" id="yt-series-search-query" placeholder="Serienname..." style="flex:1;">
-                                <button class="btn btn-primary btn-sm" id="btn-search-yt-series">Suchen</button>
-                            </div>
-                            <div id="yt-series-search-results" style="margin-top:10px;"></div>
-                            <div class="selected-show-card hidden" id="yt-selected-series-card">
-                                <h4 id="yt-selected-series-title">Ausgewählte Serie</h4>
-                                <p class="text-muted" id="yt-selected-series-info"></p>
-                                <div id="yt-selected-series-nas-seasons-info" style="margin-top: 8px; font-size: 12px; color: var(--text-muted);"></div>
-                                <div class="form-group" style="margin-top:10px;">
-                                    <label for="yt-series-season">Staffel:</label>
-                                    <input type="number" id="yt-series-season" min="1" value="1" style="width:60px;">
+                            <!-- Movie Search -->
+                            <div id="yt-movie-search-section" class="hidden" style="margin-top:15px;">
+                                <div class="search-input-group" style="display:flex; gap:10px;">
+                                    <input type="text" id="yt-movie-search-query" placeholder="Filmname..." style="flex:1;">
+                                    <button class="btn btn-primary btn-sm" id="btn-search-yt-movie">Suchen</button>
                                 </div>
-                                <div class="form-group" style="margin-top:15px; position: relative;">
-                                    <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom: 6px;">
-                                        <label for="yt-series-nas-folder-override" style="display:inline; margin-bottom:0; font-size: 13px; font-weight: 500; color: var(--text-muted);">Serienname / Ordnername auf NAS (anpassbar):</label>
-                                        <button class="btn btn-secondary btn-xs" id="btn-load-yt-nas-series" type="button" style="padding:2px 8px; font-size:11px;" aria-label="NAS laden">NAS laden</button>
+                                <div id="yt-movie-search-results" style="margin-top:10px;"></div>
+                                <div class="selected-show-card hidden" id="yt-selected-movie-card">
+                                    <h4 id="yt-selected-movie-title">Ausgewählter Film</h4>
+                                    <p class="text-muted" id="yt-selected-movie-info"></p>
+                                </div>
+                            </div>
+
+                            <!-- Series Search -->
+                            <div id="yt-series-search-section" class="hidden" style="margin-top:15px;">
+                                <div class="search-input-group" style="display:flex; gap:10px;">
+                                    <input type="text" id="yt-series-search-query" placeholder="Serienname..." style="flex:1;">
+                                    <button class="btn btn-primary btn-sm" id="btn-search-yt-series">Suchen</button>
+                                </div>
+                                <div id="yt-series-search-results" style="margin-top:10px;"></div>
+                                <div class="selected-show-card hidden" id="yt-selected-series-card">
+                                    <h4 id="yt-selected-series-title">Ausgewählte Serie</h4>
+                                    <p class="text-muted" id="yt-selected-series-info"></p>
+                                    <div id="yt-selected-series-nas-seasons-info" style="margin-top: 8px; font-size: 12px; color: var(--text-muted);"></div>
+                                    <div class="form-group" style="margin-top:10px;">
+                                        <label for="yt-series-season">Staffel:</label>
+                                        <input type="number" id="yt-series-season" min="1" value="1" style="width:60px;">
                                     </div>
-                                    <input type="text" id="yt-series-nas-folder-override" placeholder="Automatisch (z.B. Sendung mit der Maus)" style="width:100%; margin-top:5px;" autocomplete="off">
-                                    <div id="yt-series-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
+                                    <div class="form-group" style="margin-top:15px; position: relative;">
+                                        <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom: 6px;">
+                                            <label for="yt-series-nas-folder-override" style="display:inline; margin-bottom:0; font-size: 13px; font-weight: 500; color: var(--text-muted);">Serienname / Ordnername auf NAS (anpassbar):</label>
+                                            <button class="btn btn-secondary btn-xs" id="btn-load-yt-nas-series" type="button" style="padding:2px 8px; font-size:11px;" aria-label="NAS laden">NAS laden</button>
+                                        </div>
+                                        <input type="text" id="yt-series-nas-folder-override" placeholder="Automatisch (z.B. Sendung mit der Maus)" style="width:100%; margin-top:5px;" autocomplete="off">
+                                        <div id="yt-series-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
+                                    </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Merge Mode Section -->
+                        <div id="yt-merge-details-section" class="hidden">
+                            <h3 style="margin-top:0;">🔗 Zusammenzufügende Videos</h3>
+                            <div id="yt-merge-details-list" style="display:flex; flex-direction:column; gap:8px; max-height:220px; overflow-y:auto; margin-bottom:15px; padding-right:5px;"></div>
+                            <div class="form-group">
+                                <label for="yt-merge-details-title">Name für die fertige Datei (ohne Endung):</label>
+                                <input type="text" id="yt-merge-details-title" style="width:100%;" placeholder="z.B. Die große Doku">
                             </div>
                         </div>
                     </div>
@@ -895,22 +1002,24 @@
                             <div id="yt-subtitles-container" class="subs-checkboxes-list"></div>
                         </div>
 
-                        <h3 style="margin-top: 20px;">Schnitt</h3>
-                        <div class="options-grid" style="display:flex; flex-direction:column; gap:10px;">
-                            <label class="checkbox-container" for="yt-split-chapters">
-                                <input type="checkbox" id="yt-split-chapters">
-                                <span class="checkmark"></span> Kapitel aufteilen
-                            </label>
-                            <label class="checkbox-container" for="yt-open-losslesscut">
-                                <input type="checkbox" id="yt-open-losslesscut" checked>
-                                <span class="checkmark"></span> In LosslessCut öffnen
-                            </label>
-                        </div>
-                        <div class="form-group custom-trim-fields hidden" id="yt-custom-trim-panel" style="margin-top: 15px;">
-                            <span class="form-label-style">Manueller Ausschnitt:</span>
-                            <div style="display: flex; gap: 10px;">
-                                <input type="text" id="yt-trim-start" placeholder="00:00:00" style="width: 100px;" aria-label="Ausschnitt Startzeit">
-                                <input type="text" id="yt-trim-end" placeholder="00:10:00" style="width: 100px;" aria-label="Ausschnitt Endzeit">
+                        <div id="yt-trim-section">
+                            <h3 style="margin-top: 20px;">Schnitt</h3>
+                            <div class="options-grid" style="display:flex; flex-direction:column; gap:10px;">
+                                <label class="checkbox-container" for="yt-split-chapters">
+                                    <input type="checkbox" id="yt-split-chapters">
+                                    <span class="checkmark"></span> Kapitel aufteilen
+                                </label>
+                                <label class="checkbox-container" for="yt-open-losslesscut">
+                                    <input type="checkbox" id="yt-open-losslesscut" checked>
+                                    <span class="checkmark"></span> In LosslessCut öffnen
+                                </label>
+                            </div>
+                            <div class="form-group custom-trim-fields hidden" id="yt-custom-trim-panel" style="margin-top: 15px;">
+                                <span class="form-label-style">Manueller Ausschnitt:</span>
+                                <div style="display: flex; gap: 10px;">
+                                    <input type="text" id="yt-trim-start" placeholder="00:00:00" style="width: 100px;" aria-label="Ausschnitt Startzeit">
+                                    <input type="text" id="yt-trim-end" placeholder="00:10:00" style="width: 100px;" aria-label="Ausschnitt Endzeit">
+                                </div>
                             </div>
                         </div>
 
@@ -1046,7 +1155,7 @@
                         Die Episode existiert bereits auf dem NAS. Vergleiche die Eigenschaften unten, um zu entscheiden, ob du die existierende Datei mit der neuen, möglicherweise besseren Version ersetzen (Upgrade) oder beide Versionen behalten möchtest.
                     </p>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
+                    <div class="grid-2col" style="margin-bottom: 25px;">
                         <!-- Neue Datei (Links) -->
                         <div style="background: rgba(16, 185, 129, 0.03); border: 1px solid rgba(16, 185, 129, 0.15); border-radius: var(--radius-md); padding: 15px; display: flex; flex-direction: column; gap: 10px;">
                             <h3 style="margin-top:0; margin-bottom:5px; font-size:14px; color:var(--success); font-weight:600; display:flex; align-items:center; gap:6px;">✨ Neue Version (Input)</h3>

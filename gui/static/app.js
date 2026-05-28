@@ -19,6 +19,9 @@ let ytSelectedShow = null;
 let ytEpisodesData = {};
 let activeYtTaskId = null;
 let ytStatusInterval = null;
+let ytDownloaderMergeMode = false;
+let ytDownloaderMergeItems = [];
+let ytDownloaderMergeSubId = null;
 function escapeHTML(str) {
     if (str === null || str === undefined) return "";
     return String(str)
@@ -245,21 +248,47 @@ function cleanSeriesName(name) {
     cleaned = cleaned.replace(/_/g, ' ');
     return cleaned.trim();
 }
+function scrollToDetailTop() {
+    // 1. Scroll main window / document root (used in responsive/zoomed layouts)
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+
+    // 2. Scroll the detail panel container (used in standard desktop layout)
+    const detailContent = document.querySelector(".detail-content");
+    if (detailContent) {
+        detailContent.scrollTop = 0;
+    }
+}
 
 // ==========================================================================
 // VIEW ROUTING (MASTER-DETAIL)
 // ==========================================================================
 function initViews() {
-    const btnYoutube = document.getElementById("master-btn-youtube");
-    if(btnYoutube) {
-        btnYoutube.addEventListener("click", () => {
-            document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
-            document.getElementById("view-youtube").classList.remove("hidden");
-            document.getElementById("view-youtube").classList.add("active");
-            
-            // Remove active from any selected project in sidebar
-            document.querySelectorAll(".project-item").forEach(el => el.classList.remove("active"));
-        });
+    const goHome = () => {
+        document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
+        
+        // Hide all views and show empty view (welcome homepage)
+        document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+        const emptyView = document.getElementById("view-empty");
+        if (emptyView) {
+            emptyView.classList.remove("hidden");
+            emptyView.classList.add("active");
+        }
+        
+        // Clear active project
+        currentProject = "";
+        
+        // Refresh homepage data immediately
+        loadStatus();
+        
+        // Reset scroll position to top
+        scrollToDetailTop();
+    };
+
+    const btnHome = document.getElementById("master-btn-home");
+    if(btnHome) {
+        btnHome.addEventListener("click", goHome);
     }
     
     const modes = ["movie", "series", "tools"];
@@ -342,12 +371,48 @@ function initViews() {
             // Show only tools view
             document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
             document.getElementById("view-tools").classList.remove("hidden");
+            scrollToDetailTop();
             
             // Auto-fill path if a project was selected
             const pathInput = document.getElementById("tools-target-path");
             if(currentProject && !pathInput.value) {
                 pathInput.value = currentProject;
             }
+        });
+    }
+
+    // YouTube Downloader Nav
+    const navYtDownloader = document.getElementById("nav-youtube-downloader");
+    if (navYtDownloader) {
+        navYtDownloader.addEventListener("click", () => {
+            document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
+            navYtDownloader.classList.add("active");
+            
+            document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+            const ytView = document.getElementById("view-youtube");
+            if (ytView) {
+                ytView.classList.remove("hidden");
+                ytView.classList.add("active");
+            }
+            scrollToDetailTop();
+            
+            // Clear active project
+            currentProject = "";
+        });
+    }
+
+    // Click on top logo goes home
+    const headerLogo = document.querySelector(".header-logo");
+    if (headerLogo) {
+        headerLogo.addEventListener("click", goHome);
+    }
+
+    // Quick YouTube Abos page link on Welcome Dashboard
+    const btnHeroYtAbos = document.getElementById("btn-hero-yt-abos");
+    if (btnHeroYtAbos) {
+        btnHeroYtAbos.addEventListener("click", () => {
+            const navYtAbos = document.getElementById("nav-youtube-abos");
+            if (navYtAbos) navYtAbos.click();
         });
     }
 
@@ -364,6 +429,7 @@ function initViews() {
             document.getElementById("view-dashboard").classList.add("active");
             
             loadDashboard();
+            scrollToDetailTop();
         });
     }
 
@@ -381,6 +447,7 @@ function initViews() {
             document.getElementById("view-settings").classList.remove("hidden");
             
             loadSettings();
+            scrollToDetailTop();
         });
     }
 
@@ -398,8 +465,69 @@ function initViews() {
             document.getElementById("view-youtube-abos").classList.remove("hidden");
             
             loadSubscriptions();
+            scrollToDetailTop();
         });
     }
+
+    // Set up collapsible sidebar sections
+    setupCollapsibleSections();
+}
+
+function setupCollapsibleSections() {
+    document.querySelectorAll(".collapsible-section").forEach(sec => {
+        const header = sec.querySelector(".section-header");
+        const content = sec.querySelector(".section-content");
+        if (!header || !content) return;
+        
+        const secId = sec.id;
+        
+        // Restore expanded state from localStorage (default to false - collapsed by default)
+        const isExpanded = localStorage.getItem(`expanded_${secId}`) === "true";
+        if (isExpanded) {
+            sec.classList.add("expanded");
+            content.style.maxHeight = "none";
+            content.style.opacity = "1";
+        } else {
+            sec.classList.remove("expanded");
+            content.style.maxHeight = "0px";
+            content.style.opacity = "0";
+        }
+        
+        // Toggle function using dynamic heights for a perfectly smooth transition
+        const toggleSection = (forceState) => {
+            const willExpand = forceState !== undefined ? forceState : !sec.classList.contains("expanded");
+            
+            if (willExpand) {
+                sec.classList.add("expanded");
+                // Animate to scrollHeight
+                content.style.maxHeight = content.scrollHeight + "px";
+                content.style.opacity = "1";
+                localStorage.setItem(`expanded_${secId}`, "true");
+                
+                // Allow overflow-y visible once transition completes so content layout works properly
+                setTimeout(() => {
+                    if (sec.classList.contains("expanded")) {
+                        content.style.maxHeight = "none";
+                    }
+                }, 1200);
+            } else {
+                // Set explicit height to start transition
+                content.style.maxHeight = content.scrollHeight + "px";
+                // Force layout reflow
+                content.offsetHeight;
+                
+                sec.classList.remove("expanded");
+                content.style.maxHeight = "0px";
+                content.style.opacity = "0";
+                localStorage.setItem(`expanded_${secId}`, "false");
+            }
+        };
+        
+        header.addEventListener("click", () => toggleSection());
+        
+        // Expose toggle control for startpage interaction
+        sec.toggleSection = toggleSection;
+    });
 }
 
 // ==========================================================================
@@ -537,6 +665,11 @@ async function loadStatus() {
         // Render project lists (sidebar)
         renderProjectList(data.projects);
         
+        // Update Welcome Dashboard if elements exist
+        if (typeof updateHomepageData === "function") {
+            updateHomepageData(data);
+        }
+        
     } catch (e) {
         console.error("Error fetching status:", e);
     }
@@ -544,6 +677,11 @@ async function loadStatus() {
 
 function renderProjectList(projects) {
     const container = document.getElementById("project-list-container");
+    const countEl = document.getElementById("project-folders-count");
+    if (countEl) {
+        countEl.textContent = projects.length;
+    }
+
     if (projects.length === 0) {
         container.innerHTML = '<p class="text-muted text-center" style="padding: 20px;">Keine Ordner in der Inbox</p>';
         return;
@@ -551,7 +689,7 @@ function renderProjectList(projects) {
     
     // Save current active list name to keep it selected
     let html = `
-        <button class="project-item ${currentProject === "" ? "active" : ""}" data-project="" style="width: 100%; border: 1px solid var(--border-glass); text-align: left; font-family: inherit; color: inherit;">
+        <button class="project-item ${currentProject === "" ? "active" : ""}" data-project="">
             <span class="project-item-name">📁 Hauptinbox (Root)</span>
         </button>
     `;
@@ -559,7 +697,7 @@ function renderProjectList(projects) {
     projects.forEach(p => {
         const escapedP = escapeHTML(p);
         html += `
-            <button class="project-item ${currentProject === p ? "active" : ""}" data-project="${escapedP}" style="width: 100%; border: 1px solid var(--border-glass); text-align: left; font-family: inherit; color: inherit; display: flex; justify-content: space-between; align-items: center;">
+            <button class="project-item ${currentProject === p ? "active" : ""}" data-project="${escapedP}">
                 <span class="project-item-name">📁 ${escapedP}</span>
                 <span class="project-item-delete" title="Ordner löschen" data-project="${escapedP}">🗑️</span>
             </button>
@@ -819,6 +957,8 @@ function selectProject(projectName) {
         }
     });
     // Also remove active from system navs
+    const navYtDownloader = document.getElementById("nav-youtube-downloader");
+    if(navYtDownloader) navYtDownloader.classList.remove("active");
     const navTools = document.getElementById("nav-tools-dashboard");
     if(navTools) navTools.classList.remove("active");
     const navSettings = document.getElementById("nav-settings-dashboard");
@@ -852,6 +992,7 @@ async function scanProject(project) {
     document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
     document.getElementById("view-folder").classList.remove("hidden");
     document.getElementById("view-folder").classList.add("active");
+    scrollToDetailTop();
     
     
     title.textContent = project === "" ? "Hauptinbox verarbeiten" : `Projekt: ${project}`;
@@ -1896,6 +2037,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                 try {
                     const response = await fetch(`/api/metadata/fetch?media_type=episode&provider=${selectedShow.provider}&show_id=${selectedShow.id}&season=${epSeason}&episode=${epNum}`);
                     if (response.ok) {
+                        const data = await response.json();
                         const cacheKeys = Object.keys(fetchedEpisodeMetadataCache);
                         if (cacheKeys.length >= 500) {
                             delete fetchedEpisodeMetadataCache[cacheKeys[0]];
@@ -2275,7 +2417,13 @@ async function executeMovieWorkflow() {
 // ==========================================================================
 // YOUTUBE DOWNLOADER PIPELINE HANDLERS
 // ==========================================================================
-async function analyseYtLink() {
+async function analyseYtLink(isHandoff = false) {
+    if (isHandoff !== true) {
+        ytDownloaderMergeMode = false;
+        ytDownloaderMergeItems = [];
+        ytDownloaderMergeSubId = null;
+    }
+
     const url = document.getElementById("yt-url").value.trim();
     if (!url) {
         alert("Bitte eine gültige YouTube-/Mediathek-URL eingeben!");
@@ -2353,9 +2501,27 @@ async function analyseYtLink() {
             });
         }
         
-        // Reset Search Fields
-        document.getElementById("yt-meta-mode").value = "youtube";
-        toggleYtMetaSection();
+        // Handle Merge Mode VS Tagging/Trim sections visibility
+        const taggingSection = document.getElementById("yt-tagging-section");
+        const trimSection = document.getElementById("yt-trim-section");
+        const mergeDetailsSection = document.getElementById("yt-merge-details-section");
+        
+        if (ytDownloaderMergeMode) {
+            if (taggingSection) taggingSection.classList.add("hidden");
+            if (trimSection) trimSection.classList.add("hidden");
+            if (mergeDetailsSection) {
+                mergeDetailsSection.classList.remove("hidden");
+                renderDownloaderMergeItems();
+            }
+        } else {
+            if (taggingSection) taggingSection.classList.remove("hidden");
+            if (trimSection) trimSection.classList.remove("hidden");
+            if (mergeDetailsSection) mergeDetailsSection.classList.add("hidden");
+            
+            // Reset Search Fields
+            document.getElementById("yt-meta-mode").value = "youtube";
+            toggleYtMetaSection();
+        }
         
         // Show Panel
         detailsPanel.classList.remove("hidden");
@@ -2365,6 +2531,132 @@ async function analyseYtLink() {
     } finally {
         loading.classList.add("hidden");
     }
+}
+
+function renderDownloaderMergeItems() {
+    const listContainer = document.getElementById("yt-merge-details-list");
+    if (!listContainer) return;
+    
+    listContainer.innerHTML = "";
+    
+    ytDownloaderMergeItems.forEach((item, index) => {
+        const row = document.createElement("div");
+        row.className = "merge-item-row";
+        row.style.display = "flex";
+        row.style.alignItems = "center";
+        row.style.justifyContent = "space-between";
+        row.style.gap = "10px";
+        row.style.background = "rgba(255,255,255,0.02)";
+        row.style.border = "1px solid var(--border-glass)";
+        row.style.borderRadius = "var(--radius-sm)";
+        row.style.padding = "8px 12px";
+        row.style.transition = "all 0.2s ease";
+        
+        // Left part: Checkbox + Thumbnail + Title
+        const left = document.createElement("div");
+        left.style.display = "flex";
+        left.style.alignItems = "center";
+        left.style.gap = "10px";
+        left.style.flex = "1";
+        left.style.minWidth = "0";
+        
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = item.checked;
+        checkbox.disabled = item.isInitial; // Initial item must be checked
+        checkbox.style.cursor = item.isInitial ? "default" : "pointer";
+        checkbox.addEventListener("change", (e) => {
+            item.checked = e.target.checked;
+            const checked = ytDownloaderMergeItems.filter(x => x.checked);
+            const unchecked = ytDownloaderMergeItems.filter(x => !x.checked);
+            ytDownloaderMergeItems = [...checked, ...unchecked];
+            renderDownloaderMergeItems();
+        });
+        left.appendChild(checkbox);
+        
+        if (item.thumbnail) {
+            const img = document.createElement("img");
+            img.src = item.thumbnail;
+            img.style.width = "54px";
+            img.style.height = "30px";
+            img.style.objectFit = "cover";
+            img.style.borderRadius = "2px";
+            left.appendChild(img);
+        } else {
+            const placeholder = document.createElement("div");
+            placeholder.style.width = "54px";
+            placeholder.style.height = "30px";
+            placeholder.style.background = "rgba(255,255,255,0.05)";
+            placeholder.style.borderRadius = "2px";
+            left.appendChild(placeholder);
+        }
+        
+        const info = document.createElement("div");
+        info.style.minWidth = "0";
+        
+        const titleSpan = document.createElement("div");
+        titleSpan.style.fontWeight = "500";
+        titleSpan.style.fontSize = "12px";
+        titleSpan.style.whiteSpace = "nowrap";
+        titleSpan.style.overflow = "hidden";
+        titleSpan.style.textOverflow = "ellipsis";
+        titleSpan.textContent = item.title;
+        titleSpan.title = item.title;
+        info.appendChild(titleSpan);
+        
+        if (item.isInitial) {
+            const badge = document.createElement("span");
+            badge.style.fontSize = "9px";
+            badge.style.background = "rgba(16, 185, 129, 0.15)";
+            badge.style.color = "var(--success)";
+            badge.style.padding = "1px 4px";
+            badge.style.borderRadius = "3px";
+            badge.style.marginLeft = "0px";
+            badge.style.fontWeight = "bold";
+            badge.textContent = "AUSGANGS-VIDEO";
+            info.appendChild(badge);
+        }
+        
+        left.appendChild(info);
+        row.appendChild(left);
+        
+        // Right part: Re-order controls
+        const right = document.createElement("div");
+        right.style.display = "flex";
+        right.style.gap = "4px";
+        
+        const btnUp = document.createElement("button");
+        btnUp.className = "btn btn-secondary btn-xs";
+        btnUp.style.padding = "2px 6px";
+        btnUp.innerHTML = "▲";
+        btnUp.disabled = index === 0;
+        btnUp.addEventListener("click", () => {
+            // Swap with previous
+            const temp = ytDownloaderMergeItems[index - 1];
+            ytDownloaderMergeItems[index - 1] = ytDownloaderMergeItems[index];
+            ytDownloaderMergeItems[index] = temp;
+            renderDownloaderMergeItems();
+        });
+        
+        const btnDown = document.createElement("button");
+        btnDown.className = "btn btn-secondary btn-xs";
+        btnDown.style.padding = "2px 6px";
+        btnDown.innerHTML = "▼";
+        btnDown.disabled = index === ytDownloaderMergeItems.length - 1;
+        btnDown.addEventListener("click", () => {
+            // Swap with next
+            const temp = ytDownloaderMergeItems[index + 1];
+            ytDownloaderMergeItems[index + 1] = ytDownloaderMergeItems[index];
+            ytDownloaderMergeItems[index] = temp;
+            renderDownloaderMergeItems();
+        });
+        
+        right.appendChild(btnUp);
+        right.appendChild(btnDown);
+        row.appendChild(right);
+        
+        listContainer.appendChild(row);
+    });
 }
 
 function toggleYtMetaSection() {
@@ -2549,10 +2841,88 @@ function resetYtDownload() {
     ytSelectedMovie = null;
     ytSelectedShow = null;
     ytEpisodesData = {};
+    ytDownloaderMergeMode = false;
+    ytDownloaderMergeItems = [];
+    ytDownloaderMergeSubId = null;
 }
 
 async function startYtPipeline() {
     if (!ytFetchedInfo) return;
+    
+    if (ytDownloaderMergeMode) {
+        const finalTitleInput = document.getElementById("yt-merge-details-title");
+        const finalTitle = finalTitleInput ? finalTitleInput.value.trim() : "";
+        if (!finalTitle) {
+            alert("Bitte gib einen Dateinamen für das zusammengefügte Video an!");
+            return;
+        }
+        
+        const selectedItems = ytDownloaderMergeItems.filter(item => item.checked);
+        if (selectedItems.length === 0) {
+            alert("Bitte wähle mindestens ein Video aus!");
+            return;
+        }
+        
+        const urls = selectedItems.map(item => item.url);
+        const videoIdsToRemove = selectedItems.map(item => item.id);
+        
+        const copyToNas = document.getElementById("yt-option-copy-nas").checked;
+        const copyToPcloud = document.getElementById("yt-option-copy-pcloud").checked;
+        const copyToLocal = document.getElementById("yt-option-copy-local").checked;
+        
+        const nasDest = document.getElementById("yt-nas-destination").value;
+        const pcloudDest = document.getElementById("yt-pcloud-destination").value;
+        const localDest = document.getElementById("yt-local-destination").value;
+        
+        const ytFormat = document.getElementById("yt-format-select").value;
+        
+        expandConsole();
+        appendConsoleLog(`[System]: Starte Merge-Job für "${finalTitle}" mit ${urls.length} Teilen...`);
+        
+        try {
+            const res = await fetch("/api/youtube/merge", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    urls: urls,
+                    title: finalTitle,
+                    subscription_id: ytDownloaderMergeSubId,
+                    video_ids_to_remove: videoIdsToRemove,
+                    thumbnail: selectedItems[0].thumbnail || "",
+                    copy_to_nas: copyToNas,
+                    copy_to_pcloud: copyToPcloud,
+                    copy_to_local: copyToLocal,
+                    nas_destination_id: nasDest,
+                    pcloud_destination_id: pcloudDest,
+                    local_destination_id: localDest,
+                    yt_format: ytFormat
+                })
+            });
+            const data = await res.json();
+            
+            if (res.ok && data.task_id) {
+                appendConsoleLog(`[System]: Merge-Job im Hintergrund gestartet (Task ID: ${data.task_id}).`);
+                
+                // Clear the merge mode state
+                ytDownloaderMergeMode = false;
+                ytDownloaderMergeItems = [];
+                ytDownloaderMergeSubId = null;
+                
+                // Hide details panel
+                document.getElementById("yt-details-panel").classList.add("hidden");
+                
+                // Switch to Queue panel automatically
+                const navQueue = document.getElementById("nav-queue-dashboard");
+                if (navQueue) navQueue.click();
+            } else {
+                appendConsoleLog(`[System]: Fehler beim Starten des Merge-Jobs: ${data.error || 'Serverfehler'}`);
+            }
+        } catch (err) {
+            console.error(err);
+            appendConsoleLog(`[System]: Netzwerkfehler beim Starten des Zusammenfügens: ${err}`);
+        }
+        return;
+    }
     
     const mode = document.getElementById("yt-meta-mode").value;
     if (mode === "movie" && !ytSelectedMovie) {
@@ -3256,6 +3626,13 @@ function renderSubscriptionsList() {
                     btnApprove.style.fontWeight = "600";
                     btnApprove.innerHTML = "📥 Jetzt laden";
                     
+                    const btnProcessInDownloader = document.createElement("button");
+                    btnProcessInDownloader.className = "btn btn-primary btn-xs";
+                    btnProcessInDownloader.style.padding = "4px 8px";
+                    btnProcessInDownloader.style.fontSize = "11px";
+                    btnProcessInDownloader.style.fontWeight = "600";
+                    btnProcessInDownloader.innerHTML = "🎬 Im Downloader verarbeiten";
+                    
                     const btnSearchParts = document.createElement("button");
                     btnSearchParts.className = "btn btn-accent btn-xs";
                     btnSearchParts.style.padding = "4px 8px";
@@ -3319,6 +3696,10 @@ function renderSubscriptionsList() {
                         }
                     });
                     
+                    btnProcessInDownloader.addEventListener("click", () => {
+                        sendVideoToDownloader(sub, v);
+                    });
+                    
                     btnIgnore.addEventListener("click", async () => {
                         btnApprove.disabled = true;
                         btnIgnore.disabled = true;
@@ -3359,10 +3740,11 @@ function renderSubscriptionsList() {
                     });
                     
                     btnSearchParts.addEventListener("click", () => {
-                        openYtMergeModal(v.title, v.url, v.thumbnail, sub.id, v.id);
+                        handoffMergeToDownloader(sub, v);
                     });
                     
                     vRight.appendChild(btnApprove);
+                    vRight.appendChild(btnProcessInDownloader);
                     vRight.appendChild(btnSearchParts);
                     vRight.appendChild(btnIgnore);
                     vRight.appendChild(btnLink);
@@ -3416,6 +3798,200 @@ async function saveAllSubscriptions() {
         console.error("Error saving subscriptions:", e);
         alert("Fehler beim Speichern der Abonnements!");
     }
+}
+
+async function sendVideoToDownloader(sub, v) {
+    // 1. Switch to Downloader tab
+    document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+    const viewYt = document.getElementById("view-youtube");
+    if (viewYt) {
+        viewYt.classList.remove("hidden");
+        viewYt.classList.add("active");
+    }
+    document.querySelectorAll(".project-item").forEach(el => el.classList.remove("active"));
+    
+    // Reset merge modes
+    ytDownloaderMergeMode = false;
+    ytDownloaderMergeItems = [];
+    ytDownloaderMergeSubId = null;
+    
+    // 2. Pre-fill URL
+    const ytUrlInput = document.getElementById("yt-url");
+    if (ytUrlInput) {
+        ytUrlInput.value = v.url || `https://www.youtube.com/watch?v=${v.id}`;
+    }
+    
+    // 3. Pre-fill storage options
+    const cbNas = document.getElementById("yt-option-copy-nas");
+    const cbPcloud = document.getElementById("yt-option-copy-pcloud");
+    const cbLocal = document.getElementById("yt-option-copy-local");
+    
+    if (cbNas) {
+        cbNas.checked = sub.copy_to_nas !== false;
+        cbNas.dispatchEvent(new Event("change"));
+    }
+    if (cbPcloud) {
+        cbPcloud.checked = !!sub.copy_to_pcloud;
+        cbPcloud.dispatchEvent(new Event("change"));
+    }
+    if (cbLocal) {
+        cbLocal.checked = !!sub.copy_to_local;
+        cbLocal.dispatchEvent(new Event("change"));
+    }
+    
+    const selNas = document.getElementById("yt-nas-destination");
+    const selPcloud = document.getElementById("yt-pcloud-destination");
+    const selLocal = document.getElementById("yt-local-destination");
+    
+    const nasDestId = sub.nas_destination_id || sub.destination_id || "";
+    const pcloudDestId = sub.pcloud_destination_id || "";
+    const localDestId = sub.local_destination_id || "";
+    
+    if (selNas && nasDestId) selNas.value = nasDestId;
+    if (selPcloud && pcloudDestId) selPcloud.value = pcloudDestId;
+    if (selLocal && localDestId) selLocal.value = localDestId;
+    
+    // 4. Remove from subscriptions list in background
+    try {
+        await fetch("/api/youtube/subscriptions/ignore", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ subscription_id: sub.id, video_id: v.id })
+        });
+        // Remove locally from state and refresh UI
+        sub.pending_videos = sub.pending_videos.filter(pv => pv.id !== v.id);
+        renderSubscriptionsList();
+    } catch (e) {
+        console.error("Error archiving video on handoff:", e);
+    }
+    
+    // 5. Start Link Analysis automatically
+    analyseYtLink(true);
+}
+
+async function handoffMergeToDownloader(sub, v) {
+    // 1. Switch to Downloader tab
+    document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+    const viewYt = document.getElementById("view-youtube");
+    if (viewYt) {
+        viewYt.classList.remove("hidden");
+        viewYt.classList.add("active");
+    }
+    document.querySelectorAll(".project-item").forEach(el => el.classList.remove("active"));
+    
+    // 2. Set merge mode states
+    ytDownloaderMergeMode = true;
+    ytDownloaderMergeSubId = sub.id;
+    ytDownloaderMergeItems = [];
+    
+    // Pre-fill URL in downloader tab
+    const ytUrlInput = document.getElementById("yt-url");
+    if (ytUrlInput) {
+        ytUrlInput.value = v.url || `https://www.youtube.com/watch?v=${v.id}`;
+    }
+    
+    // Pre-fill storage targets
+    const cbNas = document.getElementById("yt-option-copy-nas");
+    const cbPcloud = document.getElementById("yt-option-copy-pcloud");
+    const cbLocal = document.getElementById("yt-option-copy-local");
+    
+    if (cbNas) {
+        cbNas.checked = sub.copy_to_nas !== false;
+        cbNas.dispatchEvent(new Event("change"));
+    }
+    if (cbPcloud) {
+        cbPcloud.checked = !!sub.copy_to_pcloud;
+        cbPcloud.dispatchEvent(new Event("change"));
+    }
+    if (cbLocal) {
+        cbLocal.checked = !!sub.copy_to_local;
+        cbLocal.dispatchEvent(new Event("change"));
+    }
+    
+    const selNas = document.getElementById("yt-nas-destination");
+    const selPcloud = document.getElementById("yt-pcloud-destination");
+    const selLocal = document.getElementById("yt-local-destination");
+    
+    const nasDestId = sub.nas_destination_id || sub.destination_id || "";
+    const pcloudDestId = sub.pcloud_destination_id || "";
+    const localDestId = sub.local_destination_id || "";
+    
+    if (selNas && nasDestId) selNas.value = nasDestId;
+    if (selPcloud && pcloudDestId) selPcloud.value = pcloudDestId;
+    if (selLocal && localDestId) selLocal.value = localDestId;
+    
+    // Clean up merge title override
+    let cleanTitle = v.title;
+    const patterns = [
+        /\bteil\s*\d+\b/i,
+        /\bpart\s*\d+\b/i,
+        /\bepisode\s*\d+\b/i,
+        /#\s*\d+\b/i,
+        /\b\d+\s*\/\s*\d+\b/i,
+        /\b\d+\s*von\s*\d+\b/i,
+        /\b\d+\.\s*teil\b/i,
+        /\b\d+\.\s*part\b/i
+    ];
+    patterns.forEach(p => {
+        cleanTitle = cleanTitle.replace(p, "");
+    });
+    cleanTitle = cleanTitle.replace(/\s*-\s*$/, "").replace(/\s+/g, " ").trim();
+    
+    const mergeTitleInput = document.getElementById("yt-merge-details-title");
+    if (mergeTitleInput) {
+        mergeTitleInput.value = cleanTitle || v.title;
+    }
+    
+    const listContainer = document.getElementById("yt-merge-details-list");
+    if (listContainer) {
+        listContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">🔍 Suche nach Teilen auf YouTube...</div>`;
+    }
+    
+    // Search parts
+    fetch(`/api/youtube/search-parts?title=${encodeURIComponent(v.title)}`)
+        .then(res => res.json())
+        .then(data => {
+            const results = data.results || [];
+            
+            // Build unique list of items
+            const items = [];
+            
+            // 1. Add our initial video
+            items.push({
+                id: v.id,
+                title: v.title,
+                url: v.url || `https://www.youtube.com/watch?v=${v.id}`,
+                thumbnail: v.thumbnail,
+                checked: true,
+                isInitial: true
+            });
+            
+            // 2. Add search results, avoiding duplicates of the initial video
+            results.forEach(r => {
+                if (r.id !== v.id) {
+                    items.push({
+                        id: r.id,
+                        title: r.title,
+                        url: r.url,
+                        thumbnail: r.thumbnail,
+                        checked: false,
+                        isInitial: false
+                    });
+                }
+            });
+            
+            ytDownloaderMergeItems = items;
+            renderDownloaderMergeItems();
+        })
+        .catch(err => {
+            console.error(err);
+            if (listContainer) {
+                listContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--danger);">Fehler bei der Suche nach Teilen.</div>`;
+            }
+        });
+        
+    // 3. Start Link Analysis automatically on the initial URL to populate formats
+    analyseYtLink(true);
 }
 
 async function addSubscription() {
@@ -4300,6 +4876,57 @@ function initEventListeners() {
             autoMatchNasFolder("yt-series-nas-folder-override", "yt-nas-destination", ytSelectedShow.name);
         }
     });
+
+    // Welcome Dashboard Hero/Card Listeners
+    const cardHeroInbox = document.getElementById("card-hero-inbox");
+    if (cardHeroInbox) {
+        cardHeroInbox.addEventListener("click", () => {
+            // Toggle project folders section collapse/expand smoothly
+            const sec = document.getElementById("section-project-folders");
+            if (sec && typeof sec.toggleSection === "function") {
+                sec.toggleSection();
+            }
+            
+            // Accompany opening/closing with the pulsating glow animation on sidebar
+            const sidebar = document.querySelector(".master-sidebar");
+            if (sidebar) {
+                sidebar.classList.remove("sidebar-highlight");
+                // Force reflow
+                sidebar.offsetHeight; 
+                sidebar.classList.add("sidebar-highlight");
+                setTimeout(() => {
+                    sidebar.classList.remove("sidebar-highlight");
+                }, 2500); // extends highlight to cover the slower transition
+            }
+        });
+    }
+
+    const cardHeroAbos = document.getElementById("card-hero-abos");
+    if (cardHeroAbos) {
+        cardHeroAbos.addEventListener("click", () => {
+            const navYtAbos = document.getElementById("nav-youtube-abos");
+            if (navYtAbos) navYtAbos.click();
+        });
+    }
+
+    const cardHeroStats = document.getElementById("card-hero-stats");
+    if (cardHeroStats) {
+        cardHeroStats.addEventListener("click", () => {
+            const navDashboard = document.getElementById("nav-dashboard");
+            if (navDashboard) navDashboard.click();
+        });
+    }
+
+    const btnHeroYtGo = document.getElementById("btn-hero-yt-go");
+    if (btnHeroYtGo) {
+        btnHeroYtGo.addEventListener("click", handleHeroYtDownload);
+    }
+    const inputHeroYtUrl = document.getElementById("hero-yt-url");
+    if (inputHeroYtUrl) {
+        inputHeroYtUrl.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") handleHeroYtDownload();
+        });
+    }
 }
 
 // ==========================================================================
@@ -4594,7 +5221,8 @@ async function loadSettings() {
             setCheckbox("settings-show-jokes", currentSettings.show_jokes !== false); // default to true
             setCheckbox("settings-show-quote", currentSettings.show_quote !== false); // default to true
             
-            const themeVal = currentSettings.app_theme || "deep-space";
+            let themeVal = currentSettings.app_theme || "deep-space";
+            if (themeVal === "apple-silver") themeVal = "apple-black";
             setInputVal("settings-app-theme", themeVal);
             applyTheme(themeVal);
             
@@ -6295,10 +6923,11 @@ function showQuoteModal(quoteData) {
 }
 
 function applyTheme(themeName) {
+    if (themeName === "apple-silver") themeName = "apple-black";
     if (!themeName) themeName = "deep-space";
     localStorage.setItem("app_theme", themeName);
     
-    const themes = ["theme-deep-space", "theme-nordic-slate", "theme-amber-warmth", "theme-apple-silver"];
+    const themes = ["theme-deep-space", "theme-nordic-slate", "theme-amber-warmth", "theme-apple-black", "theme-superfood-light"];
     
     // Prüfe View-Transition Support für flüssige Farbübergänge
     if (document.startViewTransition) {
@@ -6509,6 +7138,10 @@ function renderMergeItems() {
         checkbox.style.cursor = item.isInitial ? "default" : "pointer";
         checkbox.addEventListener("change", (e) => {
             item.checked = e.target.checked;
+            const checked = currentMergeItems.filter(x => x.checked);
+            const unchecked = currentMergeItems.filter(x => !x.checked);
+            currentMergeItems = [...checked, ...unchecked];
+            renderMergeItems();
         });
         left.appendChild(checkbox);
         
@@ -6824,5 +7457,161 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
+
+// ==========================================================================
+// WELCOME DASHBOARD DATA BINDING & INTERACTION
+// ==========================================================================
+async function updateHomepageData(statusData) {
+    if (!statusData) return;
+
+    // 1. Projects Count / Inbox Status
+    const inboxText = document.getElementById("hero-inbox-status-text");
+    if (inboxText) {
+        const count = statusData.projects ? statusData.projects.length : 0;
+        inboxText.textContent = count === 0 ? "Keine Projekte in Bearbeitung" : `${count} Projekt(e) in Bearbeitung`;
+    }
+
+    // 2. NAS Badge
+    const nasBadge = document.getElementById("hero-nas-badge");
+    if (nasBadge) {
+        nasBadge.className = "status-badge";
+        if (statusData.nas_status === "connected") {
+            nasBadge.textContent = "Verbunden";
+            nasBadge.classList.add("online");
+        } else if (statusData.nas_status === "available_not_mounted") {
+            nasBadge.textContent = "Bereit (Nicht gemountet)";
+            nasBadge.classList.add("warning");
+        } else {
+            nasBadge.textContent = "Offline";
+            nasBadge.classList.add("offline");
+        }
+    }
+
+    // 3. StreamFab Badge
+    const sfBadge = document.getElementById("hero-streamfab-badge");
+    if (sfBadge) {
+        if (statusData.streamfab_downloads && statusData.streamfab_downloads.length > 0) {
+            sfBadge.textContent = `${statusData.streamfab_downloads.length} Datei(en)`;
+            sfBadge.className = "status-badge warning";
+        } else {
+            sfBadge.textContent = "Bereit";
+            sfBadge.className = "status-badge online";
+        }
+    }
+
+    // Helper to format bytes
+    const formatBytes = (bytes, decimals = 2) => {
+        if (!bytes || bytes === 0) return "0 GB";
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ["B", "KB", "MB", "GB", "TB", "PB"];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+    };
+
+    // 4. Fetch Stats for NAS capacity and space savings
+    try {
+        const statsRes = await fetch("/api/stats");
+        if (statsRes.ok) {
+            const statsData = await statsRes.json();
+
+            // NAS storage
+            const nasInfo = statsData.nas;
+            const progress = document.getElementById("hero-nas-progress");
+            const usageText = document.getElementById("hero-nas-usage-text");
+            if (nasInfo && nasInfo.available) {
+                const pct = nasInfo.used_percent || 0;
+                if (progress) {
+                    progress.style.width = `${pct}%`;
+                    progress.className = "progress-bar";
+                    if (pct >= 90) {
+                        progress.style.background = "var(--danger, #ef4444)";
+                    } else if (pct >= 75) {
+                        progress.style.background = "var(--warning, #f59e0b)";
+                    } else {
+                        progress.style.background = "var(--accent, #3b82f6)";
+                    }
+                }
+                if (usageText) {
+                    usageText.textContent = `${formatBytes(nasInfo.used)} von ${formatBytes(nasInfo.total)} belegt (${formatBytes(nasInfo.free)} frei)`;
+                }
+            } else {
+                if (progress) progress.style.width = "0%";
+                if (usageText) {
+                    usageText.textContent = nasInfo && nasInfo.error ? nasInfo.error : "NAS nicht verfügbar";
+                }
+            }
+
+            // Savings
+            const savedSpace = document.getElementById("hero-saved-space");
+            const convertedText = document.getElementById("hero-converted-files-text");
+            if (statsData.stats) {
+                if (savedSpace) {
+                    savedSpace.textContent = formatBytes(statsData.stats.saved_bytes);
+                }
+                if (convertedText) {
+                    convertedText.textContent = `${statsData.stats.total_files} Konvertierung(en) abgeschlossen`;
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error fetching stats for homepage:", e);
+    }
+
+    // 5. Fetch YouTube Subscriptions Count
+    try {
+        const subsRes = await fetch("/api/youtube/subscriptions");
+        if (subsRes.ok) {
+            const subsData = await subsRes.json();
+            const subs = subsData.subscriptions || [];
+            const abosText = document.getElementById("hero-abos-status-text");
+            if (abosText) {
+                const pendingCount = subs.reduce((acc, sub) => acc + (sub.pending_videos ? sub.pending_videos.length : 0), 0);
+                if (pendingCount > 0) {
+                    abosText.textContent = `${subs.length} Abo(s) aktiv • ${pendingCount} Video(s) bereit`;
+                } else {
+                    abosText.textContent = `${subs.length} Abo(s) aktiv • Alles aktuell`;
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error fetching subscriptions for homepage:", e);
+    }
+}
+
+function handleHeroYtDownload() {
+    const heroInput = document.getElementById("hero-yt-url");
+    if (!heroInput) return;
+    const url = heroInput.value.trim();
+    if (!url) {
+        alert("Bitte eine gültige YouTube-/Mediathek-URL eingeben!");
+        return;
+    }
+    
+    // Copy to downloader input
+    const ytInput = document.getElementById("yt-url");
+    if (ytInput) {
+        ytInput.value = url;
+    }
+    
+    // Clear hero input
+    heroInput.value = "";
+    
+    // Navigate to YouTube view
+    document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+    const ytView = document.getElementById("view-youtube");
+    if (ytView) {
+        ytView.classList.remove("hidden");
+        ytView.classList.add("active");
+    }
+    // Remove active sidebar project selections
+    document.querySelectorAll(".project-item").forEach(el => el.classList.remove("active"));
+    
+    scrollToDetailTop();
+    
+    // Call analyseYtLink()
+    analyseYtLink();
+}
+
 
 
