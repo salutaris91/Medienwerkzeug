@@ -488,7 +488,8 @@ function setupCollapsibleSections() {
         const secId = sec.id;
         
         // Restore expanded state from localStorage (default to false - collapsed by default)
-        const isExpanded = localStorage.getItem(`expanded_${secId}`) === "true";
+        // For project folders, we always start collapsed on page load
+        const isExpanded = secId === "section-project-folders" ? false : (localStorage.getItem(`expanded_${secId}`) === "true");
         if (isExpanded) {
             sec.classList.add("expanded");
             content.style.maxHeight = "none";
