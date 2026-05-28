@@ -190,6 +190,7 @@ def load_settings():
         "show_jokes": True,
         "show_quote": True,
         "app_theme": "deep-space",
+        "smart_conversion_default": True,
         "sync_categories": [
             {"id": "1", "name": "Filme", "nas_sub": "/Filme", "pcloud_remote": "pcloud:03_Filme"},
             {"id": "2", "name": "Serien", "nas_sub": "/Serien", "pcloud_remote": "pcloud:04_Serien"},

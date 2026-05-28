@@ -315,6 +315,12 @@ function initViews() {
                 
                 document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
                 
+                // Reset/close collapsible details
+                const movieDetails = document.getElementById("movie-nfo-details");
+                if (movieDetails) movieDetails.removeAttribute("open");
+                const seriesDetails = document.getElementById("series-nfo-details");
+                if (seriesDetails) seriesDetails.removeAttribute("open");
+                
                 let ctxTarget = `context-${mode}`;
                 const ctx = document.getElementById(ctxTarget);
                 if(ctx) {
@@ -977,8 +983,31 @@ function selectProject(projectName) {
             el.setAttribute("aria-checked", "false");
         }
     });
+
+    // Close NFO details panels by default
+    const movieDetails = document.getElementById("movie-nfo-details");
+    if (movieDetails) movieDetails.removeAttribute("open");
+    const seriesDetails = document.getElementById("series-nfo-details");
+    if (seriesDetails) seriesDetails.removeAttribute("open");
     
     scanProject(projectName);
+}
+
+function applySmartConversionDefault(hasInefficientVideo) {
+    const isSmartDefault = currentSettings.smart_conversion_default !== false; // default to true
+    const shouldConvert = isSmartDefault && hasInefficientVideo;
+    
+    const movieConvertCb = document.getElementById("movie-option-convert");
+    const seriesConvertCb = document.getElementById("series-option-convert");
+    
+    if (movieConvertCb) {
+        movieConvertCb.checked = shouldConvert;
+        movieConvertCb.dispatchEvent(new Event('change'));
+    }
+    if (seriesConvertCb) {
+        seriesConvertCb.checked = shouldConvert;
+        seriesConvertCb.dispatchEvent(new Event('change'));
+    }
 }
 
 async function scanProject(project) {
@@ -1011,6 +1040,8 @@ async function scanProject(project) {
         path.textContent = `Pfad: ${data.current_dir}`;
         projectFiles = data.files || [];
         currentProjectIsDoku = data.is_doku || false;
+        
+        applySmartConversionDefault(data.has_inefficient_video || false);
         
         if (projectFiles.length === 0) {
             tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Dieser Ordner ist leer.</td></tr>';
@@ -5220,6 +5251,7 @@ async function loadSettings() {
 
             setCheckbox("settings-show-jokes", currentSettings.show_jokes !== false); // default to true
             setCheckbox("settings-show-quote", currentSettings.show_quote !== false); // default to true
+            setCheckbox("settings-smart-conversion-default", currentSettings.smart_conversion_default !== false); // default to true
             
             let themeVal = currentSettings.app_theme || "deep-space";
             if (themeVal === "apple-silver") themeVal = "apple-black";
@@ -5645,6 +5677,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 show_jokes: document.getElementById("settings-show-jokes")?.checked || false,
                 show_quote: document.getElementById("settings-show-quote")?.checked || false,
+                smart_conversion_default: document.getElementById("settings-smart-conversion-default")?.checked || false,
                 app_theme: document.getElementById("settings-app-theme")?.value || "deep-space",
                 
                 import_sources: currentSettings.import_sources.filter(s => s.trim() !== ""),

@@ -3983,12 +3983,34 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                         except Exception as e:
                             log_message(f"Fehler beim Lesen der NFO-Datei {f}: {e}")
         
+        # Get video files list
+        video_extensions = {'.mp4', '.mkv', '.avi', '.webm', '.mov'}
+        video_files = [os.path.join(target_dir, f) for f in all_files if os.path.splitext(f)[1].lower() in video_extensions]
+        
+        has_inefficient_video = False
+        if video_files:
+            # Check up to 10 video files to avoid huge scans
+            files_to_check = video_files[:10]
+            from concurrent.futures import ThreadPoolExecutor
+            
+            try:
+                with ThreadPoolExecutor(max_workers=min(len(files_to_check), 5)) as executor:
+                    codecs = list(executor.map(media.get_video_codec, files_to_check))
+                
+                for codec in codecs:
+                    if codec and codec not in ('hevc', 'h265', 'vp9', 'av1'):
+                        has_inefficient_video = True
+                        break
+            except Exception as e:
+                log_message(f"Fehler bei der Codec-Erkennung: {e}")
+        
         self.send_json({
             "current_dir": target_dir,
             "files": file_list,
             "video_count": video_count,
             "ext_counts": ext_counts,
-            "is_doku": is_doku
+            "is_doku": is_doku,
+            "has_inefficient_video": has_inefficient_video
         })
 
     def handle_api_preview_clean(self, params):

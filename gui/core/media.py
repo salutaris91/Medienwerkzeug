@@ -120,3 +120,11 @@ def add_conversion_to_history(quality, codec, ratio, size_in=None, size_out=None
         "timestamp": time.time()
     })
     utils.save_konv_history(history)
+
+def get_video_codec(filepath):
+    try:
+        cmd = ["ffprobe", "-v", "quiet", "-show_entries", "stream=codec_name", "-select_streams", "v:0", "-of", "csv=p=0", filepath]
+        return subprocess.check_output(cmd, text=True, timeout=5).strip().lower()
+    except Exception:
+        return None
+
