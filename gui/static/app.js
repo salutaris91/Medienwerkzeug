@@ -4,6 +4,7 @@
 let currentProject = "";
 let projectFiles = [];
 let currentProjectIsDoku = false;
+let currentProjectSuggestedQuery = "";
 let selectedShow = null;
 let selectedMovie = null;
 let episodesData = {}; // maps episode number (string) to title/info
@@ -327,9 +328,10 @@ function initViews() {
                     ctx.classList.remove("hidden");
                     
                     // Autofill logic based on current project
-                    let cleanedQuery = currentProject;
+                    let cleanedQuery = currentProjectSuggestedQuery || currentProject;
                     if (cleanedQuery) {
-                        cleanedQuery = cleanedQuery.replace(/\([0-9]{4}\)/g, "").replace(/_/g, " ").trim();
+                        cleanedQuery = cleanedQuery.replace(/[._\-]/g, " ").trim();
+                        cleanedQuery = cleanedQuery.replace(/\([0-9]{4}\)/g, "").trim();
                     }
                     
 
@@ -1041,6 +1043,7 @@ async function scanProject(project) {
         path.textContent = `Pfad: ${data.current_dir}`;
         projectFiles = data.files || [];
         currentProjectIsDoku = data.is_doku || false;
+        currentProjectSuggestedQuery = data.suggested_query || "";
         
         applySmartConversionDefault(data.has_inefficient_video || false);
         

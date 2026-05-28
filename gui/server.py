@@ -4004,13 +4004,39 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 log_message(f"Fehler bei der Codec-Erkennung: {e}")
         
+        # Determine suggested search query
+        suggested_query = project
+        is_obfuscated = False
+        if project:
+            # Check if there are any separators
+            separators = {'.', '_', '-', ' '}
+            has_separator = any(c in project for c in separators)
+            if not has_separator and len(project) >= 10:
+                is_obfuscated = True
+                
+        if video_files:
+            # Get the first video file's base name
+            first_video = video_files[0]
+            video_base = os.path.basename(first_video)
+            video_base_no_ext = os.path.splitext(video_base)[0]
+            
+            if is_obfuscated:
+                suggested_query = video_base_no_ext
+            else:
+                # Compare number of word separators
+                project_seps = sum(1 for c in project if c in {'.', '_', '-'})
+                video_seps = sum(1 for c in video_base_no_ext if c in {'.', '_', '-'})
+                if video_seps > project_seps + 2:
+                    suggested_query = video_base_no_ext
+        
         self.send_json({
             "current_dir": target_dir,
             "files": file_list,
             "video_count": video_count,
             "ext_counts": ext_counts,
             "is_doku": is_doku,
-            "has_inefficient_video": has_inefficient_video
+            "has_inefficient_video": has_inefficient_video,
+            "suggested_query": suggested_query
         })
 
     def handle_api_preview_clean(self, params):
