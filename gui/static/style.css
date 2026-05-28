@@ -1450,6 +1450,7 @@ select:focus {
 
 .detail-content {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     overflow-y: auto;
@@ -1650,6 +1651,7 @@ select:focus {
 /* Dependency Cards Grid & Items */
 .dependency-status-grid {
     margin-top: 15px;
+    width: 100%;
 }
 
 .dep-card {
