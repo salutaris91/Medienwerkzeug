@@ -158,27 +158,39 @@ def search_all_db(query):
     clean_query = clean_search_query(query)
     if not clean_query:
         clean_query = query.strip()
-    
-    results = []
-    
-    # 1. TMDb DE
-    for r in search_tmdb_tv(clean_query, "de-DE"):
-        r['provider'] = 'tmdb_tv'
-        results.append(r)
         
-    # 2. TVDb DE
-    results.extend(search_tvdb(clean_query, "deu"))
-    
-    # 3. TVmaze
-    for r in search_tvmaze(clean_query):
-        r['provider'] = 'tvmaze'
-        results.append(r)
+    def _do_search(q_str):
+        results = []
+        # 1. TMDb DE
+        for r in search_tmdb_tv(q_str, "de-DE"):
+            r['provider'] = 'tmdb_tv'
+            results.append(r)
+            
+        # 2. TVDb DE
+        results.extend(search_tvdb(q_str, "deu"))
+        
+        # 3. TVmaze
+        for r in search_tvmaze(q_str):
+            r['provider'] = 'tvmaze'
+            results.append(r)
+            
+        # 4. TMDb EN (Fallback)
+        for r in search_tmdb_tv(q_str, "en-US"):
+            r['provider'] = 'tmdb_tv_en'
+            results.append(r)
+        return results
 
-    # 4. TMDb EN (Fallback)
-    for r in search_tmdb_tv(clean_query, "en-US"):
-        r['provider'] = 'tmdb_tv_en'
-        results.append(r)
-        
+    results = _do_search(clean_query)
+    
+    # Fallback für deutsche Umlaute (ae -> ä, oe -> ö, ue -> ü) da TMDB/TVDB sehr strikt suchen
+    if not results:
+        umlaut_query = clean_query
+        umlaut_query = re.sub(r'ae', 'ä', umlaut_query, flags=re.IGNORECASE)
+        umlaut_query = re.sub(r'oe', 'ö', umlaut_query, flags=re.IGNORECASE)
+        umlaut_query = re.sub(r'ue', 'ü', umlaut_query, flags=re.IGNORECASE)
+        if umlaut_query != clean_query:
+            results = _do_search(umlaut_query)
+            
     final_results = []
     seen = set()
     for r in results:
@@ -372,30 +384,39 @@ def search_tmdb_movie(query):
 
     # Normale Textsuche
     clean_query = clean_search_query(query)
-    url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={urllib.parse.quote(clean_query)}&language=de-DE"
-    try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode())
-            results = []
-            for item in data.get('results', [])[:8]:
-                year = item.get('release_date', '')[:4] if item.get('release_date') else '????'
-                title = item.get('title', '')
-                results.append({
-                    'id': item['id'],
-                    'name': f"{title} ({year})",
-                    'genre_ids': item.get('genre_ids', [])
-                })
-            return results
-    except urllib.error.URLError as e:
-        print(f"[TMDb Movie Error] Netzwerk/Timeout bei Textsuche '{query}': {e}", file=sys.stderr)
-        return []
-    except json.JSONDecodeError as e:
-        print(f"[TMDb Movie Error] Ungültige JSON Antwort: {e}", file=sys.stderr)
-        return []
-    except Exception as e:
-        print(f"[TMDb Movie Error] Unerwarteter Fehler bei Textsuche: {e}", file=sys.stderr)
-        return []
+    
+    def _do_tmdb_search(q_str):
+        url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={urllib.parse.quote(q_str)}&language=de-DE"
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+                results = []
+                for item in data.get('results', [])[:8]:
+                    year = item.get('release_date', '')[:4] if item.get('release_date') else '????'
+                    title = item.get('title', '')
+                    results.append({
+                        'id': item['id'],
+                        'name': f"{title} ({year})",
+                        'genre_ids': item.get('genre_ids', [])
+                    })
+                return results
+        except Exception as e:
+            print(f"[TMDb Movie Error] Fehler bei Suche '{q_str}': {e}", file=sys.stderr)
+            return []
+
+    results = _do_tmdb_search(clean_query)
+    
+    # Fallback für deutsche Umlaute (ae -> ä, oe -> ö, ue -> ü) da TMDB sehr strikt sucht
+    if not results:
+        umlaut_query = clean_query
+        umlaut_query = re.sub(r'ae', 'ä', umlaut_query, flags=re.IGNORECASE)
+        umlaut_query = re.sub(r'oe', 'ö', umlaut_query, flags=re.IGNORECASE)
+        umlaut_query = re.sub(r'ue', 'ü', umlaut_query, flags=re.IGNORECASE)
+        if umlaut_query != clean_query:
+            results = _do_tmdb_search(umlaut_query)
+            
+    return results
 
 def search_tmdb_tv(query, lang="de-DE"):
     query = query.strip()
