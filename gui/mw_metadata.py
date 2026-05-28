@@ -1943,6 +1943,19 @@ def clean_search_query(query):
     # Remove video file extensions first
     q = re.sub(r"\.(mkv|mp4|avi|webm|mov|m4v|3gp|flv)$", "", q, flags=re.IGNORECASE)
     
+    # Clean prefix duplication: e.g. "Tom-Taxi.Taxi..." or "Tom-Taxi_Taxi..."
+    temp_q = q.replace("_", ".").replace(" ", ".")
+    if "." in temp_q:
+        parts = [p.strip() for p in temp_q.split(".") if p.strip()]
+        if len(parts) > 1:
+            first_part = parts[0]
+            second_part = parts[1]
+            if len(first_part) > len(second_part) and first_part.lower().endswith(second_part.lower()):
+                prefix_len = len(first_part) - len(second_part)
+                if prefix_len <= 10 or any(c in first_part for c in ('-', '_', ' ')):
+                    pattern = r"^" + re.escape(first_part) + r"[\._\s-]+"
+                    q = re.sub(pattern, "", q, flags=re.IGNORECASE)
+    
     # Check if the query looks like a raw release name containing common noise patterns.
     # We do this to distinguish release names from clean hyphenated titles like "He-Man".
     has_release_noise = bool(re.search(
