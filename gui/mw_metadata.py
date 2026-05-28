@@ -183,13 +183,17 @@ def search_all_db(query):
     results = _do_search(clean_query)
     
     # Fallback für deutsche Umlaute (ae -> ä, oe -> ö, ue -> ü) da TMDB/TVDB sehr strikt suchen
-    if not results:
-        umlaut_query = clean_query
-        umlaut_query = re.sub(r'ae', 'ä', umlaut_query, flags=re.IGNORECASE)
-        umlaut_query = re.sub(r'oe', 'ö', umlaut_query, flags=re.IGNORECASE)
-        umlaut_query = re.sub(r'ue', 'ü', umlaut_query, flags=re.IGNORECASE)
-        if umlaut_query != clean_query:
-            results = _do_search(umlaut_query)
+    umlaut_query = clean_query
+    umlaut_query = re.sub(r'ae', 'ä', umlaut_query, flags=re.IGNORECASE)
+    umlaut_query = re.sub(r'oe', 'ö', umlaut_query, flags=re.IGNORECASE)
+    umlaut_query = re.sub(r'ue', 'ü', umlaut_query, flags=re.IGNORECASE)
+    if umlaut_query != clean_query:
+        extra_results = _do_search(umlaut_query)
+        seen_sigs = {f"{r['name'].split('[')[0].strip().lower()}_{r['provider']}" for r in results}
+        for r in extra_results:
+            sig = f"{r['name'].split('[')[0].strip().lower()}_{r['provider']}"
+            if sig not in seen_sigs:
+                results.append(r)
             
     final_results = []
     seen = set()
@@ -408,13 +412,16 @@ def search_tmdb_movie(query):
     results = _do_tmdb_search(clean_query)
     
     # Fallback für deutsche Umlaute (ae -> ä, oe -> ö, ue -> ü) da TMDB sehr strikt sucht
-    if not results:
-        umlaut_query = clean_query
-        umlaut_query = re.sub(r'ae', 'ä', umlaut_query, flags=re.IGNORECASE)
-        umlaut_query = re.sub(r'oe', 'ö', umlaut_query, flags=re.IGNORECASE)
-        umlaut_query = re.sub(r'ue', 'ü', umlaut_query, flags=re.IGNORECASE)
-        if umlaut_query != clean_query:
-            results = _do_tmdb_search(umlaut_query)
+    umlaut_query = clean_query
+    umlaut_query = re.sub(r'ae', 'ä', umlaut_query, flags=re.IGNORECASE)
+    umlaut_query = re.sub(r'oe', 'ö', umlaut_query, flags=re.IGNORECASE)
+    umlaut_query = re.sub(r'ue', 'ü', umlaut_query, flags=re.IGNORECASE)
+    if umlaut_query != clean_query:
+        extra_results = _do_tmdb_search(umlaut_query)
+        seen_ids = {r['id'] for r in results}
+        for r in extra_results:
+            if r['id'] not in seen_ids:
+                results.append(r)
             
     return results
 
@@ -521,7 +528,9 @@ def match_episode(filename, json_str):
         import re
         def get_words(text):
             # Filtere Füllwörter aus
-            words = set(re.findall(r'\w+', text.lower()))
+            text = text.lower()
+            text = text.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
+            words = set(re.findall(r'\w+', text))
             return {w for w in words if w not in ['der', 'die', 'das', 'in', 'im', 'teil', 'part', 'von', 'und']}
             
         file_words = get_words(filename)
@@ -561,27 +570,45 @@ def match_episode(filename, json_str):
 
 def search_ofdb(query):
     clean_query = clean_search_query(query)
-    url = "https://www.ofdb.de/suchergebnis/"
-    data = urllib.parse.urlencode({'QSinput': clean_query}).encode('utf-8')
-    req = urllib.request.Request(url, data=data, headers={'User-Agent': 'Mozilla/5.0'})
-    try:
-        html = urllib.request.urlopen(req).read().decode('utf-8', errors='ignore')
-    except Exception as e:
-        return []
-        
-    results = []
-    matches = re.finditer(r'<a[^>]*href=\"https://www.ofdb.de/film/(\d+),([^\"]*)\"[^>]*>.*?<span class=\"tooltipster\"[^>]*>(.*?)</span></a>.*?</td>\s*<td>(\d{4})</td>', html, re.DOTALL | re.IGNORECASE)
-    for m in matches:
-        ofdb_id = m.group(1)
-        url_part = m.group(2)
-        title_raw = m.group(3)
-        title = re.sub(r'^">', '', title_raw).strip()
-        year = m.group(4)
-        results.append({
-            "id": f"ofdb_{ofdb_id}_{url_part}",
-            "title": title,
-            "year": year
-        })
+    
+    def _do_ofdb_search(q_str):
+        url = "https://www.ofdb.de/suchergebnis/"
+        data = urllib.parse.urlencode({'QSinput': q_str}).encode('utf-8')
+        req = urllib.request.Request(url, data=data, headers={'User-Agent': 'Mozilla/5.0'})
+        try:
+            html = urllib.request.urlopen(req).read().decode('utf-8', errors='ignore')
+        except Exception:
+            return []
+            
+        results = []
+        matches = re.finditer(r'<a[^>]*href=\"https://www.ofdb.de/film/(\d+),([^\"]*)\"[^>]*>.*?<span class=\"tooltipster\"[^>]*>(.*?)</span></a>.*?</td>\s*<td>(\d{4})</td>', html, re.DOTALL | re.IGNORECASE)
+        for m in matches:
+            ofdb_id = m.group(1)
+            url_part = m.group(2)
+            title_raw = m.group(3)
+            title = re.sub(r'^">', '', title_raw).strip()
+            year = m.group(4)
+            results.append({
+                "id": f"ofdb_{ofdb_id}_{url_part}",
+                "title": title,
+                "year": year
+            })
+        return results
+
+    results = _do_ofdb_search(clean_query)
+    
+    # Fallback für deutsche Umlaute (ae -> ä, oe -> ö, ue -> ü)
+    umlaut_query = clean_query
+    umlaut_query = re.sub(r'ae', 'ä', umlaut_query, flags=re.IGNORECASE)
+    umlaut_query = re.sub(r'oe', 'ö', umlaut_query, flags=re.IGNORECASE)
+    umlaut_query = re.sub(r'ue', 'ü', umlaut_query, flags=re.IGNORECASE)
+    if umlaut_query != clean_query:
+        extra_results = _do_ofdb_search(umlaut_query)
+        seen_ids = {r['id'] for r in results}
+        for r in extra_results:
+            if r['id'] not in seen_ids:
+                results.append(r)
+                
     return results
 
 def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=None):
@@ -1988,9 +2015,19 @@ def calculate_match_score(query, result_name):
     clean_res = re.sub(r"\(\d{4}\)", "", clean_res)
     clean_res = clean_search_query(clean_res)
     
+    # Normalize German umlauts to make comparison robust
+    def normalize_umlauts(s):
+        if not s: return ""
+        s = s.lower()
+        s = s.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
+        return s
+
+    clean_q_norm = normalize_umlauts(clean_q)
+    clean_res_norm = normalize_umlauts(clean_res)
+    
     # Compute words
-    q_words = set(re.findall(r"\w+", clean_q.lower()))
-    res_words = set(re.findall(r"\w+", clean_res.lower()))
+    q_words = set(re.findall(r"\w+", clean_q_norm))
+    res_words = set(re.findall(r"\w+", clean_res_norm))
     
     if not q_words or not res_words:
         score = 0.0
@@ -2005,7 +2042,7 @@ def calculate_match_score(query, result_name):
         res_sorted = " ".join(sorted(res_words))
         if q_sorted == res_sorted:
             score += 0.5
-        elif clean_q.lower() in clean_res.lower() or clean_res.lower() in clean_q.lower():
+        elif clean_q_norm in clean_res_norm or clean_res_norm in clean_q_norm:
             score += 0.2
             
     # Year compatibility score
