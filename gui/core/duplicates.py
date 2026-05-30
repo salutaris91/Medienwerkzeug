@@ -69,6 +69,33 @@ def _keep_rank(info):
     return (eff, res, -size)
 
 
+def _episode_title_tokens(filename, show):
+    """Normalisierte Titel-Tokens einer Episode (Teil nach SxxExx, ohne Show-Namen)."""
+    name = os.path.splitext(filename)[0]
+    m = SXXEXX_RE.search(name)
+    if m:
+        name = name[m.end():]
+    show_tokens = set(re.sub(r'[^\w]+', ' ', show.lower(), flags=re.UNICODE).split())
+    tokens = re.sub(r'[^\w]+', ' ', name.lower(), flags=re.UNICODE).split()
+    # Show-Tokens und reine Zahlen entfernen -> übrig bleibt der eigentliche Episodentitel
+    return {t for t in tokens if t and t not in show_tokens and not t.isdigit()}
+
+
+def _titles_match(files, show):
+    """True, wenn die Episodentitel der Dateien zusammenpassen (echtes Duplikat).
+    Unterschiedliche Titel bei gleicher Nummer = Nummern-Kollision, kein Duplikat."""
+    token_sets = [_episode_title_tokens(f["filename"], show) for f in files]
+    non_empty = [s for s in token_sets if s]
+    if len(non_empty) < 2:
+        return True  # kein vergleichbarer Titel -> nicht entscheidbar, als Duplikat behandeln
+    base = non_empty[0]
+    for s in non_empty[1:]:
+        union = base | s
+        if union and len(base & s) / len(union) < 0.4:  # Jaccard < 0.4 -> andere Titel
+            return False
+    return True
+
+
 def _build_group(show, season, episode, paths):
     files = []
     for p in paths:
@@ -84,7 +111,30 @@ def _build_group(show, season, episode, paths):
             "resolution": _resolution_label(mi.get("width"), mi.get("height")),
         })
 
-    # Empfehlung bestimmen
+    group_id = f"{show}|S{int(season):02d}|E{int(episode):02d}"
+    base = {
+        "id": group_id,
+        "key": f"dup:{group_id}",
+        "category": None,  # wird vom Aufrufer gesetzt
+        "show": show,
+        "season": int(season),
+        "episode": int(episode),
+        "files": files,
+    }
+
+    if not _titles_match(files, show):
+        # Gleiche Episodennummer, aber unterschiedliche Titel -> wahrscheinlich
+        # Nummern-Kollision in den Quelldaten, kein echtes Duplikat. Nur zur Prüfung melden.
+        for f in files:
+            f["recommended"] = "check"
+        base.update({
+            "kind": "collision",
+            "reclaimable_bytes": 0,
+            "note": "Gleiche Episodennummer, unterschiedliche Titel – bitte prüfen (kein automatischer Löschvorschlag).",
+        })
+        return base
+
+    # Echtes Duplikat: Empfehlung bestimmen (effizienter Codec > Auflösung > kleinere Datei)
     files.sort(key=lambda f: _keep_rank(f), reverse=True)
     reclaimable = 0
     for idx, f in enumerate(files):
@@ -101,15 +151,8 @@ def _build_group(show, season, episode, paths):
     reasons.append(f"Auflösung {keep['resolution']}")
     keep["reason"] = ", ".join(reasons)
 
-    return {
-        "id": f"{show}|S{int(season):02d}|E{int(episode):02d}",
-        "category": None,  # wird vom Aufrufer gesetzt
-        "show": show,
-        "season": int(season),
-        "episode": int(episode),
-        "files": files,
-        "reclaimable_bytes": reclaimable,
-    }
+    base.update({"kind": "duplicate", "reclaimable_bytes": reclaimable})
+    return base
 
 
 def _run_duplicate_scan():
@@ -198,14 +241,31 @@ def start_duplicate_scan():
     return True
 
 
+def _apply_ignores(result):
+    """Filtert ignorierte Duplikat-Gruppen heraus und ergänzt ignored_count."""
+    from gui.core import ignores
+    ignored_keys = ignores.get_ignored()
+    groups = result.get("groups", []) or []
+    kept = [g for g in groups if g.get("key") not in ignored_keys]
+    result["groups"] = kept
+    result["summary"] = {
+        "groups": len(kept),
+        "files": sum(len(g.get("files", [])) for g in kept),
+        "reclaimable_bytes": sum(g.get("reclaimable_bytes", 0) for g in kept),
+    }
+    result["ignored_count"] = len(groups) - len(kept)
+    return result
+
+
 def get_duplicate_status():
+    import copy
     with _state_lock:
         if _scan_state["status"] == "idle":
             cached = _read_cache()
             if cached:
-                return cached
-        import copy
-        return copy.deepcopy(_scan_state)
+                return _apply_ignores(cached)
+        snapshot = copy.deepcopy(_scan_state)
+    return _apply_ignores(snapshot)
 
 
 def resolve_duplicate(file_path):

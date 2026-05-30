@@ -8993,11 +8993,15 @@ function renderHealthStatus(data) {
             list.forEach(it => {
                 html += `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:0.9em; padding:4px 0; border-top:1px solid rgba(255,255,255,0.04);">
                             <span>${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
-                            <button class="btn btn-secondary btn-sm health-open-folder" data-path="${escapeHTML(it.path)}" style="white-space:nowrap;">📂 Öffnen</button>
+                            <span style="display:flex; gap:6px; white-space:nowrap;">
+                                <button class="btn btn-secondary btn-sm health-open-folder" data-path="${escapeHTML(it.path)}">📂 Öffnen</button>
+                                <button class="btn btn-secondary btn-sm finding-ignore" data-key="${escapeHTML(it.key || "")}" title="Diesen Befund dauerhaft ausblenden">🚫 Ignorieren</button>
+                            </span>
                          </div>`;
             });
             html += `</div></details>`;
         });
+        html += renderIgnoredFooter(data.ignored_count);
         issuesEl.innerHTML = html;
 
         issuesEl.querySelectorAll(".health-open-folder").forEach(b => {
@@ -9006,11 +9010,62 @@ function renderHealthStatus(data) {
                 fetch(`/api/system-open-folder?path=${encodeURIComponent(p)}`).catch(() => {});
             });
         });
+        wireIgnoreButtons(issuesEl, () => pollHealthStatus(false));
+        wireRestoreAll(issuesEl);
     } else if (hasResult) {
-        issuesEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Auffälligkeiten gefunden. 🎉</p>`;
+        issuesEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Auffälligkeiten gefunden. 🎉</p>` + renderIgnoredFooter(data.ignored_count);
+        wireRestoreAll(issuesEl);
     } else {
         issuesEl.innerHTML = "";
     }
+}
+
+// Gemeinsame Helfer für die "Ignorieren"-Funktion (Health & Duplikate)
+function renderIgnoredFooter(count) {
+    if (!count) return "";
+    return `<p class="text-muted" style="margin:10px 0 0; font-size:0.82em;">
+              ${count} Befund(e) ausgeblendet ·
+              <a href="#" class="finding-restore-all" style="color:var(--accent);">↩︎ wieder einblenden</a>
+            </p>`;
+}
+
+function wireIgnoreButtons(container, onDone) {
+    container.querySelectorAll(".finding-ignore").forEach(b => {
+        b.addEventListener("click", async () => {
+            const key = b.getAttribute("data-key");
+            if (!key) return;
+            b.disabled = true;
+            try {
+                await fetch("/api/findings/ignore", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ key }),
+                });
+                if (onDone) onDone();
+            } catch (e) { b.disabled = false; }
+        });
+    });
+}
+
+function wireRestoreAll(container) {
+    const link = container.querySelector(".finding-restore-all");
+    if (!link) return;
+    link.addEventListener("click", async (e) => {
+        e.preventDefault();
+        try {
+            const res = await fetch("/api/findings/ignored");
+            const data = await res.json();
+            for (const key of (data.ignored || [])) {
+                await fetch("/api/findings/unignore", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ key }),
+                });
+            }
+            pollHealthStatus(false);
+            pollDuplicateStatus(false);
+        } catch (err) { /* ignore */ }
+    });
 }
 
 // ==========================================================================
@@ -9119,12 +9174,14 @@ function renderDuplicateStatus(data) {
 
     const sum = data.summary || { groups: 0, reclaimable_bytes: 0 };
     summaryEl.innerHTML = `<span style="font-size:0.9em;">
-        <strong>${sum.groups || 0}</strong> Duplikat-Gruppe(n) · rückgewinnbar:
+        <strong>${sum.groups || 0}</strong> auffällige Gruppe(n) · rückgewinnbar:
         <strong>${fmtSize(sum.reclaimable_bytes)}</strong></span>`;
 
     const groups = data.groups || [];
     if (groups.length === 0) {
-        groupsEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Duplikate gefunden. 🎉</p>`;
+        groupsEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Duplikate gefunden. 🎉</p>`
+            + renderIgnoredFooter(data.ignored_count);
+        wireRestoreAll(groupsEl);
         return;
     }
 
@@ -9133,18 +9190,35 @@ function renderDuplicateStatus(data) {
         const card = document.createElement("div");
         card.style.cssText = "border:1px solid var(--border-light); border-radius:8px; padding:10px 12px;";
         const seLabel = `S${String(g.season).padStart(2, "0")}E${String(g.episode).padStart(2, "0")}`;
-        let html = `<div style="font-weight:500; margin-bottom:8px;">${escapeHTML(g.category || "")} · ${escapeHTML(g.show)} ${seLabel}</div>`;
+        const isCollision = g.kind === "collision";
+        const headerColor = isCollision ? "#f59e0b" : "var(--text-main)";
+
+        let html = `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;">
+                        <span style="font-weight:500; color:${headerColor};">${isCollision ? "⚠️ " : ""}${escapeHTML(g.category || "")} · ${escapeHTML(g.show)} ${seLabel}</span>
+                        <button class="btn btn-secondary btn-sm finding-ignore" data-key="${escapeHTML(g.key || "")}" title="Diese Gruppe dauerhaft ausblenden" style="white-space:nowrap;">🚫 Ignorieren</button>
+                    </div>`;
+        if (isCollision && g.note) {
+            html += `<p class="text-muted" style="margin:0 0 8px; font-size:0.82em;">${escapeHTML(g.note)}</p>`;
+        }
         html += `<div style="display:flex; flex-direction:column; gap:6px;">`;
         g.files.forEach(f => {
             const keep = f.recommended === "keep";
-            const badge = keep
-                ? `<span style="color:#10b981; font-size:0.8em; white-space:nowrap;">✅ behalten</span>`
-                : `<span style="color:#f59e0b; font-size:0.8em; white-space:nowrap;">Duplikat</span>`;
+            let badge;
+            if (isCollision) {
+                badge = `<span style="color:#f59e0b; font-size:0.8em; white-space:nowrap;">prüfen</span>`;
+            } else if (keep) {
+                badge = `<span style="color:#10b981; font-size:0.8em; white-space:nowrap;">✅ behalten</span>`;
+            } else {
+                badge = `<span style="color:#f59e0b; font-size:0.8em; white-space:nowrap;">Duplikat</span>`;
+            }
             const details = `${f.codec || "?"} · ${f.resolution || "?"} · ${fmtSize(f.size)}`;
             const openBtn = `<button class="btn btn-secondary btn-sm dup-open" data-path="${escapeHTML(f.path)}" style="white-space:nowrap;">📂 Öffnen</button>`;
-            const delBtn = keep
-                ? ""
-                : `<button class="btn btn-secondary btn-sm dup-delete" data-path="${escapeHTML(f.path)}" style="white-space:nowrap; color:#ef4444;">🗑️ Löschen</button>`;
+            // Echtes Duplikat: nur die NICHT zu behaltende Datei löschbar.
+            // Kollision: kein Auto-Vorschlag -> Löschen pro Datei manuell möglich.
+            const showDelete = isCollision ? true : !keep;
+            const delBtn = showDelete
+                ? `<button class="btn btn-secondary btn-sm dup-delete" data-path="${escapeHTML(f.path)}" style="white-space:nowrap; color:#ef4444;">🗑️ Löschen</button>`
+                : "";
             html += `<div class="dup-file-row" style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:0.88em; padding:4px 0; border-top:1px solid rgba(255,255,255,0.04);">
                         <span style="overflow:hidden; text-overflow:ellipsis;">${badge} &nbsp; ${escapeHTML(f.filename)}<br><span class="text-muted" style="font-size:0.85em;">${details}</span></span>
                         <span style="display:flex; gap:6px; white-space:nowrap;">${openBtn}${delBtn}</span>
@@ -9166,6 +9240,13 @@ function renderDuplicateStatus(data) {
         });
         groupsEl.appendChild(card);
     });
+
+    // Ignorieren-Footer + Verdrahtung (Gruppen ausblenden / wieder einblenden)
+    const footer = document.createElement("div");
+    footer.innerHTML = renderIgnoredFooter(data.ignored_count);
+    groupsEl.appendChild(footer);
+    wireIgnoreButtons(groupsEl, () => pollDuplicateStatus(false));
+    wireRestoreAll(groupsEl);
 }
 
 async function resolveDuplicate(path, btn, card) {

@@ -66,7 +66,18 @@ def _add_issue(issues, severity, issue_type, category, path, message):
         "category": category,
         "path": path,
         "message": message,
+        # Stabiler Schlüssel zum dauerhaften Ignorieren (typ + pfad, ohne wechselnde Texte)
+        "key": f"health:{issue_type}:{path}",
     })
+
+
+def _dir_has_video(directory):
+    """True, wenn unterhalb von 'directory' eine (nicht versteckte) Videodatei liegt."""
+    for dirpath, _dirs, filenames in os.walk(directory):
+        for f in filenames:
+            if not f.startswith('.') and os.path.splitext(f)[1].lower() in VIDEO_EXTENSIONS:
+                return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -121,11 +132,27 @@ def _check_season(issues, category, show_name, season_path):
     label = f"{show_name} · {os.path.basename(season_path)}"
     videos, nfo_basenames = _collect_videos(season_path)
 
-    # Leerer / video-loser Ordner
-    if not videos:
+    try:
+        child_dirs = [e for e in sorted(os.listdir(season_path))
+                      if not e.startswith('.') and os.path.isdir(os.path.join(season_path, e))]
+    except OSError:
+        child_dirs = []
+
+    # Wirklich leerer Ordner (kein Video, keine Episoden-Unterordner)
+    if not videos and not child_dirs:
         _add_issue(issues, "info", "empty_folder", category, season_path,
                    f"{label}: keine Videodateien")
         return 0
+
+    # Episoden-Unterordner ohne fertiges Video erkennen (z. B. abgebrochener Download:
+    # nur versteckte Temp-Datei + Untertitel/Thumbnail, aber kein .mkv/.mp4).
+    for d in child_dirs:
+        if not SXXEXX_RE.search(d):
+            continue  # nur echte Episoden-Ordner (mit SxxExx im Namen)
+        dpath = os.path.join(season_path, d)
+        if not _dir_has_video(dpath):
+            _add_issue(issues, "warning", "no_video", category, dpath,
+                       f"{show_name} · {d}: kein Video im Ordner (unvollständiger Download?)")
 
     # Fehlende Episoden-NFOs (gleicher Basisname im selben Ordner)
     missing_nfo = [fn for (full, fn) in videos if os.path.splitext(full)[0] not in nfo_basenames]
@@ -133,11 +160,14 @@ def _check_season(issues, category, show_name, season_path):
         _add_issue(issues, "warning", "missing_nfo", category, season_path,
                    f"{label}: {len(missing_nfo)} von {len(videos)} Episoden ohne NFO")
 
-    # Episodenlücken (nur innerhalb des beobachteten Bereichs min..max)
-    nums = _episode_numbers(fn for (full, fn) in videos)
+    # Episodenlücken: Nummern aus Dateinamen UND Ordnernamen (ein Ordner kann existieren,
+    # auch wenn das Video noch fehlt -> sonst falsche "Episode fehlt"-Meldungen).
+    ep_nums = set(_episode_numbers(fn for (full, fn) in videos))
+    ep_nums |= set(_episode_numbers(child_dirs))
+    nums = sorted(ep_nums)
     if len(nums) >= 2:
         full_range = set(range(nums[0], nums[-1] + 1))
-        missing = sorted(full_range - set(nums))
+        missing = sorted(full_range - ep_nums)
         if missing:
             preview = ", ".join(f"E{n:02d}" for n in missing[:10])
             if len(missing) > 10:
@@ -325,15 +355,33 @@ def start_health_scan():
     return True
 
 
+def _apply_ignores(result):
+    """Filtert ignorierte Issues heraus, berechnet Summary neu und ergänzt ignored_count."""
+    from gui.core import ignores
+    ignored_keys = ignores.get_ignored()
+    issues = result.get("issues", []) or []
+    kept = [i for i in issues if i.get("key") not in ignored_keys]
+    ignored_count = len(issues) - len(kept)
+    summary = {"critical": 0, "warning": 0, "info": 0}
+    for i in kept:
+        summary[i.get("severity", "info")] = summary.get(i.get("severity", "info"), 0) + 1
+    result["issues"] = kept
+    result["summary"] = summary
+    result["ignored_count"] = ignored_count
+    return result
+
+
 def get_health_status():
-    """Liefert den aktuellen State. Lädt bei idle ein evtl. vorhandenes Cache-Ergebnis."""
+    """Liefert den aktuellen State (ignorierte Befunde herausgefiltert).
+    Lädt bei idle ein evtl. vorhandenes Cache-Ergebnis."""
+    import copy
     with _state_lock:
         if _scan_state["status"] == "idle":
             cached = _read_cache()
             if cached:
-                return cached
-        import copy
-        return copy.deepcopy(_scan_state)
+                return _apply_ignores(cached)
+        snapshot = copy.deepcopy(_scan_state)
+    return _apply_ignores(snapshot)
 
 
 # ---------------------------------------------------------------------------

@@ -611,3 +611,43 @@ def handle_api_nas_resolve_duplicate_global():
         return jsonify({"ok": False, "message": f"Fehler: {e}"}), 500
 
 
+# ==========================================================================
+# Befunde dauerhaft ignorieren (Health-Check & Duplikat-Erkennung)
+# ==========================================================================
+@nas_api.route('/findings/ignore', methods=['POST'])
+def handle_api_findings_ignore():
+    """Fügt einen Befund-Schlüssel zur Ignorier-Liste hinzu."""
+    import gui.core.ignores as ignores
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    key = params.get("key")
+    if not key:
+        return jsonify({"ok": False, "message": "Kein Schlüssel angegeben."}), 400
+    ok = ignores.add_ignore(key)
+    return jsonify({"ok": ok})
+
+
+@nas_api.route('/findings/unignore', methods=['POST'])
+def handle_api_findings_unignore():
+    """Entfernt einen Befund-Schlüssel aus der Ignorier-Liste (wieder einblenden)."""
+    import gui.core.ignores as ignores
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    key = params.get("key")
+    if not key:
+        return jsonify({"ok": False, "message": "Kein Schlüssel angegeben."}), 400
+    ok = ignores.remove_ignore(key)
+    return jsonify({"ok": ok})
+
+
+@nas_api.route('/findings/ignored', methods=['GET'])
+def handle_api_findings_ignored():
+    """Liefert die Liste aller ignorierten Befund-Schlüssel."""
+    import gui.core.ignores as ignores
+    return jsonify({"ignored": sorted(ignores.get_ignored())})
+
+
