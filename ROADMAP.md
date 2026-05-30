@@ -11,7 +11,7 @@ angegangen werden.
 | 3 | KI-Cover- & Logo-Generierung (Gemini/OpenRouter) | geplant | mittel |
 | 4 | Selektiver Import für StreamFab-Downloads | geplant | klein |
 | 5 | Angleichung an Metadatendienst (NAS-Renaming-Tool) | geplant | mittel |
-| 6 | Emby-genaue Artwork-Prüfung (statt „irgendein Bild?") | geplant | klein |
+| 6 | Server-genaue Artwork-Prüfung (Emby/Jellyfin/Plex) | geplant | klein |
 
 ---
 
@@ -249,23 +249,27 @@ Da In-Place-Operationen auf einem NAS ein Risiko für Datenverlust bergen, müss
 
 ---
 
-## 6. Emby-genaue Artwork-Prüfung
+## 6. Server-genaue Artwork-Prüfung (Emby / Jellyfin / Plex)
 
 Aktuell prüft der Bibliotheks-Check nur „liegt **irgendein** Bild im Ordnerbaum?"
 (`_has_any_artwork` in `gui/core/health.py`, rekursiv). Das beseitigt Fehlalarme,
-sagt aber nichts darüber aus, ob die für Emby *relevanten* Artworks vorhanden und
-korrekt benannt sind.
+sagt aber nichts darüber aus, ob die für den genutzten Medienserver *relevanten*
+Artworks vorhanden und korrekt benannt sind.
 
 ### Ziel
-Differenzierte Meldungen pro Artwork-Typ, abgestimmt auf die Namens-Konventionen,
-die Emby automatisch erkennt — damit die Bibliothek in Emby vollständig und korrekt
-dargestellt wird.
+Differenzierte Meldungen pro Artwork-Typ, abgestimmt auf den **konfigurierten
+Medienserver**. In den Einstellungen wählt der Nutzer einmal seinen Server
+(Emby / Jellyfin / Plex); der Check validiert dann **exakt gegen dessen
+Konvention** — keine Fehlmeldung für Bildtypen, die der gewählte Server gar nicht
+verwendet (z. B. `clearlogo` bei Plex).
 
-### Emby-Konventionen (jeweils neben der Videodatei bzw. im Medienordner)
+### Konventionen je Server (jeweils neben der Videodatei bzw. im Medienordner)
+
+**Emby & Jellyfin** (Jellyfin ist ein Emby-Fork → identisch):
 
 | Bildtyp | Erkannte Dateinamen |
 |---|---|
-| Poster | `poster.jpg`, `folder.jpg`, `cover.jpg`, `<name>.jpg`, `movie.jpg` |
+| Poster | `poster.jpg`, `folder.jpg`, `cover.jpg`, `<name>.jpg`, `movie.jpg`, `default.jpg` |
 | Hintergrund (Fanart) | `fanart.jpg`, `backdrop.jpg`, `<name>-fanart.jpg` |
 | Logo | `clearlogo.png`, `logo.png` |
 | Banner | `banner.jpg` |
@@ -273,15 +277,31 @@ dargestellt wird.
 | Clearart | `clearart.png` |
 | Thumb | `thumb.jpg`, `landscape.jpg` |
 
+**Plex** (setzt aktivierten „Local Media Assets"-Agenten voraus; kennt nativ
+**kein** Logo/Clearart/Disc):
+
+| Bildtyp | Erkannte Dateinamen |
+|---|---|
+| Poster | `poster.jpg`, `folder.jpg`, `cover.jpg`, `<name>.jpg`, `movie.jpg`, `default.jpg`, `show.jpg` |
+| Hintergrund (Art) | `fanart.jpg`, `art.jpg`, `background.jpg`, `backdrop.jpg` |
+| Banner | `banner.jpg` |
+| Theme (optional) | `theme.mp3` |
+
 ### Umzusetzende Änderungen
+- **Settings:** neues Feld `media_server` (Default `"emby"`; Werte
+  `emby` | `jellyfin` | `plex`) in `gui/core/utils.py:load_settings()` + Auswahl in
+  der Settings-UI.
+- **Konventions-Tabelle** als Daten-Map im Code (pro Server: Bildtyp → Namensliste +
+  Severity). Emby und Jellyfin teilen sich denselben Eintrag.
 - `_has_any_artwork` zu einer typbewussten Prüfung erweitern (z. B.
-  `_artwork_status(path) -> {"poster": bool, "fanart": bool, ...}`), rekursiv,
-  Dateinamen case-insensitiv matchen.
-- Getrennte Issues mit passender Severity (z. B. fehlendes **Poster** = `warning`,
-  fehlendes Fanart/Logo = `info`), statt der einen Sammelmeldung „kein Artwork".
+  `_artwork_status(path, server) -> {"poster": bool, "fanart": bool, ...}`),
+  rekursiv, Dateinamen case-insensitiv, `<name>` = Stem der Videodatei.
+- Getrennte Issues mit passender Severity (fehlendes **Poster** = `warning`,
+  Fanart/Logo/Banner = `info`), statt der einen Sammelmeldung „kein Artwork".
+  Nur Bildtypen prüfen, die der gewählte Server kennt.
 - Für Serien zusätzlich season-/episodenbezogene Artworks erwägen
   (`season01-poster.jpg` etc.) — optional.
 
 ### Aufwand (grob)
-~0,5 Tag Backend + kleine Frontend-Anpassung der Issue-Anzeige. Klein, aber spürbar
-mehr Aussagekraft im Bibliotheks-Check.
+~0,5–1 Tag Backend (Konventions-Map + Setting + typbewusster Check) + kleine
+Frontend-Anpassung (Server-Auswahl in Settings, differenzierte Issue-Anzeige).
