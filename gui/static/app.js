@@ -5402,6 +5402,10 @@ async function loadDashboard() {
         const detailText = document.getElementById("nas-usage-detail-text");
         const pathText = document.getElementById("nas-usage-path-text");
 
+        // Label aufs aktive Speicherziel umstellen (NAS, Cloud, ... – je nach Fallback)
+        const storageLabel = document.getElementById("dashboard-storage-label");
+        if (storageLabel) storageLabel.textContent = (data.nas.name || "Speicher") + " Speicherbelegung";
+
         if (data.nas.available && data.nas.usage_unreliable) {
             // SMB-Netzlaufwerk: Belegung nicht zuverlässig messbar -> nur freien Platz zeigen
             if (circle) {
@@ -7995,6 +7999,8 @@ async function updateHomepageData(statusData) {
             const nasInfo = statsData.nas;
             const progress = document.getElementById("hero-nas-progress");
             const usageText = document.getElementById("hero-nas-usage-text");
+            const heroStorageLabel = document.getElementById("hero-storage-label");
+            if (heroStorageLabel && nasInfo) heroStorageLabel.textContent = (nasInfo.name || "Speicher") + " Speicherbelegung:";
             if (nasInfo && nasInfo.available && nasInfo.usage_unreliable) {
                 if (progress) progress.style.width = "0%";
                 if (usageText) {

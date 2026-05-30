@@ -269,6 +269,73 @@ def handle_api_system_open_folder():
 
 
 
+# Cache für rclone-about-Abfragen (Cloud-Speicher), um wiederholte Netzaufrufe zu vermeiden
+_rclone_about_cache = {}      # remote -> (timestamp, data|None)
+_RCLONE_ABOUT_TTL = 300       # 5 Minuten
+
+
+def _rclone_about(remote):
+    """Liefert {total,used,free} eines rclone-Remotes via 'rclone about --json' (gecacht)."""
+    now = time.time()
+    cached = _rclone_about_cache.get(remote)
+    if cached and now - cached[0] < _RCLONE_ABOUT_TTL:
+        return cached[1]
+    data = None
+    try:
+        out = subprocess.check_output(["rclone", "about", remote, "--json"], text=True, timeout=20)
+        parsed = json.loads(out)
+        if parsed.get("total"):
+            data = {"total": parsed.get("total"), "used": parsed.get("used"), "free": parsed.get("free")}
+    except Exception:
+        data = None
+    _rclone_about_cache[remote] = (now, data)
+    return data
+
+
+def _read_target_storage(target):
+    """Speicher-Infos eines Speicherziels.
+
+    Ist ein rclone_remote gesetzt -> Cloud-Ziel: zuverlässige Werte via 'rclone about'.
+    Sonst lokales/NAS-Ziel: shutil.disk_usage mit Netzlaufwerk-Guard (frei > gesamt
+    -> Belegung nicht verwertbar, nur freien Platz anzeigen).
+    """
+    info = {
+        "name": target.get("name", ""),
+        "type": target.get("type", ""),
+        "available": False,
+        "total": None, "used": None, "free": None, "used_percent": None,
+        "path": target.get("root_path", ""),
+    }
+    remote = (target.get("rclone_remote") or "").strip()
+    if remote:
+        about = _rclone_about(remote)
+        if about and about.get("total"):
+            info["available"] = True
+            info["path"] = remote
+            info["total"] = about["total"]
+            info["used"] = about.get("used")
+            info["free"] = about.get("free")
+            if about["total"] > 0 and about.get("used") is not None:
+                info["used_percent"] = round((about["used"] / about["total"]) * 100, 2)
+        return info
+
+    root_path = target.get("root_path")
+    if root_path and os.path.exists(root_path):
+        try:
+            usage = shutil.disk_usage(root_path)
+            info["available"] = True
+            info["total"] = usage.total
+            info["free"] = usage.free
+            if usage.free > usage.total or usage.used < 0:
+                info["usage_unreliable"] = True
+            else:
+                info["used"] = usage.used
+                info["used_percent"] = round((usage.used / usage.total) * 100, 2) if usage.total > 0 else 0.0
+        except Exception as e:
+            info["error"] = str(e)
+    return info
+
+
 @system_api.route('/stats', methods=['GET', 'POST'])
 def handle_api_stats():
     try:
@@ -278,37 +345,26 @@ def handle_api_stats():
     query = request.args
     try:
         settings = load_settings()
-        nas_root = settings.get("nas_root", "/Volumes/Kino")
-        
-        # NAS Storage Info
-        nas_info = {
-            "path": nas_root,
-            "total": 0,
-            "used": 0,
-            "free": 0,
-            "used_percent": 0.0,
-            "available": False
-        }
-        if os.path.exists(nas_root):
-            try:
-                usage = shutil.disk_usage(nas_root)
-                nas_info["total"] = usage.total
-                nas_info["free"] = usage.free
-                nas_info["available"] = True
-                # Netzlaufwerke (SMB) liefern via statvfs teils inkonsistente Werte
-                # (z. B. frei > gesamt -> negative Belegung). In dem Fall ist die
-                # Prozent-Belegung nicht verwertbar; wir zeigen nur den freien Platz.
-                if usage.free > usage.total or usage.used < 0:
-                    nas_info["usage_unreliable"] = True
-                    nas_info["used"] = None
-                    nas_info["used_percent"] = None
-                else:
-                    nas_info["used"] = usage.used
-                    nas_info["used_percent"] = round((usage.used / usage.total) * 100, 2) if usage.total > 0 else 0.0
-            except Exception as e:
-                nas_info["error"] = str(e)
-        else:
-            nas_info["error"] = "NAS Pfad existiert nicht oder ist nicht eingehängt."
+
+        # Aktives Speicherziel ermitteln: Speicherziele der Reihe nach durchgehen,
+        # das erste erreichbare gewinnt (Speicherziel 1 -> 2 -> 3 ... als Fallback).
+        # So funktioniert die Anzeige mit NAS, nur Cloud oder beidem.
+        targets = [t for t in settings.get("storage_targets", []) if t.get("enabled", True)]
+        nas_info = None
+        for target in targets:
+            candidate = _read_target_storage(target)
+            if candidate["available"]:
+                nas_info = candidate
+                break
+        if nas_info is None:
+            nas_info = {
+                "name": targets[0]["name"] if targets else "",
+                "type": targets[0].get("type", "") if targets else "",
+                "available": False,
+                "total": None, "used": None, "free": None, "used_percent": None,
+                "path": targets[0].get("root_path", "") if targets else "",
+                "error": "Kein Speicherziel verbunden.",
+            }
 
         # Conversion savings calculations
         history = load_konv_history()
