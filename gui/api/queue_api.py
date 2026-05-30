@@ -408,7 +408,8 @@ def handle_api_queue():
                 "progress": j["progress"],
                 "message": j["message"],
                 "timestamp": j["timestamp"],
-                "pipeline": j.get("pipeline")
+                "pipeline": j.get("pipeline"),
+                "project_name": j.get("params", {}).get("project_name", "")
             })
     jobs_list.sort(key=lambda x: x["timestamp"])
     return jsonify({"jobs": jobs_list})

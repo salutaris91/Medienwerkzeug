@@ -722,6 +722,27 @@ select:focus {
     font-weight: 600;
 }
 
+/* Distinct color highlight for the recursive inbox view using the theme's primary color */
+.project-item.active[data-project="__inbox_recursive__"] {
+    background: rgba(var(--primary-rgb), 0.08);
+    border-color: rgba(var(--primary-rgb), 0.15);
+    border-left-color: var(--primary);
+    color: var(--primary);
+    font-weight: 600;
+}
+
+/* Drag and Drop visual feedback styling */
+.project-item.dragging {
+    opacity: 0.45;
+    border: 1px dashed var(--accent) !important;
+}
+
+.project-item.drag-hover {
+    background: rgba(var(--accent-rgb), 0.2) !important;
+    border: 1px solid var(--accent) !important;
+    transform: scale(1.02) translateX(4px) !important;
+}
+
 /* Collapsible Sidebar Sections */
 .collapsible-section {
     margin-bottom: 25px;
@@ -1420,9 +1441,9 @@ select:focus {
 .master-detail-layout {
     display: flex;
     flex: none;
-    height: calc(100vh - 70px - var(--console-height, 40px) - 40px); /* header height + console height + layout margins */
+    height: calc(100vh - 70px - var(--console-height, 40px) - 52px); /* header height + console height + layout margins (32px top + 20px bottom) */
     overflow: hidden;
-    margin: 20px;
+    margin: 32px 20px 20px 20px;
     gap: 20px;
     transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1437,10 +1458,9 @@ select:focus {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
-    position: sticky;
-    top: 20px;
-    align-self: flex-start;
-    max-height: calc(100vh - var(--console-height, 40px) - 60px);
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
 }
 
 .master-sidebar h2 {
@@ -1465,7 +1485,12 @@ select:focus {
 .view-panel {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    min-height: 100%;
+    flex-shrink: 0;
+}
+
+.view-panel > * {
+    flex-shrink: 0;
 }
 
 .view-panel.hidden {
@@ -2181,34 +2206,7 @@ input[type="range"]::-moz-range-thumb:hover {
     margin-bottom: 30px;
 }
 
-/* Height-based media query to allow page scrolling when vertical space is constrained (e.g. browser zoom or low resolution) */
-@media (max-height: 800px) {
-    body {
-        height: auto !important;
-        min-height: 100vh;
-        overflow-y: auto !important;
-    }
-    
-    .master-detail-layout {
-        height: auto !important;
-        min-height: 550px;
-        margin-bottom: calc(var(--console-height, 40px) + 30px) !important;
-    }
-    
-    .master-sidebar {
-        position: sticky !important;
-        top: 90px !important; /* Unter dem klebrigen Header */
-        max-height: calc(100vh - 90px - var(--console-height, 40px) - 30px) !important;
-        overflow-y: auto !important;
-    }
-    
-    .detail-content {
-        height: auto !important;
-        max-height: none !important;
-        overflow-y: visible !important;
-        padding-bottom: 30px !important;
-    }
-}
+/* Note: Height-based media query removed to preserve modern fixed-height dashboard column scrolling. */
 
 /* Width-based media query to stack sidebar and content on smaller viewports */
 @media (max-width: 1024px) {
@@ -2312,7 +2310,7 @@ input[type="range"]::-moz-range-thumb:hover {
 
 .hero-action-box {
     display: flex;
-    max-width: 600px;
+    max-width: 750px;
     margin: 0 auto;
     gap: 12px;
     background: var(--bg-surface);
@@ -2570,4 +2568,9 @@ body.theme-superfood-light #queue-panel {
     background: rgba(255, 255, 255, 0.05) !important;
     border-color: var(--accent) !important;
     transform: translateY(-1px);
+}
+
+.spinning-icon {
+    display: inline-block;
+    animation: spin 1.5s linear infinite;
 }

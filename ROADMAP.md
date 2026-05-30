@@ -8,6 +8,8 @@ angegangen werden.
 |---|-------|--------|----------------|
 | 1 | Echtes Multi-Cloud (mehrere Cloud-Ziele gleichzeitig) | geplant | mittel |
 | 2 | Distribution & Bündelung (rclone/ffmpeg/yt-dlp mitliefern) | geplant | mittel–groß |
+| 3 | KI-Cover- & Logo-Generierung (Gemini/OpenRouter) | geplant | mittel |
+| 4 | Selektiver Import für StreamFab-Downloads | geplant | klein |
 
 ---
 
@@ -121,3 +123,60 @@ später in die UI einbetten, die Anmeldung bleibt aber pro Person.
 ### Aufwand (grob)
 Pragmatischer Einstieg (Weg B light): ~0,5–1 Tag. Volles signiertes Bundle (Weg A):
 mehrere Tage inkl. Build-Pipeline, Tool-Resolver und Notarisierung.
+
+---
+
+## 3. KI-Cover- & Logo-Generierung (Bilderstellung)
+
+Automatische Generierung von Postern, Fanart (Hintergründen) und transparenten Logos für Medien, zu denen es in den offiziellen Datenbanken (TMDb, TVDb) keine Einträge gibt (z. B. eigene Aufnahmen, seltene Dokumentationen oder YouTube-Downloadelemente).
+
+### Brainstorming & API-Vergleich
+Für die Bilderstellung stehen primär zwei flexible APIs zur Verfügung:
+
+1. **Gemini API (Imagen 3)**:
+   - **Vorteile**: Direkt über Googles Gemini-Infrastruktur nutzbar. Imagen 3 ist hervorragend darin, Text in Bildern korrekt zu rendern (essentiell für Filmtitel auf Postern). Sehr hohe Ästhetik und schnelle Reaktionszeit.
+   - **Nachteile**: Keine native Generierung von transparenten PNGs (muss per Post-Processing gelöst werden).
+2. **OpenRouter API (FLUX.1 / SD3)**:
+   - **Vorteile**: Zugriff auf FLUX.1 (Schnell/Dev/Pro), das aktuell weltbeste Bildmodell für Typografie (Schriftzug-Rendering) und Realismus. Teilweise sehr günstige oder kostenfreie Test-Modelle verfügbar.
+   - **Nachteile**: Zusätzlicher Account nötig; Latenz kann je nach Modell schwanken.
+
+### Technische Umsetzung (Stufenplan)
+
+#### 1. Backend-Modul (`gui/core/image_generator.py`)
+- Kapselung der API-Aufrufe (Gemini API Key / OpenRouter Key in `.env` laden).
+- **Poster (2:3)**: Standard-Auflösung 1000x1500 px. Prompt-Struktur: `Movie poster for [Title], [Genre], high quality, cinematic style, 2:3 aspect ratio`.
+- **Fanart (16:9)**: Standard-Auflösung 1920x1080 px (ohne Text). Prompt-Struktur: `Atmospheric background scene for [Title], movie landscape, high resolution, no text, 16:9 aspect ratio`.
+- **Clearlogo (Transparentes PNG)**:
+  - Generierung des Titelschriftzugs: `The text "[Title]" in a stylized, modern/clean movie title font, centered on a solid pitch-black background, high contrast, isolated`.
+  - **Post-Processing (Python/PIL)**: Ein kleines Skript konvertiert den schwarzen Hintergrund programmgesteuert in Transparenz (Alpha-Kanal Thresholding) und speichert das Ergebnis als transparentes `logo.png` (bzw. `clearlogo.png`).
+
+#### 2. Frontend-Integration
+- Wenn bei der Suche nach Filmen/Serien keine Ergebnisse gefunden werden (oder manuell gewählt), wird eine Option **🎨 Cover & Artworks generieren** eingeblendet.
+- Der Nutzer kann den Standard-Prompt per Freitext verfeinern (z. B. "Stil: Anime" oder "Stil: 80er Jahre Retro").
+- Nach Fertigstellung (ca. 5–15 Sek.) werden die Bilder in einer kleinen Vorschau-Galerie angezeigt und können per Haken für die Verarbeitung übernommen werden.
+
+### Aufwand (grob)
+Backend-Logik & Post-Processing ~1 Tag, Frontend-UI (Prompt-Eingabe, Galerie) ~1 Tag. Ein extrem lohnenswertes Feature für eine vollständig runde Medienbibliothek.
+
+---
+
+## 4. Selektiver Import für StreamFab-Downloads
+
+Ermöglicht es dem Benutzer, beim Importieren von Downloads (z. B. aus StreamFab) gezielt auszuwählen, welche Ordner/Dateien in die Inbox übernommen werden sollen, anstatt blind alle importierten Elemente zu verschieben.
+
+### Ziel
+Verhinderung des Imports von unerwünschten Begleitdateien (wie Logos, Postern, Trailern oder NFOs) oder das Zurücklassen bestimmter Download-Projekte in der Importquelle.
+
+### Technische Umsetzung (Stufenplan)
+1. **Import-Preview API:**
+   - Ein neuer API-Endpunkt `/api/streamfab/preview` scannt die konfigurierten `import_sources` und liefert eine Liste der gefundenen Projektordner und Einzeldateien zurück (analog zur Inbox-Struktur).
+2. **Benutzeroberfläche:**
+   - Beim Klick auf den Import-Button auf der Startseite (oder in der Navigationsleiste) öffnet sich ein Auswahldialog (Modal).
+   - In diesem Dialog werden alle importfähigen Projekte mit Checkboxen aufgelistet (standardmäßig alle ausgewählt).
+   - Der Benutzer kann einzelne Ordner oder unerwünschte Dateitypen (z. B. Bilder oder Begleitdateien) abwählen.
+3. **Selektiver Import-Prozess:**
+   - Der Post-Request `/api/streamfab-import` wird um einen Parameter `selected_items` erweitert.
+   - Der Backend-Worker verschiebt nur die vom Benutzer ausgewählten Dateien/Ordner in das Medien-Input-Verzeichnis.
+
+### Aufwand (grob)
+Backend-Logik & API ~0,5 Tage, Auswahldialog-UI ~0,5 Tage. Sehr nützlich, um die Inbox direkt beim Import sauber zu halten.

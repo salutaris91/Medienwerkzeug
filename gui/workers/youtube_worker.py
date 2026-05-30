@@ -40,7 +40,8 @@ def is_text_german(text, is_description=False, context_keywords=None):
     import re
     if not text:
         return False
-    text_lower = text.lower()
+    # Normalize phrases
+    text_lower = text.lower().replace("let's play", "letsplay").replace("let's plays", "letsplay")
     
     # 1. Check for German-specific characters
     if any(c in text_lower for c in ['ä', 'ö', 'ü', 'ß']):
@@ -51,7 +52,11 @@ def is_text_german(text, is_description=False, context_keywords=None):
         'deutsch', 'deutsche', 'deutscher', 'deutsches', 'hörbuch', 
         'schauspieler', 'kinderserie', 'kindheit', 'erinnerungen',
         'karmesin', 'purpur', 'schwert', 'schild', 'feuerrot', 'blattgrün',
-        'spieletipps', 'komplettlösung', 'spielvorstellung'
+        'spieletipps', 'komplettlösung', 'spielvorstellung', 'letsplay',
+        'gelb', 'blau', 'rot', 'grün', 'silber', 'gold', 'kristall', 
+        'smaragd', 'rubin', 'saphir', 'perl', 'diamant', 'platin', 
+        'schwarz', 'weiss', 'weiß', 'sonne', 'mond', 'arceus', 'karten', 
+        'karte', 'päckchen', 'sammlung', 'sammeln', 'öffnen', 'geöffnet'
     }
     
     words = re.findall(r'\b[a-z]+\b', text_lower)
