@@ -133,6 +133,23 @@ Unter dem Einstellungs-Tab **"Speicher & Sync"** kannst du beliebig viele Speich
    rclone listremotes
    ```
    Trage den ausgegebenen Namen (z. B. `pcloud:`) in das Einstellungs-Dashboard des Medienwerkzeugs ein.
+4. **Verbindung testen (optional):**
+   ```bash
+   rclone about pcloud:
+   ```
+   Gibt das Speicher-Kontingent (gesamt/belegt/frei) zurück. Genau diese Abfrage nutzt
+   auch das Dashboard, um die Speicherbelegung eines Cloud-Ziels anzuzeigen.
+
+> **Beliebiger Anbieter:** Es ist **kein** anbieterspezifischer Code nötig – der Cloud-Dienst
+> wird allein durch das `rclone-Remote` bestimmt. Für Google Drive trägst du z. B. `gdrive:`
+> ein, für OneDrive `onedrive:` usw. Anzeige und Verarbeitungs-Schalter übernehmen automatisch
+> den Namen des Speicherziels (z. B. „Auch in Google Drive sichern").
+>
+> **Mehrere Clouds gleichzeitig** (unabhängig schaltbar) sind noch nicht umgesetzt – siehe
+> [`MULTICLOUD_PLAN.md`](MULTICLOUD_PLAN.md).
+>
+> 💡 In den Einstellungen unter **„Speicher & Sync"** gibt es neben der Erklärung ein
+> **❓-Symbol**, das beim Drüberfahren eine rclone-Kurzanleitung einblendet.
 
 ---
 
