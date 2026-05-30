@@ -5613,9 +5613,11 @@ async function loadSettings() {
             if (!currentSettings.import_sources) currentSettings.import_sources = [];
             if (!currentSettings.sync_categories) currentSettings.sync_categories = [];
             if (!currentSettings.local_download_folders) currentSettings.local_download_folders = [];
+            if (!currentSettings.storage_targets) currentSettings.storage_targets = [];
             renderImportSources();
             renderLocalFolders();
             renderSyncCategories();
+            renderStorageTargets();
             updateDestinationDropdowns();
             
             checkDependencies(false);
@@ -5765,6 +5767,268 @@ function setupDestinationToggles() {
             checkbox.addEventListener("change", updateVisibility);
             updateVisibility();
         }
+    });
+}
+
+function renderStorageTargets() {
+    const container = document.getElementById("settings-storage-targets-container");
+    if (!container) return;
+    container.innerHTML = "";
+    
+    if (!currentSettings.storage_targets) currentSettings.storage_targets = [];
+    
+    currentSettings.storage_targets.forEach((target, index) => {
+        const card = document.createElement("div");
+        card.className = "clean-group-container";
+        card.style.marginBottom = "15px";
+        card.style.padding = "15px";
+        card.style.background = "rgba(255, 255, 255, 0.02)";
+        card.style.border = "1px solid var(--border-glass)";
+        card.style.borderRadius = "var(--radius-md)";
+        card.style.position = "relative";
+        
+        // Title row with ID/Type and delete button
+        const titleRow = document.createElement("div");
+        titleRow.style.display = "flex";
+        titleRow.style.justifyContent = "space-between";
+        titleRow.style.alignItems = "center";
+        titleRow.style.marginBottom = "12px";
+        
+        const titleText = document.createElement("h4");
+        titleText.style.margin = "0";
+        titleText.style.fontSize = "13px";
+        titleText.style.color = "var(--accent)";
+        titleText.style.textTransform = "uppercase";
+        titleText.textContent = `Ziel: ${target.name || target.id}`;
+        
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "btn btn-danger btn-xs";
+        deleteBtn.textContent = "❌ Ziel entfernen";
+        deleteBtn.onclick = (e) => {
+            e.preventDefault();
+            if (confirm(`Möchtest du das Speicherziel "${target.name || target.id}" wirklich entfernen?`)) {
+                currentSettings.storage_targets.splice(index, 1);
+                renderStorageTargets();
+            }
+        };
+        
+        titleRow.appendChild(titleText);
+        // Only allow deletion for custom targets (keep nas and pcloud)
+        if (target.id !== "nas" && target.id !== "pcloud") {
+            titleRow.appendChild(deleteBtn);
+        }
+        card.appendChild(titleRow);
+        
+        // Form layout grid
+        const grid = document.createElement("div");
+        grid.style.display = "grid";
+        grid.style.gridTemplateColumns = "repeat(auto-fit, minmax(200px, 1fr))";
+        grid.style.gap = "12px";
+        grid.style.marginBottom = "10px";
+        
+        // Helper to create form controls
+        const createField = (labelText, value, placeholder, onchange) => {
+            const wrap = document.createElement("div");
+            wrap.style.display = "flex";
+            wrap.style.flexDirection = "column";
+            wrap.style.gap = "4px";
+            
+            const label = document.createElement("label");
+            label.style.fontSize = "11px";
+            label.style.color = "var(--text-muted)";
+            label.textContent = labelText;
+            
+            const input = document.createElement("input");
+            input.type = "text";
+            input.className = "form-select";
+            input.style.padding = "8px 12px";
+            input.style.fontSize = "12px";
+            input.style.border = "1px solid var(--border-glass)";
+            input.style.background = "var(--bg-surface)";
+            input.style.color = "var(--text-main)";
+            input.placeholder = placeholder;
+            input.value = value || "";
+            input.addEventListener("input", (e) => onchange(e.target.value));
+            
+            wrap.appendChild(label);
+            wrap.appendChild(input);
+            return { wrap, input };
+        };
+        
+        // Name field
+        const nameField = createField("Name des Speicherziels:", target.name, "z.B. NAS Filme", (val) => {
+            target.name = val;
+            titleText.textContent = `Ziel: ${val || target.id}`;
+        });
+        grid.appendChild(nameField.wrap);
+        
+        // ID field (locked for default ones, editable for custom ones)
+        const idField = createField("Eindeutige ID (Schlüssel):", target.id, "z.B. nas_dokus", (val) => {
+            target.id = val.toLowerCase().replace(/[^a-z0-9_]/g, "");
+            idField.input.value = target.id;
+        });
+        if (target.id === "nas" || target.id === "pcloud") {
+            idField.input.disabled = true;
+            idField.input.style.opacity = "0.5";
+            idField.input.title = "Standard-IDs können nicht umbenannt werden.";
+        }
+        grid.appendChild(idField.wrap);
+        
+        // Type select
+        const typeWrap = document.createElement("div");
+        typeWrap.style.display = "flex";
+        typeWrap.style.flexDirection = "column";
+        typeWrap.style.gap = "4px";
+        const typeLabel = document.createElement("label");
+        typeLabel.style.fontSize = "11px";
+        typeLabel.style.color = "var(--text-muted)";
+        typeLabel.textContent = "Typ des Speichers:";
+        const typeSelect = document.createElement("select");
+        typeSelect.className = "form-select";
+        typeSelect.style.padding = "8px 12px";
+        typeSelect.style.fontSize = "12px";
+        typeSelect.style.border = "1px solid var(--border-glass)";
+        typeSelect.style.background = "var(--bg-surface)";
+        typeSelect.style.color = "var(--text-main)";
+        typeSelect.innerHTML = `
+            <option value="nas" ${target.type === "nas" ? "selected" : ""}>NAS (Netzwerkordner)</option>
+            <option value="pcloud" ${target.type === "pcloud" ? "selected" : ""}>pCloud (Cloud)</option>
+            <option value="cloud" ${target.type === "cloud" && target.id !== "pcloud" ? "selected" : ""}>Sonstige Cloud (rclone)</option>
+        `;
+        if (target.id === "nas" || target.id === "pcloud") {
+            typeSelect.disabled = true;
+            typeSelect.style.opacity = "0.5";
+        }
+        typeSelect.addEventListener("change", (e) => {
+            target.type = e.target.value;
+            renderStorageTargets(); // Re-render to show/hide SMB settings
+        });
+        typeWrap.appendChild(typeLabel);
+        typeWrap.appendChild(typeSelect);
+        grid.appendChild(typeWrap);
+        
+        // Enabled checkbox
+        const enabledWrap = document.createElement("div");
+        enabledWrap.style.display = "flex";
+        enabledWrap.style.alignItems = "center";
+        enabledWrap.style.gap = "8px";
+        enabledWrap.style.marginTop = "15px";
+        
+        const enabledCheckbox = document.createElement("input");
+        enabledCheckbox.type = "checkbox";
+        enabledCheckbox.id = `target-enabled-${index}`;
+        enabledCheckbox.checked = target.enabled !== false;
+        enabledCheckbox.style.width = "16px";
+        enabledCheckbox.style.height = "16px";
+        enabledCheckbox.style.accentColor = "var(--accent)";
+        enabledCheckbox.addEventListener("change", (e) => {
+            target.enabled = e.target.checked;
+        });
+        
+        const enabledLabel = document.createElement("label");
+        enabledLabel.htmlFor = `target-enabled-${index}`;
+        enabledLabel.style.fontSize = "12px";
+        enabledLabel.style.cursor = "pointer";
+        enabledLabel.textContent = "Aktiviert (für Synchronisierung nutzen)";
+        
+        enabledWrap.appendChild(enabledCheckbox);
+        enabledWrap.appendChild(enabledLabel);
+        grid.appendChild(enabledWrap);
+        
+        card.appendChild(grid);
+        
+        // Local path field with Browse button
+        const pathLabel = document.createElement("label");
+        pathLabel.style.fontSize = "11px";
+        pathLabel.style.color = "var(--text-muted)";
+        pathLabel.style.display = "block";
+        pathLabel.style.marginBottom = "4px";
+        pathLabel.textContent = "Lokal-Pfad (Wurzelverzeichnis auf dem Mac):";
+        card.appendChild(pathLabel);
+        
+        const pathRow = document.createElement("div");
+        pathRow.style.display = "flex";
+        pathRow.style.gap = "8px";
+        pathRow.style.marginBottom = "12px";
+        
+        const pathInput = document.createElement("input");
+        pathInput.type = "text";
+        pathInput.className = "form-select";
+        pathInput.style.flex = "1";
+        pathInput.style.padding = "8px 12px";
+        pathInput.style.fontSize = "12px";
+        pathInput.style.border = "1px solid var(--border-glass)";
+        pathInput.style.background = "var(--bg-surface)";
+        pathInput.style.color = "var(--text-main)";
+        pathInput.placeholder = "z.B. /Volumes/Kino oder /Users/alex/pCloud Drive";
+        pathInput.value = target.root_path || "";
+        pathInput.addEventListener("input", (e) => {
+            target.root_path = e.target.value;
+        });
+        
+        const browseBtn = document.createElement("button");
+        browseBtn.className = "btn btn-secondary btn-sm";
+        browseBtn.textContent = "🔍";
+        browseBtn.onclick = async (e) => {
+            e.preventDefault();
+            try {
+                const response = await fetch("/api/browse-folder");
+                const data = await response.json();
+                if (data.path) {
+                    pathInput.value = data.path;
+                    target.root_path = data.path;
+                }
+            } catch (err) {
+                console.error("Browse error:", err);
+            }
+        };
+        
+        pathRow.appendChild(pathInput);
+        pathRow.appendChild(browseBtn);
+        card.appendChild(pathRow);
+        
+        // rclone remote field
+        const rcloneField = createField("rclone Remote Name (Optional für Cloud-Fallbacks):", target.rclone_remote, "z.B. pcloud: oder gdrive:", (val) => {
+            target.rclone_remote = val;
+        });
+        rcloneField.wrap.style.marginBottom = "12px";
+        card.appendChild(rcloneField.wrap);
+        
+        // If type is NAS, show SMB settings
+        if (target.type === "nas") {
+            const smbTitle = document.createElement("div");
+            smbTitle.style.fontSize = "11px";
+            smbTitle.style.fontWeight = "bold";
+            smbTitle.style.color = "var(--accent)";
+            smbTitle.style.marginTop = "15px";
+            smbTitle.style.marginBottom = "8px";
+            smbTitle.style.borderBottom = "1px solid rgba(255,255,255,0.05)";
+            smbTitle.style.paddingBottom = "4px";
+            smbTitle.textContent = "🌐 SMB-Netzwerk-Mounting Details (nur NAS)";
+            card.appendChild(smbTitle);
+            
+            const smbGrid = document.createElement("div");
+            smbGrid.style.display = "grid";
+            smbGrid.style.gridTemplateColumns = "repeat(auto-fit, minmax(150px, 1fr))";
+            smbGrid.style.gap = "10px";
+            
+            const ipField = createField("Lokale NAS-IP:", target.nas_ip, "z.B. 192.168.2.208", (val) => {
+                target.nas_ip = val;
+            });
+            const backupIpField = createField("Backup-/Tailscale-IP:", target.nas_ip_backup, "z.B. 100.74.187.125", (val) => {
+                target.nas_ip_backup = val;
+            });
+            const shareField = createField("SMB Share-Name:", target.nas_share, "z.B. Kino", (val) => {
+                target.nas_share = val;
+            });
+            
+            smbGrid.appendChild(ipField.wrap);
+            smbGrid.appendChild(backupIpField.wrap);
+            smbGrid.appendChild(shareField.wrap);
+            card.appendChild(smbGrid);
+        }
+        
+        container.appendChild(card);
     });
 }
 
@@ -6043,7 +6307,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 
                 import_sources: currentSettings.import_sources.filter(s => s.trim() !== ""),
                 sync_categories: currentSettings.sync_categories.filter(c => c.id.trim() !== "" && c.name.trim() !== ""),
-                local_download_folders: (currentSettings.local_download_folders || []).filter(f => f.path && f.path.trim() !== "")
+                local_download_folders: (currentSettings.local_download_folders || []).filter(f => f.path && f.path.trim() !== ""),
+                storage_targets: (currentSettings.storage_targets || []).filter(t => t.id && t.id.trim() !== "")
             };
             
             try {
@@ -6137,11 +6402,60 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // Storage Targets Help Modal
+    const btnStorageHelp = document.getElementById("btn-storage-help");
+    const linkRcloneSetup = document.getElementById("link-rclone-setup");
+    const storageHelpModal = document.getElementById("storage-help-modal");
+    const btnCloseStorageHelp = document.getElementById("btn-close-storage-help");
+    const btnCloseStorageHelpOk = document.getElementById("btn-close-storage-help-ok");
+    
+    const openStorageHelp = () => {
+        if (storageHelpModal) {
+            storageHelpModal.classList.remove("hidden");
+            setTimeout(() => {
+                storageHelpModal.style.opacity = "1";
+                storageHelpModal.style.pointerEvents = "auto";
+            }, 10);
+        }
+    };
+    
+    const closeStorageHelp = () => {
+        if (storageHelpModal) {
+            storageHelpModal.style.opacity = "0";
+            storageHelpModal.style.pointerEvents = "none";
+            setTimeout(() => {
+                storageHelpModal.classList.add("hidden");
+            }, 300);
+        }
+    };
+    
+    if (btnStorageHelp) btnStorageHelp.addEventListener("click", openStorageHelp);
+    if (linkRcloneSetup) linkRcloneSetup.addEventListener("click", openStorageHelp);
+    if (btnCloseStorageHelp) btnCloseStorageHelp.addEventListener("click", closeStorageHelp);
+    if (btnCloseStorageHelpOk) btnCloseStorageHelpOk.addEventListener("click", closeStorageHelp);
+
     const btnAddSource = document.getElementById("btn-settings-add-source");
     if(btnAddSource) {
         btnAddSource.addEventListener("click", () => {
             currentSettings.import_sources.push("");
             renderImportSources();
+        });
+    }
+
+    const btnAddTarget = document.getElementById("btn-settings-add-target");
+    if(btnAddTarget) {
+        btnAddTarget.addEventListener("click", () => {
+            if (!currentSettings.storage_targets) currentSettings.storage_targets = [];
+            const newId = "target_" + Date.now();
+            currentSettings.storage_targets.push({
+                id: newId,
+                name: "Neues Speicherziel",
+                type: "cloud",
+                root_path: "",
+                rclone_remote: "",
+                enabled: true
+            });
+            renderStorageTargets();
         });
     }
 
