@@ -11,6 +11,7 @@ angegangen werden.
 | 3 | KI-Cover- & Logo-Generierung (Gemini/OpenRouter) | geplant | mittel |
 | 4 | Selektiver Import für StreamFab-Downloads | geplant | klein |
 | 5 | Angleichung an Metadatendienst (NAS-Renaming-Tool) | geplant | mittel |
+| 6 | Emby-genaue Artwork-Prüfung (statt „irgendein Bild?") | geplant | klein |
 
 ---
 
@@ -245,3 +246,42 @@ Da In-Place-Operationen auf einem NAS ein Risiko für Datenverlust bergen, müss
 - **Frontend-UI (Vorschau-Tabelle, Badges, Fortschrittsbalken, Rollback-Button)**: ~1,5 Tage.
 - **Sicherheits-Validierung & Tests**: ~0,5 Tage.
 - **Gesamtaufwand**: ~4,5 Tage (Mittel).
+
+---
+
+## 6. Emby-genaue Artwork-Prüfung
+
+Aktuell prüft der Bibliotheks-Check nur „liegt **irgendein** Bild im Ordnerbaum?"
+(`_has_any_artwork` in `gui/core/health.py`, rekursiv). Das beseitigt Fehlalarme,
+sagt aber nichts darüber aus, ob die für Emby *relevanten* Artworks vorhanden und
+korrekt benannt sind.
+
+### Ziel
+Differenzierte Meldungen pro Artwork-Typ, abgestimmt auf die Namens-Konventionen,
+die Emby automatisch erkennt — damit die Bibliothek in Emby vollständig und korrekt
+dargestellt wird.
+
+### Emby-Konventionen (jeweils neben der Videodatei bzw. im Medienordner)
+
+| Bildtyp | Erkannte Dateinamen |
+|---|---|
+| Poster | `poster.jpg`, `folder.jpg`, `cover.jpg`, `<name>.jpg`, `movie.jpg` |
+| Hintergrund (Fanart) | `fanart.jpg`, `backdrop.jpg`, `<name>-fanart.jpg` |
+| Logo | `clearlogo.png`, `logo.png` |
+| Banner | `banner.jpg` |
+| Disc | `discart.png`, `disc.png` |
+| Clearart | `clearart.png` |
+| Thumb | `thumb.jpg`, `landscape.jpg` |
+
+### Umzusetzende Änderungen
+- `_has_any_artwork` zu einer typbewussten Prüfung erweitern (z. B.
+  `_artwork_status(path) -> {"poster": bool, "fanart": bool, ...}`), rekursiv,
+  Dateinamen case-insensitiv matchen.
+- Getrennte Issues mit passender Severity (z. B. fehlendes **Poster** = `warning`,
+  fehlendes Fanart/Logo = `info`), statt der einen Sammelmeldung „kein Artwork".
+- Für Serien zusätzlich season-/episodenbezogene Artworks erwägen
+  (`season01-poster.jpg` etc.) — optional.
+
+### Aufwand (grob)
+~0,5 Tag Backend + kleine Frontend-Anpassung der Issue-Anzeige. Klein, aber spürbar
+mehr Aussagekraft im Bibliotheks-Check.
