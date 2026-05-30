@@ -12,6 +12,7 @@ let fetchedEpisodeMetadataCache = {}; // caches fetched episode metadata: provid
 let eventSource = null;
 let isManualMovieMode = false;
 let isManualSeriesMode = false;
+let allLocalProfiles = [];
 
 // YouTube Downloader states
 let ytFetchedInfo = null;
@@ -987,6 +988,15 @@ function selectProject(projectName) {
     
     window.nasFolderSelected = null;
     window.ytNasFolderSelected = null;
+    
+    // Reset local profile search
+    const profileSearchInput = document.getElementById("series-local-profile-search");
+    if (profileSearchInput) {
+        profileSearchInput.value = "";
+    }
+    if (typeof allLocalProfiles !== "undefined") {
+        renderLocalProfilesDropdown(allLocalProfiles);
+    }
     
     // Reset manual mode variables
     isManualMovieMode = false;
@@ -4348,10 +4358,12 @@ async function cleanCurrentProject() {
             const isJunk = ['txt', 'url', 'exe', 'ds_store', 'nfo', 'jpg', 'png'].includes(ext);
             
             const groupDiv = document.createElement("div");
+            groupDiv.className = "clean-group-container";
             groupDiv.style.marginBottom = "10px";
             groupDiv.innerHTML = `
-                <div style="font-size:12px; font-weight:bold; color:var(--accent); text-transform:uppercase; margin-bottom:5px;">
-                    Dateityp: .${ext} <span style="color:var(--text-muted); font-weight:normal;">(${files.length} Dateien)</span>
+                <div style="font-size:12px; font-weight:bold; color:var(--accent); text-transform:uppercase; margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
+                    <span>Dateityp: .${ext} <span style="color:var(--text-muted); font-weight:normal;">(${files.length} Dateien)</span></span>
+                    <span class="group-select-toggle" data-ext="${ext}" style="font-size:10px; color:var(--text-muted); text-transform:none; font-weight:normal; cursor:pointer; text-decoration:underline;">Alle aus-/abwählen</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:5px; padding-left:10px; border-left:2px solid rgba(255,255,255,0.05);">
                     ${files.map(f => `
@@ -4451,10 +4463,12 @@ async function runToolClean(path) {
             const isJunk = ['txt', 'url', 'exe', 'ds_store', 'nfo', 'jpg', 'png'].includes(ext);
             
             const groupDiv = document.createElement("div");
+            groupDiv.className = "clean-group-container";
             groupDiv.style.marginBottom = "10px";
             groupDiv.innerHTML = `
-                <div style="font-size:12px; font-weight:bold; color:var(--accent); text-transform:uppercase; margin-bottom:5px;">
-                    Dateityp: .${ext} <span style="color:var(--text-muted); font-weight:normal;">(${files.length} Dateien)</span>
+                <div style="font-size:12px; font-weight:bold; color:var(--accent); text-transform:uppercase; margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
+                    <span>Dateityp: .${ext} <span style="color:var(--text-muted); font-weight:normal;">(${files.length} Dateien)</span></span>
+                    <span class="group-select-toggle" data-ext="${ext}" style="font-size:10px; color:var(--text-muted); text-transform:none; font-weight:normal; cursor:pointer; text-decoration:underline;">Alle aus-/abwählen</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:5px; padding-left:10px; border-left:2px solid rgba(255,255,255,0.05);">
                     ${files.map(f => `
@@ -4766,6 +4780,21 @@ function initEventListeners() {
     // Refresh & Clean
     document.getElementById("btn-scan-project").addEventListener("click", () => scanProject(currentProject));
     document.getElementById("btn-clean-project").addEventListener("click", cleanCurrentProject);
+    
+    const cleanList = document.getElementById("clean-list");
+    if (cleanList) {
+        cleanList.addEventListener("click", (e) => {
+            const toggle = e.target.closest(".group-select-toggle");
+            if (toggle) {
+                const groupContainer = toggle.closest(".clean-group-container");
+                if (groupContainer) {
+                    const checkboxes = groupContainer.querySelectorAll(".clean-cb-item");
+                    const anyUnchecked = Array.from(checkboxes).some(cb => !cb.checked);
+                    checkboxes.forEach(cb => cb.checked = anyUnchecked);
+                }
+            }
+        });
+    }
     
     // Import StreamFab
     document.getElementById("btn-streamfab-import").addEventListener("click", async () => {
@@ -8156,7 +8185,7 @@ async function populateLocalProfilesDropdown() {
         const res = await fetch("/api/profiles");
         const data = await res.json();
         
-        let html = "<option value=\"\">-- Lokales Profil wählen --</option>";
+        allLocalProfiles = [];
         if (data.profiles && data.profiles.length > 0) {
             // Sort by show name
             data.profiles.sort((a, b) => {
@@ -8169,13 +8198,25 @@ async function populateLocalProfilesDropdown() {
                 const displayName = p.data.show_name || p.filename.replace(".json", "");
                 p.data.show_name = displayName;
                 p.data.filename = p.filename;
-                html += `<option value=\u0027${JSON.stringify(p.data).replace(/\u0027/g, "&#39;")}\u0027>${displayName}</option>`;
+                allLocalProfiles.push(p.data);
             });
         }
-        select.innerHTML = html;
+        
+        renderLocalProfilesDropdown(allLocalProfiles);
     } catch (e) {
         console.error("Fehler beim Laden lokaler Profile:", e);
     }
+}
+
+function renderLocalProfilesDropdown(profiles) {
+    const select = document.getElementById("series-local-profile-select");
+    if (!select) return;
+    
+    let html = "<option value=\"\">-- Lokales Profil wählen --</option>";
+    profiles.forEach(p => {
+        html += `<option value='${JSON.stringify(p).replace(/'/g, "&#39;")}' data-name="${p.show_name.toLowerCase()}">${p.show_name}</option>`;
+    });
+    select.innerHTML = html;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -8203,6 +8244,39 @@ document.addEventListener("DOMContentLoaded", () => {
             } catch(err) {
                 console.error("Fehler beim Profil-Auswählen", err);
             }
+        });
+    }
+    
+    // Fuzzy-Suche für Profile
+    const searchInput = document.getElementById("series-local-profile-search");
+    if (searchInput) {
+        searchInput.addEventListener("input", (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            if (!query) {
+                renderLocalProfilesDropdown(allLocalProfiles);
+                return;
+            }
+            
+            // Fuzzy match helper: true if all query characters appear in string in relative order
+            const fuzzyMatch = (str, q) => {
+                str = str.toLowerCase();
+                if (str.includes(q)) return true;
+                let qIdx = 0;
+                for (let i = 0; i < str.length; i++) {
+                    if (str[i] === q[qIdx]) {
+                        qIdx++;
+                    }
+                    if (qIdx === q.length) return true;
+                }
+                return false;
+            };
+            
+            const filtered = allLocalProfiles.filter(p => {
+                const displayName = p.show_name || "";
+                return fuzzyMatch(displayName, query);
+            });
+            
+            renderLocalProfilesDropdown(filtered);
         });
     }
 });
