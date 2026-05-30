@@ -5206,28 +5206,7 @@ function initEventListeners() {
     });
 
     // Welcome Dashboard Hero/Card Listeners
-    const cardHeroInbox = document.getElementById("card-hero-inbox");
-    if (cardHeroInbox) {
-        cardHeroInbox.addEventListener("click", () => {
-            // Toggle project folders section collapse/expand smoothly
-            const sec = document.getElementById("section-project-folders");
-            if (sec && typeof sec.toggleSection === "function") {
-                sec.toggleSection();
-            }
-            
-            // Accompany opening/closing with the pulsating glow animation on sidebar
-            const sidebar = document.querySelector(".master-sidebar");
-            if (sidebar) {
-                sidebar.classList.remove("sidebar-highlight");
-                // Force reflow
-                sidebar.offsetHeight; 
-                sidebar.classList.add("sidebar-highlight");
-                setTimeout(() => {
-                    sidebar.classList.remove("sidebar-highlight");
-                }, 2500); // extends highlight to cover the slower transition
-            }
-        });
-    }
+    // (Die frühere "Inbox & Projekte"-Kachel wurde durch die Smart Inbox ersetzt.)
 
     const cardHeroAbos = document.getElementById("card-hero-abos");
     if (cardHeroAbos) {
@@ -7924,12 +7903,7 @@ async function updateHomepageData(statusData) {
         }
     }
 
-    // 1. Projects Count / Inbox Status
-    const inboxText = document.getElementById("hero-inbox-status-text");
-    if (inboxText) {
-        const count = statusData.projects ? statusData.projects.length : 0;
-        inboxText.textContent = count === 0 ? "Keine Projekte in Bearbeitung" : `${count} Projekt(e) in Bearbeitung`;
-    }
+    // 1. (Inbox-Status wird jetzt von der Smart Inbox abgedeckt)
 
     // 2. NAS Badge
     const nasBadge = document.getElementById("hero-nas-badge");
@@ -8094,7 +8068,13 @@ async function updateHomepageData(statusData) {
                     smartInboxList.appendChild(itemDiv);
                 });
             } else {
-                cardSmartInbox.style.display = "none";
+                // Leer-Zustand: Karte bleibt sichtbar (ersetzt die frühere "Inbox & Projekte"-Kachel).
+                // Falls Ordner ohne erkennbares Video in der Inbox liegen, das transparent machen.
+                const folderCount = statusData.projects ? statusData.projects.length : 0;
+                const emptyMsg = folderCount > 0
+                    ? `${folderCount} Ordner in der Inbox, aber keine verarbeitbaren Projekte erkannt (keine Videodateien gefunden).`
+                    : "Keine Projekte in der Inbox.";
+                smartInboxList.innerHTML = `<p class="text-muted" style="margin: 4px 0;">${escapeHTML(emptyMsg)}</p>`;
             }
         }
     } catch (e) {

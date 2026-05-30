@@ -155,8 +155,8 @@
                 
                 <!-- Quick Stats Grid -->
 
-                <!-- Feature 1: Smart Inbox -->
-                <div class="card" id="card-smart-inbox" style="display: none; margin-bottom: 24px;">
+                <!-- Feature 1: Smart Inbox (ersetzt die frühere "Inbox & Projekte"-Kachel) -->
+                <div class="card" id="card-smart-inbox" style="margin-bottom: 24px;">
                     <div class="card-hero-header">
                         <span class="card-icon">🧠</span>
                         <h3 style="margin:0;">Erkannte Projekte in der Inbox</h3>
@@ -164,19 +164,7 @@
                     <div id="smart-inbox-list" style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px;"></div>
                 </div>
                 <div class="grid-2col inline-style-11" >
-                    <!-- Left: Inbox & Project Status -->
-                    <div class="card interactive-card cursor-pointer" id="card-hero-inbox" >
-                        <div class="card-hero-header">
-                            <span class="card-icon">📥</span>
-                            <h3>Inbox & Projekte</h3>
-                        </div>
-                        <p class="card-hero-text">Kein Projekt ausgewählt. Wähle links einen Ordner aus der Inbox, um ihn zu verarbeiten.</p>
-                        <div class="card-hero-footer" id="hero-inbox-status-text" aria-live="polite">
-                            Lade Inbox-Status...
-                        </div>
-                    </div>
-                    
-                    <!-- Right: System & Connections -->
+                    <!-- Empfohlene Einstellungen (Conversion Intelligence) -->
                                         <div class="card" id="dashboard-intelligence">
                         <div class="card-hero-header">
                             <span class="card-icon">🧠</span>
@@ -1694,7 +1682,7 @@
     </div>
 </div>
 
-    <script src="app.js?v=41"></script>
+    <script src="app.js?v=42"></script>
 
     <!-- Modal: Profiles -->
     <div id="modal-profiles" class="mw-modal-overlay">
