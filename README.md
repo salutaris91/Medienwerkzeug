@@ -96,7 +96,38 @@ Pfade und Synchronisationseinstellungen werden in `gui/settings.json` verwaltet 
 * **outbox_dir:** Pfad zum Ordner `Medien Output`.
 * **nas_root:** Mount-Pfad des NAS (z. B. `/Volumes/Kino`).
 * **import_sources:** Liste von Pfaden, aus denen fertige Medien automatisch gesammelt in die Inbox importiert werden (z. B. StreamFab, JDownloader).
-* **sync_categories:** Zuordnungen von Metadaten-Kategorien zu Unterpfaden auf dem NAS und pCloud-Ordnern.
+* **storage_targets:** Dynamisch verwaltete Speicherziele für NAS und Cloud-Dienste.
+* **sync_categories:** Zuordnungen von Metadaten-Kategorien zu Unterpfaden auf deinen Speicherzielen.
+
+### 3. Speicherziele & rclone Setup
+
+Unter dem Einstellungs-Tab **"Speicher & Sync"** kannst du beliebig viele Speicherziele konfigurieren (z. B. dein lokales NAS oder Cloud-Anbieter wie pCloud, Google Drive etc.).
+
+#### Was bedeuten die Felder?
+* **Lokal-Pfad (Wurzelverzeichnis):** Der Pfad auf deinem Mac, unter dem das Speicherziel erreichbar ist (z. B. `/Volumes/Kino` für dein NAS oder `/Users/alex/pCloud Drive` für pCloud). Das Tool kopiert bevorzugt mit `rsync` an diesen lokalen Mount-Pfad.
+* **rclone Remote (Optional):** Der Name der Verbindung in deiner rclone-Konfiguration (z. B. `pcloud:`). Dies dient als **automatisches Fallback**: Ist der lokale Mountpfad offline (weil die Sync-App geschlossen ist), lädt das Backend die Dateien per rclone direkt in die Cloud hoch.
+* **SMB Details (nur NAS):** Konfiguration der lokalen IP-Adresse, der Backup-/Tailscale-IP und des SMB-Share-Namens zur automatischen Netzwerk-Mounting-Logik.
+
+#### rclone konfigurieren (Kurzanleitung)
+1. **Installation:** Falls nicht installiert, installiere rclone über Homebrew im macOS Terminal:
+   ```bash
+   brew install rclone
+   ```
+2. **Einrichten eines neuen Remotes:**
+   Führe im Terminal folgenden Befehl aus und folge dem interaktiven Assistenten:
+   ```bash
+   rclone config
+   ```
+   * Drücke `n` für "New remote".
+   * Wähle einen Wunschnamen (z. B. `pcloud`). **Diesen Namen trägst du später in das Feld `rclone Remote` ein** (als `pcloud:`).
+   * Wähle die Nummer für deinen Cloud-Speicher (z. B. `pcloud` oder `google drive`).
+   * Folge den Anweisungen zur Browser-Authentifizierung.
+3. **Verbindung prüfen:**
+   Liste deine konfigurierten Remotes im Terminal auf:
+   ```bash
+   rclone listremotes
+   ```
+   Trage den ausgegebenen Namen (z. B. `pcloud:`) in das Einstellungs-Dashboard des Medienwerkzeugs ein.
 
 ---
 

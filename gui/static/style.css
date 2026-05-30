@@ -1437,6 +1437,10 @@ select:focus {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    position: sticky;
+    top: 20px;
+    align-self: flex-start;
+    max-height: calc(100vh - var(--console-height, 40px) - 60px);
 }
 
 .master-sidebar h2 {
@@ -2192,9 +2196,10 @@ input[type="range"]::-moz-range-thumb:hover {
     }
     
     .master-sidebar {
-        height: auto !important;
-        max-height: none !important;
-        overflow-y: visible !important;
+        position: sticky !important;
+        top: 90px !important; /* Unter dem klebrigen Header */
+        max-height: calc(100vh - 90px - var(--console-height, 40px) - 30px) !important;
+        overflow-y: auto !important;
     }
     
     .detail-content {
@@ -2221,9 +2226,11 @@ input[type="range"]::-moz-range-thumb:hover {
     }
     
     .master-sidebar {
+        position: static !important;
         width: 100% !important;
         min-width: 100% !important;
         height: auto !important;
+        max-height: none !important;
         overflow-y: visible !important;
     }
     
@@ -2405,6 +2412,162 @@ input[type="range"]::-moz-range-thumb:hover {
     transition: border-color 0.3s ease;
 }
 
+/* Slide-out Queue Panel Styling */
+#queue-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 450px;
+    height: 100%;
+    background: var(--bg-card);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    z-index: 1000;
+    box-shadow: -5px 0 25px rgba(0, 0, 0, 0.4);
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--border-glass);
+}
+
+/* Less transparent (95% opaque surface color) in light theme to prevent distraction */
+body.theme-superfood-light #queue-panel {
+    background: rgba(244, 230, 218, 0.96);
+    box-shadow: -5px 0 25px rgba(27, 52, 86, 0.15);
+}
 
 
 
+
+
+/* Additional Mobile Optimizations */
+@media (max-width: 600px) {
+    .files-table th, .files-table td {
+        padding: 8px 6px;
+        font-size: 0.85rem;
+    }
+    .hero-title {
+        font-size: 1.5rem !important;
+    }
+    .options-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .detail-content {
+        padding: 15px !important;
+    }
+    .master-sidebar {
+        padding: 15px 10px !important;
+    }
+    .hero-action-box {
+        flex-direction: column !important;
+    }
+    .hero-action-box button {
+        width: 100% !important;
+        margin-top: 10px !important;
+    }
+}
+
+/* Custom Confirm Alert Modal */
+.mw-modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+.mw-modal-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+.mw-modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 450px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    transform: translateY(20px) scale(0.95);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.mw-modal-overlay.active .mw-modal {
+    transform: translateY(0) scale(1);
+}
+.mw-modal-title {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 1.2em;
+    color: var(--text-main);
+}
+.mw-modal-message {
+    color: var(--text-muted);
+    font-size: 0.95em;
+    line-height: 1.5;
+    margin-bottom: 24px;
+}
+.mw-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+.mw-modal-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9em;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.mw-modal-btn-cancel {
+    background: var(--bg-hover);
+    color: var(--text-main);
+}
+.mw-modal-btn-cancel:hover {
+    background: rgba(255,255,255,0.1);
+}
+.mw-modal-btn-confirm {
+    background: var(--accent);
+    color: white;
+}
+.mw-modal-btn-confirm:hover {
+    background: var(--accent-hover);
+}
+
+/* Profiles Modal & Tool Modal Custom Styles */
+#modal-profiles .modal-content,
+#modal-tool-runner .modal-content {
+    max-width: 550px;
+    width: 90%;
+    background: var(--bg-card);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 30px;
+    position: relative;
+    transform: scale(0.95);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.modal.active #modal-profiles .modal-content,
+.modal.active #modal-tool-runner .modal-content {
+    transform: scale(1);
+}
+
+.profile-card {
+    transition: all 0.2s ease;
+}
+.profile-card:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-color: var(--accent) !important;
+    transform: translateY(-1px);
+}

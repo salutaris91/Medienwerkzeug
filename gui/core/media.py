@@ -108,7 +108,7 @@ def konvertierung_schaetzen(filepath, quality, codec="hevc"):
     # Fallback to history if test encode failed
     return get_historical_ratio(quality, codec)
 
-def add_conversion_to_history(quality, codec, ratio, size_in=None, size_out=None):
+def add_conversion_to_history(quality, codec, ratio, size_in=None, size_out=None, content_type=None, filename=None, resolution=None):
     import time
     history = utils.load_konv_history()
     history.append({
@@ -117,7 +117,10 @@ def add_conversion_to_history(quality, codec, ratio, size_in=None, size_out=None
         "ratio": round(ratio, 4),
         "size_in": size_in,
         "size_out": size_out,
-        "timestamp": time.time()
+        "timestamp": time.time(),
+        "content_type": content_type,
+        "filename": filename,
+        "resolution": resolution
     })
     utils.save_konv_history(history)
 
@@ -128,3 +131,79 @@ def get_video_codec(filepath):
     except Exception:
         return None
 
+
+def get_conversion_recommendations():
+    import statistics
+    history = utils.load_konv_history()
+    
+    # Gruppieren nach content_type
+    groups = {}
+    total_saved = 0
+    total_conv = len(history)
+    
+    for entry in history:
+        ct = entry.get("content_type")
+        if not ct:
+            filename = entry.get("filename") or ""
+            fn_lower = filename.lower()
+            if any(k in fn_lower for k in ["doku", "documentary", "dokumentation", "planet", "erde", "natur"]):
+                ct = "doku"
+            elif any(k in fn_lower for k in ["anime", "manga", "sub", "dub", "ger sub", "eng sub"]):
+                ct = "anime"
+            elif re.search(r"s\d{1,2}e\d{1,2}", fn_lower) or any(k in fn_lower for k in ["staffel", "season"]):
+                ct = "live_action"
+            elif re.search(r"\b(19|20)\d{2}\b", fn_lower):
+                ct = "movie"
+            else:
+                ct = "unknown"
+        
+        if ct not in groups:
+            groups[ct] = []
+        groups[ct].append(entry)
+        
+        # Calculate saved bytes
+        size_in = entry.get("size_in")
+        size_out = entry.get("size_out")
+        if size_in and size_out and size_in > size_out:
+            total_saved += (size_in - size_out)
+            
+    recommendations = {}
+    
+    for ct, entries in groups.items():
+        if ct == "unknown" or len(entries) < 3:
+            continue
+            
+        ratios = [e["ratio"] for e in entries if e.get("ratio")]
+        qualities = [e["quality"] for e in entries if isinstance(e.get("quality"), int)]
+        
+        if not ratios or not qualities:
+            continue
+            
+        avg_ratio = statistics.median(ratios)
+        # Optimal quality is median quality (oder mode)
+        try:
+            optimal_quality = statistics.mode(qualities)
+        except statistics.StatisticsError:
+            optimal_quality = statistics.median(qualities)
+            
+        recommendations[ct] = {
+            "optimal_quality": int(optimal_quality),
+            "avg_ratio": round(avg_ratio, 4),
+            "sample_count": len(entries),
+            "confidence": "high" if len(entries) >= 10 else "medium"
+        }
+        
+    global_avg = 0
+    if total_conv > 0:
+        all_ratios = [e["ratio"] for e in history if e.get("ratio")]
+        if all_ratios:
+            global_avg = sum(all_ratios) / len(all_ratios)
+            
+    return {
+        "recommendations": recommendations,
+        "global": {
+            "avg_ratio": round(global_avg, 4),
+            "total_conversions": total_conv,
+            "total_saved_bytes": total_saved
+        }
+    }

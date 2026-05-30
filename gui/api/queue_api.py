@@ -1,0 +1,478 @@
+import os, sys, json, time, shutil, subprocess, urllib, threading, math, uuid
+from flask import Blueprint, request, jsonify, Response, send_file, send_from_directory
+from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history
+from gui.core.helpers import *
+from gui.core.helpers import log_queue
+from gui.core.transfers import *
+from gui.workers.processor import *
+from gui.workers.youtube_worker import *
+import gui.core.media as media
+import gui.mw_metadata as mw_metadata
+
+queue_api = Blueprint('queue_api', __name__)
+
+# Global variables imported from processor
+from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
+
+
+
+@queue_api.route('/preview-process', methods=['GET', 'POST'])
+@queue_api.route('/preview_process', methods=['GET', 'POST'])
+def handle_api_preview_process():
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    query = request.args
+    media_type = params.get("media_type")
+    project_name = params.get("project_name", "")
+    show_id = params.get("show_id")
+    movie_id = params.get("movie_id")
+    provider = params.get("provider")
+    season = params.get("season")
+    mappings = params.get("mappings", {})
+    destination = params.get("destination")
+    nas_destination_id = params.get("nas_destination_id") or params.get("destination_id")
+    pcloud_destination_id = params.get("pcloud_destination_id") or params.get("destination_id")
+    nfo_overrides = params.get("nfo_overrides", {})
+    
+    settings = load_settings()
+    inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
+    outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
+    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    
+    destination = params.get("destination")
+    # Resolve NAS destination path
+    if nas_destination_id:
+        sync_cats = settings.get("sync_categories", [])
+        found_cat = None
+        for cat in sync_cats:
+            if cat.get("id") == str(nas_destination_id):
+                found_cat = cat
+                break
+        if not found_cat:
+            for cat in sync_cats:
+                nas_sub = cat.get("nas_sub", "")
+                if nas_sub and (nas_sub in str(nas_destination_id)):
+                    found_cat = cat
+                    break
+        if found_cat:
+            destination = f"{nas_root}{found_cat.get('nas_sub')}"
+
+    # Resolve pCloud destination remote base
+    explicit_pcloud_base = None
+    if pcloud_destination_id:
+        sync_cats = settings.get("sync_categories", [])
+        found_cat = None
+        for cat in sync_cats:
+            if cat.get("id") == str(pcloud_destination_id):
+                found_cat = cat
+                break
+        if not found_cat:
+            for cat in sync_cats:
+                nas_sub = cat.get("nas_sub", "")
+                if nas_sub and (nas_sub in str(pcloud_destination_id)):
+                    found_cat = cat
+                    break
+        if found_cat:
+            explicit_pcloud_base = found_cat.get('pcloud_remote')
+    
+    if project_name:
+        current_dir = os.path.join(inbox_root, project_name)
+    else:
+        current_dir = inbox_root
+        
+    if not os.path.exists(current_dir):
+        return jsonify({"error": "Ordner existiert nicht."})
+        return
+        
+    all_files = find_files_recursively(current_dir)
+    video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
+    sub_exts = ('.srt', '.vtt', '.ass')
+    good_meta = ('tvshow.nfo', 'poster.jpg', 'fanart.jpg', 'season.nfo', 'movie.nfo')
+    
+    preview = {
+        "renames": [],
+        "subs": [],
+        "junk": [],
+        "destination": ""
+    }
+    
+    if media_type == "movie":
+        movie_name = params.get("movie_name", "Unbekannter Film")
+        if movie_name:
+            movie_name = re.sub(r"\s*\(Mediathek.*?\)", "", movie_name)
+            movie_name = re.sub(r"\s*\(Freie Mediathek.*?\)", "", movie_name).strip()
+            movie_overrides = nfo_overrides.get("movie") if nfo_overrides else None
+            if movie_overrides and movie_overrides.get("year"):
+                year = str(movie_overrides.get("year")).strip()
+                if year.isdigit() and len(year) == 4:
+                    movie_name = re.sub(r"\s*\(\d{4}\)$", "", movie_name).strip()
+                    movie_name = f"{movie_name} ({year})"
+        dest_movies = destination if destination else f"{nas_root}/Filme"
+        clean_movie_name = limit_filename_length(sanitize_filename(movie_name))
+        
+        nas_path = os.path.join(dest_movies, clean_movie_name)
+        pcloud_path = f"{explicit_pcloud_base}/{clean_movie_name}" if explicit_pcloud_base else None
+        
+        if params.get("copy_to_nas", True):
+            dest_str = f"NAS: {nas_path}"
+        else:
+            dest_str = "NAS: (nicht aktiv)"
+            
+        if params.get("copy_to_pcloud", False):
+            if pcloud_path:
+                dest_str += f"\n☁️ pCloud: {pcloud_path}"
+            else:
+                dest_str += "\n☁️ pCloud: (Kein Mapping gefunden)"
+        else:
+            dest_str += "\n☁️ pCloud: (nicht aktiv)"
+        preview["destination"] = dest_str
+        
+        for f in all_files:
+            basename = os.path.basename(f)
+            ext = os.path.splitext(f)[1].lower()
+            if ext in video_exts:
+                target_filename = f"{clean_movie_name}{ext}"
+                preview["renames"].append({"old": f, "new": target_filename})
+            elif ext in sub_exts:
+                target_filename = f"{clean_movie_name}{ext}"
+                preview["subs"].append({"old": f, "new": target_filename})
+            elif basename.lower() in ['poster.jpg', 'fanart.jpg', 'tvshow.nfo', 'season.nfo']:
+                preview["subs"].append({"old": f, "new": basename})
+            elif ext == '.nfo':
+                preview["subs"].append({"old": f, "new": f"{clean_movie_name}.nfo"})
+            elif ext in ('.jpg', '.png') and 'poster' in basename.lower():
+                preview["subs"].append({"old": f, "new": f"{clean_movie_name}-poster{ext}"})
+            elif ext in ('.jpg', '.png') and 'fanart' in basename.lower():
+                preview["subs"].append({"old": f, "new": f"{clean_movie_name}-fanart{ext}"})
+            else:
+                preview["junk"].append(f)
+                
+    elif media_type == "tv":
+        show_name = clean_series_name_for_fs(params.get("show_name", "Unknown Show"))
+        nas_show_folder = params.get("nas_show_folder")
+        if nas_show_folder:
+            clean_show_name = clean_series_name_for_fs(nas_show_folder)
+        else:
+            nas_serien = destination if destination else f"{nas_root}/Serien"
+            rel_dest = os.path.relpath(nas_serien, nas_root)
+            outbox_serien = os.path.join(outbox_root, rel_dest)
+            clean_show_name = get_matched_series_name(nas_serien, outbox_serien, limit_filename_length(sanitize_filename(show_name)))
+            
+        nas_serien = destination if destination else f"{nas_root}/Serien"
+        dest_show_dir = os.path.join(nas_serien, clean_show_name)
+        
+        pcloud_path = f"{explicit_pcloud_base}/{clean_show_name}" if explicit_pcloud_base else None
+        
+        episodes = {}
+        if provider and show_id:
+            try:
+                if provider == "tvdb":
+                    episodes = mw_metadata.fetch_tvdb(show_id, season, "deu")
+                elif provider in ["tmdb_tv", "tmdb_tv_en"]:
+                    lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
+                    episodes = mw_metadata.fetch_tmdb_tv(show_id, season, lang)
+                elif provider == "tvmaze":
+                    episodes = mw_metadata.fetch_tvmaze(show_id, season)
+                elif provider == "mediathek":
+                    episodes = mw_metadata.fetch_mediathek_episodes(show_id)
+                elif provider == "ytdlp":
+                    entries = mw_metadata.fetch_ytdlp_url_metadata(show_id)
+                    episodes = {}
+                    if not isinstance(entries, dict):
+                        for idx, ent in enumerate(entries):
+                            ep_idx = ent.get("playlist_index") or ent.get("playlist_autonumber") or (idx + 1)
+                            title = ent.get("title", "")
+                            alt_title = ent.get("alt_title", "")
+                            show_name_yt = ent.get("playlist_title") or ent.get("playlist", "")
+                            ep_title = title
+                            if alt_title and mw_metadata.normalize_title(title) == mw_metadata.normalize_title(show_name_yt):
+                                ep_title = alt_title
+                            elif alt_title and not title:
+                                ep_title = alt_title
+                            episodes[str(ep_idx)] = {"title": ep_title, "plot": ent.get("description", "")}
+            except Exception as e:
+                print(f"Error fetching preview episodes: {e}")
+        
+        clean_titles = []
+        for f in all_files:
+            basename = os.path.basename(f)
+            ext = os.path.splitext(f)[1].lower()
+            
+            if ext in video_exts:
+                rel_f = os.path.relpath(f, current_dir)
+                ep_num = mappings.get(rel_f) or mappings.get(f) or mappings.get(basename)
+                if ep_num:
+                    if isinstance(ep_num, dict):
+                        curr_season = ep_num.get("season", season)
+                        curr_ep_num = ep_num.get("episode", 1)
+                        ep_title = ep_num.get("title", "")
+                    else:
+                        ep_data = episodes.get(str(ep_num), {})
+                        if not ep_data and provider == "ytdlp" and len(episodes) == 1:
+                            ep_data = list(episodes.values())[0]
+                        ep_title = ep_data.get("title", "") if isinstance(ep_data, dict) else str(ep_data)
+                        
+                        match = re.match(r"^S(\d+)E(\d+)$", str(ep_num), re.IGNORECASE)
+                        if match:
+                            curr_season = int(match.group(1))
+                            curr_ep_num = int(match.group(2))
+                        else:
+                            curr_season = season
+                            curr_ep_num = ep_num
+                    
+                    force_abs = params.get("force_absolute_season_1", False)
+                    if force_abs:
+                        if isinstance(ep_num, dict):
+                            ep_data = ep_num
+                        else:
+                            ep_data = episodes.get(str(ep_num), {})
+                            if not ep_data and provider == "ytdlp" and len(episodes) == 1:
+                                ep_data = list(episodes.values())[0]
+                        abs_num = extract_absolute_episode_number(ep_num, ep_data, basename)
+                        curr_season = 1
+                        curr_ep_num = abs_num
+                        
+                    ep_title = sanitize_filename(ep_title)
+                    
+                    try:
+                        season_str = f"S{int(curr_season):02d}"
+                    except (ValueError, TypeError):
+                        season_str = f"S{curr_season}"
+                    try:
+                        ep_str = f"E{int(curr_ep_num):02d}"
+                    except (ValueError, TypeError):
+                        ep_str = f"E{curr_ep_num}"
+                        
+                    clean_title = f"{clean_show_name} - {season_str}{ep_str}"
+                    if ep_title: clean_title += f" - {ep_title}"
+                    clean_title = limit_filename_length(clean_title)
+                    
+                    clean_titles.append((curr_season, clean_title))
+                    
+                    target_filename = f"{clean_title}{ext}"
+                    preview["renames"].append({"old": f, "new": target_filename})
+                    
+                    base_old = os.path.splitext(basename)[0]
+                    for sf in all_files:
+                        sbasename = os.path.basename(sf)
+                        sext = os.path.splitext(sf)[1].lower()
+                        if sbasename.startswith(base_old) and sf != f:
+                            if sext in sub_exts:
+                                # Subtitle: rename to match video name
+                                preview["subs"].append({"old": sf, "new": f"{clean_title}{sext}"})
+                            elif sext in ('.nfo',):
+                                # NFO file: rename to match video name
+                                preview["subs"].append({"old": sf, "new": f"{clean_title}.nfo"})
+                            elif sext in ('.jpg', '.png'):
+                                # Image file: preserve suffix like -poster, -fanart, -thumb
+                                sbase_no_ext = os.path.splitext(sbasename)[0]
+                                suffix_after_base = sbase_no_ext[len(base_old):]  # e.g. "-poster", "-fanart"
+                                if suffix_after_base:
+                                    preview["subs"].append({"old": sf, "new": f"{clean_title}{suffix_after_base}{sext}"})
+                                else:
+                                    preview["subs"].append({"old": sf, "new": f"{clean_title}{sext}"})
+                else:
+                    pass
+            elif ext in sub_exts:
+                pass # Handled above or ignored
+            elif basename.lower() in good_meta:
+                # Show-level metadata files (tvshow.nfo, poster.jpg, fanart.jpg, season.nfo) — keep as-is
+                preview["subs"].append({"old": f, "new": basename})
+            elif ext in ('.nfo', '.jpg', '.png') and ('poster' in basename.lower() or 'fanart' in basename.lower()):
+                # Standalone poster/fanart not matching any video — keep as-is
+                preview["subs"].append({"old": f, "new": basename})
+            else:
+                preview["junk"].append(f)
+                
+        sub_olds = [x["old"] for x in preview["subs"]]
+        preview["junk"] = [j for j in preview["junk"] if j not in sub_olds and j not in [r["old"] for r in preview["renames"]]]
+        
+        if params.get("copy_to_nas", True):
+            if clean_titles:
+                unique_paths = []
+                for s, t in clean_titles:
+                    try:
+                        s_num = int(s)
+                        p = f"{dest_show_dir}/Staffel {s_num}/{t}"
+                    except (ValueError, TypeError):
+                        p = f"{dest_show_dir}/{s}/{t}"
+                    if p not in unique_paths:
+                        unique_paths.append(p)
+                if len(unique_paths) == 1:
+                    dest_str = f"NAS: {unique_paths[0]}"
+                else:
+                    dest_str = "NAS:\n" + "\n".join(f"• {p}" for p in unique_paths)
+            else:
+                try:
+                    s_num = int(season)
+                    dest_str = f"NAS: {dest_show_dir}/Staffel {s_num}/[Episoden-Unterordner]"
+                except (ValueError, TypeError):
+                    dest_str = f"NAS: {dest_show_dir}/[Staffeln]/[Episoden-Unterordner]"
+        else:
+            dest_str = "NAS: (nicht aktiv)"
+            
+        if params.get("copy_to_pcloud", False):
+            if pcloud_path:
+                dest_str += f"\n☁️ pCloud: {pcloud_path}"
+            else:
+                dest_str += "\n☁️ pCloud: (Kein Mapping gefunden)"
+        else:
+            dest_str += "\n☁️ pCloud: (nicht aktiv)"
+        
+        if params.get("copy_to_nas", True) and os.path.exists(dest_show_dir):
+            if any(os.path.exists(os.path.join(dest_show_dir, f)) for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]):
+                dest_str += "\n⚠️ Serie existiert bereits auf NAS mit vorhandenen Metadaten (tvshow.nfo, poster.jpg, fanart.jpg). Diese Dateien werden nicht überschrieben."
+        preview["destination"] = dest_str
+        
+    # Season year warning
+    if media_type == "tv" and season is not None and not params.get("force_absolute_season_1", False):
+        try:
+            s_num = int(season)
+            if s_num >= 1000:
+                preview["warning"] = f"Staffel-Nummer ist eine Jahreszahl ({s_num})! Bitte prüfen, ob das korrekt ist (z.B. Staffel 56 statt 2026)."
+        except Exception:
+            pass
+            
+    return jsonify(preview)
+
+
+
+@queue_api.route('/process', methods=['GET', 'POST'])
+def handle_api_process():
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    query = request.args
+    task_id = str(uuid.uuid4())
+    params["task_id"] = task_id
+    media_type = params.get("media_type", "unknown")
+    
+    name = params.get("project_name", "Unbekannt")
+    if name.endswith("/"): name = name[:-1]
+    name = os.path.basename(name)
+    if media_type == "movie" and params.get("movie_name"):
+        name = params.get("movie_name")
+    elif media_type == "tv" and params.get("show_name"):
+        name = params.get("show_name")
+    elif media_type == "youtube":
+        name = "YouTube Download"
+        
+    convert = params.get("convert", False)
+    copy_to_nas = params.get("copy_to_nas", True)
+    copy_to_pcloud = params.get("copy_to_pcloud", False)
+    copy_to_local = params.get("copy_to_local", False)
+    show_id = params.get("show_id")
+    movie_id = params.get("movie_id")
+    provider = params.get("provider")
+    has_metadata = (show_id and provider) or (movie_id and provider)
+    
+    job_info = {
+        "id": task_id,
+        "type": media_type,
+        "name": name,
+        "status": "queued",
+        "progress": 0,
+        "message": "Wartet in der Schlange...",
+        "timestamp": time.time(),
+        "params": params,
+        "pipeline": build_job_pipeline(params, has_metadata, convert)
+    }
+    
+    with active_jobs_lock:
+        active_jobs[task_id] = job_info
+        
+    job_queue.put(job_info)
+        
+    return jsonify({"status": "started", "task_id": task_id})
+
+
+
+@queue_api.route('/queue', methods=['GET', 'POST'])
+def handle_api_queue():
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    query = request.args
+    with active_jobs_lock:
+        jobs_list = []
+        for j in active_jobs.values():
+            jobs_list.append({
+                "id": j["id"],
+                "type": j["type"],
+                "name": j["name"],
+                "status": j["status"],
+                "progress": j["progress"],
+                "message": j["message"],
+                "timestamp": j["timestamp"],
+                "pipeline": j.get("pipeline")
+            })
+    jobs_list.sort(key=lambda x: x["timestamp"])
+    return jsonify({"jobs": jobs_list})
+
+
+
+@queue_api.route('/queue-clear', methods=['GET', 'POST'])
+@queue_api.route('/queue/clear', methods=['GET', 'POST'])
+def handle_api_queue_clear():
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    query = request.args
+    with active_jobs_lock:
+        to_keep = {}
+        for task_id, job in active_jobs.items():
+            if job.get("status") not in ("done", "error"):
+                to_keep[task_id] = job
+        active_jobs.clear()
+        active_jobs.update(to_keep)
+    return jsonify({"status": "success"})
+
+
+
+@queue_api.route('/queue/retry', methods=['POST'])
+@queue_api.route('/queue-retry', methods=['POST'])
+def handle_api_queue_retry():
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    
+    task_id = params.get("task_id")
+    if not task_id:
+        return jsonify({"status": "error", "message": "Missing task_id"}), 400
+        
+    with active_jobs_lock:
+        if task_id not in active_jobs:
+            return jsonify({"status": "error", "message": "Job nicht gefunden"}), 404
+            
+        job = active_jobs[task_id]
+        if job.get("status") not in ("error", "done"):
+            return jsonify({"status": "error", "message": "Job ist nicht fehlgeschlagen oder beendet"}), 400
+            
+        # Parameter kopieren und Pipeline neu initialisieren
+        job_params = job.get("params", {})
+        convert = job_params.get("convert", False)
+        
+        # Bestimme has_metadata
+        show_id = job_params.get("show_id")
+        movie_id = job_params.get("movie_id")
+        provider = job_params.get("provider")
+        has_metadata = (show_id and provider) or (movie_id and provider)
+        
+        # Zurücksetzen auf initialen Warteschlangen-Zustand
+        job["status"] = "queued"
+        job["progress"] = 0
+        job["message"] = "Wiederholung eingereiht..."
+        job["pipeline"] = build_job_pipeline(job_params, has_metadata, convert)
+        
+        # In die Queue einreihen
+        job_queue.put(job)
+        
+    return jsonify({"status": "success"})
+
+

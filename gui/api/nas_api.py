@@ -1,0 +1,542 @@
+import os, sys, json, time, shutil, subprocess, urllib, threading, math
+from flask import Blueprint, request, jsonify, Response, send_file, send_from_directory
+from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history
+from gui.core.helpers import *
+from gui.core.helpers import log_queue
+from gui.core.transfers import *
+from gui.workers.processor import *
+from gui.workers.youtube_worker import *
+import gui.core.media as media
+import gui.mw_metadata as mw_metadata
+
+nas_api = Blueprint('nas_api', __name__)
+
+# Global variables imported from processor
+from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
+
+
+
+@nas_api.route('/check-nas-duplicate', methods=['GET', 'POST'])
+def handle_api_check_nas_duplicate():
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    query = request.args
+    """Check if a specific episode already exists on NAS."""
+    ep_num = params.get("episode")
+    ep_season = params.get("season")
+    show_name = params.get("show_name")
+    nas_show_folder = params.get("nas_show_folder")
+    nas_destination_id = params.get("nas_destination_id")
+    
+    if ep_num is None or ep_season is None:
+        return jsonify({"duplicate": None})
+        return
+    
+    try:
+        ep_num = int(ep_num)
+        ep_season = int(ep_season)
+    except (ValueError, TypeError):
+        return jsonify({"duplicate": None})
+        return
+    
+    settings = load_settings()
+    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    
+    destination = None
+    if nas_destination_id:
+        sync_cats = settings.get("sync_categories", [])
+        for cat in sync_cats:
+            if cat.get("id") == str(nas_destination_id):
+                destination = os.path.join(nas_root, cat.get("nas_sub", "").lstrip("/"))
+                break
+    if not destination:
+        destination = os.path.join(nas_root, "Serien")
+    
+    clean_show_name = clean_series_name_for_fs(nas_show_folder or show_name or "")
+    if not clean_show_name:
+        return jsonify({"duplicate": None})
+        return
+    
+    # Also check outbox for matched series name
+    outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
+    rel_dest = os.path.relpath(destination, nas_root)
+    outbox_serien = os.path.join(outbox_root, rel_dest)
+    clean_show_name = get_matched_series_name(destination, outbox_serien, limit_filename_length(sanitize_filename(clean_show_name)))
+    
+    show_dir = os.path.join(destination, clean_show_name)
+    
+    if not os.path.exists(show_dir):
+        return jsonify({"duplicate": None})
+        return
+    
+    # Search for matching episode files
+    pats = [
+        f"s{ep_season:02d}e{ep_num:02d}",
+        f"s{ep_season:02d}e{ep_num:03d}",
+        f"s{ep_season}e{ep_num:02d}",
+        f"s{ep_season:02d}e{ep_num}",
+    ]
+    for root, _, files in os.walk(show_dir):
+        for f in files:
+            if f.startswith('.'):
+                continue
+            fl = f.lower()
+            matched = False
+            for pat in pats:
+                if pat in fl:
+                    matched = True
+                    break
+            if not matched and ep_season == 1:
+                for suffix in [f" - {ep_num:02d} ", f" - {ep_num:02d}.", f" - {ep_num:03d} ", f" - {ep_num:03d}."]:
+                    if suffix in fl:
+                        matched = True
+                        break
+            if matched:
+                # Only count video files as duplicates
+                ext = os.path.splitext(f)[1].lower()
+                if ext not in ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts'):
+                    continue
+                filepath = os.path.join(root, f)
+                details = {"filename": f, "path": filepath}
+                try:
+                    size_bytes = os.path.getsize(filepath)
+                    details["size_gb"] = size_bytes / (1024 * 1024 * 1024)
+                    cmd = [
+                        "ffprobe", "-v", "error", "-select_streams", "v:0",
+                        "-show_entries", "stream=width,height", "-of", "csv=p=0",
+                        filepath
+                    ]
+                    res = subprocess.run(cmd, capture_output=True, text=True, timeout=2.0)
+                    if res.returncode == 0:
+                        dimensions = res.stdout.strip().split(',')
+                        if len(dimensions) == 2:
+                            details["resolution"] = f"{dimensions[0]}x{dimensions[1]}"
+                except Exception:
+                    pass
+                return jsonify({"duplicate": details})
+                return
+    
+    return jsonify({"duplicate": None})
+
+
+
+@nas_api.route('/streamfab-import', methods=['GET', 'POST'])
+def handle_api_streamfab_import():
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    query = request.args
+    count = import_streamfab_files()
+    return jsonify({"status": "ok", "moved_count": count})
+
+
+
+@nas_api.route('/nas-series', methods=['GET', 'POST'])
+def handle_api_nas_series():
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    query = request.args
+    settings = load_settings()
+    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
+    
+    # Das Frontend ruft diesen Endpoint per GET mit ?destination_id=... auf, daher
+    # zusätzlich die Query-Args lesen (nicht nur den JSON-Body).
+    nas_destination_id = (params.get("nas_destination_id") or params.get("destination_id")
+                          or query.get("nas_destination_id") or query.get("destination_id") or "2")
+    if isinstance(nas_destination_id, list) and len(nas_destination_id) > 0:
+        nas_destination_id = nas_destination_id[0]
+    
+    sync_cats = settings.get("sync_categories", [])
+    categories_to_scan = []
+    
+    if nas_destination_id == "all":
+        categories_to_scan = sync_cats
+    else:
+        found_cat = None
+        for cat in sync_cats:
+            if cat.get("id") == str(nas_destination_id):
+                found_cat = cat
+                break
+        if not found_cat:
+            for cat in sync_cats:
+                nas_sub = cat.get("nas_sub", "")
+                if nas_sub and (nas_sub in str(nas_destination_id)):
+                    found_cat = cat
+                    break
+        if found_cat:
+            categories_to_scan = [found_cat]
+        else:
+            categories_to_scan = [{"id": "2", "name": "Serien", "nas_sub": "/Serien"}]
+            
+    connected = ensure_nas_mounted()
+    
+    folders = set()
+    folder_to_dest = {}
+    
+    for cat in categories_to_scan:
+        nas_sub = cat.get("nas_sub")
+        if not nas_sub:
+            continue
+        destination = f"{nas_root}{nas_sub}"
+        cat_folders = set()
+        
+        if connected and os.path.exists(destination):
+            try:
+                for entry in os.listdir(destination):
+                    if os.path.isdir(os.path.join(destination, entry)) and not entry.startswith('.'):
+                        cat_folders.add(entry)
+            except Exception as e:
+                print(f"Fehler beim Scannen von NAS {destination}: {e}")
+                
+        rel_dest = os.path.relpath(destination, nas_root)
+        outbox_dest = os.path.join(outbox_root, rel_dest)
+        if os.path.exists(outbox_dest):
+            try:
+                for entry in os.listdir(outbox_dest):
+                    if os.path.isdir(os.path.join(outbox_dest, entry)) and not entry.startswith('.'):
+                        cat_folders.add(entry)
+            except Exception as e:
+                print(f"Fehler beim Scannen von Outbox {outbox_dest}: {e}")
+                
+        for folder in cat_folders:
+            folder_clean = folder.strip()
+            if not folder_clean:
+                continue
+            lower_folder = folder_clean.lower()
+            folders.add(folder_clean)
+            folder_to_dest[lower_folder] = destination
+                
+    # Case-insensitive deduplication
+    deduped = {}
+    for entry in folders:
+        name = entry.strip()
+        if not name:
+            continue
+        lowered = name.lower()
+        if lowered in deduped:
+            # Keep the one with better casing (more uppercase letters)
+            existing = deduped[lowered]
+            existing_caps = sum(1 for c in existing if c.isupper())
+            entry_caps = sum(1 for c in name if c.isupper())
+            if entry_caps > existing_caps:
+                deduped[lowered] = name
+        else:
+            deduped[lowered] = name
+
+    return jsonify({
+        "connected": connected,
+        "folders": sorted(list(deduped.values()), key=lambda s: s.lower()),
+        "folder_destinations": {k: folder_to_dest[k] for k in deduped.keys() if k in folder_to_dest}
+    })
+
+
+
+@nas_api.route('/nas-seasons', methods=['GET', 'POST'])
+def handle_api_nas_seasons():
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    query = request.args
+    """Return existing season folders and episode counts for a show on the NAS."""
+    folder_name = query.get("folder", [""])[0] if isinstance(query.get("folder"), list) else query.get("folder", "")
+    destination_id = query.get("destination_id", [""])[0] if isinstance(query.get("destination_id"), list) else query.get("destination_id", "")
+    
+    if not folder_name:
+        return jsonify({"seasons": [], "folder": folder_name})
+        
+    settings = load_settings()
+    ensure_nas_mounted()
+    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
+    sync_cats = settings.get("sync_categories", [])
+    
+    # Resolve which NAS destinations to scan
+    destinations = []
+    matched_dest_id = destination_id
+    
+    if destination_id and destination_id != "all":
+        for cat in sync_cats:
+            if cat.get("id") == str(destination_id):
+                nas_sub = cat.get("nas_sub", "")
+                if nas_sub:
+                    destinations.append(f"{nas_root}{nas_sub}")
+                break
+    else:
+        for cat in sync_cats:
+            nas_sub = cat.get("nas_sub", "")
+            if nas_sub:
+                destinations.append(f"{nas_root}{nas_sub}")
+    
+    if not destinations:
+        destinations = [os.path.join(nas_root, "Serien")]
+        
+    video_extensions = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv'}
+    
+    def scan_dest(dest_path):
+        local_seasons = []
+        rel_dest = os.path.relpath(dest_path, nas_root)
+        outbox_dest = os.path.join(outbox_root, rel_dest)
+        
+        # Use fuzzy matching to resolve existing folder name
+        clean_show = clean_series_name_for_fs(folder_name)
+        matched_folder = get_matched_series_name(dest_path, outbox_dest, clean_show)
+        
+        show_path = os.path.join(dest_path, matched_folder)
+        outbox_show_path = os.path.join(outbox_dest, matched_folder)
+        
+        for base_path in [show_path, outbox_show_path]:
+            if not os.path.isdir(base_path):
+                continue
+            try:
+                for entry in sorted(os.listdir(base_path)):
+                    entry_path = os.path.join(base_path, entry)
+                    if not os.path.isdir(entry_path) or entry.startswith('.'):
+                        continue
+                    # Match "Staffel X" pattern
+                    if entry.lower().startswith("staffel ") or entry.lower().startswith("season ") or entry.lower().startswith("specials"):
+                        # Count video files in this season dir (including subdirs)
+                        episode_count = 0
+                        for root, dirs, files in os.walk(entry_path):
+                            for f in files:
+                                ext = os.path.splitext(f)[1].lower()
+                                if ext in video_extensions and not f.startswith('.'):
+                                    episode_count += 1
+                        
+                        # Check if this season is already in our list
+                        existing = next((s for s in local_seasons if s["name"] == entry), None)
+                        if existing:
+                            existing["episodes"] = max(existing["episodes"], episode_count)
+                            if "NAS" not in existing["source"]:
+                                existing["source"] += " + NAS" if base_path == show_path else ""
+                        else:
+                            source = "NAS" if base_path == show_path else "Outbox"
+                            local_seasons.append({
+                                "name": entry,
+                                "episodes": episode_count,
+                                "source": source
+                            })
+            except Exception as e:
+                print(f"Error scanning seasons in {base_path}: {e}")
+        return local_seasons
+
+    # 1. Scan the initially selected destinations
+    seasons = []
+    for dest in destinations:
+        seasons.extend(scan_dest(dest))
+        
+    # Check if empty or 0 episodes overall
+    total_episodes = sum(s["episodes"] for s in seasons)
+    if not seasons or total_episodes == 0:
+        # Fallback: scan all other categories in sync_categories
+        fallback_seasons = []
+        fallback_best_episodes = -1
+        fallback_cat_id = None
+        
+        for cat in sync_cats:
+            cat_id = cat.get("id")
+            nas_sub = cat.get("nas_sub", "")
+            if not nas_sub:
+                continue
+            cat_dest = f"{nas_root}{nas_sub}"
+            # Skip if we already scanned this destination
+            if cat_dest in destinations:
+                continue
+                
+            cat_seasons = scan_dest(cat_dest)
+            cat_episodes = sum(s["episodes"] for s in cat_seasons)
+            
+            if cat_seasons:
+                # We prefer a category that has episodes, but any non-empty season structure is better than nothing
+                if cat_episodes > fallback_best_episodes:
+                    fallback_seasons = cat_seasons
+                    fallback_best_episodes = cat_episodes
+                    fallback_cat_id = cat_id
+                    
+        if fallback_seasons:
+            seasons = fallback_seasons
+            if fallback_cat_id:
+                matched_dest_id = fallback_cat_id
+    
+    # Sort seasons naturally
+    def season_sort_key(s):
+        import re
+        match = re.search(r'(\d+)', s["name"])
+        return int(match.group(1)) if match else 999
+    
+    seasons.sort(key=season_sort_key)
+    
+    return jsonify({
+        "seasons": seasons,
+        "folder": folder_name,
+        "matched_destination_id": matched_dest_id
+    })
+
+
+
+@nas_api.route('/media-compare', methods=['GET', 'POST'])
+def handle_api_media_compare():
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    query = request.args
+    new_paths = query.get("new_path", [])
+    existing_paths = query.get("existing_path", [])
+    
+    new_path = new_paths[0] if new_paths else ""
+    existing_path = existing_paths[0] if existing_paths else ""
+    
+    if not new_path or not existing_path:
+        return jsonify({"error": "Missing new_path or existing_path"}), 400
+        return
+        
+    # Security validation for paths
+    settings = load_settings()
+    inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
+    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    
+    # Ensure we only check files in allowed directories
+    abs_new = os.path.abspath(new_path)
+    abs_existing = os.path.abspath(existing_path)
+    
+    if not (abs_new.startswith(os.path.abspath(inbox_root) + os.sep) or abs_new == os.path.abspath(inbox_root)):
+        return jsonify({"error": "Forbidden new_path"}), 403
+        return
+        
+    if not (abs_existing.startswith(os.path.abspath(nas_root) + os.sep) or abs_existing == os.path.abspath(nas_root)):
+        return jsonify({"error": "Forbidden existing_path"}), 403
+        return
+        
+    def get_media_compare_details(filepath):
+        details = {
+            "path": filepath,
+            "filename": os.path.basename(filepath),
+            "size_bytes": 0,
+            "size_readable": "0 B",
+            "resolution": "Unbekannt",
+            "video_codec": "Unbekannt",
+            "audio_codec": "Unbekannt",
+            "bitrate_kbps": "Unbekannt",
+            "duration_str": "Unbekannt"
+        }
+        if not filepath or not os.path.exists(filepath):
+            return details
+        try:
+            size_bytes = os.path.getsize(filepath)
+            details["size_bytes"] = size_bytes
+            if size_bytes >= 1024**3:
+                details["size_readable"] = f"{size_bytes / (1024**3):.2f} GB"
+            elif size_bytes >= 1024**2:
+                details["size_readable"] = f"{size_bytes / (1024**2):.1f} MB"
+            else:
+                details["size_readable"] = f"{size_bytes / 1024:.1f} KB"
+            
+            cmd = [
+                "ffprobe", "-v", "error",
+                "-show_entries", "stream=width,height,codec_name,codec_type:format=duration,bit_rate",
+                "-of", "json",
+                filepath
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=3.0)
+            if res.returncode == 0:
+                info = json.loads(res.stdout)
+                streams = info.get("streams", [])
+                format_info = info.get("format", {})
+                for s in streams:
+                    codec_type = s.get("codec_type")
+                    if codec_type == "video":
+                        details["video_codec"] = s.get("codec_name", "Unbekannt").upper()
+                        w = s.get("width")
+                        h = s.get("height")
+                        if w and h:
+                            details["resolution"] = f"{w}x{h}"
+                    elif codec_type == "audio":
+                        details["audio_codec"] = s.get("codec_name", "Unbekannt").upper()
+                
+                duration = format_info.get("duration")
+                if duration:
+                    try:
+                        dur_secs = float(duration)
+                        mins, secs = divmod(int(dur_secs), 60)
+                        hours, mins = divmod(mins, 60)
+                        if hours > 0:
+                            details["duration_str"] = f"{hours}h {mins}m {secs}s"
+                        else:
+                            details["duration_str"] = f"{mins}m {secs}s"
+                    except Exception:
+                        pass
+                
+                bitrate = format_info.get("bit_rate")
+                if bitrate:
+                    try:
+                        details["bitrate_kbps"] = f"{int(bitrate) / 1000:.0f} kbps"
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        return details
+        
+    new_details = get_media_compare_details(new_path)
+    existing_details = get_media_compare_details(existing_path)
+    
+    return jsonify({
+        "new_file": new_details,
+        "existing_file": existing_details
+    })
+
+
+
+@nas_api.route('/resolve-duplicate', methods=['GET', 'POST'])
+def handle_api_resolve_duplicate():
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    query = request.args
+    action = params.get("action")
+    new_path = params.get("new_path")
+    existing_path = params.get("existing_path")
+    
+    if not existing_path or not os.path.exists(existing_path):
+        return jsonify({"error": "Invalid existing_path"}), 400
+        return
+        
+    # Security validation for paths
+    settings = load_settings()
+    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    abs_existing = os.path.abspath(existing_path)
+    
+    if not (abs_existing.startswith(os.path.abspath(nas_root) + os.sep) or abs_existing == os.path.abspath(nas_root)):
+        return jsonify({"error": "Forbidden existing_path"}), 403
+        return
+        
+    if action == "upgrade":
+        try:
+            os.remove(existing_path)
+            log_message(f"🗑️ [Dubletten-Upgrade] Existierende Datei auf NAS gelöscht: {existing_path}")
+            
+            # Delete corresponding nfo / artwork if present
+            base_path = os.path.splitext(existing_path)[0]
+            for ext in [".nfo", ".srt", "-poster.jpg", "-fanart.jpg"]:
+                art_file = base_path + ext
+                if os.path.exists(art_file):
+                    try:
+                        os.remove(art_file)
+                        log_message(f"  🗑️ Zugehörige Datei gelöscht: {art_file}")
+                    except Exception:
+                        pass
+                        
+            return jsonify({"status": "success", "message": "Existierende Datei gelöscht. Bereit für Upgrade."})
+        except Exception as e:
+            return jsonify({"error": f"Error deleting file: {e}"}), 500
+    else:
+        return jsonify({"status": "success", "message": "Keine Aktion ausgeführt."})
+
+

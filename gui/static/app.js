@@ -70,12 +70,42 @@ async function fetchNasSeasons() {
         if (!res.ok) throw new Error("Fehler beim Laden");
         const data = await res.json();
         
+        // 1. Check if the backend matched a different destination category
+        if (data.matched_destination_id && destSelect && destSelect.value !== data.matched_destination_id) {
+            window.isProgrammaticCategoryChange = true;
+            try {
+                destSelect.value = data.matched_destination_id;
+                destSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                if (typeof appendConsoleLog === "function") {
+                    appendConsoleLog(`[System]: Serie in anderer Kategorie gefunden. Kategorie auf '${destSelect.options[destSelect.selectedIndex].text}' geändert.`);
+                }
+            } finally {
+                window.isProgrammaticCategoryChange = false;
+            }
+        }
+        
         if (data.seasons && data.seasons.length > 0) {
             const badges = data.seasons.map(s => {
                 const episodeText = s.episodes === 1 ? "1 Episode" : `${s.episodes} Episoden`;
-                return `<span style="display:inline-block; padding:2px 8px; margin:2px 4px 2px 0; border-radius:var(--radius-sm); background:rgba(139,92,246,0.15); color:var(--accent); font-size:11px; font-weight:500;">${s.name} <span style='opacity:0.7'>(${episodeText})</span></span>`;
+                const sourceText = s.source ? ` [${s.source}]` : "";
+                return `<span style="display:inline-block; padding:2px 8px; margin:2px 4px 2px 0; border-radius:var(--radius-sm); background:rgba(139,92,246,0.15); color:var(--accent); font-size:11px; font-weight:500;">${s.name} <span style='opacity:0.7'>(${episodeText})${sourceText}</span></span>`;
             }).join("");
             infoContainer.innerHTML = `<span style="font-size:11px; color:var(--text-muted);">📂 Auf NAS vorhanden:</span><br>${badges}`;
+            
+            // 2. Auto-check absolute numbering if only Staffel 1 exists
+            if (data.seasons.length === 1) {
+                const sName = data.seasons[0].name.toLowerCase();
+                if (sName === "staffel 1" || sName === "season 1") {
+                    const absoluteCb = document.getElementById("series-option-absolute-numbering");
+                    if (absoluteCb && !absoluteCb.checked) {
+                        absoluteCb.checked = true;
+                        absoluteCb.dispatchEvent(new Event('change', { bubbles: true }));
+                        if (typeof appendConsoleLog === "function") {
+                            appendConsoleLog("[System]: Nur Staffel 1 auf NAS gefunden. Absolute Nummerierung wurde automatisch aktiviert.");
+                        }
+                    }
+                }
+            }
         } else {
             infoContainer.innerHTML = '<span style="font-size:11px; color:var(--text-muted);">📂 Keine Staffeln auf dem NAS gefunden.</span>';
         }
@@ -108,7 +138,8 @@ async function fetchYtNasSeasons() {
         if (data.seasons && data.seasons.length > 0) {
             const badges = data.seasons.map(s => {
                 const episodeText = s.episodes === 1 ? "1 Episode" : `${s.episodes} Episoden`;
-                return `<span style="display:inline-block; padding:2px 8px; margin:2px 4px 2px 0; border-radius:var(--radius-sm); background:rgba(139,92,246,0.15); color:var(--accent); font-size:11px; font-weight:500;">${s.name} <span style='opacity:0.7'>(${episodeText})</span></span>`;
+                const sourceText = s.source ? ` [${s.source}]` : "";
+                return `<span style="display:inline-block; padding:2px 8px; margin:2px 4px 2px 0; border-radius:var(--radius-sm); background:rgba(139,92,246,0.15); color:var(--accent); font-size:11px; font-weight:500;">${s.name} <span style='opacity:0.7'>(${episodeText})${sourceText}</span></span>`;
             }).join("");
             infoContainer.innerHTML = `<span style="font-size:11px; color:var(--text-muted);">📂 Auf NAS vorhanden:</span><br>${badges}`;
         } else {
@@ -171,6 +202,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     loadStatus();
+    loadConversionRecommendations();
     
     // Periodic status check (every 6 seconds)
     setInterval(loadStatus, 6000);
@@ -206,26 +238,32 @@ document.addEventListener("DOMContentLoaded", () => {
     // Automatically match pCloud destination with NAS destination
     if (seriesNasDest) {
         seriesNasDest.addEventListener("change", (e) => {
+            if (window.isProgrammaticCategoryChange) return;
             const pcloudDest = document.getElementById("series-pcloud-destination");
             if (pcloudDest) {
                 pcloudDest.value = e.target.value;
+                pcloudDest.dispatchEvent(new Event('change', { bubbles: true }));
             }
         });
     }
     if (ytNasDest) {
         ytNasDest.addEventListener("change", (e) => {
+            if (window.isProgrammaticCategoryChange) return;
             const pcloudDest = document.getElementById("yt-pcloud-destination");
             if (pcloudDest) {
                 pcloudDest.value = e.target.value;
+                pcloudDest.dispatchEvent(new Event('change', { bubbles: true }));
             }
         });
     }
     const movieNasDest = document.getElementById("movie-nas-destination");
     if (movieNasDest) {
         movieNasDest.addEventListener("change", (e) => {
+            if (window.isProgrammaticCategoryChange) return;
             const pcloudDest = document.getElementById("movie-pcloud-destination");
             if (pcloudDest) {
                 pcloudDest.value = e.target.value;
+                pcloudDest.dispatchEvent(new Event('change', { bubbles: true }));
             }
         });
     }
@@ -352,12 +390,14 @@ function initViews() {
                         document.getElementById("movie-search-query").value = cleanedQuery;
                         searchMovie();
                         updateSizeEstimation("movie");
+                        triggerQualityHintUpdates();
                     } else if (mode === "series") {
                         document.getElementById("series-nas-destination").value = getCatIdBySub("/Serien", "2");
                         document.getElementById("series-pcloud-destination").value = getCatIdBySub("/Serien", "2");
                         document.getElementById("series-search-query").value = cleanedQuery;
                         detectExistingSeries(currentProject);
                         updateSizeEstimation("series");
+                        triggerQualityHintUpdates();
                     }
                 }
             });
@@ -638,6 +678,7 @@ function connectLogStream() {
 // STATUS & BADGES
 // ==========================================================================
 async function loadStatus() {
+    if (document.hidden) return;
     if (document.visibilityState === "hidden") return;
     try {
         const response = await fetch("/api/status");
@@ -674,6 +715,31 @@ async function loadStatus() {
         // Render project lists (sidebar)
         renderProjectList(data.projects);
         
+        // Update Folder Size Warnings
+        const folderWarning = document.getElementById("folder-size-warning");
+        const folderWarningText = document.getElementById("folder-size-warning-text");
+        if (folderWarning && folderWarningText) {
+            const threshInbox = parseFloat(currentSettings.folder_monitor_inbox_threshold_gb) || 50.0;
+            const threshOutbox = parseFloat(currentSettings.folder_monitor_outbox_threshold_gb) || 50.0;
+            const isEnabled = currentSettings.folder_monitor_enabled !== false;
+            
+            let warnings = [];
+            if (isEnabled) {
+                if (data.inbox_size_gb > threshInbox) {
+                    warnings.push(`Dein Inbox-Ordner belegt ${data.inbox_size_gb.toFixed(1)} GB (Schwelle: ${threshInbox} GB).`);
+                }
+                if (data.outbox_size_gb > threshOutbox) {
+                    warnings.push(`Dein Outbox-Ordner belegt ${data.outbox_size_gb.toFixed(1)} GB (Schwelle: ${threshOutbox} GB).`);
+                }
+            }
+            if (warnings.length > 0) {
+                folderWarningText.innerHTML = warnings.join("<br>");
+                folderWarning.classList.remove("hidden");
+            } else {
+                folderWarning.classList.add("hidden");
+            }
+        }
+        
         // Update Welcome Dashboard if elements exist
         if (typeof updateHomepageData === "function") {
             updateHomepageData(data);
@@ -684,7 +750,16 @@ async function loadStatus() {
     }
 }
 
+let lastProjectListJson = "";
+let lastActiveProject = "";
+
 function renderProjectList(projects) {
+    const currentJson = JSON.stringify(projects);
+    if (currentJson === lastProjectListJson && currentProject === lastActiveProject) {
+        return; // Skip DOM update if data hasn't changed
+    }
+    lastProjectListJson = currentJson;
+    lastActiveProject = currentProject;
     const container = document.getElementById("project-list-container");
     const countEl = document.getElementById("project-folders-count");
     if (countEl) {
@@ -993,6 +1068,7 @@ function selectProject(projectName) {
     const seriesDetails = document.getElementById("series-nfo-details");
     if (seriesDetails) seriesDetails.removeAttribute("open");
     
+    triggerQualityHintUpdates();
     scanProject(projectName);
 }
 
@@ -1438,6 +1514,39 @@ function renderProviderInfo(element, providerName, id, loadedFromNfo) {
 async function selectShow(show) {
     selectedShow = show;
     
+    // Update local profile dropdown selection to match this show if possible
+    const localProfileSelect = document.getElementById("series-local-profile-select");
+    if (localProfileSelect) {
+        let found = false;
+        const normalizeCompareName = (name) => {
+            if (!name) return "";
+            return name.toLowerCase().replace(/[^a-z0-9]/g, "");
+        };
+        const normS = normalizeCompareName(show.name);
+        
+        for (let i = 0; i < localProfileSelect.options.length; i++) {
+            const opt = localProfileSelect.options[i];
+            if (opt.value) {
+                try {
+                    const pData = JSON.parse(opt.value);
+                    const normP = normalizeCompareName(pData.show_name);
+                    const normF = pData.filename ? normalizeCompareName(pData.filename.replace(".json", "")) : "";
+                    
+                    if (pData.show_name === show.name || 
+                        (normP && normP === normS) || 
+                        (normF && normF === normS)) {
+                        localProfileSelect.selectedIndex = i;
+                        found = true;
+                        break;
+                    }
+                } catch(e) {}
+            }
+        }
+        if (!found) {
+            localProfileSelect.value = "";
+        }
+    }
+    
     const overrideInput = document.getElementById("series-nas-folder-override");
     if (overrideInput) {
         if (window.nasFolderSelected) {
@@ -1485,7 +1594,25 @@ async function selectShow(show) {
         
     fetchNasSeasons();
     
+    // Auto-routing destination for Dokus (default fallback before profile application)
+    const nameLower = show.name.toLowerCase();
+    const isDoku = nameLower.includes("doku") || nameLower.includes("dokumentation") || currentProjectIsDoku;
+    if (isDoku) {
+        const destId = getCatIdBySub("/Dokus/Doku-Serien", "4");
+        const nasSelect = document.getElementById("series-nas-destination");
+        const pcloudSelect = document.getElementById("series-pcloud-destination");
+        if (nasSelect) {
+            nasSelect.value = destId;
+            nasSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (pcloudSelect) {
+            pcloudSelect.value = destId;
+            pcloudSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }
+
     let hasLoadedAllSeasons = false;
+    
     // Fetch and apply profile settings
     try {
         const profRes = await fetch(`/api/profile?show_name=${encodeURIComponent(show.name)}`);
@@ -1520,28 +1647,42 @@ async function selectShow(show) {
                     pcloudCb.dispatchEvent(new Event('change'));
                 }
                 
-                // Apply destination category
+                // Apply destination category (wrapped in programmatic change block to prevent override sync)
                 const nasSelect = document.getElementById("series-nas-destination");
                 const pcloudSelect = document.getElementById("series-pcloud-destination");
                 
-                if (nasSelect) {
-                    if (profile.nas_destination_id) {
-                        nasSelect.value = profile.nas_destination_id;
-                    } else {
-                        nasSelect.value = "2"; // Default for Serien
-                    }
-                }
-                
-                if (pcloudSelect) {
-                    if (profile.pcloud_destination_id) {
-                        pcloudSelect.value = profile.pcloud_destination_id;
-                    } else {
-                        if (profile.pcloud_sonstiges === "j") {
-                            pcloudSelect.value = "6"; // Sonstiges category ID
+                window.isProgrammaticCategoryChange = true;
+                try {
+                    if (nasSelect) {
+                        if (profile.nas_destination_id) {
+                            nasSelect.value = profile.nas_destination_id;
                         } else {
-                            pcloudSelect.value = "2"; // Serien category ID
+                            nasSelect.value = "2"; // Default for Serien
                         }
+                        nasSelect.dispatchEvent(new Event('change', { bubbles: true }));
                     }
+                    
+                    if (pcloudSelect) {
+                        if (profile.pcloud_destination_id) {
+                            pcloudSelect.value = profile.pcloud_destination_id;
+                        } else {
+                            if (profile.pcloud_sonstiges === "j") {
+                                pcloudSelect.value = "6"; // Sonstiges category ID
+                            } else {
+                                pcloudSelect.value = "2"; // Serien category ID
+                            }
+                        }
+                        pcloudSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                } finally {
+                    window.isProgrammaticCategoryChange = false;
+                }
+
+                // Apply force_absolute_season_1
+                const absoluteCb = document.getElementById("series-option-absolute-numbering");
+                if (absoluteCb) {
+                    absoluteCb.checked = !!profile.force_absolute_season_1;
+                    absoluteCb.dispatchEvent(new Event('change', { bubbles: true }));
                 }
 
                 // Apply all_seasons
@@ -1564,19 +1705,6 @@ async function selectShow(show) {
         }
     } catch (err) {
         console.error("Error loading show profile:", err);
-    }
-    
-    // Auto-routing destination for Dokus
-    const nameLower = show.name.toLowerCase();
-    const isDoku = nameLower.includes("doku") || nameLower.includes("dokumentation") || currentProjectIsDoku;
-    if (isDoku) {
-
-        const destId = getCatIdBySub("/Dokus/Doku-Serien", "4");
-        
-        const nasSelect = document.getElementById("series-nas-destination");
-        const pcloudSelect = document.getElementById("series-pcloud-destination");
-        if (nasSelect) nasSelect.value = destId;
-        if (pcloudSelect) pcloudSelect.value = destId;
     }
     
     updateSizeEstimation("series");
@@ -2360,7 +2488,8 @@ async function executeSeriesWorkflow() {
         destination_id: nasDestId,
         nas_destination_id: nasDestId,
         pcloud_destination_id: pcloudDestId,
-        force_absolute_season_1: forceAbsoluteSeason1
+        force_absolute_season_1: forceAbsoluteSeason1,
+        is_anime: document.getElementById("series-is-anime")?.checked || false
     };
     if (nasShowFolder) {
         payload.nas_show_folder = nasShowFolder;
@@ -3367,6 +3496,21 @@ function renderSubscriptionsList() {
         };
         updateBadge(sub.enabled);
         titleRow.appendChild(activeBadge);
+        
+        let pendingVideos = sub.pending_videos || [];
+        if (pendingVideos.length > 0) {
+            const pendingBadge = document.createElement("span");
+            pendingBadge.style.fontSize = "10px";
+            pendingBadge.style.fontWeight = "bold";
+            pendingBadge.style.padding = "2px 6px";
+            pendingBadge.style.borderRadius = "4px";
+            pendingBadge.style.background = "rgba(255, 159, 67, 0.15)";
+            pendingBadge.style.color = "rgb(255, 159, 67)";
+            pendingBadge.style.marginLeft = "5px";
+            pendingBadge.textContent = `${pendingVideos.length} AUSSTEHEND`;
+            titleRow.appendChild(pendingBadge);
+        }
+        
         infoCol.appendChild(titleRow);
         
         // Collapsible details container
@@ -3556,7 +3700,7 @@ function renderSubscriptionsList() {
         item.appendChild(headerRow);
         
         // Render Inbox (pending_videos) if mode is manual
-        const pendingVideos = sub.pending_videos || [];
+        pendingVideos = sub.pending_videos || [];
         if (!isAuto) {
             const inboxDiv = document.createElement("div");
             inboxDiv.style.marginTop = "10px";
@@ -4085,6 +4229,7 @@ async function addSubscription() {
         copy_to_local: copyToLocal,
         enabled: true,
         last_checked: null,
+        last_checked_timestamp: 0,
         downloaded_ids: [],
         auto_download: autoDownload,
         schedule: schedule,
@@ -4243,14 +4388,22 @@ async function runToolPullFiles() {
                 project_name: targetPath
             })
         });
-        if (response.ok) connectLogStream();
+        if (response.ok) {
+            connectLogStream();
+        } else {
+            appendConsoleLog(`[System]: ❌ Serverfehler (${response.status}) beim Verschieben.`);
+        }
     } catch (e) {
         console.error("Error in runToolPullFiles:", e);
         appendConsoleLog(`[System]: ❌ Fehler beim Verschieben: ${e.message}`);
     }
 }
-async function runToolClean() {
-    const targetPath = document.getElementById("tools-target-path").value || currentProject;
+async function runToolClean(path) {
+    const targetPath = path || currentProject;
+    if (!targetPath) {
+        alert("⚠️ Bitte wähle zuerst einen Zielordner-Pfad aus!");
+        return;
+    }
     
     // UI Loading state
     const overlay = document.getElementById("clean-modal-overlay");
@@ -4532,7 +4685,11 @@ async function runToolConvert() {
                 quality: quality
             })
         });
-        if (response.ok) connectLogStream();
+        if (response.ok) {
+            connectLogStream();
+        } else {
+            appendConsoleLog(`[System]: ❌ Serverfehler (${response.status}) bei der Konvertierung.`);
+        }
     } catch (e) {
         console.error("Error in runToolConvert:", e);
         appendConsoleLog(`[System]: ❌ Fehler bei der Konvertierung: ${e.message}`);
@@ -4826,9 +4983,13 @@ function initEventListeners() {
 
     
     // Tools Tab
-    document.getElementById("tool-btn-pull-files").addEventListener("click", runToolPullFiles);
-    document.getElementById("tool-btn-clean").addEventListener("click", runToolClean);
-    document.getElementById("tool-btn-paths-clean").addEventListener("click", openPathsCleanModal);
+    document.getElementById("tool-btn-pull-files")?.addEventListener("click", () => {
+        openToolRunnerModal("tool_pull_files", "Dateien hochziehen", "Löst alle Unterordner im gewählten Verzeichnis auf und zieht alle Mediendateien hoch.");
+    });
+    document.getElementById("tool-btn-clean")?.addEventListener("click", () => {
+        openToolRunnerModal("tool_clean", "Ordner bereinigen", "Entfernt leere Ordner und unerwünschte Junk-Dateien (z.B. txt, url, exe, ds_store, nfo, jpg, png).");
+    });
+    document.getElementById("tool-btn-paths-clean")?.addEventListener("click", openPathsCleanModal);
     
     // Modal-Steuerung für Medienpfade bereinigen
     document.getElementById("btn-paths-clean-close").addEventListener("click", closePathsCleanModal);
@@ -4851,49 +5012,181 @@ function initEventListeners() {
         });
     });
 
-    document.getElementById("tool-btn-convert").addEventListener("click", runToolConvert);
+    document.getElementById("tool-btn-convert")?.addEventListener("click", () => {
+        openToolRunnerModal("tool_batch_convert", "H.265 Batch-Konvertierung", "Videos im gewählten Verzeichnis in das platzsparende H.265 (HEVC) Format konvertieren.", true);
+    });
     
-    document.getElementById("tool-btn-nfo-agent").addEventListener("click", () => runToolGeneric("tool_nfo_agent", "Starte NFO Agent..."));
-    document.getElementById("tool-btn-nfo-batch").addEventListener("click", () => {
-        const fsk = document.getElementById("tool-fsk-value").value;
+    document.getElementById("tool-btn-nfo-agent")?.addEventListener("click", () => {
+        openToolRunnerModal("tool_nfo_agent", "NFO Agent", "Generiert NFO-Metadaten für alle Episoden/Filme im gewählten Ordner anhand der TMDb/TVDb IDs.");
+    });
+    document.getElementById("tool-btn-nfo-batch")?.addEventListener("click", () => {
+        const fskEl = document.getElementById("tool-fsk-value");
+        const fsk = fskEl ? fskEl.value : "6";
         runToolGeneric("tool_nfo_batch_fsk", `Passe FSK auf ${fsk} an...`, { fsk: parseInt(fsk, 10) });
     });
-    document.getElementById("tool-btn-manual-sync").addEventListener("click", () => {
-        if(!currentSettings.sync_categories || currentSettings.sync_categories.length === 0) {
-            alert("Bitte lege zuerst Sync-Kategorien in den Einstellungen an."); return;
-        }
-        const promptText = "Wohin soll der Ordner auf dem NAS kopiert werden?\n\n" + 
-                           currentSettings.sync_categories.map(c => `${c.id} = ${c.name}`).join("\n") + 
-                           "\n\nZiel wählen:";
-        const dest = prompt(promptText, currentSettings.sync_categories[0].id);
-        
-        const category = currentSettings.sync_categories.find(c => c.id === dest);
-        if(!category) return;
-        
-        const nasRoot = currentSettings.nas_root || "/Volumes/Kino";
-        const destPath = `${nasRoot}${category.nas_sub}`;
-        
-        const doPcloud = confirm("Soll das Projekt zusätzlich auch in die pCloud hochgeladen werden?");
-        runToolGeneric("tool_manual_sync", "Starte NAS Sync...", { destination: destPath, copy_to_pcloud: doPcloud });
+    document.getElementById("tool-btn-manual-sync")?.addEventListener("click", () => {
+        openToolRunnerModal("tool_manual_sync", "Speicherziel-Syncing", "Kopiert den gewählten Ordner auf das NAS-Speicherziel und optional in die pCloud.");
     });
 
-    document.getElementById("tool-btn-pcloud-sync").addEventListener("click", () => {
-        if(!currentSettings.sync_categories || currentSettings.sync_categories.length === 0) {
-            alert("Bitte lege zuerst Sync-Kategorien in den Einstellungen an."); return;
-        }
-        const promptText = "In welchen Cloud-Ordner soll kopiert werden?\n\n" + 
-                           currentSettings.sync_categories.map(c => `${c.id} = ${c.name}`).join("\n") + 
-                           "\n\nZiel wählen:";
-        const dest = prompt(promptText, currentSettings.sync_categories[0].id);
-        
-        const category = currentSettings.sync_categories.find(c => c.id === dest);
-        if(!category) return;
-        
-        const nasRoot = currentSettings.nas_root || "/Volumes/Kino";
-        const destPath = `${nasRoot}${category.nas_sub}`;
-        
-        runToolGeneric("tool_pcloud_sync", "Starte reinen pCloud Sync...", { destination: destPath });
+    document.getElementById("tool-btn-pcloud-sync")?.addEventListener("click", () => {
+        openToolRunnerModal("tool_pcloud_sync", "Reiner pCloud Sync", "Kopiert den gewählten Ordner in den Cloud-Ordner der pCloud.");
     });
+    
+    document.getElementById("tool-btn-profiles")?.addEventListener("click", openProfilesModal);
+    document.getElementById("close-modal-profiles")?.addEventListener("click", () => {
+        document.getElementById("modal-profiles").classList.remove("active");
+    });
+
+    // Modal-Tool-Runner Events
+    document.getElementById("btn-browse-tool-modal-path")?.addEventListener("click", async () => {
+        try {
+            const response = await fetch("/api/browse-folder");
+            const data = await response.json();
+            if (data.status === "ok" && data.path) {
+                document.getElementById("tool-modal-target-path").value = data.path;
+            }
+        } catch (e) {
+            console.error("Fehler beim Browsen im Modal:", e);
+        }
+    });
+    
+    document.getElementById("btn-tool-modal-shortcut-inbox")?.addEventListener("click", () => {
+        if (currentSettings && currentSettings.inbox_dir) {
+            document.getElementById("tool-modal-target-path").value = currentSettings.inbox_dir;
+        }
+    });
+    
+    document.getElementById("btn-tool-modal-shortcut-outbox")?.addEventListener("click", () => {
+        if (currentSettings && currentSettings.outbox_dir) {
+            document.getElementById("tool-modal-target-path").value = currentSettings.outbox_dir;
+        }
+    });
+    
+    const closeToolRunnerModal = () => {
+        document.getElementById("modal-tool-runner").classList.remove("active");
+    };
+    document.getElementById("btn-tool-modal-cancel")?.addEventListener("click", closeToolRunnerModal);
+    document.getElementById("close-modal-tool-runner")?.addEventListener("click", closeToolRunnerModal);
+    
+    document.getElementById("btn-tool-modal-execute")?.addEventListener("click", async () => {
+        const path = document.getElementById("tool-modal-target-path").value.trim();
+        if (!path) {
+            alert("⚠️ Bitte wähle zuerst einen Zielordner-Pfad aus!");
+            return;
+        }
+        closeToolRunnerModal();
+        
+        const toolType = window.currentActiveTool;
+        if (toolType === "tool_pull_files") {
+            expandConsole();
+            appendConsoleLog("[System]: Verschiebe Dateien aus Unterordnern nach oben...");
+            try {
+                const res = await fetch("/api/process", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ media_type: "tool_pull_files", project_name: path })
+                });
+                if (res.ok) connectLogStream();
+                else appendConsoleLog(`[System]: ❌ Serverfehler bei der Ausführung.`);
+            } catch(e) {
+                appendConsoleLog(`[System]: ❌ Fehler: ${e.message}`);
+            }
+        } else if (toolType === "tool_batch_convert") {
+            const slider = document.getElementById("tool-modal-quality-slider");
+            const quality = slider ? parseInt(slider.value, 10) : 60;
+            expandConsole();
+            appendConsoleLog("[System]: Starte Batch-H.265-Konvertierung...");
+            try {
+                const res = await fetch("/api/process", {
+                     method: "POST",
+                     headers: { "Content-Type": "application/json" },
+                     body: JSON.stringify({ media_type: "tool_batch_convert", project_name: path, quality: quality })
+                });
+                if (res.ok) connectLogStream();
+                else appendConsoleLog(`[System]: ❌ Serverfehler bei der Ausführung.`);
+            } catch(e) {
+                appendConsoleLog(`[System]: ❌ Fehler: ${e.message}`);
+            }
+        } else if (toolType === "tool_nfo_agent") {
+            expandConsole();
+            appendConsoleLog("[System]: Starte NFO Agent...");
+            try {
+                const res = await fetch("/api/process", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ media_type: "tool_nfo_agent", project_name: path })
+                });
+                if (res.ok) connectLogStream();
+                else appendConsoleLog(`[System]: ❌ Serverfehler bei der Ausführung.`);
+            } catch(e) {
+                appendConsoleLog(`[System]: ❌ Fehler: ${e.message}`);
+            }
+        } else if (toolType === "tool_clean") {
+            runToolClean(path);
+        } else if (toolType === "tool_manual_sync") {
+            if(!currentSettings.sync_categories || currentSettings.sync_categories.length === 0) {
+                alert("Bitte lege zuerst Sync-Kategorien in den Einstellungen an."); return;
+            }
+            const promptText = "Wohin soll der Ordner auf dem NAS kopiert werden?\n\n" + 
+                               currentSettings.sync_categories.map(c => `${c.id} = ${c.name}`).join("\n") + 
+                               "\n\nZiel wählen:";
+            const dest = prompt(promptText, currentSettings.sync_categories[0].id);
+            
+            const category = currentSettings.sync_categories.find(c => String(c.id) === String(dest));
+            if(!category) return;
+            
+            const nasRoot = currentSettings.nas_root || "/Volumes/Kino";
+            const destPath = `${nasRoot}${category.nas_sub}`;
+            
+            const doPcloud = confirm("Soll das Projekt zusätzlich auch in die pCloud hochgeladen werden?");
+            expandConsole();
+            appendConsoleLog("[System]: Starte NAS Sync...");
+            try {
+                const res = await fetch("/api/process", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        media_type: "tool_manual_sync",
+                        project_name: path,
+                        destination: destPath,
+                        copy_to_pcloud: doPcloud
+                    })
+                });
+                if (res.ok) connectLogStream();
+            } catch(e) {
+                appendConsoleLog(`[System]: ❌ Fehler: ${e.message}`);
+            }
+        } else if (toolType === "tool_pcloud_sync") {
+            if(!currentSettings.sync_categories || currentSettings.sync_categories.length === 0) {
+                alert("Bitte lege zuerst Sync-Kategorien in den Einstellungen an."); return;
+            }
+            const promptText = "In welchen Cloud-Ordner soll kopiert werden?\n\n" + 
+                               currentSettings.sync_categories.map(c => `${c.id} = ${c.name}`).join("\n") + 
+                               "\n\nZiel wählen:";
+            const dest = prompt(promptText, currentSettings.sync_categories[0].id);
+            
+            const category = currentSettings.sync_categories.find(c => String(c.id) === String(dest));
+            if(!category) return;
+            
+            expandConsole();
+            appendConsoleLog("[System]: Starte reinen pCloud Sync...");
+            try {
+                const res = await fetch("/api/process", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        media_type: "tool_pcloud_sync",
+                        project_name: path,
+                        destination: category.nas_sub
+                    })
+                });
+                if (res.ok) connectLogStream();
+            } catch(e) {
+                appendConsoleLog(`[System]: ❌ Fehler: ${e.message}`);
+            }
+        }
+    });
+
     setupDestinationToggles();
     
     // Re-trigger auto-matching if destination is changed
@@ -4962,12 +5255,27 @@ function initEventListeners() {
             if (e.key === "Enter") handleHeroYtDownload();
         });
     }
+    
+    // Conversion Intelligence Event Listeners
+    const seriesIsAnime = document.getElementById("series-is-anime");
+    if (seriesIsAnime) {
+        seriesIsAnime.addEventListener("change", triggerQualityHintUpdates);
+    }
+    const movieNasDest = document.getElementById("movie-nas-destination");
+    if (movieNasDest) {
+        movieNasDest.addEventListener("change", triggerQualityHintUpdates);
+    }
+    const seriesNasDest = document.getElementById("series-nas-destination");
+    if (seriesNasDest) {
+        seriesNasDest.addEventListener("change", triggerQualityHintUpdates);
+    }
 }
 
 // ==========================================================================
 // SETTINGS DASHBOARD LOGIC
 // ==========================================================================
 let currentSettings = { import_sources: [] };
+let conversionRecommendations = null;
 
 async function checkDependencies(force = false) {
     const listContainer = document.getElementById("dependency-status-list");
@@ -5220,10 +5528,14 @@ async function loadSettings() {
         const response = await fetch("/api/settings");
         if (response.ok) {
             currentSettings = await response.json();
-            document.getElementById("settings-inbox-dir").value = currentSettings.inbox_dir || "";
-            document.getElementById("settings-outbox-dir").value = currentSettings.outbox_dir || "";
-            document.getElementById("settings-nas-root").value = currentSettings.nas_root || "";
-            document.getElementById("settings-pcloud-dir").value = currentSettings.pcloud_dir || "";
+            const inboxEl = document.getElementById("settings-inbox-dir");
+            if (inboxEl) inboxEl.value = currentSettings.inbox_dir || "";
+            const outboxEl = document.getElementById("settings-outbox-dir");
+            if (outboxEl) outboxEl.value = currentSettings.outbox_dir || "";
+            const nasRootEl = document.getElementById("settings-nas-root");
+            if (nasRootEl) nasRootEl.value = currentSettings.nas_root || "";
+            const pcloudDirEl = document.getElementById("settings-pcloud-dir");
+            if (pcloudDirEl) pcloudDirEl.value = currentSettings.pcloud_dir || "";
             
             const checkDepUpdatesEl = document.getElementById("settings-check-dependency-updates");
             if (checkDepUpdatesEl) {
@@ -5252,6 +5564,16 @@ async function loadSettings() {
             setInputVal("settings-whatsapp-phone", currentSettings.whatsapp_phone);
             setInputVal("settings-notify-min-size", currentSettings.notify_min_size !== undefined ? currentSettings.notify_min_size : 10);
             setCheckbox("settings-notify-only-end", currentSettings.notify_only_end !== false); // default to true
+            
+            // Folder Monitor Settings
+            setCheckbox("set-monitor-enabled", currentSettings.folder_monitor_enabled !== false); // default true
+            setInputVal("set-monitor-inbox-gb", currentSettings.folder_monitor_inbox_threshold_gb !== undefined ? currentSettings.folder_monitor_inbox_threshold_gb : 50);
+            setInputVal("set-monitor-outbox-gb", currentSettings.folder_monitor_outbox_threshold_gb !== undefined ? currentSettings.folder_monitor_outbox_threshold_gb : 50);
+            setInputVal("set-monitor-interval", currentSettings.folder_monitor_interval_minutes !== undefined ? currentSettings.folder_monitor_interval_minutes : 30);
+            
+            setCheckbox("set-monitor-notify-macos", currentSettings.folder_monitor_notify_macos !== false); // default true
+            setCheckbox("set-monitor-notify-telegram", !!currentSettings.folder_monitor_notify_telegram);
+            setCheckbox("set-monitor-notify-whatsapp", !!currentSettings.folder_monitor_notify_whatsapp);
 
             setCheckbox("settings-show-jokes", currentSettings.show_jokes !== false); // default to true
             setCheckbox("settings-show-quote", currentSettings.show_quote !== false); // default to true
@@ -5659,10 +5981,10 @@ document.addEventListener("DOMContentLoaded", () => {
         btnSaveSettings.addEventListener("click", async () => {
             const checkDepUpdatesEl = document.getElementById("settings-check-dependency-updates");
             const payload = {
-                inbox_dir: document.getElementById("settings-inbox-dir").value,
-                outbox_dir: document.getElementById("settings-outbox-dir").value,
-                nas_root: document.getElementById("settings-nas-root").value,
-                pcloud_dir: document.getElementById("settings-pcloud-dir").value,
+                inbox_dir: document.getElementById("settings-inbox-dir")?.value || "",
+                outbox_dir: document.getElementById("settings-outbox-dir")?.value || "",
+                nas_root: document.getElementById("settings-nas-root")?.value || "",
+                pcloud_dir: document.getElementById("settings-pcloud-dir")?.value || "",
                 check_dependency_updates: checkDepUpdatesEl ? checkDepUpdatesEl.checked : false,
                 
                 open_outbox_finder: document.getElementById("settings-open-outbox-finder")?.checked || false,
@@ -5683,6 +6005,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 show_quote: document.getElementById("settings-show-quote")?.checked || false,
                 smart_conversion_default: document.getElementById("settings-smart-conversion-default")?.checked || false,
                 app_theme: document.getElementById("settings-app-theme")?.value || "deep-space",
+                
+                folder_monitor_enabled: document.getElementById("set-monitor-enabled")?.checked || false,
+                folder_monitor_inbox_threshold_gb: parseFloat(document.getElementById("set-monitor-inbox-gb")?.value) || 50.0,
+                folder_monitor_outbox_threshold_gb: parseFloat(document.getElementById("set-monitor-outbox-gb")?.value) || 50.0,
+                folder_monitor_interval_minutes: parseInt(document.getElementById("set-monitor-interval")?.value, 10) || 30,
+                
+                folder_monitor_notify_macos: document.getElementById("set-monitor-notify-macos")?.checked || false,
+                folder_monitor_notify_telegram: document.getElementById("set-monitor-notify-telegram")?.checked || false,
+                folder_monitor_notify_whatsapp: document.getElementById("set-monitor-notify-whatsapp")?.checked || false,
                 
                 import_sources: currentSettings.import_sources.filter(s => s.trim() !== ""),
                 sync_categories: currentSettings.sync_categories.filter(c => c.id.trim() !== "" && c.name.trim() !== ""),
@@ -5814,7 +6145,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     const response = await fetch("/api/browse-folder");
                     const data = await response.json();
                     if (data.folder) {
-                        document.getElementById(inputId).value = data.folder;
+                        const inputEl = document.getElementById(inputId);
+                        if (inputEl) inputEl.value = data.folder;
                     }
                 } catch (e) { console.error("Browse error:", e); }
             });
@@ -5830,7 +6162,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const btn = document.getElementById(btnId);
         if(btn) {
             btn.addEventListener("click", async () => {
-                const path = document.getElementById(inputId).value;
+                const inputEl = document.getElementById(inputId);
+                const path = inputEl ? inputEl.value : "";
                 if (!path) return;
                 
                 const hide = confirm(`Möchtest du den Ordner '${path}' im Finder VERSTECKEN?\n(Abbrechen für WIEDER SICHTBAR MACHEN)`);
@@ -6019,7 +6352,8 @@ function saveConversionSettings() {
         ytOptionCopyLocal: document.getElementById("yt-option-copy-local")?.checked,
         ytLocalDestination: document.getElementById("yt-local-destination")?.value,
 
-        toolQualitySlider: document.getElementById("tool-quality-slider")?.value
+        toolQualitySlider: document.getElementById("tool-quality-slider")?.value,
+        toolForceReconvert: document.getElementById("tool-force-reconvert")?.checked
     };
     localStorage.setItem("conversionSettings", JSON.stringify(settings));
 }
@@ -6069,6 +6403,7 @@ function loadConversionSettings() {
         }
 
         setSlider("tool-quality-slider", "tool-quality-val", settings.toolQualitySlider);
+        setCheckbox("tool-force-reconvert", settings.toolForceReconvert);
     } catch (e) {
         console.error("Error loading conversion settings:", e);
     }
@@ -6111,9 +6446,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (movieSlider && movieVal) {
         movieSlider.addEventListener("input", () => {
             movieVal.textContent = movieSlider.value;
+            triggerQualityHintUpdates();
         });
         movieSlider.addEventListener("change", saveAndEstMovie);
     }
+    document.getElementById("movie-nas-destination")?.addEventListener("change", triggerQualityHintUpdates);
 
     // Series quality slider
     const seriesSlider = document.getElementById("series-quality-slider");
@@ -6121,9 +6458,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (seriesSlider && seriesVal) {
         seriesSlider.addEventListener("input", () => {
             seriesVal.textContent = seriesSlider.value;
+            triggerQualityHintUpdates();
         });
         seriesSlider.addEventListener("change", saveAndEstSeries);
     }
+    document.getElementById("series-nas-destination")?.addEventListener("change", triggerQualityHintUpdates);
+    document.getElementById("series-is-anime")?.addEventListener("change", triggerQualityHintUpdates);
 
     // Tool quality slider
     const toolSlider = document.getElementById("tool-quality-slider");
@@ -6136,6 +6476,10 @@ document.addEventListener("DOMContentLoaded", () => {
             saveConversionSettings();
         });
     }
+
+    document.getElementById("tool-force-reconvert")?.addEventListener("change", () => {
+        saveConversionSettings();
+    });
 
     // Initialize size estimations and visibility of quality sliders on startup
     updateSizeEstimation("movie");
@@ -6183,8 +6527,11 @@ document.addEventListener("DOMContentLoaded", () => {
             explicit_junk: explicitJunk
         };
         
-        // Save profile if media_type is TV
-        if (finalPayload.media_type === "tv") {
+        // Save profile if media_type is TV and "no-profile" is not checked
+        const noProfileCb = document.getElementById("series-option-no-profile");
+        const skipProfileSave = noProfileCb ? noProfileCb.checked : false;
+        
+        if (finalPayload.media_type === "tv" && !skipProfileSave) {
             try {
                 const auto_h265 = document.getElementById("series-option-convert").checked ? "j" : "n";
                 const pcloud_sonstiges = document.getElementById("series-option-copy-pcloud").checked ? "j" : "n";
@@ -6192,6 +6539,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const copy_to_pcloud = document.getElementById("series-option-copy-pcloud").checked;
                 const nas_destination_id = document.getElementById("series-nas-destination").value;
                 const pcloud_destination_id = document.getElementById("series-pcloud-destination").value;
+                const force_absolute_season_1 = document.getElementById("series-option-absolute-numbering")?.checked || false;
                 
                 await fetch("/api/profile", {
                     method: "POST",
@@ -6208,7 +6556,8 @@ document.addEventListener("DOMContentLoaded", () => {
                             copy_to_nas: copy_to_nas,
                             copy_to_pcloud: copy_to_pcloud,
                             nas_destination_id: nas_destination_id,
-                            pcloud_destination_id: pcloud_destination_id
+                            pcloud_destination_id: pcloud_destination_id,
+                            force_absolute_season_1: force_absolute_season_1
                         }
                     })
                 });
@@ -6216,6 +6565,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 console.error("Error saving show profile on execution:", err);
             }
         }
+        
+
         
         closePreviewModal();
         appendConsoleLog("[System]: Starte finalen Verarbeitungsprozess...");
@@ -6328,6 +6679,7 @@ function initQueue() {
 }
 
 async function pollQueue() {
+    if (document.hidden) return;
     if (document.visibilityState === "hidden") return;
     try {
         const res = await fetch("/api/queue");
@@ -6454,6 +6806,17 @@ function renderQueue(jobs) {
             pipelineHtml += `</div>`;
         }
 
+        let retryHtml = "";
+        if (job.status === "error") {
+            retryHtml = `
+                <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
+                    <button class="queue-retry-btn btn-secondary" data-task-id="${job.id}" style="padding: 4px 10px; font-size: 11px; display: flex; align-items: center; gap: 4px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.2s;">
+                        🔄 Wiederholen
+                    </button>
+                </div>
+            `;
+        }
+
         const card = document.createElement("div");
         card.style.cssText = "background: rgba(20,20,30,0.5); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); padding: 15px;";
         
@@ -6465,8 +6828,43 @@ function renderQueue(jobs) {
             <div style="font-size:12px; color:var(--text-muted);">${job.message || ""}</div>
             ${progressHtml}
             ${pipelineHtml}
+            ${retryHtml}
         `;
         list.appendChild(card);
+    });
+
+    // Registriere Klick-Handler für Wiederholen-Buttons
+    list.querySelectorAll(".queue-retry-btn").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+            const taskId = e.currentTarget.getAttribute("data-task-id");
+            if (!taskId) return;
+            
+            // Button deaktivieren und Lade-Status anzeigen
+            e.currentTarget.disabled = true;
+            e.currentTarget.innerHTML = "🔄 Einreihen...";
+            
+            try {
+                const res = await fetch("/api/queue/retry", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ task_id: taskId })
+                });
+                
+                if (res.ok) {
+                    pollQueue();
+                } else {
+                    const data = await res.json();
+                    alert(`Fehler beim Wiederholen: ${data.message || "Unbekannter Fehler"}`);
+                    e.currentTarget.disabled = false;
+                    e.currentTarget.innerHTML = "🔄 Wiederholen";
+                }
+            } catch (err) {
+                console.error("Fehler beim Wiederholen des Jobs:", err);
+                alert("Fehler beim Verbinden mit dem Server.");
+                e.currentTarget.disabled = false;
+                e.currentTarget.innerHTML = "🔄 Wiederholen";
+            }
+        });
     });
 
     // Check for newly finished jobs to show joke
@@ -7501,6 +7899,31 @@ document.addEventListener("DOMContentLoaded", () => {
 async function updateHomepageData(statusData) {
     if (!statusData) return;
 
+    // 0. Folder Size Warnings (Feature 5)
+    const warningBanner = document.getElementById("folder-size-warning");
+    const warningText = document.getElementById("folder-size-warning-text");
+    if (warningBanner && warningText) {
+        let warnings = [];
+        const inboxSize = statusData.inbox_size_gb || 0;
+        const outboxSize = statusData.outbox_size_gb || 0;
+        const threshInbox = parseFloat(document.getElementById("set-monitor-inbox-gb")?.value) || 50.0;
+        const threshOutbox = parseFloat(document.getElementById("set-monitor-outbox-gb")?.value) || 50.0;
+        
+        if (inboxSize > threshInbox) {
+            warnings.push(`Der Inbox-Ordner belegt ${inboxSize.toFixed(1)} GB (Schwelle: ${threshInbox} GB).`);
+        }
+        if (outboxSize > threshOutbox) {
+            warnings.push(`Der Outbox-Ordner belegt ${outboxSize.toFixed(1)} GB (Schwelle: ${threshOutbox} GB). Denke daran, verarbeitete Projekte zu löschen.`);
+        }
+        
+        if (warnings.length > 0) {
+            warningText.innerHTML = warnings.join("<br>");
+            warningBanner.classList.remove("hidden");
+        } else {
+            warningBanner.classList.add("hidden");
+        }
+    }
+
     // 1. Projects Count / Inbox Status
     const inboxText = document.getElementById("hero-inbox-status-text");
     if (inboxText) {
@@ -7614,6 +8037,96 @@ async function updateHomepageData(statusData) {
     } catch (e) {
         console.error("Error fetching subscriptions for homepage:", e);
     }
+
+    // 6. Fetch Smart Inbox Suggestions
+    try {
+        const analyzeRes = await fetch("/api/inbox/analyze");
+        const cardSmartInbox = document.getElementById("card-smart-inbox");
+        const smartInboxList = document.getElementById("smart-inbox-list");
+        if (analyzeRes.ok && cardSmartInbox && smartInboxList) {
+            const analyzeData = await analyzeRes.json();
+            const suggestions = analyzeData.suggestions || [];
+            if (suggestions.length > 0) {
+                cardSmartInbox.style.display = "block";
+                smartInboxList.innerHTML = "";
+                suggestions.forEach(item => {
+                    let typeBadge = "";
+                    let badgeColor = "";
+                    if (item.media_type === "movie") {
+                        typeBadge = "🎬 Film";
+                        badgeColor = "background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);";
+                    } else if (item.media_type === "tv") {
+                        typeBadge = "📺 Serie";
+                        badgeColor = "background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);";
+                    } else if (item.media_type === "doku") {
+                        typeBadge = "🌿 Doku";
+                        badgeColor = "background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);";
+                    } else if (item.media_type === "anime") {
+                        typeBadge = "🌸 Anime";
+                        badgeColor = "background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);";
+                    }
+
+                    const reasonsHtml = (item.reasons || []).map(r => `<span style="font-size: 0.8em; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.05); color: var(--text-muted);">${escapeHTML(r)}</span>`).join(" ");
+
+                    const itemDiv = document.createElement("div");
+                    itemDiv.className = "smart-inbox-item";
+                    itemDiv.style.cssText = "background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; transition: all 0.2s ease;";
+                    itemDiv.innerHTML = `
+                        <div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1;">
+                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                <strong style="font-size: 1rem; color: var(--text-main);">${escapeHTML(item.project)}</strong>
+                                <span style="font-size: 0.75em; padding: 2px 8px; border-radius: 12px; font-weight: 500; ${badgeColor}">${typeBadge}</span>
+                                <span style="font-size: 0.8em; color: var(--text-muted);">${item.video_count} Datei(en)</span>
+                            </div>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;">
+                                ${reasonsHtml}
+                            </div>
+                        </div>
+                        <div>
+                            <button class="btn btn-primary btn-sm btn-select-smart" style="white-space: nowrap;">⚡ Auswählen</button>
+                        </div>
+                    `;
+                    
+                    const btn = itemDiv.querySelector(".btn-select-smart");
+                    btn.addEventListener("click", () => {
+                        handleSmartInboxClick(item.project, item.media_type, item.suggested_query || "");
+                    });
+                    smartInboxList.appendChild(itemDiv);
+                });
+            } else {
+                cardSmartInbox.style.display = "none";
+            }
+        }
+    } catch (e) {
+        console.error("Error fetching smart inbox suggestions:", e);
+    }
+}
+
+function handleSmartInboxClick(projectName, mediaType, suggestionTitle) {
+    selectProject(projectName);
+    
+    setTimeout(() => {
+        currentProjectSuggestedQuery = suggestionTitle;
+        currentProjectIsDoku = (mediaType === 'doku');
+        
+        if (mediaType === 'movie' || mediaType === 'doku') {
+            const card = document.getElementById("mode-movie");
+            if (card) card.click();
+        } else {
+            const card = document.getElementById("mode-series");
+            if (card) {
+                card.click();
+                
+                setTimeout(() => {
+                    const animeCheck = document.getElementById("series-is-anime");
+                    if (animeCheck) {
+                        animeCheck.checked = (mediaType === 'anime');
+                        animeCheck.dispatchEvent(new Event('change'));
+                    }
+                }, 50);
+            }
+        }
+    }, 100);
 }
 
 function handleHeroYtDownload() {
@@ -7652,3 +8165,323 @@ function handleHeroYtDownload() {
 
 
 
+
+async function populateLocalProfilesDropdown() {
+    const select = document.getElementById("series-local-profile-select");
+    if (!select) return;
+    
+    try {
+        const res = await fetch("/api/profiles");
+        const data = await res.json();
+        
+        let html = "<option value=\"\">-- Lokales Profil wählen --</option>";
+        if (data.profiles && data.profiles.length > 0) {
+            // Sort by show name
+            data.profiles.sort((a, b) => {
+                const nameA = a.data.show_name || a.filename;
+                const nameB = b.data.show_name || b.filename;
+                return nameA.localeCompare(nameB);
+            });
+            
+            data.profiles.forEach(p => {
+                const displayName = p.data.show_name || p.filename.replace(".json", "");
+                p.data.show_name = displayName;
+                p.data.filename = p.filename;
+                html += `<option value=\u0027${JSON.stringify(p.data).replace(/\u0027/g, "&#39;")}\u0027>${displayName}</option>`;
+            });
+        }
+        select.innerHTML = html;
+    } catch (e) {
+        console.error("Fehler beim Laden lokaler Profile:", e);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    populateLocalProfilesDropdown();
+    
+    const select = document.getElementById("series-local-profile-select");
+    if (select) {
+        select.addEventListener("change", (e) => {
+            if (!e.target.value) return;
+            try {
+                const profileData = JSON.parse(e.target.value);
+                const showObj = {
+                    id: profileData.show_id,
+                    provider: profileData.provider || "tmdb",
+                    name: profileData.show_name || "",
+                    year: "",
+                    plot: profileData.plot || "",
+                    poster: profileData.poster || ""
+                };
+                
+                const resultsContainer = document.getElementById("series-search-results");
+                if (resultsContainer) resultsContainer.innerHTML = "";
+                
+                selectShow(showObj);
+            } catch(err) {
+                console.error("Fehler beim Profil-Auswählen", err);
+            }
+        });
+    }
+});
+
+// Conversion Intelligence Globals & Functions
+let globalRecommendations = null;
+
+async function loadConversionRecommendations() {
+    try {
+        const res = await fetch("/api/conversion/recommendations");
+        if (res.ok) {
+            globalRecommendations = await res.json();
+            renderIntelligenceDashboard(globalRecommendations);
+            triggerQualityHintUpdates();
+        }
+    } catch (e) {
+        console.error("Error loading conversion recommendations:", e);
+    }
+}
+
+function renderIntelligenceDashboard(data) {
+    const grid = document.getElementById("intelligence-grid");
+    if (!grid) return;
+    
+    const recs = data.recommendations || {};
+    if (Object.keys(recs).length === 0) {
+        grid.innerHTML = `<p class="text-muted text-center" style="grid-column: 1/-1; margin: 0; padding: 10px;">Noch keine Empfehlungen verfügbar. Führe erst Konvertierungen durch.</p>`;
+        return;
+    }
+    
+    let html = "";
+    for (const [ct, info] of Object.entries(recs)) {
+        let label = ct;
+        let icon = "🎥";
+        if (ct === "movie") { label = "Filme"; icon = "🎬"; }
+        else if (ct === "live_action") { label = "Serien"; icon = "📺"; }
+        else if (ct === "doku") { label = "Dokus"; icon = "🌿"; }
+        else if (ct === "anime") { label = "Animes"; icon = "🌸"; }
+        
+        html += `
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-light); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
+                <span style="font-size: 0.95em; display: flex; align-items: center; gap: 6px;">
+                    <span>${icon}</span> <strong>${label}</strong>
+                </span>
+                <span style="font-size: 0.9em; color: var(--text-main);">Optimal: CRF <strong>${info.optimal_quality}</strong></span>
+                <span style="font-size: 0.8em; color: var(--text-muted);">Ersparnis: <strong>${Math.round((1 - info.avg_ratio) * 100)}%</strong></span>
+                <span style="font-size: 0.7em; color: var(--text-muted); opacity: 0.7; margin-top: 2px;">Basis: ${info.sample_count} Datei(en)</span>
+            </div>
+        `;
+    }
+    grid.innerHTML = html;
+}
+
+function triggerQualityHintUpdates() {
+    if (!globalRecommendations) return;
+    
+    const recs = globalRecommendations.recommendations || {};
+    
+    // Movie context check
+    const contextMovie = document.getElementById("context-movie");
+    if (contextMovie && !contextMovie.classList.contains("hidden")) {
+        const slider = document.getElementById("movie-quality-slider");
+        const hintEl = document.getElementById("movie-quality-hint");
+        const destSelect = document.getElementById("movie-nas-destination");
+        
+        if (slider && hintEl) {
+            const val = parseInt(slider.value);
+            const isDoku = destSelect && destSelect.value.toLowerCase().includes("doku");
+            const mediaType = isDoku ? "doku" : "movie";
+            
+            updateHintElement(hintEl, val, recs[mediaType]);
+        }
+    }
+    
+    // Series context check
+    const contextSeries = document.getElementById("context-series");
+    if (contextSeries && !contextSeries.classList.contains("hidden")) {
+        const slider = document.getElementById("series-quality-slider");
+        const hintEl = document.getElementById("series-quality-hint");
+        const isAnime = document.getElementById("series-is-anime")?.checked || false;
+        const destSelect = document.getElementById("series-nas-destination");
+        
+        if (slider && hintEl) {
+            const val = parseInt(slider.value);
+            let mediaType = "live_action";
+            if (isAnime) mediaType = "anime";
+            else if (destSelect && destSelect.value.toLowerCase().includes("doku")) mediaType = "doku";
+            
+            updateHintElement(hintEl, val, recs[mediaType]);
+        }
+    }
+}
+
+function updateHintElement(el, currentVal, recInfo) {
+    if (!recInfo) {
+        el.textContent = "💡 Noch keine historischen Daten für diesen Inhaltstyp vorhanden. Standardempfehlung ist CRF 60.";
+        el.classList.remove("hidden");
+        return;
+    }
+    
+    const optimal = recInfo.optimal_quality;
+    if (currentVal === optimal) {
+        el.textContent = `✅ Optimaler Wert für diesen Inhaltstyp basierend auf deiner Historie (CRF ${optimal}).`;
+    } else if (currentVal > optimal) {
+        el.textContent = `💡 Deine Historie zeigt, dass dieser Inhaltstyp auch mit CRF ${optimal} ohne sichtbaren Qualitätsverlust gut komprimiert wird (spart mehr Platz).`;
+    } else {
+        el.textContent = `⚠️ Dieser Wert liegt unter dem empfohlenen Optimum von CRF ${optimal}. Es könnte zu sichtbaren Kompressionsartefakten kommen.`;
+    }
+    el.classList.remove("hidden");
+}
+
+function openToolRunnerModal(toolType, title, desc, hasQualitySlider = false) {
+    window.currentActiveTool = toolType;
+    
+    const titleEl = document.getElementById("tool-modal-title");
+    const descEl = document.getElementById("tool-modal-desc");
+    const pathInput = document.getElementById("tool-modal-target-path");
+    const extraOpt = document.getElementById("tool-modal-extra-options");
+    const modal = document.getElementById("modal-tool-runner");
+    
+    if (titleEl) titleEl.textContent = title;
+    if (descEl) descEl.textContent = desc;
+    if (pathInput) {
+        pathInput.value = currentProject || (currentSettings ? currentSettings.inbox_dir : "");
+    }
+    
+    if (extraOpt) {
+        if (hasQualitySlider) {
+            extraOpt.innerHTML = `
+                <div class="quality-slider-container form-group" style="margin-top: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <label for="tool-modal-quality-slider" style="font-weight: 500;">Konvertierungs-Qualität (CRF):</label>
+                        <span id="tool-modal-quality-val" style="font-weight: bold; color: var(--accent);">60</span>
+                    </div>
+                    <input type="range" id="tool-modal-quality-slider" min="10" max="100" value="60" step="1" style="width: 100%; margin-top: 5px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-top: 4px;">
+                        <span>Schneller / Kleinere Datei (10)</span>
+                        <span>Sehr hohe Qualität / Große Datei (100)</span>
+                    </div>
+                </div>
+            `;
+            extraOpt.style.display = "block";
+            const slider = document.getElementById("tool-modal-quality-slider");
+            const valText = document.getElementById("tool-modal-quality-val");
+            if (slider && valText) {
+                slider.addEventListener("input", () => {
+                    valText.textContent = slider.value;
+                });
+            }
+        } else {
+            extraOpt.innerHTML = "";
+            extraOpt.style.display = "none";
+        }
+    }
+    
+    if (modal) modal.classList.add("active");
+}
+
+function openProfilesModal() {
+    const modal = document.getElementById("modal-profiles");
+    if (modal) {
+        modal.classList.add("active");
+        loadProfilesInModal();
+    }
+}
+
+async function loadProfilesInModal() {
+    const container = document.getElementById("profiles-list-container");
+    if (!container) return;
+    
+    container.innerHTML = `<div style="color:var(--text-muted); font-size:13px; padding:10px; text-align:center;">Lade Profile...</div>`;
+    
+    try {
+        const res = await fetch("/api/profiles");
+        const data = await res.json();
+        
+        if (!data.profiles || data.profiles.length === 0) {
+            container.innerHTML = `<div style="color:var(--text-muted); font-size:13px; padding:20px; text-align:center;">Keine gespeicherten Profile gefunden.</div>`;
+            return;
+        }
+        
+        // Sortieren
+        data.profiles.sort((a, b) => {
+            const nameA = a.data.show_name || a.filename;
+            const nameB = b.data.show_name || b.filename;
+            return nameA.localeCompare(nameB);
+        });
+        
+        let html = "";
+        data.profiles.forEach(p => {
+            const displayName = p.data.show_name || p.filename.replace(".json", "");
+            const info = `ID: ${p.data.show_id || 'N/A'} | Provider: ${p.data.provider || 'N/A'}`;
+            html += `
+                <div class="profile-card" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-glass); border-radius: 6px; gap: 10px;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 600; color: var(--text-main); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${displayName}</div>
+                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${info}</div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-secondary btn-sm" onclick="loadProfileFromModal('${p.filename.replace(/'/g, "\\'")}', '${displayName.replace(/'/g, "\\'")}', ${p.data.show_id || null}, '${p.data.provider || ''}')" title="In Sendezentrale laden" style="padding: 4px 8px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px;">
+                            📂 Laden
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteProfileFromModal('${p.filename.replace(/'/g, "\\'")}', '${displayName.replace(/'/g, "\\'")}')" title="Profil löschen" style="padding: 4px 8px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px;">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    } catch(err) {
+        console.error("Fehler beim Laden der Profile im Modal:", err);
+        container.innerHTML = `<div style="color:var(--danger); font-size:13px; padding:10px; text-align:center;">Fehler beim Laden der Profile.</div>`;
+    }
+}
+
+async function deleteProfileFromModal(filename, displayName) {
+    if (!confirm(`Möchtest du das Profil für "${displayName}" wirklich löschen?`)) return;
+    
+    try {
+        const response = await fetch("/api/profiles", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "delete", filename: filename })
+        });
+        const data = await response.json();
+        if (data.status === "success") {
+            loadProfilesInModal();
+            // Haupt-Dropdown ebenfalls aktualisieren falls vorhanden
+            if (typeof populateLocalProfilesDropdown === "function") {
+                populateLocalProfilesDropdown();
+            }
+        } else {
+            alert("Fehler beim Löschen des Profils.");
+        }
+    } catch (e) {
+        console.error("Fehler beim Löschen des Profils:", e);
+    }
+}
+
+function loadProfileFromModal(filename, displayName, showId, provider) {
+    // Schließe Modal
+    const modal = document.getElementById("modal-profiles");
+    if (modal) modal.classList.remove("active");
+    
+    // Wechsle zum Home-Tab / Sendezentrale
+    const homeBtn = document.getElementById("master-btn-home");
+    if (homeBtn) homeBtn.click();
+    
+    // Lade Show mit selectShow
+    const showObj = {
+        id: showId || "",
+        provider: provider || "tmdb",
+        name: displayName || "",
+        year: "",
+        plot: "",
+        poster: ""
+    };
+    selectShow(showObj);
+}
+
+// Global registrieren, damit Inline-onclicks funktionieren
+window.loadProfileFromModal = loadProfileFromModal;
+window.deleteProfileFromModal = deleteProfileFromModal;

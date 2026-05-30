@@ -1,6 +1,16 @@
 import sys
 import json
 import urllib.request
+
+def _download_with_timeout(url, path, timeout=10):
+    import urllib.request
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=timeout) as r, open(path, "wb") as f:
+            f.write(r.read())
+    except Exception as e:
+        print(f"Warning: Download failed: {e}")
+        raise e
 import urllib.parse
 import re
 import os
@@ -37,7 +47,7 @@ def get_tvdb_token():
         url = "https://api4.thetvdb.com/v4/login"
         data = json.dumps({"apikey": TVDB_API_KEY}).encode('utf-8')
         req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:
             res = json.loads(response.read().decode())
             tvdb_token = res.get('data', {}).get('token')
             tvdb_token_time = time.time()
@@ -65,7 +75,7 @@ def search_tvdb(query, lang="deu"):
     url = f"https://api4.thetvdb.com/v4/search?query={urllib.parse.quote(query)}&type=series&language={lang}"
     try:
         req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
             results = []
             for item in data.get('data', [])[:8]:
@@ -101,7 +111,7 @@ def fetch_tvdb(show_id, season, lang="deu"):
         url = f"https://api4.thetvdb.com/v4/series/{show_id}/episodes/default/{lang}?page={page}"
         try:
             req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 episodes = data.get('data', {}).get('episodes', [])
                 if not episodes:
@@ -217,20 +227,20 @@ def get_all_season_numbers(provider, show_id):
         if provider in ["tmdb_tv", "tmdb_tv_en"]:
             url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 seasons = [s['season_number'] for s in data.get('seasons', []) if s.get('season_number', 0) > 0]
         elif provider == "tvdb":
             token = get_tvdb_token()
             url = f"https://api4.thetvdb.com/v4/series/{show_id}/extended"
             req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode()).get('data', {})
                 seasons = [s['number'] for s in data.get('seasons', []) if s.get('type', {}).get('id') == 1 and s.get('number', 0) > 0]
         elif provider == "tvmaze":
             url = f"https://api.tvmaze.com/shows/{show_id}/seasons"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 seasons = [s['number'] for s in data if s.get('number', 0) > 0]
     except Exception as e:
@@ -274,7 +284,7 @@ def search_tvmaze(query):
         search_url = f"https://api.tvmaze.com/search/shows?q={urllib.parse.quote(q)}"
         try:
             req = urllib.request.Request(search_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 for item in data:
                     show = item['show']
@@ -300,7 +310,7 @@ def fetch_tvmaze(show_id, season):
     episodes_url = f"https://api.tvmaze.com/shows/{show_id}/episodes"
     try:
         req = urllib.request.Request(episodes_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:
             episodes_data = json.loads(response.read().decode())
             
         result = {}
@@ -336,7 +346,7 @@ def get_fernsehserien_episodes(series_name_or_url, season):
         req = urllib.request.Request(url, headers={
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
         })
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:
             html = response.read().decode('utf-8')
             
         result = {}
@@ -358,7 +368,7 @@ def search_tmdb_movie(query):
         url = f"https://api.themoviedb.org/3/find/{query}?api_key={TMDB_API_KEY}&external_source=imdb_id&language=de-DE"
         try:
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 results = []
                 for item in data.get('movie_results', []):
@@ -375,7 +385,7 @@ def search_tmdb_movie(query):
         url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}&language=de-DE"
         try:
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 item = json.loads(response.read().decode())
                 year = item.get('release_date', '')[:4] if item.get('release_date') else '????'
                 title = item.get('title', '')
@@ -393,7 +403,7 @@ def search_tmdb_movie(query):
         url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={urllib.parse.quote(q_str)}&language=de-DE"
         try:
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 results = []
                 for item in data.get('results', [])[:8]:
@@ -432,7 +442,7 @@ def search_tmdb_tv(query, lang="de-DE"):
         url = f"https://api.themoviedb.org/3/find/{query}?api_key={TMDB_API_KEY}&external_source=imdb_id&language={lang}"
         try:
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 results = []
                 for item in data.get('tv_results', []):
@@ -450,7 +460,7 @@ def search_tmdb_tv(query, lang="de-DE"):
         url = f"https://api.themoviedb.org/3/tv/{tmdb_id}?api_key={TMDB_API_KEY}&language={lang}"
         try:
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 item = json.loads(response.read().decode())
                 year = item.get('first_air_date', '')[:4] if item.get('first_air_date') else '????'
                 title = item.get('name', '')
@@ -466,7 +476,7 @@ def search_tmdb_tv(query, lang="de-DE"):
     url = f"https://api.themoviedb.org/3/search/tv?api_key={TMDB_API_KEY}&query={urllib.parse.quote(query)}&language={lang}"
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
             results = []
             for item in data.get('results', [])[:8]:
@@ -507,7 +517,7 @@ def fetch_tmdb_tv(show_id, season, lang="de-DE"):
     url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season}?api_key={TMDB_API_KEY}&language={lang}"
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
             result = {}
             for ep in data.get('episodes', []):
@@ -576,7 +586,7 @@ def search_ofdb(query):
         data = urllib.parse.urlencode({'QSinput': q_str}).encode('utf-8')
         req = urllib.request.Request(url, data=data, headers={'User-Agent': 'Mozilla/5.0'})
         try:
-            html = urllib.request.urlopen(req).read().decode('utf-8', errors='ignore')
+            html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
         except Exception:
             return []
             
@@ -620,7 +630,7 @@ def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=
     url = f"https://www.ofdb.de/film/{ofdb_id},{url_part}/"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     try:
-        html = urllib.request.urlopen(req).read().decode('utf-8', errors='ignore')
+        html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
     except Exception: return {}
     
     title_m = re.search(r'<title>OFDb - (.*?) \(\d{4}\)</title>', html)
@@ -759,7 +769,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             
             if thumbnail_url and needs_poster:
                 try:
-                    urllib.request.urlretrieve(thumbnail_url, poster_path)
+                    _download_with_timeout(thumbnail_url, poster_path)
                     downloaded_poster = True
                 except Exception as e:
                     print(f"[ytdlp poster error] {e}")
@@ -772,7 +782,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
     url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}&language=de-DE&append_to_response=credits,release_dates"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     try:
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
     except Exception as e:
         return {"error": str(e)}
@@ -783,7 +793,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             try:
                 with open(fallback_json, 'r', encoding='utf-8') as f:
                     yt_data = json.load(f)
-            except: pass
+            except Exception as e: print(f"Warning: Ignored exception {e}")
             
         fsk = ""
         for r in data.get('release_dates', {}).get('results', []):
@@ -847,14 +857,14 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
     if needs_poster and data.get('poster_path'):
         try:
             p_url = f"https://image.tmdb.org/t/p/original{data['poster_path']}"
-            urllib.request.urlretrieve(p_url, poster_path)
+            _download_with_timeout(p_url, poster_path)
         except Exception:
             needs_poster = False
             
     if needs_fanart and data.get('backdrop_path'):
         try:
             b_url = f"https://image.tmdb.org/t/p/original{data['backdrop_path']}"
-            urllib.request.urlretrieve(b_url, fanart_path)
+            _download_with_timeout(b_url, fanart_path)
         except Exception:
             needs_fanart = False
             
@@ -893,7 +903,7 @@ def fetch_show_nfo_data(provider, show_id):
             token = get_tvdb_token()
             url = f"https://api4.thetvdb.com/v4/series/{show_id}/extended?meta=translations"
             req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode()).get('data', {})
             title = data.get('name', '')
             plot = data.get('overview', '')
@@ -916,7 +926,7 @@ def fetch_show_nfo_data(provider, show_id):
             lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
             url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}&language={lang}"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
             title = data.get('name', '')
             plot = data.get('overview', '')
@@ -976,7 +986,7 @@ def fetch_movie_nfo_data(provider, movie_id):
         try:
             url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&language=de-DE"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
             title = data.get('title', '')
             plot = data.get('overview', '')
@@ -1049,14 +1059,14 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
                     try:
                         with open(cache_path, 'r', encoding='utf-8') as f:
                             eps = json.load(f)
-                    except: pass
+                    except Exception as e: print(f"Warning: Ignored exception {e}")
                 if not eps:
                     pg = 0
                     while True:
                         url = f"https://api4.thetvdb.com/v4/series/{sid}/episodes/default/{lang_code}?page={pg}"
                         try:
                             req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-                            with urllib.request.urlopen(req) as response:
+                            with urllib.request.urlopen(req, timeout=10) as response:
                                 d = json.loads(response.read().decode())
                                 batch = d.get('data', {}).get('episodes', [])
                                 if not batch: break
@@ -1066,12 +1076,12 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
                                     pg += 1
                                 else:
                                     break
-                        except: break
+                        except Exception: break
                     if eps:
                         try:
                             with open(cache_path, 'w', encoding='utf-8') as f:
                                 json.dump(eps, f)
-                        except: pass
+                        except Exception as e: print(f"Warning: Ignored exception {e}")
                 return eps
 
             all_episodes = _tvdb_load_episodes(show_id, "deu", cache_file)
@@ -1110,7 +1120,7 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
             lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
             url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season}/episode/{episode}?api_key={TMDB_API_KEY}&language={lang}"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
             return {
                 "title": data.get('name', f"Folge {episode}"),
@@ -1229,7 +1239,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         url = f"https://api4.thetvdb.com/v4/series/{show_id}/extended?meta=translations"
         try:
             req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode()).get('data', {})
         except Exception as e:
             return {"error": str(e)}
@@ -1297,18 +1307,18 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         if needs_poster or needs_fanart:
             for art in data.get('artworks', []):
                 if needs_poster and art.get('type') == 2:
-                    try: urllib.request.urlretrieve(art.get('image'), poster_path); needs_poster = False
-                    except: pass
+                    try: _download_with_timeout(art.get('image'), poster_path); needs_poster = False
+                    except Exception as e: print(f"Warning: Ignored exception {e}")
                 if needs_fanart and art.get('type') == 3:
-                    try: urllib.request.urlretrieve(art.get('image'), fanart_path); needs_fanart = False
-                    except: pass
+                    try: _download_with_timeout(art.get('image'), fanart_path); needs_fanart = False
+                    except Exception as e: print(f"Warning: Ignored exception {e}")
         return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart}
 
     lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
     url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}&language={lang}&append_to_response=credits,content_ratings"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     try:
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
     except Exception as e:
         return {"error": str(e)}
@@ -1362,13 +1372,13 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
     if needs_poster and data.get('poster_path'):
         try:
             p_url = f"https://image.tmdb.org/t/p/original{data['poster_path']}"
-            urllib.request.urlretrieve(p_url, poster_path)
+            _download_with_timeout(p_url, poster_path)
         except Exception:
             needs_poster = False
     if needs_fanart and data.get('backdrop_path'):
         try:
             b_url = f"https://image.tmdb.org/t/p/original{data['backdrop_path']}"
-            urllib.request.urlretrieve(b_url, fanart_path)
+            _download_with_timeout(b_url, fanart_path)
         except Exception:
             needs_fanart = False
             
@@ -1499,7 +1509,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             
             if thumbnail_url and needs_thumb:
                 try:
-                    urllib.request.urlretrieve(thumbnail_url, thumb_path)
+                    _download_with_timeout(thumbnail_url, thumb_path)
                     downloaded_thumb = True
                 except Exception as e:
                     print(f"[ytdlp episode thumb error] {e}")
@@ -1522,7 +1532,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             try:
                 with open(cache_file, 'r', encoding='utf-8') as f:
                     all_episodes = json.load(f)
-            except: pass
+            except Exception as e: print(f"Warning: Ignored exception {e}")
             
         def _tvdb_load_episodes(sid, lang_code, cache_path):
             eps = []
@@ -1530,14 +1540,14 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                 try:
                     with open(cache_path, 'r', encoding='utf-8') as f:
                         eps = json.load(f)
-                except: pass
+                except Exception as e: print(f"Warning: Ignored exception {e}")
             if not eps:
                 pg = 0
                 while True:
                     url = f"https://api4.thetvdb.com/v4/series/{sid}/episodes/default/{lang_code}?page={pg}"
                     try:
                         req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-                        with urllib.request.urlopen(req) as response:
+                        with urllib.request.urlopen(req, timeout=10) as response:
                             d = json.loads(response.read().decode())
                             batch = d.get('data', {}).get('episodes', [])
                             if not batch: break
@@ -1547,12 +1557,12 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                                 pg += 1
                             else:
                                 break
-                    except: break
+                    except Exception: break
                 if eps:
                     try:
                         with open(cache_path, 'w', encoding='utf-8') as f:
                             json.dump(eps, f)
-                    except: pass
+                    except Exception as e: print(f"Warning: Ignored exception {e}")
             return eps
 
         all_episodes = _tvdb_load_episodes(show_id, "deu", cache_file)
@@ -1575,10 +1585,10 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                         
                     xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                     xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
-                    xml += f"  <title>{ep_title}</title>\n"
+                    xml += f"  <title>{escape_xml(ep_title)}</title>\n"
                     xml += f"  <season>{nfo_season}</season>\n"
                     xml += f"  <episode>{nfo_episode}</episode>\n"
-                    xml += f"  <plot>{ep_plot}</plot>\n"
+                    xml += f"  <plot>{escape_xml(ep_plot)}</plot>\n"
                     if ep_aired:
                         xml += f"  <aired>{ep_aired}</aired>\n"
                     xml += '</episodedetails>\n'
@@ -1626,8 +1636,8 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                 f.write(xml)
                 
         if needs_thumb and ep_data.get('image'):
-            try: urllib.request.urlretrieve(ep_data.get('image'), thumb_path); needs_thumb = False
-            except: pass
+            try: _download_with_timeout(ep_data.get('image'), thumb_path); needs_thumb = False
+            except Exception as e: print(f"Warning: Ignored exception {e}")
             
         return {"nfo": needs_nfo, "thumb": not needs_thumb}
         
@@ -1635,7 +1645,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
     url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season}/episode/{episode}?api_key={TMDB_API_KEY}&language={lang}"
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
     except Exception as e:
         if needs_nfo:
@@ -1650,10 +1660,10 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                     
                 xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
-                xml += f"  <title>{ep_title}</title>\n"
+                xml += f"  <title>{escape_xml(ep_title)}</title>\n"
                 xml += f"  <season>{nfo_season}</season>\n"
                 xml += f"  <episode>{nfo_episode}</episode>\n"
-                xml += f"  <plot>{ep_plot}</plot>\n"
+                xml += f"  <plot>{escape_xml(ep_plot)}</plot>\n"
                 if ep_aired:
                     xml += f"  <aired>{ep_aired}</aired>\n"
                 xml += '</episodedetails>\n'
@@ -1689,7 +1699,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
     if needs_thumb and data.get('still_path'):
         try:
             t_url = f"https://image.tmdb.org/t/p/original{data['still_path']}"
-            urllib.request.urlretrieve(t_url, thumb_path)
+            _download_with_timeout(t_url, thumb_path)
         except Exception:
             needs_thumb = False
             
@@ -1715,7 +1725,7 @@ def generate_youtube_nfo(json_path, nfo_path, nfo_type):
     xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
     if nfo_type == "movie":
         xml += '<movie>\n  <lockdata>true</lockdata>\n'
-        xml += f"  <title>{title}</title>\n"
+        xml += f"  <title>{escape_xml(title)}</title>\n"
         xml += f"  <plot>{plot}</plot>\n"
         xml += f"  <year>{year}</year>\n"
         xml += f"  <premiered>{premiered}</premiered>\n"
@@ -1723,7 +1733,7 @@ def generate_youtube_nfo(json_path, nfo_path, nfo_type):
         xml += '</movie>\n'
     elif nfo_type == "episode":
         xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
-        xml += f"  <title>{title}</title>\n"
+        xml += f"  <title>{escape_xml(title)}</title>\n"
         xml += f"  <plot>{plot}</plot>\n"
         xml += f"  <year>{year}</year>\n"
         xml += f"  <aired>{premiered}</aired>\n"
@@ -1734,117 +1744,6 @@ def generate_youtube_nfo(json_path, nfo_path, nfo_type):
         f.write(xml)
         
     return {"nfo": True}
-
-if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("{}")
-        sys.exit(1)
-        
-    action = sys.argv[1]
-    
-    if action == "search_tvmaze":
-        query = sys.argv[2]
-        res = search_tvmaze(query)
-        print(json.dumps(res))
-    elif action == "search_tmdb":
-        query = sys.argv[2]
-        res = search_tmdb_movie(query)
-        print(json.dumps(res))
-    elif action == "search_tmdb_tv":
-        query = sys.argv[2]
-        res = search_tmdb_tv(query, "de-DE")
-        print(json.dumps(res))
-    elif action == "search_tmdb_tv_en":
-        query = sys.argv[2]
-        res = search_tmdb_tv(query, "en-US")
-        print(json.dumps(res))
-    elif action == "fetch_tvmaze":
-        show_id = sys.argv[2]
-        season = sys.argv[3]
-        res = fetch_tvmaze(show_id, season)
-        print(json.dumps(res))
-    elif action == "fetch_fernsehserien":
-        show_name = sys.argv[2]
-        season = sys.argv[3]
-        res = get_fernsehserien_episodes(show_name, season)
-        print(json.dumps(res))
-    elif action == "fetch_tmdb_tv":
-        show_id = sys.argv[2]
-        season = sys.argv[3]
-        res = fetch_tmdb_tv(show_id, season, "de-DE")
-        print(json.dumps(res))
-    elif action == "fetch_tmdb_tv_en":
-        show_id = sys.argv[2]
-        season = sys.argv[3]
-        res = fetch_tmdb_tv(show_id, season, "en-US")
-        print(json.dumps(res))
-    elif action == "search_all_db":
-        query = sys.argv[2]
-        res = search_all_db(query)
-        print(json.dumps(res))
-    elif action == "fetch_tvdb":
-        show_id = sys.argv[2]
-        season = sys.argv[3]
-        res = fetch_tvdb(show_id, season, "deu")
-        print(json.dumps(res))
-    elif action == "show_info":
-        provider = sys.argv[2]
-        show_id = sys.argv[3]
-        res = get_show_info(provider, show_id)
-        print(res)
-    elif action == "match_episode":
-        filename = sys.argv[2]
-        json_str = sys.argv[3]
-        res = match_episode(filename, json_str)
-        print(res)
-    elif action == "generate_movie_nfo":
-        tmdb_id = sys.argv[2]
-        folder_path = sys.argv[3]
-        filename_base = sys.argv[4]
-        fallback = sys.argv[5] if len(sys.argv) > 5 else None
-        res = generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback)
-        print(json.dumps(res))
-    elif action == "search_ofdb":
-        query = sys.argv[2]
-        res = search_ofdb(query)
-        print(json.dumps(res))
-    elif action == "generate_ofdb_nfo":
-        ofdb_full_id = sys.argv[2]
-        folder_path = sys.argv[3]
-        filename_base = sys.argv[4]
-        fallback = sys.argv[5] if len(sys.argv) > 5 else None
-        res = generate_ofdb_nfo(ofdb_full_id, folder_path, filename_base, fallback)
-        print(json.dumps(res))
-    elif action == "generate_tvshow_nfo":
-        provider = sys.argv[2]
-        show_id = sys.argv[3]
-        target_folder = sys.argv[4]
-        res = generate_tvshow_nfo(provider, show_id, target_folder)
-        print(json.dumps(res))
-    elif action == "generate_episode_nfo":
-        provider = sys.argv[2]
-        show_id = sys.argv[3]
-        season = sys.argv[4]
-        episode = sys.argv[5]
-        target_folder = sys.argv[6]
-        filename_base = sys.argv[7]
-        res = generate_episode_nfo(provider, show_id, season, episode, target_folder, filename_base)
-        print(json.dumps(res))
-    elif action == "generate_youtube_nfo":
-        json_path = sys.argv[2]
-        nfo_path = sys.argv[3]
-        nfo_type = sys.argv[4]
-        res = generate_youtube_nfo(json_path, nfo_path, nfo_type)
-        print(json.dumps(res))
-    elif action == "guess_season":
-        provider = sys.argv[2]
-        show_id = sys.argv[3]
-        filenames_json = sys.argv[4]
-        res = guess_season(provider, show_id, filenames_json)
-        if res:
-            print(res)
-    else:
-        print("{}")
 
 def guess_season(provider, show_id, filenames_json_or_list):
     if isinstance(filenames_json_or_list, str):
@@ -1862,20 +1761,20 @@ def guess_season(provider, show_id, filenames_json_or_list):
         if provider in ["tmdb_tv", "tmdb_tv_en", "tmdb"]:
             url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 seasons = [str(s['season_number']) for s in data.get('seasons', []) if s.get('season_number', 0) > 0]
         elif provider == "tvdb":
             token = get_tvdb_token()
             url = f"https://api4.thetvdb.com/v4/series/{show_id}/extended"
             req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode()).get('data', {})
                 seasons = [str(s['number']) for s in data.get('seasons', []) if s.get('type', {}).get('id') == 1 and s.get('number', 0) > 0]
         elif provider == "tvmaze":
             url = f"https://api.tvmaze.com/shows/{show_id}/seasons"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 seasons = [str(s['number']) for s in data if s.get('number', 0) > 0]
     except Exception:
@@ -1966,7 +1865,9 @@ def clean_search_query(query):
     
     # Remove release tags at the end like "-GRP" or "-TvR" BEFORE replacing dashes,
     # but only if the query has release noise or the hyphen is preceded by a space, dot, underscore, or digit.
-    if has_release_noise or re.search(r"[\s\._\d]-\s*[a-zA-Z0-9]+$", q):
+    if has_release_noise:
+        q = re.sub(r"[\s\._-]\s*(?!\d{4}$)[a-zA-Z0-9]+$", "", q)
+    elif re.search(r"[\s\._\d]-\s*[a-zA-Z0-9]+$", q):
         q = re.sub(r"-\s*[a-zA-Z0-9]+$", "", q)
     
     # Remove lowercase short prefixes followed by a hyphen (e.g., "sh-") at the start,
@@ -1988,7 +1889,7 @@ def clean_search_query(query):
         r"\bSeason\s+\d+\b",
         r"\bStaffel\s+\d+\b",
         r"\b(1080p|720p|2160p|4k|576p|480p|1080i|720i|3d|uhd)\b",
-        r"\b(x264|x265|h264|h265|hevc|avc|mpeg2|mpeg4|hvc1)\b",
+        r"\b(x264|x265|h264|h265|hevc|avc|mpeg2|mpeg4|hvc1|av1|av01|vp9|vc1|divx|xvid)\b",
         r"\b(bluray|blu-ray|web-dl|webdl|webrip|web|hdtv|dvd|dvdrip|bdrip|brrip|remux|complete|uncut|unrated|retail|proper|repack)\b",
         r"\b(dd5\.?1|dd2\.?0|dts|dts-hd|truehd|atmos|ac3|aac)\b",
         r"\b(german|deutsch|english|englisch|dl|multi|subbed|dubbed|dub|sub)\b",
@@ -2243,4 +2144,115 @@ def fetch_ytdlp_url_metadata(url):
     except Exception as e:
         print(f"[fetch_ytdlp_url_metadata] Error: {e}", file=sys.stderr)
         return []
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("{}")
+        sys.exit(1)
+        
+    action = sys.argv[1]
+    
+    if action == "search_tvmaze":
+        query = sys.argv[2]
+        res = search_tvmaze(query)
+        print(json.dumps(res))
+    elif action == "search_tmdb":
+        query = sys.argv[2]
+        res = search_tmdb_movie(query)
+        print(json.dumps(res))
+    elif action == "search_tmdb_tv":
+        query = sys.argv[2]
+        res = search_tmdb_tv(query, "de-DE")
+        print(json.dumps(res))
+    elif action == "search_tmdb_tv_en":
+        query = sys.argv[2]
+        res = search_tmdb_tv(query, "en-US")
+        print(json.dumps(res))
+    elif action == "fetch_tvmaze":
+        show_id = sys.argv[2]
+        season = sys.argv[3]
+        res = fetch_tvmaze(show_id, season)
+        print(json.dumps(res))
+    elif action == "fetch_fernsehserien":
+        show_name = sys.argv[2]
+        season = sys.argv[3]
+        res = get_fernsehserien_episodes(show_name, season)
+        print(json.dumps(res))
+    elif action == "fetch_tmdb_tv":
+        show_id = sys.argv[2]
+        season = sys.argv[3]
+        res = fetch_tmdb_tv(show_id, season, "de-DE")
+        print(json.dumps(res))
+    elif action == "fetch_tmdb_tv_en":
+        show_id = sys.argv[2]
+        season = sys.argv[3]
+        res = fetch_tmdb_tv(show_id, season, "en-US")
+        print(json.dumps(res))
+    elif action == "search_all_db":
+        query = sys.argv[2]
+        res = search_all_db(query)
+        print(json.dumps(res))
+    elif action == "fetch_tvdb":
+        show_id = sys.argv[2]
+        season = sys.argv[3]
+        res = fetch_tvdb(show_id, season, "deu")
+        print(json.dumps(res))
+    elif action == "show_info":
+        provider = sys.argv[2]
+        show_id = sys.argv[3]
+        res = get_show_info(provider, show_id)
+        print(res)
+    elif action == "match_episode":
+        filename = sys.argv[2]
+        json_str = sys.argv[3]
+        res = match_episode(filename, json_str)
+        print(res)
+    elif action == "generate_movie_nfo":
+        tmdb_id = sys.argv[2]
+        folder_path = sys.argv[3]
+        filename_base = sys.argv[4]
+        fallback = sys.argv[5] if len(sys.argv) > 5 else None
+        res = generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback)
+        print(json.dumps(res))
+    elif action == "search_ofdb":
+        query = sys.argv[2]
+        res = search_ofdb(query)
+        print(json.dumps(res))
+    elif action == "generate_ofdb_nfo":
+        ofdb_full_id = sys.argv[2]
+        folder_path = sys.argv[3]
+        filename_base = sys.argv[4]
+        fallback = sys.argv[5] if len(sys.argv) > 5 else None
+        res = generate_ofdb_nfo(ofdb_full_id, folder_path, filename_base, fallback)
+        print(json.dumps(res))
+    elif action == "generate_tvshow_nfo":
+        provider = sys.argv[2]
+        show_id = sys.argv[3]
+        target_folder = sys.argv[4]
+        res = generate_tvshow_nfo(provider, show_id, target_folder)
+        print(json.dumps(res))
+    elif action == "generate_episode_nfo":
+        provider = sys.argv[2]
+        show_id = sys.argv[3]
+        season = sys.argv[4]
+        episode = sys.argv[5]
+        target_folder = sys.argv[6]
+        filename_base = sys.argv[7]
+        res = generate_episode_nfo(provider, show_id, season, episode, target_folder, filename_base)
+        print(json.dumps(res))
+    elif action == "generate_youtube_nfo":
+        json_path = sys.argv[2]
+        nfo_path = sys.argv[3]
+        nfo_type = sys.argv[4]
+        res = generate_youtube_nfo(json_path, nfo_path, nfo_type)
+        print(json.dumps(res))
+    elif action == "guess_season":
+        provider = sys.argv[2]
+        show_id = sys.argv[3]
+        filenames_json = sys.argv[4]
+        res = guess_season(provider, show_id, filenames_json)
+        if res:
+            print(res)
+    else:
+        print("{}")
 
