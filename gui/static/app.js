@@ -206,6 +206,7 @@ document.addEventListener("DOMContentLoaded", () => {
     loadConversionRecommendations();
     initHealthDashboard();
     initDuplicateDashboard();
+    applyStorageTargetLabels();
 
     // Periodic status check (every 6 seconds)
     setInterval(loadStatus, 6000);
@@ -8559,6 +8560,28 @@ function fmtSize(bytes) {
     const gb = bytes / (1024 ** 3);
     if (gb >= 1) return gb.toFixed(2) + " GB";
     return (bytes / (1024 ** 2)).toFixed(0) + " MB";
+}
+
+// Beschriftet NAS-/Cloud-Schalter und Zielordner-Labels mit den tatsächlichen
+// Speicherziel-Namen aus den Einstellungen (statt fix "NAS"/"pCloud").
+// So heißt der Cloud-Schalter z.B. "Auch in Google Drive sichern", wenn das
+// Cloud-Ziel entsprechend benannt ist.
+async function applyStorageTargetLabels() {
+    try {
+        const res = await fetch("/api/settings");
+        if (!res.ok) return;
+        const settings = await res.json();
+        const targets = settings.storage_targets || [];
+        const nasT = targets.find(t => t.id === "nas") || targets.find(t => t.type === "nas");
+        const cloudT = targets.find(t => t.id === "pcloud")
+            || targets.find(t => (t.rclone_remote || "").trim() && t.id !== "nas");
+        const nasName = (nasT && nasT.name) ? nasT.name : "NAS";
+        const cloudName = (cloudT && cloudT.name) ? cloudT.name : "Cloud";
+        document.querySelectorAll(".nas-target-name").forEach(el => { el.textContent = nasName; });
+        document.querySelectorAll(".cloud-target-name").forEach(el => { el.textContent = cloudName; });
+    } catch (e) {
+        console.error("Speicherziel-Labels konnten nicht gesetzt werden:", e);
+    }
 }
 
 function initDuplicateDashboard() {

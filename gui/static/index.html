@@ -351,11 +351,11 @@
                             </label>
                             <label class="checkbox-container" for="movie-option-copy-nas">
                                 <input type="checkbox" id="movie-option-copy-nas" checked>
-                                <span class="checkmark"></span> Auf NAS verschieben
+                                <span class="checkmark"></span> Auf <span class="nas-target-name">NAS</span> verschieben
                             </label>
                             <label class="checkbox-container" for="movie-option-copy-pcloud">
                                 <input type="checkbox" id="movie-option-copy-pcloud">
-                                <span class="checkmark"></span> Auch in pCloud sichern
+                                <span class="checkmark"></span> Auch in <span class="cloud-target-name">pCloud</span> sichern
                             </label>
                         </div>
                         <div class="quality-slider-container form-group hidden mt-15" id="movie-quality-slider-container" >
@@ -375,7 +375,7 @@
                             <span id="movie-size-estimate-text" aria-live="polite">Dateigrößen-Prognose: Berechnung läuft...</span>
                         </div>
                         <div class="form-group inline-style-47"  id="movie-nas-destination-container">
-                            <label for="movie-nas-destination">Zielordner (NAS):</label>
+                            <label for="movie-nas-destination">Zielordner (<span class="nas-target-name">NAS</span>):</label>
                             <select id="movie-nas-destination" class="form-select inline-style-40" >
                                 <option value="/Volumes/Kino/Filme">Standard-Film (/Volumes/Kino/Filme)</option>
                                 <option value="/Volumes/Kino/Filme 3D">3D-Film (/Volumes/Kino/Filme 3D)</option>
@@ -383,7 +383,7 @@
                             </select>
                         </div>
                         <div class="form-group mt-15"  id="movie-pcloud-destination-container">
-                            <label for="movie-pcloud-destination">Zielordner (pCloud):</label>
+                            <label for="movie-pcloud-destination">Zielordner (<span class="cloud-target-name">pCloud</span>):</label>
                             <select id="movie-pcloud-destination" class="form-select inline-style-40" >
                             </select>
                         </div>
@@ -502,11 +502,11 @@
                             </label>
                             <label class="checkbox-container" for="series-option-copy-nas">
                                 <input type="checkbox" id="series-option-copy-nas" checked>
-                                <span class="checkmark"></span> Auf NAS verschieben
+                                <span class="checkmark"></span> Auf <span class="nas-target-name">NAS</span> verschieben
                             </label>
                             <label class="checkbox-container" for="series-option-copy-pcloud">
                                 <input type="checkbox" id="series-option-copy-pcloud">
-                                <span class="checkmark"></span> Auch in pCloud sichern
+                                <span class="checkmark"></span> Auch in <span class="cloud-target-name">pCloud</span> sichern
                             </label>
                             <label class="checkbox-container" for="series-option-absolute-numbering">
                                 <input type="checkbox" id="series-option-absolute-numbering">
@@ -538,14 +538,14 @@
                             <span id="series-size-estimate-text" aria-live="polite">Dateigrößen-Prognose: Berechnung läuft...</span>
                         </div>
                         <div class="form-group inline-style-47"  id="series-nas-destination-container">
-                            <label for="series-nas-destination">Zielordner (NAS):</label>
+                            <label for="series-nas-destination">Zielordner (<span class="nas-target-name">NAS</span>):</label>
                             <select id="series-nas-destination" class="form-select inline-style-40" >
                                 <option value="/Volumes/Kino/Serien">Standard-Serie (/Volumes/Kino/Serien)</option>
                                 <option value="/Volumes/Kino/Dokus/Doku-Serien">Doku-Serie (/Volumes/Kino/Dokus/Doku-Serien)</option>
                             </select>
                         </div>
                         <div class="form-group mt-15"  id="series-pcloud-destination-container">
-                            <label for="series-pcloud-destination">Zielordner (pCloud):</label>
+                            <label for="series-pcloud-destination">Zielordner (<span class="cloud-target-name">pCloud</span>):</label>
                             <select id="series-pcloud-destination" class="form-select inline-style-40" >
                             </select>
                         </div>
@@ -1183,14 +1183,14 @@
                             </label>
                             <label class="checkbox-container" for="yt-option-copy-pcloud">
                                 <input type="checkbox" id="yt-option-copy-pcloud">
-                                <span class="checkmark"></span> Auch in pCloud sichern
+                                <span class="checkmark"></span> Auch in <span class="cloud-target-name">pCloud</span> sichern
                             </label>
                             <label class="checkbox-container" for="yt-option-copy-local">
                                 <input type="checkbox" id="yt-option-copy-local">
                                 <span class="checkmark"></span> In lokalen Ordner speichern
                             </label>
                             <div class="form-group" id="yt-nas-destination-container">
-                                <label for="yt-nas-destination">Zielordner (NAS):</label>
+                                <label for="yt-nas-destination">Zielordner (<span class="nas-target-name">NAS</span>):</label>
                                 <select id="yt-nas-destination" class="form-select inline-style-40" >
                                     <option value="/Volumes/Kino/Filme">Filme (/Volumes/Kino/Filme)</option>
                                     <option value="/Volumes/Kino/Serien">Serien (/Volumes/Kino/Serien)</option>
@@ -1198,7 +1198,7 @@
                                 </select>
                             </div>
                             <div class="form-group mt-5" id="yt-pcloud-destination-container" >
-                                <label for="yt-pcloud-destination">Zielordner (pCloud):</label>
+                                <label for="yt-pcloud-destination">Zielordner (<span class="cloud-target-name">pCloud</span>):</label>
                                 <select id="yt-pcloud-destination" class="form-select inline-style-40" >
                                 </select>
                             </div>
@@ -1269,18 +1269,18 @@
                         </label>
                         <label class="checkbox-container" for="yt-merge-option-copy-pcloud">
                             <input type="checkbox" id="yt-merge-option-copy-pcloud">
-                            <span class="checkmark"></span> Auch in pCloud sichern
+                            <span class="checkmark"></span> Auch in <span class="cloud-target-name">pCloud</span> sichern
                         </label>
                         <label class="checkbox-container" for="yt-merge-option-copy-local">
                             <input type="checkbox" id="yt-merge-option-copy-local">
                             <span class="checkmark"></span> In lokalen Ordner speichern
                         </label>
                         <div class="form-group" id="yt-merge-nas-destination-container">
-                            <label for="yt-merge-nas-destination">Zielordner (NAS):</label>
+                            <label for="yt-merge-nas-destination">Zielordner (<span class="nas-target-name">NAS</span>):</label>
                             <select id="yt-merge-nas-destination" class="form-select inline-style-40" ></select>
                         </div>
                         <div class="form-group hidden mt-5" id="yt-merge-pcloud-destination-container" >
-                            <label for="yt-merge-pcloud-destination">Zielordner (pCloud):</label>
+                            <label for="yt-merge-pcloud-destination">Zielordner (<span class="cloud-target-name">pCloud</span>):</label>
                             <select id="yt-merge-pcloud-destination" class="form-select inline-style-40" ></select>
                         </div>
                         <div class="form-group hidden mt-5" id="yt-merge-local-destination-container" >
@@ -1456,7 +1456,7 @@
                                 <div class="inline-style-205">
                                     <label class="checkbox-container inline-style-206" for="abo-copy-pcloud" >
                                         <input type="checkbox" id="abo-copy-pcloud">
-                                        <span class="checkmark"></span> Auch in pCloud sichern
+                                        <span class="checkmark"></span> Auch in <span class="cloud-target-name">pCloud</span> sichern
                                     </label>
                                     <div id="abo-pcloud-destination-container">
                                         <select id="abo-pcloud-destination" class="form-select inline-style-207" >
@@ -1722,7 +1722,7 @@
     </div>
 </div>
 
-    <script src="app.js?v=46"></script>
+    <script src="app.js?v=47"></script>
 
     <!-- Modal: Profiles -->
     <div id="modal-profiles" class="mw-modal-overlay">

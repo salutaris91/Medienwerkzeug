@@ -358,7 +358,9 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
 
         remote_base = mapping.get(nas_target_dir)
         if not remote_base:
-            fallback_sub = "05_Sonstiges" if target.get("type") == "pcloud" else "Sonstiges"
+            # Backend-neutraler Fallback-Ordner, falls eine Kategorie kein Mapping hat.
+            # (Greift nur, wenn weder targets[<id>] noch cloud_remote/pcloud_remote gesetzt sind.)
+            fallback_sub = "Sonstiges"
             if rclone_remote:
                 remote_prefix = rclone_remote if ":" in rclone_remote else f"{rclone_remote}:"
                 remote_base = f"{remote_prefix}{fallback_sub}"
