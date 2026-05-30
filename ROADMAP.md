@@ -220,6 +220,11 @@ Da In-Place-Operationen auf einem NAS ein Risiko für Datenverlust bergen, müss
    - Vor dem Start des Prozesses wird auf Schreibberechtigungen im gesamten Serienordner geprüft.
    - Für jede Datei wird verifiziert, ob sie durch andere Prozesse blockiert oder geöffnet ist (z. B. durch Leseversuche oder Schreibzugriffe).
 
+5. **In-Place Ordnerverschiebung & Restrukturierung:**
+   - Erfordert die Angleichung eine Änderung des Serien-Hauptordnernamens (z. B. Verschiebung von `Show Alt` zu `Show Neu`), wird dies ebenfalls direkt in-place auf dem NAS via `os.rename` durchgeführt. Da dies auf demselben Volume geschieht, erfolgt die Verschiebung augenblicklich und erzeugt keine Netzwerklast.
+   - Neue Staffel- oder Special-Unterordner werden automatisch angelegt.
+   - Solche Pfad- und Ordneränderungen werden vollständig im Transaktionsprotokoll erfasst, damit das Rollback auch die Ordnerstruktur fehlerfrei wiederherstellen kann.
+
 ### Technische Umsetzung (Stufenplan für Option A)
 
 1. **Bibliotheks-Scraper & ID-Lookup:**
