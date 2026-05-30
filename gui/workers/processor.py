@@ -1214,9 +1214,9 @@ def process_worker(params):
                         if success:
                             log_message(f"[Transfer Thread]: Kopieren auf {target_id} fertig für {final_filename}.")
                             target_progresses[target_id][file_idx] = 100
-                            settings = load_settings()
-                            if settings.get("open_nas_finder") and "/Volumes/Kino" in dest_movie_dir_nas:
-                                open_folder_in_finder(dest_movie_dir_nas)
+                            # settings = load_settings()
+                            # if settings.get("open_nas_finder") and "/Volumes/Kino" in dest_movie_dir_nas:
+                            #     open_folder_in_finder(dest_movie_dir_nas)
                         else:
                             log_message(f"⚠️ [Transfer Thread]: Fehler beim Kopieren von {final_filename} auf {target_id}.")
                             with active_jobs_lock:
