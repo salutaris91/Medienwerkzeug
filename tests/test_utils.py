@@ -11,6 +11,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from gui.core import utils, media
 from gui import mw_metadata
+import gui.api.endpoints as endpoints
+import gui.core.helpers as helpers
+import gui.core.transfers as transfers
 
 class TestMediawerkzeugLogic(unittest.TestCase):
     def setUp(self):
@@ -44,13 +47,20 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         utils.PROFILES_DIR = self.orig_profiles_dir
         utils.HISTORY_FILE = self.orig_history_file
         os.path.expanduser = self.orig_expanduser
-        
+
+        # Modul-Cache des TVDb-Tokens zurücksetzen, damit ein in test_fetch_all_seasons
+        # gesetzter Mock-Token nicht in andere Tests leakt.
+        mw_metadata.tvdb_token = None
+        mw_metadata.tvdb_token_time = 0
+
         # Clean up temp files
         shutil.rmtree(self.test_dir)
 
     def test_clean_show_name(self):
-        self.assertEqual(utils.clean_show_name("Breaking Bad [TMDB_TV]"), "breaking_bad_tmdb_tv")
-        self.assertEqual(utils.clean_show_name("Kill Bill: Vol. 1"), "kill_bill_vol_1")
+        # clean_show_name behält seit der Profil-Refaktorierung Groß-/Kleinschreibung und
+        # Leerzeichen bei (Profil-Dateinamen sind im Title-Case-Format, z.B. "Heroes 2006.json").
+        self.assertEqual(utils.clean_show_name("Breaking Bad [TMDB_TV]"), "Breaking Bad TMDB_TV")
+        self.assertEqual(utils.clean_show_name("Kill Bill: Vol. 1"), "Kill Bill Vol. 1")
         self.assertEqual(utils.clean_show_name(""), "default")
         self.assertEqual(utils.clean_show_name(None), "default")
 
@@ -102,31 +112,40 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         self.assertEqual(loaded["provider"], "tmdb_tv")
 
     def test_profile_migration(self):
-        # Setup legacy directory
-        legacy_dir = os.path.join(self.temp_home, ".config/mediawerkzeug/profiles")
-        os.makedirs(legacy_dir, exist_ok=True)
-        
-        # Write legacy config file
-        legacy_conf = os.path.join(legacy_dir, "Breaking Bad.conf")
-        with open(legacy_conf, "w", encoding="utf-8") as f:
-            f.write('PROFIL_PCLOUD_SONSTIGES="j"\n')
-            f.write('PROFIL_AUTO_H265="j"\n')
-            f.write('PROFIL_SCHEMA="absolut"\n')
-            f.write('PROFIL_PROVIDER="tvdb"\n')
-            
-        # Load profile and verify it was migrated
-        loaded = utils.load_show_profile("Breaking Bad")
-        self.assertEqual(loaded["pcloud_sonstiges"], "j")
-        self.assertEqual(loaded["auto_h265"], "j")
-        self.assertEqual(loaded["schema"], "absolut")
-        self.assertEqual(loaded["provider"], "tvdb")
-        
-        # Check that it saved locally as JSON
-        local_json_path = os.path.join(utils.PROFILES_DIR, "breaking_bad.json")
-        self.assertTrue(os.path.exists(local_json_path))
-        with open(local_json_path, "r", encoding="utf-8") as f:
-            local_data = json.load(f)
-        self.assertEqual(local_data["provider"], "tvdb")
+        # Profil-Verzeichnis in die Test-Sandbox legen, damit der Test nicht in die
+        # echten gui/data/profiles/ schreibt.
+        profiles_dir = os.path.join(self.temp_home, "profiles")
+        os.makedirs(profiles_dir, exist_ok=True)
+        utils._MOCK_SETTINGS = {"profiles_path": profiles_dir}
+        try:
+            # Setup legacy directory
+            legacy_dir = os.path.join(self.temp_home, ".config/mediawerkzeug/profiles")
+            os.makedirs(legacy_dir, exist_ok=True)
+
+            # Write legacy config file
+            legacy_conf = os.path.join(legacy_dir, "Breaking Bad.conf")
+            with open(legacy_conf, "w", encoding="utf-8") as f:
+                f.write('PROFIL_PCLOUD_SONSTIGES="j"\n')
+                f.write('PROFIL_AUTO_H265="j"\n')
+                f.write('PROFIL_SCHEMA="absolut"\n')
+                f.write('PROFIL_PROVIDER="tvdb"\n')
+
+            # Load profile and verify it was migrated
+            loaded = utils.load_show_profile("Breaking Bad")
+            self.assertEqual(loaded["pcloud_sonstiges"], "j")
+            self.assertEqual(loaded["auto_h265"], "j")
+            self.assertEqual(loaded["schema"], "absolut")
+            self.assertEqual(loaded["provider"], "tvdb")
+
+            # Check that it saved locally as JSON. clean_show_name behält Groß-/Kleinschreibung
+            # und Leerzeichen bei -> Dateiname "Breaking Bad.json".
+            local_json_path = os.path.join(profiles_dir, "Breaking Bad.json")
+            self.assertTrue(os.path.exists(local_json_path))
+            with open(local_json_path, "r", encoding="utf-8") as f:
+                local_data = json.load(f)
+            self.assertEqual(local_data["provider"], "tvdb")
+        finally:
+            utils._MOCK_SETTINGS = None
 
     def test_history_load_save(self):
         history = [
@@ -310,17 +329,17 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             
         # We need to mock settings and log_message
         import gui.server as server
-        orig_load_settings = server.load_settings
-        orig_log_message = server.log_message
+        orig_load_settings = endpoints.load_settings
+        orig_log_message = helpers.log_message
         
         test_inbox = os.path.join(self.test_dir, "test_inbox")
         os.makedirs(test_inbox, exist_ok=True)
         
-        server.load_settings = lambda: {"inbox_dir": test_inbox}
+        utils._MOCK_SETTINGS = {"inbox_dir": test_inbox}
         
         # Mock log_message to capture it
         dummy = DummyHandler()
-        server.log_message = lambda msg: dummy.logged_messages.append(msg)
+        helpers.log_message = lambda msg: dummy.logged_messages.append(msg)
         
         try:
             # 1. Valid folder deletion
@@ -351,8 +370,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertEqual(dummy.sent_json["status"], "error")
             
         finally:
-            server.load_settings = orig_load_settings
-            server.log_message = orig_log_message
+            utils._MOCK_SETTINGS = None
+            helpers.log_message = orig_log_message
 
     def test_tv_processing_skip_original_on_convert(self):
         import subprocess
@@ -382,28 +401,37 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         with open(subtitle_file, "w") as f:
             f.write("mock subtitle")
 
-        # Mock server functions
-        orig_load_settings = server.load_settings
-        orig_ensure_nas = server.ensure_nas_mounted
-        orig_run_rsync = server.run_rsync_with_progress
-        orig_run_ffmpeg = server.run_ffmpeg_with_progress
+        # Mock server functions. WICHTIG: process_worker läuft im Namensraum von
+        # gui.workers.processor, daher müssen dort die Funktionen gepatcht werden
+        # (ein Patch auf gui.server wirkt nicht auf die Aufrufe im Worker).
+        import gui.workers.processor as processor
+        orig_load_settings = endpoints.load_settings
+        orig_ensure_nas = processor.ensure_nas_mounted
+        orig_run_rsync = processor.run_rsync_with_progress
+        orig_run_ffmpeg = processor.run_ffmpeg_with_progress
         orig_subprocess_run = subprocess.run
+        orig_subprocess_check_output = subprocess.check_output
         
         orig_fetch_tmdb = server.mw_metadata.fetch_tmdb_tv
         orig_gen_show_nfo = server.mw_metadata.generate_tvshow_nfo
         orig_gen_ep_nfo = server.mw_metadata.generate_episode_nfo
         
-        server.load_settings = lambda: {
+        utils._MOCK_SETTINGS = {
             "inbox_dir": test_inbox,
             "outbox_dir": test_outbox,
             "nas_root": test_nas,
+            # Die neue Architektur entscheidet anhand von storage_targets, wohin kopiert
+            # wird. _MOCK_SETTINGS umgeht die Defaults, daher hier explizit setzen.
+            "storage_targets": [
+                {"id": "nas", "type": "nas", "root_path": test_nas, "enabled": True}
+            ],
             "sync_categories": [
                 {"id": "2", "name": "Serien", "nas_sub": "/Serien", "pcloud_remote": "pcloud:04_Serien"}
             ]
         }
         
-        server.ensure_nas_mounted = lambda: True
-        
+        processor.ensure_nas_mounted = lambda: True
+
         # Mock rsync to copy files (since process_worker expects rsync to do the copy)
         def mock_rsync(src, dst, task_id=None, move=False):
             if os.path.isdir(src):
@@ -411,7 +439,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             else:
                 shutil.copy(src, dst)
             return True
-        server.run_rsync_with_progress = mock_rsync
+        processor.run_rsync_with_progress = mock_rsync
         
         # Mock ffmpeg to simulate converting: creates .mkv and doesn't crash
         def mock_ffmpeg(cmd, filepath, task_id=None, log_queue=None):
@@ -420,7 +448,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             with open(temp_out, "w") as f:
                 f.write("mock converted video content")
             return True
-        server.run_ffmpeg_with_progress = mock_ffmpeg
+        processor.run_ffmpeg_with_progress = mock_ffmpeg
         
         # Mock subprocess.run to prevent Finder from opening
         def mock_run(cmd, *args, **kwargs):
@@ -428,6 +456,11 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                 return subprocess.CompletedProcess(cmd, 0)
             return orig_subprocess_run(cmd, *args, **kwargs)
         subprocess.run = mock_run
+        def mock_check_output(cmd, *args, **kwargs):
+            if cmd[0] == 'ffprobe':
+                return "1500"
+            return orig_subprocess_check_output(cmd, *args, **kwargs)
+        subprocess.check_output = mock_check_output
         
         # Mock metadata calls
         server.mw_metadata.fetch_tmdb_tv = lambda show_id, season, lang: {
@@ -492,12 +525,13 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertTrue(os.path.exists(os.path.join(project_dir, "Die Sendung mit der Maus - S56E01 - Die Maus wird 50.mp4")))
             
         finally:
-            server.load_settings = orig_load_settings
-            server.ensure_nas_mounted = orig_ensure_nas
-            server.run_rsync_with_progress = orig_run_rsync
-            server.run_ffmpeg_with_progress = orig_run_ffmpeg
+            utils._MOCK_SETTINGS = None
+            processor.ensure_nas_mounted = orig_ensure_nas
+            processor.run_rsync_with_progress = orig_run_rsync
+            processor.run_ffmpeg_with_progress = orig_run_ffmpeg
             subprocess.run = orig_subprocess_run
-            
+            subprocess.check_output = orig_subprocess_check_output
+
             server.mw_metadata.fetch_tmdb_tv = orig_fetch_tmdb
             server.mw_metadata.generate_tvshow_nfo = orig_gen_show_nfo
             server.mw_metadata.generate_episode_nfo = orig_gen_ep_nfo
@@ -522,27 +556,34 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             f.write("dummy video data")
             
         # Mock load_settings
-        orig_load_settings = server.load_settings
-        server.load_settings = lambda: {
+        orig_load_settings = endpoints.load_settings
+        utils._MOCK_SETTINGS = {
             "inbox_dir": test_inbox,
             "outbox_dir": test_outbox,
             "nas_root": test_nas,
+            # storage_targets steuert in der neuen Architektur das Kopierziel.
+            "storage_targets": [
+                {"id": "nas", "type": "nas", "root_path": test_nas, "enabled": True}
+            ],
             "sync_categories": [
                 {"id": "2", "name": "Serien", "nas_sub": "/Serien"}
             ]
         }
         
-        # Save original imports/functions to restore later
-        orig_ensure_nas = server.ensure_nas_mounted
-        orig_run_rsync = server.run_rsync_with_progress
-        orig_run_ffmpeg = server.run_ffmpeg_with_progress
+        # Save original imports/functions to restore later. process_worker läuft im
+        # Namensraum von gui.workers.processor -> dort patchen, nicht auf gui.server.
+        import gui.workers.processor as processor
+        orig_ensure_nas = processor.ensure_nas_mounted
+        orig_run_rsync = processor.run_rsync_with_progress
+        orig_run_ffmpeg = processor.run_ffmpeg_with_progress
         orig_subprocess_run = subprocess.run
+        orig_subprocess_check_output = subprocess.check_output
         orig_fetch_tvdb = server.mw_metadata.fetch_tvdb
         orig_gen_show_nfo = server.mw_metadata.generate_tvshow_nfo
         orig_gen_ep_nfo = server.mw_metadata.generate_episode_nfo
         
         # Mock dependencies
-        server.ensure_nas_mounted = lambda: True
+        processor.ensure_nas_mounted = lambda: True
         
         def mock_run_rsync(src, dest, *args, **kwargs):
             # Simulate rsync copying
@@ -554,7 +595,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                 with open(dest, "w") as out:
                     out.write("copied")
             return True
-        server.run_rsync_with_progress = mock_run_rsync
+        processor.run_rsync_with_progress = mock_run_rsync
         
         def mock_run_ffmpeg(cmd, filepath, *args, **kwargs):
             # cmd is list. find output filename and touch it
@@ -564,7 +605,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             with open(out_file, "w") as f:
                 f.write("converted x265")
             return True
-        server.run_ffmpeg_with_progress = mock_run_ffmpeg
+        processor.run_ffmpeg_with_progress = mock_run_ffmpeg
         
         # Mock subprocess run for ffprobe
         def mock_run(cmd, *args, **kwargs):
@@ -575,6 +616,11 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                     self.stderr = b""
             return MockCompletedProcess()
         subprocess.run = mock_run
+        def mock_check_output(cmd, *args, **kwargs):
+            if cmd[0] == 'ffprobe':
+                return "1500"
+            return orig_subprocess_check_output(cmd, *args, **kwargs)
+        subprocess.check_output = mock_check_output
         
         # Mock metadata calls
         server.mw_metadata.fetch_tvdb = lambda show_id, season, lang: {
@@ -638,11 +684,12 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertEqual(nfo_calls[0]["force_season"], 1)
             self.assertEqual(nfo_calls[0]["force_episode"], 381)
         finally:
-            server.load_settings = orig_load_settings
-            server.ensure_nas_mounted = orig_ensure_nas
-            server.run_rsync_with_progress = orig_run_rsync
-            server.run_ffmpeg_with_progress = orig_run_ffmpeg
+            utils._MOCK_SETTINGS = None
+            processor.ensure_nas_mounted = orig_ensure_nas
+            processor.run_rsync_with_progress = orig_run_rsync
+            processor.run_ffmpeg_with_progress = orig_run_ffmpeg
             subprocess.run = orig_subprocess_run
+            subprocess.check_output = orig_subprocess_check_output
             server.mw_metadata.fetch_tvdb = orig_fetch_tvdb
             server.mw_metadata.generate_tvshow_nfo = orig_gen_show_nfo
             server.mw_metadata.generate_episode_nfo = orig_gen_ep_nfo
@@ -651,7 +698,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
     def test_fetch_all_seasons(self, mock_urlopen):
         import json
 
-        def side_effect(req):
+        def side_effect(req, *args, **kwargs):
+            # *args/**kwargs, weil der Produktivcode urlopen(req, timeout=10) aufruft.
             url = req.full_url if hasattr(req, 'full_url') else req
             
             # Helper to return a mock response
@@ -875,7 +923,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
 
     def test_import_streamfab_files_grouping(self):
         from gui import server
-        orig_load_settings = server.load_settings
+        orig_load_settings = endpoints.load_settings
         
         # Setup temporary directories for testing
         test_inbox = os.path.join(self.test_dir, "import_inbox")
@@ -883,7 +931,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         os.makedirs(test_inbox, exist_ok=True)
         os.makedirs(test_sf_dir, exist_ok=True)
         
-        server.load_settings = lambda: {
+        utils._MOCK_SETTINGS = {
             "inbox_dir": test_inbox,
             "import_sources": [test_sf_dir]
         }
@@ -950,7 +998,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertEqual(len(os.listdir(test_sf_dir)), 0)
             
         finally:
-            server.load_settings = orig_load_settings
+            utils._MOCK_SETTINGS = None
 
     def test_queue_clear(self):
         import gui.server as server
@@ -1004,7 +1052,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         os.makedirs(outbox_dir)
         os.makedirs(nas_root)
         
-        orig_load_settings = server.load_settings
+        orig_load_settings = endpoints.load_settings
         def mock_load_settings():
             return {
                 "inbox_dir": inbox_dir,
@@ -1014,7 +1062,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                     {"id": "4", "name": "Doku-Serien", "nas_sub": "/Dokus/Doku-Serien", "pcloud_remote": "pcloud:04a_Dokus"}
                 ]
             }
-        server.load_settings = mock_load_settings
+        utils._MOCK_SETTINGS = mock_load_settings()
         
         project_dir = os.path.join(inbox_dir, "Geheimnisse_Asiens")
         os.makedirs(project_dir)
@@ -1098,7 +1146,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                 server.mw_metadata.fetch_tmdb_tv = orig_fetch
             
         finally:
-            server.load_settings = orig_load_settings
+            utils._MOCK_SETTINGS = None
 
     def test_preview_skipped_episodes_are_not_junk(self):
         import gui.server as server
@@ -1111,7 +1159,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         os.makedirs(outbox_dir)
         os.makedirs(nas_root)
         
-        orig_load_settings = server.load_settings
+        orig_load_settings = endpoints.load_settings
         def mock_load_settings():
             return {
                 "inbox_dir": inbox_dir,
@@ -1119,7 +1167,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                 "nas_root": nas_root,
                 "sync_categories": []
             }
-        server.load_settings = mock_load_settings
+        utils._MOCK_SETTINGS = mock_load_settings()
         
         project_dir = os.path.join(inbox_dir, "MyShow")
         os.makedirs(project_dir)
@@ -1182,7 +1230,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertNotIn("episode2.srt", [s["old"] for s in subs])
             
         finally:
-            server.load_settings = orig_load_settings
+            utils._MOCK_SETTINGS = None
 
     def test_preview_force_absolute_season_1(self):
         import gui.server as server
@@ -1198,8 +1246,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         with open(ep_file_path, "w") as f:
             f.write("")
             
-        orig_load_settings = server.load_settings
-        server.load_settings = lambda: {
+        orig_load_settings = endpoints.load_settings
+        utils._MOCK_SETTINGS = {
             "inbox_dir": inbox_dir,
             "outbox_dir": os.path.join(self.test_dir, "outbox_force_abs_test"),
             "nas_root": nas_root,
@@ -1253,7 +1301,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             dest = result.get("destination", "")
             self.assertIn("Serien/Elefant, Tiger und Co./Staffel 1/Elefant, Tiger und Co. - S01E381 - In der Ruhe liegt die Kraft", dest)
         finally:
-            server.load_settings = orig_load_settings
+            utils._MOCK_SETTINGS = None
             server.mw_metadata.fetch_tvdb = orig_fetch
 
     def test_api_nas_series_get(self):
@@ -1270,8 +1318,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         os.makedirs(os.path.join(outbox_dir, "Serien", "Simpsonspedia Outbox"), exist_ok=True)
         os.makedirs(os.path.join(outbox_dir, "Serien", "simpsonspedia"), exist_ok=True)
         
-        orig_load_settings = server.load_settings
-        server.load_settings = lambda: {
+        orig_load_settings = endpoints.load_settings
+        utils._MOCK_SETTINGS = {
             "nas_root": nas_root,
             "outbox_dir": outbox_dir,
             "sync_categories": [
@@ -1279,17 +1327,19 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             ]
         }
         
-        orig_ensure = server.ensure_nas_mounted
-        server.ensure_nas_mounted = lambda: True
-        
+        # ensure_nas_mounted im kanonischen Endpoint-Modul (gui.api.nas_api) patchen.
+        import gui.api.nas_api as nas_api
+        orig_ensure = nas_api.ensure_nas_mounted
+        nas_api.ensure_nas_mounted = lambda: True
+
         class DummyHandler:
             def __init__(self):
                 self.sent_json = None
             def send_json(self, data):
                 self.sent_json = data
-                
+
         dummy = DummyHandler()
-        
+
         try:
             # Query format of parse_qs: values are lists
             params = {"destination_id": ["2"]}
@@ -1304,10 +1354,10 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertIn("Simpsonspedia Outbox", folders)
             self.assertNotIn("simpsonspedia", folders)
             self.assertEqual(len(folders), 2)
-            
+
         finally:
-            server.load_settings = orig_load_settings
-            server.ensure_nas_mounted = orig_ensure
+            utils._MOCK_SETTINGS = None
+            nas_api.ensure_nas_mounted = orig_ensure
 
     def test_api_nas_series_get_all(self):
         import gui.server as server
@@ -1323,8 +1373,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         os.makedirs(os.path.join(nas_root, "Dokus/Doku-Serien", "Modern Marvels"), exist_ok=True)
         os.makedirs(os.path.join(outbox_dir, "Serien", "Simpsonspedia Outbox"), exist_ok=True)
         
-        orig_load_settings = server.load_settings
-        server.load_settings = lambda: {
+        orig_load_settings = endpoints.load_settings
+        utils._MOCK_SETTINGS = {
             "nas_root": nas_root,
             "outbox_dir": outbox_dir,
             "sync_categories": [
@@ -1332,9 +1382,10 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                 {"id": "3", "name": "Dokus", "nas_sub": "/Dokus/Doku-Serien", "pcloud_remote": ""}
             ]
         }
-        
-        orig_ensure = server.ensure_nas_mounted
-        server.ensure_nas_mounted = lambda: True
+
+        import gui.api.nas_api as nas_api
+        orig_ensure = nas_api.ensure_nas_mounted
+        nas_api.ensure_nas_mounted = lambda: True
         
         class DummyHandler:
             def __init__(self):
@@ -1362,10 +1413,10 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertEqual(folder_destinations.get("simpsonspedia"), os.path.join(nas_root, "Serien"))
             self.assertEqual(folder_destinations.get("modern marvels"), os.path.join(nas_root, "Dokus/Doku-Serien"))
             self.assertEqual(folder_destinations.get("simpsonspedia outbox"), os.path.join(nas_root, "Serien"))
-            
+
         finally:
-            server.load_settings = orig_load_settings
-            server.ensure_nas_mounted = orig_ensure
+            utils._MOCK_SETTINGS = None
+            nas_api.ensure_nas_mounted = orig_ensure
 
     def test_api_match_episodes(self):
         import gui.server as server
@@ -1431,8 +1482,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
   <mw_showid>https://youtube.com/playlist?list=some_id</mw_showid>
 </tvshow>""")
             
-        orig_load_settings = server.load_settings
-        server.load_settings = lambda: {
+        orig_load_settings = endpoints.load_settings
+        utils._MOCK_SETTINGS = {
             "nas_root": nas_root,
             "outbox_dir": outbox_dir,
             "sync_categories": [
@@ -1440,17 +1491,19 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             ]
         }
         
-        orig_ensure = server.ensure_nas_mounted
-        server.ensure_nas_mounted = lambda: True
-        
+        # series-detect liegt in gui.api.search_api -> dort ensure_nas_mounted patchen.
+        import gui.api.search_api as search_api
+        orig_ensure = search_api.ensure_nas_mounted
+        search_api.ensure_nas_mounted = lambda: True
+
         class DummyHandler:
             def __init__(self):
                 self.sent_json = None
             def send_json(self, data):
                 self.sent_json = data
-                
+
         dummy = DummyHandler()
-        
+
         try:
             # Query format of parse_qs: values are lists.
             # 1. Exact match (cleaned)
@@ -1460,7 +1513,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             }
             GUIRequestHandler.handle_api_series_detect(dummy, query)
             result = dummy.sent_json
-            self.assertTrue(result.get("found"))
+            print("DEBUG DETECT:", result); self.assertTrue(result.get("found"))
             self.assertEqual(result.get("provider"), "ytdlp")
             self.assertEqual(result.get("show_id"), "https://youtube.com/playlist?list=some_id")
             self.assertEqual(result.get("show_name"), "Simpsonspedia (1989)")
@@ -1485,7 +1538,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
   <mw_showid>12345</mw_showid>
 </tvshow>""")
                 
-            server.load_settings = lambda: {
+            utils._MOCK_SETTINGS = {
                 "nas_root": nas_root,
                 "outbox_dir": outbox_dir,
                 "sync_categories": [
@@ -1504,10 +1557,10 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertEqual(result_all.get("provider"), "tmdb_tv")
             self.assertEqual(result_all.get("show_id"), "12345")
             self.assertEqual(result_all.get("show_name"), "Geheimnisse Asiens")
-            
+
         finally:
-            server.load_settings = orig_load_settings
-            server.ensure_nas_mounted = orig_ensure
+            utils._MOCK_SETTINGS = None
+            search_api.ensure_nas_mounted = orig_ensure
 
     def test_api_scan_project_detect_doku(self):
         import gui.server as server
@@ -1579,7 +1632,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         
         # Mock load_settings to return our temp inbox_root
         original_load_settings = server.load_settings
-        server.load_settings = lambda: {"inbox_dir": inbox_root}
+        utils._MOCK_SETTINGS = {"inbox_dir": inbox_root}
         
         try:
             # Create a source project folder with multiple files
@@ -1654,7 +1707,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertFalse(os.path.exists(project_path))
             
         finally:
-            server.load_settings = original_load_settings
+            utils._MOCK_SETTINGS = None
 
     def test_single_video_url_series_recognition(self):
         import gui.server as server
@@ -1779,7 +1832,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                 self.sent_json = data
 
         import gui.server as server
-        orig_load_settings = server.load_settings
+        orig_load_settings = endpoints.load_settings
         
         # Setup paths
         test_inbox = os.path.join(self.test_dir, "test_inbox")
@@ -1804,7 +1857,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         with open(os.path.join(outbox_sub, "info.nfo"), "w") as f:
             f.write("info") # 4 bytes
             
-        server.load_settings = lambda: {
+        utils._MOCK_SETTINGS = {
             "inbox_dir": test_inbox,
             "outbox_dir": test_outbox
         }
@@ -1853,7 +1906,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertTrue(os.path.exists(os.path.join(test_outbox, "file2.mkv")))
             
         finally:
-            server.load_settings = orig_load_settings
+            utils._MOCK_SETTINGS = None
 
     def test_api_estimate_conversion_optimization(self):
         import gui.server as server
@@ -1869,8 +1922,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             with open(os.path.join(inbox_dir, f), "w") as file:
                 file.write("dummy video data")
                 
-        orig_load_settings = server.load_settings
-        server.load_settings = lambda: {"inbox_dir": inbox_dir}
+        orig_load_settings = endpoints.load_settings
+        utils._MOCK_SETTINGS = {"inbox_dir": inbox_dir}
         
         # Track calls to server.media.konvertierung_schaetzen
         call_count = 0
@@ -1913,16 +1966,20 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                 self.assertEqual(estimates[f]["ratio"], 0.45)
                 
         finally:
-            server.load_settings = orig_load_settings
+            utils._MOCK_SETTINGS = None
             server.media.konvertierung_schaetzen = original_konvertierung_schaetzen
 
     def test_api_subscriptions_approve_and_ignore(self):
         import gui.server as server
         from gui.server import GUIRequestHandler
         
-        orig_load_settings = server.load_settings
-        orig_save_settings = server.save_settings
-        
+        import gui.api.youtube_api as youtube_api
+        import gui.workers.processor as processor
+        orig_load_settings = endpoints.load_settings
+        # save_settings/active_jobs müssen im kanonischen Modul gepatcht werden,
+        # in dem der Endpoint sie aufruft (gui.api.youtube_api bzw. gui.workers.processor).
+        orig_save_settings = youtube_api.save_settings
+
         saved_settings = []
         mock_subs = [
             {
@@ -1952,10 +2009,10 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             }
         ]
         
-        server.load_settings = lambda: {"youtube_subscriptions": mock_subs}
+        utils._MOCK_SETTINGS = {"youtube_subscriptions": mock_subs}
         def mock_save(sett):
             saved_settings.append(sett)
-        server.save_settings = mock_save
+        youtube_api.save_settings = mock_save
         
         class DummyHandler:
             def __init__(self):
@@ -1975,9 +2032,10 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                 "video_id": "vid_123"
             }
             
-            # Mock job queue and active jobs
-            orig_active_jobs = server.active_jobs
-            server.active_jobs = {}
+            # Mock job queue and active jobs (kanonisches Dict in processor leeren,
+            # nicht neu binden, sonst sieht der Endpoint ein anderes Objekt).
+            orig_active_jobs = dict(processor.active_jobs)
+            processor.active_jobs.clear()
             
             GUIRequestHandler.handle_api_subscriptions_approve(dummy, params)
             
@@ -1991,8 +2049,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertIn("vid_123", updated_subs[0]["downloaded_ids"])
             
             # Verify job is queued
-            self.assertEqual(len(server.active_jobs), 1)
-            queued_job = list(server.active_jobs.values())[0]
+            self.assertEqual(len(processor.active_jobs), 1)
+            queued_job = list(processor.active_jobs.values())[0]
             self.assertEqual(queued_job["params"]["yt_url"], "https://youtube.com/watch?v=vid_123")
             self.assertEqual(queued_job["params"]["destination_id"], "1")
             self.assertEqual(queued_job["params"]["nas_destination_id"], "1")
@@ -2025,9 +2083,10 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertIn("vid_123", updated_subs[0]["downloaded_ids"])
             
         finally:
-            server.load_settings = orig_load_settings
-            server.save_settings = orig_save_settings
-            server.active_jobs = orig_active_jobs
+            utils._MOCK_SETTINGS = None
+            youtube_api.save_settings = orig_save_settings
+            processor.active_jobs.clear()
+            processor.active_jobs.update(orig_active_jobs)
 
     def test_preview_show_metadata_warning_on_nas(self):
         import gui.server as server
@@ -2050,8 +2109,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         with open(os.path.join(project_dir, "episode1.mp4"), "w") as f:
             f.write("video content")
             
-        orig_load_settings = server.load_settings
-        server.load_settings = lambda: {
+        orig_load_settings = endpoints.load_settings
+        utils._MOCK_SETTINGS = {
             "inbox_dir": inbox_dir,
             "outbox_dir": os.path.join(self.test_dir, "outbox_warn_test"),
             "nas_root": nas_root,
@@ -2090,7 +2149,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertIn("⚠️ Serie existiert bereits auf NAS mit vorhandenen Metadaten", dest)
             self.assertIn("tvshow.nfo", dest)
         finally:
-            server.load_settings = orig_load_settings
+            utils._MOCK_SETTINGS = None
 
 if __name__ == "__main__":
     unittest.main()
