@@ -80,6 +80,23 @@ def _dir_has_video(directory):
     return False
 
 
+def _is_genre_container(path):
+    """True, wenn 'path' ein Genre-Sammelordner ist (z. B. Filme/Action): kein Jahr im
+    Namen, kein eigenes Video, aber mind. ein Film-Unterordner mit Video. Dann sind die
+    Unterordner die eigentlichen Filme und sollten einzeln geprüft werden."""
+    name = os.path.basename(path)
+    if re.search(r'(19|20)\d{2}', name):
+        return False  # Jahr im Namen -> Film, kein Genre-Ordner
+    try:
+        entries = [e for e in os.listdir(path) if not e.startswith('.')]
+    except OSError:
+        return False
+    if any(os.path.splitext(e)[1].lower() in VIDEO_EXTENSIONS for e in entries):
+        return False  # eigenes Video -> Film
+    subdirs = [e for e in entries if os.path.isdir(os.path.join(path, e))]
+    return any(_dir_has_video(os.path.join(path, sd)) for sd in subdirs)
+
+
 # ---------------------------------------------------------------------------
 # Einzel-Checks
 # ---------------------------------------------------------------------------
@@ -301,6 +318,17 @@ def _run_health_scan():
             )
             if show["type"] == "series":
                 files_checked += _check_series_show(issues, show["category"], show["path"])
+            elif _is_genre_container(show["path"]):
+                # Genre-Sammelordner (z. B. Filme/Action): nicht selbst als Film prüfen,
+                # sondern die enthaltenen Film-Unterordner einzeln.
+                try:
+                    subdirs = sorted(e for e in os.listdir(show["path"]) if not e.startswith('.'))
+                except OSError:
+                    subdirs = []
+                for sd in subdirs:
+                    sp = os.path.join(show["path"], sd)
+                    if os.path.isdir(sp):
+                        files_checked += _check_movie(issues, show["category"], sp)
             else:
                 files_checked += _check_movie(issues, show["category"], show["path"])
 
