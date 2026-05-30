@@ -1137,7 +1137,8 @@ async function scanProject(project) {
         applySmartConversionDefault(data.has_inefficient_video || false);
         
         if (projectFiles.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Dieser Ordner ist leer.</td></tr>';
+            const emptyMsg = project === "" ? "Keine unsortierten Einzeldateien in der Hauptinbox gefunden." : "Dieser Ordner ist leer.";
+            tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">${emptyMsg}</td></tr>`;
             return;
         }
         
