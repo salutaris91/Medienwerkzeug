@@ -1511,9 +1511,23 @@ def process_worker(params):
         # Cleanup input folder if it was a project directory under inbox_root
         if current_dir != inbox_root and os.path.exists(current_dir):
             try:
-                if not os.listdir(current_dir):
-                    os.rmdir(current_dir)
-                    log_message(f"Leeren Projekt-Ordner im Input bereinigt: {os.path.basename(current_dir)}")
+                video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
+                remaining_videos = []
+                for root, dirs, files in os.walk(current_dir):
+                    for f in files:
+                        if f.lower().endswith(video_exts) and not f.startswith("."):
+                            remaining_videos.append(os.path.join(root, f))
+                
+                if not remaining_videos:
+                    import shutil
+                    shutil.rmtree(current_dir)
+                    log_message(f"Projekt-Ordner im Input bereinigt (keine Videos mehr vorhanden): {os.path.basename(current_dir)}")
+                else:
+                    non_dot_files = [f for f in os.listdir(current_dir) if not f.startswith(".")]
+                    if not non_dot_files:
+                        import shutil
+                        shutil.rmtree(current_dir)
+                        log_message(f"Leeren Projekt-Ordner im Input bereinigt: {os.path.basename(current_dir)}")
             except Exception as e:
                 log_message(f"Fehler beim Bereinigen des Projekt-Ordners: {e}")
                     
