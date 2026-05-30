@@ -206,16 +206,18 @@ def handle_api_system_open_folder():
     except Exception:
         params = {}
     query = request.args
-    path_list = query.get("path")
-    category_id_list = query.get("category_id")
-    
+    # Flask liefert request.args.get() als String (nicht als Liste wie das frühere
+    # parse_qs). Daher direkt verwenden – früher wurde fälschlich [0] genommen, was
+    # nur das erste Zeichen des Pfades lieferte ("/").
+    path = query.get("path") or params.get("path")
+    category_id = query.get("category_id") or params.get("category_id")
+
     folder_path = None
-    
-    if path_list:
-        folder_path = path_list[0]
-    elif category_id_list:
-        category_id = category_id_list[0]
-        folder_name = query.get("folder_name", [""])[0]
+
+    if path:
+        folder_path = path
+    elif category_id:
+        folder_name = query.get("folder_name") or params.get("folder_name") or ""
         
         settings = load_settings()
         nas_root = settings.get("nas_root", "/Volumes/Kino")

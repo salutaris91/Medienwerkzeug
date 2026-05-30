@@ -328,6 +328,7 @@ function initViews() {
         // Reset scroll position to top
         scrollToDetailTop();
     };
+    window.goHome = goHome;
 
     const btnHome = document.getElementById("master-btn-home");
     if(btnHome) {
@@ -460,12 +461,30 @@ function initViews() {
     }
 
     // Quick YouTube Abos page link on Welcome Dashboard
+    window.openYoutubeAbosPage = function() {
+        document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
+        const navDashboard = document.getElementById("nav-dashboard");
+        if(navDashboard) navDashboard.classList.remove("active");
+        const navTools = document.getElementById("nav-tools-dashboard");
+        if(navTools) navTools.classList.remove("active");
+        const navSettings = document.getElementById("nav-settings-dashboard");
+        if(navSettings) navSettings.classList.remove("active");
+        
+        document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+        const abosView = document.getElementById("view-youtube-abos");
+        if (abosView) {
+            abosView.classList.remove("hidden");
+            abosView.classList.add("active");
+        }
+        
+        loadSubscriptions();
+        scrollToDetailTop();
+        currentProject = "";
+    };
+
     const btnHeroYtAbos = document.getElementById("btn-hero-yt-abos");
     if (btnHeroYtAbos) {
-        btnHeroYtAbos.addEventListener("click", () => {
-            const navYtAbos = document.getElementById("nav-youtube-abos");
-            if (navYtAbos) navYtAbos.click();
-        });
+        btnHeroYtAbos.addEventListener("click", window.openYoutubeAbosPage);
     }
 
     if(navDashboard) {
@@ -474,7 +493,6 @@ function initViews() {
             navDashboard.classList.add("active");
             if(navTools) navTools.classList.remove("active");
             if(navSettings) navSettings.classList.remove("active");
-            if(navYtAbos) navYtAbos.classList.remove("active");
             
             document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
             document.getElementById("view-dashboard").classList.remove("hidden");
@@ -485,6 +503,24 @@ function initViews() {
         });
     }
 
+    // Bibliothek & Wartung Nav (NAS-Check + Duplikate)
+    const navLibrary = document.getElementById("nav-library");
+    function openLibraryView() {
+        document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
+        if (navLibrary) navLibrary.classList.add("active");
+        document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+        const lib = document.getElementById("view-library");
+        if (lib) { lib.classList.remove("hidden"); lib.classList.add("active"); }
+        // Gecachte Scan-Ergebnisse beim Öffnen aktualisieren
+        if (typeof pollHealthStatus === "function") pollHealthStatus(false);
+        if (typeof pollDuplicateStatus === "function") pollDuplicateStatus(false);
+        scrollToDetailTop();
+    }
+    window.openLibraryView = openLibraryView;
+    if (navLibrary) navLibrary.addEventListener("click", openLibraryView);
+    const cardHeroLibrary = document.getElementById("card-hero-library");
+    if (cardHeroLibrary) cardHeroLibrary.addEventListener("click", openLibraryView);
+
     // Settings Dashboard Nav
     const navSettings = document.getElementById("nav-settings-dashboard");
     if(navSettings) {
@@ -493,30 +529,11 @@ function initViews() {
             navSettings.classList.add("active");
             if(navDashboard) navDashboard.classList.remove("active");
             if(navTools) navTools.classList.remove("active");
-            if(navYtAbos) navYtAbos.classList.remove("active");
             
             document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
             document.getElementById("view-settings").classList.remove("hidden");
             
             loadSettings();
-            scrollToDetailTop();
-        });
-    }
-
-    // YouTube Abos Nav
-    const navYtAbos = document.getElementById("nav-youtube-abos");
-    if(navYtAbos) {
-        navYtAbos.addEventListener("click", () => {
-            document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
-            navYtAbos.classList.add("active");
-            if(navDashboard) navDashboard.classList.remove("active");
-            if(navTools) navTools.classList.remove("active");
-            if(navSettings) navSettings.classList.remove("active");
-            
-            document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
-            document.getElementById("view-youtube-abos").classList.remove("hidden");
-            
-            loadSubscriptions();
             scrollToDetailTop();
         });
     }
@@ -754,6 +771,7 @@ async function loadStatus() {
     }
 }
 
+let activeProjectsProcessing = new Set();
 let lastProjectListJson = "";
 let lastActiveProject = "";
 
@@ -778,7 +796,8 @@ function renderProjectList(projects) {
     // Save current active list name to keep it selected
     let html = `
         <button class="project-item ${currentProject === "" ? "active" : ""}" data-project="">
-            <span class="project-item-name">📥 Unsortierte Einzeldateien</span>
+            <span class="project-item-icon">📥</span>
+            <span class="project-item-name">Unsortierte Einzeldateien</span>
         </button>
     `;
     
@@ -786,7 +805,8 @@ function renderProjectList(projects) {
         const escapedP = escapeHTML(p);
         html += `
             <button class="project-item ${currentProject === p ? "active" : ""}" data-project="${escapedP}">
-                <span class="project-item-name">📁 ${escapedP}</span>
+                <span class="project-item-icon">📁</span>
+                <span class="project-item-name">${escapedP}</span>
                 <span class="project-item-delete" title="Ordner löschen" data-project="${escapedP}">🗑️</span>
             </button>
         `;
@@ -816,6 +836,79 @@ function renderProjectList(projects) {
             }
         });
     });
+    
+    updateSidebarProcessingStates(activeProjectsProcessing);
+}
+
+function updateSidebarProcessingStates(activeProjects) {
+    if (!activeProjects) activeProjects = new Set();
+    
+    const items = document.querySelectorAll("#project-list-container .project-item");
+    items.forEach(item => {
+        const p = item.getAttribute("data-project") || "";
+        const iconEl = item.querySelector(".project-item-icon");
+        const deleteEl = item.querySelector(".project-item-delete");
+        const isProcessing = activeProjects.has(p);
+        
+        if (isProcessing) {
+            item.classList.add("processing");
+            if (iconEl) {
+                iconEl.textContent = "🔄";
+                iconEl.classList.add("spinning-icon");
+            }
+            if (deleteEl) {
+                deleteEl.style.display = "none";
+            }
+        } else {
+            item.classList.remove("processing");
+            if (iconEl) {
+                iconEl.textContent = p === "" ? "📥" : "📁";
+                iconEl.classList.remove("spinning-icon");
+            }
+            if (deleteEl) {
+                deleteEl.style.display = "";
+            }
+        }
+    });
+
+    updateProjectProcessingStatus(activeProjects);
+}
+
+function updateProjectProcessingStatus(activeProjects) {
+    if (!activeProjects) activeProjects = new Set();
+    
+    const isCurrentProcessing = activeProjects.has(currentProject || "");
+    const warningEl = document.getElementById("project-processing-warning");
+    const modeSelector = document.getElementById("folder-mode-selector");
+    const cleanBtn = document.getElementById("btn-clean-project");
+    
+    if (warningEl) {
+        if (isCurrentProcessing) {
+            warningEl.classList.remove("hidden");
+        } else {
+            warningEl.classList.add("hidden");
+        }
+    }
+    
+    if (modeSelector) {
+        if (isCurrentProcessing) {
+            modeSelector.style.opacity = "0.5";
+            modeSelector.style.pointerEvents = "none";
+        } else {
+            modeSelector.style.opacity = "1.0";
+            modeSelector.style.pointerEvents = "auto";
+        }
+    }
+    
+    if (cleanBtn) {
+        if (isCurrentProcessing) {
+            cleanBtn.style.opacity = "0.5";
+            cleanBtn.style.pointerEvents = "none";
+        } else {
+            cleanBtn.style.opacity = "1.0";
+            cleanBtn.style.pointerEvents = "auto";
+        }
+    }
 }
 
 async function deleteProject(project) {
@@ -1103,6 +1196,7 @@ function applySmartConversionDefault(hasInefficientVideo) {
 }
 
 async function scanProject(project) {
+    updateProjectProcessingStatus(activeProjectsProcessing);
     const title = document.getElementById("current-project-title");
     const path = document.getElementById("current-project-path");
     const statsContainer = document.getElementById("project-stats-container");
@@ -1124,6 +1218,24 @@ async function scanProject(project) {
     try {
         const response = await fetch(`/api/scan-project?project=${encodeURIComponent(project)}`);
         if (!response.ok) {
+            if (response.status === 404 && project !== "") {
+                console.warn(`Project folder "${project}" not found, redirecting home.`);
+                if (typeof window.goHome === "function") {
+                    window.goHome();
+                } else {
+                    document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
+                    document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+                    const emptyView = document.getElementById("view-empty");
+                    if (emptyView) {
+                        emptyView.classList.remove("hidden");
+                        emptyView.classList.add("active");
+                    }
+                    currentProject = "";
+                    loadStatus();
+                    scrollToDetailTop();
+                }
+                return;
+            }
             tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Fehler beim Laden des Projektinhalts.</td></tr>';
             return;
         }
@@ -2418,6 +2530,10 @@ function selectMovie(movie) {
 // CORE EXECUTION HANDLERS (SERIES & MOVIES & YOUTUBE & TOOLS)
 // ==========================================================================
 async function executeSeriesWorkflow() {
+    if (activeProjectsProcessing && activeProjectsProcessing.has(currentProject || "")) {
+        alert("⚠️ Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!");
+        return;
+    }
     if (!selectedShow) return;
     
     const allSeasonsCb = document.getElementById("series-all-seasons");
@@ -2540,6 +2656,10 @@ async function executeSeriesWorkflow() {
 }
 
 async function executeMovieWorkflow() {
+    if (activeProjectsProcessing && activeProjectsProcessing.has(currentProject || "")) {
+        alert("⚠️ Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!");
+        return;
+    }
     if (!selectedMovie) {
         alert("Bitte zuerst einen Film suchen und auswählen!");
         return;
@@ -3950,7 +4070,7 @@ function renderSubscriptionsList() {
         }
         
         // Collapsible states & Click handler
-        let isExpanded = pendingVideos.length > 0;
+        let isExpanded = false;
         
         const updateExpandState = () => {
             if (isExpanded) {
@@ -4390,10 +4510,13 @@ async function cleanCurrentProject() {
 
 // Tool events
 async function runToolPullFiles() {
+    const targetPath = document.getElementById("tools-target-path").value || currentProject;
+    if (activeProjectsProcessing && activeProjectsProcessing.has(targetPath)) {
+        alert("⚠️ Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!");
+        return;
+    }
     expandConsole();
     appendConsoleLog("[System]: Verschiebe Dateien aus Unterordnern nach oben...");
-    
-    const targetPath = document.getElementById("tools-target-path").value || currentProject;
     
     try {
         const response = await fetch("/api/process", {
@@ -4689,9 +4812,13 @@ async function executePathsClean() {
 }
 
 async function runToolConvert() {
+    const targetPath = document.getElementById("tools-target-path").value || currentProject;
+    if (activeProjectsProcessing && activeProjectsProcessing.has(targetPath)) {
+        alert("⚠️ Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!");
+        return;
+    }
     expandConsole();
     appendConsoleLog("[System]: Starte Batch-H.265-Konvertierung...");
-    const targetPath = document.getElementById("tools-target-path").value || currentProject;
     const quality = document.getElementById("tool-quality-slider") ? parseInt(document.getElementById("tool-quality-slider").value, 10) : 60;
     try {
         const response = await fetch("/api/process", {
@@ -4719,6 +4846,10 @@ async function runToolGeneric(toolType, logMsg, extraParams = {}) {
     
     if (!targetPath) {
         alert("⚠️ Sicherheits-Stopp: Bitte wähle zuerst einen spezifischen Zielordner-Pfad aus oder klicke auf 'Durchsuchen'!");
+        return;
+    }
+    if (activeProjectsProcessing && activeProjectsProcessing.has(targetPath)) {
+        alert("⚠️ Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!");
         return;
     }
     
@@ -5107,6 +5238,10 @@ function initEventListeners() {
             alert("⚠️ Bitte wähle zuerst einen Zielordner-Pfad aus!");
             return;
         }
+        if (activeProjectsProcessing && activeProjectsProcessing.has(path)) {
+            alert("⚠️ Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!");
+            return;
+        }
         closeToolRunnerModal();
         
         const toolType = window.currentActiveTool;
@@ -5244,8 +5379,9 @@ function initEventListeners() {
     const cardHeroAbos = document.getElementById("card-hero-abos");
     if (cardHeroAbos) {
         cardHeroAbos.addEventListener("click", () => {
-            const navYtAbos = document.getElementById("nav-youtube-abos");
-            if (navYtAbos) navYtAbos.click();
+            if (typeof window.openYoutubeAbosPage === "function") {
+                window.openYoutubeAbosPage();
+            }
         });
     }
 
@@ -7036,6 +7172,18 @@ function renderQueue(jobs) {
     const list = document.getElementById("queue-list");
     const badge = document.getElementById("queue-badge");
     const headerBadge = document.getElementById("header-queue-badge");
+
+    const activeSet = new Set();
+    jobs.forEach(j => {
+        if (j.status === "queued" || j.status === "running") {
+            const p = j.project_name;
+            if (p !== undefined && p !== null) {
+                activeSet.add(p);
+            }
+        }
+    });
+    activeProjectsProcessing = activeSet;
+    updateSidebarProcessingStates(activeProjectsProcessing);
 
     const activeJobs = jobs.filter(j => j.status === "queued" || j.status === "running");
     

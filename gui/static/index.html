@@ -6,7 +6,7 @@
     <meta name="description" content="Medienwerkzeug - Automatisches Umbennen, Konvertieren und Kopieren von Filmen und Serien auf das NAS.">
     <meta name="color-scheme" content="dark">
     <title>Medienwerkzeug v5.0 (Master-Detail)</title>
-    <link rel="stylesheet" href="style.css?v=28">
+    <link rel="stylesheet" href="style.css?v=36">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -109,8 +109,8 @@
                     <button class="project-item" id="nav-dashboard" aria-label="Statistik Dashboard öffnen">
                         <span class="project-item-name">📊 Dashboard</span>
                     </button>
-                    <button class="project-item" id="nav-youtube-abos" aria-label="YouTube Abos verwalten">
-                        <span class="project-item-name">📺 YouTube Abos</span>
+                    <button class="project-item" id="nav-library" aria-label="Bibliothek & Wartung öffnen">
+                        <span class="project-item-name">🗂️ Bibliothek</span>
                     </button>
                     <button class="project-item" id="nav-settings-dashboard" aria-label="Einstellungen öffnen">
                         <span class="project-item-name">⚙️ Einstellungen</span>
@@ -138,18 +138,14 @@
 
                 <!-- Hero Section -->
                 <div class="homepage-hero">
-                    <span class="hero-badge">🎬 Medienwerkzeug Native v5.0</span>
                     <h2 class="hero-title">Willkommen in deiner Sendezentrale</h2>
-                    <p class="hero-desc">Automatische Inbox-Bereinigung, TMDb/TVDb Metadaten-Scraping und Hochgeschwindigkeits-Transkodierung in einer nahtlosen Oberfläche.</p>
+                    <p class="hero-desc">Verwalte deine Projektordner, scrape Metadaten und importiere YouTube-Medien.</p>
                     
-                    <!-- Quick YT Input -->
+                    <!-- Quick YT Input & Actions -->
                     <div class="hero-action-box">
-                        <input type="text" id="hero-yt-url" aria-label="YouTube URL für Vorschau eingeben" placeholder="YouTube- oder Mediathek-Link eingeben, um eine Vorschau zu generieren...">
-                        <button class="btn btn-accent" id="btn-hero-yt-go">🔍 Vorschau generieren</button>
-                    </div>
-                    
-                    <div class="inline-style-10">
-                        <button class="btn btn-secondary btn-sm fw-500" id="btn-hero-yt-abos" >📺 YouTube-Abos verwalten</button>
+                        <input type="text" id="hero-yt-url" aria-label="YouTube URL für Vorschau eingeben" placeholder="YouTube- oder Mediathek-Link eingeben...">
+                        <button class="btn btn-accent" id="btn-hero-yt-go" style="white-space: nowrap;">🔍 Vorschau generieren</button>
+                        <button class="btn btn-primary fw-600" id="btn-hero-yt-abos" style="white-space: nowrap;">📺 Abos verwalten</button>
                     </div>
                 </div>
                 
@@ -158,7 +154,7 @@
                 <!-- Feature 1: Smart Inbox (ersetzt die frühere "Inbox & Projekte"-Kachel) -->
                 <div class="card" id="card-smart-inbox" style="margin-bottom: 24px;">
                     <div class="card-hero-header">
-                        <span class="card-icon">🧠</span>
+                        <span class="card-icon">📥</span>
                         <h3 style="margin:0;">Erkannte Projekte in der Inbox</h3>
                     </div>
                     <div id="smart-inbox-list" style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px;"></div>
@@ -228,6 +224,18 @@
                             Lade Statistik...
                         </div>
                     </div>
+
+                    <!-- Bibliothek & Wartung (öffnet eigenen Bereich) -->
+                    <div class="card interactive-card cursor-pointer" id="card-hero-library">
+                        <div class="card-hero-header">
+                            <span class="card-icon">🗂️</span>
+                            <h3>Bibliothek &amp; Wartung</h3>
+                        </div>
+                        <p class="card-hero-text">NAS-Bibliothek auf fehlende NFOs, Episodenlücken &amp; Co. prüfen und doppelte Episoden finden.</p>
+                        <div class="card-hero-footer" aria-live="polite">
+                            Bibliotheks-Check &amp; Duplikat-Erkennung öffnen →
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -244,6 +252,13 @@
                         </div>
                     </div>
                     <p class="text-muted inline-style-21" id="current-project-path" >Pfad: ...</p>
+                    
+                    <div id="project-processing-warning" class="hidden" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ff6b6b; padding: 12px 16px; border-radius: var(--radius-md); margin-top: 15px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 1.2rem;">⏳</span>
+                        <div>
+                            <strong>Verarbeitung läuft:</strong> Dieses Projekt wird derzeit im Hintergrund verarbeitet oder ist in der Warteschlange. Bitte nimm keine Änderungen vor und starte die Verarbeitung nicht erneut.
+                        </div>
+                    </div>
                     
                     <div class="stats-panel d-none" id="project-stats-container" aria-live="polite" >
                         <div class="stats-badges inline-style-22" id="stats-badges-container" ></div>
@@ -707,9 +722,17 @@
                         </table>
                     </div>
                 </div>
+            </div>
+
+            <!-- STATE: NAS-BIBLIOTHEK & WARTUNG -->
+            <div id="view-library" class="view-panel hidden">
+                <div style="margin-bottom: 20px;">
+                    <h2>🗂️ Bibliothek &amp; Wartung</h2>
+                    <p class="section-desc">Prüfe deine NAS-Bibliothek auf Pflegeprobleme und finde doppelte Episoden.</p>
+                </div>
 
                 <!-- Feature 3: NAS Bibliotheks-Check -->
-                <div class="card" id="dashboard-health" style="margin-top: 24px;">
+                <div class="card" id="dashboard-health">
                     <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
                         <div style="display:flex; align-items:center; gap:10px;">
                             <span class="card-icon">🩺</span>
@@ -1722,7 +1745,7 @@
     </div>
 </div>
 
-    <script src="app.js?v=50"></script>
+    <script src="app.js?v=56"></script>
 
     <!-- Modal: Profiles -->
     <div id="modal-profiles" class="mw-modal-overlay">
