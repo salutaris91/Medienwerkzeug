@@ -119,8 +119,11 @@ def handle_api_scan_project():
     file_list = []
     ext_counts = {}
     
-    # Scannen des Verzeichnisses (rekursiv, damit auch Dateien in Unterordnern gefunden werden)
-    all_files = find_files_recursively(target_dir)
+    # Scannen des Verzeichnisses (nur Hauptebene für die Inbox, rekursiv für Projektordner)
+    if not project:
+        all_files = [f for f in os.listdir(target_dir) if os.path.isfile(os.path.join(target_dir, f)) and not f.startswith('.')]
+    else:
+        all_files = find_files_recursively(target_dir)
     for f in all_files:
         file_list.append(f)
         ext = os.path.splitext(f)[1].lower()[1:]
@@ -258,7 +261,10 @@ def handle_api_preview_clean():
         return jsonify({"error": "Verzeichnis nicht gefunden"})
         return
         
-    all_files = find_files_recursively(target_dir)
+    if not project:
+        all_files = [f for f in os.listdir(target_dir) if os.path.isfile(os.path.join(target_dir, f)) and not f.startswith('.')]
+    else:
+        all_files = find_files_recursively(target_dir)
     groups = {}
     for f in all_files:
         ext = os.path.splitext(f)[1].lower()

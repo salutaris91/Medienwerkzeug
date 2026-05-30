@@ -778,7 +778,7 @@ function renderProjectList(projects) {
     // Save current active list name to keep it selected
     let html = `
         <button class="project-item ${currentProject === "" ? "active" : ""}" data-project="">
-            <span class="project-item-name">📁 Hauptinbox (Root)</span>
+            <span class="project-item-name">📥 Unsortierte Einzeldateien</span>
         </button>
     `;
     
@@ -1116,7 +1116,7 @@ async function scanProject(project) {
     scrollToDetailTop();
     
     
-    title.textContent = project === "" ? "Hauptinbox verarbeiten" : `Projekt: ${project}`;
+    title.textContent = project === "" ? "Unsortierte Einzeldateien verarbeiten" : `Projekt: ${project}`;
     path.textContent = "Scanne Ordner...";
     tbody.innerHTML = '<tr><td colspan="3" class="text-center"><div class="loading-spinner"></div></td></tr>';
     statsContainer.style.display = "none";
