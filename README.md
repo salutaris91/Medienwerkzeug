@@ -30,6 +30,8 @@
 18. **YouTube-Videomerge & Kanallogos:** Automatischer Abruf von Kanal-Profilbildern, zeitstempelbasierte Filterung (`last_checked_timestamp`) und Ausschluss-Keywords. Mehrteilige Videos können über den FFmpeg-`concat`-Demuxer verlustfrei zusammengefügt werden.
 19. **Interaktiver Dubletten-Vergleicher (Upgrade-Löser):** Deep-Compare von Video-Auflösung, Bitrate, Codec und Größe bei bereits auf dem NAS vorhandenen Dateien inklusive direkter "Upgrade"-Aktion.
 20. **Visuelles Statistik-Dashboard (📊):** Speicherplatzersparnis-Metriken, circular SVG-NAS-Speicherbelegungsdiagramm und ein interaktives, rein in SVG & CSS animiertes Balkendiagramm zur Visualisierung der Speicherersparnis der letzten 15 Konvertierungen.
+21. **Media Health Dashboard (🔍):** Vollständiger Bibliotheks-Hintergrund-Scan über alle konfigurierten NAS-Kategorien hinweg zur Erkennung von fehlenden NFOs, fehlendem Artwork, Episodenlücken, Codec-Inkonsistenzen (ffprobe-Stichprobe), leeren Ordnern und verdächtig kleinen Videodateien.
+22. **NAS-weite Duplikat-Erkennung (🗑️):** Hintergrund-Erkennung und Gruppierung doppelter Serien-Episoden auf dem gesamten NAS mit smarter Bewertung (HEVC > Auflösung > Dateigröße) zur Bestimmung der optimal zu behaltenden Version und Berechnung des rückgewinnbaren Speicherplatzes inklusive sicherem Löschdialog.
 
 ---
 
@@ -39,17 +41,20 @@
 Medienwerkzeug/
 ├── Medienwerkzeug.app/       # Nativer macOS AppleScript-Wrapper zum Starten per Doppelklick
 ├── gui/
-│   ├── server.py             # Python-HTTP-Server (Handling der API-Routen)
+│   ├── main.py               # Einstiegspunkt & Flask-Server-Start
+│   ├── server.py             # Test-Kompatibilitäts-Fassade (für alte Unittests)
 │   ├── settings.json         # Konfigurationsdatei der Pfade, Quellen und Kategorien
 │   ├── jobs_state.json       # Persistierter Status der Hintergrund-Jobs
-│   ├── .env                  # API-Keys (TMDB, TVDB)
-│   ├── core/                 # Modularisierte Backend-Logik (utils.py, sync.py, jobs.py, media.py)
-│   ├── data/                 # Lokaler Datenordner (Profiles und Konvertierungshistorie)
-│   └── static/               # Frontend-Ressourcen (HTML, CSS, JS)
+│   ├── .env                  # API-Keys (TMDB, TVDB, gitignored)
+│   ├── api/                  # Flask-Blueprints nach Domänen aufgeteilt
+│   ├── core/                 # Backend-Logik (helpers, media, transfers, utils, notifications, health, duplicates)
+│   ├── workers/              # Asynchrone Hintergrund-Worker (processor, youtube_worker)
+│   ├── data/                 # Lokaler Datenordner (Profiles und Konvertierungshistorie, gitignored)
+│   └── static/               # Frontend-Ressourcen (HTML, CSS, JS, keine Stray-Skripte)
 │       ├── index.html        # Modernes Master-Detail Dashboard
 │       ├── style.css         # Modernes Styling (Dark Mode, responsive Layout)
 │       └── app.js            # Frontend-Logik (API-Calls, UI-Status, Modals)
-├── tests/                    # Unit- & Integrationstests (test_utils.py, test_jobs.py)
+├── tests/                    # Unit- & Integrationstests (test_utils.py, test_dependencies.py)
 ├── README.md                 # Diese Übersicht
 ├── API.md                    # Dokumentation der REST-Endpunkte
 └── REVIEW.md                 # Entwickler- & KI-Review-Richtlinien
@@ -139,9 +144,9 @@ Doppelklicke auf `Medienwerkzeug.app` im Hauptverzeichnis. Das startet den Serve
 ### Variante B: Kommandozeile
 Öffne das Terminal und starte den Server manuell:
 ```bash
-python3 gui/server.py
+python3 gui/main.py
 ```
-Die Anwendung ist danach unter [http://127.0.0.1:8000](http://127.0.0.1:8000) erreichbar.
+Die Anwendung ist danach unter [http://127.0.0.1:5001](http://127.0.0.1:5001) erreichbar.
 
 ---
 
