@@ -221,12 +221,15 @@ def handle_api_match_episodes():
                         matched = True
                         break
                 if not matched and ep_season == 1:
-                    pat_iso_1 = f" - {ep_num:02d} "
-                    pat_iso_2 = f" - {ep_num:02d}."
-                    pat_iso_3 = f" - {ep_num:03d} "
-                    pat_iso_4 = f" - {ep_num:03d}."
-                    if pat_iso_1 in fl or pat_iso_2 in fl or pat_iso_3 in fl or pat_iso_4 in fl:
-                        matched = True
+                    for suffix in [f" - {ep_num:02d} ", f" - {ep_num:02d}.", f" - {ep_num:03d} ", f" - {ep_num:03d}."]:
+                        if suffix in fl:
+                            matched = True
+                            break
+                if matched:
+                    # Only count video files as duplicates
+                    ext = os.path.splitext(f)[1].lower()
+                    if ext not in ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts'):
+                        continue
                     filepath = os.path.join(root, f)
                     details = {"filename": f, "path": filepath}
                     try:

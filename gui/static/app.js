@@ -2156,6 +2156,16 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                 <details class="episode-nfo-details" id="episode-nfo-details-${index}" data-index="${index}" style="grid-column: span 2; margin-top: 10px; border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-sm); padding: 8px; background: rgba(0,0,0,0.15); width: 100%; box-sizing: border-box;">
                     <summary style="cursor: pointer; font-size: 11px; color: var(--text-muted);">📝 NFO für diese Episode bearbeiten</summary>
                     <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <div>
+                                <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px;">Staffel Override (optional):</label>
+                                <input type="number" class="episode-nfo-season-override" id="episode-nfo-season-override-${index}" placeholder="z.B. 1" style="width:100%; font-size: 12px; padding: 6px; box-sizing: border-box;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px;">Episode Override (optional):</label>
+                                <input type="number" class="episode-nfo-episode-override" id="episode-nfo-episode-override-${index}" placeholder="z.B. 5" style="width:100%; font-size: 12px; padding: 6px; box-sizing: border-box;">
+                            </div>
+                        </div>
                         <div>
                             <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px;">Episodentitel:</label>
                             <input type="text" class="episode-nfo-title" id="episode-nfo-title-${index}" style="width:100%; font-size: 12px; padding: 6px; box-sizing: border-box;">
@@ -2181,6 +2191,8 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
         const select = document.getElementById(`match-select-${index}`);
         const search = document.getElementById(`match-search-${index}`);
         const info = document.getElementById(`selected-match-info-${index}`);
+        const seasonOverrideInput = document.getElementById(`episode-nfo-season-override-${index}`);
+        const episodeOverrideInput = document.getElementById(`episode-nfo-episode-override-${index}`);
         if (select && info) {
             const updateInfo = () => {
                 const selectedOption = select.options[select.selectedIndex];
@@ -2207,15 +2219,31 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     return;
                 }
                 
-                // Parse season/episode from the selected value
+                // Parse season/episode from the selected value, respecting overrides if set
                 let epSeason, epNum;
-                const seMatch = val.match(/^S(\d+)E(\d+)$/i);
-                if (seMatch) {
-                    epSeason = parseInt(seMatch[1], 10);
-                    epNum = parseInt(seMatch[2], 10);
+                const sOverride = seasonOverrideInput ? parseInt(seasonOverrideInput.value, 10) : NaN;
+                const eOverride = episodeOverrideInput ? parseInt(episodeOverrideInput.value, 10) : NaN;
+                
+                if (!isNaN(sOverride)) {
+                    epSeason = sOverride;
                 } else {
-                    epSeason = parseInt(document.getElementById("series-season-num")?.value || "1", 10);
-                    epNum = parseInt(val, 10);
+                    const seMatch = val.match(/^S(\d+)E(\d+)$/i);
+                    if (seMatch) {
+                        epSeason = parseInt(seMatch[1], 10);
+                    } else {
+                        epSeason = parseInt(document.getElementById("series-season-num")?.value || "1", 10);
+                    }
+                }
+                
+                if (!isNaN(eOverride)) {
+                    epNum = eOverride;
+                } else {
+                    const seMatch = val.match(/^S(\d+)E(\d+)$/i);
+                    if (seMatch) {
+                        epNum = parseInt(seMatch[2], 10);
+                    } else {
+                        epNum = parseInt(val, 10);
+                    }
                 }
                 
                 if (isNaN(epSeason) || isNaN(epNum)) {
@@ -2264,6 +2292,18 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                 updateInfo();
                 checkNasDuplicate();
             });
+            
+            if (seasonOverrideInput) {
+                seasonOverrideInput.addEventListener("input", () => {
+                    checkNasDuplicate();
+                });
+            }
+            if (episodeOverrideInput) {
+                episodeOverrideInput.addEventListener("input", () => {
+                    checkNasDuplicate();
+                });
+            }
+            
             updateInfo();
 
             if (search) {
@@ -2584,10 +2624,33 @@ async function executeSeriesWorkflow() {
             const select = document.getElementById(`match-select-${index}`);
             const val = select.value;
             if (val !== "skip") {
-                if (isAllSeasons) {
-                    mappings[file] = val;
+                const sOverrideEl = document.getElementById(`episode-nfo-season-override-${index}`);
+                const eOverrideEl = document.getElementById(`episode-nfo-episode-override-${index}`);
+                const sOverride = sOverrideEl ? parseInt(sOverrideEl.value, 10) : NaN;
+                const eOverride = eOverrideEl ? parseInt(eOverrideEl.value, 10) : NaN;
+                
+                if (!isNaN(sOverride) || !isNaN(eOverride)) {
+                    let defaultSeason, defaultEpisode;
+                    const seMatch = val.match(/^S(\d+)E(\d+)$/i);
+                    if (seMatch) {
+                        defaultSeason = parseInt(seMatch[1], 10);
+                        defaultEpisode = parseInt(seMatch[2], 10);
+                    } else {
+                        defaultSeason = parseInt(document.getElementById("series-season-num")?.value || "1", 10);
+                        defaultEpisode = parseInt(val, 10);
+                    }
+                    
+                    mappings[file] = {
+                        season: !isNaN(sOverride) ? sOverride : defaultSeason,
+                        episode: !isNaN(eOverride) ? eOverride : defaultEpisode,
+                        metadata_ep_num: val
+                    };
                 } else {
-                    mappings[file] = parseInt(val, 10);
+                    if (isAllSeasons) {
+                        mappings[file] = val;
+                    } else {
+                        mappings[file] = parseInt(val, 10);
+                    }
                 }
             }
         });

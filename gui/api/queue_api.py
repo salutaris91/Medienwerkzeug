@@ -203,11 +203,18 @@ def handle_api_preview_process():
             if ext in video_exts:
                 rel_f = os.path.relpath(f, current_dir)
                 ep_num = mappings.get(rel_f) or mappings.get(f) or mappings.get(basename)
-                if ep_num:
+                if ep_num is not None and ep_num != "":
                     if isinstance(ep_num, dict):
                         curr_season = ep_num.get("season", season)
                         curr_ep_num = ep_num.get("episode", 1)
-                        ep_title = ep_num.get("title", "")
+                        meta_ep = ep_num.get("metadata_ep_num")
+                        if meta_ep:
+                            ep_data = episodes.get(str(meta_ep), {})
+                            if not ep_data and provider == "ytdlp" and len(episodes) == 1:
+                                ep_data = list(episodes.values())[0]
+                            ep_title = ep_data.get("title", "") if isinstance(ep_data, dict) else str(ep_data)
+                        else:
+                            ep_title = ep_num.get("title", "")
                     else:
                         ep_data = episodes.get(str(ep_num), {})
                         if not ep_data and provider == "ytdlp" and len(episodes) == 1:
@@ -327,13 +334,74 @@ def handle_api_preview_process():
         preview["destination"] = dest_str
         
     # Season year warning
-    if media_type == "tv" and season is not None and not params.get("force_absolute_season_1", False):
-        try:
-            s_num = int(season)
-            if s_num >= 1000:
-                preview["warning"] = f"Staffel-Nummer ist eine Jahreszahl ({s_num})! Bitte prüfen, ob das korrekt ist (z.B. Staffel 56 statt 2026)."
-        except Exception:
-            pass
+    # NAS structure mismatch warning
+    if media_type == "tv" and not params.get("force_absolute_season_1", False):
+        existing_seasons = []
+        show_dirs = []
+        if os.path.exists(dest_show_dir):
+            show_dirs.append(dest_show_dir)
+        
+        # Check outbox as well
+        rel_dest = os.path.relpath(nas_serien, nas_root)
+        outbox_show_dir = os.path.join(outbox_root, rel_dest, clean_show_name)
+        if os.path.exists(outbox_show_dir):
+            show_dirs.append(outbox_show_dir)
+            
+        for sd in show_dirs:
+            try:
+                for entry in os.listdir(sd):
+                    if os.path.isdir(os.path.join(sd, entry)) and not entry.startswith('.'):
+                        match = re.search(r'(?:staffel|season|s)\s*(\d+)', entry, re.IGNORECASE)
+                        if match:
+                            existing_seasons.append(int(match.group(1)))
+                        else:
+                            if entry.isdigit():
+                                existing_seasons.append(int(entry))
+            except Exception:
+                pass
+                
+        preview_mapped_seasons = set()
+        if season and season != "all":
+            try:
+                preview_mapped_seasons.add(int(season))
+            except (ValueError, TypeError):
+                pass
+        for val in mappings.values():
+            if isinstance(val, dict):
+                s = val.get("season")
+                if s is not None:
+                    try:
+                        preview_mapped_seasons.add(int(s))
+                    except (ValueError, TypeError):
+                        pass
+            elif isinstance(val, str):
+                match = re.match(r"^S(\d+)", val, re.IGNORECASE)
+                if match:
+                    preview_mapped_seasons.add(int(match.group(1)))
+            elif isinstance(val, (int, float)):
+                if season and season != "all":
+                    try:
+                        preview_mapped_seasons.add(int(season))
+                    except (ValueError, TypeError):
+                        pass
+                        
+        has_existing_year_seasons = any(s >= 1000 for s in existing_seasons)
+        has_existing_standard_seasons = any(0 < s < 1000 for s in existing_seasons)
+        
+        has_preview_year_seasons = any(s >= 1000 for s in preview_mapped_seasons)
+        has_preview_standard_seasons = any(0 < s < 1000 for s in preview_mapped_seasons)
+        
+        if has_existing_year_seasons and has_preview_standard_seasons:
+            preview["warning"] = "Abweichung der Nummerierung: Auf dem NAS existieren Jahreszahl-Staffeln (z.B. Staffel 2026), aber die Vorschau ordnet die Episoden Standard-Staffeln (z.B. Staffel 1) zu! Bitte passe die Staffeln in den Episoden-Details an."
+        elif has_existing_standard_seasons and has_preview_year_seasons:
+            preview["warning"] = "Abweichung der Nummerierung: Auf dem NAS existieren Standard-Staffeln (z.B. Staffel 1), aber die Vorschau ordnet die Episoden Jahreszahl-Staffeln (z.B. Staffel 2026) zu! Bitte passe die Staffeln in den Episoden-Details an."
+        elif season is not None:
+            try:
+                s_num = int(season)
+                if s_num >= 1000:
+                    preview["warning"] = f"Staffel-Nummer ist eine Jahreszahl ({s_num})! Bitte prüfen, ob das korrekt ist (z.B. Staffel 56 statt 2026)."
+            except Exception:
+                pass
             
     return jsonify(preview)
 

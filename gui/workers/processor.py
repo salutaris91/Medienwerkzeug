@@ -691,8 +691,29 @@ def process_worker(params):
                 ep_num = ep_num_val.get("episode", 1)
                 ep_season = ep_num_val.get("season", season)
                 ep_title = ep_num_val.get("title", "")
-                orig_season = ep_season
-                orig_episode = ep_num
+                meta_ep = ep_num_val.get("metadata_ep_num")
+                if meta_ep:
+                    ep_data = episodes.get(str(meta_ep), {})
+                    if not ep_data and provider == "ytdlp" and len(episodes) == 1:
+                        ep_data = list(episodes.values())[0]
+                    if isinstance(ep_data, dict):
+                        ep_title = ep_data.get("title", ep_title)
+                    else:
+                        ep_title = str(ep_data) or ep_title
+                        
+                    match = re.match(r"^S(\d+)E(\d+)$", str(meta_ep), re.IGNORECASE)
+                    if match:
+                        orig_season = int(match.group(1))
+                        orig_episode = int(match.group(2))
+                    else:
+                        orig_season = season
+                        try:
+                            orig_episode = int(meta_ep)
+                        except (ValueError, TypeError):
+                            orig_episode = meta_ep
+                else:
+                    orig_season = ep_season
+                    orig_episode = ep_num
             else:
                 ep_data = episodes.get(str(ep_num_val), {})
                 if not ep_data and provider == "ytdlp" and len(episodes) == 1:
