@@ -470,6 +470,7 @@
                         </div>
                         <input type="text" id="series-nas-folder-override" placeholder="Automatisch (z.B. Sendung mit der Maus)" class="inline-style-55" autocomplete="off">
                         <div id="series-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
+                        <div id="series-nas-folder-match-status" class="hidden" style="margin-top: 5px; font-size: 11px; color: #10b981; font-weight: 500;"></div>
                     </div>
 
                     <div class="selected-show-card hidden inline-style-35" id="selected-show-panel" >
@@ -1596,6 +1597,19 @@
             <div id="preview-season-warning" class="hidden inline-style-225" >
                 <span class="inline-style-226">⚠️</span>
                 <div class="inline-style-227" id="preview-season-warning-text"></div>
+            </div>
+            
+            <!-- Warning Box for Show Name Mismatch -->
+            <div id="preview-show-name-mismatch" class="hidden" style="display: flex; gap: 12px; background: rgba(255, 179, 0, 0.08); border: 1px solid rgba(255, 179, 0, 0.25); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 20px; align-items: center; color: var(--text-main); font-size: 13px;">
+                <span style="font-size: 20px; flex-shrink: 0;">⚠️</span>
+                <div style="flex: 1; line-height: 1.4;">
+                    <div style="font-weight: 600; color: #ffb300; margin-bottom: 4px;">Namenskonflikt bei der Serie</div>
+                    <div id="preview-show-name-mismatch-text"></div>
+                    <div style="margin-top: 8px; display: flex; gap: 10px;">
+                        <button type="button" class="btn btn-secondary btn-xs" id="btn-preview-adopt-nas-name" style="padding: 4px 10px; font-size: 11px;">Ordnername vom NAS übernehmen</button>
+                        <button type="button" class="btn btn-secondary btn-xs" id="btn-preview-adopt-metadata-name" style="padding: 4px 10px; font-size: 11px;">Metadaten-Name verwenden</button>
+                    </div>
+                </div>
             </div>
             
             <!-- Zielpfad -->

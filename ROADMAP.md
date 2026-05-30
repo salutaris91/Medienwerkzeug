@@ -10,6 +10,7 @@ angegangen werden.
 | 2 | Distribution & Bündelung (rclone/ffmpeg/yt-dlp mitliefern) | geplant | mittel–groß |
 | 3 | KI-Cover- & Logo-Generierung (Gemini/OpenRouter) | geplant | mittel |
 | 4 | Selektiver Import für StreamFab-Downloads | geplant | klein |
+| 5 | Angleichung an Metadatendienst (NAS-Renaming-Tool) | geplant | mittel |
 
 ---
 
@@ -180,3 +181,62 @@ Verhinderung des Imports von unerwünschten Begleitdateien (wie Logos, Postern, 
 
 ### Aufwand (grob)
 Backend-Logik & API ~0,5 Tage, Auswahldialog-UI ~0,5 Tage. Sehr nützlich, um die Inbox direkt beim Import sauber zu halten.
+
+---
+
+## 5. Angleichung an Metadatendienst (NAS-Renaming-Tool)
+
+Ermöglicht es dem Benutzer, einen bereits existierenden Serienordner auf dem NAS zu scannen, mit dem Metadatendienst (z.B. TMDB/TVDB) abzugleichen und alle darin enthaltenen Staffeln und Episodendateien automatisch nach dem einheitlichen Namensschema zu benennen und mit Status-Badges zu versehen.
+
+### Ziel
+Nachträgliches Aufräumen und Angleichen älterer Serien-Bibliotheken, bei denen sich die Benennung unterscheidet (z. B. durch einen Wechsel des Metadatendienstes, unterschiedliche historische Benennungskonventionen in verschiedenen Staffeln oder fehlerhafte Sonderzeichen).
+
+### Optionen zur Umsetzung und Machbarkeit
+
+| Option | Beschreibung | Vorteile | Nachteile | Aufwand (grob) |
+|---|---|---|---|---|
+| **Option A: In-Place Renaming direkt auf dem NAS (Empfohlen)** | Das Tool arbeitet direkt auf dem gemounteten NAS-Laufwerk. Es benennt die Dateien um und schreibt die lokalen `.nfo`-Dateien neu. | • Extrem schnell (nur `os.rename`-Aufrufe)<br>• Keine Netzwerk- oder lokale Plattenlast | • Potenziell destruktiv bei Fehlern<br>• Kritisch bei Verbindungsabbrüchen | ~4,5 Tage |
+| **Option B: Über die Inbox (Import & Re-Process)** | Die Dateien werden virtuell in den Inbox-Verarbeitungsprozess kopiert, dort umbenannt und wieder zurückgeschrieben. | • Nutzt die bereits vollständig getestete Pipeline<br>• Sehr sicher (nicht-destruktiv) | • Extrem langsam (Kopieren von Gigabytes über WLAN/Netzwerk)<br>• Benötigt viel temporären Speicher | ~1 Tag |
+| **Option C: Hybrid-Lösung (Skript-Generierung)** | Das Backend scannt die Dateien und generiert ein eigenständiges Python- oder Shell-Skript im Serienordner, das der Benutzer nach Kontrolle manuell starten kann. | • Maximale Transparenz für versierte Nutzer<br>• Ausführung außerhalb der Web-App | • Unbequem für normale Endnutzer (Terminal-Nutzung erforderlich) | ~2 Tage |
+
+### Zwingende Sicherheitsmaßnahmen (für Option A)
+
+Da In-Place-Operationen auf einem NAS ein Risiko für Datenverlust bergen, müssen folgende Mechanismen implementiert werden:
+
+1. **Zwingender Dry-Run (Trockenlauf):**
+   - Es wird vor jeder Änderung eine vollständige Liste aller geplanten Renames und Dateianpassungen im Frontend visualisiert.
+   - Der Benutzer muss jede Änderung explizit bestätigen oder kann einzelne Dateien vom Prozess ausschließen.
+
+2. **NFO-Backup-Strategie:**
+   - Vor dem Ändern oder Überschreiben einer `.nfo`-Datei (z.B. `tvshow.nfo` oder `episode.nfo`) wird eine Kopie mit der Endung `.nfo.bak` im selben Verzeichnis angelegt.
+   - Tritt beim Schreiben ein Fehler auf, wird das Backup sofort wiederhergestellt.
+
+3. **Automatischer Rollback-Pfad (Transaktionsprotokoll):**
+   - Das Backend schreibt vor der Ausführung eine JSON-Transaktionsdatei (z.B. `rename_transaction_[timestamp].json`) in ein internes Anwendungsdatenverzeichnis.
+   - Diese Datei speichert ein Mapping: `{"alt/pfad/datei.mkv": "neu/pfad/datei.mkv"}`.
+   - Sollte der Umbenennungsprozess fehlschlagen oder der Benutzer die Änderungen rückgängig machen wollen, kann über einen Button „Rückgängig machen“ diese Liste rückwärts abgearbeitet werden.
+
+4. **Lock- und Berechtigungs-Prüfung:**
+   - Vor dem Start des Prozesses wird auf Schreibberechtigungen im gesamten Serienordner geprüft.
+   - Für jede Datei wird verifiziert, ob sie durch andere Prozesse blockiert oder geöffnet ist (z. B. durch Leseversuche oder Schreibzugriffe).
+
+### Technische Umsetzung (Stufenplan für Option A)
+
+1. **Bibliotheks-Scraper & ID-Lookup:**
+   - Scannt einen ausgewählten Show-Ordner auf dem NAS nach Episodendateien (Videos, Untertitel, NFOs).
+   - Liest die ID (z.B. TMDB-ID) aus der vorhandenen `tvshow.nfo` aus und lädt die aktuellen Metadaten des Anbieters.
+   - Analysiert die vorhandenen Dateien und extrahiert Staffel- und Episodennummern.
+2. **Preview & Abgleich-UI:**
+   - Zeigt dem Benutzer eine Gegenüberstellung in einer Tabelle: *Aktueller Dateiname* vs. *Vorgeschlagener Metadaten-Name*.
+   - Nutzt Badges zur Statusanzeige:
+     - `Passt bereits` (Grün): Dateiname entspricht der Konvention.
+     - `Abweichung` (Gelb): Der Episodentitel oder die Schreibweise weicht ab (z.B. Schreibfehler oder anderer Metadatendienst). Umbenennung empfohlen.
+     - `Kein Treffer` (Rot): Episode kann nicht im Metadatendienst gefunden werden (Benutzer muss manuell zuordnen).
+3. **Massen-Renamer & Rollback:**
+   - Führt die Umbenennungen im Hintergrund aus und aktualisiert die lokalen `.nfo`-Dateien. Generiert bei Erfolg ein Transaktionsprotokoll und bietet in der UI die Option eines sofortigen Rollbacks an.
+
+### Aufwand (grob)
+- **Backend-Abgleich-Logik, NFO-Backups & Rollback-Engine**: ~2,5 Tage.
+- **Frontend-UI (Vorschau-Tabelle, Badges, Fortschrittsbalken, Rollback-Button)**: ~1,5 Tage.
+- **Sicherheits-Validierung & Tests**: ~0,5 Tage.
+- **Gesamtaufwand**: ~4,5 Tage (Mittel).

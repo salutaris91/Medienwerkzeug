@@ -395,13 +395,15 @@ def handle_api_preview_process():
             preview["warning"] = "Abweichung der Nummerierung: Auf dem NAS existieren Jahreszahl-Staffeln (z.B. Staffel 2026), aber die Vorschau ordnet die Episoden Standard-Staffeln (z.B. Staffel 1) zu! Bitte passe die Staffeln in den Episoden-Details an."
         elif has_existing_standard_seasons and has_preview_year_seasons:
             preview["warning"] = "Abweichung der Nummerierung: Auf dem NAS existieren Standard-Staffeln (z.B. Staffel 1), aber die Vorschau ordnet die Episoden Jahreszahl-Staffeln (z.B. Staffel 2026) zu! Bitte passe die Staffeln in den Episoden-Details an."
-        elif season is not None:
-            try:
-                s_num = int(season)
-                if s_num >= 1000:
-                    preview["warning"] = f"Staffel-Nummer ist eine Jahreszahl ({s_num})! Bitte prüfen, ob das korrekt ist (z.B. Staffel 56 statt 2026)."
-            except Exception:
-                pass
+        # Check for show name mismatch with existing NAS folder (matching show ID)
+        if show_id and provider:
+            from gui.api.search_api import find_existing_series_folder_by_id
+            nas_match_folder = find_existing_series_folder_by_id(nas_serien, provider, show_id)
+            if nas_match_folder and nas_match_folder != clean_show_name:
+                preview["show_name_mismatch"] = {
+                    "nas_name": nas_match_folder,
+                    "metadata_name": clean_show_name
+                }
             
     return jsonify(preview)
 

@@ -1689,13 +1689,38 @@ async function selectShow(show) {
     }
     
     const overrideInput = document.getElementById("series-nas-folder-override");
+    const matchStatusLabel = document.getElementById("series-nas-folder-match-status");
+    if (matchStatusLabel) {
+        matchStatusLabel.classList.add("hidden");
+        matchStatusLabel.textContent = "";
+    }
+    
     if (overrideInput) {
         if (window.nasFolderSelected) {
             overrideInput.value = window.nasFolderSelected;
+            autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
         } else {
+            const destSelect = document.getElementById("series-nas-destination");
+            const destVal = destSelect ? destSelect.value : "";
             overrideInput.value = cleanSeriesName(show.name);
+            
+            fetch(`/api/series/find-folder-by-id?provider=${encodeURIComponent(show.provider)}&show_id=${encodeURIComponent(show.id)}&destination_id=${encodeURIComponent(destVal)}`)
+                .then(res => res.ok ? res.json() : {folder: null})
+                .then(data => {
+                    if (data.folder) {
+                        overrideInput.value = data.folder;
+                        if (matchStatusLabel) {
+                            matchStatusLabel.textContent = `✅ Zugeordnet zu existierendem NAS-Ordner: ${data.folder}`;
+                            matchStatusLabel.classList.remove("hidden");
+                        }
+                    }
+                    autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
+                })
+                .catch(err => {
+                    console.error("Error finding folder by show ID:", err);
+                    autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
+                });
         }
-        autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
     }
     
     const panel = document.getElementById("selected-show-panel");
@@ -6853,6 +6878,11 @@ async function openPreviewModal(basePayload) {
         warningBox.classList.add("hidden");
     }
     
+    const mismatchBox = document.getElementById("preview-show-name-mismatch");
+    if (mismatchBox) {
+        mismatchBox.classList.add("hidden");
+    }
+    
     // Check if any mapped season is >= 1000 (possible year warning)
     let hasHighSeason = false;
     let highSeasonNum = null;
@@ -6926,6 +6956,46 @@ async function openPreviewModal(basePayload) {
         if (data.warning && warningBox && warningText && !basePayload.force_absolute_season_1) {
             warningText.textContent = data.warning;
             warningBox.classList.remove("hidden");
+        }
+        
+        if (data.show_name_mismatch && mismatchBox) {
+            const mText = document.getElementById("preview-show-name-mismatch-text");
+            if (mText) {
+                mText.innerHTML = `Der Zielordner auf dem NAS heißt <strong>"${data.show_name_mismatch.nas_name}"</strong>, aber die Vorschau verwendet den Namen <strong>"${data.show_name_mismatch.metadata_name}"</strong>.`;
+            }
+            
+            const btnAdoptNas = document.getElementById("btn-preview-adopt-nas-name");
+            const btnAdoptMeta = document.getElementById("btn-preview-adopt-metadata-name");
+            
+            if (btnAdoptNas) {
+                const newBtn = btnAdoptNas.cloneNode(true);
+                btnAdoptNas.parentNode.replaceChild(newBtn, btnAdoptNas);
+                newBtn.addEventListener("click", () => {
+                    const overrideInput = document.getElementById("series-nas-folder-override");
+                    if (overrideInput) {
+                        overrideInput.value = data.show_name_mismatch.nas_name;
+                        autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
+                    }
+                    basePayload.nas_show_folder = data.show_name_mismatch.nas_name;
+                    openPreviewModal(basePayload);
+                });
+            }
+            
+            if (btnAdoptMeta) {
+                const newBtn = btnAdoptMeta.cloneNode(true);
+                btnAdoptMeta.parentNode.replaceChild(newBtn, btnAdoptMeta);
+                newBtn.addEventListener("click", () => {
+                    const overrideInput = document.getElementById("series-nas-folder-override");
+                    if (overrideInput) {
+                        overrideInput.value = data.show_name_mismatch.metadata_name;
+                        autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
+                    }
+                    basePayload.nas_show_folder = data.show_name_mismatch.metadata_name;
+                    openPreviewModal(basePayload);
+                });
+            }
+            
+            mismatchBox.classList.remove("hidden");
         }
         
         currentPreviewPayload = basePayload;

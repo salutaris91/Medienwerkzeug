@@ -218,6 +218,17 @@ def _check_season(issues, category, show_name, season_path):
     return len(videos)
 
 
+def _normalize_for_consistency_check(name):
+    if not name:
+        return ""
+    name = name.lower()
+    name = re.sub(r'\(\d{4}\)', '', name)
+    name = re.sub(r'\[.*?\]', '', name)
+    name = re.sub(r'\(.*?\)', '', name)
+    name = name.replace("&", "und")
+    return re.sub(r'[^a-z0-9]', '', name).strip()
+
+
 def _check_series_show(issues, category, show_path):
     files_checked = 0
     try:
@@ -242,6 +253,35 @@ def _check_series_show(issues, category, show_path):
                    and (e.lower().startswith("staffel ") or e.lower().startswith("season ")
                         or e.lower().startswith("specials"))]
     show_name = os.path.basename(show_path)
+
+    # Collect all video files to check naming consistency
+    all_videos = []
+    for sd in season_dirs:
+        videos, _ = _collect_videos(os.path.join(show_path, sd))
+        all_videos.extend(videos)
+
+    prefixes = {}
+    for full_path, filename in all_videos:
+        m = SXXEXX_RE.search(filename)
+        if m:
+            prefix = filename[:m.start()].strip(" -_")
+            if prefix:
+                norm = _normalize_for_consistency_check(prefix)
+                if norm not in prefixes:
+                    prefixes[norm] = prefix
+
+    if len(prefixes) > 1:
+        prefix_list = sorted(list(prefixes.values()))
+        _add_issue(issues, "warning", "inconsistent_naming", category, show_path,
+                   f"{show_name}: Uneinheitliche Benennung der Episodendateien (z. B. '{prefix_list[0]}' vs. '{prefix_list[1]}')")
+    elif len(prefixes) == 1:
+        prefix_val = list(prefixes.values())[0]
+        norm_prefix = list(prefixes.keys())[0]
+        norm_folder = _normalize_for_consistency_check(show_name)
+        if norm_prefix != norm_folder:
+            _add_issue(issues, "warning", "inconsistent_naming", category, show_path,
+                       f"{show_name}: Episodendateien verwenden einen anderen Seriennamen ('{prefix_val}') als der Hauptordner")
+
     for sd in season_dirs:
         files_checked += _check_season(issues, category, show_name, os.path.join(show_path, sd))
 
