@@ -203,7 +203,8 @@ document.addEventListener("DOMContentLoaded", () => {
     
     loadStatus();
     loadConversionRecommendations();
-    
+    initHealthDashboard();
+
     // Periodic status check (every 6 seconds)
     setInterval(loadStatus, 6000);
     
@@ -8310,6 +8311,145 @@ function updateHintElement(el, currentVal, recInfo) {
         el.textContent = `⚠️ Dieser Wert liegt unter dem empfohlenen Optimum von CRF ${optimal}. Es könnte zu sichtbaren Kompressionsartefakten kommen.`;
     }
     el.classList.remove("hidden");
+}
+
+// ==========================================================================
+// Feature 3: NAS Bibliotheks-Check (Health Dashboard)
+// ==========================================================================
+let healthPollTimer = null;
+
+const HEALTH_SEVERITY = {
+    critical: { label: "Kritisch", icon: "⛔", color: "#ef4444" },
+    warning:  { label: "Warnung",  icon: "⚠️", color: "#f59e0b" },
+    info:     { label: "Hinweis",  icon: "ℹ️", color: "#3b82f6" },
+};
+
+function initHealthDashboard() {
+    const btn = document.getElementById("btn-health-scan");
+    if (btn) {
+        btn.addEventListener("click", startHealthScan);
+    }
+    // Vorhandenes (gecachtes) Ergebnis laden
+    pollHealthStatus(false);
+}
+
+async function startHealthScan() {
+    const btn = document.getElementById("btn-health-scan");
+    try {
+        const res = await fetch("/api/nas/health-scan", { method: "POST" });
+        const data = await res.json();
+        if (data.started === false) {
+            // Läuft bereits -> einfach weiterpollen
+            setHealthStatusText(data.message || "Ein Scan läuft bereits.");
+        }
+        if (btn) btn.disabled = true;
+        pollHealthStatus(true);
+    } catch (e) {
+        console.error("Health-Scan konnte nicht gestartet werden:", e);
+        setHealthStatusText("Fehler: Scan konnte nicht gestartet werden.");
+    }
+}
+
+function setHealthStatusText(txt) {
+    const el = document.getElementById("health-scan-status");
+    if (el) el.textContent = txt;
+}
+
+async function pollHealthStatus(keepPolling) {
+    try {
+        const res = await fetch("/api/nas/health-status");
+        if (!res.ok) return;
+        const data = await res.json();
+        renderHealthStatus(data);
+
+        const running = data.status === "running";
+        const btn = document.getElementById("btn-health-scan");
+        if (btn) btn.disabled = running;
+
+        if (running) {
+            // Weiterpollen, solange der Scan läuft
+            clearTimeout(healthPollTimer);
+            healthPollTimer = setTimeout(() => pollHealthStatus(true), 2000);
+        }
+    } catch (e) {
+        console.error("Health-Status konnte nicht geladen werden:", e);
+    }
+}
+
+function renderHealthStatus(data) {
+    const statusEl = document.getElementById("health-scan-status");
+    const progWrap = document.getElementById("health-progress-wrap");
+    const progBar = document.getElementById("health-progress-bar");
+    const summaryEl = document.getElementById("health-summary");
+    const issuesEl = document.getElementById("health-issues");
+    if (!statusEl || !summaryEl || !issuesEl) return;
+
+    // Statuszeile + Fortschritt
+    if (data.status === "running") {
+        statusEl.textContent = data.message || "Scan läuft...";
+        if (progWrap) progWrap.style.display = "block";
+        if (progBar) progBar.style.width = `${data.progress || 0}%`;
+    } else {
+        if (progWrap) progWrap.style.display = "none";
+        if (data.status === "error") {
+            statusEl.textContent = `Fehler: ${data.message || data.error || "Unbekannt"}`;
+        } else if (data.status === "done" || (data.issues && data.issues.length >= 0 && data.finished_at)) {
+            const when = data.finished_at ? new Date(data.finished_at * 1000).toLocaleString("de-DE") : "";
+            statusEl.textContent = data.message + (when ? ` (zuletzt: ${when})` : "");
+        } else {
+            statusEl.textContent = "Noch kein Scan durchgeführt.";
+        }
+    }
+
+    // Summary-Badges
+    const summary = data.summary || { critical: 0, warning: 0, info: 0 };
+    const hasResult = (data.issues && data.finished_at) || data.status === "done";
+    if (hasResult) {
+        summaryEl.innerHTML = ["critical", "warning", "info"].map(sev => {
+            const m = HEALTH_SEVERITY[sev];
+            return `<span style="font-size:0.85em; padding:4px 10px; border-radius:12px; background:${m.color}22; color:${m.color}; border:1px solid ${m.color}55;">
+                        ${m.icon} ${summary[sev] || 0} ${m.label}
+                    </span>`;
+        }).join("");
+    } else {
+        summaryEl.innerHTML = "";
+    }
+
+    // Issues gruppiert nach Schwere
+    if (data.issues && data.issues.length > 0) {
+        const order = ["critical", "warning", "info"];
+        const grouped = { critical: [], warning: [], info: [] };
+        data.issues.forEach(it => { (grouped[it.severity] || grouped.info).push(it); });
+
+        let html = "";
+        order.forEach(sev => {
+            const list = grouped[sev];
+            if (!list.length) return;
+            const m = HEALTH_SEVERITY[sev];
+            html += `<details ${sev === "critical" ? "open" : ""} style="border:1px solid var(--border-light); border-radius:8px; padding:8px 12px;">
+                        <summary style="cursor:pointer; color:${m.color}; font-weight:500;">${m.icon} ${m.label} (${list.length})</summary>
+                        <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">`;
+            list.forEach(it => {
+                html += `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:0.9em; padding:4px 0; border-top:1px solid rgba(255,255,255,0.04);">
+                            <span>${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
+                            <button class="btn btn-secondary btn-sm health-open-folder" data-path="${escapeHTML(it.path)}" style="white-space:nowrap;">📂 Öffnen</button>
+                         </div>`;
+            });
+            html += `</div></details>`;
+        });
+        issuesEl.innerHTML = html;
+
+        issuesEl.querySelectorAll(".health-open-folder").forEach(b => {
+            b.addEventListener("click", () => {
+                const p = b.getAttribute("data-path");
+                fetch(`/api/system-open-folder?path=${encodeURIComponent(p)}`).catch(() => {});
+            });
+        });
+    } else if (hasResult) {
+        issuesEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Auffälligkeiten gefunden. 🎉</p>`;
+    } else {
+        issuesEl.innerHTML = "";
+    }
 }
 
 function openToolRunnerModal(toolType, title, desc, hasQualitySlider = false) {

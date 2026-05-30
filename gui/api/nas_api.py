@@ -540,3 +540,29 @@ def handle_api_resolve_duplicate():
         return jsonify({"status": "success", "message": "Keine Aktion ausgeführt."})
 
 
+# ==========================================================================
+# Feature 3: Media Health Dashboard
+# ==========================================================================
+@nas_api.route('/nas/health-scan', methods=['POST'])
+def handle_api_nas_health_scan():
+    """Startet einen Bibliotheks-Health-Scan im Hintergrund."""
+    import gui.core.health as health
+    try:
+        started = health.start_health_scan()
+        if not started:
+            return jsonify({"started": False, "message": "Ein Scan läuft bereits."})
+        return jsonify({"started": True, "message": "Scan gestartet."})
+    except Exception as e:
+        return jsonify({"started": False, "error": f"Scan konnte nicht gestartet werden: {e}"}), 500
+
+
+@nas_api.route('/nas/health-status', methods=['GET'])
+def handle_api_nas_health_status():
+    """Liefert Fortschritt und Ergebnis des Health-Scans (gecacht)."""
+    import gui.core.health as health
+    try:
+        return jsonify(health.get_health_status())
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+

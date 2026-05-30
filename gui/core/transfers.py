@@ -447,3 +447,72 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
 
 def copy_to_pcloud(source_dir, nas_target_dir, task_id=None, explicit_remote_base=None):
     return copy_to_cloud_target(source_dir, nas_target_dir, "pcloud", task_id, explicit_remote_base)
+
+
+def walk_nas_categories(settings=None):
+    """Iteriert über alle Top-Level-Ordner (Serien/Filme) aller NAS-Sync-Kategorien.
+
+    Gemeinsame Grundlage für Health-Scan (Feature 3) und Duplikat-Erkennung (Feature 4).
+
+    Liefert pro Show-/Film-Ordner ein dict:
+        {
+          "category": <Kategoriename>,
+          "category_id": <id>,
+          "type": "series" | "movie",   # series = Ordner mit Staffel-Struktur
+          "name": <Ordnername>,
+          "path": <absoluter Pfad>
+        }
+
+    'type' wird primär über den Kategorienamen bestimmt ("Serie" -> series),
+    mit Fallback auf das Vorhandensein von "Staffel/Season"-Unterordnern.
+    """
+    if settings is None:
+        settings = load_settings()
+    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    sync_cats = settings.get("sync_categories", [])
+
+    def looks_like_season(entry_name):
+        low = entry_name.lower()
+        return low.startswith("staffel ") or low.startswith("season ") or low.startswith("specials")
+
+    for cat in sync_cats:
+        nas_sub = cat.get("nas_sub")
+        if not nas_sub:
+            continue
+        cat_path = f"{nas_root}{nas_sub}"
+        if not os.path.isdir(cat_path):
+            continue
+
+        cat_name = cat.get("name", "")
+        # Kategorie-Typ: Name enthält "serie" -> Serien-Kategorie
+        cat_is_series = "serie" in cat_name.lower()
+
+        try:
+            entries = sorted(os.listdir(cat_path))
+        except OSError:
+            continue
+
+        for entry in entries:
+            if entry.startswith('.'):
+                continue
+            show_path = os.path.join(cat_path, entry)
+            if not os.path.isdir(show_path):
+                continue
+
+            # Typ bestimmen: Kategorie-Hinweis, sonst Fallback über Staffel-Unterordner
+            item_type = "series" if cat_is_series else "movie"
+            if not cat_is_series:
+                try:
+                    if any(os.path.isdir(os.path.join(show_path, e)) and looks_like_season(e)
+                           for e in os.listdir(show_path)):
+                        item_type = "series"
+                except OSError:
+                    pass
+
+            yield {
+                "category": cat_name,
+                "category_id": cat.get("id"),
+                "type": item_type,
+                "name": entry,
+                "path": show_path,
+            }
