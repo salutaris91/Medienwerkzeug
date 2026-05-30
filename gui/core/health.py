@@ -115,22 +115,23 @@ def _collect_videos(root):
     return videos, nfo_basenames
 
 
-def _check_season(issues, category, season_path):
+def _check_season(issues, category, show_name, season_path):
     """Prüft einen einzelnen Staffel-Ordner (rekursiv). Gibt geprüfte Dateien zurück."""
-    season_label = os.path.basename(season_path)
+    # Showname voranstellen, damit das Issue auf einen Blick zuordenbar ist
+    label = f"{show_name} · {os.path.basename(season_path)}"
     videos, nfo_basenames = _collect_videos(season_path)
 
     # Leerer / video-loser Ordner
     if not videos:
         _add_issue(issues, "info", "empty_folder", category, season_path,
-                   f"{season_label}: keine Videodateien")
+                   f"{label}: keine Videodateien")
         return 0
 
     # Fehlende Episoden-NFOs (gleicher Basisname im selben Ordner)
     missing_nfo = [fn for (full, fn) in videos if os.path.splitext(full)[0] not in nfo_basenames]
     if missing_nfo:
         _add_issue(issues, "warning", "missing_nfo", category, season_path,
-                   f"{season_label}: {len(missing_nfo)} von {len(videos)} Episoden ohne NFO")
+                   f"{label}: {len(missing_nfo)} von {len(videos)} Episoden ohne NFO")
 
     # Episodenlücken (nur innerhalb des beobachteten Bereichs min..max)
     nums = _episode_numbers(fn for (full, fn) in videos)
@@ -142,7 +143,7 @@ def _check_season(issues, category, season_path):
             if len(missing) > 10:
                 preview += " …"
             _add_issue(issues, "critical", "episode_gap", category, season_path,
-                       f"{season_label}: Episodenlücke ({preview})")
+                       f"{label}: Episodenlücke ({preview})")
 
     # Verdächtig kleine Dateien
     small = []
@@ -154,7 +155,7 @@ def _check_season(issues, category, season_path):
             pass
     if small:
         _add_issue(issues, "warning", "small_file", category, season_path,
-                   f"{season_label}: {len(small)} verdächtig kleine Videodatei(en) (< 50 MB)")
+                   f"{label}: {len(small)} verdächtig kleine Videodatei(en) (< 50 MB)")
 
     # Codec-Inkonsistenz (ffprobe-Stichprobe)
     if len(videos) >= 2:
@@ -165,7 +166,7 @@ def _check_season(issues, category, season_path):
                 codecs.add(c)
         if len(codecs) > 1:
             _add_issue(issues, "warning", "codec_inconsistency", category, season_path,
-                       f"{season_label}: uneinheitliche Codecs in Stichprobe ({', '.join(sorted(codecs))})")
+                       f"{label}: uneinheitliche Codecs in Stichprobe ({', '.join(sorted(codecs))})")
 
     return len(videos)
 
@@ -193,8 +194,9 @@ def _check_series_show(issues, category, show_path):
                    if not e.startswith('.') and os.path.isdir(os.path.join(show_path, e))
                    and (e.lower().startswith("staffel ") or e.lower().startswith("season ")
                         or e.lower().startswith("specials"))]
+    show_name = os.path.basename(show_path)
     for sd in season_dirs:
-        files_checked += _check_season(issues, category, os.path.join(show_path, sd))
+        files_checked += _check_season(issues, category, show_name, os.path.join(show_path, sd))
 
     return files_checked
 

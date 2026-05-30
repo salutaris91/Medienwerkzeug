@@ -293,11 +293,18 @@ def handle_api_stats():
             try:
                 usage = shutil.disk_usage(nas_root)
                 nas_info["total"] = usage.total
-                nas_info["used"] = usage.used
                 nas_info["free"] = usage.free
-                if usage.total > 0:
-                    nas_info["used_percent"] = round((usage.used / usage.total) * 100, 2)
                 nas_info["available"] = True
+                # Netzlaufwerke (SMB) liefern via statvfs teils inkonsistente Werte
+                # (z. B. frei > gesamt -> negative Belegung). In dem Fall ist die
+                # Prozent-Belegung nicht verwertbar; wir zeigen nur den freien Platz.
+                if usage.free > usage.total or usage.used < 0:
+                    nas_info["usage_unreliable"] = True
+                    nas_info["used"] = None
+                    nas_info["used_percent"] = None
+                else:
+                    nas_info["used"] = usage.used
+                    nas_info["used_percent"] = round((usage.used / usage.total) * 100, 2) if usage.total > 0 else 0.0
             except Exception as e:
                 nas_info["error"] = str(e)
         else:
@@ -310,39 +317,41 @@ def handle_api_stats():
         size_in_total = 0
         size_out_total = 0
         ratios = []
-        
-        # We estimate legacy files: e.g. 1.5 GB input size if size_in/size_out are missing
-        LEGACY_ESTIMATED_SIZE_IN = 1.5 * 1024 * 1024 * 1024 # 1.5 GB
-        
         cleaned_history = []
-        
+
+        # Nur Einträge mit ECHTEN Größendaten fließen in die Ersparnis-/Ratio-Statistik
+        # ein. Alt-Einträge ohne Größe würden sonst geschätzt werden müssen, was die
+        # Zahlen verfälscht (frühere Schätzung erzeugte negative Ersparnis).
         for entry in history:
-            ratio = entry.get("ratio", 0.5)
-            ratios.append(ratio)
-            
             size_in = entry.get("size_in")
             size_out = entry.get("size_out")
-            
-            if size_in is None or size_out is None:
-                # Legacy fallback
-                size_in = LEGACY_ESTIMATED_SIZE_IN
-                size_out = size_in * ratio
-            
+            ratio = entry.get("ratio")
+
+            has_real_sizes = (
+                isinstance(size_in, (int, float)) and isinstance(size_out, (int, float))
+                and size_in > 1000
+            )
+            if not has_real_sizes:
+                continue
+
             size_in_total += size_in
             size_out_total += size_out
-            
-            # Format entry for frontend visualization
+            if isinstance(ratio, (int, float)) and ratio > 0:
+                ratios.append(ratio)
+
             cleaned_history.append({
                 "quality": entry.get("quality", "Unbekannt"),
                 "codec": entry.get("codec", "hevc"),
-                "ratio": ratio,
+                "ratio": ratio if isinstance(ratio, (int, float)) else (size_out / size_in),
                 "size_in": size_in,
                 "size_out": size_out,
                 "timestamp": entry.get("timestamp", 0)
             })
-        
+
         saved_bytes = max(0, size_in_total - size_out_total)
-        avg_ratio = sum(ratios) / len(ratios) if ratios else 0.5
+        # Durchschnittliche Rate über die tatsächlichen Gesamtgrößen (robust & konsistent
+        # zur angezeigten Ersparnis).
+        avg_ratio = (size_out_total / size_in_total) if size_in_total > 0 else 0.0
         
         # Sort history by timestamp descending
         cleaned_history.sort(key=lambda x: x["timestamp"], reverse=True)

@@ -5402,7 +5402,18 @@ async function loadDashboard() {
         const detailText = document.getElementById("nas-usage-detail-text");
         const pathText = document.getElementById("nas-usage-path-text");
 
-        if (data.nas.available) {
+        if (data.nas.available && data.nas.usage_unreliable) {
+            // SMB-Netzlaufwerk: Belegung nicht zuverlässig messbar -> nur freien Platz zeigen
+            if (circle) {
+                circle.style.strokeDashoffset = 364.4;
+                circle.classList.remove("warning", "danger");
+            }
+            if (percentText) percentText.textContent = "–";
+            if (detailText) {
+                detailText.innerHTML = `${formatBytes(data.nas.free)} frei<br><span style="color:var(--text-muted); font-size:11px;">(Belegung bei Netzlaufwerk nicht ermittelbar)</span>`;
+            }
+            if (pathText) pathText.textContent = data.nas.path;
+        } else if (data.nas.available) {
             const pct = data.nas.used_percent || 0;
             // stroke dasharray is 364.4 (for radius 58, 2 * Math.PI * 58 = 364.42)
             const offset = 364.4 - (364.4 * pct / 100);
@@ -7984,7 +7995,12 @@ async function updateHomepageData(statusData) {
             const nasInfo = statsData.nas;
             const progress = document.getElementById("hero-nas-progress");
             const usageText = document.getElementById("hero-nas-usage-text");
-            if (nasInfo && nasInfo.available) {
+            if (nasInfo && nasInfo.available && nasInfo.usage_unreliable) {
+                if (progress) progress.style.width = "0%";
+                if (usageText) {
+                    usageText.textContent = `${formatBytes(nasInfo.free)} frei (Belegung bei Netzlaufwerk nicht ermittelbar)`;
+                }
+            } else if (nasInfo && nasInfo.available) {
                 const pct = nasInfo.used_percent || 0;
                 if (progress) {
                     progress.style.width = `${pct}%`;
@@ -8633,17 +8649,26 @@ function renderDuplicateStatus(data) {
                 ? `<span style="color:#10b981; font-size:0.8em; white-space:nowrap;">✅ behalten</span>`
                 : `<span style="color:#f59e0b; font-size:0.8em; white-space:nowrap;">Duplikat</span>`;
             const details = `${f.codec || "?"} · ${f.resolution || "?"} · ${fmtSize(f.size)}`;
-            const action = keep
+            const openBtn = `<button class="btn btn-secondary btn-sm dup-open" data-path="${escapeHTML(f.path)}" style="white-space:nowrap;">📂 Öffnen</button>`;
+            const delBtn = keep
                 ? ""
                 : `<button class="btn btn-secondary btn-sm dup-delete" data-path="${escapeHTML(f.path)}" style="white-space:nowrap; color:#ef4444;">🗑️ Löschen</button>`;
             html += `<div class="dup-file-row" style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:0.88em; padding:4px 0; border-top:1px solid rgba(255,255,255,0.04);">
                         <span style="overflow:hidden; text-overflow:ellipsis;">${badge} &nbsp; ${escapeHTML(f.filename)}<br><span class="text-muted" style="font-size:0.85em;">${details}</span></span>
-                        ${action}
+                        <span style="display:flex; gap:6px; white-space:nowrap;">${openBtn}${delBtn}</span>
                      </div>`;
         });
         html += `</div>`;
         card.innerHTML = html;
 
+        // "Öffnen" öffnet den Ordner, in dem die Datei liegt
+        card.querySelectorAll(".dup-open").forEach(b => {
+            b.addEventListener("click", () => {
+                const p = b.getAttribute("data-path");
+                const folder = p.substring(0, p.lastIndexOf("/"));
+                fetch(`/api/system-open-folder?path=${encodeURIComponent(folder)}`).catch(() => {});
+            });
+        });
         card.querySelectorAll(".dup-delete").forEach(b => {
             b.addEventListener("click", () => resolveDuplicate(b.getAttribute("data-path"), b, card));
         });
