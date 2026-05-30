@@ -651,3 +651,34 @@ def handle_api_findings_ignored():
     return jsonify({"ignored": sorted(ignores.get_ignored())})
 
 
+# ==========================================================================
+# Filme normalisieren (Genre-Ordner auflösen + lose Dateien einsammeln)
+# ==========================================================================
+@nas_api.route('/nas/normalize-films/preview', methods=['GET', 'POST'])
+def handle_api_normalize_films_preview():
+    """Liefert den Verschiebe-Plan (verschiebt nichts)."""
+    import gui.core.film_normalize as fn
+    try:
+        return jsonify({"plan": fn.build_plan()})
+    except Exception as e:
+        return jsonify({"plan": [], "error": str(e)}), 500
+
+
+@nas_api.route('/nas/normalize-films/apply', methods=['POST'])
+def handle_api_normalize_films_apply():
+    """Führt die ausgewählten Verschiebungen aus (mit NAS-Root-Schutz, kein Überschreiben)."""
+    import gui.core.film_normalize as fn
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    items = params.get("items")
+    if not isinstance(items, list) or not items:
+        return jsonify({"ok": False, "message": "Keine Einträge ausgewählt."}), 400
+    try:
+        results = fn.apply_moves(items)
+        return jsonify({"ok": True, "results": results})
+    except Exception as e:
+        return jsonify({"ok": False, "message": f"Fehler: {e}"}), 500
+
+

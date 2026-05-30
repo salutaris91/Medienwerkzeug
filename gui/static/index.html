@@ -769,6 +769,23 @@
                     <div id="duplicate-summary" style="margin-top:14px;"></div>
                     <div id="duplicate-groups" style="margin-top:14px; display:flex; flex-direction:column; gap:10px;"></div>
                 </div>
+
+                <!-- Filme normalisieren: Genre-Ordner auflösen + lose Dateien einsammeln -->
+                <div class="card" id="dashboard-normalize" style="margin-top: 24px;">
+                    <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span class="card-icon">🎬</span>
+                            <h3 style="margin:0;">Filme normalisieren</h3>
+                        </div>
+                        <button class="btn btn-secondary btn-sm" id="btn-normalize-preview">🔍 Vorschau</button>
+                    </div>
+                    <p class="text-muted" style="margin:6px 0 0; font-size:0.8em;">Stellt die Zielstruktur her: löst Genre-Ordner auf (Filme/Genre/Film → Filme/Film) und packt lose Dateien in eigene Ordner. Verschiebt nichts ohne deine Bestätigung.</p>
+                    <div id="normalize-status" class="text-muted" style="margin-top:12px;">Noch keine Vorschau erstellt.</div>
+                    <div id="normalize-plan" style="margin-top:14px; display:flex; flex-direction:column; gap:6px;"></div>
+                    <div id="normalize-apply-wrap" style="display:none; margin-top:14px;">
+                        <button class="btn btn-primary btn-sm" id="btn-normalize-apply">✅ Ausgewählte anwenden</button>
+                    </div>
+                </div>
             </div>
 
             <!-- STATE: SETTINGS DASHBOARD -->
@@ -1745,7 +1762,7 @@
     </div>
 </div>
 
-    <script src="app.js?v=57"></script>
+    <script src="app.js?v=58"></script>
 
     <!-- Modal: Profiles -->
     <div id="modal-profiles" class="mw-modal-overlay">

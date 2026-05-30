@@ -206,6 +206,7 @@ document.addEventListener("DOMContentLoaded", () => {
     loadConversionRecommendations();
     initHealthDashboard();
     initDuplicateDashboard();
+    initNormalizeTool();
     applyStorageTargetLabels();
 
     // Periodic status check (every 6 seconds)
@@ -9278,6 +9279,94 @@ async function resolveDuplicate(path, btn, card) {
         alert("Fehler beim Löschen: " + e);
         btn.disabled = false;
         btn.textContent = "🗑️ Löschen";
+    }
+}
+
+// ==========================================================================
+// Filme normalisieren (Genre-Ordner auflösen + lose Dateien einsammeln)
+// ==========================================================================
+let normalizePlan = [];
+
+function initNormalizeTool() {
+    const pv = document.getElementById("btn-normalize-preview");
+    if (pv) pv.addEventListener("click", loadNormalizePreview);
+    const ap = document.getElementById("btn-normalize-apply");
+    if (ap) ap.addEventListener("click", applyNormalize);
+}
+
+async function loadNormalizePreview() {
+    const statusEl = document.getElementById("normalize-status");
+    const planEl = document.getElementById("normalize-plan");
+    const applyWrap = document.getElementById("normalize-apply-wrap");
+    if (statusEl) statusEl.textContent = "Analysiere…";
+    if (planEl) planEl.innerHTML = "";
+    if (applyWrap) applyWrap.style.display = "none";
+    try {
+        const res = await fetch("/api/nas/normalize-films/preview", { method: "POST" });
+        const data = await res.json();
+        normalizePlan = data.plan || [];
+        renderNormalizePlan(normalizePlan);
+    } catch (e) {
+        if (statusEl) statusEl.textContent = "Fehler bei der Vorschau.";
+    }
+}
+
+function renderNormalizePlan(plan) {
+    const statusEl = document.getElementById("normalize-status");
+    const planEl = document.getElementById("normalize-plan");
+    const applyWrap = document.getElementById("normalize-apply-wrap");
+    if (!planEl) return;
+    if (!plan.length) {
+        if (statusEl) statusEl.textContent = "Alles sauber – nichts zu normalisieren. 🎉";
+        planEl.innerHTML = "";
+        if (applyWrap) applyWrap.style.display = "none";
+        return;
+    }
+    const conflicts = plan.filter(p => p.conflict).length;
+    if (statusEl) statusEl.textContent = `${plan.length} Vorschlag(e)` + (conflicts ? ` · ${conflicts} mit Konflikt (übersprungen)` : "");
+    planEl.innerHTML = plan.map((p, i) => {
+        const attr = p.conflict ? "disabled" : "checked";
+        const warn = p.conflict ? ` <span style="color:#ef4444;">(Ziel existiert bereits)</span>` : "";
+        const kindBadge = p.kind === "genre" ? "📂 Genre" : "📄 lose";
+        return `<label style="display:flex; gap:8px; align-items:flex-start; font-size:0.85em; padding:4px 0; border-top:1px solid rgba(255,255,255,0.04);">
+                    <input type="checkbox" class="normalize-item" data-idx="${i}" ${attr} style="margin-top:3px;">
+                    <span><span class="text-muted">${kindBadge}</span> ${escapeHTML(p.label)}${warn}</span>
+                </label>`;
+    }).join("");
+    if (applyWrap) applyWrap.style.display = "block";
+    planEl.querySelectorAll(".normalize-item").forEach(cb => cb.addEventListener("change", updateNormalizeApplyCount));
+    updateNormalizeApplyCount();
+}
+
+function updateNormalizeApplyCount() {
+    const n = document.querySelectorAll(".normalize-item:checked").length;
+    const btn = document.getElementById("btn-normalize-apply");
+    if (btn) { btn.textContent = `✅ ${n} Ausgewählte anwenden`; btn.disabled = n === 0; }
+}
+
+async function applyNormalize() {
+    const idxs = Array.from(document.querySelectorAll(".normalize-item:checked"))
+        .map(cb => parseInt(cb.getAttribute("data-idx")));
+    const items = idxs.map(i => normalizePlan[i]).filter(Boolean);
+    if (!items.length) return;
+    if (!confirm(`${items.length} Verschiebung(en) jetzt ausführen?\n\nDateien werden auf dem NAS verschoben. Es wird nichts überschrieben.`)) return;
+    const btn = document.getElementById("btn-normalize-apply");
+    if (btn) { btn.disabled = true; btn.textContent = "Verschiebe…"; }
+    try {
+        const res = await fetch("/api/nas/normalize-films/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items }),
+        });
+        const data = await res.json();
+        const r = data.results || {};
+        const statusEl = document.getElementById("normalize-status");
+        if (statusEl) statusEl.textContent = `Fertig: ${r.moved || 0} verschoben, ${r.skipped || 0} übersprungen, ${(r.errors || []).length} Fehler.`;
+        setTimeout(loadNormalizePreview, 600); // Plan aktualisieren
+    } catch (e) {
+        const statusEl = document.getElementById("normalize-status");
+        if (statusEl) statusEl.textContent = "Fehler beim Anwenden.";
+        if (btn) { btn.disabled = false; }
     }
 }
 
