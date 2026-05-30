@@ -566,3 +566,48 @@ def handle_api_nas_health_status():
         return jsonify({"status": "error", "error": str(e)}), 500
 
 
+# ==========================================================================
+# Feature 4: NAS-weite Duplikat-Erkennung
+# ==========================================================================
+@nas_api.route('/nas/scan-duplicates', methods=['POST'])
+def handle_api_nas_scan_duplicates():
+    """Startet die Duplikat-Erkennung im Hintergrund."""
+    import gui.core.duplicates as duplicates
+    try:
+        started = duplicates.start_duplicate_scan()
+        if not started:
+            return jsonify({"started": False, "message": "Ein Scan läuft bereits."})
+        return jsonify({"started": True, "message": "Scan gestartet."})
+    except Exception as e:
+        return jsonify({"started": False, "error": f"Scan konnte nicht gestartet werden: {e}"}), 500
+
+
+@nas_api.route('/nas/duplicates', methods=['GET'])
+def handle_api_nas_duplicates():
+    """Liefert Fortschritt und Ergebnis der Duplikat-Erkennung (gecacht)."""
+    import gui.core.duplicates as duplicates
+    try:
+        return jsonify(duplicates.get_duplicate_status())
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+
+@nas_api.route('/nas/resolve-duplicate-global', methods=['POST'])
+def handle_api_nas_resolve_duplicate_global():
+    """Löscht eine als Duplikat gewählte Datei (mit Pfad-Validierung unter NAS-Root)."""
+    import gui.core.duplicates as duplicates
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    file_path = params.get("path")
+    if not file_path:
+        return jsonify({"ok": False, "message": "Kein Pfad angegeben."}), 400
+    try:
+        ok, message = duplicates.resolve_duplicate(file_path)
+        status = 200 if ok else 400
+        return jsonify({"ok": ok, "message": message}), status
+    except Exception as e:
+        return jsonify({"ok": False, "message": f"Fehler: {e}"}), 500
+
+

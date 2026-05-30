@@ -204,6 +204,7 @@ document.addEventListener("DOMContentLoaded", () => {
     loadStatus();
     loadConversionRecommendations();
     initHealthDashboard();
+    initDuplicateDashboard();
 
     // Periodic status check (every 6 seconds)
     setInterval(loadStatus, 6000);
@@ -8449,6 +8450,162 @@ function renderHealthStatus(data) {
         issuesEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Auffälligkeiten gefunden. 🎉</p>`;
     } else {
         issuesEl.innerHTML = "";
+    }
+}
+
+// ==========================================================================
+// Feature 4: NAS-weite Duplikat-Erkennung
+// ==========================================================================
+let duplicatePollTimer = null;
+
+function fmtSize(bytes) {
+    if (!bytes || bytes <= 0) return "0 MB";
+    const gb = bytes / (1024 ** 3);
+    if (gb >= 1) return gb.toFixed(2) + " GB";
+    return (bytes / (1024 ** 2)).toFixed(0) + " MB";
+}
+
+function initDuplicateDashboard() {
+    const btn = document.getElementById("btn-duplicate-scan");
+    if (btn) btn.addEventListener("click", startDuplicateScan);
+    pollDuplicateStatus(false);
+}
+
+async function startDuplicateScan() {
+    const btn = document.getElementById("btn-duplicate-scan");
+    try {
+        const res = await fetch("/api/nas/scan-duplicates", { method: "POST" });
+        const data = await res.json();
+        const statusEl = document.getElementById("duplicate-scan-status");
+        if (data.started === false && statusEl) statusEl.textContent = data.message || "Ein Scan läuft bereits.";
+        if (btn) btn.disabled = true;
+        pollDuplicateStatus(true);
+    } catch (e) {
+        console.error("Duplikat-Scan konnte nicht gestartet werden:", e);
+    }
+}
+
+async function pollDuplicateStatus() {
+    try {
+        const res = await fetch("/api/nas/duplicates");
+        if (!res.ok) return;
+        const data = await res.json();
+        renderDuplicateStatus(data);
+        const running = data.status === "running";
+        const btn = document.getElementById("btn-duplicate-scan");
+        if (btn) btn.disabled = running;
+        if (running) {
+            clearTimeout(duplicatePollTimer);
+            duplicatePollTimer = setTimeout(() => pollDuplicateStatus(true), 2000);
+        }
+    } catch (e) {
+        console.error("Duplikat-Status konnte nicht geladen werden:", e);
+    }
+}
+
+function renderDuplicateStatus(data) {
+    const statusEl = document.getElementById("duplicate-scan-status");
+    const progWrap = document.getElementById("duplicate-progress-wrap");
+    const progBar = document.getElementById("duplicate-progress-bar");
+    const summaryEl = document.getElementById("duplicate-summary");
+    const groupsEl = document.getElementById("duplicate-groups");
+    if (!statusEl || !summaryEl || !groupsEl) return;
+
+    if (data.status === "running") {
+        statusEl.textContent = data.message || "Scan läuft...";
+        if (progWrap) progWrap.style.display = "block";
+        if (progBar) progBar.style.width = `${data.progress || 0}%`;
+        return;
+    }
+    if (progWrap) progWrap.style.display = "none";
+
+    if (data.status === "error") {
+        statusEl.textContent = `Fehler: ${data.message || data.error || "Unbekannt"}`;
+        return;
+    }
+
+    const hasResult = data.finished_at || data.status === "done";
+    if (!hasResult) {
+        statusEl.textContent = "Noch kein Scan durchgeführt.";
+        summaryEl.innerHTML = "";
+        groupsEl.innerHTML = "";
+        return;
+    }
+
+    const when = data.finished_at ? new Date(data.finished_at * 1000).toLocaleString("de-DE") : "";
+    statusEl.textContent = data.message + (when ? ` (zuletzt: ${when})` : "");
+
+    const sum = data.summary || { groups: 0, reclaimable_bytes: 0 };
+    summaryEl.innerHTML = `<span style="font-size:0.9em;">
+        <strong>${sum.groups || 0}</strong> Duplikat-Gruppe(n) · rückgewinnbar:
+        <strong>${fmtSize(sum.reclaimable_bytes)}</strong></span>`;
+
+    const groups = data.groups || [];
+    if (groups.length === 0) {
+        groupsEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Duplikate gefunden. 🎉</p>`;
+        return;
+    }
+
+    groupsEl.innerHTML = "";
+    groups.forEach(g => {
+        const card = document.createElement("div");
+        card.style.cssText = "border:1px solid var(--border-light); border-radius:8px; padding:10px 12px;";
+        const seLabel = `S${String(g.season).padStart(2, "0")}E${String(g.episode).padStart(2, "0")}`;
+        let html = `<div style="font-weight:500; margin-bottom:8px;">${escapeHTML(g.category || "")} · ${escapeHTML(g.show)} ${seLabel}</div>`;
+        html += `<div style="display:flex; flex-direction:column; gap:6px;">`;
+        g.files.forEach(f => {
+            const keep = f.recommended === "keep";
+            const badge = keep
+                ? `<span style="color:#10b981; font-size:0.8em; white-space:nowrap;">✅ behalten</span>`
+                : `<span style="color:#f59e0b; font-size:0.8em; white-space:nowrap;">Duplikat</span>`;
+            const details = `${f.codec || "?"} · ${f.resolution || "?"} · ${fmtSize(f.size)}`;
+            const action = keep
+                ? ""
+                : `<button class="btn btn-secondary btn-sm dup-delete" data-path="${escapeHTML(f.path)}" style="white-space:nowrap; color:#ef4444;">🗑️ Löschen</button>`;
+            html += `<div class="dup-file-row" style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:0.88em; padding:4px 0; border-top:1px solid rgba(255,255,255,0.04);">
+                        <span style="overflow:hidden; text-overflow:ellipsis;">${badge} &nbsp; ${escapeHTML(f.filename)}<br><span class="text-muted" style="font-size:0.85em;">${details}</span></span>
+                        ${action}
+                     </div>`;
+        });
+        html += `</div>`;
+        card.innerHTML = html;
+
+        card.querySelectorAll(".dup-delete").forEach(b => {
+            b.addEventListener("click", () => resolveDuplicate(b.getAttribute("data-path"), b, card));
+        });
+        groupsEl.appendChild(card);
+    });
+}
+
+async function resolveDuplicate(path, btn, card) {
+    const name = path.split("/").pop();
+    if (!confirm(`Diese Datei wirklich endgültig löschen?\n\n${name}\n\nBegleitdateien (NFO/Untertitel/Thumbnail) werden mitgelöscht.`)) {
+        return;
+    }
+    btn.disabled = true;
+    btn.textContent = "Lösche...";
+    try {
+        const res = await fetch("/api/nas/resolve-duplicate-global", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            // Zeile entfernen; Gruppe entfernen, wenn nur noch eine Datei übrig ist
+            const row = btn.closest(".dup-file-row");
+            if (row) row.remove();
+            const remaining = card.querySelectorAll(".dup-file-row").length;
+            if (remaining <= 1) card.remove();
+        } else {
+            alert("Löschen fehlgeschlagen: " + (data.message || "Unbekannt"));
+            btn.disabled = false;
+            btn.textContent = "🗑️ Löschen";
+        }
+    } catch (e) {
+        alert("Fehler beim Löschen: " + e);
+        btn.disabled = false;
+        btn.textContent = "🗑️ Löschen";
     }
 }
 

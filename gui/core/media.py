@@ -132,6 +132,39 @@ def get_video_codec(filepath):
         return None
 
 
+def get_media_info(filepath):
+    """Liefert Codec, Auflösung, Dauer und Größe einer Videodatei via einem ffprobe-Aufruf.
+
+    Rückgabe-dict (Felder None, falls nicht ermittelbar):
+        {"codec", "width", "height", "duration", "size"}
+    """
+    info = {"codec": None, "width": None, "height": None, "duration": None, "size": None}
+    try:
+        info["size"] = os.path.getsize(filepath)
+    except OSError:
+        pass
+    try:
+        cmd = ["ffprobe", "-v", "quiet", "-print_format", "json",
+               "-show_format", "-show_streams", filepath]
+        out = subprocess.check_output(cmd, text=True, timeout=15)
+        data = json.loads(out)
+        for stream in data.get("streams", []):
+            if stream.get("codec_type") == "video":
+                info["codec"] = (stream.get("codec_name") or "").lower() or None
+                info["width"] = stream.get("width")
+                info["height"] = stream.get("height")
+                break
+        dur = data.get("format", {}).get("duration")
+        if dur is not None:
+            try:
+                info["duration"] = float(dur)
+            except (ValueError, TypeError):
+                pass
+    except Exception:
+        pass
+    return info
+
+
 def get_conversion_recommendations():
     import statistics
     history = utils.load_konv_history()

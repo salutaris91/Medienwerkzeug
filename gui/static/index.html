@@ -725,6 +725,25 @@
                     <div id="health-summary" style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;"></div>
                     <div id="health-issues" style="margin-top:14px; display:flex; flex-direction:column; gap:8px;"></div>
                 </div>
+
+                <!-- Feature 4: NAS-weite Duplikat-Erkennung -->
+                <div class="card" id="dashboard-duplicates" style="margin-top: 24px;">
+                    <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span class="card-icon">🧬</span>
+                            <h3 style="margin:0;">Duplikat-Erkennung</h3>
+                        </div>
+                        <button class="btn btn-secondary btn-sm" id="btn-duplicate-scan">🔍 Scan starten</button>
+                    </div>
+                    <div id="duplicate-scan-status" class="text-muted" style="margin-top:12px;">Noch kein Scan durchgeführt.</div>
+                    <div id="duplicate-progress-wrap" style="display:none; margin-top:10px;">
+                        <div style="height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+                            <div id="duplicate-progress-bar" style="width:0%; height:100%; background:var(--accent); transition:width 0.3s;"></div>
+                        </div>
+                    </div>
+                    <div id="duplicate-summary" style="margin-top:14px;"></div>
+                    <div id="duplicate-groups" style="margin-top:14px; display:flex; flex-direction:column; gap:10px;"></div>
+                </div>
             </div>
 
             <!-- STATE: SETTINGS DASHBOARD -->
@@ -1701,7 +1720,7 @@
     </div>
 </div>
 
-    <script src="app.js?v=43"></script>
+    <script src="app.js?v=44"></script>
 
     <!-- Modal: Profiles -->
     <div id="modal-profiles" class="mw-modal-overlay">
