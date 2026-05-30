@@ -109,13 +109,21 @@ def _episode_numbers(filenames):
     return sorted(set(nums))
 
 
-def _has_any_artwork(entries):
-    """True, wenn der Ordner mindestens eine Bilddatei enthält.
+def _has_any_artwork(path):
+    """True, wenn irgendwo unterhalb von 'path' mindestens eine Bilddatei liegt.
+
+    Rekursiv (wie _collect_videos), weil Artwork je nach Struktur eine Ebene
+    tiefer liegen kann (z. B. bei doppelt verschachtelten Filmordnern
+    Filme/<Film>/<Film>/<Dateien>). Versteckte Dateien werden ignoriert.
 
     Die Bibliothek nutzt unterschiedliche Konventionen (poster/fanart/banner/
     clearlogo/discart ...). Wir flaggen daher nur Ordner ganz OHNE Artwork.
     """
-    return any(os.path.splitext(e)[1].lower() in IMAGE_EXTENSIONS for e in entries)
+    for dirpath, _dirs, filenames in os.walk(path):
+        for f in filenames:
+            if not f.startswith('.') and os.path.splitext(f)[1].lower() in IMAGE_EXTENSIONS:
+                return True
+    return False
 
 
 def _collect_videos(root):
@@ -243,7 +251,7 @@ def _check_series_show(issues, category, show_path):
                    f"{os.path.basename(show_path)}: tvshow.nfo fehlt")
 
     # Artwork (nur flaggen, wenn gar kein Bild vorhanden)
-    if not _has_any_artwork(entries):
+    if not _has_any_artwork(show_path):
         _add_issue(issues, "info", "missing_artwork", category, show_path,
                    f"{os.path.basename(show_path)}: kein Artwork vorhanden")
 
@@ -291,7 +299,7 @@ def _check_series_show(issues, category, show_path):
 def _check_movie(issues, category, movie_path):
     name = os.path.basename(movie_path)
     try:
-        entries = os.listdir(movie_path)
+        os.listdir(movie_path)  # Früh-Abbruch, falls Ordner nicht lesbar
     except OSError:
         return 0
 
@@ -313,7 +321,7 @@ def _check_movie(issues, category, movie_path):
                    f"{name}: keine NFO vorhanden")
 
     # Artwork (nur flaggen, wenn gar kein Bild vorhanden)
-    if not _has_any_artwork(entries):
+    if not _has_any_artwork(movie_path):
         _add_issue(issues, "info", "missing_artwork", category, movie_path,
                    f"{name}: kein Artwork vorhanden")
 
