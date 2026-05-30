@@ -146,7 +146,7 @@ Unter dem Einstellungs-Tab **"Speicher & Sync"** kannst du beliebig viele Speich
 > den Namen des Speicherziels (z. B. „Auch in Google Drive sichern").
 >
 > **Mehrere Clouds gleichzeitig** (unabhängig schaltbar) sind noch nicht umgesetzt – siehe
-> [`MULTICLOUD_PLAN.md`](MULTICLOUD_PLAN.md).
+> [`ROADMAP.md`](ROADMAP.md) (Abschnitt 1).
 >
 > 💡 In den Einstellungen unter **„Speicher & Sync"** gibt es neben der Erklärung ein
 > **❓-Symbol**, das beim Drüberfahren eine rclone-Kurzanleitung einblendet.
