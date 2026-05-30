@@ -1,101 +1,150 @@
 # Entwickler- & KI-Review-Richtlinien (REVIEW.md) 🔍🛠️
 
-Dieses Dokument dient als Leitfaden und Onboarding-Hilfe für Entwickler und KIs, die an der Medienwerkzeug-Codebase arbeiten. Es beschreibt die Kernprinzipien der Architektur, Codierungs-Leitplanken und Wartungsvorschriften.
+Leitfaden und Onboarding-Hilfe für Entwickler und KIs, die an der Medienwerkzeug-
+Codebase arbeiten. Beschreibt Architektur, Coding-Leitplanken und Wartung.
 
 ---
 
 ## 🏛️ Architektur-Prinzipien
 
-### 1. Minimalistische Abhängigkeiten (Zero-Dependency-Backend)
-* **Keine Frameworks:** Das Backend verwendet bewusst **kein** Flask, FastAPI oder Django. Stattdessen wird die Python-Standardbibliothek mit `http.server.ThreadingHTTPServer` genutzt. Dies sorgt für eine extrem schlanke App, die auf jedem macOS-System ohne `pip install` sofort läuft.
-* **Externe CLIs:** Für schwere Aufgaben wie YouTube-Downloads und Cloud-Uploads verlässt sich die App auf etablierte System-Tools (`yt-dlp`, `rclone`), die via `subprocess` ausgeführt werden.
+### 1. Flask-Backend mit Blueprints
+* Das Backend ist eine **Flask-App**. Einstiegspunkt ist
+  [gui/main.py](gui/main.py): registriert die Blueprints und startet beim Hochfahren
+  die Hintergrund-Threads (`job_queue_worker`, `folder_size_monitor`).
+* Die Endpunkte sind nach Domäne in Blueprints unter `gui/api/` aufgeteilt
+  (`system_api`, `project_api`, `nas_api`, `search_api`, `queue_api`,
+  `youtube_api`). Die HTTP-/JSON-Schicht ist dünn — die Logik liegt in
+  `gui/core/` und `gui/workers/`. Endpunkt-Übersicht: siehe [API.md](API.md).
+* **Schlanke Abhängigkeiten:** nur Flask/Werkzeug/Flask-Cors (siehe
+  `requirements.txt`). Schwere Aufgaben (Download, Upload, Transkodierung) laufen
+  über System-Tools (`yt-dlp`, `rclone`, `ffmpeg`) via `subprocess`.
 
 ### 2. Einfaches Frontend (Vanilla Web)
-* Das Frontend befindet sich unter `gui/static/` und besteht aus reinem, modernem Vanilla HTML, CSS (flex/grid) und JavaScript.
-* **Kein Build-Schritt:** Es gibt keinen Webpack/Vite/Babel/Tailwind-Build-Schritt. Änderungen an HTML/JS/CSS sind nach einem Browser-Reload sofort aktiv.
+* Frontend unter `gui/static/` — reines HTML/CSS/JS, **kein Build-Schritt**.
+* `app.js` wird in `index.html` mit Cache-Buster geladen (`app.js?v=N`). Bei
+  JS-Änderungen den Wert **erhöhen**, damit der Browser neu lädt.
 
 ### 3. Thread-Sicherheit
-* Medienverarbeitungen laufen asynchron im Hintergrund. Die App besitzt einen dedizierten Thread (`job_queue_worker`), der eine `queue.Queue` abarbeitet.
-* Alle Zugriffe auf den globalen Zustand der Jobs (`active_jobs`) werden streng über `active_jobs_lock` geschützt.
+* Medienjobs laufen asynchron. `job_queue_worker` (in
+  [gui/workers/processor.py](gui/workers/processor.py)) arbeitet eine
+  `queue.Queue` ab.
+* Zugriffe auf den globalen Job-Status (`active_jobs`) werden über
+  `active_jobs_lock` geschützt. Neue Hintergrund-Threads immer als `daemon=True`.
+
+---
+
+## 🗂️ Projektstruktur
+
+```
+gui/
+  main.py            Flask-App, Blueprint-Registration, Server-Start
+  mw_metadata.py     TMDB/TVDB/TVmaze-Scraping, NFO-Generierung
+  api/               Blueprints (ein Modul je Domäne)
+  core/
+    helpers.py       Log-Queue, sanitize_*, is_path_allowed, Ordner-Monitor
+    media.py         ffprobe, Konvertierungs-Schätzung/-Historie, get_media_info
+    transfers.py     NAS-Mount, rsync, rclone, walk_nas_categories
+    utils.py         Settings, Profile, Historie-I/O
+    notifications.py macOS/Telegram/WhatsApp
+    health.py        Feature 3: Media Health Dashboard
+    duplicates.py    Feature 4: NAS-weite Duplikat-Erkennung
+  workers/
+    processor.py     job_queue_worker, process_worker
+    youtube_worker.py Abo-Checks, Auto-Download
+  static/            Frontend (index.html, app.js, style.css, utilities.css)
+  data/              Laufzeitdaten (gitignored): Profile, Historie, Scan-Caches
+tests/               Unit-Tests
+```
+
+### Test-Kompatibilitäts-Fassaden (wichtig zu wissen)
+* [gui/server.py](gui/server.py) ist **kein** laufender Server, sondern eine
+  Fassade **nur für die Unit-Tests**: Sie stellt die alte `GUIRequestHandler`-API
+  bereit und leitet die Aufrufe über den Flask-Test-Client an die echten
+  Endpunkte weiter. Die App selbst importiert `gui/server.py` nicht.
+* [gui/api/endpoints.py](gui/api/endpoints.py) ist eine schmale Kompatibilitäts-
+  Fassade (re-exportiert `load_settings`/`save_settings`) für dieselben Tests.
 
 ---
 
 ## 🚦 Kritische Coding-Leitplanken (Must-Follow)
 
 ### 1. Bereinigung von Namen (Sanitization)
-* **Pfadsicherheit:** Ordnernamen, die aus TMDB- oder TVDB-Metadaten generiert werden (z. B. Seriennamen), dürfen keine Zeichen enthalten, die auf Dateisystemen oder Cloud-Remotes ungültig sind (z. B. `/` oder `:`).
-* **Funktion:** Verwende für alle Ordnerpfade und Dateinamen die Bereinigung `sanitize_filename(name)` und für Seriennamen zusätzlich `clean_series_name_for_fs(name)` in `gui/server.py`, um ungültige Zeichen sowie suchspezifische Suffixe (wie `(Mediathek Serie aus URL)`) und Sender-Tags (wie `[ARTE]`) zu entfernen.
+Aus Metadaten generierte Ordner-/Dateinamen dürfen keine FS-/Cloud-ungültigen
+Zeichen (`/`, `:` …) enthalten. Nutze `sanitize_filename(name)` und für
+Seriennamen `clean_series_name_for_fs(name)` (in `gui/core/helpers.py`).
 
-### 2. Ausgabe-Ordner (Outbox) als Quelle der Wahrheit
-* **Kein In-Place-Processing:** Dateien dürfen niemals direkt im Ordner `Medien Input` (Inbox) umbenannt und belassen werden.
-* **Ablauf:** 
-  1. Zuerst werden die Dateien in den sauber benannten Zielordner in `Medien Output` (Outbox) verschoben.
-  2. Falls NAS aktiv ist, wird die Struktur von der Outbox auf das NAS kopiert.
-  3. Falls pCloud aktiv ist, wird der Upload ebenfalls performant aus der lokalen Outbox gestartet.
-  4. Am Ende wird das temporäre Projektverzeichnis in der Inbox gelöscht.
+### 2. Outbox als Quelle der Wahrheit (kein In-Place-Processing)
+Nie direkt in der Inbox umbenennen. Ablauf: Inbox → sauber benannter Ordner in
+der **Outbox** → von dort nach NAS (rsync) und/oder pCloud (rclone) → am Ende
+das temporäre Inbox-Projekt löschen.
 
-### 3. Artwork-Synchronisation bei Filmen
-* Beim Verarbeiten von Filmen müssen sowohl die generischen Metadaten-Bilder (`poster.jpg`, `fanart.jpg`) als auch die benannten Versionen (`[Filmname]-poster.jpg`, `[Filmname]-fanart.jpg`) im Zielordner existieren. Fehlt eine Variante, muss sie automatisch von der anderen kopiert werden.
+### 3. Artwork bei Filmen
+Sowohl generische (`poster.jpg`/`fanart.jpg`) als auch benannte Versionen
+(`[Filmname]-poster.jpg` …) müssen im Zielordner existieren; fehlende Variante
+aus der anderen kopieren.
 
 ### 4. Substring-basierte Kategorie-Zuordnung
-* Bei der Auswahl der NAS-Kategorie im Frontend wird oft ein Pfad (z. B. `/Volumes/Kino/Dokus/Einzelne Dokus`) gesendet. Falls kein ID-Treffer in `settings.json` existiert, muss das Backend einen Fallback-Vergleich durchführen, ob ein konfigurierter Kategorie-Pfad (`nas_sub`) im gesendeten Pfad enthalten ist.
+NAS-Endpunkte lesen `destination_id` aus **Query und Body**. Fehlt ein ID-Treffer
+in `settings.json`, per Fallback prüfen, ob ein konfigurierter `nas_sub` im
+gesendeten Pfad enthalten ist.
 
-### 5. Sprache und Benutzeroberfläche
-* Alle für den Nutzer sichtbaren Konsolen-Logs, Benachrichtigungen und UI-Texte werden auf **Deutsch** gehalten.
+### 5. Pfad-Sicherheit bei Löschvorgängen
+Lösch-Endpunkte (z. B. Duplikat-Auflösung) müssen den Zielpfad gegen die NAS-Root
+prüfen (Containment via `os.path.commonpath`) und nur erwartete Dateitypen löschen.
 
----
-
-## 📝 Checkliste für Code-Änderungen (Review-Checklist)
-
-1. **Startort des Servers:** Der Server darf ausschließlich aus dem Dokumentenordner `/Users/alex/Documents/Medienwerkzeug/gui/server.py` gestartet werden.
-2. **Daemon-Threads:** Alle neu erzeugten Hintergrund-Threads müssen als Daemon initialisiert werden (`daemon=True`), damit der Server beim Beenden nicht blockiert.
-3. **Fehlerbehandlung:** APIs dürfen niemals abstürzen oder unvollständige JSONs ausliefern. Fange Ausnahmen (`try-except`) ab und liefere strukturierte Fehlermeldungen an das Frontend zurück.
-4. **Keine verwaisten Preview-Daten:** Nach erfolgreicher Vorschau-Erstellung müssen die temporären Zuordnungen sauber gelöscht werden, sobald der eigentliche Job startet.
+### 6. Sprache
+Alle nutzersichtbaren Logs, Benachrichtigungen und UI-Texte auf **Deutsch**.
 
 ---
 
-## 🔍 Spezifische Tipps zum Verständnis der App (Onboarding & Navigation)
+## 📝 Checkliste für Code-Änderungen
 
-Wenn du dich als KI oder Entwickler dieser Codebase näherst, gehe am besten in dieser Reihenfolge vor:
-
-### 1. Einstiegspunkt & API-Routing
-* Starte bei [gui/server.py](file:///Users/alex/Documents/Medienwerkzeug/gui/server.py). Hier siehst du die HTTP-Endpunkte in `do_GET` und `do_POST`. Jedes Feature (z. B. StreamFab-Import, Film/Serien-Sortierung, YouTube-Schnitt) besitzt einen korrespondierenden `handle_api_*`-Handler.
-* Beachte, dass `server.py` nur noch für HTTP-Routing und JSON-Verpackung zuständig ist. Die Logik liegt in den Modulen unter `gui/core/`.
-
-### 2. Der Lebenszyklus eines Medien-Jobs
-1. **Frontend-Anfrage:** Der Nutzer löst eine Aktion im UI aus. `gui/static/app.js` sendet einen POST-Request an `/api/process` mit allen Parametern (`media_type`, `mappings`, etc.).
-2. **Warteschlange (Queue):** [gui/server.py](file:///Users/alex/Documents/Medienwerkzeug/gui/server.py) ruft `jobs.add_job()` auf. Dadurch wird der Job in die Warteschlange [gui/core/jobs.py](file:///Users/alex/Documents/Medienwerkzeug/gui/core/jobs.py) eingereiht.
-3. **Sequentielle Abarbeitung:** Der im Hintergrund laufende Thread `job_queue_worker` holt den Job aus der Queue und ruft die registrierte Worker-Funktion `process_worker` in [gui/core/media.py](file:///Users/alex/Documents/Medienwerkzeug/gui/core/media.py) auf.
-4. **Verarbeitung & Synchronisation:** `media.py` führt die Sortierung, Umbennung und NFO-Generierung durch und ruft [gui/core/sync.py](file:///Users/alex/Documents/Medienwerkzeug/gui/core/sync.py) für Kopiervorgänge (NAS/pCloud) auf. Währenddessen meldet ein Progress-Callback den Fortschritt zurück an `jobs.py`.
-
-### 3. Diagnose und Debugging
-* **Live-Logs:** Schau dir die Datei `gui/logs/medienwerkzeug.log` an, um Details zu Kopiervorgängen, API-Fehlern oder API-Antworten zu sehen.
-* **Unit-Tests:** Führe `python3 -m unittest discover -s tests -p "test_*.py"` aus, um sicherzustellen, dass Hilfsfunktionen (z. B. zur Namensbereinigung) fehlerfrei arbeiten.
+1. **Fehlerbehandlung:** Endpunkte dürfen nie abstürzen; `try/except` und
+   strukturierte JSON-Fehler zurückgeben.
+2. **Daemon-Threads:** neue Hintergrund-Threads mit `daemon=True`.
+3. **Cache-Buster:** bei JS-Änderungen `app.js?v=N` in `index.html` erhöhen.
+4. **Keine verwaisten Preview-Daten** nach Job-Start.
+5. **Mock-Ziele in Tests:** Funktionen im **kanonischen Modul** patchen, in dem
+   der Endpunkt/Worker sie aufruft (z. B. `gui.workers.processor.ensure_nas_mounted`),
+   nicht auf der `gui/server.py`-Fassade — Re-Bindings propagieren sonst nicht.
 
 ---
 
-## 🛠️ Anweisungen zur Pflege & Erweiterung (Maintenance Guide)
+## 🔍 Onboarding & Navigation
 
-Damit das Medienwerkzeug auch langfristig stabil und wartbar bleibt, müssen folgende Richtlinien beachtet werden:
+1. **Einstieg/Routing:** Beginne in [gui/main.py](gui/main.py) und den Blueprints
+   unter `gui/api/`. Jedes Feature hat einen `handle_api_*`-Endpunkt.
+2. **Lebenszyklus eines Jobs:**
+   1. Frontend (`app.js`) sendet POST an `/api/process` (queue_api).
+   2. Der Job wird in die `job_queue` (in `gui/core/helpers.py`) eingereiht.
+   3. `job_queue_worker` (in `gui/workers/processor.py`) holt ihn und ruft
+      `process_worker` auf.
+   4. `process_worker` sortiert/benennt um, generiert NFOs (über `mw_metadata.py`)
+      und kopiert via `gui/core/transfers.py` nach NAS/pCloud; ein Progress-
+      Callback meldet den Fortschritt.
+3. **Diagnose:** Live-Logs in `gui/logs/medienwerkzeug.log`. Tests mit
+   `python3 -m unittest discover -s tests`.
 
-### 1. Sauberkeit der Kern-Module (`gui/core/`)
-* **Verantwortlichkeiten trennen:**
-  * [utils.py](file:///Users/alex/Documents/Medienwerkzeug/gui/core/utils.py): Reine Hilfsfunktionen (Settings lesen/schreiben, String-Manipulationen, Pfad-Auflösungen). Keine Nebeneffekte.
-  * [sync.py](file:///Users/alex/Documents/Medienwerkzeug/gui/core/sync.py): Netzwerk, Mounts, pCloud (rclone), rsync.
-  * [jobs.py](file:///Users/alex/Documents/Medienwerkzeug/gui/core/jobs.py): Thread-Steuerung, Warteschlangen, Job-Status.
-  * [media.py](file:///Users/alex/Documents/Medienwerkzeug/gui/core/media.py): TMDB/TVDB Metadaten-Handling, NFO-Generierung, Ordnerstruktur-Generierung.
-* **Import-Hierarchie einhalten:**
-  * `utils.py` darf keine anderen internen Module importieren.
-  * `sync.py` und `jobs.py` importieren nur Standard-Module und `utils.py`.
-  * `media.py` darf `utils.py`, `sync.py` und `jobs.py` importieren.
-  * `server.py` importiert die Core-Module und delegiert an sie.
-  * Vermeide zirkuläre Importe unter allen Umständen.
+---
 
-### 2. Änderungen am Frontend
-* Änderungen am Layout oder Design müssen stets modern und responsiv gestaltet sein. Verwende reines CSS (kein Tailwind oder externe UI-Frameworks) in [gui/static/style.css](file:///Users/alex/Documents/Medienwerkzeug/gui/static/style.css).
-* Neue JavaScript-Funktionen in [gui/static/app.js](file:///Users/alex/Documents/Medienwerkzeug/gui/static/app.js) sollten modular aufgebaut und sauber dokumentiert sein.
+## 🛠️ Pflege & Erweiterung
 
-### 3. Erweiterung der Testabdeckung
-* Jedes Mal, wenn kritische Funktionen in `utils.py` oder `media.py` (wie Pfaderzeugung, Namensbereinigung, etc.) angepasst werden, **müssen** entsprechende Unit-Tests in [tests/test_utils.py](file:///Users/alex/Documents/Medienwerkzeug/tests/test_utils.py) hinzugefügt werden.
-* Führe vor jedem Commit/Release die gesamte Testsuite lokal aus.
+### Verantwortlichkeiten in `gui/core/`
+* `utils.py` — reine Hilfsfunktionen (Settings/Profile/Historie), keine
+  Nebeneffekte; importiert keine anderen internen Module.
+* `helpers.py` — Logging, Sanitize, Pfadprüfung, Ordner-Monitor.
+* `transfers.py` — Netzwerk/Mounts/rsync/rclone, `walk_nas_categories`.
+* `media.py` — ffprobe, Konvertierungs-Schätzung/-Historie.
+* `health.py` / `duplicates.py` — die NAS-Analyse-Features (Hintergrund-Scan +
+  Cache in `gui/data/`).
+* Zirkuläre Importe vermeiden.
 
+### Frontend
+Modern und responsiv, reines CSS in `style.css`/`utilities.css`. Neue JS-Funktionen
+modular und dokumentiert in `app.js`.
+
+### Testabdeckung
+Bei Änderungen an kritischen Funktionen (Pfaderzeugung, Namensbereinigung,
+Empfehlungslogik …) passende Unit-Tests in
+[tests/test_utils.py](tests/test_utils.py) ergänzen. Vor jedem Commit die gesamte
+Suite ausführen.

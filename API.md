@@ -1,173 +1,191 @@
 # Medienwerkzeug API-Dokumentation 📡
 
-Diese Datei dokumentiert alle REST-Endpunkte des Medienwerkzeug-HTTP-Servers. Die Kommunikation erfolgt ausschließlich via JSON.
+Diese Datei dokumentiert die REST-Endpunkte des Medienwerkzeug-Backends. Die
+Kommunikation erfolgt via JSON.
+
+## Architektur
+
+Das Backend ist eine **Flask-App** (`gui/main.py`), die ihre Endpunkte über
+**Blueprints** unter dem Präfix `/api` registriert. Jede Domäne hat ein eigenes
+Modul unter `gui/api/`:
+
+| Blueprint | Modul | Zuständigkeit |
+|-----------|-------|---------------|
+| `system_api` | `gui/api/system_api.py` | Status, Einstellungen, Statistik, Logs, Profile |
+| `project_api` | `gui/api/project_api.py` | Inbox-Projekte scannen, bereinigen, Smart Inbox |
+| `nas_api` | `gui/api/nas_api.py` | NAS-Serien/-Staffeln, Duplikate, Health-Scan |
+| `search_api` | `gui/api/search_api.py` | Metadaten-Suche, Episoden-Matching, Schätzung |
+| `queue_api` | `gui/api/queue_api.py` | Job-Queue, Verarbeitung |
+| `youtube_api` | `gui/api/youtube_api.py` | YouTube-Download, Schnitt, Abonnements |
+
+Server-Start und Browser-Öffnung laufen über `gui/main.py`. Lokal läuft die App
+auf `http://127.0.0.1:5001`.
+
+> **Hinweis zu Alias-Routen:** Einige Endpunkte existieren in zwei Schreibweisen
+> (z. B. `/api/paths-clean` und `/api/paths/clean`) aus Kompatibilitätsgründen.
+> Unten ist jeweils die kanonische Variante dokumentiert.
 
 ---
 
-## 📥 GET Endpunkte
+## system_api — Status & Konfiguration
 
-### 1. Status & Inbox (`GET /api/status`)
-Gibt den aktuellen Status des Servers sowie die Inhalte des Import-Ordners (`Medien Input`) zurück.
-* **Response (JSON):**
-  ```json
-  {
-    "status": "ok",
-    "inbox": [
-      {
-        "name": "Film_Projektordner_1",
-        "is_dir": true,
-        "files": ["video.mkv", "subtitle.srt"]
-      }
-    ]
-  }
-  ```
+### `GET|POST /api/status`
+Server- und Inbox-Status. Liefert u. a. NAS-Status, Projektliste sowie die
+Ordnergrößen für die Überwachung.
+```json
+{
+  "nas_status": "connected",
+  "inbox_path": "…/Medien Input",
+  "outbox_path": "…/Medien Output",
+  "projects": ["Projekt_1"],
+  "streamfab_downloads": [],
+  "inbox_size_gb": 1.52,
+  "outbox_size_gb": 0.87
+}
+```
 
-### 2. Ordner-Browser (`GET /api/browse-folder`)
-Ermöglicht das Durchsuchen des lokalen Dateisystems (für die Pfadauswahl in den Einstellungen).
-* **Query-Parameter:**
-  * `path` (optional): Der zu durchsuchende absolute Pfad. Wenn leer, wird das Benutzer-Heimatverzeichnis (`~`) gelistet.
-* **Response (JSON):**
-  ```json
-  {
-    "current_path": "/Users/alex",
-    "folders": ["Desktop", "Documents", "Downloads"]
-  }
-  ```
+### `GET|POST /api/settings`
+Liest (GET) bzw. speichert (POST) die Konfiguration (`settings.json`).
 
-### 3. Projekt-Dateiscan (`GET /api/scan-project`)
-Scannt einen spezifischen Ordner in der Inbox nach Videos, Untertiteln und unbenötigten Dateien (Junk).
-* **Query-Parameter:**
-  * `project`: Name des Projektordners in der Inbox.
-* **Response (JSON):**
-  ```json
-  {
-    "videos": ["film.mkv"],
-    "subs": ["film.srt"],
-    "junk": ["unused.txt", "banner.jpg"]
-  }
-  ```
+### `GET|POST /api/stats`
+NAS-Speicherbelegung und Konvertierungs-Statistik (gesparter Platz etc.).
 
-### 4. Metadaten-Suche (`GET /api/search`)
-Sucht nach Filmen oder Serien auf TMDB bzw. TVDB.
-* **Query-Parameter:**
-  * `type`: Typ der Suche (`movie` oder `tv`).
-  * `q`: Der Suchbegriff.
-* **Response (JSON):** Liste gefundener Einträge mit IDs, Titeln, Veröffentlichungsdaten und Cover-Pfaden.
+### `GET /api/conversion/recommendations` *(Feature 2)*
+Empfohlene Encoding-Einstellungen pro Content-Typ, aus der Konvertierungs-Historie.
+```json
+{
+  "recommendations": { "anime": {"optimal_quality": 55, "avg_ratio": 0.38, "sample_count": 42, "confidence": "high"} },
+  "global": { "avg_ratio": 0.48, "total_conversions": 301, "total_saved_bytes": 123456 }
+}
+```
 
-### 5. Serien-Details (`GET /api/fetch-show-info`)
-Ruft Detailinformationen zu einer TVDB-Serien-ID ab.
-* **Query-Parameter:**
-  * `id`: TVDB Serien-ID.
-* **Response (JSON):** Details zur Serie (Episodenanzahl, Staffeln etc.).
+### `GET|POST /api/profile`, `GET|POST /api/profiles`
+Einzel-Profil laden/speichern bzw. alle lokalen Profile auflisten.
 
-### 6. Episoden-Liste (`GET /api/fetch-episodes`)
-Ruft alle Episoden einer bestimmten Staffel einer TVDB-Serie ab.
-* **Query-Parameter:**
-  * `id`: TVDB Serien-ID.
-  * `season`: Staffelnummer (z. B. `1`).
-* **Response (JSON):** Liste der Episoden mit Episodennummern und Titeln.
+### `GET|POST /api/check-dependencies`
+Prüft Verfügbarkeit/Versionen externer Tools (`ffmpeg`, `yt-dlp`, `rclone`).
 
-### 7. YouTube-Metadaten (`GET /api/yt/fetch`)
-Liest über `yt-dlp` Metadaten einer YouTube-URL ein.
-* **Query-Parameter:**
-  * `url`: YouTube Video- oder Playlist-URL.
-* **Response (JSON):** Titel, Beschreibung, Thumbnail-URL und Videoliste.
+### `GET|POST /api/system-open-folder`
+Öffnet einen Ordner im macOS-Finder. Query/Payload: `path` oder `category_id`.
 
-### 8. Job-Warteschlange (`GET /api/queue`)
-Gibt den Status aller aktuellen und abgeschlossenen Hintergrund-Jobs zurück.
-* **Response (JSON):**
-  ```json
-  {
-    "jobs": {
-      "job_1716300000": {
-        "status": "running|completed|error",
-        "progress": 50,
-        "message": "Kopiere nach NAS...",
-        "params": {}
-      }
-    }
-  }
-  ```
+### `GET|POST /api/system-restart`
+Startet den Server-Prozess neu.
 
-### 9. Einstellungen abrufen (`GET /api/settings`)
-Gibt die aktuelle Konfiguration zurück.
-* **Response (JSON):** JSON-Inhalt der `settings.json`.
-
-### 10. Ordner im Finder öffnen (`GET /api/system/open-folder`)
-Öffnet einen Ordnerpfad auf dem macOS-System im Finder.
-* **Query-Parameter:**
-  * `path`: Absoluter Ordnerpfad, der geöffnet werden soll.
-* **Response (JSON):** Statusmeldung oder Fehlermeldung bei Problemen.
-
-### 11. Witz des Tages (`GET /api/joke`)
-Gibt einen zufälligen Flachwitz für Modals und Toast-Einblendungen zurück.
-* **Response (JSON):** `{"joke": "Flachwitz..."}`
-
-### 12. YouTube-Abonnements abrufen (`GET /api/youtube/subscriptions`)
-Gibt alle eingetragenen YouTube-Kanäle und Playlist-Abonnements zurück.
-* **Response (JSON):** `{"subscriptions": [...]}`
+### `GET /api/logs`
+Server-Sent-Events-Stream der Live-Logs.
 
 ---
 
-## 📤 POST Endpunkte
+## project_api — Inbox & Projekte
 
-### 1. Vorschau der Bereinigung (`POST /api/preview_clean`)
-Zeigt vorab, welche Junk-Dateien gelöscht werden würden.
-* **Payload (JSON):**
-  ```json
-  {
-    "project": "Projektname"
-  }
-  ```
-* **Response (JSON):** Liste der zu löschenden Dateien.
+### `GET /api/scan-project?project=<Ordner>`
+Scannt einen Inbox-Projektordner nach Videos, Untertiteln, Junk; erkennt Doku und
+liefert `suggested_query`. Liest den Parameter aus der **Query** (GET).
 
-### 2. Projekt bereinigen (`POST /api/clean-project`)
-Löscht Junk-Dateien aus einem Projektordner in der Inbox.
-* **Payload (JSON):**
-  ```json
-  {
-    "project": "Projektname"
-  }
-  ```
+### `GET /api/inbox/analyze` *(Feature 1 — Smart Inbox)*
+Analysiert alle Inbox-Projekte und liefert Vorschläge mit Typ, Profil-Match,
+Codec-Status und Begründungs-Chips (`reasons`).
+```json
+{
+  "suggestions": [{
+    "project": "Heroes.S01E05.720p",
+    "media_type": "tv",
+    "confidence": "high",
+    "profile_match": true,
+    "suggested_query": "Heroes",
+    "video_count": 1,
+    "has_inefficient_codec": true,
+    "reasons": ["Profil gefunden", "Serie erkannt", "Codec ineffizient (H.265 empfohlen)"]
+  }]
+}
+```
 
-### 3. Vorschau der Verarbeitung (`POST /api/preview_process`)
-**Wichtig für die Bestätigung:** Generiert eine detaillierte Zuordnungsliste, welche Dateien wie umbenannt und wohin verschoben/kopiert/hochgeladen werden.
-* **Payload (JSON):** Enthält Metadaten-Mappings, Typ (`movie`/`tv`), Zielordner und IDs.
-* **Response (JSON):**
-  ```json
-  {
-    "dest_preview": "NAS: /Volumes/Kino/Filme/Film (2026)",
-    "video_mappings": [{"old": "temp.mkv", "new": "Film (2026).mkv"}],
-    "subs": [{"old": "temp.srt", "new": "Film (2026).srt"}],
-    "junk": ["junk.txt"]
-  }
-  ```
+### `GET|POST /api/paths-preview-clean` · `GET|POST /api/paths-clean`
+Vorschau bzw. Ausführung der Bereinigung von Inbox/Outbox (Payload: `inbox_files`,
+`output_files` als relative Pfade).
 
-### 4. Verarbeitung starten (`POST /api/process`)
-Reiht einen neuen Job in die Warteschlange ein, um die Dateien umzubenennen, in die Outbox zu verschieben und die NAS/pCloud-Synchronisation anzustoßen.
-* **Payload (JSON):** Ähnlich wie `preview_process`, zusätzlich mit ausgewählten Dateilisten (Checkboxen aus dem Frontend).
-* **Response (JSON):**
-  ```json
-  {
-    "status": "ok",
-    "task_id": "job_1716300000"
-  }
-  ```
+### `GET|POST /api/browse-folder`, `/api/list-subfolders`
+Dateisystem-Browser für die Pfadauswahl.
 
-### 5. YouTube-Verarbeitung finalisieren (`POST /api/yt/finalize`)
-Startet den finalen YouTube-Download und die Sortierung.
-* **Payload (JSON):** YouTube-URL, Zielordner-Details, Qualitätsstufe etc.
-* **Response (JSON):** Statusmeldung und Task-ID.
+### `GET|POST /api/clean-project`, `/api/delete-project`, `/api/split-project-file`
+Projekt bereinigen, löschen, Datei aufteilen.
 
-### 6. Einstellungen speichern (`POST /api/settings`)
-Speichert geänderte Einstellungen.
-* **Payload (JSON):** Gesamtes neues Einstellungs-JSON-Objekt.
+---
 
-### 7. YouTube-Abonnements speichern (`POST /api/youtube/subscriptions`)
-Aktualisiert die Liste aller YouTube-Kanäle und Playlist-Abonnements.
-* **Payload (JSON):** `{"subscriptions": [...]}`
-* **Response (JSON):** `{"status": "success"}`
+## nas_api — NAS-Bibliothek
 
-### 8. YouTube-Abonnements prüfen (`POST /api/youtube/subscriptions/check`)
-Triggert im Hintergrund die manuelle Überprüfung aller aktiven YouTube-Abonnements auf neue Videos.
-* **Response (JSON):** `{"status": "success", "message": "Überprüfung gestartet"}`
+### `GET|POST /api/nas-series?destination_id=<id|all>`
+Listet vorhandene Serien-/Film-Ordner einer Kategorie auf dem NAS (+ Outbox).
+Liest `destination_id` aus **Query und Body**.
+
+### `GET|POST /api/nas-seasons?folder=<Show>&destination_id=<id>`
+Vorhandene Staffeln + Episodenzahlen einer Show.
+
+### `GET|POST /api/check-nas-duplicate`, `/api/media-compare`, `/api/resolve-duplicate`
+Einzel-Duplikat-Prüfung beim Verarbeiten, ffprobe-Vergleich, Auflösung.
+
+### `GET|POST /api/streamfab-import`
+Importiert StreamFab-Downloads in die Inbox.
+
+### Feature 3 — Media Health Dashboard
+* `POST /api/nas/health-scan` — startet den Bibliotheks-Scan im Hintergrund.
+* `GET /api/nas/health-status` — Fortschritt + Ergebnis (gecacht). Issues nach
+  Schwere (`critical`/`warning`/`info`): fehlende NFOs/Artwork, Episodenlücken,
+  Codec-Inkonsistenz, leere Ordner, kleine Dateien.
+
+### Feature 4 — NAS-weite Duplikat-Erkennung
+* `POST /api/nas/scan-duplicates` — startet die Erkennung im Hintergrund.
+* `GET /api/nas/duplicates` — Gruppen doppelter Episoden + Empfehlung (HEVC >
+  Auflösung > Größe) + rückgewinnbarer Platz.
+* `POST /api/nas/resolve-duplicate-global` — löscht eine gewählte Datei.
+  Payload: `{"path": "<absoluter NAS-Pfad>"}`. **Sicherheit:** nur Videodateien
+  unterhalb der NAS-Root werden gelöscht.
+
+---
+
+## search_api — Metadaten
+
+### `GET|POST /api/search?type=<movie|tv>&q=<Begriff>`
+Sucht Filme/Serien (TMDB/TVDB/TVmaze).
+
+### `GET|POST /api/fetch-show-info`, `/api/fetch-episodes`, `/api/match-episodes`, `/api/series-detect`, `/api/guess-season`
+Serien-Details, Episodenlisten, Episoden-Zuordnung, Serien-Erkennung, Staffel-Schätzung.
+
+### `GET|POST /api/estimate-conversion`
+Schätzt die Konvertierungs-Ersparnis (Payload: `filenames`, `quality`).
+
+### `GET|POST /api/joke`, `/api/quote`, `/api/toggle-visibility`
+UI-Beiwerk und Sichtbarkeits-Toggles.
+
+---
+
+## queue_api — Verarbeitung
+
+### `GET|POST /api/preview-process`
+Erzeugt die detaillierte Zuordnungs-Vorschau (Umbenennung/Ziele) vor dem Job.
+
+### `GET|POST /api/process`
+Reiht einen Verarbeitungs-Job in die Queue ein (Payload: `media_type`,
+`mappings`, Ziel-IDs, `copy_to_nas`/`copy_to_pcloud`, `is_anime` etc.).
+```json
+{ "status": "ok", "task_id": "<uuid>" }
+```
+
+### `GET|POST /api/queue`, `/api/queue-clear`, `POST /api/queue-retry`
+Job-Status abrufen, abgeschlossene Jobs leeren, fehlgeschlagenen Job wiederholen.
+
+---
+
+## youtube_api — YouTube
+
+### `GET|POST /api/yt/fetch`, `/api/yt/segments`, `/api/yt/cut-done`, `/api/yt/finalize`
+Metadaten lesen, Segmente schneiden, finalisieren/herunterladen.
+
+### `GET|POST /api/youtube/merge`, `/api/youtube/search-parts`
+Teile zusammenführen, mehrteilige Videos suchen.
+
+### `GET|POST /api/youtube/subscriptions`
+Abonnements lesen/speichern.
+
+### `POST /api/youtube/subscriptions/approve` · `/ignore` · `/check`
+Pending-Video freigeben (reiht Download-Job ein), ignorieren, alle Abos prüfen.
