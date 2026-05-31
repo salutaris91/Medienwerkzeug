@@ -5008,15 +5008,19 @@ async function runToolGeneric(toolType, logMsg, extraParams = {}) {
 function initEventListeners() {
     // Settings Sub-Tabs navigation click listeners
     const settingsTabButtons = document.querySelectorAll(".settings-tab-btn");
+    const settingsTabDescriptions = {
+        "tab-paths": "Passe die globalen Pfade für das Medienwerkzeug an. Diese Werte werden für das Importieren und Verschieben verwendet.",
+        "tab-sync": "Verwalte deine Speicherziele, Import-Quellen und Sync-Kategorien für die automatische Medienverteilung.",
+        "tab-notifications": "Konfiguriere, wann und wie du über abgeschlossene Verarbeitungen benachrichtigt wirst.",
+        "tab-appearance": "Passe das Erscheinungsbild der App an und verwalte die Abhängigkeiten zu externen CLI-Tools."
+    };
     settingsTabButtons.forEach(btn => {
         btn.addEventListener("click", () => {
             const targetTabId = btn.getAttribute("data-settings-tab");
-            
-            // Toggle active button class
+
             settingsTabButtons.forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
-            
-            // Toggle visible tab panel
+
             document.querySelectorAll(".settings-tab-panel").forEach(panel => {
                 if (panel.id === `settings-${targetTabId}`) {
                     panel.classList.remove("hidden");
@@ -5024,6 +5028,11 @@ function initEventListeners() {
                     panel.classList.add("hidden");
                 }
             });
+
+            const descEl = document.getElementById("settings-tab-desc");
+            if (descEl && settingsTabDescriptions[targetTabId]) {
+                descEl.textContent = settingsTabDescriptions[targetTabId];
+            }
         });
     });
 
@@ -8046,15 +8055,15 @@ function showQuoteModal(quoteData) {
     const cleanAuthor = (quoteData.authorName || "Unbekannt").trim();
     const authorHtml = quoteData.authorLink 
         ? `<a href="${quoteData.authorLink}" target="_blank" style="color: #c084fc; text-decoration: none; border-bottom: 1px dotted #c084fc; font-weight: 500;">— ${cleanAuthor}</a>`
-        : `<span style="color: var(--text-dark); font-weight: 500;">— ${cleanAuthor}</span>`;
+        : `<span style="color: #94a3b8; font-weight: 500;">— ${cleanAuthor}</span>`;
 
     content.innerHTML = `
         <div style="font-size: 44px; margin-bottom: 15px; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.3));">✍️</div>
-        <h3 style="margin-top: 0; color: var(--text-muted); font-size: 13px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 20px;">Zitat des Tages</h3>
+        <h3 style="margin-top: 0; color: #94a3b8; font-size: 13px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 20px;">Zitat des Tages</h3>
         
         <p style="
             font-size: 16px; 
-            color: var(--text-main); 
+            color: #e2e8f0;
             line-height: 1.7; 
             margin: 0 0 20px 0; 
             font-style: italic;

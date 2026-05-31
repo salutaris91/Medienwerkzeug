@@ -1525,6 +1525,11 @@ select:focus {
     flex-shrink: 0;
 }
 
+#view-settings {
+    height: 100%;
+    min-height: 0;
+}
+
 .view-panel.hidden {
     display: none !important;
 }
@@ -2215,6 +2220,8 @@ input[type="range"]::-moz-range-thumb:hover {
 
 .settings-tab-panel {
     animation: settingsFadeIn 0.3s ease-out;
+    flex: 1;
+    padding-bottom: 50px;
 }
 
 @keyframes settingsFadeIn {
