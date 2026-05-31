@@ -317,6 +317,17 @@ textarea:focus-visible {
     color: var(--text-muted);
 }
 
+.status-badge.error {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+    animation: pulse-error 2s ease-in-out infinite;
+}
+
+@keyframes pulse-error {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
 /* ==========================================================================
    NAVIGATION
    ========================================================================== */

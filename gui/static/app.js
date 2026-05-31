@@ -5634,12 +5634,18 @@ function renderDependencyStatus(deps) {
         "unknown": "Unbekannt"
     };
 
+    const missingDeps = [];
+
     for (const [name, info] of Object.entries(deps)) {
         const card = document.createElement("div");
         card.className = `dep-card status-${info.status}`;
-        
+
         const label = statusLabels[info.status] || info.status;
-        
+
+        if (info.status === "missing") {
+            missingDeps.push(name);
+        }
+
         let versionLines = "";
         if (info.status === "missing") {
             versionLines = `
@@ -5675,6 +5681,15 @@ function renderDependencyStatus(deps) {
             </div>
         `;
         listContainer.appendChild(card);
+    }
+
+    const sfBadge = document.getElementById("streamfab-badge");
+    if (missingDeps.length > 0 && sfBadge && sfBadge.classList.contains("neutral")) {
+        const heroSfBadge = document.getElementById("hero-streamfab-badge");
+        if (heroSfBadge) {
+            heroSfBadge.textContent = `${missingDeps.length} fehlt`;
+            heroSfBadge.className = "status-badge error";
+        }
     }
 }
 
