@@ -81,6 +81,10 @@ def is_path_allowed(target_path):
         if t_path:
             allowed_roots.append(os.path.abspath(os.path.expanduser(t_path)))
             
+    for s in settings.get("import_sources", []):
+        if s:
+            allowed_roots.append(os.path.abspath(os.path.expanduser(s)))
+            
     allowed_roots = [r for r in allowed_roots if r]
     target_abs = os.path.abspath(os.path.expanduser(target_path))
     

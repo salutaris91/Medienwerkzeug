@@ -128,10 +128,16 @@ def handle_api_streamfab_import():
         params = request.get_json() or {}
     except Exception:
         params = {}
-    query = request.args
-    count = import_streamfab_files()
-    return jsonify({"status": "ok", "moved_count": count})
-
+        
+    if request.method == 'GET':
+        preview_data = preview_streamfab_import()
+        return jsonify({"status": "ok", "preview": preview_data})
+        
+    elif request.method == 'POST':
+        import_items = params.get("import_items", {})
+        delete_items = params.get("delete_items", [])
+        count = execute_streamfab_import(import_items, delete_items)
+        return jsonify({"status": "ok", "moved_count": count})
 
 
 @nas_api.route('/nas-series', methods=['GET', 'POST'])
@@ -689,6 +695,8 @@ def handle_api_health_fix():
                 return jsonify({"ok": False, "message": "Ordner hat nicht genau einen Unterordner."}), 400
             inner = os.path.join(path, subdirs[0])
             for item in os.listdir(inner):
+                if item.startswith('.'):
+                    continue
                 src = os.path.join(inner, item)
                 dst = os.path.join(path, item)
                 if os.path.exists(dst):

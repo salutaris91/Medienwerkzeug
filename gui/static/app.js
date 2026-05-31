@@ -5420,21 +5420,205 @@ function initEventListeners() {
         });
     }
     
-    // Import StreamFab
+    // Import StreamFab Preview & Execution
+    let currentImportPreviewData = [];
+
     document.getElementById("btn-streamfab-import").addEventListener("click", async () => {
-        appendConsoleLog("[System]: Importiere StreamFab Downloads...");
+        appendConsoleLog("[System]: Lade Import-Vorschau...");
         try {
-            const response = await fetch("/api/streamfab-import", { method: "POST" });
+            const response = await fetch("/api/streamfab-import", { method: "GET" });
             const data = await response.json();
-            appendConsoleLog(`✅ ${data.moved_count} Datei(en) in die Hauptinbox importiert.`);
-            loadStatus();
-            if (currentProject === "") {
-                scanProject("");
+            if (data.status === "ok") {
+                currentImportPreviewData = data.preview;
+                renderImportPreviewModal(currentImportPreviewData);
+                document.getElementById("modal-import-preview").classList.add("active");
+            } else {
+                appendConsoleLog("❌ Fehler beim Laden der Import-Vorschau.");
+            }
+        } catch (e) {
+            appendConsoleLog(`❌ Fehler beim Laden der Import-Vorschau: ${e}`);
+        }
+    });
+
+    window.closeImportPreview = function() {
+        document.getElementById("modal-import-preview").classList.remove("active");
+    };
+
+    window.openFolderInFinder = function(path) {
+        fetch(`/api/system-open-folder?path=${encodeURIComponent(path)}`).catch(() => {});
+    };
+
+    function renderImportPreviewModal(previewData) {
+        const listContainer = document.getElementById("import-preview-list");
+        listContainer.innerHTML = "";
+        
+        if (!previewData || previewData.length === 0) {
+            listContainer.innerHTML = "<p class='text-muted'>Keine Dateien zum Importieren gefunden.</p>";
+            return;
+        }
+
+        // --- Bulk Action Toolbar ---
+        let allExtensions = new Set();
+        previewData.forEach(g => g.files.forEach(f => {
+            let parts = f.filename.split('.');
+            if (parts.length > 1) {
+                allExtensions.add("." + parts[parts.length-1].toLowerCase());
+            } else {
+                allExtensions.add("Ohne Endung");
+            }
+        }));
+        
+        const bulkDiv = document.createElement("div");
+        bulkDiv.className = "flex justify-between items-center mb-4 p-3 rounded";
+        bulkDiv.style.background = "var(--bg-main)";
+        bulkDiv.style.border = "1px solid var(--border-color)";
+        bulkDiv.innerHTML = `
+            <div class="flex items-center gap-3">
+                <span class="font-bold text-sm">Filter:</span>
+                <select id="filter-ext" class="input input-sm" style="width:140px;" onchange="applyVisualFilter()">
+                    <option value="all">Alle anzeigen</option>
+                    ${Array.from(allExtensions).sort().map(ext => `<option value="${ext}">${ext}</option>`).join("")}
+                </select>
+            </div>
+            <div class="flex items-center gap-3 border-l border-gray-600 pl-4">
+                <span class="text-sm">Sichtbare setzen auf:</span>
+                <select id="bulk-action" class="input input-sm" style="width:130px;">
+                    <option value="import">Importieren</option>
+                    <option value="ignore">Ignorieren</option>
+                    <option value="delete">🗑 Löschen</option>
+                </select>
+                <button class="btn btn-sm btn-secondary" onclick="applyBulkImportAction()">Anwenden</button>
+            </div>
+        `;
+        listContainer.appendChild(bulkDiv);
+
+        window.applyVisualFilter = function() {
+            const ext = document.getElementById("filter-ext").value;
+            // Iterate over all groups and their rows
+            document.querySelectorAll(".import-group").forEach(groupDiv => {
+                let visibleCount = 0;
+                groupDiv.querySelectorAll(".file-row").forEach(row => {
+                    if (ext === "all" || row.getAttribute("data-ext") === ext) {
+                        row.style.display = "flex";
+                        visibleCount++;
+                    } else {
+                        row.style.display = "none";
+                    }
+                });
+                // Hide entire group if no files are visible
+                groupDiv.style.display = visibleCount > 0 ? "block" : "none";
+            });
+        };
+
+        window.applyBulkImportAction = function() {
+            const act = document.getElementById("bulk-action").value;
+            document.querySelectorAll("#import-preview-list .file-row").forEach(row => {
+                if (row.style.display !== "none") {
+                    const sel = row.querySelector(".action-select");
+                    if (sel) sel.value = act;
+                }
+            });
+        };
+        // --- End Bulk Action Toolbar ---
+
+        previewData.forEach((group) => {
+            // Sort files by extension, then name
+            group.files.sort((a, b) => {
+                const extA = a.filename.split('.').pop().toLowerCase();
+                const extB = b.filename.split('.').pop().toLowerCase();
+                if (extA !== extB) return extA.localeCompare(extB);
+                return a.filename.localeCompare(b.filename);
+            });
+
+            const groupDiv = document.createElement("div");
+            groupDiv.className = "mb-4 border border-gray-700 rounded p-3 inline-style-119 import-group";
+            groupDiv.style.background = "var(--bg-card)";
+            
+            // Assume all files in group come from roughly same dir
+            const firstPath = group.files.length > 0 ? group.files[0].path : "";
+            const dirPath = firstPath ? firstPath.substring(0, firstPath.lastIndexOf('/')) : "";
+            
+            const header = document.createElement("div");
+            header.className = "flex justify-between items-center mb-2 pb-2 border-b border-gray-700";
+            header.innerHTML = `
+                <div>
+                    <strong style="color: var(--accent);">${group.project_name}</strong>
+                    <span class="text-muted text-sm ml-2">Ordner: ${group.safe_folder_name}</span>
+                </div>
+                <button class="btn btn-xs btn-secondary" onclick="openFolderInFinder('${dirPath.replace(/'/g, "\\'")}')" title="Im Finder öffnen">📂 Finder</button>
+            `;
+            groupDiv.appendChild(header);
+            
+            group.files.forEach((file) => {
+                const fileRow = document.createElement("div");
+                fileRow.className = "flex justify-between items-center py-1 text-sm file-row";
+                fileRow.style.borderBottom = "1px solid var(--border-color)";
+                
+                let parts = file.filename.split('.');
+                let fExt = parts.length > 1 ? "." + parts[parts.length-1].toLowerCase() : "Ohne Endung";
+                fileRow.setAttribute("data-ext", fExt);
+                
+                const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+                const defaultAction = "import";
+                
+                fileRow.innerHTML = `
+                    <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 10px;" title="${file.path}">
+                        ${file.filename} <span class="text-muted" style="font-size: 0.8em;">(${sizeMb} MB)</span>
+                    </div>
+                    <select class="input input-sm action-select" data-group="${group.safe_folder_name}" data-path="${file.path}" data-filename="${file.filename}" style="width: 130px;">
+                        <option value="import" ${defaultAction === 'import' ? 'selected' : ''}>Importieren</option>
+                        <option value="ignore">Ignorieren</option>
+                        <option value="delete">🗑 Löschen</option>
+                    </select>
+                `;
+                groupDiv.appendChild(fileRow);
+            });
+            
+            listContainer.appendChild(groupDiv);
+        });
+    }
+
+    window.confirmImportPreview = async function() {
+        const selects = document.querySelectorAll("#import-preview-list .action-select");
+        const importItems = {};
+        const deleteItems = [];
+        
+        selects.forEach(select => {
+            const action = select.value;
+            const group = select.getAttribute("data-group");
+            const path = select.getAttribute("data-path");
+            
+            if (action === "import") {
+                if (!importItems[group]) importItems[group] = [];
+                importItems[group].push(path);
+            } else if (action === "delete") {
+                deleteItems.push(path);
+            }
+        });
+        
+        closeImportPreview();
+        appendConsoleLog("[System]: Führe Import aus...");
+        
+        try {
+            const response = await fetch("/api/streamfab-import", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ import_items: importItems, delete_items: deleteItems })
+            });
+            const data = await response.json();
+            if (data.status === "ok") {
+                appendConsoleLog(`✅ ${data.moved_count} Datei(en) in die Inbox importiert.`);
+                loadStatus();
+                if (currentProject === "") {
+                    scanProject("");
+                }
+            } else {
+                appendConsoleLog(`❌ Fehler beim StreamFab Import.`);
             }
         } catch (e) {
             appendConsoleLog(`❌ Fehler beim StreamFab Import: ${e}`);
         }
-    });
+    };
     
     // Browse Tools Path
     const btnBrowseTools = document.getElementById("btn-browse-tools-path");

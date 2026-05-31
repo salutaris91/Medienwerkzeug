@@ -48,7 +48,61 @@ def check_streamfab():
                     videos.append(f)
     return videos
 
-def import_streamfab_files():
+import re
+
+def _extract_show_name(filename):
+    """
+    Extract the show name by removing SxxExx and everything after.
+    Also handles Sxx and other common patterns.
+    Fallback to base name if no pattern matches.
+    """
+    base_name, _ = os.path.splitext(filename)
+    match = re.search(r'(?i)(.*?)[.\s-]*S\d+E\d+', base_name)
+    if match:
+        show = match.group(1).replace('.', ' ').strip()
+        if show: return show
+    return base_name.replace('.', ' ').strip()
+
+def preview_streamfab_import():
+    settings = load_settings()
+    sources = settings.get("import_sources", [])
+    
+    all_files_to_import = []
+    for sf_dir in sources:
+        if not os.path.exists(sf_dir):
+            continue
+        for root, dirs, files in os.walk(sf_dir):
+            for f in files:
+                if f.startswith('.'): continue
+                if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.srt', '.nfo', '.vtt', '.jpg', '.png')):
+                    src = os.path.join(root, f)
+                    all_files_to_import.append((src, f))
+                    
+    groups = {} 
+    for src, f in all_files_to_import:
+        show_name = _extract_show_name(f)
+        key = show_name.lower()
+        if key not in groups:
+            groups[key] = {
+                "project_name": show_name,
+                "safe_folder_name": limit_filename_length(sanitize_filename(show_name)),
+                "files": []
+            }
+        size = 0
+        try:
+            size = os.path.getsize(src)
+        except Exception:
+            pass
+        groups[key]["files"].append({
+            "path": src,
+            "filename": f,
+            "size": size,
+            "is_video": f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm'))
+        })
+        
+    return list(groups.values())
+
+def execute_streamfab_import(import_items, delete_items):
     settings = load_settings()
     sources = settings.get("import_sources", [])
     inbox = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
@@ -56,43 +110,30 @@ def import_streamfab_files():
     os.makedirs(inbox, exist_ok=True)
     count = 0
     
-    # 1. Collect all candidates
-    all_files_to_import = []
-    for sf_dir in sources:
-        if not os.path.exists(sf_dir):
-            continue
-        for root, dirs, files in os.walk(sf_dir):
-            for f in files:
-                if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.srt', '.nfo', '.vtt', '.jpg', '.png')):
-                    src = os.path.join(root, f)
-                    all_files_to_import.append((src, f))
-                    
-    # 2. Group by base name case-insensitively
-    groups = {} # lowercase_base_name -> list of (src, original_filename)
-    for src, f in all_files_to_import:
-        base_name, _ = os.path.splitext(f)
-        key = base_name.lower()
-        if key not in groups:
-            groups[key] = []
-        groups[key].append((src, f))
-        
-    # 3. Process each group
-    for key, file_list in groups.items():
-        # Always group into a project folder named after the base name
-        first_filename = file_list[0][1]
-        folder_name, _ = os.path.splitext(first_filename)
-        safe_folder_name = limit_filename_length(sanitize_filename(folder_name))
-        project_dir = os.path.join(inbox, safe_folder_name)
+    # import_items: dict {"safe_folder_name": ["/path/to/file1", ...]}
+    for safe_folder, file_paths in import_items.items():
+        project_dir = os.path.join(inbox, safe_folder)
         os.makedirs(project_dir, exist_ok=True)
-        for src, f in file_list:
+        for src in file_paths:
+            if not os.path.exists(src): continue
+            f = os.path.basename(src)
             dst = os.path.join(project_dir, f)
             try:
                 shutil.move(src, dst)
                 count += 1
             except Exception as e:
-                print(f"Error moving {f} to project dir {safe_folder_name}: {e}")
+                print(f"Error moving {f} to project dir {safe_folder}: {e}")
                 
-    # 4. Clean empty directories in sources
+    for src in delete_items:
+        if os.path.exists(src):
+            try:
+                if os.path.isdir(src):
+                    shutil.rmtree(src)
+                else:
+                    os.remove(src)
+            except Exception as e:
+                print(f"Error deleting {src}: {e}")
+
     for sf_dir in sources:
         if not os.path.exists(sf_dir):
             continue

@@ -796,6 +796,7 @@
                     <div id="normalize-apply-wrap" style="display:none; margin-top:14px;">
                         <button class="btn btn-primary btn-sm" id="btn-normalize-apply">✅ Ausgewählte anwenden</button>
                     </div>
+                </div>
                 <!-- Angleichung an Metadatendienst (NAS-Renaming-Tool) -->
                 <div class="card" id="dashboard-nas-renamer" style="margin-top: 24px;">
                     <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
@@ -1937,6 +1938,27 @@
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
                 <button id="btn-tool-modal-cancel" class="btn btn-secondary">Abbrechen</button>
                 <button id="btn-tool-modal-execute" class="btn btn-accent">🚀 Ausführen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Import Preview -->
+    <div id="modal-import-preview" class="mw-modal-overlay">
+        <div class="mw-modal" style="max-width: 900px; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="margin: 0; color: var(--text-main);">Import-Vorschau</h3>
+                <span class="close-modal" id="close-modal-import-preview" style="cursor: pointer; font-size: 1.5em;" onclick="closeImportPreview()">&times;</span>
+            </div>
+            
+            <p class="text-muted" style="margin-top: 0; margin-bottom: 16px;">Wähle aus, welche Dateien aus deinen Import-Quellen in die Inbox verschoben werden sollen.</p>
+            
+            <div id="import-preview-list" style="margin-bottom: 16px; max-height: 60vh; overflow-y: auto; background: var(--bg-dark); padding: 10px; border-radius: 8px;">
+                <!-- Dynamically populated -->
+            </div>
+            
+            <div class="form-actions" style="display: flex; justify-content: flex-end; gap: 8px;">
+                <button class="btn btn-secondary" onclick="closeImportPreview()">Abbrechen</button>
+                <button class="btn btn-accent" id="btn-import-preview-confirm" onclick="confirmImportPreview()">Auswahl Importieren</button>
             </div>
         </div>
     </div>
