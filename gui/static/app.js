@@ -737,32 +737,7 @@ async function loadStatus() {
         // Render project lists (sidebar)
         renderProjectList(data.projects);
         
-        // Update Folder Size Warnings
-        const folderWarning = document.getElementById("folder-size-warning");
-        const folderWarningText = document.getElementById("folder-size-warning-text");
-        if (folderWarning && folderWarningText) {
-            const threshInbox = parseFloat(currentSettings.folder_monitor_inbox_threshold_gb) || 50.0;
-            const threshOutbox = parseFloat(currentSettings.folder_monitor_outbox_threshold_gb) || 50.0;
-            const isEnabled = currentSettings.folder_monitor_enabled !== false;
-            
-            let warnings = [];
-            if (isEnabled) {
-                if (data.inbox_size_gb > threshInbox) {
-                    warnings.push(`Dein Inbox-Ordner belegt ${data.inbox_size_gb.toFixed(1)} GB (Schwelle: ${threshInbox} GB).`);
-                }
-                if (data.outbox_size_gb > threshOutbox) {
-                    warnings.push(`Dein Outbox-Ordner belegt ${data.outbox_size_gb.toFixed(1)} GB (Schwelle: ${threshOutbox} GB).`);
-                }
-            }
-            if (warnings.length > 0) {
-                folderWarningText.innerHTML = warnings.join("<br>");
-                folderWarning.classList.remove("hidden");
-            } else {
-                folderWarning.classList.add("hidden");
-            }
-        }
-        
-        // Update Welcome Dashboard if elements exist
+        // Update Welcome Dashboard if elements exist (includes folder-size warnings)
         if (typeof updateHomepageData === "function") {
             updateHomepageData(data);
         }
