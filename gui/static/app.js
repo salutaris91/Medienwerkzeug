@@ -730,7 +730,7 @@ async function loadStatus() {
             sfBtn.classList.remove("hidden");
         } else {
             sfBadge.textContent = "Leer";
-            sfBadge.className = "status-badge online";
+            sfBadge.className = "status-badge neutral";
             sfBtn.classList.add("hidden");
         }
         
@@ -8667,8 +8667,8 @@ async function updateHomepageData(statusData) {
             sfBadge.textContent = `${statusData.streamfab_downloads.length} Datei(en)`;
             sfBadge.className = "status-badge warning";
         } else {
-            sfBadge.textContent = "Bereit";
-            sfBadge.className = "status-badge online";
+            sfBadge.textContent = "Leer";
+            sfBadge.className = "status-badge neutral";
         }
     }
 
