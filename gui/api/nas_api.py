@@ -652,6 +652,163 @@ def handle_api_findings_ignored():
 
 
 # ==========================================================================
+# Quick-Fix: Ordner/Datei umbenennen (Health-Check name_mismatch + bad_folder_name + nested_duplicate)
+# ==========================================================================
+@nas_api.route('/nas/health-fix', methods=['POST'])
+def handle_api_health_fix():
+    """Benennt Ordner oder Datei um, um Health-Issues zu beheben.
+
+    Actions:
+        rename_folder  – Ordner zum angegebenen Namen umbenennen
+        rename_file    – Videodatei (+ Begleitdateien) zum angegebenen Namen umbenennen
+        flatten        – Doppelt verschachtelten Ordner auflösen (Inhalt hoch verschieben)
+    """
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+
+    action = params.get("action")
+    path = params.get("path")
+    new_name = params.get("new_name", "").strip()
+
+    if not path or not os.path.isdir(path):
+        return jsonify({"ok": False, "message": "Ordner nicht gefunden."}), 400
+
+    settings = load_settings()
+    nas_root = os.path.realpath(settings.get("nas_root", "/Volumes/Kino"))
+    real_path = os.path.realpath(path)
+    if not real_path.startswith(nas_root + os.sep):
+        return jsonify({"ok": False, "message": "Pfad liegt außerhalb des NAS."}), 403
+
+    try:
+        if action == "flatten":
+            entries = [e for e in os.listdir(path) if not e.startswith('.')]
+            subdirs = [e for e in entries if os.path.isdir(os.path.join(path, e))]
+            if len(subdirs) != 1:
+                return jsonify({"ok": False, "message": "Ordner hat nicht genau einen Unterordner."}), 400
+            inner = os.path.join(path, subdirs[0])
+            for item in os.listdir(inner):
+                src = os.path.join(inner, item)
+                dst = os.path.join(path, item)
+                if os.path.exists(dst):
+                    return jsonify({"ok": False, "message": f"Ziel existiert bereits: {item}"}), 409
+                shutil.move(src, dst)
+            rest = [e for e in os.listdir(inner) if not e.startswith('.')]
+            if not rest:
+                shutil.rmtree(inner)
+            log_message(f"🔧 [Health-Fix] Verschachtelung aufgelöst: {path}")
+            return jsonify({"ok": True, "message": "Verschachtelung aufgelöst."})
+
+        if action == "rename_folder":
+            if not new_name:
+                return jsonify({"ok": False, "message": "Kein neuer Name angegeben."}), 400
+            parent = os.path.dirname(path)
+            dst = os.path.join(parent, new_name)
+            if os.path.exists(dst):
+                return jsonify({"ok": False, "message": f"Zielordner existiert bereits: {new_name}"}), 409
+            os.rename(path, dst)
+            log_message(f"🔧 [Health-Fix] Ordner umbenannt: {os.path.basename(path)} → {new_name}")
+            return jsonify({"ok": True, "message": f"Ordner umbenannt zu '{new_name}'."})
+
+        # Hilfsfunktion: Videodatei + Begleitdateien finden
+        def _find_video_and_companions(folder):
+            video_exts = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv'}
+            companion_exts = {'.nfo', '.srt', '.vtt', '.ass', '.sub', '.idx'}
+            videos = []
+            for dp, _ds, fns in os.walk(folder):
+                for f in fns:
+                    if not f.startswith('.') and os.path.splitext(f)[1].lower() in video_exts:
+                        videos.append((dp, f))
+            return videos, video_exts, companion_exts
+
+        def _rename_files(folder, old_stem, target_name, video_exts, companion_exts):
+            renamed = []
+            for dp, _ds, fns in os.walk(folder):
+                for f in fns:
+                    if f.startswith('.'):
+                        continue
+                    stem, ext = os.path.splitext(f)
+                    ext_low = ext.lower()
+                    if stem == old_stem and (ext_low in video_exts or ext_low in companion_exts):
+                        new_fn = target_name + ext
+                        src = os.path.join(dp, f)
+                        dst = os.path.join(dp, new_fn)
+                        if src != dst:
+                            if os.path.exists(dst):
+                                return None, f"Zieldatei existiert bereits: {new_fn}"
+                            os.rename(src, dst)
+                            renamed.append(f"{f} → {new_fn}")
+            return renamed, None
+
+        if action == "rename_file":
+            if not new_name:
+                return jsonify({"ok": False, "message": "Kein neuer Name angegeben."}), 400
+            videos, video_exts, companion_exts = _find_video_and_companions(path)
+            if len(videos) != 1:
+                return jsonify({"ok": False, "message": "Ordner enthält nicht genau eine Videodatei."}), 400
+            old_stem = os.path.splitext(videos[0][1])[0]
+            renamed, err = _rename_files(path, old_stem, new_name, video_exts, companion_exts)
+            if err:
+                return jsonify({"ok": False, "message": err}), 409
+            log_message(f"🔧 [Health-Fix] Dateien umbenannt in {path}: {', '.join(renamed)}")
+            return jsonify({"ok": True, "message": f"{len(renamed)} Datei(en) umbenannt."})
+
+        if action == "rename_folder_to_file":
+            videos, video_exts, companion_exts = _find_video_and_companions(path)
+            if len(videos) != 1:
+                return jsonify({"ok": False, "message": "Ordner enthält nicht genau eine Videodatei."}), 400
+            video_stem = os.path.splitext(videos[0][1])[0]
+            folder_name = os.path.basename(path)
+            if folder_name == video_stem:
+                return jsonify({"ok": True, "message": "Ordner und Datei stimmen bereits überein."})
+            parent = os.path.dirname(path)
+            dst = os.path.join(parent, video_stem)
+            if os.path.exists(dst):
+                return jsonify({"ok": False, "message": f"Zielordner existiert bereits: {video_stem}"}), 409
+            os.rename(path, dst)
+            log_message(f"🔧 [Health-Fix] Ordner an Datei angeglichen: {folder_name} → {video_stem}")
+            return jsonify({"ok": True, "message": f"Ordner umbenannt zu '{video_stem}'."})
+
+        if action == "rename_file_to_folder":
+            videos, video_exts, companion_exts = _find_video_and_companions(path)
+            if len(videos) != 1:
+                return jsonify({"ok": False, "message": "Ordner enthält nicht genau eine Videodatei."}), 400
+            old_stem = os.path.splitext(videos[0][1])[0]
+            folder_name = os.path.basename(path)
+            if old_stem == folder_name:
+                return jsonify({"ok": True, "message": "Ordner und Datei stimmen bereits überein."})
+            renamed, err = _rename_files(path, old_stem, folder_name, video_exts, companion_exts)
+            if err:
+                return jsonify({"ok": False, "message": err}), 409
+            log_message(f"🔧 [Health-Fix] Datei an Ordner angeglichen: {old_stem} → {folder_name}")
+            return jsonify({"ok": True, "message": f"{len(renamed)} Datei(en) umbenannt."})
+
+        if action == "rename_both":
+            if not new_name:
+                return jsonify({"ok": False, "message": "Kein neuer Name angegeben."}), 400
+            videos, video_exts, companion_exts = _find_video_and_companions(path)
+            if len(videos) != 1:
+                return jsonify({"ok": False, "message": "Ordner enthält nicht genau eine Videodatei."}), 400
+            old_stem = os.path.splitext(videos[0][1])[0]
+            renamed, err = _rename_files(path, old_stem, new_name, video_exts, companion_exts)
+            if err:
+                return jsonify({"ok": False, "message": err}), 409
+            parent = os.path.dirname(path)
+            dst = os.path.join(parent, new_name)
+            if os.path.exists(dst):
+                return jsonify({"ok": False, "message": f"Zielordner existiert bereits: {new_name}"}), 409
+            os.rename(path, dst)
+            log_message(f"🔧 [Health-Fix] Ordner + Dateien umbenannt: {os.path.basename(path)} → {new_name}")
+            return jsonify({"ok": True, "message": f"Ordner und {len(renamed)} Datei(en) umbenannt zu '{new_name}'."})
+
+        return jsonify({"ok": False, "message": f"Unbekannte Aktion: {action}"}), 400
+
+    except Exception as e:
+        return jsonify({"ok": False, "message": f"Fehler: {e}"}), 500
+
+
+# ==========================================================================
 # Filme normalisieren (Genre-Ordner auflösen + lose Dateien einsammeln)
 # ==========================================================================
 @nas_api.route('/nas/normalize-films/preview', methods=['GET', 'POST'])
@@ -666,8 +823,9 @@ def handle_api_normalize_films_preview():
 
 @nas_api.route('/nas/normalize-films/apply', methods=['POST'])
 def handle_api_normalize_films_apply():
-    """Führt die ausgewählten Verschiebungen aus (mit NAS-Root-Schutz, kein Überschreiben)."""
+    """Führt die ausgewählten Verschiebungen aus – als Job in der Warteschlange."""
     import gui.core.film_normalize as fn
+    import uuid, threading
     try:
         params = request.get_json() or {}
     except Exception:
@@ -675,10 +833,53 @@ def handle_api_normalize_films_apply():
     items = params.get("items")
     if not isinstance(items, list) or not items:
         return jsonify({"ok": False, "message": "Keine Einträge ausgewählt."}), 400
-    try:
-        results = fn.apply_moves(items)
-        return jsonify({"ok": True, "results": results})
-    except Exception as e:
-        return jsonify({"ok": False, "message": f"Fehler: {e}"}), 500
+
+    task_id = str(uuid.uuid4())
+    job_info = {
+        "id": task_id,
+        "type": "normalize",
+        "name": f"Filme normalisieren ({len(items)})",
+        "status": "running",
+        "progress": 0,
+        "message": "Starte Verschiebungen…",
+        "timestamp": time.time(),
+        "params": {},
+        "pipeline": {
+            "normalize": {"status": "running", "progress": 0},
+        },
+    }
+    with active_jobs_lock:
+        active_jobs[task_id] = job_info
+
+    def _run():
+        try:
+            def _on_progress(idx, total, label):
+                pct = int((idx / total) * 100) if total else 100
+                with active_jobs_lock:
+                    active_jobs[task_id]["progress"] = pct
+                    active_jobs[task_id]["message"] = f"Verschiebe {idx + 1}/{total}: {label}"
+                    active_jobs[task_id]["pipeline"]["normalize"]["progress"] = pct
+
+            results = fn.apply_moves(items, on_progress=_on_progress)
+            moved = results.get("moved", 0)
+            skipped = results.get("skipped", 0)
+            errors = results.get("errors", [])
+            msg = f"{moved} verschoben, {skipped} übersprungen"
+            if errors:
+                msg += f", {len(errors)} Fehler"
+            with active_jobs_lock:
+                active_jobs[task_id]["status"] = "done"
+                active_jobs[task_id]["progress"] = 100
+                active_jobs[task_id]["message"] = msg
+                active_jobs[task_id]["pipeline"]["normalize"]["status"] = "done"
+                active_jobs[task_id]["pipeline"]["normalize"]["progress"] = 100
+        except Exception as e:
+            with active_jobs_lock:
+                active_jobs[task_id]["status"] = "error"
+                active_jobs[task_id]["message"] = f"Fehler: {e}"
+                active_jobs[task_id]["pipeline"]["normalize"]["status"] = "error"
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"ok": True, "task_id": task_id, "message": "In Warteschlange eingereiht."})
 
 

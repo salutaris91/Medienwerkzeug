@@ -34,6 +34,8 @@ EFFICIENT_CODECS = {'hevc', 'h265', 'av1', 'vp9'}
 CACHE_FILE = os.path.join(utils.DATA_DIR, "health_scan_cache.json")
 
 SXXEXX_RE = re.compile(r'[Ss](\d{1,3})[Ee](\d{1,4})')
+SHORT_NAME_RE = re.compile(r'^[A-Z0-9]{6}~[A-Z0-9]$')
+YEAR_RE = re.compile(r'(19|20)\d{2}')
 
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png'}
 
@@ -299,9 +301,28 @@ def _check_series_show(issues, category, show_path):
 def _check_movie(issues, category, movie_path):
     name = os.path.basename(movie_path)
     try:
-        os.listdir(movie_path)  # Früh-Abbruch, falls Ordner nicht lesbar
+        entries = [e for e in os.listdir(movie_path) if not e.startswith('.')]
     except OSError:
         return 0
+
+    # --- Check: Doppelte Verschachtelung (Ordner/Ordner/video.mkv) ---
+    subdirs = [e for e in entries if os.path.isdir(os.path.join(movie_path, e))]
+    non_hidden_files = [e for e in entries if os.path.isfile(os.path.join(movie_path, e))]
+    if len(subdirs) == 1 and not non_hidden_files:
+        inner = subdirs[0]
+        inner_norm = inner.lower().rstrip('. ')
+        name_norm = name.lower().rstrip('. ')
+        if inner_norm == name_norm:
+            _add_issue(issues, "warning", "nested_duplicate", category, movie_path,
+                       f"{name}: doppelt verschachtelter Ordner ({name}/{inner}/…)")
+
+    # --- Check: Schlechter Ordnername (kein Jahr oder kryptischer 8.3-Kurzname) ---
+    if SHORT_NAME_RE.match(name):
+        _add_issue(issues, "warning", "bad_folder_name", category, movie_path,
+                   f"{name}: kryptischer Kurzname (8.3-Format) – sollte umbenannt werden")
+    elif not YEAR_RE.search(name):
+        _add_issue(issues, "warning", "bad_folder_name", category, movie_path,
+                   f"{name}: kein Jahr im Ordnernamen – erschwert die Zuordnung")
 
     videos, _ = _collect_videos(movie_path)
     # Für Filme: irgendeine .nfo im Ordnerbaum (movie.nfo / <name>.nfo)
@@ -315,6 +336,16 @@ def _check_movie(issues, category, movie_path):
         _add_issue(issues, "info", "empty_folder", category, movie_path,
                    f"{name}: keine Videodatei im Ordner")
         return 0
+
+    # --- Check: Name-Mismatch (Ordnername ≠ Videodateiname) ---
+    if len(videos) == 1:
+        video_full, video_fn = videos[0]
+        video_stem = os.path.splitext(video_fn)[0]
+        folder_norm = name.lower().rstrip('. ')
+        video_norm = video_stem.lower().rstrip('. ')
+        if folder_norm != video_norm:
+            _add_issue(issues, "warning", "name_mismatch", category, movie_path,
+                       f"{name}: Ordnername „{name}“ passt nicht zu Dateiname „{video_stem}“")
 
     if not has_nfo:
         _add_issue(issues, "warning", "missing_nfo", category, movie_path,

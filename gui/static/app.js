@@ -207,6 +207,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initHealthDashboard();
     initDuplicateDashboard();
     initNormalizeTool();
+    initNasRenamerTool();
     applyStorageTargetLabels();
 
     // Periodic status check (every 6 seconds)
@@ -274,7 +275,321 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
+// ==========================================================================
+// NAS RENAMER TOOL
+// ==========================================================================
+let renamerPreviewPlan = [];
 
+function initNasRenamerTool() {
+    setupNasFolderAutocomplete("renamer-nas-folder", "renamer-nas-folder-dropdown", "btn-load-renamer-series", "renamer-nas-destination");
+    
+    const btnPreview = document.getElementById("btn-renamer-preview");
+    if (btnPreview) btnPreview.addEventListener("click", loadNasRenamerPreview);
+    
+    const btnApply = document.getElementById("btn-renamer-apply");
+    if (btnApply) btnApply.addEventListener("click", applyNasRenamer);
+    
+    const btnSelectAll = document.getElementById("btn-renamer-select-all");
+    if (btnSelectAll) btnSelectAll.addEventListener("click", () => setNasRenamerSelection(true));
+    
+    const btnDeselectAll = document.getElementById("btn-renamer-deselect-all");
+    if (btnDeselectAll) btnDeselectAll.addEventListener("click", () => setNasRenamerSelection(false));
+    
+    const btnRollback = document.getElementById("btn-renamer-rollback");
+    if (btnRollback) btnRollback.addEventListener("click", rollbackNasRenamer);
+    
+    // Automatically fill Destination Dropdown
+    const destSelect = document.getElementById("renamer-nas-destination");
+    if (destSelect && typeof currentSettings !== "undefined" && currentSettings.sync_categories) {
+        destSelect.innerHTML = currentSettings.sync_categories.map(c => 
+            `<option value="${c.id}">${c.name} (${c.nas_sub})</option>`
+        ).join("");
+    }
+}
+
+async function loadNasRenamerPreview() {
+    const statusEl = document.getElementById("renamer-status");
+    const container = document.getElementById("renamer-preview-container");
+    const tbody = document.getElementById("renamer-preview-tbody");
+    
+    const destId = document.getElementById("renamer-nas-destination").value;
+    const folderName = document.getElementById("renamer-nas-folder").value.trim();
+    
+    if (!folderName) {
+        if (statusEl) statusEl.textContent = "Bitte einen Ordnernamen angeben.";
+        return;
+    }
+    
+    if (statusEl) statusEl.textContent = "Scanne Ordner und lade Metadaten...";
+    if (container) container.classList.add("hidden");
+    if (tbody) tbody.innerHTML = "";
+    
+    try {
+        const res = await fetch("/api/nas-renamer/preview", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ destination_id: destId, folder_name: folderName })
+        });
+        const data = await res.json();
+        
+        if (data.status === "error") {
+            if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger);">${escapeHTML(data.message)}</span>`;
+            return;
+        }
+        
+        renamerPreviewPlan = data.items || [];
+        renderNasRenamerPreview();
+        
+        if (statusEl) {
+            statusEl.textContent = `Provider: ${data.provider} | ID: ${data.show_id} | ${renamerPreviewPlan.length} Video-Dateien gefunden.`;
+        }
+        if (container) container.classList.remove("hidden");
+        
+    } catch (e) {
+        console.error("Error generating preview", e);
+        if (statusEl) statusEl.textContent = "Fehler bei der Vorschau.";
+    }
+}
+
+function renderNasRenamerPreview() {
+    const tbody = document.getElementById("renamer-preview-tbody");
+    if (!tbody) return;
+    
+    let html = "";
+    let currentSeason = -1;
+    
+    renamerPreviewPlan.forEach((item, index) => {
+        // Render season group header if season changed
+        if (item.season !== null && item.season !== currentSeason) {
+            currentSeason = item.season;
+            html += `
+                <tr style="background: rgba(255,255,255,0.05);">
+                    <td colspan="5" style="padding: 8px;">
+                        <label style="display:flex; align-items:center; gap:8px; font-weight:bold; cursor:pointer;">
+                            <input type="checkbox" class="renamer-season-toggle" data-season="${currentSeason}" checked>
+                            Staffel ${currentSeason}
+                        </label>
+                    </td>
+                </tr>
+            `;
+        }
+        
+        let statusBadge = "";
+        let isChecked = false;
+        let isRowDisabled = false;
+        let ext = item.current_filename.substring(item.current_filename.lastIndexOf('.'));
+        
+        if (item.status === "passt_bereits") {
+            statusBadge = '<span style="color: var(--success); font-size: 0.85em;">✅ Passt</span>';
+            isRowDisabled = true;
+        } else if (item.status === "kein_treffer") {
+            statusBadge = '<span style="color: var(--warning); font-size: 0.85em;">⚠️ Kein Treffer</span>';
+            // User requirement: Fallback input for manual assign
+            // We'll replace the "Vorgeschlagener Pfad" with an input field
+        } else {
+            statusBadge = '<span style="color: var(--accent); font-size: 0.85em;">🔄 Anpassen</span>';
+            isChecked = true;
+        }
+        
+        let proposedHtml = "";
+        if (item.status === "kein_treffer") {
+            proposedHtml = `
+                <div style="display: flex; gap: 5px; align-items: center;">
+                    <input type="text" class="renamer-manual-input" data-idx="${index}" placeholder="z.B. S01E02 - Titel" style="width: 100%; padding: 4px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: var(--bg-surface);">
+                    <span style="font-size: 0.85em; color: var(--text-muted);">${ext}</span>
+                </div>
+            `;
+            // Uncheck by default if no match
+            isChecked = false;
+        } else {
+            proposedHtml = `<span style="word-break: break-all;">${escapeHTML(item.proposed_rel_path)}</span>`;
+        }
+        
+        const seBadge = (item.season !== null && item.episode !== null) ? `S${String(item.season).padStart(2,'0')}E${String(item.episode).padStart(2,'0')}` : "?";
+        
+        html += `
+            <tr style="${isRowDisabled ? 'opacity: 0.6;' : ''}">
+                <td style="text-align: center;">
+                    <input type="checkbox" class="renamer-item-checkbox season-${currentSeason}" data-idx="${index}" ${isChecked ? 'checked' : ''} ${isRowDisabled ? 'disabled' : ''}>
+                </td>
+                <td>${statusBadge}</td>
+                <td><span style="font-size: 0.8em; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">${seBadge}</span></td>
+                <td style="word-break: break-all; font-size: 0.9em;">${escapeHTML(item.rel_path)}</td>
+                <td style="font-size: 0.9em;">${proposedHtml}</td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+    
+    // Attach listeners
+    tbody.querySelectorAll(".renamer-item-checkbox").forEach(cb => cb.addEventListener("change", updateNasRenamerApplyCount));
+    
+    tbody.querySelectorAll(".renamer-season-toggle").forEach(toggle => {
+        toggle.addEventListener("change", (e) => {
+            const season = e.target.getAttribute("data-season");
+            const isChecked = e.target.checked;
+            tbody.querySelectorAll(`.renamer-item-checkbox.season-${season}:not([disabled])`).forEach(cb => {
+                cb.checked = isChecked;
+            });
+            updateNasRenamerApplyCount();
+        });
+    });
+    
+    tbody.querySelectorAll(".renamer-manual-input").forEach(input => {
+        input.addEventListener("input", (e) => {
+            const idx = e.target.getAttribute("data-idx");
+            const cb = tbody.querySelector(`.renamer-item-checkbox[data-idx="${idx}"]`);
+            if (e.target.value.trim() !== "") {
+                cb.checked = true;
+                
+                // Update the plan data
+                let ext = renamerPreviewPlan[idx].current_filename.substring(renamerPreviewPlan[idx].current_filename.lastIndexOf('.'));
+                let targetDir = renamerPreviewPlan[idx].rel_path.substring(0, renamerPreviewPlan[idx].rel_path.lastIndexOf('/'));
+                if (targetDir === renamerPreviewPlan[idx].rel_path) targetDir = "";
+                
+                renamerPreviewPlan[idx].proposed_rel_path = (targetDir ? targetDir + '/' : '') + e.target.value.trim() + ext;
+                renamerPreviewPlan[idx].status = "manuell"; // Mark as manually edited
+                
+            } else {
+                cb.checked = false;
+            }
+            updateNasRenamerApplyCount();
+        });
+    });
+    
+    updateNasRenamerApplyCount();
+}
+
+function setNasRenamerSelection(checked) {
+    const tbody = document.getElementById("renamer-preview-tbody");
+    if (!tbody) return;
+    
+    tbody.querySelectorAll(".renamer-item-checkbox:not([disabled])").forEach(cb => {
+        cb.checked = checked;
+    });
+    tbody.querySelectorAll(".renamer-season-toggle").forEach(cb => {
+        cb.checked = checked;
+    });
+    updateNasRenamerApplyCount();
+}
+
+function updateNasRenamerApplyCount() {
+    const tbody = document.getElementById("renamer-preview-tbody");
+    const applyBtn = document.getElementById("btn-renamer-apply");
+    const countEl = document.getElementById("renamer-selected-count");
+    if (!tbody || !applyBtn || !countEl) return;
+    
+    const checkedBoxes = Array.from(tbody.querySelectorAll(".renamer-item-checkbox:checked"));
+    countEl.textContent = `${checkedBoxes.length} Dateien ausgewählt`;
+    applyBtn.disabled = checkedBoxes.length === 0;
+}
+
+async function applyNasRenamer() {
+    const tbody = document.getElementById("renamer-preview-tbody");
+    const applyBtn = document.getElementById("btn-renamer-apply");
+    const statusEl = document.getElementById("renamer-status");
+    
+    const destId = document.getElementById("renamer-nas-destination").value;
+    const folderName = document.getElementById("renamer-nas-folder").value.trim();
+    
+    const checkedBoxes = Array.from(tbody.querySelectorAll(".renamer-item-checkbox:checked"));
+    const planToApply = checkedBoxes.map(cb => {
+        const idx = parseInt(cb.getAttribute("data-idx"));
+        return renamerPreviewPlan[idx];
+    });
+    
+    if (planToApply.length === 0) return;
+    
+    if (!confirm(`Sollen ${planToApply.length} Dateien jetzt umbenannt werden?`)) return;
+    
+    applyBtn.disabled = true;
+    if (statusEl) statusEl.textContent = "Wende Umbenennungen an...";
+    
+    try {
+        const res = await fetch("/api/nas-renamer/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                destination_id: destId, 
+                folder_name: folderName,
+                rename_plan: planToApply
+            })
+        });
+        const data = await res.json();
+        
+        if (data.status === "error") {
+            if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger);">Fehler: ${escapeHTML(data.message)}</span>`;
+            applyBtn.disabled = false;
+            return;
+        }
+        
+        if (statusEl) {
+            statusEl.innerHTML = `<span style="color: var(--success);">✅ ${data.success_count} Dateien erfolgreich umbenannt.</span>`;
+            if (data.errors && data.errors.length > 0) {
+                statusEl.innerHTML += `<br><span style="color: var(--warning);">${data.errors.length} Fehler aufgetreten (siehe Konsole).</span>`;
+                console.warn("Renamer Errors:", data.errors);
+            }
+        }
+        
+        // Show Rollback Container
+        const rollbackContainer = document.getElementById("renamer-rollback-container");
+        const rollbackInfo = document.getElementById("renamer-last-transaction-info");
+        if (rollbackContainer && rollbackInfo && data.transaction_id) {
+            rollbackContainer.setAttribute("data-transaction-id", data.transaction_id);
+            rollbackInfo.textContent = `Transaktions-ID: ${data.transaction_id}`;
+            rollbackContainer.style.display = "block";
+        }
+        
+        // Refresh preview
+        setTimeout(loadNasRenamerPreview, 1000);
+        
+    } catch (e) {
+        console.error("Error applying renames", e);
+        if (statusEl) statusEl.textContent = "Netzwerkfehler beim Anwenden.";
+        applyBtn.disabled = false;
+    }
+}
+
+async function rollbackNasRenamer() {
+    const rollbackContainer = document.getElementById("renamer-rollback-container");
+    const transactionId = rollbackContainer.getAttribute("data-transaction-id");
+    const statusEl = document.getElementById("renamer-status");
+    
+    if (!transactionId) return;
+    
+    if (!confirm("Sollen die letzten Umbenennungen wirklich rückgängig gemacht werden?")) return;
+    
+    if (statusEl) statusEl.textContent = "Führe Rollback aus...";
+    
+    try {
+        const res = await fetch("/api/nas-renamer/rollback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ transaction_id: transactionId })
+        });
+        const data = await res.json();
+        
+        if (data.status === "error") {
+            if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger);">Fehler beim Rollback: ${escapeHTML(data.message)}</span>`;
+            return;
+        }
+        
+        if (statusEl) {
+            statusEl.innerHTML = `<span style="color: var(--success);">✅ Rollback erfolgreich (${data.success_count} Dateien wiederhergestellt).</span>`;
+        }
+        
+        rollbackContainer.style.display = "none";
+        rollbackContainer.removeAttribute("data-transaction-id");
+        
+        // Refresh preview
+        setTimeout(loadNasRenamerPreview, 1000);
+        
+    } catch (e) {
+        console.error("Error during rollback", e);
+        if (statusEl) statusEl.textContent = "Netzwerkfehler beim Rollback.";
+    }
+}
 // ==========================================================================
 // UTILS / HELPERS
 // ==========================================================================
@@ -9238,9 +9553,16 @@ function renderHealthStatus(data) {
                         <summary style="cursor:pointer; color:${m.color}; font-weight:500;">${m.icon} ${m.label} (${list.length})</summary>
                         <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">`;
             list.forEach(it => {
+                let fixBtns = "";
+                if (it.type === "nested_duplicate") {
+                    fixBtns = `<button class="btn btn-secondary btn-sm health-fix-flatten" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen">🔧 Auflösen</button>`;
+                } else if (it.type === "name_mismatch" || it.type === "bad_folder_name") {
+                    fixBtns = `<button class="btn btn-secondary btn-sm health-fix-rename" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Umbenennen">🔧 Umbenennen</button>`;
+                }
                 html += `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:0.9em; padding:4px 0; border-top:1px solid rgba(255,255,255,0.04);">
                             <span>${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
                             <span style="display:flex; gap:6px; white-space:nowrap;">
+                                ${fixBtns}
                                 <button class="btn btn-secondary btn-sm health-open-folder" data-path="${escapeHTML(it.path)}">📂 Öffnen</button>
                                 <button class="btn btn-secondary btn-sm finding-ignore" data-key="${escapeHTML(it.key || "")}" title="Diesen Befund dauerhaft ausblenden">🚫 Ignorieren</button>
                             </span>
@@ -9257,6 +9579,68 @@ function renderHealthStatus(data) {
                 fetch(`/api/system-open-folder?path=${encodeURIComponent(p)}`).catch(() => {});
             });
         });
+
+        issuesEl.querySelectorAll(".health-fix-flatten").forEach(b => {
+            b.addEventListener("click", async () => {
+                const p = b.getAttribute("data-path");
+                if (!confirm(`Verschachtelung auflösen?\n\nInhalt des Unterordners wird eine Ebene nach oben verschoben.`)) return;
+                b.disabled = true;
+                try {
+                    const res = await fetch("/api/nas/health-fix", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "flatten", path: p }),
+                    });
+                    const data = await res.json();
+                    if (data.ok) { pollHealthStatus(false); }
+                    else { alert(data.message || "Fehler"); b.disabled = false; }
+                } catch (e) { alert("Fehler: " + e); b.disabled = false; }
+            });
+        });
+
+        issuesEl.querySelectorAll(".health-fix-rename").forEach(b => {
+            b.addEventListener("click", async () => {
+                const p = b.getAttribute("data-path");
+                const issueType = b.getAttribute("data-type");
+                const folderName = p.split("/").filter(Boolean).pop();
+                let choices;
+                if (issueType === "name_mismatch") {
+                    choices = `Wie soll umbenannt werden?\n\n1 = Ordner an Datei angleichen\n2 = Datei an Ordner angleichen\n3 = Freien Namen eingeben\n\nBitte 1, 2 oder 3 eingeben:`;
+                } else {
+                    choices = `Ordner „${folderName}" umbenennen.\n\nNeuen Ordnernamen eingeben:`;
+                }
+                const input = prompt(choices);
+                if (!input) return;
+                b.disabled = true;
+                try {
+                    let body;
+                    if (issueType === "name_mismatch") {
+                        if (input.trim() === "1") {
+                            body = { action: "rename_folder_to_file", path: p };
+                        } else if (input.trim() === "2") {
+                            body = { action: "rename_file_to_folder", path: p };
+                        } else if (input.trim() === "3") {
+                            const customName = prompt("Neuen Namen eingeben (ohne Dateiendung):");
+                            if (!customName) { b.disabled = false; return; }
+                            body = { action: "rename_both", path: p, new_name: customName.trim() };
+                        } else {
+                            body = { action: "rename_folder", path: p, new_name: input.trim() };
+                        }
+                    } else {
+                        body = { action: "rename_folder", path: p, new_name: input.trim() };
+                    }
+                    const res = await fetch("/api/nas/health-fix", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(body),
+                    });
+                    const data = await res.json();
+                    if (data.ok) { pollHealthStatus(false); }
+                    else { alert(data.message || "Fehler"); b.disabled = false; }
+                } catch (e) { alert("Fehler: " + e); b.disabled = false; }
+            });
+        });
+
         wireIgnoreButtons(issuesEl, () => pollHealthStatus(false));
         wireRestoreAll(issuesEl);
     } else if (hasResult) {
@@ -9605,10 +9989,17 @@ async function applyNormalize() {
             body: JSON.stringify({ items }),
         });
         const data = await res.json();
-        const r = data.results || {};
-        const statusEl = document.getElementById("normalize-status");
-        if (statusEl) statusEl.textContent = `Fertig: ${r.moved || 0} verschoben, ${r.skipped || 0} übersprungen, ${(r.errors || []).length} Fehler.`;
-        setTimeout(loadNormalizePreview, 600); // Plan aktualisieren
+        if (data.ok) {
+            const statusEl = document.getElementById("normalize-status");
+            if (statusEl) statusEl.textContent = "In die Warteschlange eingereiht – Fortschritt im Queue-Panel.";
+            openQueue();
+            pollQueue();
+            setTimeout(loadNormalizePreview, 3000);
+        } else {
+            const statusEl = document.getElementById("normalize-status");
+            if (statusEl) statusEl.textContent = data.message || "Fehler beim Anwenden.";
+            if (btn) { btn.disabled = false; }
+        }
     } catch (e) {
         const statusEl = document.getElementById("normalize-status");
         if (statusEl) statusEl.textContent = "Fehler beim Anwenden.";

@@ -796,6 +796,76 @@
                     <div id="normalize-apply-wrap" style="display:none; margin-top:14px;">
                         <button class="btn btn-primary btn-sm" id="btn-normalize-apply">✅ Ausgewählte anwenden</button>
                     </div>
+                <!-- Angleichung an Metadatendienst (NAS-Renaming-Tool) -->
+                <div class="card" id="dashboard-nas-renamer" style="margin-top: 24px;">
+                    <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span class="card-icon">🏷️</span>
+                            <h3 style="margin:0;">NAS-Renaming-Tool</h3>
+                        </div>
+                    </div>
+                    <p class="text-muted" style="margin:6px 0 16px; font-size:0.85em;">Vergleicht einen vorhandenen Serienordner auf dem NAS mit dem Metadatendienst (TMDB/TVDB) und benennt die Dateien einheitlich um.</p>
+                    
+                    <div class="form-group" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label for="renamer-nas-destination">Zielordner (NAS):</label>
+                            <select id="renamer-nas-destination" class="form-select" style="width: 100%;">
+                                <!-- Populate via JS -->
+                            </select>
+                        </div>
+                        <div style="flex: 2; min-width: 250px; position: relative;">
+                            <label for="renamer-nas-folder" style="display: flex; justify-content: space-between;">
+                                Serienordner auf NAS:
+                                <button class="btn btn-secondary btn-xs" id="btn-load-renamer-series" type="button">NAS laden</button>
+                            </label>
+                            <input type="text" id="renamer-nas-folder" placeholder="Ordnername (z.B. The Walking Dead)" autocomplete="off" style="width: 100%;">
+                            <div id="renamer-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
+                        </div>
+                        <button class="btn btn-primary" id="btn-renamer-preview">🔍 Ordner scannen & Preview anzeigen</button>
+                    </div>
+                    
+                    <div id="renamer-status" class="text-muted" style="margin-top:12px;"></div>
+                    
+                    <!-- Table for Preview -->
+                    <div id="renamer-preview-container" class="hidden" style="margin-top: 16px; border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden;">
+                        <div style="padding: 10px; background: var(--bg-surface-2); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-light);">
+                            <strong>Vorschau der Änderungen</strong>
+                            <div style="display: flex; gap: 10px;">
+                                <button class="btn btn-secondary btn-sm" id="btn-renamer-select-all">Alle auswählen</button>
+                                <button class="btn btn-secondary btn-sm" id="btn-renamer-deselect-all">Alle abwählen</button>
+                            </div>
+                        </div>
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            <table class="files-table" style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px; text-align: center;">✓</th>
+                                        <th style="width: 120px;">Status</th>
+                                        <th style="width: 60px;">S / E</th>
+                                        <th>Aktueller Pfad</th>
+                                        <th>Vorgeschlagener Pfad</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="renamer-preview-tbody">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style="padding: 15px; background: var(--bg-surface-2); border-top: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
+                            <span id="renamer-selected-count" class="text-muted">0 Dateien ausgewählt</span>
+                            <button class="btn btn-accent" id="btn-renamer-apply" disabled>✅ Ausgewählte umbenennen</button>
+                        </div>
+                    </div>
+                    
+                    <div id="renamer-rollback-container" style="margin-top: 16px; padding: 12px; background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px; display: none;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong style="color: var(--danger);">Letzte Umbenennung rückgängig machen</strong>
+                                <div style="font-size: 0.85em; color: var(--text-muted);" id="renamer-last-transaction-info">Transaktions-ID: -</div>
+                            </div>
+                            <button class="btn btn-danger btn-sm" id="btn-renamer-rollback">↩️ Rollback ausführen</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 

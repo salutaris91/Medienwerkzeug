@@ -124,8 +124,11 @@ def _within(path, root):
         return False
 
 
-def apply_moves(items):
-    """Führt die ausgewählten Plan-Einträge aus. Gibt {moved, skipped, errors} zurück."""
+def apply_moves(items, on_progress=None):
+    """Führt die ausgewählten Plan-Einträge aus. Gibt {moved, skipped, errors} zurück.
+
+    on_progress(index, total, label) wird nach jedem Eintrag aufgerufen.
+    """
     settings = utils.load_settings()
     nas_root = os.path.realpath(settings.get("nas_root", "/Volumes/Kino"))
     if not ensure_nas_mounted():
@@ -133,10 +136,13 @@ def apply_moves(items):
 
     results = {"moved": 0, "skipped": 0, "errors": []}
     genre_dirs = set()
+    total = len(items or [])
 
-    for it in items or []:
+    for idx, it in enumerate(items or []):
         kind = it.get("kind")
         label = it.get("label", "")
+        if on_progress:
+            on_progress(idx, total, label)
         try:
             if kind == "genre":
                 src = it.get("src")
@@ -180,6 +186,9 @@ def apply_moves(items):
                     shutil.rmtree(g)
         except Exception:
             pass
+
+    if on_progress:
+        on_progress(total, total, "Fertig")
 
     log_message(f"🎬 [Filme normalisieren] {results['moved']} verschoben, "
                 f"{results['skipped']} übersprungen, {len(results['errors'])} Fehler.")
