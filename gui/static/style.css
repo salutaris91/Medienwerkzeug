@@ -142,6 +142,8 @@ body.theme-superfood-light {
     --text-dark: #1b3456;
     --bg-input: rgba(27, 52, 86, 0.05);
     --bg-input-focus: rgba(27, 52, 86, 0.1);
+    --logo-gradient: linear-gradient(135deg, #ffffff 30%, #f08aa0 100%);
+    --bg-sticky: #f7ebe2;
 }
 
 /* ==========================================================================
@@ -254,7 +256,7 @@ textarea:focus-visible {
     font-size: 20px;
     font-weight: 700;
     letter-spacing: -0.5px;
-    background: linear-gradient(135deg, #ffffff 40%, var(--primary) 100%);
+    background: var(--logo-gradient, linear-gradient(135deg, #ffffff 40%, var(--primary) 100%));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
