@@ -143,8 +143,10 @@ body.theme-superfood-light {
     --bg-input: rgba(27, 52, 86, 0.05);
     --bg-input-focus: rgba(27, 52, 86, 0.1);
     --logo-gradient: linear-gradient(135deg, #ffffff 30%, #f08aa0 100%);
-    --bg-sticky: #f7ebe2;
+    --bg-sticky: #ffffff;
     --bg-card: #ffffff;
+    --radius-lg: 10px;
+    --shadow-glass: 0 4px 16px rgba(27, 52, 86, 0.06);
 }
 
 /* ==========================================================================

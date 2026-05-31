@@ -150,7 +150,7 @@
 .inline-style-143 { display: flex; align-items: center; gap: 5px; padding: 6px 12px; }
 .inline-style-144 { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; max-width: 900px; width: 100%; }
 .inline-style-145 { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: var(--radius-sm); }
-.inline-style-146 { display: flex; justify-content: flex-end; padding: 12px 25px; border-top: 1px solid var(--border-glass); position: sticky; bottom: 0; z-index: 10; background: var(--bg-sticky, var(--bg-surface)); margin: 0 -25px -25px -25px; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+.inline-style-146 { display: flex; justify-content: flex-end; padding: 12px 25px; border-top: 1px solid var(--border-glass); position: sticky; bottom: 0; z-index: 10; background: var(--bg-sticky, var(--bg-surface)); margin: 0 -25px -25px -25px; }
 .inline-style-147 { width: 200px; }
 .inline-style-148 { text-align: center; padding: 20px; }
 .inline-style-149 { margin-top: 10px; color: var(--text-muted); }
