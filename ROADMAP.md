@@ -10,7 +10,7 @@ angegangen werden.
 | 2 | Distribution & Bündelung (rclone/ffmpeg/yt-dlp mitliefern) | geplant | mittel–groß |
 | 3 | KI-Cover- & Logo-Generierung (Gemini/OpenRouter) | geplant | mittel |
 | 4 | Selektiver Import für StreamFab-Downloads | geplant | klein |
-| 5 | Angleichung an Metadatendienst (NAS-Renaming-Tool) | geplant | mittel |
+| 5 | Angleichung an Metadatendienst (NAS-Renaming-Tool) | erledigt | mittel |
 | 6 | Server-genaue Artwork-Prüfung (Emby/Jellyfin/Plex) | geplant | klein |
 
 ---
