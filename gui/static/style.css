@@ -144,6 +144,7 @@ body.theme-superfood-light {
     --bg-input-focus: rgba(27, 52, 86, 0.1);
     --logo-gradient: linear-gradient(135deg, #ffffff 30%, #f08aa0 100%);
     --bg-sticky: #f7ebe2;
+    --bg-card: #ffffff;
 }
 
 /* ==========================================================================
@@ -1511,7 +1512,6 @@ select:focus {
     flex-direction: column;
     overflow-y: auto;
     position: relative;
-    padding-bottom: 50px;
 }
 
 .view-panel {
@@ -1519,17 +1519,13 @@ select:focus {
     flex-direction: column;
     min-height: 100%;
     flex-shrink: 0;
+    padding-bottom: 50px;
 }
 
 .view-panel > * {
     flex-shrink: 0;
 }
 
-#view-settings > .card {
-    display: flex;
-    flex-direction: column;
-    min-height: calc(100vh - 200px);
-}
 
 .view-panel.hidden {
     display: none !important;
@@ -2221,8 +2217,7 @@ input[type="range"]::-moz-range-thumb:hover {
 
 .settings-tab-panel {
     animation: settingsFadeIn 0.3s ease-out;
-    flex: 1;
-    padding-bottom: 50px;
+    padding-bottom: 60px;
 }
 
 @keyframes settingsFadeIn {
