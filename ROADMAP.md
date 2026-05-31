@@ -9,9 +9,10 @@ angegangen werden.
 | 1 | Echtes Multi-Cloud (mehrere Cloud-Ziele gleichzeitig) | geplant | mittel |
 | 2 | Distribution & Bündelung (rclone/ffmpeg/yt-dlp mitliefern) | geplant | mittel–groß |
 | 3 | KI-Cover- & Logo-Generierung (Gemini/OpenRouter) | geplant | mittel |
-| 4 | Selektiver Import für StreamFab-Downloads | geplant | klein |
+| 4 | Selektiver Import für StreamFab-Downloads | erledigt | klein |
 | 5 | Angleichung an Metadatendienst (NAS-Renaming-Tool) | erledigt | mittel |
 | 6 | Server-genaue Artwork-Prüfung (Emby/Jellyfin/Plex) | geplant | klein |
+| 7 | Inkrementeller Health-Scan (Timestamp-Cache) | geplant | klein |
 
 ---
 
@@ -305,3 +306,65 @@ verwendet (z. B. `clearlogo` bei Plex).
 ### Aufwand (grob)
 ~0,5–1 Tag Backend (Konventions-Map + Setting + typbewusster Check) + kleine
 Frontend-Anpassung (Server-Auswahl in Settings, differenzierte Issue-Anzeige).
+
+---
+
+## 7. Inkrementeller Health-Scan (Timestamp-Cache)
+
+Der Health-Scan prüft aktuell bei jedem Durchlauf alle ~240 Ordner vollständig,
+einschließlich ffprobe-Codec-Stichproben. Das dauert über eine Minute. Bei
+Folge-Scans sind aber typischerweise nur wenige Ordner verändert worden.
+
+### Ziel
+Ordner, die beim letzten Scan fehlerfrei waren und seitdem nicht verändert wurden,
+überspringen. Folge-Scans sollen in Sekunden statt Minuten abschließen.
+
+### Konzept: Timestamp-basierter Skip
+Pro gescanntem Ordner wird ein Cache-Eintrag gespeichert:
+
+```json
+{
+  "path": "/Volumes/Kino/Filme/Blade.Runner.2049",
+  "mtime": 1780123456.0,
+  "status": "clean",
+  "scan_version": 2
+}
+```
+
+Beim nächsten Scan wird pro Ordner geprüft:
+1. Existiert ein Cache-Eintrag für diesen Pfad?
+2. Ist die aktuelle `mtime` (via `os.stat`) identisch mit dem gespeicherten Wert?
+3. War der Status `"clean"` (keine Issues)?
+4. Stimmt die `scan_version` mit der aktuellen überein?
+
+Nur wenn alle vier Bedingungen erfüllt sind, wird der Ordner übersprungen.
+Andernfalls wird er vollständig neu gescannt und der Cache aktualisiert.
+
+**Warum `scan_version`:** Wenn neue Check-Typen hinzukommen (wie zuletzt
+`nested_duplicate`, `bad_folder_name`, `name_mismatch`), muss die Version
+hochgezählt werden, damit alle Ordner einmalig gegen die neuen Regeln geprüft
+werden — auch wenn sich ihr Inhalt nicht geändert hat.
+
+**Warum `mtime` ausreicht:** Sobald eine Datei im Ordner hinzugefügt, umbenannt
+oder gelöscht wird, aktualisiert das Dateisystem die `mtime` des übergeordneten
+Verzeichnisses automatisch. Für tiefere Änderungen (z.B. in Unterordnern) wird
+die maximale `mtime` über `os.walk` ermittelt.
+
+### Umzusetzende Änderungen
+- **Cache-Datei** (`health_folder_cache.json`) neben der bestehenden
+  `health_scan_cache.json` in `gui/data/`.
+- **`_check_movie` / `_check_series_show`:** Vor dem Prüfen den Cache
+  konsultieren; nach dem Prüfen den Cache aktualisieren.
+- **`_run_health_scan`:** Übersprungene Ordner in der Fortschrittsanzeige
+  als „(cached)" kennzeichnen; am Ende die Anzahl übersprungener Ordner loggen.
+- **UI:** Optionaler Button „Voll-Scan erzwingen" der den Cache ignoriert.
+
+### Alternativer Ansatz (Reserve): Zweistufiger Scan
+Falls der Timestamp-Ansatz nicht zuverlässig genug ist (z.B. bei NAS-Dateisystemen
+mit ungenauer mtime-Granularität), könnte alternativ ein zweistufiger Scan
+implementiert werden: Stufe 1 prüft nur Dateinamen und Ordnerstruktur (instant),
+Stufe 2 (ffprobe/Dateigrößen) nur bei geänderten Ordnern oder auf Knopfdruck.
+
+### Aufwand (grob)
+~0,5 Tage. Hauptarbeit ist die Cache-Logik mit Version-Tracking; die Integration
+in den bestehenden Scan-Flow ist minimal.
