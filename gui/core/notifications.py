@@ -80,7 +80,7 @@ def open_folders_post_processing(params):
     if settings.get("open_outbox_finder"):
         if os.path.exists(outbox_root):
             try:
-                subprocess.run(["open", outbox_root])
+                open_folder_in_finder(outbox_root)
             except Exception as e: print(f"Warning: Ignored exception {e}")
 
     if settings.get("open_nas_finder"):
@@ -93,6 +93,12 @@ def open_folders_post_processing(params):
                 if cat.get("id") == str(nas_destination_id):
                     found_cat = cat
                     break
+            if not found_cat:
+                for cat in sync_cats:
+                    nas_sub = cat.get("nas_sub", "")
+                    if nas_sub and (nas_sub in str(nas_destination_id)):
+                        found_cat = cat
+                        break
             if found_cat:
                 nas_dir = os.path.join(nas_root, found_cat.get("nas_sub", "").lstrip("/"))
                 
@@ -112,7 +118,7 @@ def open_folders_post_processing(params):
             
         if os.path.exists(nas_dir):
             try:
-                subprocess.run(["open", nas_dir])
+                open_folder_in_finder(nas_dir)
             except Exception as e: print(f"Warning: Ignored exception {e}")
             
     if settings.get("open_pcloud_finder"):
@@ -125,6 +131,12 @@ def open_folders_post_processing(params):
                 if cat.get("id") == str(pcloud_destination_id):
                     found_cat = cat
                     break
+            if not found_cat:
+                for cat in sync_cats:
+                    nas_sub = cat.get("nas_sub", "")
+                    if nas_sub and (nas_sub in str(pcloud_destination_id)):
+                        found_cat = cat
+                        break
             if found_cat:
                 pcloud_remote = found_cat.get("pcloud_remote", "")
                 if pcloud_remote.startswith("pcloud:"):
@@ -157,5 +169,6 @@ def open_folders_post_processing(params):
             
         if pcloud_open_path and os.path.exists(pcloud_open_path):
             try:
-                subprocess.run(["open", pcloud_open_path])
+                open_folder_in_finder(pcloud_open_path)
             except Exception as e: print(f"Warning: Ignored exception {e}")
+

@@ -535,7 +535,7 @@ def handle_api_yt_segments():
     except Exception:
         params = {}
     query = request.args
-    task_id = query.get("taskId", [""])[0]
+    task_id = query.get("taskId", "")
     if not task_id:
         return jsonify({"error": "Keine taskId angegeben."})
         return

@@ -2151,5 +2151,270 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         finally:
             utils._MOCK_SETTINGS = None
 
+    def test_check_duplicate_bugfix(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        
+        inbox_dir = os.path.join(self.test_dir, "inbox_dup_test")
+        nas_root = os.path.join(self.test_dir, "nas_dup_test")
+        os.makedirs(inbox_dir, exist_ok=True)
+        os.makedirs(nas_root, exist_ok=True)
+        
+        # Create a series directory on NAS with a non-video file and a video file
+        nas_show_dir = os.path.join(nas_root, "Serien", "My Show")
+        os.makedirs(nas_show_dir, exist_ok=True)
+        
+        # Create non-video duplicate (should NOT be flagged)
+        with open(os.path.join(nas_show_dir, "fanart.jpg"), "w") as f:
+            f.write("image data")
+            
+        # Create video duplicate (should be flagged)
+        with open(os.path.join(nas_show_dir, "My Show - S01E01.mp4"), "w") as f:
+            f.write("video content")
+            
+        orig_load_settings = endpoints.load_settings
+        utils._MOCK_SETTINGS = {
+            "inbox_dir": inbox_dir,
+            "outbox_dir": os.path.join(self.test_dir, "outbox_dup_test"),
+            "nas_root": nas_root,
+            "sync_categories": [
+                {"id": "2", "name": "Serien", "nas_sub": "/Serien"}
+            ]
+        }
+        
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+                
+        dummy = DummyHandler()
+        
+        orig_fetch = server.mw_metadata.fetch_tvdb
+        server.mw_metadata.fetch_tvdb = lambda show_id, season, lang: {
+            "1": {"title": "Episode 1", "absolute_number": 1},
+            "2": {"title": "Episode 2", "absolute_number": 2}
+        }
+        
+        params = {
+            "provider": "tvdb",
+            "show_id": "12345",
+            "season": "1",
+            "show_name": "My Show",
+            "filenames": [
+                "episode1.mp4",
+                "episode2.mp4"
+            ]
+        }
+        
+        try:
+            GUIRequestHandler.handle_api_match_episodes(dummy, params)
+            result = dummy.sent_json
+            self.assertIsNotNone(result)
+            
+            duplicates = result.get("duplicates", {})
+            self.assertIn("episode1.mp4", duplicates)
+            self.assertEqual(duplicates["episode1.mp4"]["filename"], "My Show - S01E01.mp4")
+            
+            self.assertNotIn("episode2.mp4", duplicates)
+        finally:
+            server.mw_metadata.fetch_tvdb = orig_fetch
+            utils._MOCK_SETTINGS = None
+
+    def test_preview_process_overrides_and_warning(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        
+        inbox_dir = os.path.join(self.test_dir, "inbox_override_test")
+        nas_root = os.path.join(self.test_dir, "nas_override_test")
+        os.makedirs(inbox_dir, exist_ok=True)
+        os.makedirs(nas_root, exist_ok=True)
+        
+        # Create folder in inbox
+        project_dir = os.path.join(inbox_dir, "Show Override")
+        os.makedirs(project_dir, exist_ok=True)
+        with open(os.path.join(project_dir, "episode1.mp4"), "w") as f:
+            f.write("video content")
+            
+        orig_load_settings = endpoints.load_settings
+        utils._MOCK_SETTINGS = {
+            "inbox_dir": inbox_dir,
+            "outbox_dir": os.path.join(self.test_dir, "outbox_override_test"),
+            "nas_root": nas_root,
+            "sync_categories": [
+                {"id": "2", "name": "Serien", "nas_sub": "/Serien"}
+            ]
+        }
+        
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+                
+        dummy = DummyHandler()
+        
+        params = {
+            "media_type": "tv",
+            "project_name": "Show Override",
+            "show_name": "Show Override",
+            "show_id": "123",
+            "provider": "tmdb_tv",
+            "season": "1",
+            "copy_to_nas": True,
+            "mappings": {
+                "episode1.mp4": {
+                    "season": 2,
+                    "episode": 10,
+                    "metadata_ep_num": "1"
+                }
+            }
+        }
+        
+        orig_fetch = server.mw_metadata.fetch_tmdb_tv
+        server.mw_metadata.fetch_tmdb_tv = lambda show_id, season, lang: {
+            "1": {"title": "First Episode"}
+        }
+        
+        try:
+            GUIRequestHandler.handle_api_preview_process(dummy, params)
+            result = dummy.sent_json
+            self.assertIsNotNone(result)
+            
+            renames = result.get("renames", [])
+            self.assertEqual(len(renames), 1)
+            self.assertEqual(renames[0]["new"], "Show Override - S02E10 - First Episode.mp4")
+            
+            nas_show_dir = os.path.join(nas_root, "Serien", "Show Override")
+            os.makedirs(os.path.join(nas_show_dir, "Staffel 2026"), exist_ok=True)
+            
+            dummy2 = DummyHandler()
+            GUIRequestHandler.handle_api_preview_process(dummy2, params)
+            result2 = dummy2.sent_json
+            self.assertIsNotNone(result2)
+            self.assertIn("warning", result2)
+            self.assertIn("Abweichung der Nummerierung", result2["warning"])
+            
+        finally:
+            server.mw_metadata.fetch_tmdb_tv = orig_fetch
+            utils._MOCK_SETTINGS = None
+
+    def test_find_folder_by_id_and_name_mismatch(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        
+        nas_root = os.path.join(self.test_dir, "nas_find_id_test")
+        inbox_dir = os.path.join(self.test_dir, "inbox_find_id_test")
+        os.makedirs(nas_root, exist_ok=True)
+        os.makedirs(inbox_dir, exist_ok=True)
+        
+        # Create folder on NAS that matches ID but has a different name
+        nas_show_dir = os.path.join(nas_root, "Serien", "Yu-Gi-Oh! (2000)")
+        os.makedirs(nas_show_dir, exist_ok=True)
+        with open(os.path.join(nas_show_dir, "tvshow.nfo"), "w") as f:
+            f.write("<tvshow><tmdbid>12345</tmdbid><title>Yu-Gi-Oh! (2000)</title></tvshow>")
+            
+        orig_load_settings = endpoints.load_settings
+        utils._MOCK_SETTINGS = {
+            "inbox_dir": inbox_dir,
+            "outbox_dir": os.path.join(self.test_dir, "outbox_find_id_test"),
+            "nas_root": nas_root,
+            "sync_categories": [
+                {"id": "2", "name": "Serien", "nas_sub": "/Serien"}
+            ]
+        }
+        
+        # Test 1: find-folder-by-id API
+        from gui.api.search_api import find_existing_series_folder_by_id
+        folder = find_existing_series_folder_by_id(os.path.join(nas_root, "Serien"), "tmdb_tv", "12345")
+        self.assertEqual(folder, "Yu-Gi-Oh! (2000)")
+        
+        # Test 2: Preview show name mismatch
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+                
+        dummy = DummyHandler()
+        
+        # Create temporary project files so preview scanner works
+        project_dir = os.path.join(inbox_dir, "Yu-Gi-Oh!")
+        os.makedirs(project_dir, exist_ok=True)
+        with open(os.path.join(project_dir, "ep1.mp4"), "w") as f:
+            f.write("content")
+            
+        params = {
+            "media_type": "tv",
+            "project_name": "Yu-Gi-Oh!",
+            "show_name": "Yu-Gi-Oh! Duel Monsters",
+            "show_id": "12345",
+            "provider": "tmdb_tv",
+            "season": "1",
+            "copy_to_nas": True,
+            "mappings": {
+                "ep1.mp4": "1"
+            }
+        }
+        
+        orig_fetch = server.mw_metadata.fetch_tmdb_tv
+        server.mw_metadata.fetch_tmdb_tv = lambda show_id, season, lang: {
+            "1": {"title": "First Episode"}
+        }
+        
+        try:
+            GUIRequestHandler.handle_api_preview_process(dummy, params)
+            result = dummy.sent_json
+            self.assertIsNotNone(result)
+            
+            mismatch = result.get("show_name_mismatch")
+            self.assertIsNotNone(mismatch)
+            self.assertEqual(mismatch["nas_name"], "Yu-Gi-Oh! (2000)")
+            self.assertEqual(mismatch["metadata_name"], "Yu-Gi-Oh! Duel Monsters")
+        finally:
+            server.mw_metadata.fetch_tmdb_tv = orig_fetch
+            utils._MOCK_SETTINGS = None
+
+    def test_inconsistent_naming_health_check(self):
+        from gui.core.health import _check_series_show
+        
+        nas_root = os.path.join(self.test_dir, "nas_health_naming_test")
+        os.makedirs(nas_root, exist_ok=True)
+        
+        show_path = os.path.join(nas_root, "Yu-Gi-Oh! (2000)")
+        season1_path = os.path.join(show_path, "Staffel 1")
+        season2_path = os.path.join(show_path, "Staffel 2")
+        os.makedirs(season1_path, exist_ok=True)
+        os.makedirs(season2_path, exist_ok=True)
+        
+        # Scenario A: Inconsistent naming between files in different seasons
+        with open(os.path.join(season1_path, "Yu-Gi-Oh! Duel Monsters - S01E01.mp4"), "w") as f:
+            f.write("video")
+        with open(os.path.join(season2_path, "Yu-Gi-Oh! - S02E01.mp4"), "w") as f:
+            f.write("video")
+            
+        issues = []
+        _check_series_show(issues, "Serien", show_path)
+        
+        naming_issues = [i for i in issues if i["type"] == "inconsistent_naming"]
+        self.assertTrue(len(naming_issues) > 0)
+        self.assertIn("Uneinheitliche Benennung", naming_issues[0]["message"])
+        
+        # Clean up files for Scenario B
+        os.remove(os.path.join(season1_path, "Yu-Gi-Oh! Duel Monsters - S01E01.mp4"))
+        os.remove(os.path.join(season2_path, "Yu-Gi-Oh! - S02E01.mp4"))
+        
+        # Scenario B: Consistent naming but differs from folder name
+        with open(os.path.join(season1_path, "Yu-Gi-Oh! Duel Monsters - S01E01.mp4"), "w") as f:
+            f.write("video")
+        with open(os.path.join(season2_path, "Yu-Gi-Oh! Duel Monsters - S02E01.mp4"), "w") as f:
+            f.write("video")
+            
+        issues = []
+        _check_series_show(issues, "Serien", show_path)
+        naming_issues = [i for i in issues if i["type"] == "inconsistent_naming"]
+        self.assertTrue(len(naming_issues) > 0)
+        self.assertIn("anderen Seriennamen", naming_issues[0]["message"])
+
 if __name__ == "__main__":
     unittest.main()

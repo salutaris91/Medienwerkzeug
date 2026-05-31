@@ -800,12 +800,16 @@ function renderProjectList(projects) {
             <span class="project-item-icon">📥</span>
             <span class="project-item-name">Unsortierte Einzeldateien</span>
         </button>
+        <button class="project-item ${currentProject === "__inbox_recursive__" ? "active" : ""}" data-project="__inbox_recursive__">
+            <span class="project-item-icon">📂</span>
+            <span class="project-item-name">Alle Dateien (inkl. Unterordner)</span>
+        </button>
     `;
     
     projects.forEach(p => {
         const escapedP = escapeHTML(p);
         html += `
-            <button class="project-item ${currentProject === p ? "active" : ""}" data-project="${escapedP}">
+            <button class="project-item ${currentProject === p ? "active" : ""}" data-project="${escapedP}" draggable="true">
                 <span class="project-item-icon">📁</span>
                 <span class="project-item-name">${escapedP}</span>
                 <span class="project-item-delete" title="Ordner löschen" data-project="${escapedP}">🗑️</span>
@@ -863,7 +867,7 @@ function updateSidebarProcessingStates(activeProjects) {
         } else {
             item.classList.remove("processing");
             if (iconEl) {
-                iconEl.textContent = p === "" ? "📥" : "📁";
+                iconEl.textContent = p === "" ? "📥" : (p === "__inbox_recursive__" ? "📂" : "📁");
                 iconEl.classList.remove("spinning-icon");
             }
             if (deleteEl) {
@@ -1211,10 +1215,20 @@ async function scanProject(project) {
     scrollToDetailTop();
     
     
-    title.textContent = project === "" ? "Unsortierte Einzeldateien verarbeiten" : `Projekt: ${project}`;
+    title.textContent = project === "" ? "Unsortierte Einzeldateien verarbeiten" : (project === "__inbox_recursive__" ? "Alle Dateien (inkl. Unterordner) verarbeiten" : `Projekt: ${project}`);
     path.textContent = "Scanne Ordner...";
     tbody.innerHTML = '<tr><td colspan="3" class="text-center"><div class="loading-spinner"></div></td></tr>';
     statsContainer.style.display = "none";
+    
+    const modeSelector = document.getElementById("folder-mode-selector");
+    const recursiveNotice = document.getElementById("recursive-mode-notice");
+    if (project === "__inbox_recursive__") {
+        if (modeSelector) modeSelector.classList.add("hidden");
+        if (recursiveNotice) recursiveNotice.classList.remove("hidden");
+    } else {
+        if (modeSelector) modeSelector.classList.remove("hidden");
+        if (recursiveNotice) recursiveNotice.classList.add("hidden");
+    }
     
     try {
         const response = await fetch(`/api/scan-project?project=${encodeURIComponent(project)}`);
@@ -1250,7 +1264,7 @@ async function scanProject(project) {
         applySmartConversionDefault(data.has_inefficient_video || false);
         
         if (projectFiles.length === 0) {
-            const emptyMsg = project === "" ? "Keine unsortierten Einzeldateien in der Hauptinbox gefunden." : "Dieser Ordner ist leer.";
+            const emptyMsg = project === "" ? "Keine unsortierten Einzeldateien in der Hauptinbox gefunden." : (project === "__inbox_recursive__" ? "Keine Dateien in der gesamten Inbox (inkl. Unterordnern) gefunden." : "Dieser Ordner ist leer.");
             tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">${emptyMsg}</td></tr>`;
             return;
         }
@@ -1270,7 +1284,7 @@ async function scanProject(project) {
             else if (ext === 'nfo') badgeClass += " nfo";
             
             let actionHtml = "";
-            if (!isDir && isVideo) {
+            if (!isDir && isVideo && project !== "__inbox_recursive__") {
                 actionHtml = `<button class="btn btn-sm btn-split-file" data-project="${escapeHTML(project)}" data-file="${escapeHTML(name)}" title="In ein separates Projekt abspalten" style="background: rgba(255, 255, 255, 0.1); border: 1px solid var(--border-glass); color: var(--text-normal); cursor: pointer; padding: 3px 8px; border-radius: var(--radius-sm); font-size: 0.7rem; transition: all 0.2s ease;">Trennen</button>`;
             }
             
@@ -1675,13 +1689,38 @@ async function selectShow(show) {
     }
     
     const overrideInput = document.getElementById("series-nas-folder-override");
+    const matchStatusLabel = document.getElementById("series-nas-folder-match-status");
+    if (matchStatusLabel) {
+        matchStatusLabel.classList.add("hidden");
+        matchStatusLabel.textContent = "";
+    }
+    
     if (overrideInput) {
         if (window.nasFolderSelected) {
             overrideInput.value = window.nasFolderSelected;
+            autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
         } else {
+            const destSelect = document.getElementById("series-nas-destination");
+            const destVal = destSelect ? destSelect.value : "";
             overrideInput.value = cleanSeriesName(show.name);
+            
+            fetch(`/api/series/find-folder-by-id?provider=${encodeURIComponent(show.provider)}&show_id=${encodeURIComponent(show.id)}&destination_id=${encodeURIComponent(destVal)}`)
+                .then(res => res.ok ? res.json() : {folder: null})
+                .then(data => {
+                    if (data.folder) {
+                        overrideInput.value = data.folder;
+                        if (matchStatusLabel) {
+                            matchStatusLabel.textContent = `✅ Zugeordnet zu existierendem NAS-Ordner: ${data.folder}`;
+                            matchStatusLabel.classList.remove("hidden");
+                        }
+                    }
+                    autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
+                })
+                .catch(err => {
+                    console.error("Error finding folder by show ID:", err);
+                    autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
+                });
         }
-        autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
     }
     
     const panel = document.getElementById("selected-show-panel");
@@ -2142,6 +2181,16 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                 <details class="episode-nfo-details" id="episode-nfo-details-${index}" data-index="${index}" style="grid-column: span 2; margin-top: 10px; border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-sm); padding: 8px; background: rgba(0,0,0,0.15); width: 100%; box-sizing: border-box;">
                     <summary style="cursor: pointer; font-size: 11px; color: var(--text-muted);">📝 NFO für diese Episode bearbeiten</summary>
                     <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <div>
+                                <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px;">Staffel Override (optional):</label>
+                                <input type="number" class="episode-nfo-season-override" id="episode-nfo-season-override-${index}" placeholder="z.B. 1" style="width:100%; font-size: 12px; padding: 6px; box-sizing: border-box;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px;">Episode Override (optional):</label>
+                                <input type="number" class="episode-nfo-episode-override" id="episode-nfo-episode-override-${index}" placeholder="z.B. 5" style="width:100%; font-size: 12px; padding: 6px; box-sizing: border-box;">
+                            </div>
+                        </div>
                         <div>
                             <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px;">Episodentitel:</label>
                             <input type="text" class="episode-nfo-title" id="episode-nfo-title-${index}" style="width:100%; font-size: 12px; padding: 6px; box-sizing: border-box;">
@@ -2167,6 +2216,8 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
         const select = document.getElementById(`match-select-${index}`);
         const search = document.getElementById(`match-search-${index}`);
         const info = document.getElementById(`selected-match-info-${index}`);
+        const seasonOverrideInput = document.getElementById(`episode-nfo-season-override-${index}`);
+        const episodeOverrideInput = document.getElementById(`episode-nfo-episode-override-${index}`);
         if (select && info) {
             const updateInfo = () => {
                 const selectedOption = select.options[select.selectedIndex];
@@ -2193,15 +2244,31 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     return;
                 }
                 
-                // Parse season/episode from the selected value
+                // Parse season/episode from the selected value, respecting overrides if set
                 let epSeason, epNum;
-                const seMatch = val.match(/^S(\d+)E(\d+)$/i);
-                if (seMatch) {
-                    epSeason = parseInt(seMatch[1], 10);
-                    epNum = parseInt(seMatch[2], 10);
+                const sOverride = seasonOverrideInput ? parseInt(seasonOverrideInput.value, 10) : NaN;
+                const eOverride = episodeOverrideInput ? parseInt(episodeOverrideInput.value, 10) : NaN;
+                
+                if (!isNaN(sOverride)) {
+                    epSeason = sOverride;
                 } else {
-                    epSeason = parseInt(document.getElementById("series-season-num")?.value || "1", 10);
-                    epNum = parseInt(val, 10);
+                    const seMatch = val.match(/^S(\d+)E(\d+)$/i);
+                    if (seMatch) {
+                        epSeason = parseInt(seMatch[1], 10);
+                    } else {
+                        epSeason = parseInt(document.getElementById("series-season-num")?.value || "1", 10);
+                    }
+                }
+                
+                if (!isNaN(eOverride)) {
+                    epNum = eOverride;
+                } else {
+                    const seMatch = val.match(/^S(\d+)E(\d+)$/i);
+                    if (seMatch) {
+                        epNum = parseInt(seMatch[2], 10);
+                    } else {
+                        epNum = parseInt(val, 10);
+                    }
                 }
                 
                 if (isNaN(epSeason) || isNaN(epNum)) {
@@ -2250,6 +2317,18 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                 updateInfo();
                 checkNasDuplicate();
             });
+            
+            if (seasonOverrideInput) {
+                seasonOverrideInput.addEventListener("input", () => {
+                    checkNasDuplicate();
+                });
+            }
+            if (episodeOverrideInput) {
+                episodeOverrideInput.addEventListener("input", () => {
+                    checkNasDuplicate();
+                });
+            }
+            
             updateInfo();
 
             if (search) {
@@ -2570,10 +2649,33 @@ async function executeSeriesWorkflow() {
             const select = document.getElementById(`match-select-${index}`);
             const val = select.value;
             if (val !== "skip") {
-                if (isAllSeasons) {
-                    mappings[file] = val;
+                const sOverrideEl = document.getElementById(`episode-nfo-season-override-${index}`);
+                const eOverrideEl = document.getElementById(`episode-nfo-episode-override-${index}`);
+                const sOverride = sOverrideEl ? parseInt(sOverrideEl.value, 10) : NaN;
+                const eOverride = eOverrideEl ? parseInt(eOverrideEl.value, 10) : NaN;
+                
+                if (!isNaN(sOverride) || !isNaN(eOverride)) {
+                    let defaultSeason, defaultEpisode;
+                    const seMatch = val.match(/^S(\d+)E(\d+)$/i);
+                    if (seMatch) {
+                        defaultSeason = parseInt(seMatch[1], 10);
+                        defaultEpisode = parseInt(seMatch[2], 10);
+                    } else {
+                        defaultSeason = parseInt(document.getElementById("series-season-num")?.value || "1", 10);
+                        defaultEpisode = parseInt(val, 10);
+                    }
+                    
+                    mappings[file] = {
+                        season: !isNaN(sOverride) ? sOverride : defaultSeason,
+                        episode: !isNaN(eOverride) ? eOverride : defaultEpisode,
+                        metadata_ep_num: val
+                    };
                 } else {
-                    mappings[file] = parseInt(val, 10);
+                    if (isAllSeasons) {
+                        mappings[file] = val;
+                    } else {
+                        mappings[file] = parseInt(val, 10);
+                    }
                 }
             }
         });
@@ -4433,6 +4535,51 @@ async function checkAllSubscriptions() {
 }
 
 
+// Helper to render files list in clean modal with sizes and video codecs
+function renderCleanFileList(files, isJunk) {
+    const sortedFiles = [...files].sort((a, b) => {
+        const nameA = typeof a === "string" ? a : (a.name || "");
+        const nameB = typeof b === "string" ? b : (b.name || "");
+        return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: "base" });
+    });
+    return sortedFiles.map(fileObj => {
+        const f = typeof fileObj === "string" ? fileObj : fileObj.name;
+        const sizeBytes = fileObj.size_bytes || 0;
+        const codec = fileObj.codec || "";
+        const resolution = fileObj.resolution || "";
+        
+        let sizeStr = "";
+        if (sizeBytes > 0) {
+            if (sizeBytes > 1024 * 1024 * 1024) {
+                sizeStr = `(${(sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB)`;
+            } else if (sizeBytes > 1024 * 1024) {
+                sizeStr = `(${(sizeBytes / (1024 * 1024)).toFixed(1)} MB)`;
+            } else {
+                sizeStr = `(${(sizeBytes / 1024).toFixed(0)} KB)`;
+            }
+        }
+        
+        let detailsStr = "";
+        if (codec || resolution) {
+            const parts = [];
+            if (codec) parts.push(codec.toUpperCase());
+            if (resolution) parts.push(resolution);
+            detailsStr = `<span style="background: rgba(var(--accent-rgb), 0.15); color: var(--accent); font-size: 9.5px; font-weight: 600; padding: 1.5px 5px; border-radius: 4px; margin-left: 6px; letter-spacing: 0.3px;">${parts.join(" • ")}</span>`;
+        }
+        
+        return `
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; padding: 2px 0;">
+                <input type="checkbox" class="clean-cb-item" data-file="${escapeHTML(f)}" ${isJunk ? 'checked' : ''} style="accent-color:#ff4757;">
+                <span style="font-size:11px; color:var(--text-main); word-break:break-all;">
+                    ${escapeHTML(f)} 
+                    <span style="color:var(--text-muted); font-size: 10.5px; margin-left: 4px;">${sizeStr}</span>
+                    ${detailsStr}
+                </span>
+            </label>
+        `;
+    }).join("");
+}
+
 // Helper clean project
 async function cleanCurrentProject() {
     if (!currentProject) return;
@@ -4475,8 +4622,10 @@ async function cleanCurrentProject() {
             return;
         }
         
-        // Render groups
-        for (const [ext, files] of Object.entries(groups)) {
+        // Render groups sorted alphabetically by extension
+        const sortedKeys = Object.keys(groups).sort();
+        for (const ext of sortedKeys) {
+            const files = groups[ext];
             // Check by default if it's typical junk
             const isJunk = ['txt', 'url', 'exe', 'ds_store', 'nfo', 'jpg', 'png'].includes(ext);
             
@@ -4489,12 +4638,7 @@ async function cleanCurrentProject() {
                     <span class="group-select-toggle" data-ext="${ext}" style="font-size:10px; color:var(--text-muted); text-transform:none; font-weight:normal; cursor:pointer; text-decoration:underline;">Alle aus-/abwählen</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:5px; padding-left:10px; border-left:2px solid rgba(255,255,255,0.05);">
-                    ${files.map(f => `
-                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                            <input type="checkbox" class="clean-cb-item" data-file="${f}" ${isJunk ? 'checked' : ''} style="accent-color:#ff4757;">
-                            <span style="font-size:11px; color:var(--text-main); word-break:break-all;">${f}</span>
-                        </label>
-                    `).join("")}
+                    ${renderCleanFileList(files, isJunk)}
                 </div>
             `;
             list.appendChild(groupDiv);
@@ -4583,8 +4727,10 @@ async function runToolClean(path) {
             return;
         }
         
-        // Render groups
-        for (const [ext, files] of Object.entries(groups)) {
+        // Render groups sorted alphabetically by extension
+        const sortedKeys = Object.keys(groups).sort();
+        for (const ext of sortedKeys) {
+            const files = groups[ext];
             // Check by default if it's typical junk
             const isJunk = ['txt', 'url', 'exe', 'ds_store', 'nfo', 'jpg', 'png'].includes(ext);
             
@@ -4597,12 +4743,7 @@ async function runToolClean(path) {
                     <span class="group-select-toggle" data-ext="${ext}" style="font-size:10px; color:var(--text-muted); text-transform:none; font-weight:normal; cursor:pointer; text-decoration:underline;">Alle aus-/abwählen</span>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:5px; padding-left:10px; border-left:2px solid rgba(255,255,255,0.05);">
-                    ${files.map(f => `
-                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                            <input type="checkbox" class="clean-cb-item" data-file="${f}" ${isJunk ? 'checked' : ''} style="accent-color:#ff4757;">
-                            <span style="font-size:11px; color:var(--text-main); word-break:break-all;">${f}</span>
-                        </label>
-                    `).join("")}
+                    ${renderCleanFileList(files, isJunk)}
                 </div>
             `;
             list.appendChild(groupDiv);
@@ -4924,7 +5065,57 @@ function initEventListeners() {
                 if (groupContainer) {
                     const checkboxes = groupContainer.querySelectorAll(".clean-cb-item");
                     const anyUnchecked = Array.from(checkboxes).some(cb => !cb.checked);
-                    checkboxes.forEach(cb => cb.checked = anyUnchecked);
+                    checkboxes.forEach(cb => {
+                        const wasChecked = cb.checked;
+                        cb.checked = anyUnchecked;
+                        if (wasChecked !== anyUnchecked) {
+                            cb.dispatchEvent(new Event("change", { bubbles: true }));
+                        }
+                    });
+                }
+            }
+        });
+        
+        cleanList.addEventListener("change", (e) => {
+            const cb = e.target.closest(".clean-cb-item");
+            if (cb) {
+                const filename = cb.dataset.file;
+                if (!filename) return;
+                
+                const dotIdx = filename.lastIndexOf(".");
+                if (dotIdx === -1) return;
+                const ext = filename.substring(dotIdx).toLowerCase();
+                const videoExtensions = ['.mp4', '.mkv', '.avi', '.webm', '.mov'];
+                
+                if (videoExtensions.includes(ext)) {
+                    const baseName = filename.substring(0, dotIdx);
+                    const isChecked = cb.checked;
+                    
+                    const otherCbs = cleanList.querySelectorAll(".clean-cb-item");
+                    otherCbs.forEach(otherCb => {
+                        if (otherCb === cb) return;
+                        const otherFile = otherCb.dataset.file;
+                        if (!otherFile) return;
+                        const otherDotIdx = otherFile.lastIndexOf(".");
+                        if (otherDotIdx === -1) return;
+                        
+                        const otherBaseName = otherFile.substring(0, otherDotIdx);
+                        const otherExt = otherFile.substring(otherDotIdx).toLowerCase();
+                        
+                        if (otherBaseName === baseName && !videoExtensions.includes(otherExt)) {
+                            if (otherCb.checked !== isChecked) {
+                                otherCb.checked = isChecked;
+                                const label = otherCb.closest("label");
+                                if (label) {
+                                    label.style.transition = "background-color 0.2s ease";
+                                    label.style.backgroundColor = "rgba(var(--accent-rgb), 0.25)";
+                                    setTimeout(() => {
+                                        label.style.backgroundColor = "transparent";
+                                    }, 800);
+                                }
+                            }
+                        }
+                    });
                 }
             }
         });
@@ -6687,6 +6878,11 @@ async function openPreviewModal(basePayload) {
         warningBox.classList.add("hidden");
     }
     
+    const mismatchBox = document.getElementById("preview-show-name-mismatch");
+    if (mismatchBox) {
+        mismatchBox.classList.add("hidden");
+    }
+    
     // Check if any mapped season is >= 1000 (possible year warning)
     let hasHighSeason = false;
     let highSeasonNum = null;
@@ -6760,6 +6956,46 @@ async function openPreviewModal(basePayload) {
         if (data.warning && warningBox && warningText && !basePayload.force_absolute_season_1) {
             warningText.textContent = data.warning;
             warningBox.classList.remove("hidden");
+        }
+        
+        if (data.show_name_mismatch && mismatchBox) {
+            const mText = document.getElementById("preview-show-name-mismatch-text");
+            if (mText) {
+                mText.innerHTML = `Der Zielordner auf dem NAS heißt <strong>"${data.show_name_mismatch.nas_name}"</strong>, aber die Vorschau verwendet den Namen <strong>"${data.show_name_mismatch.metadata_name}"</strong>.`;
+            }
+            
+            const btnAdoptNas = document.getElementById("btn-preview-adopt-nas-name");
+            const btnAdoptMeta = document.getElementById("btn-preview-adopt-metadata-name");
+            
+            if (btnAdoptNas) {
+                const newBtn = btnAdoptNas.cloneNode(true);
+                btnAdoptNas.parentNode.replaceChild(newBtn, btnAdoptNas);
+                newBtn.addEventListener("click", () => {
+                    const overrideInput = document.getElementById("series-nas-folder-override");
+                    if (overrideInput) {
+                        overrideInput.value = data.show_name_mismatch.nas_name;
+                        autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
+                    }
+                    basePayload.nas_show_folder = data.show_name_mismatch.nas_name;
+                    openPreviewModal(basePayload);
+                });
+            }
+            
+            if (btnAdoptMeta) {
+                const newBtn = btnAdoptMeta.cloneNode(true);
+                btnAdoptMeta.parentNode.replaceChild(newBtn, btnAdoptMeta);
+                newBtn.addEventListener("click", () => {
+                    const overrideInput = document.getElementById("series-nas-folder-override");
+                    if (overrideInput) {
+                        overrideInput.value = data.show_name_mismatch.metadata_name;
+                        autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
+                    }
+                    basePayload.nas_show_folder = data.show_name_mismatch.metadata_name;
+                    openPreviewModal(basePayload);
+                });
+            }
+            
+            mismatchBox.classList.remove("hidden");
         }
         
         currentPreviewPayload = basePayload;
@@ -7233,10 +7469,27 @@ function renderQueue(jobs) {
         if (job.pipeline) {
             const steps = [
                 { key: "metadata", label: "Metadaten" },
-                { key: "convert", label: "Konvertierung" },
-                { key: "nas", label: "NAS-Kopieren" },
-                { key: "pcloud", label: "pCloud" }
+                { key: "convert", label: "Konvertierung" }
             ];
+            
+            // Dynamically add storage targets from settings or fallback to pipeline keys
+            if (currentSettings && currentSettings.storage_targets) {
+                currentSettings.storage_targets.forEach(target => {
+                    const t_id = target.id;
+                    if (job.pipeline[t_id]) {
+                        steps.push({ key: t_id, label: target.name || t_id });
+                    }
+                });
+            }
+            
+            // Fallback for targets in pipeline not present in storage_targets
+            Object.keys(job.pipeline).forEach(key => {
+                if (key !== "metadata" && key !== "convert" && key !== "local" && !steps.some(s => s.key === key)) {
+                    const fallbackLabel = key === "nas" ? "NAS-Kopieren" : (key === "pcloud" ? "pCloud" : key);
+                    steps.push({ key: key, label: fallbackLabel });
+                }
+            });
+            
             if (job.pipeline.local) {
                 steps.push({ key: "local", label: "Lokal-Kopieren" });
             }
@@ -9523,3 +9776,161 @@ function loadProfileFromModal(filename, displayName, showId, provider) {
 // Global registrieren, damit Inline-onclicks funktionieren
 window.loadProfileFromModal = loadProfileFromModal;
 window.deleteProfileFromModal = deleteProfileFromModal;
+
+// Sidebar Drag & Drop to merge folders
+function initSidebarDragAndDrop() {
+    const container = document.getElementById("project-list-container");
+    if (!container) return;
+
+    let draggedProject = null;
+
+    // Use event delegation for all drag/drop events
+    container.addEventListener("dragstart", (e) => {
+        const item = e.target.closest(".project-item");
+        if (item && item.getAttribute("draggable") === "true") {
+            draggedProject = item.getAttribute("data-project");
+            e.dataTransfer.setData("text/plain", draggedProject);
+            e.dataTransfer.effectAllowed = "move";
+            item.classList.add("dragging");
+        }
+    });
+
+    container.addEventListener("dragend", (e) => {
+        const item = e.target.closest(".project-item");
+        if (item) {
+            item.classList.remove("dragging");
+        }
+        container.querySelectorAll(".project-item").forEach(el => el.classList.remove("drag-hover"));
+        draggedProject = null;
+    });
+
+    container.addEventListener("dragover", (e) => {
+        const targetItem = e.target.closest(".project-item");
+        if (targetItem && targetItem.getAttribute("draggable") === "true" && draggedProject) {
+            const targetProject = targetItem.getAttribute("data-project");
+            if (targetProject !== draggedProject) {
+                e.preventDefault();
+                targetItem.classList.add("drag-hover");
+            }
+        }
+    });
+
+    container.addEventListener("dragleave", (e) => {
+        const targetItem = e.target.closest(".project-item");
+        if (targetItem && !targetItem.contains(e.relatedTarget)) {
+            targetItem.classList.remove("drag-hover");
+        }
+    });
+
+    container.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        const targetItem = e.target.closest(".project-item");
+        if (targetItem) {
+            targetItem.classList.remove("drag-hover");
+            const targetProject = targetItem.getAttribute("data-project");
+            const sourceProject = e.dataTransfer.getData("text/plain") || draggedProject;
+
+            if (sourceProject && targetProject && sourceProject !== targetProject) {
+                const skipConfirm = localStorage.getItem("skipMergeConfirm") === "true";
+                let confirmed = skipConfirm;
+                if (!confirmed) {
+                    confirmed = await showMergeConfirmModal(sourceProject, targetProject);
+                }
+                
+                if (confirmed) {
+                    await mergeProjects(sourceProject, targetProject);
+                }
+            }
+        }
+    });
+}
+
+function showMergeConfirmModal(source, target) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById("modal-confirm-merge");
+        const textEl = document.getElementById("confirm-merge-text");
+        const btnCancel = document.getElementById("btn-cancel-merge");
+        const btnClose = document.getElementById("close-modal-confirm-merge");
+        const btnConfirm = document.getElementById("btn-confirm-merge-execute");
+        const skipCb = document.getElementById("confirm-merge-skip-cb");
+        
+        if (!modal || !textEl || !btnCancel || !btnConfirm) {
+            resolve(confirm(`Möchtest du den Ordner "${source}" in den Ordner "${target}" verschieben und mit ihm zusammenführen?`));
+            return;
+        }
+        
+        textEl.textContent = `Möchtest du den Ordner "${source}" in den Ordner "${target}" verschieben und mit ihm zusammenführen?`;
+        if (skipCb) skipCb.checked = false;
+        
+        modal.classList.add("active");
+        
+        const cleanup = (result) => {
+            modal.classList.remove("active");
+            btnCancel.removeEventListener("click", onCancel);
+            if (btnClose) btnClose.removeEventListener("click", onCancel);
+            btnConfirm.removeEventListener("click", onConfirm);
+            
+            if (result && skipCb && skipCb.checked) {
+                localStorage.setItem("skipMergeConfirm", "true");
+            }
+            
+            resolve(result);
+        };
+        
+        function onCancel() {
+            cleanup(false);
+        }
+        
+        function onConfirm() {
+            cleanup(true);
+        }
+        
+        btnCancel.addEventListener("click", onCancel);
+        if (btnClose) btnClose.addEventListener("click", onCancel);
+        btnConfirm.addEventListener("click", onConfirm);
+    });
+}
+
+async function mergeProjects(source, target) {
+    appendConsoleLog(`[System]: Führe Ordner zusammen: "${source}" -> "${target}"...`);
+    try {
+        const response = await fetch("/api/merge-projects", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ source: source, target: target })
+        });
+        const data = await response.json();
+        if (data.status === "success") {
+            appendConsoleLog(`✅ Ordner erfolgreich zusammengeführt.`);
+            if (typeof loadStatus === "function") {
+                await loadStatus();
+            }
+            if (currentProject === source) {
+                selectProject(target);
+            } else if (currentProject === target) {
+                scanProject(target);
+            }
+        } else {
+            appendConsoleLog(`❌ Fehler beim Zusammenführen: ${data.error || "Unbekannter Fehler"}`);
+            alert(`Fehler beim Zusammenführen: ${data.error || "Unbekannter Fehler"}`);
+        }
+    } catch (e) {
+        console.error("Error merging projects:", e);
+        appendConsoleLog(`❌ Fehler: ${e.message}`);
+        alert(`Fehler: ${e.message}`);
+    }
+}
+
+// Initialize Drag & Drop and Reset Button
+document.addEventListener("DOMContentLoaded", () => {
+    initSidebarDragAndDrop();
+    
+    const btnResetMerge = document.getElementById("btn-reset-merge-confirm");
+    if (btnResetMerge) {
+        btnResetMerge.addEventListener("click", () => {
+            localStorage.removeItem("skipMergeConfirm");
+            alert("Bestätigungs-Dialog beim Zusammenführen von Ordnern wurde erfolgreich reaktiviert!");
+        });
+    }
+});
+

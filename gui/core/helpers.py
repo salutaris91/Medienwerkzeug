@@ -451,3 +451,27 @@ def folder_size_monitor():
             
         interval_min = int(settings.get("folder_monitor_interval_minutes", 30)) if settings else 30
         time.sleep(interval_min * 60)
+
+def open_folder_in_finder(path):
+    """
+    Opens a directory path. On macOS, uses AppleScript to guarantee it opens
+    in a new Finder window to prevent tab/window overwrites when opening multiple folders.
+    """
+    if not path or not os.path.exists(path):
+        return
+        
+    abs_path = os.path.abspath(path)
+    if sys.platform == "darwin":
+        try:
+            # Escape path for AppleScript
+            escaped_path = abs_path.replace('\\', '\\\\').replace('"', '\\"')
+            script = f'tell application "Finder"\n    activate\n    make new Finder window to POSIX file "{escaped_path}"\nend tell'
+            subprocess.run(["osascript", "-e", script], check=True, capture_output=True)
+        except Exception as e:
+            print(f"AppleScript open window failed, falling back to open command: {e}")
+            subprocess.run(["open", abs_path])
+    elif sys.platform == "win32":
+        os.startfile(abs_path)
+    else:
+        subprocess.run(["xdg-open", abs_path])
+

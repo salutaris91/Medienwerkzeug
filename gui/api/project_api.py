@@ -104,7 +104,8 @@ def handle_api_scan_project():
     query = request.args
     project = query.get("project", "")
     inbox_root = os.path.expanduser("~/Downloads/Medien Input")
-    if project:
+    is_recursive_inbox = (project == "__inbox_recursive__")
+    if project and not is_recursive_inbox:
         target_dir = os.path.abspath(os.path.join(inbox_root, project))
     else:
         target_dir = os.path.abspath(inbox_root)
@@ -252,10 +253,11 @@ def handle_api_preview_clean():
     query = request.args
     project = params.get("project", "")
     inbox_root = os.path.expanduser("~/Downloads/Medien Input")
-    if project:
-        target_dir = os.path.join(inbox_root, project)
+    is_recursive_inbox = (project == "__inbox_recursive__")
+    if project and not is_recursive_inbox:
+        target_dir = os.path.abspath(os.path.join(inbox_root, project))
     else:
-        target_dir = inbox_root
+        target_dir = os.path.abspath(inbox_root)
         
     if not os.path.exists(target_dir):
         return jsonify({"error": "Verzeichnis nicht gefunden"})
@@ -265,14 +267,40 @@ def handle_api_preview_clean():
         all_files = [f for f in os.listdir(target_dir) if os.path.isfile(os.path.join(target_dir, f)) and not f.startswith('.')]
     else:
         all_files = find_files_recursively(target_dir)
+        
+    video_extensions = {'.mp4', '.mkv', '.avi', '.webm', '.mov'}
     groups = {}
     for f in all_files:
         ext = os.path.splitext(f)[1].lower()
-        if not ext:
-            ext = "ohne_endung"
-        if ext not in groups:
-            groups[ext] = []
-        groups[ext].append(f)
+        ext_clean = ext[1:] if ext.startswith('.') else ext
+        if not ext_clean:
+            ext_clean = "ohne_endung"
+            
+        full_path = os.path.join(target_dir, f)
+        file_info = {
+            "name": f,
+            "size_bytes": 0,
+            "codec": None,
+            "resolution": None
+        }
+        try:
+            file_info["size_bytes"] = os.path.getsize(full_path)
+        except OSError:
+            pass
+            
+        if ext in video_extensions:
+            try:
+                m_info = media.get_media_info(full_path)
+                if m_info.get("codec"):
+                    file_info["codec"] = m_info["codec"]
+                if m_info.get("width") and m_info.get("height"):
+                    file_info["resolution"] = f"{m_info['width']}x{m_info['height']}"
+            except Exception:
+                pass
+                
+        if ext_clean not in groups:
+            groups[ext_clean] = []
+        groups[ext_clean].append(file_info)
         
     return jsonify({"groups": groups})
 
@@ -414,7 +442,8 @@ def handle_api_clean_project():
     query = request.args
     project = params.get("project", "")
     inbox_root = os.path.expanduser("~/Downloads/Medien Input")
-    if project:
+    is_recursive_inbox = (project == "__inbox_recursive__")
+    if project and not is_recursive_inbox:
         target_dir = os.path.abspath(os.path.join(inbox_root, project))
     else:
         target_dir = os.path.abspath(inbox_root)
@@ -492,7 +521,9 @@ def handle_api_delete_project():
     project = params.get("project")
     if not project:
         return jsonify({"status": "error", "error": "Kein Ordnername angegeben."})
-        return
+        
+    if project == "__inbox_recursive__":
+        return jsonify({"status": "error", "error": "System-Ordner kann nicht gelöscht werden."})
         
     settings = load_settings()
     inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
@@ -517,6 +548,82 @@ def handle_api_delete_project():
         return jsonify({"status": "success"})
     except Exception as e:
         log_message(f"❌ Fehler beim Löschen des Ordners {project}: {e}")
+        return jsonify({"status": "error", "error": str(e)})
+
+
+
+@project_api.route('/merge-projects', methods=['POST'])
+def handle_api_merge_projects():
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+        
+    source = params.get("source")
+    target = params.get("target")
+    
+    if not source or not target:
+        return jsonify({"status": "error", "error": "Quell- und Zielordner müssen angegeben werden."})
+        
+    if source == "__inbox_recursive__" or target == "__inbox_recursive__":
+        return jsonify({"status": "error", "error": "System-Ordner können nicht zusammengeführt werden."})
+        
+    settings = load_settings()
+    inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
+    inbox_root_abs = os.path.abspath(inbox_root)
+    
+    source_dir = os.path.join(inbox_root, source)
+    source_dir_abs = os.path.abspath(source_dir)
+    
+    target_dir = os.path.join(inbox_root, target)
+    target_dir_abs = os.path.abspath(target_dir)
+    
+    # Security check: Ensure both are inside inbox_root and not the root itself
+    if not source_dir_abs.startswith(inbox_root_abs + os.sep) or source_dir_abs == inbox_root_abs:
+        return jsonify({"status": "error", "error": "Ungültiger oder unzulässiger Pfad für den Quellordner."})
+    if not target_dir_abs.startswith(inbox_root_abs + os.sep) or target_dir_abs == inbox_root_abs:
+        return jsonify({"status": "error", "error": "Ungültiger oder unzulässiger Pfad für den Zielordner."})
+        
+    if not os.path.exists(source_dir_abs):
+        return jsonify({"status": "error", "error": f"Quellordner '{source}' existiert nicht."})
+    if not os.path.exists(target_dir_abs):
+        return jsonify({"status": "error", "error": f"Zielordner '{target}' existiert nicht."})
+        
+    if source_dir_abs == target_dir_abs:
+        return jsonify({"status": "error", "error": "Quell- und Zielordner müssen unterschiedlich sein."})
+        
+    try:
+        import shutil
+        # Move all contents from source_dir to target_dir
+        for item in os.listdir(source_dir_abs):
+            if item.startswith('.'):
+                continue
+            s_item = os.path.join(source_dir_abs, item)
+            t_item = os.path.join(target_dir_abs, item)
+            
+            # If item already exists, handle collision safely by appending _1, _2...
+            if os.path.exists(t_item):
+                base, ext = os.path.splitext(item)
+                counter = 1
+                new_item = f"{base}_{counter}{ext}"
+                new_t_item = os.path.join(target_dir_abs, new_item)
+                while os.path.exists(new_t_item):
+                    counter += 1
+                    new_item = f"{base}_{counter}{ext}"
+                    new_t_item = os.path.join(target_dir_abs, new_item)
+                t_item = new_t_item
+                
+            shutil.move(s_item, t_item)
+            
+        # Remove source directory if empty or has only dotfiles
+        remaining = [f for f in os.listdir(source_dir_abs) if not f.startswith('.')]
+        if len(remaining) == 0:
+            shutil.rmtree(source_dir_abs)
+            
+        log_message(f"🔄 Ordner zusammengeführt: '{source}' -> '{target}'")
+        return jsonify({"status": "success"})
+    except Exception as e:
+        log_message(f"❌ Fehler beim Zusammenführen von '{source}' in '{target}': {e}")
         return jsonify({"status": "error", "error": str(e)})
 
 

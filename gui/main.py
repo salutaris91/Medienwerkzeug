@@ -68,6 +68,14 @@ def main():
     monitor_thread.start()
     print("Folder size monitor thread started.")
     
+    # Fetch jokes from online repository asynchronously on startup
+    try:
+        from gui.workers.youtube_worker import fetch_online_jokes_async
+        fetch_online_jokes_async()
+        print("Async jokes update started.")
+    except Exception as e:
+        print(f"Failed to start async joke fetch: {e}")
+        
     try:
         def open_browser():
             webbrowser.open("http://127.0.0.1:5001")

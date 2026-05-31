@@ -45,7 +45,7 @@ def handle_api_check_dependencies():
     except Exception:
         params = {}
     query = request.args
-    force = query.get("force", ["false"])[0].lower() == "true"
+    force = query.get("force", "false").lower() == "true"
     results = check_dependency_status(force_updates=force)
     return jsonify(results)
 
@@ -264,7 +264,7 @@ def handle_api_system_open_folder():
         return
         
     try:
-        subprocess.run(["open", folder_path], check=True)
+        open_folder_in_finder(folder_path)
         return jsonify({"success": True, "msg": f"Ordner {folder_path} im Finder geöffnet."})
     except Exception as e:
         return jsonify({"error": f"Fehler beim Öffnen des Ordners: {str(e)}"})

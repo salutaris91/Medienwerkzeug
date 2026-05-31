@@ -109,13 +109,21 @@ def _episode_numbers(filenames):
     return sorted(set(nums))
 
 
-def _has_any_artwork(entries):
-    """True, wenn der Ordner mindestens eine Bilddatei enthält.
+def _has_any_artwork(path):
+    """True, wenn irgendwo unterhalb von 'path' mindestens eine Bilddatei liegt.
+
+    Rekursiv (wie _collect_videos), weil Artwork je nach Struktur eine Ebene
+    tiefer liegen kann (z. B. bei doppelt verschachtelten Filmordnern
+    Filme/<Film>/<Film>/<Dateien>). Versteckte Dateien werden ignoriert.
 
     Die Bibliothek nutzt unterschiedliche Konventionen (poster/fanart/banner/
     clearlogo/discart ...). Wir flaggen daher nur Ordner ganz OHNE Artwork.
     """
-    return any(os.path.splitext(e)[1].lower() in IMAGE_EXTENSIONS for e in entries)
+    for dirpath, _dirs, filenames in os.walk(path):
+        for f in filenames:
+            if not f.startswith('.') and os.path.splitext(f)[1].lower() in IMAGE_EXTENSIONS:
+                return True
+    return False
 
 
 def _collect_videos(root):
@@ -218,6 +226,17 @@ def _check_season(issues, category, show_name, season_path):
     return len(videos)
 
 
+def _normalize_for_consistency_check(name):
+    if not name:
+        return ""
+    name = name.lower()
+    name = re.sub(r'\(\d{4}\)', '', name)
+    name = re.sub(r'\[.*?\]', '', name)
+    name = re.sub(r'\(.*?\)', '', name)
+    name = name.replace("&", "und")
+    return re.sub(r'[^a-z0-9]', '', name).strip()
+
+
 def _check_series_show(issues, category, show_path):
     files_checked = 0
     try:
@@ -232,7 +251,7 @@ def _check_series_show(issues, category, show_path):
                    f"{os.path.basename(show_path)}: tvshow.nfo fehlt")
 
     # Artwork (nur flaggen, wenn gar kein Bild vorhanden)
-    if not _has_any_artwork(entries):
+    if not _has_any_artwork(show_path):
         _add_issue(issues, "info", "missing_artwork", category, show_path,
                    f"{os.path.basename(show_path)}: kein Artwork vorhanden")
 
@@ -242,6 +261,35 @@ def _check_series_show(issues, category, show_path):
                    and (e.lower().startswith("staffel ") or e.lower().startswith("season ")
                         or e.lower().startswith("specials"))]
     show_name = os.path.basename(show_path)
+
+    # Collect all video files to check naming consistency
+    all_videos = []
+    for sd in season_dirs:
+        videos, _ = _collect_videos(os.path.join(show_path, sd))
+        all_videos.extend(videos)
+
+    prefixes = {}
+    for full_path, filename in all_videos:
+        m = SXXEXX_RE.search(filename)
+        if m:
+            prefix = filename[:m.start()].strip(" -_")
+            if prefix:
+                norm = _normalize_for_consistency_check(prefix)
+                if norm not in prefixes:
+                    prefixes[norm] = prefix
+
+    if len(prefixes) > 1:
+        prefix_list = sorted(list(prefixes.values()))
+        _add_issue(issues, "warning", "inconsistent_naming", category, show_path,
+                   f"{show_name}: Uneinheitliche Benennung der Episodendateien (z. B. '{prefix_list[0]}' vs. '{prefix_list[1]}')")
+    elif len(prefixes) == 1:
+        prefix_val = list(prefixes.values())[0]
+        norm_prefix = list(prefixes.keys())[0]
+        norm_folder = _normalize_for_consistency_check(show_name)
+        if norm_prefix != norm_folder:
+            _add_issue(issues, "warning", "inconsistent_naming", category, show_path,
+                       f"{show_name}: Episodendateien verwenden einen anderen Seriennamen ('{prefix_val}') als der Hauptordner")
+
     for sd in season_dirs:
         files_checked += _check_season(issues, category, show_name, os.path.join(show_path, sd))
 
@@ -251,7 +299,7 @@ def _check_series_show(issues, category, show_path):
 def _check_movie(issues, category, movie_path):
     name = os.path.basename(movie_path)
     try:
-        entries = os.listdir(movie_path)
+        os.listdir(movie_path)  # Früh-Abbruch, falls Ordner nicht lesbar
     except OSError:
         return 0
 
@@ -273,7 +321,7 @@ def _check_movie(issues, category, movie_path):
                    f"{name}: keine NFO vorhanden")
 
     # Artwork (nur flaggen, wenn gar kein Bild vorhanden)
-    if not _has_any_artwork(entries):
+    if not _has_any_artwork(movie_path):
         _add_issue(issues, "info", "missing_artwork", category, movie_path,
                    f"{name}: kein Artwork vorhanden")
 

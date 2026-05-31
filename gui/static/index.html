@@ -6,7 +6,7 @@
     <meta name="description" content="Medienwerkzeug - Automatisches Umbennen, Konvertieren und Kopieren von Filmen und Serien auf das NAS.">
     <meta name="color-scheme" content="dark">
     <title>Medienwerkzeug v5.0 (Master-Detail)</title>
-    <link rel="stylesheet" href="style.css?v=36">
+    <link rel="stylesheet" href="style.css?v=38">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -90,7 +90,6 @@
                     <span class="badge inline-style-5" id="project-folders-count" >0</span>
                 </div>
                 <div class="section-content">
-                    <p class="section-desc inline-style-6" >Medien Input / Streamfab</p>
                     <div class="project-list" id="project-list-container">
                         <div class="loading-spinner"></div>
                     </div>
@@ -293,6 +292,17 @@
                     </div>
                 </div>
 
+                <div id="recursive-mode-notice" class="card hidden" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); padding: 20px; border-radius: var(--radius-md); text-align: center; margin-top: 20px;">
+                    <span style="font-size: 2rem; display: block; margin-bottom: 10px;">🔍</span>
+                    <h3 style="margin-top: 0; color: var(--text-main);">Rekursive Inbox-Ansicht</h3>
+                    <p class="text-muted" style="max-width: 600px; margin: 0 auto; line-height: 1.5; font-size: 0.9rem;">
+                        Diese Ansicht listet alle Dateien der Inbox und sämtlicher Unterordner flach auf. Sie ist ideal, um unerwünschte Begleitdateien (wie z. B. Bilder, Logos oder NFOs aus StreamFab-Downloads) über den <strong>🗑️ Aufräumen</strong>-Button oben rechts aufzuspüren und gesammelt zu löschen.
+                    </p>
+                    <p style="color: var(--accent); margin-top: 15px; font-weight: 500; font-size: 0.9rem; margin-bottom: 0;">
+                        Um einen Film oder eine Serie zu verarbeiten, wähle bitte einen spezifischen Projektordner aus der Seitenleiste.
+                    </p>
+                </div>
+
                 <!-- CONTEXT PANELS -->
 
                 <!-- CONTEXT: MOVIE / DOKU -->
@@ -460,6 +470,7 @@
                         </div>
                         <input type="text" id="series-nas-folder-override" placeholder="Automatisch (z.B. Sendung mit der Maus)" class="inline-style-55" autocomplete="off">
                         <div id="series-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
+                        <div id="series-nas-folder-match-status" class="hidden" style="margin-top: 5px; font-size: 11px; color: #10b981; font-weight: 500;"></div>
                     </div>
 
                     <div class="selected-show-card hidden inline-style-35" id="selected-show-panel" >
@@ -1060,6 +1071,12 @@
                         </div>
 
                         <div class="form-group inline-style-120" >
+                            <span class="form-label-style">Zusammenführungs-Bestätigung:</span>
+                            <p class="inline-style-121">Setze die Bestätigungsabfrage zurück, falls du "Zukünftig nicht mehr fragen" beim Zusammenführen von Ordnern gewählt hast.</p>
+                            <button id="btn-reset-merge-confirm" class="btn btn-secondary btn-sm" style="margin-top: 6px;">🔄 Bestätigungs-Abfragen reaktivieren</button>
+                        </div>
+
+                        <div class="form-group inline-style-120" >
                             <span class="form-label-style">Abhängigkeiten & CLI-Tools:</span>
                             <p class="inline-style-121">Prüfe systemkritische Tools wie yt-dlp, rclone, ffmpeg und deno auf installierte Versionen und neue Updates.</p>
                             
@@ -1582,6 +1599,19 @@
                 <div class="inline-style-227" id="preview-season-warning-text"></div>
             </div>
             
+            <!-- Warning Box for Show Name Mismatch -->
+            <div id="preview-show-name-mismatch" class="hidden" style="display: flex; gap: 12px; background: rgba(255, 179, 0, 0.08); border: 1px solid rgba(255, 179, 0, 0.25); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 20px; align-items: center; color: var(--text-main); font-size: 13px;">
+                <span style="font-size: 20px; flex-shrink: 0;">⚠️</span>
+                <div style="flex: 1; line-height: 1.4;">
+                    <div style="font-weight: 600; color: #ffb300; margin-bottom: 4px;">Namenskonflikt bei der Serie</div>
+                    <div id="preview-show-name-mismatch-text"></div>
+                    <div style="margin-top: 8px; display: flex; gap: 10px;">
+                        <button type="button" class="btn btn-secondary btn-xs" id="btn-preview-adopt-nas-name" style="padding: 4px 10px; font-size: 11px;">Ordnername vom NAS übernehmen</button>
+                        <button type="button" class="btn btn-secondary btn-xs" id="btn-preview-adopt-metadata-name" style="padding: 4px 10px; font-size: 11px;">Metadaten-Name verwenden</button>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Zielpfad -->
             <div class="inline-style-228">
                 <div class="inline-style-229">Zielverzeichnis (NAS/pCloud)</div>
@@ -1762,7 +1792,32 @@
     </div>
 </div>
 
-    <script src="app.js?v=58"></script>
+    <script src="app.js?v=63"></script>
+
+    <!-- Modal: Confirm Merge -->
+    <div id="modal-confirm-merge" class="mw-modal-overlay">
+        <div class="mw-modal" style="max-width: 480px; display: flex; flex-direction: column; padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-glass); background: rgba(30, 30, 45, 0.95); backdrop-filter: blur(10px); box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                <h3 style="margin: 0; color: var(--text-main); font-size: 1.15rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                    <span>🔄 Ordner zusammenführen</span>
+                </h3>
+                <span class="close-modal" id="close-modal-confirm-merge" style="cursor: pointer; font-size: 1.4em; color: var(--text-muted);">&times;</span>
+            </div>
+            <div style="margin-bottom: 18px;">
+                <p id="confirm-merge-text" style="color: var(--text-muted); font-size: 0.875rem; line-height: 1.45; margin: 0;"></p>
+            </div>
+            
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 20px; font-size: 0.815rem; color: var(--text-muted); width: fit-content; user-select: none;">
+                <input type="checkbox" id="confirm-merge-skip-cb" style="accent-color: var(--accent); cursor: pointer; width: 14px; height: 14px;">
+                <span>Zukünftig nicht mehr fragen (immer zusammenführen)</span>
+            </label>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button id="btn-cancel-merge" class="btn btn-secondary" style="font-size: 0.815rem; padding: 6px 12px; border-radius: 4px;">Abbrechen</button>
+                <button id="btn-confirm-merge-execute" class="btn btn-primary" style="font-size: 0.815rem; padding: 6px 16px; border-radius: 4px;">Ja, zusammenführen</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal: Profiles -->
     <div id="modal-profiles" class="mw-modal-overlay">

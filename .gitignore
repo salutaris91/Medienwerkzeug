@@ -10,6 +10,9 @@ gui/jobs_state.json
 *.bak
 *.backup
 
+# Flüchtiges Übergabe-Dokument zwischen Chats (siehe CLAUDE.md)
+STAND.md
+
 # Local user profiles and history
 gui/data/
 

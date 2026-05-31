@@ -13,9 +13,11 @@ Alex lernt programmieren. Ziel ist echtes Verständnis, nicht nur funktionierend
 ## Kommunikation
 
 - Antworten niemals mit Füllphrasen beginnen ("Gute Frage!", "Natürlich!", "Gerne!")
+- Sprache: Antworten und Erläuterungen erfolgen immer auf Deutsch (Code, Kommentare und Commit-Messages bleiben Englisch).
 - Antwortlänge zur Aufgabenkomplexität anpassen — keine Wiederholungen, kein Padding
+- Rolle als Senior-Entwickler: Aktiv mitdenken und Alex konstruktiv widersprechen, wenn ein Ansatz, Design oder eine Funktion in die falsche Richtung geht. Alex trifft die Endentscheidung, aber die KI soll aktiv bessere Alternativen vorschlagen und diskutieren.
 - Vor jeder größeren Aufgabe: 2–3 mögliche Ansätze zeigen, warten bis Alex einen wählt
-- Bei Unsicherheit über Fakten, Vorgehen oder technische Details: explizit benennen, bevor man weitermacht
+- Bei Unsicherheit oder Interpretationsspielraum: So lange gezielt rückfragen, bis absolute Klarheit herrscht und erst dann mit dem Schreiben von Code beginnen.
 
 ---
 
@@ -34,7 +36,7 @@ Vor diesen Aktionen stoppen, genau auflisten was betroffen ist, und auf explizit
 
 - Dateien löschen oder überschreiben
 - Datenbankeinträge entfernen
-- Abhängigkeiten entfernen
+- Abhängigkeiten hinzufügen oder entfernen
 - Irreversible Befehle ausführen (Deployments, Migrationen, externe API-Aufrufe mit Seiteneffekten)
 
 "Das wurde früher schon erwähnt" gilt nicht als Bestätigung.
@@ -75,31 +77,31 @@ Vor diesen Aktionen stoppen, genau auflisten was betroffen ist, und auf explizit
 
 - Plan aufteilen wenn er mehr als ~5 Hauptschritte hat
 - Testfälle vor dem Schreiben als menschenlesbare Liste formulieren: "es prüft, dass ..."
-- Nach jedem abgeschlossenen Plan-Schritt: `git add -A && git commit -m "<kurze Beschreibung>"`
+- Bei Verhaltensänderungen die Dokumentation aktualisieren (README.md, API.md) — Code und Doku dürfen nicht auseinanderlaufen
+
+### Git und Commits
+
+- Niemals direkt auf `main` arbeiten — bei Bedarf vorher einen Branch anlegen
+- Nach jedem abgeschlossenen Plan-Schritt lokal committen: `git add -A && git commit -m "<kurze Beschreibung>"` — das ist ohne Rückfrage erlaubt
+- Pushen nur auf ausdrückliche Nachfrage
+- Commit-Messages auf Englisch, knapp und im Imperativ (`add folder-size monitor`, nicht `added ...`)
+- Jede Commit-Message endet mit der Zeile:
+  `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`
 
 ---
 
-## Nach jeder Coding-Aufgabe
+## Aufgabenwechsel und Übergabe
 
-Abschlusszusammenfassung ausgeben:
-
-- **Geänderte Dateien:** (jede Datei auflisten)
-- **Was wurde geändert:** (eine Zeile pro Datei)
-- **Nicht angefasste Dateien:** (explizit nennen)
-- **Offene Punkte:** (falls vorhanden)
+- Wenn eine erkennbar neue, eigenständige Aufgabe beginnt: vorschlagen, in einen frischen Chat zu wechseln (kurze Kontexte = bessere Qualität)
+- Bei diesem Wechsel `STAND.md` aktualisieren: aktuelle Aufgabe, Erledigtes, nächster Schritt, offene Entscheidungen
+- `STAND.md` ist flüchtig und nicht versioniert — der Stand gehört dort hin, NICHT in diese Datei
+- Im neuen Chat zuerst `STAND.md` lesen
 
 ---
 
-## Checkliste vor jedem "Fertig"
+## Abschluss jeder Coding-Aufgabe
 
-- [ ] Keine Secrets im Code or in der Versionskontrolle
-- [ ] `.env.example` vorhanden
-- [ ] Fehlerbehandlung für alle externen Aufrufe
-- [ ] Berechtigungen geprüft
-- [ ] Rate Limiting bedacht (falls öffentlich erreichbar)
-- [ ] Code ist lesbar und kommentiert
-- [ ] Testfälle formuliert und umgesetzt
-- [ ] Abschlusszusammenfassung ausgegeben
+Den vollständigen Abschluss-Prozess (Abschlusszusammenfassung + Checkliste vor jedem "Fertig") siehe `CHECKLISTE.md`. Diese Datei am Ende jeder Coding-Aufgabe abarbeiten.
 
 ---
 

@@ -613,9 +613,9 @@ def process_worker(params):
                                 else:
                                     shutil.copy(p_src, p_dest)
                         log_message("[Transfer Thread]: Serien-Metadaten kopiert.")
-                        settings = load_settings()
-                        if settings.get("open_nas_finder") and "/Volumes/Kino" in dest_show_dir_nas:
-                            subprocess.run(["open", dest_show_dir_nas])
+                        # settings = load_settings()
+                        # if settings.get("open_nas_finder") and "/Volumes/Kino" in dest_show_dir_nas:
+                        #     open_folder_in_finder(dest_show_dir_nas)
                         
                     elif task_type in ["pcloud_transfer", "cloud_transfer"]:
                         target_id = task.get("target_id", "pcloud")
@@ -691,8 +691,29 @@ def process_worker(params):
                 ep_num = ep_num_val.get("episode", 1)
                 ep_season = ep_num_val.get("season", season)
                 ep_title = ep_num_val.get("title", "")
-                orig_season = ep_season
-                orig_episode = ep_num
+                meta_ep = ep_num_val.get("metadata_ep_num")
+                if meta_ep:
+                    ep_data = episodes.get(str(meta_ep), {})
+                    if not ep_data and provider == "ytdlp" and len(episodes) == 1:
+                        ep_data = list(episodes.values())[0]
+                    if isinstance(ep_data, dict):
+                        ep_title = ep_data.get("title", ep_title)
+                    else:
+                        ep_title = str(ep_data) or ep_title
+                        
+                    match = re.match(r"^S(\d+)E(\d+)$", str(meta_ep), re.IGNORECASE)
+                    if match:
+                        orig_season = int(match.group(1))
+                        orig_episode = int(match.group(2))
+                    else:
+                        orig_season = season
+                        try:
+                            orig_episode = int(meta_ep)
+                        except (ValueError, TypeError):
+                            orig_episode = meta_ep
+                else:
+                    orig_season = ep_season
+                    orig_episode = ep_num
             else:
                 ep_data = episodes.get(str(ep_num_val), {})
                 if not ep_data and provider == "ytdlp" and len(episodes) == 1:
@@ -937,7 +958,7 @@ def process_worker(params):
                         log_message(f"Serien-Metadatei in Output-Ordner verschoben: {f}")
             # Open local destination in Finder
             if settings.get("open_outbox_finder"):
-                subprocess.run(["open", dest_show_dir_outbox])
+                open_folder_in_finder(dest_show_dir_outbox)
         except Exception as e:
             log_message(f"Fehler beim Verschieben der Serien-Metadaten in Output-Ordner: {e}")
 
@@ -1014,9 +1035,21 @@ def process_worker(params):
         # Cleanup input folder if it was a project directory under inbox_root
         if current_dir != inbox_root and os.path.exists(current_dir):
             try:
-                if not os.listdir(current_dir):
-                    os.rmdir(current_dir)
-                    log_message(f"Leeren Projekt-Ordner im Input bereinigt: {os.path.basename(current_dir)}")
+                video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
+                remaining_videos = []
+                for root, dirs, files in os.walk(current_dir):
+                    for f in files:
+                        if f.lower().endswith(video_exts) and not f.startswith("."):
+                            remaining_videos.append(os.path.join(root, f))
+                
+                if not remaining_videos:
+                    shutil.rmtree(current_dir)
+                    log_message(f"Projekt-Ordner im Input bereinigt (keine Videos mehr vorhanden): {os.path.basename(current_dir)}")
+                else:
+                    non_dot_files = [f for f in os.listdir(current_dir) if not f.startswith(".")]
+                    if not non_dot_files:
+                        shutil.rmtree(current_dir)
+                        log_message(f"Leeren Projekt-Ordner im Input bereinigt: {os.path.basename(current_dir)}")
             except Exception as e:
                 log_message(f"Fehler beim Bereinigen des Projekt-Ordners: {e}")
 
@@ -1214,9 +1247,9 @@ def process_worker(params):
                         if success:
                             log_message(f"[Transfer Thread]: Kopieren auf {target_id} fertig für {final_filename}.")
                             target_progresses[target_id][file_idx] = 100
-                            settings = load_settings()
-                            if settings.get("open_nas_finder") and "/Volumes/Kino" in dest_movie_dir_nas:
-                                subprocess.run(["open", dest_movie_dir_nas])
+                            # settings = load_settings()
+                            # if settings.get("open_nas_finder") and "/Volumes/Kino" in dest_movie_dir_nas:
+                            #     open_folder_in_finder(dest_movie_dir_nas)
                         else:
                             log_message(f"⚠️ [Transfer Thread]: Fehler beim Kopieren von {final_filename} auf {target_id}.")
                             with active_jobs_lock:
@@ -1417,7 +1450,7 @@ def process_worker(params):
                         
                 # Open output directory in Finder
                 if settings.get("open_outbox_finder"):
-                    subprocess.run(["open", dest_movie_dir_outbox])
+                    open_folder_in_finder(dest_movie_dir_outbox)
             except Exception as e:
                 log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
  
@@ -1497,9 +1530,21 @@ def process_worker(params):
         # Cleanup input folder if it was a project directory under inbox_root
         if current_dir != inbox_root and os.path.exists(current_dir):
             try:
-                if not os.listdir(current_dir):
-                    os.rmdir(current_dir)
-                    log_message(f"Leeren Projekt-Ordner im Input bereinigt: {os.path.basename(current_dir)}")
+                video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
+                remaining_videos = []
+                for root, dirs, files in os.walk(current_dir):
+                    for f in files:
+                        if f.lower().endswith(video_exts) and not f.startswith("."):
+                            remaining_videos.append(os.path.join(root, f))
+                
+                if not remaining_videos:
+                    shutil.rmtree(current_dir)
+                    log_message(f"Projekt-Ordner im Input bereinigt (keine Videos mehr vorhanden): {os.path.basename(current_dir)}")
+                else:
+                    non_dot_files = [f for f in os.listdir(current_dir) if not f.startswith(".")]
+                    if not non_dot_files:
+                        shutil.rmtree(current_dir)
+                        log_message(f"Leeren Projekt-Ordner im Input bereinigt: {os.path.basename(current_dir)}")
             except Exception as e:
                 log_message(f"Fehler beim Bereinigen des Projekt-Ordners: {e}")
                     
@@ -1974,7 +2019,7 @@ def process_worker(params):
                     transfer_successful = True
                     
                     if settings.get("open_outbox_finder"):
-                        subprocess.run(["open", dest_dir_outbox])
+                        open_folder_in_finder(dest_dir_outbox)
                 except Exception as e:
                     log_message(f"  ❌ Fehler bei Übertragung in Output-Ordner: {e}")
                     all_transfers_successful = False
@@ -2037,7 +2082,7 @@ def process_worker(params):
                                     log_message(f"  ✅ Erfolgreich auf {target.get('name', t_id)} kopiert.")
                                     update_task_pipeline_status(task_id, t_id, "done", 100)
                                     if t_id == "nas" and settings.get("open_nas_finder"):
-                                        subprocess.run(["open", dest_dir_target])
+                                        open_folder_in_finder(dest_dir_target)
                                 except Exception as e:
                                     log_message(f"  ❌ Fehler bei {target.get('name', t_id)}-Kopie: {e}")
                                     update_task_pipeline_status(task_id, t_id, "error", 0)
@@ -2164,7 +2209,7 @@ def process_worker(params):
                     
                     # Open local folder if setting is enabled
                     if settings.get("open_outbox_finder"):
-                        subprocess.run(["open", local_dest_dir])
+                        open_folder_in_finder(local_dest_dir)
                 except Exception as e:
                     log_message(f"  ❌ Fehler beim Kopieren in lokalen Ordner: {e}")
                     update_task_pipeline_status(task_id, "local", "error", 0)
@@ -2180,7 +2225,7 @@ def process_worker(params):
             else:
                 log_message(f"⚠️  Übertragung fehlgeschlagen. Der temporäre Ordner '{temp_dir}' wurde NICHT gelöscht.")
                 # Open temp folder in Finder so the user can access files manually
-                subprocess.run(["open", temp_dir])
+                open_folder_in_finder(temp_dir)
                 
             with active_jobs_lock:
                 if task_id in active_jobs:
@@ -2313,7 +2358,7 @@ def process_worker(params):
             if nas_success:
                 log_message(f"✅ Erfolgreich auf NAS synchronisiert.")
                 if open_after:
-                    subprocess.run(["open", nas_target])
+                    open_folder_in_finder(nas_target)
             else:
                 log_message(f"❌ Fehler bei NAS Sync.")
         except Exception as e:

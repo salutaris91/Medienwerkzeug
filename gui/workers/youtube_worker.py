@@ -1,5 +1,5 @@
-from gui.core.utils import load_settings, save_settings
-import os, urllib.request, json, time, asyncio, subprocess
+from gui.core.utils import load_settings, save_settings, DATA_DIR
+import os, urllib.request, json, time, asyncio, subprocess, threading
 from gui.core.helpers import *
 def fetch_online_jokes_async():
     def target():
@@ -11,7 +11,7 @@ def fetch_online_jokes_async():
             with urllib.request.urlopen(req, timeout=5) as response:
                 data = json.loads(response.read().decode('utf-8'))
                 if isinstance(data, list) and len(data) > 0:
-                    local_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "jokes.json")
+                    local_path = os.path.join(DATA_DIR, "jokes.json")
                     os.makedirs(os.path.dirname(local_path), exist_ok=True)
                     with open(local_path, "w", encoding="utf-8") as f:
                         json.dump(data, f, ensure_ascii=False, indent=2)
@@ -24,7 +24,7 @@ def fetch_online_jokes_async():
 def get_random_joke():
     import random
     import json
-    local_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "jokes.json")
+    local_path = os.path.join(DATA_DIR, "jokes.json")
     try:
         if os.path.exists(local_path):
             with open(local_path, "r", encoding="utf-8") as f:
@@ -40,7 +40,8 @@ def is_text_german(text, is_description=False, context_keywords=None):
     import re
     if not text:
         return False
-    text_lower = text.lower()
+    # Normalize phrases
+    text_lower = text.lower().replace("let's play", "letsplay").replace("let's plays", "letsplay")
     
     # 1. Check for German-specific characters
     if any(c in text_lower for c in ['ä', 'ö', 'ü', 'ß']):
@@ -51,7 +52,11 @@ def is_text_german(text, is_description=False, context_keywords=None):
         'deutsch', 'deutsche', 'deutscher', 'deutsches', 'hörbuch', 
         'schauspieler', 'kinderserie', 'kindheit', 'erinnerungen',
         'karmesin', 'purpur', 'schwert', 'schild', 'feuerrot', 'blattgrün',
-        'spieletipps', 'komplettlösung', 'spielvorstellung'
+        'spieletipps', 'komplettlösung', 'spielvorstellung', 'letsplay',
+        'gelb', 'blau', 'rot', 'grün', 'silber', 'gold', 'kristall', 
+        'smaragd', 'rubin', 'saphir', 'perl', 'diamant', 'platin', 
+        'schwarz', 'weiss', 'weiß', 'sonne', 'mond', 'arceus', 'karten', 
+        'karte', 'päckchen', 'sammlung', 'sammeln', 'öffnen', 'geöffnet'
     }
     
     words = re.findall(r'\b[a-z]+\b', text_lower)
