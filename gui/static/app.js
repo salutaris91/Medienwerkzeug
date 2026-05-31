@@ -8814,13 +8814,7 @@ async function updateHomepageData(statusData) {
                     smartInboxList.appendChild(itemDiv);
                 });
             } else {
-                // Leer-Zustand: Karte bleibt sichtbar (ersetzt die frühere "Inbox & Projekte"-Kachel).
-                // Falls Ordner ohne erkennbares Video in der Inbox liegen, das transparent machen.
-                const folderCount = statusData.projects ? statusData.projects.length : 0;
-                const emptyMsg = folderCount > 0
-                    ? `${folderCount} Ordner in der Inbox, aber keine verarbeitbaren Projekte erkannt (keine Videodateien gefunden).`
-                    : "Keine Projekte in der Inbox.";
-                smartInboxList.innerHTML = `<p class="text-muted" style="margin: 4px 0;">${escapeHTML(emptyMsg)}</p>`;
+                cardSmartInbox.style.display = "none";
             }
         }
     } catch (e) {
