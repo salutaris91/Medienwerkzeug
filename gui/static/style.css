@@ -1525,9 +1525,10 @@ select:focus {
     flex-shrink: 0;
 }
 
-#view-settings {
-    height: 100%;
-    min-height: 0;
+#view-settings > .card {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 200px);
 }
 
 .view-panel.hidden {
