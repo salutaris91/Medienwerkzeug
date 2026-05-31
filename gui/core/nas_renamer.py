@@ -4,7 +4,7 @@ import re
 import time
 import shutil
 import gui.mw_metadata as mw_metadata
-from gui.core.utils import limit_filename_length, sanitize_filename
+from gui.core.helpers import limit_filename_length, sanitize_filename
 
 TRANSACTIONS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "rename_transactions")
 

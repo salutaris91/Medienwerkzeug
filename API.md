@@ -131,7 +131,14 @@ Importiert StreamFab-Downloads in die Inbox.
 * `POST /api/nas/health-scan` — startet den Bibliotheks-Scan im Hintergrund.
 * `GET /api/nas/health-status` — Fortschritt + Ergebnis (gecacht). Issues nach
   Schwere (`critical`/`warning`/`info`): fehlende NFOs/Artwork, Episodenlücken,
-  Codec-Inkonsistenz, leere Ordner, kleine Dateien.
+  Codec-Inkonsistenz, leere Ordner, kleine Dateien, doppelt verschachtelte
+  Filmordner (`nested_duplicate`), kryptische/unbenannte Ordner (`bad_folder_name`),
+  Ordner-/Dateiname-Mismatches (`name_mismatch`).
+* `POST /api/nas/health-fix` — Quick-Fix für Health-Issues. Actions:
+  `flatten` (Verschachtelung auflösen), `rename_folder`, `rename_file`,
+  `rename_folder_to_file`, `rename_file_to_folder`, `rename_both`.
+  Payload: `{"action": "...", "path": "...", "new_name": "..."}`.
+  Nur innerhalb NAS-Root, nie überschreibend.
 
 ### Feature 4 — NAS-weite Duplikat-Erkennung
 * `POST /api/nas/scan-duplicates` — startet die Erkennung im Hintergrund.

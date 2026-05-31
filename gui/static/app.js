@@ -66,8 +66,13 @@ async function fetchNasSeasons() {
     const destId = destSelect ? destSelect.value : "";
     infoContainer.innerHTML = '<span style="color:var(--text-muted); font-style:italic;">Lade Staffelinfo vom NAS...</span>';
     
+    let url = `/api/nas-seasons?folder=${encodeURIComponent(folderName)}&destination_id=${encodeURIComponent(destId)}`;
+    if (window.disableNasFuzzyMatch) {
+        url += "&exact=1";
+    }
+    
     try {
-        const res = await fetch(`/api/nas-seasons?folder=${encodeURIComponent(folderName)}&destination_id=${encodeURIComponent(destId)}`);
+        const res = await fetch(url);
         if (!res.ok) throw new Error("Fehler beim Laden");
         const data = await res.json();
         
@@ -91,7 +96,15 @@ async function fetchNasSeasons() {
                 const sourceText = s.source ? ` [${s.source}]` : "";
                 return `<span style="display:inline-block; padding:2px 8px; margin:2px 4px 2px 0; border-radius:var(--radius-sm); background:rgba(139,92,246,0.15); color:var(--accent); font-size:11px; font-weight:500;">${s.name} <span style='opacity:0.7'>(${episodeText})${sourceText}</span></span>`;
             }).join("");
-            infoContainer.innerHTML = `<span style="font-size:11px; color:var(--text-muted);">📂 Auf NAS vorhanden:</span><br>${badges}`;
+            
+            infoContainer.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; background: rgba(255, 179, 0, 0.05); padding: 8px; border-radius: 6px; border: 1px solid rgba(255, 179, 0, 0.2);">
+                    <div>
+                        <span style="font-size:11px; color:var(--text-muted);">📂 Auf NAS vorhanden:</span><br>${badges}
+                    </div>
+                    <button class="btn btn-xs" style="background:var(--error); color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; flex-shrink: 0;" onclick="clearNasOverride()" title="Falsche NAS-Zuordnung trennen und Serie als neu anlegen">❌ Falscher NAS-Ordner?</button>
+                </div>
+            `;
             
             // 2. Auto-check absolute numbering if only Staffel 1 exists
             if (data.seasons.length === 1) {
@@ -226,7 +239,10 @@ document.addEventListener("DOMContentLoaded", () => {
         seriesOverrideInput.addEventListener("input", () => {
             window.nasFolderSelected = seriesOverrideInput.value;
         });
-        seriesOverrideInput.addEventListener("change", fetchNasSeasons);
+        seriesOverrideInput.addEventListener("change", () => {
+            fetchNasSeasons();
+            if (window.selectedShow) fetchEpisodes();
+        });
     }
     
     const ytNasDest = document.getElementById("yt-nas-destination");
@@ -1853,6 +1869,14 @@ async function searchSeries() {
         // Bind selection clicks
         resultsContainer.querySelectorAll(".search-item").forEach(item => {
             item.addEventListener("click", () => {
+                // Visual feedback: remove selected class from all, add to this
+                resultsContainer.querySelectorAll(".search-item").forEach(i => {
+                    i.style.background = "";
+                    i.style.borderColor = "var(--border-light)";
+                });
+                item.style.background = "var(--primary-light)";
+                item.style.borderColor = "var(--primary)";
+                
                 const targetMediaType = item.getAttribute("data-media-type");
                 const showObj = {
                     id: item.getAttribute("data-id"),
@@ -1865,8 +1889,18 @@ async function searchSeries() {
                     document.getElementById("context-movie").classList.remove("hidden");
                     document.getElementById("movie-search-query").value = showObj.name;
                     selectMovie(showObj);
+                    
+                    setTimeout(() => {
+                        const panel = document.getElementById("selected-movie-panel");
+                        if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 200);
                 } else {
                     selectShow(showObj);
+                    
+                    setTimeout(() => {
+                        const panel = document.getElementById("selected-show-panel");
+                        if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 200);
                 }
             });
         });
@@ -2023,6 +2057,9 @@ async function selectShow(show) {
     seasonsInfo.textContent = "Lade Staffel-Informationen...";
     panel.classList.remove("hidden");
     
+    const clearBtn = document.getElementById("btn-clear-profile-selection");
+    if (clearBtn) clearBtn.classList.remove("hidden");
+    
     // Reset and close series details collapsible block
     const seriesDetails = document.getElementById("series-nfo-details");
     if (seriesDetails) {
@@ -2047,7 +2084,7 @@ async function selectShow(show) {
             console.error("Error fetching show NFO preview:", err);
             if (seriesNfoPlot) seriesNfoPlot.value = "";
         });
-        
+
     fetchNasSeasons();
     
     // Auto-routing destination for Dokus (default fallback before profile application)
@@ -8370,9 +8407,13 @@ function findBestNasFolderMatch(cleanedTitle, folders) {
     
     // 3. Substring match
     if (normProj.length >= 4) {
+        const hasYear = (str) => /\d{4}/.test(str);
         for (const f of folders) {
             const normF = f.toLowerCase().replace(/[^a-z0-9]/g, '');
             if (normF.includes(normProj) || normProj.includes(normF)) {
+                if (hasYear(normProj) !== hasYear(normF)) {
+                    continue; // Skip mismatching years to prevent e.g. Avatar (2024) matching Avatar (2005)
+                }
                 return f;
             }
         }
@@ -10502,3 +10543,63 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
+
+window.clearSelectedShow = function() {
+    window.selectedShow = null;
+    const panel = document.getElementById("selected-show-panel");
+    if (panel) panel.classList.add("hidden");
+    
+    const clearBtn = document.getElementById("btn-clear-profile-selection");
+    if (clearBtn) clearBtn.classList.add("hidden");
+    
+    const localProfileSelect = document.getElementById("series-local-profile-select");
+    if (localProfileSelect) localProfileSelect.value = "";
+    
+    const overrideInput = document.getElementById("series-nas-folder-override");
+    if (overrideInput) {
+        overrideInput.value = "";
+        window.nasFolderSelected = "";
+    }
+    
+    const matchingContainer = document.getElementById("matching-panel-container");
+    if (matchingContainer) matchingContainer.innerHTML = "";
+    
+    const execPanel = document.getElementById("series-execution-panel");
+    if (execPanel) execPanel.classList.add("hidden");
+    
+    const seriesNfoTitle = document.getElementById("series-nfo-title");
+    const seriesNfoYear = document.getElementById("series-nfo-year");
+    const seriesNfoPlot = document.getElementById("series-nfo-plot");
+    if (seriesNfoTitle) seriesNfoTitle.value = "";
+    if (seriesNfoYear) seriesNfoYear.value = "";
+    if (seriesNfoPlot) seriesNfoPlot.value = "";
+    
+    fetchNasSeasons();
+};
+
+window.clearNasOverride = function() {
+    const overrideInput = document.getElementById("series-nas-folder-override");
+    if (overrideInput && selectedShow) {
+        overrideInput.value = cleanSeriesName(selectedShow.name);
+        window.nasFolderSelected = ""; // Clear polluted saved state
+        window.disableNasFuzzyMatch = true; // Prevent backend from re-matching the wrong folder
+        
+        // Visual flash to indicate reset
+        overrideInput.classList.remove("highlight-match-flash");
+        void overrideInput.offsetWidth;
+        overrideInput.classList.add("highlight-match-flash");
+        setTimeout(() => {
+            overrideInput.classList.remove("highlight-match-flash");
+        }, 1500);
+        
+        // Re-fetch NAS info and reset duplicates
+        fetchNasSeasons();
+        
+        // If we are currently showing episodes, we must re-trigger match to clear duplicate warnings
+        const execPanel = document.getElementById("series-execution-panel");
+        if (execPanel && !execPanel.classList.contains("hidden")) {
+            const btn = document.getElementById("btn-fetch-episodes");
+            if (btn) btn.click();
+        }
+    }
+};

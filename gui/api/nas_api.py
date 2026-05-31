@@ -253,6 +253,7 @@ def handle_api_nas_seasons():
     """Return existing season folders and episode counts for a show on the NAS."""
     folder_name = query.get("folder", [""])[0] if isinstance(query.get("folder"), list) else query.get("folder", "")
     destination_id = query.get("destination_id", [""])[0] if isinstance(query.get("destination_id"), list) else query.get("destination_id", "")
+    exact_match = query.get("exact", "0") == "1"
     
     if not folder_name:
         return jsonify({"seasons": [], "folder": folder_name})
@@ -290,9 +291,12 @@ def handle_api_nas_seasons():
         rel_dest = os.path.relpath(dest_path, nas_root)
         outbox_dest = os.path.join(outbox_root, rel_dest)
         
-        # Use fuzzy matching to resolve existing folder name
+        # Use fuzzy matching to resolve existing folder name, unless exact match requested
         clean_show = clean_series_name_for_fs(folder_name)
-        matched_folder = get_matched_series_name(dest_path, outbox_dest, clean_show)
+        if exact_match:
+            matched_folder = clean_show
+        else:
+            matched_folder = get_matched_series_name(dest_path, outbox_dest, clean_show)
         
         show_path = os.path.join(dest_path, matched_folder)
         outbox_show_path = os.path.join(outbox_dest, matched_folder)

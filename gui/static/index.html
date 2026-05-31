@@ -422,8 +422,11 @@
                 <div id="context-series" class="context-panel hidden card inline-style-28" >
                     <!-- NEW LOCAL PROFILE SECTION -->
                     <div style="background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.2); border-radius: 8px; padding: 15px; margin-bottom: 20px;">
-                        <h4 style="margin-top: 0; color: var(--success); display: flex; align-items: center; gap: 8px;">
-                            <span>💾</span> Gespeichertes Profil laden
+                        <h4 style="margin-top: 0; color: var(--success); display: flex; align-items: center; justify-content: space-between;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span>💾</span> Gespeichertes Profil laden
+                            </div>
+                            <button id="btn-clear-profile-selection" class="btn btn-xs btn-secondary hidden" onclick="clearSelectedShow()" title="Geladenes Profil aufheben">Auswahl aufheben</button>
                         </h4>
                         <p style="font-size: 0.9em; color: var(--text-muted); margin-bottom: 10px;">Wähle ein lokales Profil, um Metadaten und Einstellungen automatisch zu übernehmen.</p>
                         <input type="text" id="series-local-profile-search" placeholder="🔍 Profil filtern..." style="width: 100%; padding: 10px; border-radius: 6px; background: var(--bg-surface); border: 1px solid var(--border-light); color: var(--text-main); font-size: 0.95rem; margin-bottom: 10px; box-sizing: border-box;">
@@ -474,8 +477,10 @@
                     </div>
 
                     <div class="selected-show-card hidden inline-style-35" id="selected-show-panel" >
-                        <h4 id="selected-show-title">Ausgewählte Serie</h4>
-                        <p class="text-muted" id="selected-show-provider-info"></p>
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px;">
+                            <h4 id="selected-show-title" style="margin: 0;">Ausgewählte Serie</h4>
+                        </div>
+                        <p class="text-muted" id="selected-show-provider-info" style="margin-top: 5px;"></p>
                         <p id="selected-show-seasons-info"></p>
                         <div id="selected-show-nas-seasons-info" class="inline-style-56"></div>
                         
@@ -1863,7 +1868,7 @@
     </div>
 </div>
 
-    <script src="app.js?v=63"></script>
+    <script src="app.js?v=65"></script>
 
     <!-- Modal: Confirm Merge -->
     <div id="modal-confirm-merge" class="mw-modal-overlay">
