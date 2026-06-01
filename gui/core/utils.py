@@ -253,7 +253,8 @@ def load_settings():
             {"id": "5", "name": "Filme 3D", "nas_sub": "/Filme 3D", "pcloud_remote": "pcloud:03a_3D Filme", "targets": {"nas": "/Filme 3D", "pcloud": "pcloud:03a_3D Filme"}},
             {"id": "6", "name": "Sonstiges", "nas_sub": "/Sonstiges", "pcloud_remote": "pcloud:05_Sonstiges", "targets": {"nas": "/Sonstiges", "pcloud": "pcloud:05_Sonstiges"}}
         ],
-        "youtube_subscriptions": []
+        "youtube_subscriptions": [],
+        "media_server": "emby"
     }
     
     with settings_lock:

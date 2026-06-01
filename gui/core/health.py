@@ -22,6 +22,7 @@ from gui.core import utils
 from gui.core import media
 from gui.core.transfers import ensure_nas_mounted, walk_nas_categories
 from gui.core.helpers import log_message
+from gui.core import artwork_validators
 
 # ---------------------------------------------------------------------------
 # Konfiguration
@@ -153,7 +154,21 @@ def _collect_videos(root):
     return videos, nfo_basenames
 
 
-def _check_season(issues, category, show_name, season_path):
+def _get_provider_from_nfo(nfo_path):
+    if not os.path.exists(nfo_path):
+        return None
+    try:
+        with open(nfo_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+            m = re.search(r'<mw_provider>(.*?)</mw_provider>', content)
+            if m:
+                return m.group(1).strip()
+    except Exception:
+        pass
+    return None
+
+
+def _check_season(issues, category, show_name, season_path, validator):
     """Prüft einen einzelnen Staffel-Ordner (rekursiv). Gibt geprüfte Dateien zurück."""
     # Showname voranstellen, damit das Issue auf einen Blick zuordenbar ist
     label = f"{show_name} · {os.path.basename(season_path)}"
@@ -225,6 +240,32 @@ def _check_season(issues, category, show_name, season_path):
             _add_issue(issues, "warning", "codec_inconsistency", category, season_path,
                        f"{label}: uneinheitliche Codecs in Stichprobe ({', '.join(sorted(codecs))})")
 
+    # Season poster check
+    season_folder = os.path.basename(season_path).lower()
+    season_num = 1
+    if "specials" in season_folder:
+        season_num = 0
+    else:
+        m = re.search(r'\d+', season_folder)
+        if m:
+            season_num = int(m.group(0))
+
+    show_path = os.path.dirname(season_path)
+    has_season_poster = False
+    for name in validator.get_season_poster_names(season_num):
+        full_path = os.path.join(show_path, name)
+        if os.path.exists(full_path):
+            has_season_poster = True
+            break
+        fn = os.path.basename(name)
+        if os.path.exists(os.path.join(season_path, fn)):
+            has_season_poster = True
+            break
+
+    if not has_season_poster:
+        _add_issue(issues, "warning", "missing_season_poster", category, season_path,
+                   f"{label}: Season-Poster fehlt")
+
     return len(videos)
 
 
@@ -239,7 +280,7 @@ def _normalize_for_consistency_check(name):
     return re.sub(r'[^a-z0-9]', '', name).strip()
 
 
-def _check_series_show(issues, category, show_path):
+def _check_series_show(issues, category, show_path, validator):
     files_checked = 0
     try:
         entries = os.listdir(show_path)
@@ -252,10 +293,57 @@ def _check_series_show(issues, category, show_path):
         _add_issue(issues, "warning", "missing_nfo", category, show_path,
                    f"{os.path.basename(show_path)}: tvshow.nfo fehlt")
 
-    # Artwork (nur flaggen, wenn gar kein Bild vorhanden)
-    if not _has_any_artwork(show_path):
-        _add_issue(issues, "info", "missing_artwork", category, show_path,
-                   f"{os.path.basename(show_path)}: kein Artwork vorhanden")
+    # Fetch provider from tvshow.nfo if it exists
+    provider = _get_provider_from_nfo(os.path.join(show_path, "tvshow.nfo"))
+    show_dir_name = os.path.basename(show_path)
+
+    # 1. Poster check
+    has_poster = False
+    for name in validator.get_series_poster_names():
+        if os.path.exists(os.path.join(show_path, name)):
+            has_poster = True
+            break
+    if not has_poster:
+        _add_issue(issues, "warning", "missing_poster", category, show_path,
+                   f"{show_dir_name}: Serienposter fehlt")
+
+    # 2. Fanart/Backdrop check
+    has_backdrop = False
+    for name in validator.get_series_backdrop_names():
+        if os.path.exists(os.path.join(show_path, name)):
+            has_backdrop = True
+            break
+    if not has_backdrop:
+        _add_issue(issues, "warning", "missing_backdrop", category, show_path,
+                   f"{show_dir_name}: Hintergrundbild (Fanart) fehlt")
+
+    # 3. Logo check
+    if validator.supports_logos:
+        has_logo = False
+        for name in validator.get_series_logo_names():
+            if os.path.exists(os.path.join(show_path, name)):
+                has_logo = True
+                break
+        if not has_logo:
+            severity = "info"
+            msg = f"{show_dir_name}: ClearLogo fehlt"
+            if provider in ("mediathek", "ytdlp", "manual"):
+                msg += f" (Metadatendienst '{provider}' unterstützt keine Logos)"
+            _add_issue(issues, severity, "missing_logo", category, show_path, msg)
+
+    # 4. Banner check
+    if validator.supports_banners:
+        has_banner = False
+        for name in validator.get_series_banner_names():
+            if os.path.exists(os.path.join(show_path, name)):
+                has_banner = True
+                break
+        if not has_banner:
+            severity = "info"
+            msg = f"{show_dir_name}: Banner fehlt"
+            if provider in ("mediathek", "ytdlp", "manual"):
+                msg += f" (Metadatendienst '{provider}' unterstützt keine Banner)"
+            _add_issue(issues, severity, "missing_banner", category, show_path, msg)
 
     # Staffeln
     season_dirs = [e for e in sorted(entries)
@@ -293,12 +381,12 @@ def _check_series_show(issues, category, show_path):
                        f"{show_name}: Episodendateien verwenden einen anderen Seriennamen ('{prefix_val}') als der Hauptordner")
 
     for sd in season_dirs:
-        files_checked += _check_season(issues, category, show_name, os.path.join(show_path, sd))
+        files_checked += _check_season(issues, category, show_name, os.path.join(show_path, sd), validator)
 
     return files_checked
 
 
-def _check_movie(issues, category, movie_path):
+def _check_movie(issues, category, movie_path, validator):
     name = os.path.basename(movie_path)
     try:
         entries = [e for e in os.listdir(movie_path) if not e.startswith('.')]
@@ -351,10 +439,58 @@ def _check_movie(issues, category, movie_path):
         _add_issue(issues, "warning", "missing_nfo", category, movie_path,
                    f"{name}: keine NFO vorhanden")
 
-    # Artwork (nur flaggen, wenn gar kein Bild vorhanden)
-    if not _has_any_artwork(movie_path):
-        _add_issue(issues, "info", "missing_artwork", category, movie_path,
-                   f"{name}: kein Artwork vorhanden")
+    # Artwork checks using validator
+    video_filename = videos[0][1] if videos else f"{name}.mkv"
+    video_stem = os.path.splitext(video_filename)[0]
+    provider = _get_provider_from_nfo(os.path.join(movie_path, f"{video_stem}.nfo"))
+
+    # 1. Poster check
+    has_poster = False
+    for p_name in validator.get_movie_poster_names(video_filename):
+        if os.path.exists(os.path.join(movie_path, p_name)):
+            has_poster = True
+            break
+    if not has_poster:
+        _add_issue(issues, "warning", "missing_poster", category, movie_path,
+                   f"{name}: Filmplakat (Poster) fehlt")
+
+    # 2. Fanart/Backdrop check
+    has_backdrop = False
+    for b_name in validator.get_movie_backdrop_names(video_filename):
+        if os.path.exists(os.path.join(movie_path, b_name)):
+            has_backdrop = True
+            break
+    if not has_backdrop:
+        _add_issue(issues, "warning", "missing_backdrop", category, movie_path,
+                   f"{name}: Hintergrundbild (Fanart) fehlt")
+
+    # 3. Logo check
+    if validator.supports_logos:
+        has_logo = False
+        for l_name in validator.get_movie_logo_names(video_filename):
+            if os.path.exists(os.path.join(movie_path, l_name)):
+                has_logo = True
+                break
+        if not has_logo:
+            severity = "info"
+            msg = f"{name}: ClearLogo fehlt"
+            if provider in ("mediathek", "ytdlp", "manual"):
+                msg += f" (Metadatendienst '{provider}' unterstützt keine Logos)"
+            _add_issue(issues, severity, "missing_logo", category, movie_path, msg)
+
+    # 4. Banner check
+    if validator.supports_banners:
+        has_banner = False
+        for bn_name in validator.get_movie_banner_names(video_filename):
+            if os.path.exists(os.path.join(movie_path, bn_name)):
+                has_banner = True
+                break
+        if not has_banner:
+            severity = "info"
+            msg = f"{name}: Banner fehlt"
+            if provider in ("mediathek", "ytdlp", "manual"):
+                msg += f" (Metadatendienst '{provider}' unterstützt keine Banner)"
+            _add_issue(issues, severity, "missing_banner", category, movie_path, msg)
 
     # Kleine Dateien
     small = []
@@ -385,6 +521,8 @@ def _run_health_scan():
             return
 
         settings = utils.load_settings()
+        server_type = settings.get("media_server", "emby")
+        validator = artwork_validators.get_validator(server_type)
         shows = list(walk_nas_categories(settings))
         total = len(shows)
         log_message(f"🔍 [Health-Scan] Starte Prüfung von {total} Ordnern...")
@@ -396,7 +534,7 @@ def _run_health_scan():
                 scanned={"shows": idx, "files": files_checked},
             )
             if show["type"] == "series":
-                files_checked += _check_series_show(issues, show["category"], show["path"])
+                files_checked += _check_series_show(issues, show["category"], show["path"], validator)
             elif _is_genre_container(show["path"]):
                 # Genre-Sammelordner (z. B. Filme/Action): nicht selbst als Film prüfen,
                 # sondern die enthaltenen Film-Unterordner einzeln.
@@ -407,9 +545,9 @@ def _run_health_scan():
                 for sd in subdirs:
                     sp = os.path.join(show["path"], sd)
                     if os.path.isdir(sp):
-                        files_checked += _check_movie(issues, show["category"], sp)
+                        files_checked += _check_movie(issues, show["category"], sp, validator)
             else:
-                files_checked += _check_movie(issues, show["category"], show["path"])
+                files_checked += _check_movie(issues, show["category"], show["path"], validator)
 
             if (idx + 1) % 25 == 0:
                 log_message(f"🔍 [Health-Scan] {idx + 1}/{total} Ordner geprüft, "

@@ -1,6 +1,8 @@
 import sys
 import json
 import urllib.request
+from gui.core import artwork_validators
+from gui.core.utils import load_settings
 
 def _download_with_timeout(url, path, timeout=10):
     import urllib.request
@@ -666,16 +668,75 @@ def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=
         
     return {"nfo": True, "poster": False, "fanart": False, "msg": "OFDb NFO erstellt"}
 
+def fetch_tmdb_images(media_type, tmdb_id):
+    """
+    media_type: 'movie' or 'tv'
+    tmdb_id: the ID of the movie or show
+    returns: dict containing 'poster', 'backdrop', 'logo' (all German preferred, fallback to neutral/English)
+    """
+    if not TMDB_API_KEY:
+        return {}
+    url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}/images?api_key={TMDB_API_KEY}&include_image_language=de,en,null"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode())
+            
+            def find_best_image(items):
+                if not items:
+                    return None
+                for item in items:
+                    if item.get('iso_639_1') == 'de':
+                        return item.get('file_path')
+                for item in items:
+                    if not item.get('iso_639_1'):
+                        return item.get('file_path')
+                for item in items:
+                    if item.get('iso_639_1') == 'en':
+                        return item.get('file_path')
+                return items[0].get('file_path')
+                
+            poster_path = find_best_image(data.get('posters', []))
+            backdrop_path = find_best_image(data.get('backdrops', []))
+            logo_path = find_best_image(data.get('logos', []))
+            
+            res = {}
+            if poster_path:
+                res['poster'] = f"https://image.tmdb.org/t/p/original{poster_path}"
+            if backdrop_path:
+                res['backdrop'] = f"https://image.tmdb.org/t/p/original{backdrop_path}"
+            if logo_path:
+                res['logo'] = f"https://image.tmdb.org/t/p/original{logo_path}"
+            return res
+    except Exception as e:
+        print(f"[TMDB Images Error] Failed to fetch images for {media_type}/{tmdb_id}: {e}")
+        return {}
+
+
 def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, nfo_overrides=None):
 
     import os
     nfo_path = os.path.join(folder_path, f"{filename_base}.nfo")
-    poster_path = os.path.join(folder_path, "poster.jpg")
-    fanart_path = os.path.join(folder_path, "fanart.jpg")
+    
+    settings = load_settings()
+    server_type = settings.get("media_server", "emby")
+    validator = artwork_validators.get_validator(server_type)
+    
+    poster_filename = validator.get_preferred_movie_poster_name(f"{filename_base}.mkv")
+    fanart_filename = validator.get_preferred_movie_backdrop_name(f"{filename_base}.mkv")
+    logo_filename = validator.get_preferred_movie_logo_name(f"{filename_base}.mkv")
+    banner_filename = validator.get_preferred_movie_banner_name(f"{filename_base}.mkv")
+    
+    poster_path = os.path.join(folder_path, poster_filename)
+    fanart_path = os.path.join(folder_path, fanart_filename)
+    logo_path = os.path.join(folder_path, logo_filename)
+    banner_path = os.path.join(folder_path, banner_filename)
     
     needs_nfo = not os.path.exists(nfo_path)
     needs_poster = not os.path.exists(poster_path)
     needs_fanart = not os.path.exists(fanart_path)
+    needs_logo = validator.supports_logos and not os.path.exists(logo_path)
+    needs_banner = validator.supports_banners and not os.path.exists(banner_path)
     
     if isinstance(tmdb_id, str) and tmdb_id.startswith("url_mediathek:"):
         if needs_nfo:
@@ -854,21 +915,49 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
             
+    # Download images using TMDB Images API for German-localized/higher-quality art
+    if (needs_poster or needs_fanart or needs_logo or needs_banner) and str(tmdb_id).isdigit():
+        images = fetch_tmdb_images("movie", tmdb_id)
+        
+        if needs_poster and images.get('poster'):
+            try:
+                _download_with_timeout(images['poster'], poster_path)
+                needs_poster = False
+            except Exception:
+                pass
+                
+        if needs_fanart and images.get('backdrop'):
+            try:
+                _download_with_timeout(images['backdrop'], fanart_path)
+                needs_fanart = False
+            except Exception:
+                pass
+                
+        if needs_logo and images.get('logo'):
+            try:
+                _download_with_timeout(images['logo'], logo_path)
+                needs_logo = False
+            except Exception:
+                pass
+
+    # Fallback to main API response if images endpoint didn't provide URLs or for missing items
     if needs_poster and data.get('poster_path'):
         try:
             p_url = f"https://image.tmdb.org/t/p/original{data['poster_path']}"
             _download_with_timeout(p_url, poster_path)
-        except Exception:
             needs_poster = False
+        except Exception:
+            pass
             
     if needs_fanart and data.get('backdrop_path'):
         try:
             b_url = f"https://image.tmdb.org/t/p/original{data['backdrop_path']}"
             _download_with_timeout(b_url, fanart_path)
-        except Exception:
             needs_fanart = False
+        except Exception:
+            pass
             
-    return {"nfo": needs_nfo, "poster": needs_poster, "fanart": needs_fanart}
+    return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart, "logo": not needs_logo, "banner": not needs_banner}
 
 def fetch_show_nfo_data(provider, show_id):
     if provider == "manual":
@@ -1224,15 +1313,29 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         return {"nfo": False, "poster": False, "fanart": False, "msg": f"Skipped for {provider}"}
         
     nfo_path = os.path.join(target_folder, "tvshow.nfo")
-    poster_path = os.path.join(target_folder, "poster.jpg")
-    fanart_path = os.path.join(target_folder, "fanart.jpg")
+    
+    settings = load_settings()
+    server_type = settings.get("media_server", "emby")
+    validator = artwork_validators.get_validator(server_type)
+    
+    poster_filename = validator.get_preferred_series_poster_name()
+    fanart_filename = validator.get_preferred_series_backdrop_name()
+    logo_filename = validator.get_preferred_series_logo_name()
+    banner_filename = validator.get_preferred_series_banner_name()
+    
+    poster_path = os.path.join(target_folder, poster_filename)
+    fanart_path = os.path.join(target_folder, fanart_filename)
+    logo_path = os.path.join(target_folder, logo_filename)
+    banner_path = os.path.join(target_folder, banner_filename)
     
     needs_nfo = not os.path.exists(nfo_path)
     needs_poster = not os.path.exists(poster_path)
     needs_fanart = not os.path.exists(fanart_path)
+    needs_logo = validator.supports_logos and not os.path.exists(logo_path)
+    needs_banner = validator.supports_banners and not os.path.exists(banner_path)
     
-    if not (needs_nfo or needs_poster or needs_fanart):
-        return {"nfo": False, "poster": False, "fanart": False, "msg": "existiert"}
+    if not (needs_nfo or needs_poster or needs_fanart or needs_logo or needs_banner):
+        return {"nfo": False, "poster": False, "fanart": False, "logo": False, "banner": False, "msg": "existiert"}
         
     if provider == "tvdb":
         token = get_tvdb_token()
@@ -1304,15 +1407,61 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
                 
-        if needs_poster or needs_fanart:
-            for art in data.get('artworks', []):
-                if needs_poster and art.get('type') == 2:
-                    try: _download_with_timeout(art.get('image'), poster_path); needs_poster = False
-                    except Exception as e: print(f"Warning: Ignored exception {e}")
-                if needs_fanart and art.get('type') == 3:
-                    try: _download_with_timeout(art.get('image'), fanart_path); needs_fanart = False
-                    except Exception as e: print(f"Warning: Ignored exception {e}")
-        return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart}
+        if needs_poster or needs_fanart or needs_logo or needs_banner:
+            artworks = data.get('artworks', [])
+            
+            def find_best_tvdb_art(art_type):
+                candidates = [a for a in artworks if a.get('type') == art_type]
+                if not candidates:
+                    return None
+                for a in candidates:
+                    if a.get('language') == 'deu':
+                        return a.get('image')
+                for a in candidates:
+                    if not a.get('language'):
+                        return a.get('image')
+                for a in candidates:
+                    if a.get('language') == 'eng':
+                        return a.get('image')
+                return candidates[0].get('image')
+
+            if needs_poster:
+                p_url = find_best_tvdb_art(2)
+                if p_url:
+                    try:
+                        _download_with_timeout(p_url, poster_path)
+                        needs_poster = False
+                    except Exception as e:
+                        print(f"Warning: TVDB poster download failed: {e}")
+                        
+            if needs_fanart:
+                f_url = find_best_tvdb_art(3)
+                if f_url:
+                    try:
+                        _download_with_timeout(f_url, fanart_path)
+                        needs_fanart = False
+                    except Exception as e:
+                        print(f"Warning: TVDB fanart download failed: {e}")
+                        
+            if needs_logo:
+                l_url = find_best_tvdb_art(23)
+                if l_url:
+                    try:
+                        _download_with_timeout(l_url, logo_path)
+                        needs_logo = False
+                    except Exception as e:
+                        print(f"Warning: TVDB logo download failed: {e}")
+                        
+            if needs_banner:
+                b_url = find_best_tvdb_art(1)
+                if b_url:
+                    try:
+                        _download_with_timeout(b_url, banner_path)
+                        needs_banner = False
+                    except Exception as e:
+                        print(f"Warning: TVDB banner download failed: {e}")
+                        
+        return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart, "logo": not needs_logo, "banner": not needs_banner}
 
     lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
     url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}&language={lang}&append_to_response=credits,content_ratings"
@@ -1369,20 +1518,46 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
             
+    if (needs_poster or needs_fanart or needs_logo or needs_banner) and str(show_id).isdigit():
+        images = fetch_tmdb_images("tv", show_id)
+        
+        if needs_poster and images.get('poster'):
+            try:
+                _download_with_timeout(images['poster'], poster_path)
+                needs_poster = False
+            except Exception:
+                pass
+                
+        if needs_fanart and images.get('backdrop'):
+            try:
+                _download_with_timeout(images['backdrop'], fanart_path)
+                needs_fanart = False
+            except Exception:
+                pass
+                
+        if needs_logo and images.get('logo'):
+            try:
+                _download_with_timeout(images['logo'], logo_path)
+                needs_logo = False
+            except Exception:
+                pass
+
     if needs_poster and data.get('poster_path'):
         try:
             p_url = f"https://image.tmdb.org/t/p/original{data['poster_path']}"
             _download_with_timeout(p_url, poster_path)
-        except Exception:
             needs_poster = False
+        except Exception:
+            pass
     if needs_fanart and data.get('backdrop_path'):
         try:
             b_url = f"https://image.tmdb.org/t/p/original{data['backdrop_path']}"
             _download_with_timeout(b_url, fanart_path)
-        except Exception:
             needs_fanart = False
+        except Exception:
+            pass
             
-    return {"nfo": needs_nfo, "poster": needs_poster, "fanart": needs_fanart}
+    return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart, "logo": not needs_logo, "banner": not needs_banner}
 
 def generate_episode_nfo(provider, show_id, season, episode, target_folder, filename_base, force_season=None, force_episode=None, nfo_overrides=None):
     import os

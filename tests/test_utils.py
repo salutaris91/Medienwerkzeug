@@ -2377,6 +2377,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
 
     def test_inconsistent_naming_health_check(self):
         from gui.core.health import _check_series_show
+        from gui.core import artwork_validators
+        val = artwork_validators.get_validator("emby")
         
         nas_root = os.path.join(self.test_dir, "nas_health_naming_test")
         os.makedirs(nas_root, exist_ok=True)
@@ -2394,7 +2396,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             f.write("video")
             
         issues = []
-        _check_series_show(issues, "Serien", show_path)
+        _check_series_show(issues, "Serien", show_path, val)
         
         naming_issues = [i for i in issues if i["type"] == "inconsistent_naming"]
         self.assertTrue(len(naming_issues) > 0)
@@ -2411,7 +2413,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             f.write("video")
             
         issues = []
-        _check_series_show(issues, "Serien", show_path)
+        _check_series_show(issues, "Serien", show_path, val)
         naming_issues = [i for i in issues if i["type"] == "inconsistent_naming"]
         self.assertTrue(len(naming_issues) > 0)
         self.assertIn("anderen Seriennamen", naming_issues[0]["message"])
