@@ -139,7 +139,7 @@ Bevor wir den Release-Branch abzweigen, stellen wir sicher, dass das Fundament a
 ### Phase 1: Code-Härtung & Robustheit
 *Alles, was der Code braucht, um bei Dritten zuverlässig zu laufen.*
 
-#### 1.1 Default-Pfade neutralisieren
+#### 1.1 Default-Pfade neutralisieren (Erledigt)
 - Aktuelle Defaults im Code (wie `~/pCloud Drive`) müssen leer sein. **Wichtig:** Deine eigenen Einstellungen in der `settings.json` bleiben davon völlig unberührt! Wir ändern nur die Fallbacks für *neue* Nutzer.
 - **Backup & Ausfallsicherheit:** Vor jeder Migration von Konfigurationsdateien wird automatisch ein lokales Backup (z.B. `.bak`) angelegt. Beim Laden beschädigter JSON-Dateien wird der Fehler nicht stillgeschwiegen, sondern prominent gemeldet, und das System versucht, sich aus dem letzten intakten Backup zu reparieren.
 
