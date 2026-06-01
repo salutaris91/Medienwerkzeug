@@ -6508,6 +6508,8 @@ async function loadSettings() {
             if (themeVal === "apple-silver") themeVal = "apple-black";
             setInputVal("settings-app-theme", themeVal);
             applyTheme(themeVal);
+
+            setInputVal("settings-media-server", currentSettings.media_server || "emby");
             
             if (!currentSettings.import_sources) currentSettings.import_sources = [];
             if (!currentSettings.sync_categories) currentSettings.sync_categories = [];
@@ -7194,6 +7196,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 show_quote: document.getElementById("settings-show-quote")?.checked || false,
                 smart_conversion_default: document.getElementById("settings-smart-conversion-default")?.checked || false,
                 app_theme: document.getElementById("settings-app-theme")?.value || "deep-space",
+                media_server: document.getElementById("settings-media-server")?.value || "emby",
                 
                 folder_monitor_enabled: document.getElementById("set-monitor-enabled")?.checked || false,
                 folder_monitor_inbox_threshold_gb: parseFloat(document.getElementById("set-monitor-inbox-gb")?.value) || 50.0,

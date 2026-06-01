@@ -112,22 +112,6 @@ def _episode_numbers(filenames):
     return sorted(set(nums))
 
 
-def _has_any_artwork(path):
-    """True, wenn irgendwo unterhalb von 'path' mindestens eine Bilddatei liegt.
-
-    Rekursiv (wie _collect_videos), weil Artwork je nach Struktur eine Ebene
-    tiefer liegen kann (z. B. bei doppelt verschachtelten Filmordnern
-    Filme/<Film>/<Film>/<Dateien>). Versteckte Dateien werden ignoriert.
-
-    Die Bibliothek nutzt unterschiedliche Konventionen (poster/fanart/banner/
-    clearlogo/discart ...). Wir flaggen daher nur Ordner ganz OHNE Artwork.
-    """
-    for dirpath, _dirs, filenames in os.walk(path):
-        for f in filenames:
-            if not f.startswith('.') and os.path.splitext(f)[1].lower() in IMAGE_EXTENSIONS:
-                return True
-    return False
-
 
 def _collect_videos(root):
     """Sammelt Videodateien und NFO-Basisnamen rekursiv unter 'root'.
@@ -263,8 +247,9 @@ def _check_season(issues, category, show_name, season_path, validator):
             break
 
     if not has_season_poster:
+        preferred = validator.get_preferred_season_poster_name(season_num)
         _add_issue(issues, "warning", "missing_season_poster", category, season_path,
-                   f"{label}: Season-Poster fehlt")
+                   f"{label}: Season-Poster fehlt — ggf. manuell als '{preferred}' im Serienordner ablegen")
 
     return len(videos)
 
@@ -304,8 +289,9 @@ def _check_series_show(issues, category, show_path, validator):
             has_poster = True
             break
     if not has_poster:
+        preferred = validator.get_preferred_series_poster_name()
         _add_issue(issues, "warning", "missing_poster", category, show_path,
-                   f"{show_dir_name}: Serienposter fehlt")
+                   f"{show_dir_name}: Serienposter fehlt — ggf. manuell als '{preferred}' ablegen")
 
     # 2. Fanart/Backdrop check
     has_backdrop = False
@@ -314,8 +300,9 @@ def _check_series_show(issues, category, show_path, validator):
             has_backdrop = True
             break
     if not has_backdrop:
+        preferred = validator.get_preferred_series_backdrop_name()
         _add_issue(issues, "warning", "missing_backdrop", category, show_path,
-                   f"{show_dir_name}: Hintergrundbild (Fanart) fehlt")
+                   f"{show_dir_name}: Hintergrundbild (Fanart) fehlt — ggf. manuell als '{preferred}' ablegen")
 
     # 3. Logo check
     if validator.supports_logos:
@@ -325,11 +312,11 @@ def _check_series_show(issues, category, show_path, validator):
                 has_logo = True
                 break
         if not has_logo:
-            severity = "info"
-            msg = f"{show_dir_name}: ClearLogo fehlt"
+            preferred = validator.get_preferred_series_logo_name()
+            msg = f"{show_dir_name}: ClearLogo fehlt — ggf. manuell als '{preferred}' ablegen"
             if provider in ("mediathek", "ytdlp", "manual"):
                 msg += f" (Metadatendienst '{provider}' unterstützt keine Logos)"
-            _add_issue(issues, severity, "missing_logo", category, show_path, msg)
+            _add_issue(issues, "info", "missing_logo", category, show_path, msg)
 
     # 4. Banner check
     if validator.supports_banners:
@@ -339,11 +326,11 @@ def _check_series_show(issues, category, show_path, validator):
                 has_banner = True
                 break
         if not has_banner:
-            severity = "info"
-            msg = f"{show_dir_name}: Banner fehlt"
+            preferred = validator.get_preferred_series_banner_name()
+            msg = f"{show_dir_name}: Banner fehlt — ggf. manuell als '{preferred}' ablegen"
             if provider in ("mediathek", "ytdlp", "manual"):
                 msg += f" (Metadatendienst '{provider}' unterstützt keine Banner)"
-            _add_issue(issues, severity, "missing_banner", category, show_path, msg)
+            _add_issue(issues, "info", "missing_banner", category, show_path, msg)
 
     # Staffeln
     season_dirs = [e for e in sorted(entries)
@@ -451,8 +438,9 @@ def _check_movie(issues, category, movie_path, validator):
             has_poster = True
             break
     if not has_poster:
+        preferred = validator.get_preferred_movie_poster_name(video_filename)
         _add_issue(issues, "warning", "missing_poster", category, movie_path,
-                   f"{name}: Filmplakat (Poster) fehlt")
+                   f"{name}: Filmplakat (Poster) fehlt — ggf. manuell als '{preferred}' ablegen")
 
     # 2. Fanart/Backdrop check
     has_backdrop = False
@@ -461,8 +449,9 @@ def _check_movie(issues, category, movie_path, validator):
             has_backdrop = True
             break
     if not has_backdrop:
+        preferred = validator.get_preferred_movie_backdrop_name(video_filename)
         _add_issue(issues, "warning", "missing_backdrop", category, movie_path,
-                   f"{name}: Hintergrundbild (Fanart) fehlt")
+                   f"{name}: Hintergrundbild (Fanart) fehlt — ggf. manuell als '{preferred}' ablegen")
 
     # 3. Logo check
     if validator.supports_logos:
@@ -472,11 +461,11 @@ def _check_movie(issues, category, movie_path, validator):
                 has_logo = True
                 break
         if not has_logo:
-            severity = "info"
-            msg = f"{name}: ClearLogo fehlt"
+            preferred = validator.get_preferred_movie_logo_name(video_filename)
+            msg = f"{name}: ClearLogo fehlt — ggf. manuell als '{preferred}' ablegen"
             if provider in ("mediathek", "ytdlp", "manual"):
                 msg += f" (Metadatendienst '{provider}' unterstützt keine Logos)"
-            _add_issue(issues, severity, "missing_logo", category, movie_path, msg)
+            _add_issue(issues, "info", "missing_logo", category, movie_path, msg)
 
     # 4. Banner check
     if validator.supports_banners:
@@ -486,11 +475,11 @@ def _check_movie(issues, category, movie_path, validator):
                 has_banner = True
                 break
         if not has_banner:
-            severity = "info"
-            msg = f"{name}: Banner fehlt"
+            preferred = validator.get_preferred_movie_banner_name(video_filename)
+            msg = f"{name}: Banner fehlt — ggf. manuell als '{preferred}' ablegen"
             if provider in ("mediathek", "ytdlp", "manual"):
                 msg += f" (Metadatendienst '{provider}' unterstützt keine Banner)"
-            _add_issue(issues, severity, "missing_banner", category, movie_path, msg)
+            _add_issue(issues, "info", "missing_banner", category, movie_path, msg)
 
     # Kleine Dateien
     small = []
