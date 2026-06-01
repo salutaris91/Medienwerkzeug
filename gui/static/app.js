@@ -9924,6 +9924,19 @@ function renderHealthStatus(data) {
     const issuesEl = document.getElementById("health-issues");
     if (!statusEl || !summaryEl || !issuesEl) return;
 
+    // 1. Zustand sichern (geöffnete Gruppen und Scrollposition)
+    const openSeverities = [];
+    const hadDetails = issuesEl.querySelector("details") !== null;
+    if (hadDetails) {
+        issuesEl.querySelectorAll("details").forEach(d => {
+            if (d.open) {
+                const sev = d.getAttribute("data-sev");
+                if (sev) openSeverities.push(sev);
+            }
+        });
+    }
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+
     // Statuszeile + Fortschritt
     if (data.status === "running") {
         statusEl.textContent = data.message || "Scan läuft...";
@@ -9985,7 +9998,7 @@ function renderHealthStatus(data) {
             const list = grouped[sev];
             if (!list.length) return;
             const m = HEALTH_SEVERITY[sev];
-            html += `<details ${sev === "critical" ? "open" : ""} style="border:1px solid var(--border-light); border-radius:8px; padding:8px 12px;">
+            html += `<details data-sev="${sev}" ${sev === "critical" ? "open" : ""} style="border:1px solid var(--border-light); border-radius:8px; padding:8px 12px;">
                         <summary style="cursor:pointer; color:${m.color}; font-weight:500;">${m.icon} ${m.label} (${list.length})</summary>
                         <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">`;
             list.forEach(it => {
@@ -10008,6 +10021,14 @@ function renderHealthStatus(data) {
         });
         html += renderIgnoredFooter(data.ignored_count);
         issuesEl.innerHTML = html;
+
+        // 2. Zustand wiederherstellen
+        if (hadDetails) {
+            issuesEl.querySelectorAll("details").forEach(d => {
+                const sev = d.getAttribute("data-sev");
+                d.open = openSeverities.includes(sev);
+            });
+        }
 
         issuesEl.querySelectorAll(".health-open-folder").forEach(b => {
             b.addEventListener("click", () => {
@@ -10084,6 +10105,11 @@ function renderHealthStatus(data) {
         wireRestoreAll(issuesEl);
     } else {
         issuesEl.innerHTML = "";
+    }
+
+    // 3. Scrollposition wiederherstellen
+    if (hadDetails) {
+        window.scrollTo(0, scrollTop);
     }
 }
 
