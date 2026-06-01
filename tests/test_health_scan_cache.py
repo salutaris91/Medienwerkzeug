@@ -36,12 +36,28 @@ class TestHealthScanCache(unittest.TestCase):
         
         self.cache_mgr.set_cached_entry("/path/to/movie", key, [{"key": "health:1"}], {"some": "state"}, files_checked=3)
         
+        # Vor dem flush() ist der Cache noch nicht auf der Festplatte
+        self.assertEqual(self.cache_mgr._load_cache(), {})
+        
         entry = self.cache_mgr.get_cached_entry("/path/to/movie", key)
         self.assertIsNotNone(entry)
         self.assertEqual(entry["cache_key"], key)
         self.assertEqual(entry["issues"], [{"key": "health:1"}])
         self.assertEqual(entry["state_data"], {"some": "state"})
         self.assertEqual(entry["files_checked"], 3)
+        
+        # Cache auf Festplatte schreiben
+        self.cache_mgr.flush()
+        
+        # Jetzt muss es in der Datei sein
+        loaded = self.cache_mgr._load_cache()
+        self.assertIn(os.path.realpath("/path/to/movie"), loaded)
+        
+        # Ein neuer Manager lädt es korrekt von Platte
+        new_mgr = health_cache.HealthCacheManager(cache_path=self.cache_path)
+        entry2 = new_mgr.get_cached_entry("/path/to/movie", key)
+        self.assertIsNotNone(entry2)
+        self.assertEqual(entry2["cache_key"], key)
         
         self.assertIsNone(self.cache_mgr.get_cached_entry("/path/to/movie", "1:plex"))
         
@@ -74,6 +90,23 @@ class TestHealthScanCache(unittest.TestCase):
         self.assertEqual(state["video_size"], os.path.getsize(video_file))
         self.assertEqual(state["nfo_mtime"], os.path.getmtime(nfo_file))
         self.assertEqual(state["poster_mtime"], os.path.getmtime(poster_file))
+        
+    def test_calculate_hybrid_state_movie_alternative_poster(self):
+        movie_path = os.path.join(self.temp_dir.name, "Test Alternative Movie")
+        os.makedirs(movie_path)
+        
+        video_file = os.path.join(movie_path, "Test Alternative.mkv")
+        with open(video_file, "w") as f:
+            f.write("dummy video data")
+            
+        # Alternative poster name fallback (e.g. folder.jpg)
+        folder_jpg = os.path.join(movie_path, "folder.jpg")
+        with open(folder_jpg, "w") as f:
+            f.write("alternative poster data")
+            
+        state = self.cache_mgr.calculate_hybrid_state(movie_path, self.validator, is_movie=True)
+        self.assertIn("poster_mtime", state)
+        self.assertEqual(state["poster_mtime"], os.path.getmtime(folder_jpg))
         
     def test_calculate_hybrid_state_series(self):
         show_path = os.path.join(self.temp_dir.name, "Test Show")

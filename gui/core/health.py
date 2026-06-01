@@ -606,6 +606,9 @@ def _run_health_scan(deep_dive: bool = False):
                 log_message(f"🔍 [Health-Scan] {idx + 1}/{total} Ordner geprüft, "
                             f"{len(issues)} Auffälligkeiten bisher...")
  
+        # Speicher-Cache dauerhaft auf Festplatte schreiben
+        cache_mgr.flush()
+
         summary = {"critical": 0, "warning": 0, "info": 0}
         for it in issues:
             summary[it["severity"]] = summary.get(it["severity"], 0) + 1
