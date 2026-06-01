@@ -1,4 +1,4 @@
-# Roadmap – Geplante Erweiterungen
+# After Release Roadmap
 
 Zentrale Sammelstelle für geplante, noch **nicht umgesetzte** Erweiterungen des
 Medienwerkzeugs. Jeder Abschnitt ist ein eigenständiger Plan und kann unabhängig
@@ -11,8 +11,7 @@ angegangen werden.
 | 3 | KI-Cover- & Logo-Generierung (Gemini/OpenRouter) | geplant | mittel |
 | 4 | Selektiver Import für StreamFab-Downloads | erledigt | klein |
 | 5 | Angleichung an Metadatendienst (NAS-Renaming-Tool) | erledigt | mittel |
-| 6 | Server-genaue Artwork-Prüfung (Emby/Jellyfin/Plex) | geplant | klein |
-| 7 | Inkrementeller Health-Scan (Timestamp-Cache) | geplant | klein |
+| 9 | Eingebaute Authentifizierung (PIN/Passwort) | geplant | mittel |
 
 ---
 
@@ -250,121 +249,17 @@ Da In-Place-Operationen auf einem NAS ein Risiko für Datenverlust bergen, müss
 
 ---
 
-## 6. Server-genaue Artwork-Prüfung (Emby / Jellyfin / Plex)
+## 9. Eingebaute Authentifizierung (PIN/Passwort)
 
-Aktuell prüft der Bibliotheks-Check nur „liegt **irgendein** Bild im Ordnerbaum?"
-(`_has_any_artwork` in `gui/core/health.py`, rekursiv). Das beseitigt Fehlalarme,
-sagt aber nichts darüber aus, ob die für den genutzten Medienserver *relevanten*
-Artworks vorhanden und korrekt benannt sind.
+Für Nutzer, die das Medienwerkzeug als Docker-Container betreiben, aber keinen Reverse-Proxy (wie Traefik oder Nginx) eingerichtet haben, ist das Web-Interface im gesamten LAN offen erreichbar. Dies stellt ein Sicherheitsrisiko für die hinterlegten API-Keys dar.
 
 ### Ziel
-Differenzierte Meldungen pro Artwork-Typ, abgestimmt auf den **konfigurierten
-Medienserver**. In den Einstellungen wählt der Nutzer einmal seinen Server
-(Emby / Jellyfin / Plex); der Check validiert dann **exakt gegen dessen
-Konvention** — keine Fehlmeldung für Bildtypen, die der gewählte Server gar nicht
-verwendet (z. B. `clearlogo` bei Plex).
+Eine simple, in Flask integrierte Authentifizierung, die den Nutzer beim ersten Aufruf der Web-UI zwingt, ein Zugangspasswort (oder eine PIN) festzulegen. Danach muss man sich anmelden und die Session wird als Cookie gespeichert.
 
-### Konventionen je Server (jeweils neben der Videodatei bzw. im Medienordner)
-
-**Emby & Jellyfin** (Jellyfin ist ein Emby-Fork → identisch):
-
-| Bildtyp | Erkannte Dateinamen |
-|---|---|
-| Poster | `poster.jpg`, `folder.jpg`, `cover.jpg`, `<name>.jpg`, `movie.jpg`, `default.jpg` |
-| Hintergrund (Fanart) | `fanart.jpg`, `backdrop.jpg`, `<name>-fanart.jpg` |
-| Logo | `clearlogo.png`, `logo.png` |
-| Banner | `banner.jpg` |
-| Disc | `discart.png`, `disc.png` |
-| Clearart | `clearart.png` |
-| Thumb | `thumb.jpg`, `landscape.jpg` |
-
-**Plex** (setzt aktivierten „Local Media Assets"-Agenten voraus; kennt nativ
-**kein** Logo/Clearart/Disc):
-
-| Bildtyp | Erkannte Dateinamen |
-|---|---|
-| Poster | `poster.jpg`, `folder.jpg`, `cover.jpg`, `<name>.jpg`, `movie.jpg`, `default.jpg`, `show.jpg` |
-| Hintergrund (Art) | `fanart.jpg`, `art.jpg`, `background.jpg`, `backdrop.jpg` |
-| Banner | `banner.jpg` |
-| Theme (optional) | `theme.mp3` |
-
-### Umzusetzende Änderungen
-- **Settings:** neues Feld `media_server` (Default `"emby"`; Werte
-  `emby` | `jellyfin` | `plex`) in `gui/core/utils.py:load_settings()` + Auswahl in
-  der Settings-UI.
-- **Konventions-Tabelle** als Daten-Map im Code (pro Server: Bildtyp → Namensliste +
-  Severity). Emby und Jellyfin teilen sich denselben Eintrag.
-- `_has_any_artwork` zu einer typbewussten Prüfung erweitern (z. B.
-  `_artwork_status(path, server) -> {"poster": bool, "fanart": bool, ...}`),
-  rekursiv, Dateinamen case-insensitiv, `<name>` = Stem der Videodatei.
-- Getrennte Issues mit passender Severity (fehlendes **Poster** = `warning`,
-  Fanart/Logo/Banner = `info`), statt der einen Sammelmeldung „kein Artwork".
-  Nur Bildtypen prüfen, die der gewählte Server kennt.
-- Für Serien zusätzlich season-/episodenbezogene Artworks erwägen
-  (`season01-poster.jpg` etc.) — optional.
+### Umsetzung
+- Speicherung des Passwort-Hashes sicher in der `settings.json`.
+- Flask-Middleware (`@app.before_request`), die alle Routen (außer Login und Statics) schützt und bei unautorisierten Anfragen einen 401 Fehler oder Redirect wirft.
+- Eine simple, schön gestaltete Login-Seite als Einstiegspunkt im Frontend.
 
 ### Aufwand (grob)
-~0,5–1 Tag Backend (Konventions-Map + Setting + typbewusster Check) + kleine
-Frontend-Anpassung (Server-Auswahl in Settings, differenzierte Issue-Anzeige).
-
----
-
-## 7. Inkrementeller Health-Scan (Timestamp-Cache)
-
-Der Health-Scan prüft aktuell bei jedem Durchlauf alle ~240 Ordner vollständig,
-einschließlich ffprobe-Codec-Stichproben. Das dauert über eine Minute. Bei
-Folge-Scans sind aber typischerweise nur wenige Ordner verändert worden.
-
-### Ziel
-Ordner, die beim letzten Scan fehlerfrei waren und seitdem nicht verändert wurden,
-überspringen. Folge-Scans sollen in Sekunden statt Minuten abschließen.
-
-### Konzept: Timestamp-basierter Skip
-Pro gescanntem Ordner wird ein Cache-Eintrag gespeichert:
-
-```json
-{
-  "path": "/Volumes/Kino/Filme/Blade.Runner.2049",
-  "mtime": 1780123456.0,
-  "status": "clean",
-  "scan_version": 2
-}
-```
-
-Beim nächsten Scan wird pro Ordner geprüft:
-1. Existiert ein Cache-Eintrag für diesen Pfad?
-2. Ist die aktuelle `mtime` (via `os.stat`) identisch mit dem gespeicherten Wert?
-3. War der Status `"clean"` (keine Issues)?
-4. Stimmt die `scan_version` mit der aktuellen überein?
-
-Nur wenn alle vier Bedingungen erfüllt sind, wird der Ordner übersprungen.
-Andernfalls wird er vollständig neu gescannt und der Cache aktualisiert.
-
-**Warum `scan_version`:** Wenn neue Check-Typen hinzukommen (wie zuletzt
-`nested_duplicate`, `bad_folder_name`, `name_mismatch`), muss die Version
-hochgezählt werden, damit alle Ordner einmalig gegen die neuen Regeln geprüft
-werden — auch wenn sich ihr Inhalt nicht geändert hat.
-
-**Warum `mtime` ausreicht:** Sobald eine Datei im Ordner hinzugefügt, umbenannt
-oder gelöscht wird, aktualisiert das Dateisystem die `mtime` des übergeordneten
-Verzeichnisses automatisch. Für tiefere Änderungen (z.B. in Unterordnern) wird
-die maximale `mtime` über `os.walk` ermittelt.
-
-### Umzusetzende Änderungen
-- **Cache-Datei** (`health_folder_cache.json`) neben der bestehenden
-  `health_scan_cache.json` in `gui/data/`.
-- **`_check_movie` / `_check_series_show`:** Vor dem Prüfen den Cache
-  konsultieren; nach dem Prüfen den Cache aktualisieren.
-- **`_run_health_scan`:** Übersprungene Ordner in der Fortschrittsanzeige
-  als „(cached)" kennzeichnen; am Ende die Anzahl übersprungener Ordner loggen.
-- **UI:** Optionaler Button „Voll-Scan erzwingen" der den Cache ignoriert.
-
-### Alternativer Ansatz (Reserve): Zweistufiger Scan
-Falls der Timestamp-Ansatz nicht zuverlässig genug ist (z.B. bei NAS-Dateisystemen
-mit ungenauer mtime-Granularität), könnte alternativ ein zweistufiger Scan
-implementiert werden: Stufe 1 prüft nur Dateinamen und Ordnerstruktur (instant),
-Stufe 2 (ffprobe/Dateigrößen) nur bei geänderten Ordnern oder auf Knopfdruck.
-
-### Aufwand (grob)
-~0,5 Tage. Hauptarbeit ist die Cache-Logik mit Version-Tracking; die Integration
-in den bestehenden Scan-Flow ist minimal.
+~1 Tag. Die Logik für Session-Cookies und Flask-Routen-Schutz ist standardisiert, erfordert aber Anpassungen am Frontend-Routing und API-Verhalten.
