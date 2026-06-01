@@ -6571,7 +6571,9 @@ async function loadSettings() {
             setInputVal("settings-whatsapp-phone", currentSettings.whatsapp_phone);
             setInputVal("settings-tmdb-key", currentSettings.tmdb_api_key);
             setInputVal("settings-tvdb-key", currentSettings.tvdb_api_key);
-            setInputVal("settings-notify-min-size", currentSettings.notify_min_size !== undefined ? currentSettings.notify_min_size : 10);
+            setInputVal("settings-notify-min-size-macos", currentSettings.notify_min_size_macos !== undefined ? currentSettings.notify_min_size_macos : 10);
+            setInputVal("settings-notify-min-size-telegram", currentSettings.notify_min_size_telegram !== undefined ? currentSettings.notify_min_size_telegram : 10);
+            setInputVal("settings-notify-min-size-whatsapp", currentSettings.notify_min_size_whatsapp !== undefined ? currentSettings.notify_min_size_whatsapp : 10);
             setCheckbox("settings-notify-only-end", currentSettings.notify_only_end !== false); // default to true
             
             // Folder Monitor Settings
@@ -7281,7 +7283,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 whatsapp_phone: document.getElementById("settings-whatsapp-phone")?.value || "",
                 tmdb_api_key: document.getElementById("settings-tmdb-key")?.value || "",
                 tvdb_api_key: document.getElementById("settings-tvdb-key")?.value || "",
-                notify_min_size: parseInt(document.getElementById("settings-notify-min-size")?.value, 10) || 0,
+                notify_min_size_macos: parseInt(document.getElementById("settings-notify-min-size-macos")?.value, 10) || 0,
+                notify_min_size_telegram: parseInt(document.getElementById("settings-notify-min-size-telegram")?.value, 10) || 0,
+                notify_min_size_whatsapp: parseInt(document.getElementById("settings-notify-min-size-whatsapp")?.value, 10) || 0,
                 notify_only_end: document.getElementById("settings-notify-only-end")?.checked || false,
 
                 show_jokes: document.getElementById("settings-show-jokes")?.checked || false,
