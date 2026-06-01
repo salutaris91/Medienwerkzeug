@@ -87,6 +87,25 @@ Der Health-Scan prüft aktuell bei jedem Durchlauf alle Ordner vollständig, ink
 ### Zwischenphase: Der "Hard-Cut" & Testplan
 *Nachdem Phase 0 abgeschlossen ist, legen wir einen bewussten Stopp ein, um die Stabilität der aktuellen App zu sichern, bevor wir das Fundament für den Release umbauen.*
 
+#### Phase 0.5: Härtung & UX-Optimierungen (Feedback aus der Verifizierung)
+Bevor wir den `release`-Branch abzweigen, werden folgende Verbesserungen direkt auf `main` umgesetzt:
+1. **Artwork-Validierung & Cache-Korrektheit:**
+   - Nummerierte Artwork-Varianten nur entsprechend der Konvention des gewählten Medienservers akzeptieren (z.B. Jellyfin-Backdrops `backdrop-1.jpg` und `backdrop2.jpg`; Plex-Fanarts `fanart-1.jpg`).
+   - Die Fehlermeldung neutral zu "Hintergrundbild fehlt" vereinheitlichen.
+   - Den Hybrid-Cache-Zustand um alle tatsächlich geprüften Kerndateien erweitern: NFO, Video sowie serverabhängige Poster, Backdrops, Logos und Banner. Dadurch bleiben gelöschte Artworks auch dann erkennbar, wenn das NAS den Ordner-`mtime` nicht zuverlässig aktualisiert.
+2. **Hybrid- und Deep-Dive-Cache sauber trennen:**
+   - `hybrid_state` und `deep_hash` separat speichern, damit ein Deep-Dive-Lauf den schnellen Folgescan nicht unnötig invalidiert.
+   - Laufzeit und Cache-Statistik anzeigen: Treffer, erneute Prüfungen wegen Änderungen und erneute Prüfungen wegen bekannter Issues. Bekannte Issues werden bewusst erneut vollständig geprüft; bei fehlerreichen Bibliotheken bleibt der Folgescan daher erwartbar langsamer.
+3. **Race-Condition beim Smart-Inbox-Profil-Laden beheben:**
+   - Profil, finale NAS-Kategorie und vorhandenen NAS-Ordner geordnet ermitteln und anschließend die Staffelanzeige aktualisieren.
+   - Veraltete Staffel-Requests per Request-ID oder `AbortController` ignorieren, damit eine später eintreffende alte Antwort keine korrekte Anzeige überschreibt.
+4. **Health-Scan nach Bibliothekskategorien trennen:** Auswahl einer oder mehrerer konfigurierter Kategorien (z.B. nur Filme oder nur Serien), um Laufzeit und Testergebnisse gezielt beurteilen zu können.
+5. **Health-Scan sicher abbrechbar machen:** Abbruch über `threading.Event` und UI-Button. Das Abbruchsignal auch in längeren Unterordner- und Serien-Schleifen prüfen und den Status sichtbar auf `cancelled` setzen.
+6. **Quick-Fix-Kontext erhalten:** Nach Aktionen wie "Verschachtelung auflösen" oder "Ordner umbenennen" den sichtbaren Kontext anhand eines stabilen Issue-Schlüssels wiederherstellen. Scrollposition und geöffnete Ergebnisgruppen sollen erhalten bleiben; wenn möglich, wird nur der behobene Eintrag entfernt.
+7. **Default-leerer Medienserver:** Neue Nutzer müssen den Medienserver explizit wählen. Ein Scan ohne Auswahl wird bereits am API-Endpunkt mit verständlicher Fehlermeldung abgelehnt, bevor NAS-Mount und Scan-Thread gestartet werden.
+8. **Dateinamen zentral bereinigen:** Manuelle Namen aus Quick-Fixes und dem NAS-Renaming-Tool vor `os.rename()` zentral validieren und für das Zieldateisystem bereinigen (z.B. `:` und `?`), damit Sonderzeichen nicht zu Abbrüchen führen.
+9. **Ausblendbare Konsole:** Die Konsole am unteren Bildschirmrand standardmäßig ausblenden und über einen "Debug-Modus"-Schalter in den Einstellungen optional aktivierbar machen.
+
 #### 1. Der Hard-Cut (Git-Branching)
 Um deinen täglichen Workflow nicht zu stören, wird die Weiterentwicklung über **Git-Branches** getrennt — nicht über eine physische Ordner-Kopie (die würde innerhalb von Tagen auseinanderlaufen):
 - **`main`-Branch** = dein täglicher Workflow. Läuft unverändert und stabil weiter.
@@ -102,6 +121,10 @@ Bevor wir den Release-Branch abzweigen, stellen wir sicher, dass das Fundament a
 - `test_health_scan.py` *(neu)* — Der inkrementelle Health-Scan liest und schreibt die Caching-Dateien (`health_folder_cache.json`) korrekt. Zweiter Durchlauf überspringt unveränderte Ordner.
 - `test_artwork_validation.py` *(neu)* — Die Server-genaue Artwork-Prüflogik wirft die korrekten Warnungen pro Medienserver-Typ (simuliert mit Dummy-Pfaden).
 - `test_api_endpoints.py` *(neu)* — Keine Regressionen in der API (Endpoints antworten weiterhin wie erwartet, auch bei fehlerhaften Payloads).
+- Cache-Grenzfälle ergänzen: gelöschtes Backdrop bei unverändertem Ordner-`mtime`, getrennte Hybrid-/Deep-Dive-Zustände und verständlicher Fehler bei leerem Medienserver.
+- Artwork-Konventionen ergänzen: gültige und ungültige nummerierte Varianten pro Medienserver.
+- Smart-Inbox ergänzen: veraltete NAS-Staffelantwort darf eine neuere Auswahl nicht überschreiben.
+- Dateinamen-Bereinigung ergänzen: manuelle Namen mit illegalen Zeichen werden sichtbar und deterministisch bereinigt.
 
 **Was du (der Nutzer) manuell testest:**
 - **Der Lade-Indikator:** Starte einen echten Job in der Inbox und prüfe, ob der Startbildschirm das Lade-Symbol anzeigt und der Bearbeiten-Button deaktiviert ist.
@@ -252,4 +275,3 @@ Image unter einem sauberen Namen veröffentlichen. Tags für Versionen (`v1.0`, 
 Changelog pro Version. Was ist neu, was ist gefixt, was ist breaking.
 
 ---
-

@@ -12,6 +12,10 @@ angegangen werden.
 | 4 | Selektiver Import für StreamFab-Downloads | erledigt | klein |
 | 5 | Angleichung an Metadatendienst (NAS-Renaming-Tool) | erledigt | mittel |
 | 9 | Eingebaute Authentifizierung (PIN/Passwort) | geplant | mittel |
+| 10 | Duplikat-Erkennung für Filme | geplant | mittel |
+| 11 | Inkrementeller Cache für den Duplikat-Scan | geplant | mittel |
+| 12 | Performance-Optimierung für sehr große Serienbibliotheken | geplant | mittel |
+| 13 | Komfortablere Health-Quick-Fix-Oberfläche | geplant | klein–mittel |
 
 ---
 
@@ -263,3 +267,89 @@ Eine simple, in Flask integrierte Authentifizierung, die den Nutzer beim ersten 
 
 ### Aufwand (grob)
 ~1 Tag. Die Logik für Session-Cookies und Flask-Routen-Schutz ist standardisiert, erfordert aber Anpassungen am Frontend-Routing und API-Verhalten.
+
+---
+
+## 10. Duplikat-Erkennung für Filme
+
+Die globale Duplikat-Erkennung gruppiert aktuell bewusst nur Serienepisoden anhand
+von `SxxExx`. Für Filme fehlt eine verlässliche Identitätsregel.
+
+### Ziel
+Mehrfach vorhandene Filme erkennen, ohne verschiedene Filme mit ähnlich klingenden
+Titeln irrtümlich als Duplikate zu behandeln.
+
+### Umsetzung
+- Primär Metadaten-IDs aus vorhandenen NFO-Dateien verwenden (z.B. TMDB-ID).
+- Als Fallback normalisierten Titel plus Erscheinungsjahr nutzen.
+- Vor Löschvorschlägen Codec, Auflösung, Laufzeit und Dateigröße vergleichen.
+- Unsichere Treffer nur als prüfbedürftige Kollision anzeigen.
+
+### Aufwand (grob)
+~1–2 Tage inklusive Tests.
+
+---
+
+## 11. Inkrementeller Cache für den Duplikat-Scan
+
+Der Duplikat-Scan läuft derzeit bei jedem Start erneut über alle Serienordner und
+führt für Treffer zusätzliche Medienanalysen aus. Er nutzt den schnellen
+Health-Cache nicht.
+
+### Ziel
+Unveränderte Bibliotheksbereiche überspringen und nur neue oder geänderte Dateien
+erneut gruppieren und analysieren.
+
+### Umsetzung
+- Eigenen Cache für den Duplikat-Scan verwenden; keine enge Kopplung an den
+  Health-Cache.
+- Pro Serien- oder Filmordner ein kompaktes Manifest relevanter Videodateien
+  speichern (Pfad, Größe, `mtime`).
+- Bereits ermittelte Medieninformationen wie Codec, Auflösung und Laufzeit
+  wiederverwenden.
+- Cache-Treffer und Laufzeit sichtbar ausgeben.
+
+### Aufwand (grob)
+~1–2 Tage inklusive Migration und Tests.
+
+---
+
+## 12. Performance-Optimierung für sehr große Serienbibliotheken
+
+Serien bleiben auch mit schnellem Health-Scan spürbar langsamer als Filme, weil
+sie viele Staffel- und Episodendateien enthalten. Vor weiteren Optimierungen
+sollen Messdaten gesammelt werden.
+
+### Ziel
+Die tatsächlichen Engpässe in großen Bibliotheken sichtbar machen und gezielt
+optimieren, statt pauschal weitere Caches einzubauen.
+
+### Umsetzung
+- Laufzeit, Ordneranzahl, Cache-Treffer und erneute Vollprüfungen pro Kategorie
+  protokollieren.
+- Erst danach prüfen, ob Staffel-Manifeste, feinere Invalidierung oder eine
+  begrenzte Parallelisierung auf dem NAS sinnvoll sind.
+- Performance-Test mit repräsentativer großer Serienbibliothek dokumentieren.
+
+### Aufwand (grob)
+Analyse ~0,5 Tag; Umsetzung abhängig vom Messergebnis.
+
+---
+
+## 13. Komfortablere Health-Quick-Fix-Oberfläche
+
+Für den Vor-Release reicht es, nach einem Quick-Fix Scrollposition, geöffnete
+Gruppen und den sichtbaren Kontext stabil zu halten. Später kann die Bedienung
+gezielter modernisiert werden.
+
+### Ziel
+Mehrere Bibliotheksprobleme nacheinander beheben, ohne dass die Ergebnisliste
+vollständig neu aufgebaut wird oder der Nutzer seine Position verliert.
+
+### Umsetzung
+- Behobene Einträge lokal aus der Liste entfernen und Summen aktualisieren.
+- Hintergrund-Revalidierung gezielt für den betroffenen Ordner ausführen.
+- Optional Undo-Hinweis und Fortschrittsfeedback direkt am Eintrag anzeigen.
+
+### Aufwand (grob)
+~0,5–1 Tag.
