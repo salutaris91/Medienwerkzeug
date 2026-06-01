@@ -43,26 +43,31 @@ for node in graph.get("nodes", []):
     communities[str(node.get("label", ""))].add(community)
 
 resolved_labels = {}
-warnings = []
+errors = []
 
 for label, anchors in label_anchors.items():
-    anchor_communities = []
+    anchor_communities = set()
     for anchor in anchors:
         matches = communities.get(anchor, set())
         if not matches:
-            warnings.append(f"Anchor not found for '{label}': {anchor}")
-        anchor_communities.extend(matches)
+            errors.append(f"Anchor not found for '{label}': {anchor}")
+        anchor_communities.update(matches)
     
     if not anchor_communities:
         continue
     
-    from collections import Counter
-    community = Counter(anchor_communities).most_common(1)[0][0]
+    if len(anchor_communities) != 1:
+        errors.append(f"Anchors for '{label}' resolve to multiple communities: {sorted(anchor_communities)}")
+        continue
     
+    community = next(iter(anchor_communities))
     if community in resolved_labels:
-        resolved_labels[community] = f"{resolved_labels[community]} & {label}"
-    else:
-        resolved_labels[community] = label
+        errors.append(
+            f"Community {community} has multiple labels: "
+            f"'{resolved_labels[community]}' and '{label}'"
+        )
+        continue
+    resolved_labels[community] = label
 
 unlabeled = sorted(all_community_ids - set(resolved_labels), key=int)
 for uc in unlabeled:
@@ -82,10 +87,12 @@ for uc in unlabeled:
     preview = ", ".join(short_names[:3])
     resolved_labels[uc] = f"Community {uc} ({preview})"
 
-if warnings:
-    print("Warnings during label resolution:", file=sys.stderr)
-    for warning in warnings:
-        print(f"- {warning}", file=sys.stderr)
+if errors:
+    print("Error: versioned Graphify labels have conflicts.", file=sys.stderr)
+    for error in errors:
+        print(f"- {error}", file=sys.stderr)
+    print("Update docs/graphify-community-labels.labels to resolve conflicts, then run the script again.", file=sys.stderr)
+    raise SystemExit(1)
 
 labels_target.write_text(
     json.dumps(resolved_labels, ensure_ascii=False, indent=2) + "\n",

@@ -27,7 +27,7 @@ class ArtworkValidator:
             pattern = rf"^{re.escape(stem)}(?:-\d+)?\.(?:jpg|jpeg|png|webp)$"
         else:
             # Emby and Jellyfin allow both (e.g., fanart1.jpg, fanart-1.jpg)
-            pattern = rf"^{re.escape(stem)}[-_]?\d*\.(?:jpg|jpeg|png|webp)$"
+            pattern = rf"^{re.escape(stem)}(?:[-_]\d+|\d+)?\.(?:jpg|jpeg|png|webp)$"
             
         return bool(re.match(pattern, filename_lower))
 

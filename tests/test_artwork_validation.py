@@ -126,5 +126,23 @@ class TestArtworkValidation(unittest.TestCase):
             self.assertIn("missing_logo", messages)
             self.assertIn("unterstützt keine Logos", messages["missing_logo"])
 
+    def test_artwork_validators_regex(self):
+        plex = artwork_validators.get_validator("plex")
+        emby = artwork_validators.get_validator("emby")
+        
+        # Plex
+        self.assertTrue(plex.matches_artwork_name("fanart-1.jpg", "fanart.jpg"))
+        self.assertTrue(plex.matches_artwork_name("fanart.jpg", "fanart.jpg"))
+        self.assertFalse(plex.matches_artwork_name("fanart1.jpg", "fanart.jpg"))
+        self.assertFalse(plex.matches_artwork_name("fanart-.jpg", "fanart.jpg"))
+        
+        # Emby / Jellyfin
+        self.assertTrue(emby.matches_artwork_name("fanart-1.jpg", "fanart.jpg"))
+        self.assertTrue(emby.matches_artwork_name("fanart1.jpg", "fanart.jpg"))
+        self.assertTrue(emby.matches_artwork_name("fanart_1.jpg", "fanart.jpg"))
+        self.assertTrue(emby.matches_artwork_name("fanart.jpg", "fanart.jpg"))
+        self.assertFalse(emby.matches_artwork_name("fanart-.jpg", "fanart.jpg"))
+        self.assertFalse(emby.matches_artwork_name("fanart_.jpg", "fanart.jpg"))
+
 if __name__ == "__main__":
     unittest.main()

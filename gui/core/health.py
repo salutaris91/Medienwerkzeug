@@ -653,6 +653,7 @@ def start_health_scan(deep_dive: bool = False):
             "issues": [],
             "summary": {"critical": 0, "warning": 0, "info": 0},
             "scanned": {"shows": 0, "files": 0},
+            "stats": {"cache_hits": 0, "cache_miss_modified": 0, "cache_miss_known_issues": 0, "cache_miss_new": 0},
             "error": None,
         })
     threading.Thread(target=_run_health_scan, args=(deep_dive,), daemon=True).start()

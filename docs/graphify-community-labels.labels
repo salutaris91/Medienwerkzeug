@@ -15,7 +15,7 @@
   "Media Health Core": [
     "gui_core_health_py"
   ],
-  "NAS Health API": [
+  "NAS Health and Ignore API": [
     "gui_api_nas_api_py"
   ],
   "Frontend Initialization": [
@@ -138,14 +138,14 @@
   "Queue and Search APIs": [
     "gui_api_search_api_py"
   ],
+  "Project API and Core Utilities": [
+    "gui_api_project_api_py"
+  ],
   "Utility Logic Tests": [
     "tests_test_utils_testmediawerkzeuglogic"
   ],
   "System API and Stats": [
     "gui_api_system_api_py"
-  ],
-  "Project API and Core Utilities": [
-    "gui_api_project_api_py"
   ],
   "YouTube and Queue API Handler": [
     "gui_api_youtube_api_py"
@@ -164,11 +164,6 @@
   ],
   "NAS Mount Fallback Tests": [
     "tests_test_transfers_nas_mount_py"
-  ],
-  "Findings Ignore API": [
-    "api_nas_api_handle_api_findings_ignore"
-  ],
-  "NAS Health Status API": [
-    "api_nas_api_handle_api_nas_health_status"
   ]
 }
+
