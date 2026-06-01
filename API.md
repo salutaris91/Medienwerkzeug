@@ -46,7 +46,8 @@ Ordnergrößen für die Überwachung.
 ```
 
 ### `GET|POST /api/settings`
-Liest (GET) bzw. speichert (POST) die Konfiguration (`settings.json`).
+Liest (GET) bzw. speichert (POST) die Konfiguration (`settings.json`). 
+**Security:** Sensitive Felder (`telegram_token`, `whatsapp_apikey`, `tmdb_api_key`, `tvdb_api_key`) werden beim Lesen maskiert (z. B. `****abcd`). Werden maskierte Werte gepostet, überschreiben diese nicht die echten Credentials im Backend. API-Keys für TMDB/TVDB werden primär über die `gui/.env` Datei verwaltet.
 
 ### `POST /api/nas/connect`
 Versucht das konfigurierte NAS sofort per SMB einzubinden und aktualisiert den

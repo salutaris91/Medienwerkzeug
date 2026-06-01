@@ -98,7 +98,9 @@ graph TD
 * **rclone** (für den pCloud-Upload über ein eingerichtetes Remote namens `pcloud:`)
 
 ### 2. Konfiguration
-Erstelle eine `.env` Datei im Ordner `gui/`:
+API-Keys können direkt in der Web-GUI unter **Einstellungen** (Metadaten API-Keys) eingetragen werden. Die Werte werden in der UI maskiert angezeigt (z. B. `****abcd`), um sie vor unbefugtem Auslesen zu schützen.
+
+Alternativ kann manuell eine `.env` Datei im Ordner `gui/` (oder gem. `MW_ENV_FILE`) angelegt werden:
 ```env
 TMDB_API_KEY=dein_tmdb_api_key
 TVDB_API_KEY=dein_tvdb_api_key

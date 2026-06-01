@@ -20,23 +20,55 @@ from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
 
 @system_api.route('/settings', methods=['GET', 'POST'])
 def handle_api_settings():
+    from gui.core.persistence import update_settings, save_env_keys, load_env_keys, mask_credential, is_masked
+    import gui.mw_metadata as mw_metadata
+
     if request.method == 'POST':
         try:
             params = request.get_json() or {}
         except Exception:
             params = {}
-        from gui.core.persistence import update_settings
+            
+        # Extract env variables from params
+        env_updates = {}
+        if "tmdb_api_key" in params:
+            val = params.pop("tmdb_api_key")
+            if not is_masked(val):
+                env_updates["TMDB_API_KEY"] = val
+        if "tvdb_api_key" in params:
+            val = params.pop("tvdb_api_key")
+            if not is_masked(val):
+                env_updates["TVDB_API_KEY"] = val
+                
+        # Save env variables if changed
+        if "TMDB_API_KEY" in env_updates or "TVDB_API_KEY" in env_updates:
+            # Only pass keys that were unmasked to save_env_keys
+            save_env_keys(env_updates)
+            mw_metadata.reload_metadata_keys()
+            
+        # Protect masked regular settings
         def mutate(data):
             for k, v in params.items():
+                if k in ["telegram_token", "whatsapp_apikey"] and is_masked(v):
+                    continue # Preserve existing value
                 data[k] = v
+                
         if update_settings(mutate):
             return jsonify({"status": "success"})
         else:
             return jsonify({"error": "Failed to save settings"})
     else:
         settings = load_settings()
-        for key in ["telegram_token", "telegram_chat_id", "whatsapp_apikey", "whatsapp_phone"]:
-            settings.pop(key, None)
+        
+        # Mask credentials instead of popping them blindly
+        settings["telegram_token"] = mask_credential(settings.get("telegram_token", ""))
+        settings["whatsapp_apikey"] = mask_credential(settings.get("whatsapp_apikey", ""))
+        
+        # Also append masked env keys
+        env_keys = load_env_keys()
+        settings["tmdb_api_key"] = mask_credential(env_keys.get("TMDB_API_KEY", ""))
+        settings["tvdb_api_key"] = mask_credential(env_keys.get("TVDB_API_KEY", ""))
+        
         return jsonify(settings)
 
 

@@ -150,7 +150,7 @@ Bevor wir den Release-Branch abzweigen, stellen wir sicher, dass das Fundament a
   - Ist er im Docker/Linux: Deaktivierung aller Desktop-Integrationen, reine CLI-Fallbacks.
 - **Dateisystem & Aufrufe:** Konsequente Nutzung von `os.path.join` für Pfadtrenner, Anpassung des Dateinamen-Sanitizings an Windows/Linux-Grenzwerte, Docker-Volume-Kompatibilität sowie robuste, plattformunabhängige Systemaufrufe für externe Abhängigkeiten (`ffmpeg`, `rclone`, `yt-dlp`).
 
-#### 1.3 `.env`-Handling & Settings-UI
+#### 1.3 `.env`-Handling & Settings-UI (Erledigt)
 - Die Einstellungs-Seite wird um Eingabefelder für TMDB/TVDB API-Keys erweitert. Das Backend speichert diese unsichtbar in der `.env`-Datei, sodass der Nutzer keine Textdatei anfassen muss.
 - **Sicherheits-Vorkehrungen:**
   - Automatische Pflege von `.env.example` und Sicherstellung des `.gitignore`-Eintrags für `.env`.

@@ -6569,6 +6569,8 @@ async function loadSettings() {
             setCheckbox("settings-notify-whatsapp", currentSettings.notify_whatsapp);
             setInputVal("settings-whatsapp-apikey", currentSettings.whatsapp_apikey);
             setInputVal("settings-whatsapp-phone", currentSettings.whatsapp_phone);
+            setInputVal("settings-tmdb-key", currentSettings.tmdb_api_key);
+            setInputVal("settings-tvdb-key", currentSettings.tvdb_api_key);
             setInputVal("settings-notify-min-size", currentSettings.notify_min_size !== undefined ? currentSettings.notify_min_size : 10);
             setCheckbox("settings-notify-only-end", currentSettings.notify_only_end !== false); // default to true
             
@@ -7277,6 +7279,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 notify_whatsapp: document.getElementById("settings-notify-whatsapp")?.checked || false,
                 whatsapp_apikey: document.getElementById("settings-whatsapp-apikey")?.value || "",
                 whatsapp_phone: document.getElementById("settings-whatsapp-phone")?.value || "",
+                tmdb_api_key: document.getElementById("settings-tmdb-key")?.value || "",
+                tvdb_api_key: document.getElementById("settings-tvdb-key")?.value || "",
                 notify_min_size: parseInt(document.getElementById("settings-notify-min-size")?.value, 10) || 0,
                 notify_only_end: document.getElementById("settings-notify-only-end")?.checked || false,
 
