@@ -143,7 +143,7 @@ Bevor wir den Release-Branch abzweigen, stellen wir sicher, dass das Fundament a
 - Aktuelle Defaults im Code (wie `~/pCloud Drive`) müssen leer sein. **Wichtig:** Deine eigenen Einstellungen in der `settings.json` bleiben davon völlig unberührt! Wir ändern nur die Fallbacks für *neue* Nutzer.
 - **Backup & Ausfallsicherheit:** Vor jeder Migration von Konfigurationsdateien wird automatisch ein lokales Backup (z.B. `.bak`) angelegt. Beim Laden beschädigter JSON-Dateien wird der Fehler nicht stillgeschwiegen, sondern prominent gemeldet, und das System versucht, sich aus dem letzten intakten Backup zu reparieren.
 
-#### 1.2 Cross-Platform-Weichen (Mac / Windows / Linux)
+#### 1.2 Cross-Platform-Weichen (Mac / Windows / Linux) (Erledigt)
 - **Desktop-Integration:** 
   - Ist der Nutzer auf Mac: `osascript` (Finder-Aufrufe, Mount-AppleScripts).
   - Ist er auf Windows: native Windows-Pfade (Backslashes), `os.startfile` für Explorer und Windows-Systembenachrichtigungen.
@@ -157,21 +157,21 @@ Bevor wir den Release-Branch abzweigen, stellen wir sicher, dass das Fundament a
   - Maskierte Rückgabe über die Settings-API (z.B. `****abcd`), um Ausspähen im Client zu verhindern.
   - API-Schutzmechanismus: Schutz davor, dass maskierte Platzhalter (wie `"****abcd"`) bei einer erneuten Speicherung versehentlich als echte Schlüssel in die `.env` zurückgeschrieben werden.
 
-#### 1.4 Error-Logging & Crash Recovery
+#### 1.4 Error-Logging & Crash Recovery (Erledigt)
 - **Strukturiertes Logging:** Logging in eine rotierende Log-Datei (z. B. `app.log`) auf der Festplatte (nicht nur Standardausgabe), um Fehler bei Dritten nachvollziehbar zu machen.
 - **"Bug melden"-Button:** Eine Option im GUI-Dashboard, um relevante Logs anonymisiert zu exportieren.
 - **Crash Recovery für Jobs:** Beim Start prüft die App, ob Jobs in `jobs_state.json` unvollständig (z.B. `in_progress`) zurückgelassen wurden. Diese werden mit einer verständlichen Fehlermeldung (z.B. "Prozess durch unerwarteten App-Neustart abgebrochen") auf `failed` gesetzt.
 - **Aufräumen von temporären Dateien:** Verwaiste temporäre Konvertierungsdateien (z.B. `.tmp.mkv` oder unvollständige Download-Reste) in der Inbox oder im Arbeitsverzeichnis werden erkannt und sicher bereinigt, um Dateinamenskonflikte zu verhindern.
 
-#### 1.5 Settings-Versionierung & Migration
+#### 1.5 Settings-Versionierung & Migration (Erledigt)
 - Einführung eines `version`-Feldes in `settings.json` und `jobs_state.json`.
 - Bei Schemaänderungen migriert eine Funktion die Altdaten automatisch ins neue Format (nach Backup-Erstellung). Defekte JSONs werden abgefangen und gemeldet.
 
-#### 1.6 Threadsichere & atomare Datei-Schreibvorgänge
+#### 1.6 Threadsichere & atomare Datei-Schreibvorgänge (Erledigt)
 - **Atomares Schreiben:** Alle JSON-Schreibvorgänge erfolgen über eine temporäre Datei und anschließendes `os.replace()`, um unvollständige Schreibvorgänge (z. B. bei abruptem Beenden) zu vermeiden.
 - **Threadsicherheit:** Einführung von exklusiven `threading.Lock`s (bzw. bei Bedarf File Locks) für alle Lese-Schreib-Modifikationen (Read-Modify-Write) auf den geteilten Dateien `settings.json`, `jobs_state.json` und `action_log.json`.
 
-#### 1.7 Aktionslog
+#### 1.7 Aktionslog (Erledigt)
 - Jede Dateisystem-Aktion, die die App vornimmt, wird lückenlos protokolliert.
 - **Erfasste Aktionen:** `rename`, `move`, `create_folder`, `copy` und `delete`.
 - **Protokollierte Daten:** Erfolg/Fehlermeldung, Zeitstempel, Job-ID/Projekt-ID sowie Quell- und Zielpfad in der `action_log.json`.
