@@ -2,6 +2,10 @@
 
 Vorlage erstellt am 17.05.2026 — für alle Coding-Projekte von Alex.
 
+Diese Datei und `AGENTS.md` enthalten dieselben gemeinsamen Projektregeln und
+müssen bei Änderungen synchron gehalten werden. Bewusst tool-spezifische
+Abweichungen sind direkt an der jeweiligen Stelle gekennzeichnet.
+
 ---
 
 ## Kontext
@@ -82,11 +86,21 @@ Vor diesen Aktionen stoppen, genau auflisten was betroffen ist, und auf explizit
 ### Git und Commits
 
 - Niemals direkt auf `main` arbeiten — jedes Feature muss zwingend in einem eigenen, neuen Branch bearbeitet werden
-- Nach jedem abgeschlossenen Plan-Schritt lokal committen: `git add -A && git commit -m "<kurze Beschreibung>"` — das ist ohne Rückfrage erlaubt
+- Nach jedem abgeschlossenen Plan-Schritt nur die eigenen Dateien gezielt stagen und lokal committen: `git add <eigene-dateien> && git commit -m "<kurze Beschreibung>"` — das ist ohne Rückfrage erlaubt
 - Pushen nur auf ausdrückliche Nachfrage
 - Commit-Messages auf Englisch, knapp und im Imperativ (`add folder-size monitor`, nicht `added ...`)
-- Jede Commit-Message endet mit der Zeile:
+- Jede Commit-Message endet mit der tool-spezifischen Zeile:
   `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`
+
+### Parallele Agents
+
+- Jeder Agent arbeitet zwingend in einem eigenen Branch und einem eigenen Git-Worktree.
+- Niemals zwei Agents gleichzeitig im selben Arbeitsordner oder auf demselben Branch arbeiten lassen.
+- Vor Änderungen und vor jedem Commit `git status --short --branch` sowie `git log --oneline -5` prüfen.
+- Keine pauschalen Staging-Befehle wie `git add -A` verwenden. Nur die eigenen, zur Aufgabe gehörenden Dateien gezielt stagen.
+- Fremde Änderungen oder Commits niemals verändern, überschreiben, zurückrollen oder in den eigenen Commit aufnehmen.
+- Wenn fremde Änderungen die eigene Aufgabe berühren: stoppen, den Konflikt konkret benennen und Alex entscheiden lassen.
+- `STAND.md` bei Übergaben aktualisieren. Die Integration nach `main` erfolgt erst nach Prüfung der einzelnen Branches.
 
 ---
 
