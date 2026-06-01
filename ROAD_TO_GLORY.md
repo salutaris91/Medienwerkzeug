@@ -53,7 +53,7 @@ Bevor wir das Tool an andere verteilen, sollten folgende Punkte der **aktuellen*
    - **Warum:** Für Erstnutzer ist es absolut kritisch zu sehen, ob das System im Hintergrund arbeitet, sonst klicken sie mehrfach und erzeugen Fehler oder Queue-Staus.
 2. **Priorität 2: Server-genaue Artwork-Prüfung** (Erledigt)
    - **Warum:** Andere Nutzer setzen oft Emby oder Plex ein. Wenn das Medienwerkzeug hier falsche Warnungen ausgibt (weil es aktuell sehr tolerant prüft), führt das zu Support-Fragen.
-3. **Priorität 3: Inkrementeller Health-Scan**
+3. **Priorität 3: Inkrementeller Health-Scan** (Erledigt)
    - **Warum:** Gerade bei großen externen Bibliotheken dauern vollständige Scans extrem lange. Ein Caching ist zwingend nötig für eine flüssige User Experience.
 4. **Nice-to-Have: Echtes Multi-Cloud**
    - **Warum:** Wäre als "1.0 Feature" cool, kann aber notfalls auch per Update (`1.1`) nachgereicht werden. Google Drive wird aktuell schon unterstützt (Nutzer kann `gdrive:` statt `pcloud:` eintragen). Was fehlt, ist nur die gleichzeitige Nutzung beider Dienste mit getrennten Schaltern.
@@ -77,7 +77,7 @@ Der aktuelle Bibliotheks-Check prüft lediglich, ob *irgendein* Bild im Ordner l
 - **Ziel:** Differenzierte Meldungen pro Artwork-Typ, exakt abgestimmt auf den konfigurierten Medienserver.
 - **Umsetzung:** Ein neues Feld `media_server` in den Einstellungen (Emby, Jellyfin, Plex). Der Health-Scan validiert gegen eine Konventions-Tabelle. Es werden getrennte Issues ausgegeben (z.B. fehlendes Poster = warning, fehlendes Banner = info).
 
-#### 3. Inkrementeller Health-Scan (Timestamp-Cache)
+#### 3. Inkrementeller Health-Scan (Timestamp-Cache) (Erledigt)
 Der Health-Scan prüft aktuell bei jedem Durchlauf alle Ordner vollständig, inklusive rechenintensiver `ffprobe`-Codec-Stichproben. Bei großen NAS-Bibliotheken dauert dies extrem lange.
 - **Ziel:** Ordner, die beim letzten Scan fehlerfrei waren und seitdem nicht verändert wurden, überspringen. Folge-Scans sollen in Sekunden statt Minuten abschließen.
 - **Umsetzung:** Pro gescanntem Ordner wird ein Caching-Eintrag (`health_folder_cache.json`) mit dem letzten Änderungsdatum (`mtime` via `os.stat`) und einer Regel-Version (`scan_version`) gespeichert.

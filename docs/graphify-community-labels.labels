@@ -13,9 +13,6 @@
     "tests_test_utils_py",
     "tests_test_utils_testmediawerkzeuglogic"
   ],
-  "Future Feature Roadmap": [
-    "roadmap_md"
-  ],
   "API Documentation": [
     "api_md"
   ],
@@ -30,13 +27,6 @@
   ],
   "Frontend Initialization": [
     "static_app_initviews"
-  ],
-  "Project Inbox API & Queue and YouTube API & Storage Statistics and Profiles": [
-    "gui_api_queue_api_py",
-    "gui_core_utils_py"
-  ],
-  "Project API and Folder Management": [
-    "gui_api_project_api_py"
   ],
   "Architecture Review Notes": [
     "review_md"
@@ -58,10 +48,6 @@
   ],
   "Claude Project Rules": [
     "claude_md"
-  ],
-  "Main Module & NAS Library and Transfers": [
-    "core_transfers_check_nas_status",
-    "gui_main_py"
   ],
   "Health Dashboard Frontend": [
     "static_app_inithealthdashboard"
@@ -144,14 +130,8 @@
   "Notifications Module": [
     "gui_core_notifications_py"
   ],
-  "Youtube Api Module": [
-    "gui_api_youtube_api_py"
-  ],
   "ArtworkValidator": [
     "core_artwork_validators_artworkvalidator"
-  ],
-  "str": [
-    "str"
   ],
   "Transfers Module": [
     "gui_core_transfers_py"
@@ -167,5 +147,38 @@
   ],
   ".get_season_poster_names()": [
     "core_artwork_validators_artworkvalidator_get_season_poster_names"
+  ],
+  "NAS Transfers and Status Checking": [
+    "core_transfers_check_nas_status"
+  ],
+  "Main App Entrypoint": [
+    "gui_main_py"
+  ],
+  "Health Scan Cache": [
+    "gui_core_health_cache_py"
+  ],
+  "Plex Artwork Validator": [
+    "core_artwork_validators_plexartworkvalidator"
+  ],
+  "System API": [
+    "gui_api_system_api_py"
+  ],
+  "Project Scanning and Folder Utilities": [
+    "api_project_api_handle_api_scan_project"
+  ],
+  "Health Scan Cache Tests": [
+    "tests_test_health_scan_cache_py"
+  ],
+  "Finder Integration Helper": [
+    "core_helpers_open_folder_in_finder"
+  ],
+  "Series Logo Validators": [
+    "core_artwork_validators_artworkvalidator_get_preferred_series_logo_name"
+  ],
+  "Project Queue and YouTube API": [
+    "gui_api_queue_api_py"
+  ],
+  "Project API and Core Utilities": [
+    "gui_api_project_api_py"
   ]
 }
