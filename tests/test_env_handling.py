@@ -49,7 +49,6 @@ class TestEnvHandling(unittest.TestCase):
         import gui.mw_metadata as mw
         mw.reload_metadata_keys()
         self.assertEqual(os.environ.get("TMDB_API_KEY"), "manual123")
-        
         # Manually overwrite the file to delete the key
         with open(self.env_path, "w") as f:
             f.write("OTHER_KEY=123\n")

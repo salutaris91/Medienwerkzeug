@@ -1,6 +1,8 @@
 {
-  "Legacy Server and YouTube processing": [
-    "gui_server_py"
+  "Main App Core": [
+    "gui_server_py",
+    "gui_core_transfers_py",
+    "gui_core_nas_renamer_py"
   ],
   "Frontend Application State and Queue Dashboard": [
     "gui_static_app_js"
@@ -26,9 +28,7 @@
   "Release Hardening Roadmap": [
     "road_to_glory_md"
   ],
-  "Product Roadmap": [
-    "roadmap_md"
-  ],
+
   "Frontend Workflow Modals": [
     "static_app_executeseriesworkflow"
   ],
@@ -117,9 +117,7 @@
   "Artwork Validators": [
     "gui_core_artwork_validators_py"
   ],
-  "Transfers and App Core": [
-    "gui_core_transfers_py"
-  ],
+
   "Health Scan Cache": [
     "gui_core_health_cache_py"
   ],
@@ -136,9 +134,7 @@
   "Project and System APIs": [
     "gui_api_system_api_py"
   ],
-  "NAS Renamer, Notifications and General Helpers": [
-    "gui_core_nas_renamer_py"
-  ],
+
   "NAS Mount Fallback Tests": [
     "tests_test_transfers_nas_mount_py"
   ]
