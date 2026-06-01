@@ -89,7 +89,7 @@ Der Health-Scan prüft aktuell bei jedem Durchlauf alle Ordner vollständig, ink
 
 #### Phase 0.5: Härtung & UX-Optimierungen (Feedback aus der Verifizierung)
 Bevor wir den `release`-Branch abzweigen, werden folgende Verbesserungen direkt auf `main` umgesetzt:
-1. **Artwork-Validierung & Cache-Korrektheit:**
+1. **Artwork-Validierung & Cache-Korrektheit:** (Erledigt)
    - Nummerierte Artwork-Varianten nur entsprechend der Konvention des gewählten Medienservers akzeptieren (z.B. Jellyfin-Backdrops `backdrop-1.jpg` und `backdrop2.jpg`; Plex-Fanarts `fanart-1.jpg`).
    - Die Fehlermeldung neutral zu "Hintergrundbild fehlt" vereinheitlichen.
    - Den Hybrid-Cache-Zustand um alle tatsächlich geprüften Kerndateien erweitern: NFO, Video sowie serverabhängige Poster, Backdrops, Logos und Banner. Dadurch bleiben gelöschte Artworks auch dann erkennbar, wenn das NAS den Ordner-`mtime` nicht zuverlässig aktualisiert.
