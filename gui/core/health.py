@@ -625,7 +625,8 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
                     subdirs = []
                 for sd in subdirs:
                     if _cancel_event.is_set():
-                        break
+                        _handle_cancel(idx, files_checked, issues, stats, cache_mgr)
+                        return
                     sp = os.path.join(show["path"], sd)
                     if os.path.isdir(sp):
                         files_checked += _check_movie_cached(issues, show["category"], sp, validator, cache_mgr, cache_key, deep_dive, stats)

@@ -523,6 +523,10 @@ def walk_nas_categories(settings=None, category_ids=None):
             filter_cats = {str(x) for x in category_ids}
         else:
             filter_cats = {str(category_ids)}
+        
+        # If the set is empty, treat as None (no filtering)
+        if not filter_cats:
+            filter_cats = None
 
     for cat in sync_cats:
         cat_id = cat.get("id")

@@ -9839,16 +9839,18 @@ async function startHealthScan() {
         return;
     }
 
+    const payload = { deep: deep };
+    if (checkboxes.length > 0) {
+        payload.category_ids = categoryIds;
+    }
+
     try {
         const res = await fetch("/api/nas/health-scan", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({
-                deep: deep,
-                category_ids: categoryIds
-            })
+            body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (data.started === false) {
