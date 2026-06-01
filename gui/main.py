@@ -35,19 +35,20 @@ def is_port_in_use(port):
 
 def main():
     import time
-    print("Starting Medienwerkzeug Flask Server...")
+    port = int(os.environ.get("MW_PORT", 5001))
+    print(f"Starting Medienwerkzeug Flask Server on port {port}...")
     
     # Wait up to 5 times (total 7.5 seconds) if port is in use (e.g. from quick restart)
     for i in range(5):
-        if is_port_in_use(5001):
-            print(f"Port 5001 belegt, warte auf Freigabe (Versuch {i+1}/5)...")
+        if is_port_in_use(port):
+            print(f"Port {port} belegt, warte auf Freigabe (Versuch {i+1}/5)...")
             time.sleep(1.5)
         else:
             break
             
-    if is_port_in_use(5001):
-        print("Server is already running! Just opening the browser...")
-        webbrowser.open("http://127.0.0.1:5001")
+    if is_port_in_use(port):
+        print(f"Server is already running on port {port}! Just opening the browser...")
+        webbrowser.open(f"http://127.0.0.1:{port}")
         sys.exit(0)
         
     # Init settings
@@ -80,14 +81,14 @@ def main():
         
     try:
         def open_browser():
-            webbrowser.open("http://127.0.0.1:5001")
+            webbrowser.open(f"http://127.0.0.1:{port}")
         threading.Timer(1.0, open_browser).start()
         
-        app.run(host='0.0.0.0', port=5001, debug=False, use_reloader=False)
+        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
     except OSError as e:
         if e.errno == 48 or "Address already in use" in str(e):
-            print("Server is already running! Just opening the browser...")
-            webbrowser.open("http://127.0.0.1:5001")
+            print(f"Server is already running on port {port}! Just opening the browser...")
+            webbrowser.open(f"http://127.0.0.1:{port}")
         else:
             raise e
     except KeyboardInterrupt:
