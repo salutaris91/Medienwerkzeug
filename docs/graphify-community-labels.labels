@@ -2,7 +2,7 @@
   "Legacy Server and YouTube processing": [
     "gui_server_py"
   ],
-  "Frontend Application State": [
+  "Frontend Application State and Queue Dashboard": [
     "gui_static_app_js"
   ],
   "API Documentation": [
@@ -62,9 +62,6 @@
   "Ignored Findings Storage": [
     "gui_core_ignores_py"
   ],
-  "Queue Dashboard Frontend": [
-    "static_app_initqueue"
-  ],
   "Local Profiles Frontend": [
     "static_app_populatelocalprofilesdropdown"
   ],
@@ -122,7 +119,7 @@
   "Artwork Validators": [
     "gui_core_artwork_validators_py"
   ],
-  "Transfers, App Entrypoint, NAS Renamer and Notifications": [
+  "Transfers, App Core, NAS Renamer and Mount Tests": [
     "gui_core_transfers_py"
   ],
   "Health Scan Cache": [
@@ -142,9 +139,6 @@
   ],
   "System, Stats and YouTube APIs": [
     "gui_api_system_api_py"
-  ],
-  "Manual NAS Connect API Tests": [
-    "tests_test_nas_connect_testnasconnectapi"
   ],
   "NAS Renamer, Notifications and General Helpers": [
     "gui_core_nas_renamer_py"
