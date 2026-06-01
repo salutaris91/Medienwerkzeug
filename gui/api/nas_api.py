@@ -587,6 +587,17 @@ def handle_api_nas_health_status():
         return jsonify({"status": "error", "error": str(e)}), 500
 
 
+@nas_api.route('/nas/health-cancel', methods=['POST'])
+def handle_api_nas_health_cancel():
+    """Bricht den laufenden Health-Scan ab."""
+    import gui.core.health as health
+    try:
+        stopped = health.stop_health_scan()
+        return jsonify({"stopped": stopped})
+    except Exception as e:
+        return jsonify({"stopped": False, "error": str(e)}), 500
+
+
 # ==========================================================================
 # Feature 4: NAS-weite Duplikat-Erkennung
 # ==========================================================================

@@ -301,5 +301,42 @@ class TestHealthScanCache(unittest.TestCase):
                 self.assertEqual(stats["cache_hits"], 0)
                 mock_check.assert_called_once()
 
+    def test_health_scan_cancel(self):
+        health._cancel_event.clear()
+        health._scan_state["status"] = "running"
+        
+        stopped = health.stop_health_scan()
+        self.assertTrue(stopped)
+        self.assertTrue(health._cancel_event.is_set())
+        self.assertEqual(health._scan_state["status"], "cancelled")
+        
+        stopped_again = health.stop_health_scan()
+        self.assertFalse(stopped_again)
+
+    @unittest.mock.patch("gui.core.health.ensure_nas_mounted")
+    @unittest.mock.patch("gui.core.health.walk_nas_categories")
+    @unittest.mock.patch("gui.core.utils.load_settings")
+    def test_health_scan_cancel_thread(self, mock_load_settings, mock_walk, mock_ensure_nas):
+        mock_load_settings.return_value = {
+            "media_server": "emby",
+            "nas_root": self.temp_dir.name,
+            "sync_categories": []
+        }
+        mock_ensure_nas.return_value = True
+        mock_walk.return_value = [{
+            "category": "Serien",
+            "name": "Test Show",
+            "path": "/some/path",
+            "type": "series"
+        }]
+        
+        health._cancel_event.set()
+        health._scan_state["status"] = "running"
+        
+        health._run_health_scan(deep_dive=False)
+        
+        self.assertEqual(health._scan_state["status"], "cancelled")
+        self.assertIn("abgebrochen", health._scan_state["message"])
+
 if __name__ == "__main__":
     unittest.main()

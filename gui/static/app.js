@@ -9778,6 +9778,10 @@ function initHealthDashboard() {
     if (btn) {
         btn.addEventListener("click", startHealthScan);
     }
+    const cancelBtn = document.getElementById("btn-health-cancel");
+    if (cancelBtn) {
+        cancelBtn.addEventListener("click", cancelHealthScan);
+    }
     // Lade Kategorien dynamisch
     loadHealthCategories();
     // Vorhandenes (gecachtes) Ergebnis laden
@@ -9859,6 +9863,23 @@ async function startHealthScan() {
     }
 }
 
+async function cancelHealthScan() {
+    const cancelBtn = document.getElementById("btn-health-cancel");
+    if (cancelBtn) {
+        cancelBtn.disabled = true;
+        cancelBtn.textContent = "Abbruch...";
+    }
+    try {
+        const res = await fetch("/api/nas/health-cancel", { method: "POST" });
+        const data = await res.json();
+        if (data.stopped) {
+            setHealthStatusText("Abbruch angefordert...");
+        }
+    } catch (e) {
+        console.error("Health-Scan konnte nicht abgebrochen werden:", e);
+    }
+}
+
 function setHealthStatusText(txt) {
     const el = document.getElementById("health-scan-status");
     if (el) el.textContent = txt;
@@ -9873,7 +9894,16 @@ async function pollHealthStatus(keepPolling) {
 
         const running = data.status === "running";
         const btn = document.getElementById("btn-health-scan");
+        const cancelBtn = document.getElementById("btn-health-cancel");
         if (btn) btn.disabled = running;
+        
+        if (cancelBtn) {
+            cancelBtn.style.display = running ? "inline-block" : "none";
+            if (!running) {
+                cancelBtn.disabled = false;
+                cancelBtn.textContent = "⏹️ Abbrechen";
+            }
+        }
 
         if (running) {
             // Weiterpollen, solange der Scan läuft
@@ -9904,6 +9934,10 @@ function renderHealthStatus(data) {
         if (progWrap) progWrap.style.display = "none";
         if (data.status === "error") {
             statusEl.textContent = `Fehler: ${data.message || data.error || "Unbekannt"}`;
+            if (statsEl) statsEl.style.display = "none";
+        } else if (data.status === "cancelled") {
+            const when = data.finished_at ? new Date(data.finished_at * 1000).toLocaleString("de-DE") : "";
+            statusEl.textContent = `Abgebrochen: ${data.message || "Vom Benutzer abgebrochen."}` + (when ? ` (${when})` : "");
             if (statsEl) statsEl.style.display = "none";
         } else if (data.status === "done" || (data.issues && data.issues.length >= 0 && data.finished_at)) {
             const when = data.finished_at ? new Date(data.finished_at * 1000).toLocaleString("de-DE") : "";

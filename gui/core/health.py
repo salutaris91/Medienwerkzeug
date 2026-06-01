@@ -46,8 +46,9 @@ IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png'}
 # Thread-sicherer State
 # ---------------------------------------------------------------------------
 _state_lock = threading.Lock()
+_cancel_event = threading.Event()
 _scan_state = {
-    "status": "idle",       # idle | running | done | error
+    "status": "idle",       # idle | running | done | error | cancelled
     "progress": 0,
     "message": "",
     "started_at": None,
@@ -554,6 +555,28 @@ def _check_series_cached(issues, category, show_path, validator, cache_mgr, key,
 # ---------------------------------------------------------------------------
 # Scan-Steuerung
 # ---------------------------------------------------------------------------
+def _handle_cancel(shows_scanned, files_checked, issues, stats, cache_mgr):
+    cache_mgr.flush()
+    summary = {"critical": 0, "warning": 0, "info": 0}
+    for it in issues:
+        summary[it["severity"]] = summary.get(it["severity"], 0) + 1
+        
+    result = {
+        "status": "cancelled",
+        "progress": 100,
+        "message": f"Scan vom Benutzer abgebrochen. Bisherige Funde: {len(issues)}.",
+        "finished_at": time.time(),
+        "issues": issues,
+        "summary": summary,
+        "scanned": {"shows": shows_scanned, "files": files_checked},
+        "stats": stats,
+        "error": None,
+    }
+    _set_state(**result)
+    _write_cache()
+    log_message(f"⏹️ [Health-Scan] Vom Benutzer abgebrochen. Bisherige Funde: {len(issues)} in {shows_scanned} Ordnern.")
+
+
 def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = None):
     issues = []
     files_checked = 0
@@ -581,6 +604,10 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
         log_message(f"🔍 [Health-Scan] Starte Prüfung von {total} Ordnern (deep_dive={deep_dive})...")
  
         for idx, show in enumerate(shows):
+            if _cancel_event.is_set():
+                _handle_cancel(idx, files_checked, issues, stats, cache_mgr)
+                return
+
             _set_state(
                 progress=int((idx / total) * 100) if total else 100,
                 message=f"Prüfe {show['category']}: {show['name']} ({idx + 1}/{total})",
@@ -597,6 +624,8 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
                 except OSError:
                     subdirs = []
                 for sd in subdirs:
+                    if _cancel_event.is_set():
+                        break
                     sp = os.path.join(show["path"], sd)
                     if os.path.isdir(sp):
                         files_checked += _check_movie_cached(issues, show["category"], sp, validator, cache_mgr, cache_key, deep_dive, stats)
@@ -645,6 +674,7 @@ def start_health_scan(deep_dive: bool = False, category_ids: Optional[list] = No
     with _state_lock:
         if _scan_state["status"] == "running":
             return False
+        _cancel_event.clear()
         _scan_state.update({
             "status": "running",
             "progress": 0,
@@ -659,6 +689,20 @@ def start_health_scan(deep_dive: bool = False, category_ids: Optional[list] = No
         })
     threading.Thread(target=_run_health_scan, args=(deep_dive, category_ids), daemon=True).start()
     return True
+
+
+def stop_health_scan():
+    """Fordert den Abbruch eines laufenden Scans an.
+
+    Gibt True zurück, wenn der Abbruch angefordert wurde, andernfalls False.
+    """
+    with _state_lock:
+        if _scan_state["status"] == "running":
+            _cancel_event.set()
+            _scan_state["status"] = "cancelled"
+            _scan_state["message"] = "Abbruch angefordert..."
+            return True
+        return False
 
 
 def _apply_ignores(result):
