@@ -51,7 +51,7 @@ Bevor wir das Tool an andere verteilen, sollten folgende Punkte der **aktuellen*
 
 1. **Priorität 1: Lade-Indikator für Inbox-Projekte in Bearbeitung** (Erledigt)
    - **Warum:** Für Erstnutzer ist es absolut kritisch zu sehen, ob das System im Hintergrund arbeitet, sonst klicken sie mehrfach und erzeugen Fehler oder Queue-Staus.
-2. **Priorität 2: Server-genaue Artwork-Prüfung**
+2. **Priorität 2: Server-genaue Artwork-Prüfung** (Erledigt)
    - **Warum:** Andere Nutzer setzen oft Emby oder Plex ein. Wenn das Medienwerkzeug hier falsche Warnungen ausgibt (weil es aktuell sehr tolerant prüft), führt das zu Support-Fragen.
 3. **Priorität 3: Inkrementeller Health-Scan**
    - **Warum:** Gerade bei großen externen Bibliotheken dauern vollständige Scans extrem lange. Ein Caching ist zwingend nötig für eine flüssige User Experience.
@@ -72,7 +72,7 @@ Aktuell ist auf dem Startbildschirm (Inbox) nicht ersichtlich, ob ein erkanntes 
 - **Ziel:** Eine visuelle Rückmeldung in der Inbox implementieren (analog zum kreisenden Lade-Symbol der Projektordner in der linken Seitenleiste).
 - **Umsetzung:** Die ID des aktuell verarbeiteten Projekts wird über die bestehende SSE-Verbindung (Server-Sent Events) oder den Status-Endpunkt an das Frontend kommuniziert. Das entsprechende Projekt-Kärtchen erhält ein Loading-Icon und der Bearbeiten-Button wird deaktiviert.
 
-#### 2. Server-genaue Artwork-Prüfung (Emby / Jellyfin / Plex)
+#### 2. Server-genaue Artwork-Prüfung (Emby / Jellyfin / Plex) (Erledigt)
 Der aktuelle Bibliotheks-Check prüft lediglich, ob *irgendein* Bild im Ordner liegt. Da Dritte andere Medienserver nutzen könnten, führt das zu falschen oder nervigen Warnungen.
 - **Ziel:** Differenzierte Meldungen pro Artwork-Typ, exakt abgestimmt auf den konfigurierten Medienserver.
 - **Umsetzung:** Ein neues Feld `media_server` in den Einstellungen (Emby, Jellyfin, Plex). Der Health-Scan validiert gegen eine Konventions-Tabelle. Es werden getrennte Issues ausgegeben (z.B. fehlendes Poster = warning, fehlendes Banner = info).
