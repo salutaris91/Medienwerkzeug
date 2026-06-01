@@ -12,7 +12,7 @@
    * **Serien & Doku-Serien:** `[Kategorie-Unterpfad]/[Serienname]/Staffel X/[Episode].mkv` sowie `tvshow.nfo` und Artworks.
 4. **Zwei-Kanal-Synchronisation (Entkoppelt):**
    * **Lokale Outbox:** Verarbeitete Projekte landen strukturiert in `Medien Output`.
-   * **NAS (SMB):** Robustes Mounten und progressives Kopieren via `rsync` (mit macOS-Fallbacks und `--inplace`-Kompatibilität für Mounts).
+   * **NAS (SMB):** Robustes Mounten per Verarbeitung oder manuellem Verbinden-Button und progressives Kopieren via `rsync` (mit macOS-Fallbacks und `--inplace`-Kompatibilität für Mounts).
    * **pCloud:** Paralleler, performanter Upload via `rclone` (mit Echtzeit-Fortschritt).
 5. **Integriertes Einstellungs-Dashboard (⚙️):** Bequeme Verwaltung von globalen Pfaden, flexiblen Importquellen (z.B. StreamFab, JDownloader) und dynamischen Sync-Kategorien über die Weboberfläche.
 6. **Warteschlange & Persistenz:** Thread-sicheres Queue-System mit Speicherung des aktuellen Zustands. Abgebrochene Jobs können nach Server-Neustarts per Knopfdruck fortgesetzt werden.

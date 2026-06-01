@@ -27,6 +27,9 @@
   "Release Hardening Roadmap": [
     "road_to_glory_md"
   ],
+  "Product Roadmap": [
+    "roadmap_md"
+  ],
   "Frontend Workflow Modals": [
     "static_app_executeseriesworkflow"
   ],
@@ -120,38 +123,17 @@
   "Graphify Refresh Script": [
     "scripts_refresh_graphify_sh"
   ],
-  "ArtworkValidator": [
-    "core_artwork_validators_artworkvalidator"
-  ],
-  "Transfers Module": [
-    "gui_core_transfers_py"
-  ],
-  ".get_preferred_movie_poster_name()": [
-    "core_artwork_validators_artworkvalidator_get_preferred_movie_poster_name"
-  ],
-  "Artwork Validators Module": [
+  "Artwork Validators": [
     "gui_core_artwork_validators_py"
   ],
-  "Nas Renamer Module": [
-    "gui_core_nas_renamer_py"
-  ],
-  ".get_season_poster_names()": [
-    "core_artwork_validators_artworkvalidator_get_season_poster_names"
-  ],
-  "Main App Entrypoint": [
-    "gui_main_py"
+  "Transfers, App Entrypoint, NAS Renamer and Notifications": [
+    "gui_core_transfers_py"
   ],
   "Health Scan Cache": [
     "gui_core_health_cache_py"
   ],
-  "Plex Artwork Validator": [
-    "core_artwork_validators_plexartworkvalidator"
-  ],
   "Health Scan Cache Tests": [
     "tests_test_health_scan_cache_py"
-  ],
-  "Series Logo Validators": [
-    "core_artwork_validators_artworkvalidator_get_preferred_series_logo_name"
   ],
   "Search and Folder Matching API & Utility Tests": [
     "tests_test_utils_py"
@@ -159,16 +141,46 @@
   "Utility Logic Tests": [
     "tests_test_utils_testmediawerkzeuglogic"
   ],
-  "System API and NAS Transfers": [
+  "System API and Stats": [
     "gui_api_system_api_py"
-  ],
-  "Notifications and Finder Integration Helpers": [
-    "gui_core_notifications_py"
   ],
   "Project API, Queue and Core Utilities": [
     "gui_api_project_api_py"
   ],
   "YouTube and Queue API Handler": [
     "gui_api_youtube_api_py"
+  ],
+  "Health Ignore Application": [
+    "core_health_apply_ignores"
+  ],
+  "YouTube Worker and Processor": [
+    "gui_workers_youtube_worker_py"
+  ],
+  "Health Scan Season Helpers": [
+    "core_health_check_season"
+  ],
+  "Core Utilities and Profile API": [
+    "gui_core_utils_py"
+  ],
+  "Film Normalize Folder Classification Helpers": [
+    "core_health_is_genre_container"
+  ],
+  "Manual NAS Connect API Tests": [
+    "tests_test_nas_connect_py"
+  ],
+  "Health Scan Start": [
+    "core_health_start_health_scan"
+  ],
+  "Findings Ignore API": [
+    "api_nas_api_handle_api_findings_ignore"
+  ],
+  "Findings Ignored List API": [
+    "api_nas_api_handle_api_findings_ignored"
+  ],
+  "Findings Unignore API": [
+    "api_nas_api_handle_api_findings_unignore"
+  ],
+  "NAS Health Status API": [
+    "api_nas_api_handle_api_nas_health_status"
   ]
 }

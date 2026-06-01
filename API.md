@@ -48,6 +48,12 @@ Ordnergrößen für die Überwachung.
 ### `GET|POST /api/settings`
 Liest (GET) bzw. speichert (POST) die Konfiguration (`settings.json`).
 
+### `POST /api/nas/connect`
+Versucht das konfigurierte NAS sofort per SMB einzubinden und aktualisiert den
+gecachten NAS-Status. Liefert eine verständliche Meldung, wenn Netzwerk,
+Tailscale oder die im macOS-Schlüsselbund gespeicherten Zugangsdaten geprüft
+werden müssen.
+
 ### `GET|POST /api/stats`
 NAS-Speicherbelegung und Konvertierungs-Statistik (gesparter Platz etc.).
 

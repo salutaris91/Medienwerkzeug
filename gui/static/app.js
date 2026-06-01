@@ -1040,16 +1040,20 @@ async function loadStatus() {
         
         // Update NAS Badge
         const nasBadge = document.getElementById("nas-badge");
+        const connectNasBtn = document.getElementById("btn-connect-nas");
         nasBadge.className = "status-badge";
         if (data.nas_status === "connected") {
             nasBadge.textContent = "Verbunden";
             nasBadge.classList.add("online");
+            connectNasBtn?.classList.add("hidden");
         } else if (data.nas_status === "available_not_mounted") {
             nasBadge.textContent = "Bereit (Nicht gemountet)";
             nasBadge.classList.add("warning");
+            connectNasBtn?.classList.remove("hidden");
         } else {
             nasBadge.textContent = "Offline";
             nasBadge.classList.add("offline");
+            connectNasBtn?.classList.remove("hidden");
         }
         
         // Update StreamFab Badge
@@ -5393,6 +5397,26 @@ async function runToolGeneric(toolType, logMsg, extraParams = {}) {
 // EVENT LISTENERS BINDINGS
 // ==========================================================================
 function initEventListeners() {
+    const connectNasBtn = document.getElementById("btn-connect-nas");
+    if (connectNasBtn) {
+        connectNasBtn.addEventListener("click", async () => {
+            connectNasBtn.disabled = true;
+            connectNasBtn.textContent = "Verbinde...";
+            try {
+                const response = await fetch("/api/nas/connect", { method: "POST" });
+                const data = await response.json();
+                alert(data.message || (response.ok ? "NAS wurde verbunden." : "NAS-Verbindung fehlgeschlagen."));
+                await loadStatus();
+            } catch (error) {
+                console.error("NAS-Verbindung fehlgeschlagen:", error);
+                alert("NAS-Verbindung fehlgeschlagen. Bitte prüfe, ob der Server erreichbar ist.");
+            } finally {
+                connectNasBtn.disabled = false;
+                connectNasBtn.textContent = "Verbinden";
+            }
+        });
+    }
+
     // Settings Sub-Tabs navigation click listeners
     const settingsTabButtons = document.querySelectorAll(".settings-tab-btn");
     const settingsTabDescriptions = {

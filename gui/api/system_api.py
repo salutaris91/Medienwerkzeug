@@ -198,6 +198,45 @@ def handle_api_status():
     return jsonify(status)
 
 
+@system_api.route('/nas/connect', methods=['POST'])
+def handle_api_nas_connect():
+    """Try to mount the configured NAS immediately and refresh the cached status."""
+    try:
+        ensure_nas_mounted()
+        nas_status = check_nas_status()
+        handle_api_status.last_nas_status = nas_status
+        handle_api_status.last_nas_check = time.time()
+
+        if nas_status == "connected":
+            return jsonify({
+                "ok": True,
+                "nas_status": nas_status,
+                "message": "NAS wurde erfolgreich verbunden."
+            })
+
+        if nas_status == "available_not_mounted":
+            message = (
+                "NAS ist erreichbar, konnte aber nicht eingebunden werden. "
+                "Bitte prüfe die SMB-Zugangsdaten im macOS-Schlüsselbund."
+            )
+        else:
+            message = (
+                "NAS konnte nicht erreicht werden. Bitte prüfe Netzwerk, "
+                "Tailscale und die SMB-Einstellungen."
+            )
+
+        return jsonify({"ok": False, "nas_status": nas_status, "message": message}), 503
+    except Exception as e:
+        log_message(f"❌ Manueller NAS-Verbindungsversuch fehlgeschlagen: {e}")
+        handle_api_status.last_nas_status = "offline"
+        handle_api_status.last_nas_check = time.time()
+        return jsonify({
+            "ok": False,
+            "nas_status": "offline",
+            "message": f"NAS-Verbindung fehlgeschlagen: {e}"
+        }), 500
+
+
 
 @system_api.route('/system-open-folder', methods=['GET', 'POST'])
 def handle_api_system_open_folder():
