@@ -11,6 +11,14 @@ from gui.main import app
 
 test_client = app.test_client()
 
+def import_streamfab_files():
+    """Import all StreamFab files for backward-compatible callers."""
+    import_items = {}
+    for group in preview_streamfab_import():
+        safe_folder_name = group["safe_folder_name"]
+        import_items[safe_folder_name] = [item["path"] for item in group["files"]]
+    return execute_streamfab_import(import_items, [])
+
 class GUIRequestHandler:
     @staticmethod
     def _proxy(endpoint, method, dummy, params=None):

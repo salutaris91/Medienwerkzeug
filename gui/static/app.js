@@ -1227,31 +1227,34 @@ function updateProjectProcessingStatus(activeProjects) {
         const p = item.getAttribute("data-project") || "";
         const isProcessing = activeProjects.has(p);
         const btn = item.querySelector(".btn-select-smart");
-        
+
         if (isProcessing) {
             item.style.border = "1px solid rgba(0, 229, 255, 0.3)";
             item.style.background = "rgba(0, 229, 255, 0.03)";
-            if (btn) {
-                btn.className = "btn btn-secondary btn-sm btn-select-smart";
-                btn.style.whiteSpace = "nowrap";
-                btn.style.cursor = "not-allowed";
-                btn.style.opacity = "0.7";
-                btn.disabled = true;
-                btn.innerHTML = "🔄 In Bearbeitung...";
-            }
         } else {
             item.style.border = "1px solid var(--border-light)";
             item.style.background = "rgba(255,255,255,0.02)";
-            if (btn) {
-                btn.className = "btn btn-primary btn-sm btn-select-smart";
-                btn.style.whiteSpace = "nowrap";
-                btn.style.cursor = "";
-                btn.style.opacity = "";
-                btn.disabled = false;
-                btn.innerHTML = "⚡ Auswählen";
-            }
         }
+        configureSmartInboxButton(btn, p, isProcessing);
     });
+}
+
+function configureSmartInboxButton(btn, projectName, isProcessing) {
+    if (!btn) return;
+
+    btn.className = `btn ${isProcessing ? "btn-secondary" : "btn-primary"} btn-sm btn-select-smart`;
+    btn.style.whiteSpace = "nowrap";
+    btn.style.cursor = isProcessing ? "not-allowed" : "";
+    btn.style.opacity = isProcessing ? "0.7" : "";
+    btn.disabled = isProcessing;
+    btn.innerHTML = isProcessing ? "🔄 In Bearbeitung..." : "⚡ Auswählen";
+    btn.onclick = isProcessing
+        ? null
+        : () => handleSmartInboxClick(
+            projectName,
+            btn.getAttribute("data-media-type") || "",
+            btn.getAttribute("data-suggested-query") || ""
+        );
 }
 
 async function deleteProject(project) {
@@ -9404,19 +9407,14 @@ async function updateHomepageData(statusData) {
                             </div>
                         </div>
                         <div>
-                            ${isProcessing 
-                                ? `<button class="btn btn-secondary btn-sm btn-select-smart" style="white-space: nowrap; cursor: not-allowed; opacity: 0.7;" disabled>🔄 In Bearbeitung...</button>`
-                                : `<button class="btn btn-primary btn-sm btn-select-smart" style="white-space: nowrap;">⚡ Auswählen</button>`
-                            }
+                            <button class="btn btn-select-smart"
+                                    data-media-type="${escapeHTML(item.media_type || "")}"
+                                    data-suggested-query="${escapeHTML(item.suggested_query || "")}"></button>
                         </div>
                     `;
-                    
+
                     const btn = itemDiv.querySelector(".btn-select-smart");
-                    if (btn && !isProcessing) {
-                        btn.addEventListener("click", () => {
-                            handleSmartInboxClick(item.project, item.media_type, item.suggested_query || "");
-                        });
-                    }
+                    configureSmartInboxButton(btn, item.project, isProcessing);
                     smartInboxList.appendChild(itemDiv);
                 });
             } else {
