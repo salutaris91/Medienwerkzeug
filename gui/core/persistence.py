@@ -112,7 +112,7 @@ def backup_if_valid(file_path, backup_path):
         return False
     try:
         with open(file_path, "r", encoding="utf-8") as f:
-            json.load(f) # Validate JSON forma
+            json.load(f) # Validate JSON format
         shutil.copy2(file_path, backup_path)
         return True
     except Exception as e:
@@ -254,8 +254,6 @@ def load_env_keys():
                     elif v.startswith("'") and v.endswith("'"):
                         v = v[1:-1]
                     keys[k] = v
-    ensure_env_example()
-    ensure_env_gitignore()
     return keys
 
 def save_env_keys(updates):
@@ -310,8 +308,16 @@ def save_env_keys(updates):
     ensure_env_gitignore()
 
 def ensure_env_gitignore():
+    env_path = get_env_file_path()
+    try:
+        rel_path = os.path.relpath(env_path, APP_ROOT)
+        if rel_path.startswith("..") or os.path.isabs(rel_path):
+            return
+    except ValueError:
+        return
+
     gitignore_path = os.path.join(APP_ROOT, ".gitignore")
-    env_filename = ".env"
+    env_filename = rel_path.replace(os.sep, "/")
 
     lines = []
     if os.path.exists(gitignore_path):
@@ -390,7 +396,7 @@ def load_settings():
     if "sync_categories" not in settings or not settings["sync_categories"]:
         settings["sync_categories"] = DEFAULT_SETTINGS["sync_categories"]
         migrated = True
-    # Migration: Ensure sync_categories target mappings are se
+    # Migration: Ensure sync_categories target mappings are set
     if "sync_categories" in settings:
         for cat in settings["sync_categories"]:
             if "targets" not in cat:
@@ -402,7 +408,7 @@ def load_settings():
             if "pcloud_remote" in cat and "pcloud" not in cat["targets"]:
                 cat["targets"]["pcloud"] = cat["pcloud_remote"]
                 migrated = True
-    # Migration: Ensure min size notifications are se
+    # Migration: Ensure min size notifications are set
     for target_key in ["notify_min_size_macos", "notify_min_size_telegram", "notify_min_size_whatsapp"]:
         if target_key not in settings:
             settings[target_key] = settings.get("notify_min_size", 10)
@@ -411,7 +417,7 @@ def load_settings():
     if "version" not in settings:
         settings["version"] = 1
         migrated = True
-    # Ensure all DEFAULT_SETTINGS keys are presen
+    # Ensure all DEFAULT_SETTINGS keys are present
     for k, v in DEFAULT_SETTINGS.items():
         if k not in settings:
             settings[k] = v

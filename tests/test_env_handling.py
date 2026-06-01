@@ -1,11 +1,11 @@
 import os
-import unittes
+import unittest
 import json
 import tempfile
 from unittest.mock import patch
 from flask import Flask
 
-# Import the blueprin
+# Import the blueprint
 from gui.api.system_api import system_api
 from gui.core.persistence import load_env_keys, save_env_keys, is_masked, mask_credential
 
@@ -67,7 +67,7 @@ class TestEnvHandling(unittest.TestCase):
         import gui.core.persistence as p
         orig_app_root = p.APP_ROOT
         try:
-            # We mock APP_ROOT to self.test_dir.name but since it appends 'gui', we create i
+            # We mock APP_ROOT to self.test_dir.name but since it appends 'gui', we create it
             gui_dir = os.path.join(self.test_dir.name, "gui")
             os.makedirs(gui_dir, exist_ok=True)
             p.APP_ROOT = self.test_dir.name
@@ -87,7 +87,7 @@ class TestEnvHandling(unittest.TestCase):
             self.assertIn('OTHER_KEY="val"', content)
             self.assertIn('TVDB_API_KEY=""', content) # TVDB was missing and should be added
         finally:
-            p.APP_ROOT = orig_app_roo
+            p.APP_ROOT = orig_app_root
 
     def test_masking_mechanisms(self):
         self.assertEqual(mask_credential("1234567890"), "****7890")
@@ -132,7 +132,7 @@ class TestEnvHandling(unittest.TestCase):
         })
         self.assertEqual(response.status_code, 200)
 
-        # Verify real keys are intac
+        # Verify real keys are intact
         self.assertEqual(os.environ.get("TMDB_API_KEY"), "my_real_tmdb_key")
 
         from gui.core.persistence import load_settings

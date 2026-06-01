@@ -28,7 +28,7 @@ def handle_api_settings():
             params = request.get_json() or {}
         except Exception:
             params = {}
-            
+
         # Extract env variables from params
         env_updates = {}
         if "tmdb_api_key" in params:
@@ -39,38 +39,38 @@ def handle_api_settings():
             val = params.pop("tvdb_api_key")
             if not is_masked(val):
                 env_updates["TVDB_API_KEY"] = val
-                
+
         # Save env variables if changed
         if "TMDB_API_KEY" in env_updates or "TVDB_API_KEY" in env_updates:
             # Only pass keys that were unmasked to save_env_keys
             save_env_keys(env_updates)
             mw_metadata.reload_metadata_keys()
-            
+
         # Protect masked regular settings
         def mutate(data):
             for k, v in params.items():
                 if k in ["telegram_token", "telegram_chat_id", "whatsapp_apikey", "whatsapp_phone"] and is_masked(v):
                     continue # Preserve existing value
                 data[k] = v
-                
+
         if update_settings(mutate):
             return jsonify({"status": "success"})
         else:
             return jsonify({"error": "Failed to save settings"})
     else:
         settings = load_settings()
-        
+
         # Mask credentials instead of popping them blindly
         settings["telegram_token"] = mask_credential(settings.get("telegram_token", ""))
         settings["telegram_chat_id"] = mask_credential(settings.get("telegram_chat_id", ""))
         settings["whatsapp_apikey"] = mask_credential(settings.get("whatsapp_apikey", ""))
         settings["whatsapp_phone"] = mask_credential(settings.get("whatsapp_phone", ""))
-        
+
         # Also append masked env keys
         env_keys = load_env_keys()
         settings["tmdb_api_key"] = mask_credential(env_keys.get("TMDB_API_KEY", ""))
         settings["tvdb_api_key"] = mask_credential(env_keys.get("TVDB_API_KEY", ""))
-        
+
         return jsonify(settings)
 
 
@@ -133,14 +133,14 @@ def handle_api_system_restart():
     for job in get_all_jobs():
         if job.get("status") not in ("done", "error"):
             active_count += 1
-                
+
     if active_count > 0:
         return jsonify({
             "status": "busy",
             "message": "Der Server kann nicht neu gestartet werden, da aktuell noch Konvertierungen oder Dateiübertragungen laufen!"
         })
         return
-        
+
     # Schedule restart in a separate thread to allow response to send
     def do_restart():
         time.sleep(1.0)
@@ -152,17 +152,17 @@ def handle_api_system_restart():
         # Set PYTHONPATH to the parent directory of gui/
         project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".."))
         env["PYTHONPATH"] = project_root
-        
+
         args = [sys.executable, main_py]
         if "--restarted" not in args:
             args.append("--restarted")
-            
+
         try:
             subprocess.Popen(args, env=env, close_fds=True, start_new_session=True)
         except Exception as e:
             print(f"Error spawning restart process: {e}")
         os._exit(0)
-        
+
     threading.Thread(target=do_restart, daemon=True).start()
     return jsonify({"status": "restarting"})
 
@@ -182,15 +182,15 @@ def handle_api_status():
     outbox = settings.get("outbox_dir")
     if not outbox:
         outbox = os.path.expanduser("~/Downloads/Medien Output")
-        
+
     os.makedirs(inbox, exist_ok=True)
     os.makedirs(outbox, exist_ok=True)
-    
+
     projects = []
     for d in os.listdir(inbox):
         if os.path.isdir(os.path.join(inbox, d)) and not d.startswith("."):
             projects.append(d)
-            
+
     import time
     # Cache NAS status for 30 seconds to avoid P5 pinging constantly
     if not hasattr(handle_api_status, "last_nas_status") or time.time() - getattr(handle_api_status, "last_nas_check", 0) > 30:
@@ -215,7 +215,7 @@ def handle_api_status():
         "inbox_size_gb": handle_api_status.cached_inbox_size,
         "outbox_size_gb": handle_api_status.cached_outbox_size
     }
-    
+
     return jsonify(status)
 
 
@@ -288,26 +288,26 @@ def handle_api_system_open_folder():
         folder_path = path
     elif category_id:
         folder_name = query.get("folder_name") or params.get("folder_name") or ""
-        
+
         settings = load_settings()
         nas_root = settings.get("nas_root", "")
         if not nas_root:
             return jsonify({"error": "NAS-Root ist nicht konfiguriert."}), 400
         sync_categories = settings.get("sync_categories", [])
-        
+
         category = None
         for cat in sync_categories:
             if str(cat.get("id")) == str(category_id):
                 category = cat
                 break
-                
+
         if not category:
             return jsonify({"error": f"Kategorie mit ID {category_id} nicht gefunden."})
             return
-            
+
         nas_sub = category.get("nas_sub", "").lstrip("/")
         cat_path = os.path.join(nas_root, nas_sub)
-        
+
         if folder_name:
             specific_path = os.path.join(cat_path, folder_name)
             if os.path.exists(specific_path):
@@ -316,25 +316,25 @@ def handle_api_system_open_folder():
                 folder_path = cat_path
         else:
             folder_path = cat_path
-            
+
     if not folder_path:
         return jsonify({"error": "Pfad oder Kategorie-Parameter fehlt."})
         return
-        
+
     folder_path = os.path.abspath(folder_path)
     if not is_path_allowed(folder_path):
         return jsonify({"error": "Access Denied"})
         return
-        
+
     if not os.path.exists(folder_path):
         return jsonify({"error": f"Pfad existiert nicht: {folder_path}. Ist das NAS gemountet?"})
         return
-        
+
     # Security: verify path is a directory, not an executable
     if not os.path.isdir(folder_path):
         return jsonify({"error": f"Pfad ist kein Ordner: {folder_path}"})
         return
-        
+
     try:
         open_folder_in_finder(folder_path)
         return jsonify({"success": True, "msg": f"Ordner {folder_path} im Finder geöffnet."})
@@ -442,7 +442,7 @@ def handle_api_stats():
 
         # Conversion savings calculations
         history = load_konv_history()
-        
+
         total_files = len(history)
         size_in_total = 0
         size_out_total = 0
@@ -482,10 +482,10 @@ def handle_api_stats():
         # Durchschnittliche Rate über die tatsächlichen Gesamtgrößen (robust & konsistent
         # zur angezeigten Ersparnis).
         avg_ratio = (size_out_total / size_in_total) if size_in_total > 0 else 0.0
-        
+
         # Sort history by timestamp descending
         cleaned_history.sort(key=lambda x: x["timestamp"], reverse=True)
-        
+
         response = {
             "nas": nas_info,
             "stats": {
@@ -514,7 +514,7 @@ def handle_api_logs():
                 yield f"data: {line.strip()}\n\n"
             except queue.Empty:
                 yield ": keep-alive\n\n"
-                
+
     return Response(generate(), mimetype='text/event-stream', headers={
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive'
@@ -532,11 +532,11 @@ def api_profiles():
     import json
     from flask import request, jsonify
     from gui.core.utils import load_settings
-    
+
     settings = load_settings()
     default_profiles_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'profiles')
     profiles_dir = settings.get("profiles_path", default_profiles_dir)
-    
+
     # If the configured path doesn't exist, we fallback to default to avoid errors
     if not os.path.exists(profiles_dir):
         try:
@@ -545,7 +545,7 @@ def api_profiles():
             profiles_dir = default_profiles_dir
             os.makedirs(profiles_dir, exist_ok=True)
 
-    
+
     if request.method == 'GET':
         profiles = []
         for f in os.listdir(profiles_dir):
@@ -557,20 +557,20 @@ def api_profiles():
                 except Exception as e:
                     pass
         return jsonify({"profiles": profiles})
-        
+
     elif request.method == 'POST':
         action = request.json.get("action")
         filename = request.json.get("filename")
         if not filename or not filename.endswith('.json'):
             return jsonify({"status": "error", "message": "Ungültiger Dateiname."}), 400
-            
+
         filepath = os.path.join(profiles_dir, filename)
-        
+
         if action == "delete":
             if os.path.exists(filepath):
                 os.remove(filepath)
             return jsonify({"status": "success"})
-            
+
         elif action == "save":
             data = request.json.get("data")
             if not data:
@@ -578,5 +578,5 @@ def api_profiles():
             with open(filepath, 'w') as file:
                 json.dump(data, file, indent=2)
             return jsonify({"status": "success"})
-            
+
         return jsonify({"status": "error", "message": "Unbekannte Aktion."}), 400
