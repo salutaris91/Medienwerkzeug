@@ -17,6 +17,7 @@ Modul unter `gui/api/`:
 | `search_api` | `gui/api/search_api.py` | Metadaten-Suche, Episoden-Matching, Schätzung |
 | `queue_api` | `gui/api/queue_api.py` | Job-Queue, Verarbeitung |
 | `youtube_api` | `gui/api/youtube_api.py` | YouTube-Download, Schnitt, Abonnements |
+| `nas_renamer_api` | `gui/api/nas_renamer_api.py` | NAS-Renaming mit Vorschau, Ausführung und Rollback |
 
 Server-Start und Browser-Öffnung laufen über `gui/main.py`. Lokal läuft die App
 auf `http://127.0.0.1:5001`.
@@ -147,6 +148,14 @@ Importiert StreamFab-Downloads in die Inbox.
 * `POST /api/nas/resolve-duplicate-global` — löscht eine gewählte Datei.
   Payload: `{"path": "<absoluter NAS-Pfad>"}`. **Sicherheit:** nur Videodateien
   unterhalb der NAS-Root werden gelöscht.
+
+### NAS-Renamer
+* `GET|POST /api/nas-renamer/preview` — erzeugt eine Dry-Run-Vorschau für
+  geplante Episoden-Umbenennungen.
+* `POST /api/nas-renamer/apply` — wendet ausgewählte Umbenennungen an und
+  schreibt ein Transaktionslog.
+* `POST /api/nas-renamer/rollback` — rollt eine gespeicherte Umbenennungs-
+  Transaktion zurück.
 
 ---
 
