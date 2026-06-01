@@ -1,50 +1,171 @@
 {
-  "Processing Helpers and Transfers": ["gui_server_py"],
-  "Frontend Application State": ["gui_static_app_js"],
-  "Utility Tests and Series Folder Matching": ["tests_test_utils_py"],
-  "Future Feature Roadmap": ["roadmap_md"],
-  "API Documentation": ["api_md"],
-  "Metadata Retrieval": ["gui_mw_metadata_py"],
-  "Media Health Core": ["gui_core_health_py"],
-  "NAS Health API": ["gui_api_nas_api_py"],
-  "Legacy Test Facade": ["gui_server_guirequesthandler"],
-  "Frontend Initialization": ["static_app_initviews"],
-  "Queue and YouTube API": ["gui_api_queue_api_py"],
-  "Architecture Review Notes": ["review_md"],
-  "Release Hardening Roadmap": ["road_to_glory_md"],
-  "Frontend Workflow Modals": ["static_app_executeseriesworkflow"],
-  "Dashboard and Smart Inbox": ["static_app_loadstatus"],
-  "Storage Statistics and Profiles": ["gui_core_utils_py"],
-  "README and Setup Guide": ["readme_md"],
-  "Series Selection Frontend": ["static_app_detectexistingseries"],
-  "Claude Project Rules": ["claude_md"],
-  "NAS Library and Transfers": ["core_transfers_check_nas_status"],
-  "Health Dashboard Frontend": ["static_app_inithealthdashboard"],
-  "Post Release Roadmap": ["after_release_roadmap_md"],
-  "Dependency Tests": ["tests_test_dependencies_py"],
-  "Media Inspection and History": ["gui_core_media_py"],
-  "NAS Duplicate Detection": ["gui_core_duplicates_py"],
-  "Search and Folder Matching API": ["gui_api_search_api_py"],
-  "Ignored Findings Storage": ["gui_core_ignores_py"],
-  "Queue Dashboard Frontend": ["static_app_initqueue"],
-  "Project Inbox API": ["gui_api_project_api_py"],
-  "NAS Renamer API": ["gui_api_nas_renamer_api_py"],
-  "Local Profiles Frontend": ["static_app_populatelocalprofilesdropdown"],
-  "Project Cleanup Frontend": ["static_app_rendercleanfilelist"],
-  "Conversion Intelligence Frontend": ["static_app_loadconversionrecommendations"],
-  "Completion Checklist": ["checkliste_md"],
-  "Claude Hook Configuration": ["claude_settings_json"],
-  "Claude Local Permissions": ["claude_settings_local_json"],
-  "API Package Marker": ["gui_api_init_py"],
-  "Worker Package Marker": ["gui_workers_init_py"],
-  "Codex Project Rules": ["agents_md"],
-  "Film Normalization": ["gui_core_film_normalize_py"],
-  "Codex Hook Configuration": ["codex_hooks_json"],
-  "Architecture Wiki": ["docs_wiki_architecture_md"],
-  "NAS Health Wiki": ["docs_wiki_nas_health_and_duplicates_md"],
-  "Processing Flow Wiki": ["docs_wiki_processing_flow_md"],
-  "API and Frontend Wiki": ["docs_wiki_api_and_frontend_md"],
-  "Developer Wiki Index": ["docs_wiki_index_md"],
-  "Settings and Storage Wiki": ["docs_wiki_settings_and_storage_md"],
-  "Graphify Refresh Script": ["scripts_refresh_graphify_sh"]
+  "Legacy Test Facade & Processing Helpers and Transfers": [
+    "gui_server_py",
+    "gui_server_guirequesthandler"
+  ],
+  "Frontend Application State": [
+    "gui_static_app_js"
+  ],
+  "Search and Folder Matching API & Utility Tests and Series Folder Matching": [
+    "tests_test_utils_py",
+    "gui_api_search_api_py"
+  ],
+  "Future Feature Roadmap": [
+    "roadmap_md"
+  ],
+  "API Documentation": [
+    "api_md"
+  ],
+  "Metadata Retrieval": [
+    "gui_mw_metadata_py"
+  ],
+  "Media Health Core": [
+    "gui_core_health_py"
+  ],
+  "NAS Health API": [
+    "gui_api_nas_api_py"
+  ],
+  "Frontend Initialization": [
+    "static_app_initviews"
+  ],
+  "Project Inbox API & Queue and YouTube API & Storage Statistics and Profiles": [
+    "gui_api_project_api_py",
+    "gui_api_queue_api_py",
+    "gui_core_utils_py"
+  ],
+  "Architecture Review Notes": [
+    "review_md"
+  ],
+  "Release Hardening Roadmap": [
+    "road_to_glory_md"
+  ],
+  "Frontend Workflow Modals": [
+    "static_app_executeseriesworkflow"
+  ],
+  "Dashboard and Smart Inbox": [
+    "static_app_loadstatus"
+  ],
+  "README and Setup Guide": [
+    "readme_md"
+  ],
+  "Series Selection Frontend": [
+    "static_app_detectexistingseries"
+  ],
+  "Claude Project Rules": [
+    "claude_md"
+  ],
+  "NAS Library and Transfers": [
+    "core_transfers_check_nas_status"
+  ],
+  "Health Dashboard Frontend": [
+    "static_app_inithealthdashboard"
+  ],
+  "Post Release Roadmap": [
+    "after_release_roadmap_md"
+  ],
+  "Dependency Tests": [
+    "tests_test_dependencies_py"
+  ],
+  "Media Inspection and History": [
+    "gui_core_media_py"
+  ],
+  "NAS Duplicate Detection": [
+    "gui_core_duplicates_py"
+  ],
+  "Ignored Findings Storage": [
+    "gui_core_ignores_py"
+  ],
+  "Queue Dashboard Frontend": [
+    "static_app_initqueue"
+  ],
+  "NAS Renamer API": [
+    "gui_api_nas_renamer_api_py"
+  ],
+  "Local Profiles Frontend": [
+    "static_app_populatelocalprofilesdropdown"
+  ],
+  "Project Cleanup Frontend": [
+    "static_app_rendercleanfilelist"
+  ],
+  "Conversion Intelligence Frontend": [
+    "static_app_loadconversionrecommendations"
+  ],
+  "Completion Checklist": [
+    "checkliste_md"
+  ],
+  "Claude Hook Configuration": [
+    "claude_settings_json"
+  ],
+  "Claude Local Permissions": [
+    "claude_settings_local_json"
+  ],
+  "API Package Marker": [
+    "gui_api_init_py"
+  ],
+  "Worker Package Marker": [
+    "gui_workers_init_py"
+  ],
+  "Codex Project Rules": [
+    "agents_md"
+  ],
+  "Film Normalization": [
+    "gui_core_film_normalize_py"
+  ],
+  "Codex Hook Configuration": [
+    "codex_hooks_json"
+  ],
+  "Architecture Wiki": [
+    "docs_wiki_architecture_md"
+  ],
+  "NAS Health Wiki": [
+    "docs_wiki_nas_health_and_duplicates_md"
+  ],
+  "Processing Flow Wiki": [
+    "docs_wiki_processing_flow_md"
+  ],
+  "API and Frontend Wiki": [
+    "docs_wiki_api_and_frontend_md"
+  ],
+  "Developer Wiki Index": [
+    "docs_wiki_index_md"
+  ],
+  "Settings and Storage Wiki": [
+    "docs_wiki_settings_and_storage_md"
+  ],
+  "Graphify Refresh Script": [
+    "scripts_refresh_graphify_sh"
+  ],
+  "Notifications Module": [
+    "gui_core_notifications_py"
+  ],
+  "TestMediawerkzeugLogic": [
+    "tests_test_utils_testmediawerkzeuglogic"
+  ],
+  "Youtube Api Module": [
+    "gui_api_youtube_api_py"
+  ],
+  "ArtworkValidator": [
+    "core_artwork_validators_artworkvalidator"
+  ],
+  "str": [
+    "str"
+  ],
+  "Main Module": [
+    "gui_main_py"
+  ],
+  "Transfers Module": [
+    "gui_core_transfers_py"
+  ],
+  ".get_preferred_movie_poster_name()": [
+    "core_artwork_validators_artworkvalidator_get_preferred_movie_poster_name"
+  ],
+  "Artwork Validators Module": [
+    "gui_core_artwork_validators_py"
+  ],
+  "Nas Renamer Module": [
+    "gui_core_nas_renamer_py"
+  ],
+  ".get_season_poster_names()": [
+    "core_artwork_validators_artworkvalidator_get_season_poster_names"
+  ]
 }
