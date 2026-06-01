@@ -56,9 +56,7 @@
   "Media Inspection and History": [
     "gui_core_media_py"
   ],
-  "NAS Duplicate Detection": [
-    "gui_core_duplicates_py"
-  ],
+
   "Ignored Findings Storage": [
     "gui_core_ignores_py"
   ],
@@ -119,7 +117,7 @@
   "Artwork Validators": [
     "gui_core_artwork_validators_py"
   ],
-  "Transfers, App Core, NAS Renamer and Mount Tests": [
+  "Transfers and App Core": [
     "gui_core_transfers_py"
   ],
   "Health Scan Cache": [
@@ -131,13 +129,11 @@
   "Queue and Search APIs": [
     "gui_api_search_api_py"
   ],
-  "Project API and Core Utilities": [
-    "gui_api_project_api_py"
-  ],
+
   "Utility Logic Tests": [
     "tests_test_utils_testmediawerkzeuglogic"
   ],
-  "System, Stats and YouTube APIs": [
+  "Project and System APIs": [
     "gui_api_system_api_py"
   ],
   "NAS Renamer, Notifications and General Helpers": [
