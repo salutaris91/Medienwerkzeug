@@ -763,6 +763,13 @@
                             <span class="checkmark"></span> Tiefgehender Scan (erzwingt vollständige Überprüfung aller Dateien)
                         </label>
                     </div>
+                    <div style="margin-top:12px; display:flex; flex-direction:column; gap:6px;">
+                        <span style="font-size:0.85em; color:var(--text-muted); font-weight:500;">📂 Zu prüfende Kategorien:</span>
+                        <div id="health-categories-container" style="display:flex; flex-wrap:wrap; gap:12px; margin-top:4px;">
+                            <!-- Checkboxen werden dynamisch via JavaScript geladen -->
+                            <span style="font-size:0.85em; color:var(--text-muted); font-style:italic;">Lade Kategorien...</span>
+                        </div>
+                    </div>
                     <div id="health-scan-status" class="text-muted" style="margin-top:12px;">Noch kein Scan durchgeführt.</div>
                     <div id="health-progress-wrap" style="display:none; margin-top:10px;">
                         <div style="height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">

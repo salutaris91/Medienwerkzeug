@@ -17,6 +17,7 @@ import re
 import json
 import time
 import threading
+from typing import Optional
 
 from gui.core import utils
 from gui.core import media
@@ -553,7 +554,7 @@ def _check_series_cached(issues, category, show_path, validator, cache_mgr, key,
 # ---------------------------------------------------------------------------
 # Scan-Steuerung
 # ---------------------------------------------------------------------------
-def _run_health_scan(deep_dive: bool = False):
+def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = None):
     issues = []
     files_checked = 0
     stats = {
@@ -575,7 +576,7 @@ def _run_health_scan(deep_dive: bool = False):
         cache_key = health_cache.get_cache_key(server_type)
         cache_mgr = health_cache.HealthCacheManager()
         
-        shows = list(walk_nas_categories(settings))
+        shows = list(walk_nas_categories(settings, category_ids=category_ids))
         total = len(shows)
         log_message(f"🔍 [Health-Scan] Starte Prüfung von {total} Ordnern (deep_dive={deep_dive})...")
  
@@ -639,7 +640,7 @@ def _run_health_scan(deep_dive: bool = False):
         log_message(f"❌ [Health-Scan] Fehler: {e}")
  
  
-def start_health_scan(deep_dive: bool = False):
+def start_health_scan(deep_dive: bool = False, category_ids: Optional[list] = None):
     """Startet den Scan im Hintergrund. Gibt False zurück, wenn bereits einer läuft."""
     with _state_lock:
         if _scan_state["status"] == "running":
@@ -656,7 +657,7 @@ def start_health_scan(deep_dive: bool = False):
             "stats": {"cache_hits": 0, "cache_miss_modified": 0, "cache_miss_known_issues": 0, "cache_miss_new": 0},
             "error": None,
         })
-    threading.Thread(target=_run_health_scan, args=(deep_dive,), daemon=True).start()
+    threading.Thread(target=_run_health_scan, args=(deep_dive, category_ids), daemon=True).start()
     return True
 
 

@@ -562,8 +562,14 @@ def handle_api_nas_health_scan():
         deep_dive = params.get("deep", False)
         if not deep_dive:
             deep_dive = request.args.get("deep", "false").lower() == "true"
+            
+        category_ids = params.get("category_ids", None)
+        if category_ids is None:
+            cat_ids_str = request.args.get("category_ids", "")
+            if cat_ids_str:
+                category_ids = [x.strip() for x in cat_ids_str.split(",") if x.strip()]
 
-        started = health.start_health_scan(deep_dive=deep_dive)
+        started = health.start_health_scan(deep_dive=deep_dive, category_ids=category_ids)
         if not started:
             return jsonify({"started": False, "message": "Ein Scan läuft bereits."})
         return jsonify({"started": True, "message": "Scan gestartet."})

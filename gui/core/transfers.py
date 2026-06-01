@@ -488,7 +488,7 @@ def copy_to_pcloud(source_dir, nas_target_dir, task_id=None, explicit_remote_bas
     return copy_to_cloud_target(source_dir, nas_target_dir, "pcloud", task_id, explicit_remote_base)
 
 
-def walk_nas_categories(settings=None):
+def walk_nas_categories(settings=None, category_ids=None):
     """Iteriert über alle Top-Level-Ordner (Serien/Filme) aller NAS-Sync-Kategorien.
 
     Gemeinsame Grundlage für Health-Scan (Feature 3) und Duplikat-Erkennung (Feature 4).
@@ -514,7 +514,21 @@ def walk_nas_categories(settings=None):
         low = entry_name.lower()
         return low.startswith("staffel ") or low.startswith("season ") or low.startswith("specials")
 
+    # Normalize category_ids to a set of strings if provided
+    filter_cats = None
+    if category_ids is not None:
+        if isinstance(category_ids, str):
+            filter_cats = {x.strip() for x in category_ids.split(",") if x.strip()}
+        elif isinstance(category_ids, (list, tuple, set)):
+            filter_cats = {str(x) for x in category_ids}
+        else:
+            filter_cats = {str(category_ids)}
+
     for cat in sync_cats:
+        cat_id = cat.get("id")
+        if filter_cats is not None and str(cat_id) not in filter_cats:
+            continue
+            
         nas_sub = cat.get("nas_sub")
         if not nas_sub:
             continue

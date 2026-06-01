@@ -9778,16 +9778,74 @@ function initHealthDashboard() {
     if (btn) {
         btn.addEventListener("click", startHealthScan);
     }
+    // Lade Kategorien dynamisch
+    loadHealthCategories();
     // Vorhandenes (gecachtes) Ergebnis laden
     pollHealthStatus(false);
+}
+
+async function loadHealthCategories() {
+    const container = document.getElementById("health-categories-container");
+    if (!container) return;
+    try {
+        const res = await fetch("/api/settings");
+        if (!res.ok) {
+            container.innerHTML = `<span style="font-size:0.85em; color:#ef4444; font-style:italic;">Fehler beim Laden der Kategorien.</span>`;
+            return;
+        }
+        const settings = await res.json();
+        const categories = settings.sync_categories || [];
+        if (categories.length === 0) {
+            container.innerHTML = `<span style="font-size:0.85em; color:var(--text-muted); font-style:italic;">Keine Kategorien konfiguriert.</span>`;
+            return;
+        }
+        
+        container.innerHTML = categories.map(cat => {
+            const id = cat.id || "";
+            const name = cat.name || "Unbenannt";
+            return `
+                <label class="checkbox-container" style="font-size:0.85em; color:var(--text-muted); margin:0;">
+                    <input type="checkbox" class="health-category-checkbox" value="${escapeHTML(id)}" checked>
+                    <span class="checkmark"></span> ${escapeHTML(name)}
+                </label>
+            `.trim();
+        }).join("");
+    } catch (e) {
+        console.error("Kategorien für Health Scan konnten nicht geladen werden:", e);
+        container.innerHTML = `<span style="font-size:0.85em; color:#ef4444; font-style:italic;">Fehler beim Laden der Kategorien.</span>`;
+    }
 }
 
 async function startHealthScan() {
     const btn = document.getElementById("btn-health-scan");
     const deepCheck = document.getElementById("health-option-deep");
     const deep = deepCheck ? deepCheck.checked : false;
+
+    // Ausgewählte Kategorien auslesen
+    const checkboxes = document.querySelectorAll(".health-category-checkbox");
+    const categoryIds = [];
+    checkboxes.forEach(cb => {
+        if (cb.checked) {
+            categoryIds.push(cb.value);
+        }
+    });
+
+    if (checkboxes.length > 0 && categoryIds.length === 0) {
+        setHealthStatusText("Bitte mindestens eine Kategorie auswählen.");
+        return;
+    }
+
     try {
-        const res = await fetch(`/api/nas/health-scan?deep=${deep}`, { method: "POST" });
+        const res = await fetch("/api/nas/health-scan", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                deep: deep,
+                category_ids: categoryIds
+            })
+        });
         const data = await res.json();
         if (data.started === false) {
             // Läuft bereits -> einfach weiterpollen
