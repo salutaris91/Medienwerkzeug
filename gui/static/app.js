@@ -1220,6 +1220,38 @@ function updateProjectProcessingStatus(activeProjects) {
             cleanBtn.style.pointerEvents = "auto";
         }
     }
+
+    // Update Smart Inbox items in DOM reactively
+    const smartItems = document.querySelectorAll("#smart-inbox-list .smart-inbox-item");
+    smartItems.forEach(item => {
+        const p = item.getAttribute("data-project") || "";
+        const isProcessing = activeProjects.has(p);
+        const btn = item.querySelector(".btn-select-smart");
+        
+        if (isProcessing) {
+            item.style.border = "1px solid rgba(0, 229, 255, 0.3)";
+            item.style.background = "rgba(0, 229, 255, 0.03)";
+            if (btn) {
+                btn.className = "btn btn-secondary btn-sm btn-select-smart";
+                btn.style.whiteSpace = "nowrap";
+                btn.style.cursor = "not-allowed";
+                btn.style.opacity = "0.7";
+                btn.disabled = true;
+                btn.innerHTML = "🔄 In Bearbeitung...";
+            }
+        } else {
+            item.style.border = "1px solid var(--border-light)";
+            item.style.background = "rgba(255,255,255,0.02)";
+            if (btn) {
+                btn.className = "btn btn-primary btn-sm btn-select-smart";
+                btn.style.whiteSpace = "nowrap";
+                btn.style.cursor = "";
+                btn.style.opacity = "";
+                btn.disabled = false;
+                btn.innerHTML = "⚡ Auswählen";
+            }
+        }
+    });
 }
 
 async function deleteProject(project) {
@@ -9352,9 +9384,14 @@ async function updateHomepageData(statusData) {
 
                     const reasonsHtml = (item.reasons || []).map(r => `<span style="font-size: 0.8em; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.05); color: var(--text-muted);">${escapeHTML(r)}</span>`).join(" ");
 
+                    const isProcessing = activeProjectsProcessing && activeProjectsProcessing.has(item.project);
+                    const borderStyle = isProcessing ? "border: 1px solid rgba(0, 229, 255, 0.3);" : "border: 1px solid var(--border-light);";
+                    const bgStyle = isProcessing ? "background: rgba(0, 229, 255, 0.03);" : "background: rgba(255,255,255,0.02);";
+
                     const itemDiv = document.createElement("div");
                     itemDiv.className = "smart-inbox-item";
-                    itemDiv.style.cssText = "background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; transition: all 0.2s ease;";
+                    itemDiv.setAttribute("data-project", item.project);
+                    itemDiv.style.cssText = `${bgStyle} ${borderStyle} border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; transition: all 0.2s ease;`;
                     itemDiv.innerHTML = `
                         <div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1;">
                             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
@@ -9367,14 +9404,19 @@ async function updateHomepageData(statusData) {
                             </div>
                         </div>
                         <div>
-                            <button class="btn btn-primary btn-sm btn-select-smart" style="white-space: nowrap;">⚡ Auswählen</button>
+                            ${isProcessing 
+                                ? `<button class="btn btn-secondary btn-sm btn-select-smart" style="white-space: nowrap; cursor: not-allowed; opacity: 0.7;" disabled>🔄 In Bearbeitung...</button>`
+                                : `<button class="btn btn-primary btn-sm btn-select-smart" style="white-space: nowrap;">⚡ Auswählen</button>`
+                            }
                         </div>
                     `;
                     
                     const btn = itemDiv.querySelector(".btn-select-smart");
-                    btn.addEventListener("click", () => {
-                        handleSmartInboxClick(item.project, item.media_type, item.suggested_query || "");
-                    });
+                    if (btn && !isProcessing) {
+                        btn.addEventListener("click", () => {
+                            handleSmartInboxClick(item.project, item.media_type, item.suggested_query || "");
+                        });
+                    }
                     smartInboxList.appendChild(itemDiv);
                 });
             } else {

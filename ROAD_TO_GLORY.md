@@ -49,7 +49,7 @@ Für Nutzer, die das Tool lokal auf dem Mac oder PC nutzen wollen, wird eine nat
 
 Bevor wir das Tool an andere verteilen, sollten folgende Punkte der **aktuellen** Roadmap zwingend abgeschlossen sein:
 
-1. **Priorität 1: Lade-Indikator für Inbox-Projekte in Bearbeitung**
+1. **Priorität 1: Lade-Indikator für Inbox-Projekte in Bearbeitung** (Erledigt)
    - **Warum:** Für Erstnutzer ist es absolut kritisch zu sehen, ob das System im Hintergrund arbeitet, sonst klicken sie mehrfach und erzeugen Fehler oder Queue-Staus.
 2. **Priorität 2: Server-genaue Artwork-Prüfung**
    - **Warum:** Andere Nutzer setzen oft Emby oder Plex ein. Wenn das Medienwerkzeug hier falsche Warnungen ausgibt (weil es aktuell sehr tolerant prüft), führt das zu Support-Fragen.
@@ -57,17 +57,17 @@ Bevor wir das Tool an andere verteilen, sollten folgende Punkte der **aktuellen*
    - **Warum:** Gerade bei großen externen Bibliotheken dauern vollständige Scans extrem lange. Ein Caching ist zwingend nötig für eine flüssige User Experience.
 4. **Nice-to-Have: Echtes Multi-Cloud**
    - **Warum:** Wäre als "1.0 Feature" cool, kann aber notfalls auch per Update (`1.1`) nachgereicht werden. Google Drive wird aktuell schon unterstützt (Nutzer kann `gdrive:` statt `pcloud:` eintragen). Was fehlt, ist nur die gleichzeitige Nutzung beider Dienste mit getrennten Schaltern.
-
+ 
 *(Punkte wie die KI-Covergenerierung können warten und als Features in späteren Updates verkauft werden).*
-
+ 
 ---
-
+ 
 ## 2. Road to Glory – Der Weg zum Public Release
-
+ 
 ### Phase 0: Pre-Release Features (Aus der alten Roadmap)
 *Diese Punkte müssen als Fundament fertiggestellt werden, bevor die eigentliche Distribution-Härtung beginnt.*
-
-#### 1. Lade-Indikator für Inbox-Projekte
+ 
+#### 1. Lade-Indikator für Inbox-Projekte (Erledigt)
 Aktuell ist auf dem Startbildschirm (Inbox) nicht ersichtlich, ob ein erkanntes Projekt bereits vom Backend verarbeitet wird. Dies führt zu Unsicherheit und potenziell fehlerhaften Mehrfach-Klicks.
 - **Ziel:** Eine visuelle Rückmeldung in der Inbox implementieren (analog zum kreisenden Lade-Symbol der Projektordner in der linken Seitenleiste).
 - **Umsetzung:** Die ID des aktuell verarbeiteten Projekts wird über die bestehende SSE-Verbindung (Server-Sent Events) oder den Status-Endpunkt an das Frontend kommuniziert. Das entsprechende Projekt-Kärtchen erhält ein Loading-Icon und der Bearbeiten-Button wird deaktiviert.
@@ -179,6 +179,8 @@ Beim ersten Öffnen darf nicht direkt das leere Dashboard erscheinen. Es muss ei
 - **Schnittstelle:** Einrichten einer minimalen Anbindung an einen Telemetriedienst (z. B. PostHog, Mixpanel oder ein einfacher eigener Cloudflare Worker/Serverless Endpoint), der anonymisierte Events sammelt.
 - **Opt-Out-Flag:** Ein `telemetry_enabled`-Schalter in `settings.json`, der auch im Einstellungs-Tab der UI jederzeit deaktiviert werden kann.
 - **E-Mail-Übertragung:** Wenn der Nutzer seine E-Mail eingibt, wird diese einmalig an deine zentrale E-Mail-Erfassungsstelle (z. B. SendGrid, Mailchimp oder einen einfachen Webhook) geschickt.
+
+> **Prioritäts-Hinweis:** Die E-Mail-Erfassung wird realistisch nur 5–15 % Conversion erreichen — NAS-Nutzer klicken erfahrungsgemäß "Überspringen". Der eigentliche Wert liegt in der **anonymen Telemetrie** (aktive Installationen, OS-Verteilung, Feature-Nutzung). Diese liefert die harten Zahlen zur App-Akzeptanz. Den E-Mail-Flow daher schlank halten und den Hauptaufwand in die Telemetrie-Anbindung stecken.
 
 #### 3.3 Fallback-Artworks
 Wenn keine Cover gefunden werden, generische (aber hübsche) Platzhalter im Design anzeigen.

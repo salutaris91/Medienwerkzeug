@@ -55,10 +55,18 @@ Medienwerkzeug/
 │       ├── style.css         # Modernes Styling (Dark Mode, responsive Layout)
 │       └── app.js            # Frontend-Logik (API-Calls, UI-Status, Modals)
 ├── tests/                    # Unit- & Integrationstests (test_utils.py, test_dependencies.py)
+├── docs/wiki/                # Entwicklerorientierte Architektur- und Ablaufdokumentation
 ├── README.md                 # Diese Übersicht
 ├── API.md                    # Dokumentation der REST-Endpunkte
 └── REVIEW.md                 # Entwickler- & KI-Review-Richtlinien
 ```
+
+---
+
+## 🧭 Entwickler-Wiki
+
+Für einen technischen Einstieg in Architektur, Verarbeitung, API, NAS-Werkzeuge
+und Speicherziele siehe das [Entwickler-Wiki](docs/wiki/index.md).
 
 ---
 
@@ -187,4 +195,3 @@ Um die Testsuite für Hilfsfunktionen, Pfadbereinigungen und Job-Serialisierung 
 ```bash
 python3 -m unittest discover -s tests
 ```
-
