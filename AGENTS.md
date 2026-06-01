@@ -125,7 +125,7 @@ Sobald ein Feature oder ein zusammenhängender Arbeitsschritt abgeschlossen ist,
 1. **Git:** Änderungen lokal committen (`git add -u && git commit -m "..."`).
 2. **STAND.md:** Den aktuellen Stand, erledigte Aufgaben und offene Punkte nachführen.
 3. **ROADMAP.md:** Falls ein Feature der Roadmap umgesetzt wurde, den Status auf "erledigt" setzen.
-4. **Wissensgraph:** `graphify update .` ausführen, um den Graphen (`graphify-out/`) mit den neuen Code-Änderungen zu synchronisieren.
+4. **Wissensgraph:** `scripts/refresh_graphify.sh` ausführen, um den Graphen (`graphify-out/`) zu synchronisieren und die Exporte mit sprechenden Community-Namen neu zu erzeugen.
 
 ---
 
@@ -139,4 +139,4 @@ Rules:
 - For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- After modifying code, run `scripts/refresh_graphify.sh` to keep the graph and its labeled exports current (AST-only, no API cost).
