@@ -43,7 +43,7 @@ inhaltliches Rauschen enthalten. Für konkrete Fragen sind gezielte Befehle wie
 vollständige Graphbericht.
 
 Die sprechenden Namen der Graphify-Communities liegen versioniert in
-`docs/graphify-community-labels.json`. Nach Änderungen am Code aktualisiert
+`docs/graphify-community-labels.labels`. Nach Änderungen am Code aktualisiert
 `scripts/refresh_graphify.sh` den lokalen Graphen und erzeugt HTML sowie das
 automatische Wiki neu. `graphify-out/` bleibt weiterhin lokal und wird nicht
 committed.
