@@ -29,6 +29,8 @@ def escape_xml(s):
 
 # --- .env Datei parsen (Hausregel #1: Keine Secrets im Code) ---
 env_keys = load_env_keys()
+os.environ.pop("TVDB_API_KEY", None)
+os.environ.pop("TMDB_API_KEY", None)
 for k, v in env_keys.items():
     os.environ[k] = v
 
@@ -40,6 +42,8 @@ tvdb_token_time = 0
 def reload_metadata_keys():
     global TVDB_API_KEY, TMDB_API_KEY, tvdb_token, tvdb_token_time
     env_keys = load_env_keys()
+    os.environ.pop("TVDB_API_KEY", None)
+    os.environ.pop("TMDB_API_KEY", None)
     for k, v in env_keys.items():
         os.environ[k] = v
     TVDB_API_KEY = os.environ.get("TVDB_API_KEY", "")

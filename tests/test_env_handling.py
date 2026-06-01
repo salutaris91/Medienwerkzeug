@@ -44,6 +44,18 @@ class TestEnvHandling(unittest.TestCase):
         self.assertNotIn("TMDB_API_KEY", load_env_keys())
         self.assertNotIn("TMDB_API_KEY", os.environ)
 
+        # Test manual deletion from .env
+        save_env_keys({"TMDB_API_KEY": "manual123"})
+        import gui.mw_metadata as mw
+        mw.reload_metadata_keys()
+        self.assertEqual(os.environ.get("TMDB_API_KEY"), "manual123")
+        
+        # Manually overwrite the file to delete the key
+        with open(self.env_path, "w") as f:
+            f.write("OTHER_KEY=123\n")
+        mw.reload_metadata_keys()
+        self.assertNotIn("TMDB_API_KEY", os.environ)
+
         save_env_keys({"TVDB_API_KEY": "new_tvdb"})
         import gui.mw_metadata as mw
         mw.reload_metadata_keys()
