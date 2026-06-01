@@ -338,6 +338,28 @@ class TestHealthScanCache(unittest.TestCase):
         self.assertEqual(health._scan_state["status"], "cancelled")
         self.assertIn("abgebrochen", health._scan_state["message"])
 
+    def test_default_settings_show_console(self):
+        # We need to temporarily delete settings.json to force default settings to load
+        settings_path = "settings.json"
+        backup_path = "settings.json.bak"
+        has_settings = os.path.exists(settings_path)
+        if has_settings:
+            shutil.move(settings_path, backup_path)
+        try:
+            # Clear cached settings in utils module if any
+            with utils.settings_lock:
+                utils._cached_settings = None
+            settings = utils.load_settings()
+            self.assertIn("show_console", settings)
+            self.assertFalse(settings["show_console"])
+        finally:
+            if has_settings:
+                if os.path.exists(settings_path):
+                    os.remove(settings_path)
+                shutil.move(backup_path, settings_path)
+            with utils.settings_lock:
+                utils._cached_settings = None
+
 
 class TestHealthScanApi(unittest.TestCase):
     def setUp(self):
