@@ -711,7 +711,8 @@ def handle_api_health_fix():
 
     action = params.get("action")
     path = params.get("path")
-    new_name = params.get("new_name", "").strip()
+    from gui.core.helpers import sanitize_filename
+    new_name = sanitize_filename(params.get("new_name", "").strip())
 
     if not path or not os.path.isdir(path):
         return jsonify({"ok": False, "message": "Ordner nicht gefunden."}), 400

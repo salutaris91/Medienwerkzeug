@@ -375,6 +375,32 @@ class TestHealthScanApi(unittest.TestCase):
         self.assertTrue(data["started"])
         mock_start.assert_called_once_with(deep_dive=True, category_ids=None)
 
+    @unittest.mock.patch("gui.api.nas_api.os.rename")
+    @unittest.mock.patch("gui.api.nas_api.os.path.isdir")
+    @unittest.mock.patch("gui.api.nas_api.os.path.exists")
+    @unittest.mock.patch("gui.api.nas_api.load_settings")
+    def test_health_fix_sanitize_filename(self, mock_load_settings, mock_exists, mock_isdir, mock_rename):
+        mock_load_settings.return_value = {
+            "nas_root": "/Volumes/Kino"
+        }
+        mock_isdir.return_value = True
+        mock_exists.return_value = False
+        
+        response = self.client.post("/api/nas/health-fix", json={
+            "action": "rename_folder",
+            "path": "/Volumes/Kino/My Show",
+            "new_name": "My: Awesome? Show"
+        })
+        
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data["ok"])
+        
+        mock_rename.assert_called_once()
+        args = mock_rename.call_args[0]
+        self.assertEqual(args[0], "/Volumes/Kino/My Show")
+        self.assertEqual(os.path.basename(args[1]), "My - Awesome Show")
+
 
 if __name__ == "__main__":
     unittest.main()

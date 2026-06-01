@@ -202,7 +202,11 @@ def apply_renames(target_folder, rename_plan):
     for item in rename_plan:
         old_rel = item.get("rel_path")
         new_rel = item.get("proposed_rel_path")
-        
+        if new_rel:
+            parent_dir = os.path.dirname(new_rel)
+            filename = os.path.basename(new_rel)
+            new_rel = os.path.join(parent_dir, sanitize_filename(filename))
+            
         if not old_rel or not new_rel or old_rel == new_rel:
             continue
             
