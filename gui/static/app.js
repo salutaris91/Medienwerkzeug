@@ -13,6 +13,7 @@ let eventSource = null;
 let isManualMovieMode = false;
 let isManualSeriesMode = false;
 let allLocalProfiles = [];
+let selectShowRequestId = 0;
 
 // YouTube Downloader states
 let ytFetchedInfo = null;
@@ -51,7 +52,8 @@ function getCatIdBySub(sub, fallbackId) {
 // ==========================================================================
 // NAS SEASONS INFO
 // ==========================================================================
-async function fetchNasSeasons() {
+async function fetchNasSeasons(requestId = null) {
+    const targetRequestId = requestId !== null ? requestId : selectShowRequestId;
     const folderInput = document.getElementById("series-nas-folder-override");
     const destSelect = document.getElementById("series-nas-destination");
     const infoContainer = document.getElementById("selected-show-nas-seasons-info");
@@ -73,8 +75,10 @@ async function fetchNasSeasons() {
     
     try {
         const res = await fetch(url);
+        if (targetRequestId !== selectShowRequestId) return;
         if (!res.ok) throw new Error("Fehler beim Laden");
         const data = await res.json();
+        if (targetRequestId !== selectShowRequestId) return;
         
         // 1. Check if the backend matched a different destination category
         if (data.matched_destination_id && destSelect && destSelect.value !== data.matched_destination_id) {
@@ -2016,6 +2020,8 @@ function renderProviderInfo(element, providerName, id, loadedFromNfo) {
 }
 
 async function selectShow(show) {
+    selectShowRequestId++;
+    const currentRequestId = selectShowRequestId;
     selectedShow = show;
     
     // Update local profile dropdown selection to match this show if possible
@@ -2058,34 +2064,6 @@ async function selectShow(show) {
         matchStatusLabel.textContent = "";
     }
     
-    if (overrideInput) {
-        if (window.nasFolderSelected) {
-            overrideInput.value = window.nasFolderSelected;
-            autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
-        } else {
-            const destSelect = document.getElementById("series-nas-destination");
-            const destVal = destSelect ? destSelect.value : "";
-            overrideInput.value = cleanSeriesName(show.name);
-            
-            fetch(`/api/series/find-folder-by-id?provider=${encodeURIComponent(show.provider)}&show_id=${encodeURIComponent(show.id)}&destination_id=${encodeURIComponent(destVal)}`)
-                .then(res => res.ok ? res.json() : {folder: null})
-                .then(data => {
-                    if (data.folder) {
-                        overrideInput.value = data.folder;
-                        if (matchStatusLabel) {
-                            matchStatusLabel.textContent = `✅ Zugeordnet zu existierendem NAS-Ordner: ${data.folder}`;
-                            matchStatusLabel.classList.remove("hidden");
-                        }
-                    }
-                    autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
-                })
-                .catch(err => {
-                    console.error("Error finding folder by show ID:", err);
-                    autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", overrideInput.value);
-                });
-        }
-    }
-    
     const panel = document.getElementById("selected-show-panel");
     const title = document.getElementById("selected-show-title");
     const provider = document.getElementById("selected-show-provider-info");
@@ -2111,45 +2089,64 @@ async function selectShow(show) {
     if (seriesNfoYear) seriesNfoYear.value = "";
     if (seriesNfoPlot) seriesNfoPlot.value = "Lade Metadaten...";
 
-    // Fetch and populate show NFO metadata
+    // Fetch and populate show NFO metadata (background thread, guarded)
     fetch(`/api/metadata/fetch?media_type=tv&provider=${show.provider}&show_id=${show.id}`)
-        .then(res => res.json())
+        .then(res => {
+            if (currentRequestId !== selectShowRequestId) return null;
+            return res.json();
+        })
         .then(data => {
+            if (!data || currentRequestId !== selectShowRequestId) return;
             if (seriesNfoTitle && data.title) seriesNfoTitle.value = data.title;
             if (seriesNfoYear && data.year) seriesNfoYear.value = data.year;
             if (seriesNfoPlot) seriesNfoPlot.value = data.plot || "";
         })
         .catch(err => {
             console.error("Error fetching show NFO preview:", err);
-            if (seriesNfoPlot) seriesNfoPlot.value = "";
+            if (currentRequestId === selectShowRequestId && seriesNfoPlot) {
+                seriesNfoPlot.value = "";
+            }
         });
 
-    fetchNasSeasons();
-    
-    // Auto-routing destination for Dokus (default fallback before profile application)
-    const nameLower = show.name.toLowerCase();
-    const isDoku = nameLower.includes("doku") || nameLower.includes("dokumentation") || currentProjectIsDoku;
-    if (isDoku) {
-        const destId = getCatIdBySub("/Dokus/Doku-Serien", "4");
-        const nasSelect = document.getElementById("series-nas-destination");
-        const pcloudSelect = document.getElementById("series-pcloud-destination");
-        if (nasSelect) {
-            nasSelect.value = destId;
-            nasSelect.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        if (pcloudSelect) {
-            pcloudSelect.value = destId;
-            pcloudSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    // 1. Find folder on NAS (AWAIT)
+    let nasFolder = cleanSeriesName(show.name);
+    if (window.nasFolderSelected) {
+        nasFolder = window.nasFolderSelected;
+    } else {
+        const destSelect = document.getElementById("series-nas-destination");
+        const destVal = destSelect ? destSelect.value : "";
+        try {
+            const res = await fetch(`/api/series/find-folder-by-id?provider=${encodeURIComponent(show.provider)}&show_id=${encodeURIComponent(show.id)}&destination_id=${encodeURIComponent(destVal)}`);
+            if (currentRequestId !== selectShowRequestId) return;
+            if (res.ok) {
+                const data = await res.json();
+                if (currentRequestId !== selectShowRequestId) return;
+                if (data.folder) {
+                    nasFolder = data.folder;
+                    if (matchStatusLabel) {
+                        matchStatusLabel.textContent = `✅ Zugeordnet zu existierendem NAS-Ordner: ${data.folder}`;
+                        matchStatusLabel.classList.remove("hidden");
+                    }
+                }
+            }
+        } catch (err) {
+            console.error("Error finding folder by show ID:", err);
         }
     }
+    if (overrideInput) {
+        overrideInput.value = nasFolder;
+    }
+    autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", nasFolder);
 
     let hasLoadedAllSeasons = false;
     
-    // Fetch and apply profile settings
+    // 2. Fetch and apply profile settings (AWAIT)
     try {
         const profRes = await fetch(`/api/profile?show_name=${encodeURIComponent(show.name)}`);
+        if (currentRequestId !== selectShowRequestId) return;
         if (profRes.ok) {
             const profile = await profRes.json();
+            if (currentRequestId !== selectShowRequestId) return;
             if (profile) {
                 // Apply auto_h265
                 const convertCb = document.getElementById("series-option-convert");
@@ -2239,18 +2236,43 @@ async function selectShow(show) {
         console.error("Error loading show profile:", err);
     }
     
+    // 3. Auto-routing destination for Dokus (default fallback before profile application)
+    const nameLower = show.name.toLowerCase();
+    const isDoku = nameLower.includes("doku") || nameLower.includes("dokumentation") || currentProjectIsDoku;
+    if (isDoku) {
+        const destId = getCatIdBySub("/Dokus/Doku-Serien", "4");
+        const nasSelect = document.getElementById("series-nas-destination");
+        const pcloudSelect = document.getElementById("series-pcloud-destination");
+        if (nasSelect) {
+            nasSelect.value = destId;
+            nasSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (pcloudSelect) {
+            pcloudSelect.value = destId;
+            pcloudSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }
+
+    // 4. Fetch NAS seasons now that profile and correct folder/destination is loaded (AWAIT)
+    await fetchNasSeasons(currentRequestId);
+    if (currentRequestId !== selectShowRequestId) return;
+    
     updateSizeEstimation("series");
     
     try {
         const response = await fetch(`/api/fetch-show-info?provider=${show.provider}&show_id=${show.id}`);
+        if (currentRequestId !== selectShowRequestId) return;
         const data = await response.json();
+        if (currentRequestId !== selectShowRequestId) return;
         seasonsInfo.textContent = data.info || "Keine Info gefunden";
     } catch (e) {
-        seasonsInfo.textContent = "Fehler beim Laden der Details.";
+        if (currentRequestId === selectShowRequestId) {
+            seasonsInfo.textContent = "Fehler beim Laden der Details.";
+        }
     }
 
     if (hasLoadedAllSeasons) {
-        fetchEpisodes();
+        fetchEpisodes(currentRequestId);
     } else {
         // Auto guess season
         const videoFiles = projectFiles.filter(f => {
@@ -2271,15 +2293,17 @@ async function selectShow(show) {
                         filenames: videoFiles
                     })
                 });
+                if (currentRequestId !== selectShowRequestId) return;
                 if (guessResponse.ok) {
                     const guessData = await guessResponse.json();
+                    if (currentRequestId !== selectShowRequestId) return;
                     if (guessData.season) {
                         const seasonInput = document.getElementById("series-season-num");
                         if (seasonInput) {
                             seasonInput.value = guessData.season;
                         }
                         // Automatically trigger fetchEpisodes to populate matrix!
-                        fetchEpisodes();
+                        fetchEpisodes(currentRequestId);
                     }
                 }
             } catch (err) {
@@ -2289,7 +2313,8 @@ async function selectShow(show) {
     }
 }
 
-async function fetchEpisodes() {
+async function fetchEpisodes(requestId = null) {
+    const targetRequestId = requestId !== null ? requestId : selectShowRequestId;
     if (!selectedShow) return;
     
     const allSeasonsCb = document.getElementById("series-all-seasons");
@@ -2309,7 +2334,9 @@ async function fetchEpisodes() {
     
     try {
         const response = await fetch(`/api/fetch-episodes?provider=${selectedShow.provider}&show_id=${selectedShow.id}&season=${season}`);
+        if (targetRequestId !== selectShowRequestId) return;
         episodesData = await response.json();
+        if (targetRequestId !== selectShowRequestId) return;
         
         if (Object.keys(episodesData).length === 0) {
             matchingContainer.innerHTML = '<p class="text-center text-danger">Keine Episoden gefunden.</p>';
@@ -2343,8 +2370,10 @@ async function fetchEpisodes() {
                         nas_show_folder: nasFolderEl ? nasFolderEl.value : null
                     })
                 });
+                if (targetRequestId !== selectShowRequestId) return;
                 if (matchResponse.ok) {
                     const matchData = await matchResponse.json();
+                    if (targetRequestId !== selectShowRequestId) return;
                     matches = matchData.matches || {};
                     duplicates = matchData.duplicates || {};
                 }
@@ -2353,6 +2382,7 @@ async function fetchEpisodes() {
             }
         }
         
+        if (targetRequestId !== selectShowRequestId) return;
         renderMatchingMatrix(matches, duplicates);
         execPanel.classList.remove("hidden");
         
