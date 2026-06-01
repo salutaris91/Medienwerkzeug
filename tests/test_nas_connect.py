@@ -7,7 +7,7 @@ from flask import Flask
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from gui.api.system_api import handle_api_status, system_api
+from gui.api.system_api import handle_api_nas_connect, handle_api_status, system_api
 
 
 class TestNasConnectApi(unittest.TestCase):
@@ -20,6 +20,8 @@ class TestNasConnectApi(unittest.TestCase):
         for attribute in ("last_nas_status", "last_nas_check"):
             if hasattr(handle_api_status, attribute):
                 delattr(handle_api_status, attribute)
+        if hasattr(handle_api_nas_connect, "last_attempt"):
+            delattr(handle_api_nas_connect, "last_attempt")
 
     @patch("gui.api.system_api.check_nas_status", return_value="connected")
     @patch("gui.api.system_api.ensure_nas_mounted", return_value=True)
@@ -49,6 +51,17 @@ class TestNasConnectApi(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertFalse(response.get_json()["ok"])
         self.assertIn("Schlüsselbund", response.get_json()["message"])
+
+    @patch("gui.api.system_api.check_nas_status", return_value="connected")
+    @patch("gui.api.system_api.ensure_nas_mounted", return_value=True)
+    def test_connect_limits_repeated_mount_attempts(self, mock_mount, mock_status):
+        first_response = self.client.post("/api/nas/connect")
+        second_response = self.client.post("/api/nas/connect")
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 429)
+        self.assertFalse(second_response.get_json()["ok"])
+        mock_mount.assert_called_once_with()
 
 
 if __name__ == "__main__":

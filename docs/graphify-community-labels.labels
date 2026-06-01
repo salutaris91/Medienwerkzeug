@@ -135,8 +135,8 @@
   "Health Scan Cache Tests": [
     "tests_test_health_scan_cache_py"
   ],
-  "Search and Folder Matching API & Utility Tests": [
-    "tests_test_utils_py"
+  "Queue and Search APIs": [
+    "gui_api_search_api_py"
   ],
   "Utility Logic Tests": [
     "tests_test_utils_testmediawerkzeuglogic"
@@ -144,7 +144,7 @@
   "System API and Stats": [
     "gui_api_system_api_py"
   ],
-  "Project API, Queue and Core Utilities": [
+  "Project API and Core Utilities": [
     "gui_api_project_api_py"
   ],
   "YouTube and Queue API Handler": [
@@ -159,20 +159,14 @@
   "Health Scan Season Helpers": [
     "core_health_check_season"
   ],
-  "Core Utilities and Profile API": [
-    "gui_core_utils_py"
-  ],
   "Film Normalize Folder Classification Helpers": [
     "core_health_is_genre_container"
   ],
   "Manual NAS Connect API Tests": [
-    "tests_test_nas_connect_py"
+    "tests_test_nas_connect_testnasconnectapi"
   ],
   "Health Scan Start": [
     "core_health_start_health_scan"
-  ],
-  "Findings Ignore API": [
-    "api_nas_api_handle_api_findings_ignore"
   ],
   "Findings Ignored List API": [
     "api_nas_api_handle_api_findings_ignored"
@@ -180,7 +174,13 @@
   "Findings Unignore API": [
     "api_nas_api_handle_api_findings_unignore"
   ],
-  "NAS Health Status API": [
-    "api_nas_api_handle_api_nas_health_status"
+  "Path Safety and Folder Operations": [
+    "core_helpers_is_path_allowed"
+  ],
+  "NAS Duplicate Status API": [
+    "api_nas_api_handle_api_nas_duplicates"
+  ],
+  "Film Normalize Preview API": [
+    "api_nas_api_handle_api_normalize_films_preview"
   ]
 }

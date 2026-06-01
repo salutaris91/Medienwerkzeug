@@ -11,6 +11,7 @@ import gui.core.media as media
 import gui.mw_metadata as mw_metadata
 
 system_api = Blueprint('system_api', __name__)
+NAS_CONNECT_COOLDOWN_SECONDS = 5
 
 # Global variables imported from processor
 from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
@@ -201,11 +202,21 @@ def handle_api_status():
 @system_api.route('/nas/connect', methods=['POST'])
 def handle_api_nas_connect():
     """Try to mount the configured NAS immediately and refresh the cached status."""
+    now = time.time()
+    last_attempt = getattr(handle_api_nas_connect, "last_attempt", 0)
+    if now - last_attempt < NAS_CONNECT_COOLDOWN_SECONDS:
+        return jsonify({
+            "ok": False,
+            "nas_status": getattr(handle_api_status, "last_nas_status", "offline"),
+            "message": "Bitte warte kurz, bevor du erneut eine NAS-Verbindung startest."
+        }), 429
+    handle_api_nas_connect.last_attempt = now
+
     try:
         ensure_nas_mounted()
         nas_status = check_nas_status()
         handle_api_status.last_nas_status = nas_status
-        handle_api_status.last_nas_check = time.time()
+        handle_api_status.last_nas_check = now
 
         if nas_status == "connected":
             return jsonify({
@@ -229,7 +240,7 @@ def handle_api_nas_connect():
     except Exception as e:
         log_message(f"❌ Manueller NAS-Verbindungsversuch fehlgeschlagen: {e}")
         handle_api_status.last_nas_status = "offline"
-        handle_api_status.last_nas_check = time.time()
+        handle_api_status.last_nas_check = now
         return jsonify({
             "ok": False,
             "nas_status": "offline",
