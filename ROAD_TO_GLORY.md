@@ -57,16 +57,16 @@ Bevor wir das Tool an andere verteilen, sollten folgende Punkte der **aktuellen*
    - **Warum:** Gerade bei großen externen Bibliotheken dauern vollständige Scans extrem lange. Ein Caching ist zwingend nötig für eine flüssige User Experience.
 4. **Nice-to-Have: Echtes Multi-Cloud**
    - **Warum:** Wäre als "1.0 Feature" cool, kann aber notfalls auch per Update (`1.1`) nachgereicht werden. Google Drive wird aktuell schon unterstützt (Nutzer kann `gdrive:` statt `pcloud:` eintragen). Was fehlt, ist nur die gleichzeitige Nutzung beider Dienste mit getrennten Schaltern.
- 
+
 *(Punkte wie die KI-Covergenerierung können warten und als Features in späteren Updates verkauft werden).*
- 
+
 ---
- 
+
 ## 2. Road to Glory – Der Weg zum Public Release
- 
+
 ### Phase 0: Pre-Release Features (Aus der alten Roadmap)
 *Diese Punkte müssen als Fundament fertiggestellt werden, bevor die eigentliche Distribution-Härtung beginnt.*
- 
+
 #### 1. Lade-Indikator für Inbox-Projekte (Erledigt)
 Aktuell ist auf dem Startbildschirm (Inbox) nicht ersichtlich, ob ein erkanntes Projekt bereits vom Backend verarbeitet wird. Dies führt zu Unsicherheit und potenziell fehlerhaften Mehrfach-Klicks.
 - **Ziel:** Eine visuelle Rückmeldung in der Inbox implementieren (analog zum kreisenden Lade-Symbol der Projektordner in der linken Seitenleiste).
@@ -252,5 +252,4 @@ Image unter einem sauberen Namen veröffentlichen. Tags für Versionen (`v1.0`, 
 Changelog pro Version. Was ist neu, was ist gefixt, was ist breaking.
 
 ---
-
 
