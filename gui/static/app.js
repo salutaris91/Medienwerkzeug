@@ -966,9 +966,37 @@ function initConsole() {
         const consoleBody = document.getElementById("console-body-text");
         consoleBody.innerHTML = '<div class="console-line system-line">[System]: Konsole geleert.</div>';
     });
+
+    const showConsoleCheckbox = document.getElementById("settings-show-console");
+    if (showConsoleCheckbox) {
+        showConsoleCheckbox.addEventListener("change", (e) => {
+            applyConsoleVisibility(e.target.checked);
+        });
+    }
+}
+
+function applyConsoleVisibility(show) {
+    const appConsole = document.getElementById("app-console");
+    if (!appConsole) return;
+    
+    if (show) {
+        appConsole.classList.remove("hidden-console");
+        if (appConsole.classList.contains("expanded")) {
+            document.documentElement.style.setProperty('--console-height', '320px');
+        } else {
+            document.documentElement.style.setProperty('--console-height', '40px');
+        }
+    } else {
+        appConsole.classList.add("hidden-console");
+        document.documentElement.style.setProperty('--console-height', '0px');
+    }
 }
 
 function expandConsole() {
+    const showConsoleCheckbox = document.getElementById("settings-show-console");
+    if (showConsoleCheckbox && !showConsoleCheckbox.checked) {
+        return;
+    }
     const appConsole = document.getElementById("app-console");
     const toggleIcon = document.getElementById("console-toggle-btn-icon");
     if (appConsole.classList.contains("collapsed")) {
@@ -6557,6 +6585,8 @@ async function loadSettings() {
             setCheckbox("settings-show-jokes", currentSettings.show_jokes !== false); // default to true
             setCheckbox("settings-show-quote", currentSettings.show_quote !== false); // default to true
             setCheckbox("settings-smart-conversion-default", currentSettings.smart_conversion_default !== false); // default to true
+            setCheckbox("settings-show-console", currentSettings.show_console || false);
+            applyConsoleVisibility(currentSettings.show_console || false);
             
             let themeVal = currentSettings.app_theme || "deep-space";
             if (themeVal === "apple-silver") themeVal = "apple-black";
@@ -7253,6 +7283,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 show_jokes: document.getElementById("settings-show-jokes")?.checked || false,
                 show_quote: document.getElementById("settings-show-quote")?.checked || false,
                 smart_conversion_default: document.getElementById("settings-smart-conversion-default")?.checked || false,
+                show_console: document.getElementById("settings-show-console")?.checked || false,
                 app_theme: document.getElementById("settings-app-theme")?.value || "deep-space",
                 media_server: document.getElementById("settings-media-server")?.value || "",
                 

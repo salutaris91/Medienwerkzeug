@@ -266,7 +266,8 @@ def load_settings():
             {"id": "6", "name": "Sonstiges", "nas_sub": "/Sonstiges", "pcloud_remote": "pcloud:05_Sonstiges", "targets": {"nas": "/Sonstiges", "pcloud": "pcloud:05_Sonstiges"}}
         ],
         "youtube_subscriptions": [],
-        "media_server": ""
+        "media_server": "",
+        "show_console": False
     }
     
     with settings_lock:

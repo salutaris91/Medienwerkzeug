@@ -1231,6 +1231,10 @@ select:focus {
     height: 320px;
 }
 
+.app-console.hidden-console {
+    display: none !important;
+}
+
 .console-header {
     display: flex;
     justify-content: space-between;
