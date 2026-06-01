@@ -1,7 +1,21 @@
 import os
+import sys
 import re
 import json
 import threading
+
+# Ensure common Homebrew/user paths are in PATH on macOS (especially when started from Finder/.app)
+if sys.platform == "darwin":
+    _current_path = os.environ.get("PATH", "")
+    _paths = _current_path.split(os.pathsep)
+    _extra_paths = ["/opt/homebrew/bin", "/usr/local/bin"]
+    _modified = False
+    for _p in _extra_paths:
+        if _p not in _paths:
+            _paths.insert(0, _p)  # Prepend to prioritize Homebrew binaries
+            _modified = True
+    if _modified:
+        os.environ["PATH"] = os.pathsep.join(_paths)
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 PROFILES_DIR = os.path.join(DATA_DIR, "profiles")
