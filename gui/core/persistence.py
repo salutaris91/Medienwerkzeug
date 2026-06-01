@@ -112,7 +112,7 @@ def backup_if_valid(file_path, backup_path):
         return False
     try:
         with open(file_path, "r", encoding="utf-8") as f:
-            json.load(f) # Validate JSON format
+            json.load(f) # Validate JSON forma
         shutil.copy2(file_path, backup_path)
         return True
     except Exception as e:
@@ -233,6 +233,133 @@ def update_json_file(file_path, lock, update_fn, default_data=None):
             return False
 
 # ==========================================================================
+# ENV FILE HANDLING
+# ==========================================================================
+
+def load_env_keys():
+    env_path = get_env_file_path()
+    keys = {}
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    k = k.strip()
+                    v = v.strip()
+                    if v.startswith('"') and v.endswith('"'):
+                        v = v[1:-1]
+                    elif v.startswith("'") and v.endswith("'"):
+                        v = v[1:-1]
+                    keys[k] = v
+    ensure_env_example()
+    ensure_env_gitignore()
+    return keys
+
+def save_env_keys(updates):
+    env_path = get_env_file_path()
+    lines = []
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+    updated_keys = set()
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            new_lines.append(line)
+            continue
+
+        k, v = stripped.split("=", 1)
+        k = k.strip()
+        if k in updates:
+            updated_keys.add(k)
+            val = updates[k]
+            if val is None or val == "":
+                # Remove from environ explicitly
+                os.environ.pop(k, None)
+                continue # do not append to new_lines (remove from file)
+            else:
+                new_lines.append(f'{k}="{val}"\n')
+                os.environ[k] = val
+        else:
+            new_lines.append(line)
+
+    for k, val in updates.items():
+        if k not in updated_keys and val:
+            new_lines.append(f'{k}="{val}"\n')
+            os.environ[k] = val
+
+    parent_dir = os.path.dirname(env_path)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+
+    temp_path = env_path + ".tmp"
+    with open(temp_path, "w", encoding="utf-8") as f:
+        f.writelines(new_lines)
+        f.flush()
+        try:
+            os.fsync(f.fileno())
+        except OSError:
+            pass
+    os.replace(temp_path, env_path)
+    ensure_env_example()
+    ensure_env_gitignore()
+
+def ensure_env_gitignore():
+    gitignore_path = os.path.join(APP_ROOT, ".gitignore")
+    env_filename = ".env"
+
+    lines = []
+    if os.path.exists(gitignore_path):
+        with open(gitignore_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+    if not any(env_filename == line.strip() for line in lines):
+        with open(gitignore_path, "a", encoding="utf-8") as f:
+            if lines and not lines[-1].endswith("\n"):
+                f.write("\n")
+            f.write(f"{env_filename}\n")
+
+def ensure_env_example():
+    example_path = os.path.join(APP_ROOT, "gui", ".env.example")
+    keys_to_ensure = ["TMDB_API_KEY", "TVDB_API_KEY"]
+
+    existing_lines = []
+    if os.path.exists(example_path):
+        with open(example_path, "r", encoding="utf-8") as f:
+            existing_lines = f.readlines()
+
+    existing_keys = set()
+    for line in existing_lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        existing_keys.add(line.split("=")[0].strip())
+
+    new_lines = []
+    for key in keys_to_ensure:
+        if key not in existing_keys:
+            new_lines.append(f'{key}=""\n')
+
+    if new_lines:
+        with open(example_path, "a", encoding="utf-8") as f:
+            f.writelines(new_lines)
+
+def mask_credential(val):
+    if not val:
+        return ""
+    if len(val) <= 8:
+        return "****"
+    return "****" + val[-4:]
+
+def is_masked(val):
+    return val.startswith("****") if val else False
+
+# ==========================================================================
 # SETTINGS PERSISTENCE WRAPPERS WITH MIGRATION
 # ==========================================================================
 _cached_settings = None
@@ -263,7 +390,7 @@ def load_settings():
     if "sync_categories" not in settings or not settings["sync_categories"]:
         settings["sync_categories"] = DEFAULT_SETTINGS["sync_categories"]
         migrated = True
-    # Migration: Ensure sync_categories target mappings are set
+    # Migration: Ensure sync_categories target mappings are se
     if "sync_categories" in settings:
         for cat in settings["sync_categories"]:
             if "targets" not in cat:
@@ -275,7 +402,7 @@ def load_settings():
             if "pcloud_remote" in cat and "pcloud" not in cat["targets"]:
                 cat["targets"]["pcloud"] = cat["pcloud_remote"]
                 migrated = True
-    # Migration: Ensure min size notifications are set
+    # Migration: Ensure min size notifications are se
     for target_key in ["notify_min_size_macos", "notify_min_size_telegram", "notify_min_size_whatsapp"]:
         if target_key not in settings:
             settings[target_key] = settings.get("notify_min_size", 10)
@@ -284,7 +411,7 @@ def load_settings():
     if "version" not in settings:
         settings["version"] = 1
         migrated = True
-    # Ensure all DEFAULT_SETTINGS keys are present
+    # Ensure all DEFAULT_SETTINGS keys are presen
     for k, v in DEFAULT_SETTINGS.items():
         if k not in settings:
             settings[k] = v

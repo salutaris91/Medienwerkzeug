@@ -3,6 +3,7 @@ import json
 import urllib.request
 from gui.core import artwork_validators
 from gui.core.utils import load_settings
+from gui.core.persistence import load_env_keys
 
 def _download_with_timeout(url, path, timeout=10):
     import urllib.request
@@ -27,18 +28,24 @@ def escape_xml(s):
     return xml.sax.saxutils.escape(str(s), {'"': '&quot;', "'": '&apos;'})
 
 # --- .env Datei parsen (Hausregel #1: Keine Secrets im Code) ---
-env_path = os.path.join(os.path.dirname(__file__), '.env')
-if os.path.exists(env_path):
-    with open(env_path, 'r') as f:
-        for line in f:
-            if line.strip() and not line.startswith('#'):
-                parts = line.strip().split('=', 1)
-                if len(parts) == 2:
-                    os.environ[parts[0].strip()] = parts[1].strip().strip('"\'')
+env_keys = load_env_keys()
+for k, v in env_keys.items():
+    os.environ[k] = v
 
 TVDB_API_KEY = os.environ.get("TVDB_API_KEY", "")
+TMDB_API_KEY = os.environ.get("TMDB_API_KEY", "")
 tvdb_token = None
 tvdb_token_time = 0
+
+def reload_metadata_keys():
+    global TVDB_API_KEY, TMDB_API_KEY, tvdb_token, tvdb_token_time
+    env_keys = load_env_keys()
+    for k, v in env_keys.items():
+        os.environ[k] = v
+    TVDB_API_KEY = os.environ.get("TVDB_API_KEY", "")
+    TMDB_API_KEY = os.environ.get("TMDB_API_KEY", "")
+    tvdb_token = None
+    tvdb_token_time = 0
 
 def get_tvdb_token():
     global tvdb_token, tvdb_token_time
@@ -361,7 +368,7 @@ def get_fernsehserien_episodes(series_name_or_url, season):
     except Exception as e:
         return {}
 
-TMDB_API_KEY = os.environ.get("TMDB_API_KEY", "")
+
 
 def search_tmdb_movie(query):
     query = query.strip()

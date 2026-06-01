@@ -1,11 +1,11 @@
 import os
-import unittest
+import unittes
 import json
 import tempfile
 from unittest.mock import patch
 from flask import Flask
 
-# Import the blueprint
+# Import the blueprin
 from gui.api.system_api import system_api
 from gui.core.persistence import load_env_keys, save_env_keys, is_masked, mask_credential
 
@@ -16,10 +16,10 @@ class TestEnvHandling(unittest.TestCase):
         self.settings_path = os.path.join(self.test_dir.name, "settings.json")
         os.environ["MW_ENV_FILE"] = self.env_path
         os.environ["MW_SETTINGS_FILE"] = self.settings_path
-        
+
         os.environ.pop("TMDB_API_KEY", None)
         os.environ.pop("TVDB_API_KEY", None)
-        
+
         self.app = Flask(__name__)
         self.app.register_blueprint(system_api, url_prefix='/api')
         self.client = self.app.test_client()
@@ -39,10 +39,55 @@ class TestEnvHandling(unittest.TestCase):
         keys = load_env_keys()
         self.assertEqual(keys.get("TMDB_API_KEY"), "test1234")
         self.assertEqual(os.environ.get("TMDB_API_KEY"), "test1234")
-        
+
         save_env_keys({"TMDB_API_KEY": ""})
         self.assertNotIn("TMDB_API_KEY", load_env_keys())
         self.assertNotIn("TMDB_API_KEY", os.environ)
+
+        save_env_keys({"TVDB_API_KEY": "new_tvdb"})
+        import gui.mw_metadata as mw
+        mw.reload_metadata_keys()
+        self.assertEqual(mw.TVDB_API_KEY, "new_tvdb")
+        self.assertIsNone(mw.tvdb_token)
+        self.assertEqual(mw.tvdb_token_time, 0)
+
+    def test_legacy_endpoint_removed(self):
+        # /post-settings-legacy should return 404
+        response = self.client.post('/api/post-settings-legacy', json={"some": "data"})
+        self.assertEqual(response.status_code, 404)
+
+    def test_env_example_generation(self):
+        # Write an existing .env.example with just one key and an extra one
+        example_path = os.path.join(self.test_dir.name, ".env.example")
+        with open(example_path, "w") as f:
+            f.write('TMDB_API_KEY="old_val"\n')
+            f.write('OTHER_KEY="val"\n')
+
+        # Temporarily mock APP_ROOT in persistence to use test dir
+        import gui.core.persistence as p
+        orig_app_root = p.APP_ROOT
+        try:
+            # We mock APP_ROOT to self.test_dir.name but since it appends 'gui', we create i
+            gui_dir = os.path.join(self.test_dir.name, "gui")
+            os.makedirs(gui_dir, exist_ok=True)
+            p.APP_ROOT = self.test_dir.name
+
+            # Re-write the mock example to the new mocked location
+            example_path = os.path.join(gui_dir, ".env.example")
+            with open(example_path, "w") as f:
+                f.write('TMDB_API_KEY="old_val"\n')
+                f.write('OTHER_KEY="val"\n')
+
+            p.ensure_env_example()
+
+            with open(example_path, "r") as f:
+                content = f.read()
+
+            self.assertIn('TMDB_API_KEY="old_val"', content)
+            self.assertIn('OTHER_KEY="val"', content)
+            self.assertIn('TVDB_API_KEY=""', content) # TVDB was missing and should be added
+        finally:
+            p.APP_ROOT = orig_app_roo
 
     def test_masking_mechanisms(self):
         self.assertEqual(mask_credential("1234567890"), "****7890")
@@ -55,33 +100,47 @@ class TestEnvHandling(unittest.TestCase):
         # 1. Post a real key
         response = self.client.post('/api/settings', json={
             "tmdb_api_key": "my_real_tmdb_key",
-            "telegram_token": "my_real_tg_token"
+            "telegram_token": "my_real_tg_token",
+            "telegram_chat_id": "my_real_tg_chat_id",
+            "whatsapp_apikey": "my_real_wa_key",
+            "whatsapp_phone": "my_real_wa_phone",
+            "dummy_setting": False
         })
         self.assertEqual(response.status_code, 200)
-        
+
         # Verify it's loaded in env
         self.assertEqual(os.environ.get("TMDB_API_KEY"), "my_real_tmdb_key")
-        
-        # 2. Get settings, should be masked
+
+        # 2. Get settings, they should be masked
         response = self.client.get('/api/settings')
-        data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        data = response.json
         self.assertTrue(data["tmdb_api_key"].startswith("****"))
         self.assertTrue(data["telegram_token"].startswith("****"))
-        
+        self.assertTrue(data["telegram_chat_id"].startswith("****"))
+        self.assertTrue(data["whatsapp_apikey"].startswith("****"))
+        self.assertTrue(data["whatsapp_phone"].startswith("****"))
+
         # 3. Post back the masked keys
         response = self.client.post('/api/settings', json={
             "tmdb_api_key": data["tmdb_api_key"],
             "telegram_token": data["telegram_token"],
+            "telegram_chat_id": data["telegram_chat_id"],
+            "whatsapp_apikey": data["whatsapp_apikey"],
+            "whatsapp_phone": data["whatsapp_phone"],
             "dummy_setting": True # Change something else
         })
         self.assertEqual(response.status_code, 200)
-        
-        # Verify real keys are intact
+
+        # Verify real keys are intac
         self.assertEqual(os.environ.get("TMDB_API_KEY"), "my_real_tmdb_key")
-        
+
         from gui.core.persistence import load_settings
         settings = load_settings()
         self.assertEqual(settings["telegram_token"], "my_real_tg_token")
+        self.assertEqual(settings["telegram_chat_id"], "my_real_tg_chat_id")
+        self.assertEqual(settings["whatsapp_apikey"], "my_real_wa_key")
+        self.assertEqual(settings["whatsapp_phone"], "my_real_wa_phone")
         self.assertEqual(settings["dummy_setting"], True)
 
     def test_metadata_reload(self):
@@ -89,7 +148,7 @@ class TestEnvHandling(unittest.TestCase):
         # Initial is empty
         mw.reload_metadata_keys()
         self.assertEqual(mw.TMDB_API_KEY, "")
-        
+
         # Save a key
         save_env_keys({"TMDB_API_KEY": "reloaded_key"})
         mw.reload_metadata_keys()

@@ -49,7 +49,7 @@ def handle_api_settings():
         # Protect masked regular settings
         def mutate(data):
             for k, v in params.items():
-                if k in ["telegram_token", "whatsapp_apikey"] and is_masked(v):
+                if k in ["telegram_token", "telegram_chat_id", "whatsapp_apikey", "whatsapp_phone"] and is_masked(v):
                     continue # Preserve existing value
                 data[k] = v
                 
@@ -62,7 +62,9 @@ def handle_api_settings():
         
         # Mask credentials instead of popping them blindly
         settings["telegram_token"] = mask_credential(settings.get("telegram_token", ""))
+        settings["telegram_chat_id"] = mask_credential(settings.get("telegram_chat_id", ""))
         settings["whatsapp_apikey"] = mask_credential(settings.get("whatsapp_apikey", ""))
+        settings["whatsapp_phone"] = mask_credential(settings.get("whatsapp_phone", ""))
         
         # Also append masked env keys
         env_keys = load_env_keys()
@@ -85,21 +87,6 @@ def handle_api_check_dependencies():
     return jsonify(results)
 
 
-
-@system_api.route('/post-settings-legacy', methods=['GET', 'POST'])
-def handle_api_post_settings_legacy():
-    try:
-        params = request.get_json() or {}
-    except Exception:
-        params = {}
-    from gui.core.persistence import update_settings
-    def mutate(data):
-        for k, v in params.items():
-            data[k] = v
-    if update_settings(mutate):
-        return jsonify({"status": "success"})
-    else:
-        return jsonify({"error": "Failed to save settings"})
 
 
 
