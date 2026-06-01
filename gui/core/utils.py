@@ -233,6 +233,7 @@ def load_settings():
                 "rclone_remote": "",
                 "nas_ip": "192.168.2.208",
                 "nas_ip_backup": "100.74.187.125",
+                "nas_hostname": "ALEXNAS91",
                 "nas_share": "Kino",
                 "enabled": True
             },
@@ -278,6 +279,7 @@ def load_settings():
                                 "rclone_remote": "",
                                 "nas_ip": "192.168.2.208",
                                 "nas_ip_backup": "100.74.187.125",
+                                "nas_hostname": "ALEXNAS91",
                                 "nas_share": "Kino",
                                 "enabled": True
                             },

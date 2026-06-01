@@ -6943,12 +6943,16 @@ function renderStorageTargets() {
             const backupIpField = createField("Backup-/Tailscale-IP:", target.nas_ip_backup, "z.B. 100.74.187.125", (val) => {
                 target.nas_ip_backup = val;
             });
+            const hostnameField = createField("Finder-Servername:", target.nas_hostname, "z.B. ALEXNAS91", (val) => {
+                target.nas_hostname = val;
+            });
             const shareField = createField("SMB Share-Name:", target.nas_share, "z.B. Kino", (val) => {
                 target.nas_share = val;
             });
             
             smbGrid.appendChild(ipField.wrap);
             smbGrid.appendChild(backupIpField.wrap);
+            smbGrid.appendChild(hostnameField.wrap);
             smbGrid.appendChild(shareField.wrap);
             card.appendChild(smbGrid);
         }

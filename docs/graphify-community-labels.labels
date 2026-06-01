@@ -150,37 +150,25 @@
   "YouTube and Queue API Handler": [
     "gui_api_youtube_api_py"
   ],
-  "Health Ignore Application": [
-    "core_health_apply_ignores"
-  ],
   "YouTube Worker and Processor": [
     "gui_workers_youtube_worker_py"
-  ],
-  "Health Scan Season Helpers": [
-    "core_health_check_season"
-  ],
-  "Film Normalize Folder Classification Helpers": [
-    "core_health_is_genre_container"
   ],
   "Manual NAS Connect API Tests": [
     "tests_test_nas_connect_testnasconnectapi"
   ],
-  "Health Scan Start": [
-    "core_health_start_health_scan"
+  "NAS Renamer and Processing Helpers": [
+    "gui_core_nas_renamer_py"
   ],
-  "Findings Ignored List API": [
-    "api_nas_api_handle_api_findings_ignored"
+  "Notifications and General Helpers": [
+    "gui_core_notifications_py"
   ],
-  "Findings Unignore API": [
-    "api_nas_api_handle_api_findings_unignore"
+  "NAS Mount Fallback Tests": [
+    "tests_test_transfers_nas_mount_py"
   ],
-  "Path Safety and Folder Operations": [
-    "core_helpers_is_path_allowed"
+  "Findings Ignore API": [
+    "api_nas_api_handle_api_findings_ignore"
   ],
-  "NAS Duplicate Status API": [
-    "api_nas_api_handle_api_nas_duplicates"
-  ],
-  "Film Normalize Preview API": [
-    "api_nas_api_handle_api_normalize_films_preview"
+  "NAS Health Status API": [
+    "api_nas_api_handle_api_nas_health_status"
   ]
 }

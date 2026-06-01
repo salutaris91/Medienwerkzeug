@@ -50,9 +50,11 @@ Liest (GET) bzw. speichert (POST) die Konfiguration (`settings.json`).
 
 ### `POST /api/nas/connect`
 Versucht das konfigurierte NAS sofort per SMB einzubinden und aktualisiert den
-gecachten NAS-Status. Liefert eine verständliche Meldung, wenn Netzwerk,
-Tailscale oder die im macOS-Schlüsselbund gespeicherten Zugangsdaten geprüft
-werden müssen. Wiederholte Mount-Versuche werden für fünf Sekunden begrenzt.
+gecachten NAS-Status. Falls das direkte AppleScript-Mounting fehlschlägt, öffnet
+der Server den Finder-Fallback über den konfigurierten Servernamen. Liefert eine
+verständliche Meldung, wenn Netzwerk, Tailscale oder die im macOS-Schlüsselbund
+gespeicherten Zugangsdaten geprüft werden müssen. Wiederholte Mount-Versuche
+werden für fünf Sekunden begrenzt.
 
 ### `GET|POST /api/stats`
 NAS-Speicherbelegung und Konvertierungs-Statistik (gesparter Platz etc.).

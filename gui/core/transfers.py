@@ -1,9 +1,44 @@
 from gui.core.utils import load_settings, save_settings
-import os, subprocess, time, shlex, shutil
+import os, socket, subprocess, time, shlex, shutil
+from urllib.parse import quote
 from gui.core.helpers import *
 import gui.core.media as media
 
 _rsync_progress_flag = None
+
+def _is_nas_root_mounted(nas_root):
+    try:
+        out = subprocess.check_output(["mount"], text=True)
+        return f"on {nas_root}" in out
+    except Exception as e:
+        log_message(f"❌ NAS-Mount-Status konnte nicht gelesen werden: {e}")
+        return False
+
+def _wait_for_nas_mount(nas_root, attempts, delay_seconds=1):
+    for _ in range(attempts):
+        if _is_nas_root_mounted(nas_root):
+            return True
+        time.sleep(delay_seconds)
+    return False
+
+def _open_nas_in_finder(nas_host, nas_share):
+    finder_url = f"smb://{nas_host}/{quote(nas_share)}"
+    try:
+        log_message(f"📂 Öffne Finder-Fallback für {finder_url}...")
+        result = subprocess.run(
+            ["open", finder_url],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode != 0:
+            error = (result.stderr or result.stdout or "Unbekannter Finder-Fehler").strip()
+            log_message(f"❌ Finder-Fallback fehlgeschlagen: {error}")
+            return False
+        return True
+    except Exception as e:
+        log_message(f"❌ Finder-Fallback konnte nicht geöffnet werden: {e}")
+        return False
 
 def check_nas_status():
     settings = load_settings()
@@ -20,13 +55,7 @@ def check_nas_status():
         nas_host_ts = "100.74.187.125"
     
     # 1. Check if mounted
-    mounted = False
-    try:
-        out = subprocess.check_output(["mount"], text=True)
-        if f"on {nas_root}" in out:
-            mounted = True
-    except Exception:
-        pass
+    mounted = _is_nas_root_mounted(nas_root)
         
     # 2. Check ping/nc
     pingable = False
@@ -80,10 +109,12 @@ def ensure_nas_mounted():
             nas_host = nas_target.get("nas_ip", "192.168.2.208")
             nas_host_ts = nas_target.get("nas_ip_backup", "100.74.187.125")
             nas_share = nas_target.get("nas_share", "Kino")
+            nas_hostname = nas_target.get("nas_hostname", "ALEXNAS91")
         else:
             nas_host = "192.168.2.208"
             nas_host_ts = "100.74.187.125"
             nas_share = "Kino"
+            nas_hostname = "ALEXNAS91"
         
         chosen_ip = None
         for ip in [nas_host, nas_host_ts]:
@@ -106,16 +137,22 @@ def ensure_nas_mounted():
         try:
             log_message(f"🔗 Mounte smb://{chosen_ip}/{nas_share}...")
             cmd = ["osascript", "-e", f'mount volume "smb://{chosen_ip}/{nas_share}"']
-            subprocess.run(cmd, capture_output=True, timeout=10)
-            
-            for _ in range(10):
-                out = subprocess.check_output(["mount"], text=True)
-                if f"on {nas_root}" in out:
-                    log_message("✅ NAS erfolgreich gemountet!")
-                    return True
-                time.sleep(1)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            if result.returncode != 0:
+                error = (result.stderr or result.stdout or "Unbekannter AppleScript-Fehler").strip()
+                log_message(f"⚠️ Automatisches SMB-Mounting fehlgeschlagen: {error}")
+            elif _wait_for_nas_mount(nas_root, attempts=3):
+                log_message("✅ NAS erfolgreich gemountet!")
+                return True
         except Exception as e:
             log_message(f"❌ Fehler beim Einhängen des NAS: {e}")
+
+        finder_host = nas_hostname or chosen_ip
+        if _open_nas_in_finder(finder_host, nas_share):
+            if _wait_for_nas_mount(nas_root, attempts=10):
+                log_message("✅ NAS erfolgreich über Finder gemountet!")
+                return True
+            log_message("❌ Finder wurde geöffnet, aber das NAS-Volume ist noch nicht eingebunden.")
             
     return os.path.exists(nas_root)
 
