@@ -240,5 +240,66 @@ class TestHealthScanCache(unittest.TestCase):
                 
                 mock_check.assert_called_once()
 
+    def test_separate_hybrid_and_deep_cache_states(self):
+        key = "1:emby"
+        show_path = "/path/to/show"
+        
+        # 1. Hybrid-State setzen
+        hybrid_data = {"folder_mtime": 1000.0, "tvshow_nfo_mtime": 1001.0}
+        self.cache_mgr.set_cached_entry(show_path, key, [], hybrid_state=hybrid_data, files_checked=5)
+        
+        entry = self.cache_mgr.get_cached_entry(show_path, key)
+        self.assertEqual(entry["hybrid_state"], hybrid_data)
+        self.assertIsNone(entry["deep_hash"])
+        
+        # 2. Deep-Hash setzen, Hybrid-State darf nicht verloren gehen!
+        deep_hash = "abcdef1234567890"
+        self.cache_mgr.set_cached_entry(show_path, key, [], deep_hash=deep_hash, files_checked=5)
+        
+        entry = self.cache_mgr.get_cached_entry(show_path, key)
+        self.assertEqual(entry["hybrid_state"], hybrid_data)
+        self.assertEqual(entry["deep_hash"], deep_hash)
+
+    def test_health_scan_statistics(self):
+        # Simuliere stats-Erhöhung bei _check_movie_cached
+        stats = {
+            "cache_hits": 0,
+            "cache_miss_modified": 0,
+            "cache_miss_known_issues": 0,
+            "cache_miss_new": 0
+        }
+        
+        movie_path = "/path/to/movie"
+        key = "1:emby"
+        
+        mock_validator = unittest.mock.MagicMock()
+        
+        # Erstmaliger Aufruf -> cache_miss_new
+        with unittest.mock.patch("gui.core.health._check_movie") as mock_check:
+            mock_check.return_value = 1
+            health._check_movie_cached([], "Filme", movie_path, mock_validator, self.cache_mgr, key, deep_dive=False, stats=stats)
+            self.assertEqual(stats["cache_miss_new"], 1)
+            self.assertEqual(stats["cache_hits"], 0)
+            
+        # Zweiter Aufruf ohne Änderungen -> cache_hits
+        stats = {"cache_hits": 0, "cache_miss_modified": 0, "cache_miss_known_issues": 0, "cache_miss_new": 0}
+        with unittest.mock.patch("gui.core.health._check_movie") as mock_check:
+            with unittest.mock.patch.object(self.cache_mgr, "calculate_hybrid_state", return_value={"folder_mtime": 123}):
+                self.cache_mgr.set_cached_entry(movie_path, key, [], hybrid_state={"folder_mtime": 123})
+                health._check_movie_cached([], "Filme", movie_path, mock_validator, self.cache_mgr, key, deep_dive=False, stats=stats)
+                self.assertEqual(stats["cache_hits"], 1)
+                self.assertEqual(stats["cache_miss_modified"], 0)
+                mock_check.assert_not_called()
+                
+        # Dritter Aufruf mit Änderungen -> cache_miss_modified
+        stats = {"cache_hits": 0, "cache_miss_modified": 0, "cache_miss_known_issues": 0, "cache_miss_new": 0}
+        with unittest.mock.patch("gui.core.health._check_movie") as mock_check:
+            mock_check.return_value = 1
+            with unittest.mock.patch.object(self.cache_mgr, "calculate_hybrid_state", return_value={"folder_mtime": 999}):
+                health._check_movie_cached([], "Filme", movie_path, mock_validator, self.cache_mgr, key, deep_dive=False, stats=stats)
+                self.assertEqual(stats["cache_miss_modified"], 1)
+                self.assertEqual(stats["cache_hits"], 0)
+                mock_check.assert_called_once()
+
 if __name__ == "__main__":
     unittest.main()

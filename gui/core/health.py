@@ -54,6 +54,7 @@ _scan_state = {
     "issues": [],
     "summary": {"critical": 0, "warning": 0, "info": 0},
     "scanned": {"shows": 0, "files": 0},
+    "stats": {"cache_hits": 0, "cache_miss_modified": 0, "cache_miss_known_issues": 0, "cache_miss_new": 0},
     "error": None,
 }
 
@@ -455,7 +456,7 @@ def _check_movie(issues, category, movie_path, validator):
     return len(videos)
 
 
-def _check_movie_cached(issues, category, movie_path, validator, cache_mgr, key, deep_dive):
+def _check_movie_cached(issues, category, movie_path, validator, cache_mgr, key, deep_dive, stats):
     cached_entry = cache_mgr.get_cached_entry(movie_path, key)
     has_issues_in_cache = False
     if cached_entry:
@@ -463,29 +464,46 @@ def _check_movie_cached(issues, category, movie_path, validator, cache_mgr, key,
 
     if cached_entry and not has_issues_in_cache:
         if deep_dive:
-            current_state = cache_mgr.calculate_deep_hash(movie_path)
+            current_deep = cache_mgr.calculate_deep_hash(movie_path)
+            cached_deep = cached_entry.get("deep_hash")
+            if cached_deep == current_deep:
+                issues.extend(cached_entry.get("issues", []))
+                stats["cache_hits"] += 1
+                return cached_entry.get("files_checked", 0)
+            else:
+                stats["cache_miss_modified"] += 1
         else:
-            current_state = cache_mgr.calculate_hybrid_state(movie_path, validator, is_movie=True)
-            
-        if cached_entry.get("state_data") == current_state:
-            issues.extend(cached_entry.get("issues", []))
-            return cached_entry.get("files_checked", 0)
+            current_hybrid = cache_mgr.calculate_hybrid_state(movie_path, validator, is_movie=True)
+            cached_hybrid = cached_entry.get("hybrid_state")
+            if cached_hybrid is None and "state_data" in cached_entry and isinstance(cached_entry["state_data"], dict):
+                cached_hybrid = cached_entry["state_data"]
+            if cached_hybrid == current_hybrid:
+                issues.extend(cached_entry.get("issues", []))
+                stats["cache_hits"] += 1
+                return cached_entry.get("files_checked", 0)
+            else:
+                stats["cache_miss_modified"] += 1
+    elif cached_entry and has_issues_in_cache:
+        stats["cache_miss_known_issues"] += 1
+    else:
+        stats["cache_miss_new"] += 1
 
-    # Cache-Miss oder bekannte Issues -> Vollständiger Scan
+    # Cache-Miss, Änderung oder bekannte Issues -> Vollständiger Scan
     temp_issues = []
     files_checked = _check_movie(temp_issues, category, movie_path, validator)
     
     if deep_dive:
-        state_data = cache_mgr.calculate_deep_hash(movie_path)
+        current_deep = cache_mgr.calculate_deep_hash(movie_path)
+        cache_mgr.set_cached_entry(movie_path, key, temp_issues, deep_hash=current_deep, files_checked=files_checked)
     else:
-        state_data = cache_mgr.calculate_hybrid_state(movie_path, validator, is_movie=True)
+        current_hybrid = cache_mgr.calculate_hybrid_state(movie_path, validator, is_movie=True)
+        cache_mgr.set_cached_entry(movie_path, key, temp_issues, hybrid_state=current_hybrid, files_checked=files_checked)
         
-    cache_mgr.set_cached_entry(movie_path, key, temp_issues, state_data, files_checked)
     issues.extend(temp_issues)
     return files_checked
 
 
-def _check_series_cached(issues, category, show_path, validator, cache_mgr, key, deep_dive):
+def _check_series_cached(issues, category, show_path, validator, cache_mgr, key, deep_dive, stats):
     cached_entry = cache_mgr.get_cached_entry(show_path, key)
     has_issues_in_cache = False
     if cached_entry:
@@ -493,24 +511,41 @@ def _check_series_cached(issues, category, show_path, validator, cache_mgr, key,
 
     if cached_entry and not has_issues_in_cache:
         if deep_dive:
-            current_state = cache_mgr.calculate_deep_hash(show_path)
+            current_deep = cache_mgr.calculate_deep_hash(show_path)
+            cached_deep = cached_entry.get("deep_hash")
+            if cached_deep == current_deep:
+                issues.extend(cached_entry.get("issues", []))
+                stats["cache_hits"] += 1
+                return cached_entry.get("files_checked", 0)
+            else:
+                stats["cache_miss_modified"] += 1
         else:
-            current_state = cache_mgr.calculate_hybrid_state(show_path, validator, is_movie=False)
-            
-        if cached_entry.get("state_data") == current_state:
-            issues.extend(cached_entry.get("issues", []))
-            return cached_entry.get("files_checked", 0)
+            current_hybrid = cache_mgr.calculate_hybrid_state(show_path, validator, is_movie=False)
+            cached_hybrid = cached_entry.get("hybrid_state")
+            if cached_hybrid is None and "state_data" in cached_entry and isinstance(cached_entry["state_data"], dict):
+                cached_hybrid = cached_entry["state_data"]
+            if cached_hybrid == current_hybrid:
+                issues.extend(cached_entry.get("issues", []))
+                stats["cache_hits"] += 1
+                return cached_entry.get("files_checked", 0)
+            else:
+                stats["cache_miss_modified"] += 1
+    elif cached_entry and has_issues_in_cache:
+        stats["cache_miss_known_issues"] += 1
+    else:
+        stats["cache_miss_new"] += 1
 
-    # Cache-Miss oder bekannte Issues -> Vollständiger Scan
+    # Cache-Miss, Änderung oder bekannte Issues -> Vollständiger Scan
     temp_issues = []
     files_checked = _check_series_show(temp_issues, category, show_path, validator)
     
     if deep_dive:
-        state_data = cache_mgr.calculate_deep_hash(show_path)
+        current_deep = cache_mgr.calculate_deep_hash(show_path)
+        cache_mgr.set_cached_entry(show_path, key, temp_issues, deep_hash=current_deep, files_checked=files_checked)
     else:
-        state_data = cache_mgr.calculate_hybrid_state(show_path, validator, is_movie=False)
+        current_hybrid = cache_mgr.calculate_hybrid_state(show_path, validator, is_movie=False)
+        cache_mgr.set_cached_entry(show_path, key, temp_issues, hybrid_state=current_hybrid, files_checked=files_checked)
         
-    cache_mgr.set_cached_entry(show_path, key, temp_issues, state_data, files_checked)
     issues.extend(temp_issues)
     return files_checked
 
@@ -521,6 +556,12 @@ def _check_series_cached(issues, category, show_path, validator, cache_mgr, key,
 def _run_health_scan(deep_dive: bool = False):
     issues = []
     files_checked = 0
+    stats = {
+        "cache_hits": 0,
+        "cache_miss_modified": 0,
+        "cache_miss_known_issues": 0,
+        "cache_miss_new": 0
+    }
     try:
         if not ensure_nas_mounted():
             _set_state(status="error", message="NAS konnte nicht gemountet werden.",
@@ -543,9 +584,10 @@ def _run_health_scan(deep_dive: bool = False):
                 progress=int((idx / total) * 100) if total else 100,
                 message=f"Prüfe {show['category']}: {show['name']} ({idx + 1}/{total})",
                 scanned={"shows": idx, "files": files_checked},
+                stats=stats,
             )
             if show["type"] == "series":
-                files_checked += _check_series_cached(issues, show["category"], show["path"], validator, cache_mgr, cache_key, deep_dive)
+                files_checked += _check_series_cached(issues, show["category"], show["path"], validator, cache_mgr, cache_key, deep_dive, stats)
             elif _is_genre_container(show["path"]):
                 # Genre-Sammelordner (z. B. Filme/Action): nicht selbst als Film prüfen,
                 # sondern die enthaltenen Film-Unterordner einzeln.
@@ -556,9 +598,9 @@ def _run_health_scan(deep_dive: bool = False):
                 for sd in subdirs:
                     sp = os.path.join(show["path"], sd)
                     if os.path.isdir(sp):
-                        files_checked += _check_movie_cached(issues, show["category"], sp, validator, cache_mgr, cache_key, deep_dive)
+                        files_checked += _check_movie_cached(issues, show["category"], sp, validator, cache_mgr, cache_key, deep_dive, stats)
             else:
-                files_checked += _check_movie_cached(issues, show["category"], show["path"], validator, cache_mgr, cache_key, deep_dive)
+                files_checked += _check_movie_cached(issues, show["category"], show["path"], validator, cache_mgr, cache_key, deep_dive, stats)
  
             if (idx + 1) % 25 == 0:
                 log_message(f"🔍 [Health-Scan] {idx + 1}/{total} Ordner geprüft, "
@@ -579,12 +621,15 @@ def _run_health_scan(deep_dive: bool = False):
             "issues": issues,
             "summary": summary,
             "scanned": {"shows": total, "files": files_checked},
+            "stats": stats,
             "error": None,
         }
         _set_state(**result)
         _write_cache()
         log_message(f"✅ [Health-Scan] Fertig: {summary['critical']} kritisch, "
-                    f"{summary['warning']} Warnungen, {summary['info']} Hinweise.")
+                    f"{summary['warning']} Warnungen, {summary['info']} Hinweise. "
+                    f"Cache-Hits: {stats['cache_hits']}, Modifiziert: {stats['cache_miss_modified']}, "
+                    f"Bekannte Fehler: {stats['cache_miss_known_issues']}, Neu: {stats['cache_miss_new']}")
  
     except Exception as e:
         import traceback

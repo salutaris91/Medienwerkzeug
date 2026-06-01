@@ -61,13 +61,25 @@ class HealthCacheManager:
             return entry
         return None
 
-    def set_cached_entry(self, folder_path: str, cache_key: str, issues: list, state_data: dict, files_checked: int = 0):
-        """Speichert oder aktualisiert den Cache-Eintrag für einen Ordner."""
+    def set_cached_entry(self, folder_path: str, cache_key: str, issues: list, state_data: Optional[dict] = None, files_checked: int = 0, hybrid_state: Optional[dict] = None, deep_hash: Optional[str] = None):
+        """Speichert oder aktualisiert den Cache-Eintrag für einen Ordner mit separatem Hybrid- und Deep-Dive-Zustand."""
         abs_path = os.path.realpath(folder_path)
+        entry = self._cache.get(abs_path) or {}
+        
+        new_hybrid = hybrid_state
+        new_deep = deep_hash
+        if state_data is not None:
+            if isinstance(state_data, dict):
+                new_hybrid = state_data
+            elif isinstance(state_data, str):
+                new_deep = state_data
+                
         self._cache[abs_path] = {
             "cache_key": cache_key,
             "issues": issues,  # rohe Issues vor Ignore-Filter
-            "state_data": state_data,
+            "state_data": new_hybrid if new_hybrid is not None else new_deep,
+            "hybrid_state": new_hybrid if new_hybrid is not None else entry.get("hybrid_state"),
+            "deep_hash": new_deep if new_deep is not None else entry.get("deep_hash"),
             "files_checked": files_checked,
             "timestamp": time.time()
         }

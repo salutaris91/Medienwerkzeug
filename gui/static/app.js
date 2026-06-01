@@ -9801,6 +9801,7 @@ function renderHealthStatus(data) {
     const statusEl = document.getElementById("health-scan-status");
     const progWrap = document.getElementById("health-progress-wrap");
     const progBar = document.getElementById("health-progress-bar");
+    const statsEl = document.getElementById("health-stats");
     const summaryEl = document.getElementById("health-summary");
     const issuesEl = document.getElementById("health-issues");
     if (!statusEl || !summaryEl || !issuesEl) return;
@@ -9810,15 +9811,30 @@ function renderHealthStatus(data) {
         statusEl.textContent = data.message || "Scan läuft...";
         if (progWrap) progWrap.style.display = "block";
         if (progBar) progBar.style.width = `${data.progress || 0}%`;
+        if (statsEl) statsEl.style.display = "none";
     } else {
         if (progWrap) progWrap.style.display = "none";
         if (data.status === "error") {
             statusEl.textContent = `Fehler: ${data.message || data.error || "Unbekannt"}`;
+            if (statsEl) statsEl.style.display = "none";
         } else if (data.status === "done" || (data.issues && data.issues.length >= 0 && data.finished_at)) {
             const when = data.finished_at ? new Date(data.finished_at * 1000).toLocaleString("de-DE") : "";
             statusEl.textContent = data.message + (when ? ` (zuletzt: ${when})` : "");
+            
+            if (statsEl && data.stats) {
+                const s = data.stats;
+                statsEl.innerHTML = `⚡ Cache-Statistik: 
+                    <span style="color:var(--accent); font-weight:500;">${s.cache_hits || 0}</span> Treffer, 
+                    <span style="color:#f59e0b; font-weight:500;">${s.cache_miss_modified || 0}</span> wegen Änderungen neu geprüft, 
+                    <span style="color:#ef4444; font-weight:500;">${s.cache_miss_known_issues || 0}</span> wegen bekannter Fehler neu geprüft, 
+                    <span style="color:#3b82f6; font-weight:500;">${s.cache_miss_new || 0}</span> neu erfasst.`;
+                statsEl.style.display = "block";
+            } else if (statsEl) {
+                statsEl.style.display = "none";
+            }
         } else {
             statusEl.textContent = "Noch kein Scan durchgeführt.";
+            if (statsEl) statsEl.style.display = "none";
         }
     }
 
