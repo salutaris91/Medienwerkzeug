@@ -558,6 +558,15 @@ def handle_api_nas_health_scan():
     """Startet einen Bibliotheks-Health-Scan im Hintergrund."""
     import gui.core.health as health
     try:
+        from gui.core import utils
+        settings = utils.load_settings()
+        media_server = settings.get("media_server", "").strip()
+        if not media_server:
+            return jsonify({
+                "started": False,
+                "error": "Bitte wähle zuerst einen Medienserver (Emby/Jellyfin/Plex) in den Einstellungen aus."
+            }), 400
+
         params = request.get_json(silent=True) or {}
         deep_dive = params.get("deep", False)
         if not deep_dive:

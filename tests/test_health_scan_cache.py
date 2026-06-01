@@ -338,5 +338,43 @@ class TestHealthScanCache(unittest.TestCase):
         self.assertEqual(health._scan_state["status"], "cancelled")
         self.assertIn("abgebrochen", health._scan_state["message"])
 
+
+class TestHealthScanApi(unittest.TestCase):
+    def setUp(self):
+        from flask import Flask
+        from gui.api.nas_api import nas_api
+        self.app = Flask(__name__)
+        self.app.register_blueprint(nas_api, url_prefix="/api")
+        self.client = self.app.test_client()
+
+    @unittest.mock.patch("gui.core.utils.load_settings")
+    def test_health_scan_no_media_server(self, mock_load_settings):
+        # Wenn media_server ein leerer String ist
+        mock_load_settings.return_value = {
+            "media_server": ""
+        }
+        
+        response = self.client.post("/api/nas/health-scan")
+        self.assertEqual(response.status_code, 400)
+        data = response.get_json()
+        self.assertFalse(data["started"])
+        self.assertIn("Medienserver", data["error"])
+
+    @unittest.mock.patch("gui.core.health.start_health_scan")
+    @unittest.mock.patch("gui.core.utils.load_settings")
+    def test_health_scan_with_media_server(self, mock_load_settings, mock_start):
+        # Wenn media_server gesetzt ist
+        mock_load_settings.return_value = {
+            "media_server": "emby"
+        }
+        mock_start.return_value = True
+        
+        response = self.client.post("/api/nas/health-scan", json={"deep": True})
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data["started"])
+        mock_start.assert_called_once_with(deep_dive=True, category_ids=None)
+
+
 if __name__ == "__main__":
     unittest.main()

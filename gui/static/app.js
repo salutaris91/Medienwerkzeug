@@ -6563,7 +6563,7 @@ async function loadSettings() {
             setInputVal("settings-app-theme", themeVal);
             applyTheme(themeVal);
 
-            setInputVal("settings-media-server", currentSettings.media_server || "emby");
+            setInputVal("settings-media-server", currentSettings.media_server || "");
             
             if (!currentSettings.import_sources) currentSettings.import_sources = [];
             if (!currentSettings.sync_categories) currentSettings.sync_categories = [];
@@ -7254,7 +7254,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 show_quote: document.getElementById("settings-show-quote")?.checked || false,
                 smart_conversion_default: document.getElementById("settings-smart-conversion-default")?.checked || false,
                 app_theme: document.getElementById("settings-app-theme")?.value || "deep-space",
-                media_server: document.getElementById("settings-media-server")?.value || "emby",
+                media_server: document.getElementById("settings-media-server")?.value || "",
                 
                 folder_monitor_enabled: document.getElementById("set-monitor-enabled")?.checked || false,
                 folder_monitor_inbox_threshold_gb: parseFloat(document.getElementById("set-monitor-inbox-gb")?.value) || 50.0,
@@ -9853,6 +9853,11 @@ async function startHealthScan() {
             body: JSON.stringify(payload)
         });
         const data = await res.json();
+        if (!res.ok) {
+            setHealthStatusText(data.error || data.message || `Fehler ${res.status}: Scan konnte nicht gestartet werden.`);
+            if (btn) btn.disabled = false;
+            return;
+        }
         if (data.started === false) {
             // Läuft bereits -> einfach weiterpollen
             setHealthStatusText(data.message || "Ein Scan läuft bereits.");
