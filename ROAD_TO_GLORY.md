@@ -99,7 +99,7 @@ Bevor wir den `release`-Branch abzweigen, werden folgende Verbesserungen direkt 
 3. **Race-Condition beim Smart-Inbox-Profil-Laden beheben:** (Erledigt)
    - Profil, finale NAS-Kategorie und vorhandenen NAS-Ordner geordnet ermitteln und anschließend die Staffelanzeige aktualisieren.
    - Veraltete Staffel-Requests per Request-ID oder `AbortController` ignorieren, damit eine später eintreffende alte Antwort keine korrekte Anzeige überschreibt.
-4. **Health-Scan nach Bibliothekskategorien trennen:** Auswahl einer oder mehrerer konfigurierter Kategorien (z.B. nur Filme oder nur Serien), um Laufzeit und Testergebnisse gezielt beurteilen zu können.
+4. **Health-Scan nach Bibliothekskategorien trennen:** (Erledigt) Auswahl einer oder mehrerer konfigurierter Kategorien (z.B. nur Filme oder nur Serien), um Laufzeit und Testergebnisse gezielt beurteilen zu können.
 5. **Health-Scan sicher abbrechbar machen:** Abbruch über `threading.Event` und UI-Button. Das Abbruchsignal auch in längeren Unterordner- und Serien-Schleifen prüfen und den Status sichtbar auf `cancelled` setzen.
 6. **Quick-Fix-Kontext erhalten:** Nach Aktionen wie "Verschachtelung auflösen" oder "Ordner umbenennen" den sichtbaren Kontext anhand eines stabilen Issue-Schlüssels wiederherstellen. Scrollposition und geöffnete Ergebnisgruppen sollen erhalten bleiben; wenn möglich, wird nur der behobene Eintrag entfernt.
 7. **Default-leerer Medienserver:** Neue Nutzer müssen den Medienserver explizit wählen. Ein Scan ohne Auswahl wird bereits am API-Endpunkt mit verständlicher Fehlermeldung abgelehnt, bevor NAS-Mount und Scan-Thread gestartet werden.
