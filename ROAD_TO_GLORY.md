@@ -104,7 +104,8 @@ Bevor wir den `release`-Branch abzweigen, werden folgende Verbesserungen direkt 
 6. **Quick-Fix-Kontext erhalten:** (Erledigt) Nach Aktionen wie "Verschachtelung auflösen" oder "Ordner umbenennen" den sichtbaren Kontext anhand eines stabilen Issue-Schlüssels wiederherstellen. Scrollposition und geöffnete Ergebnisgruppen sollen erhalten bleiben; wenn möglich, wird nur der behobene Eintrag entfernt.
 7. **Default-leerer Medienserver:** (Erledigt) Neue Nutzer müssen den Medienserver explizit wählen. Ein Scan ohne Auswahl wird bereits am API-Endpunkt mit verständlicher Fehlermeldung abgelehnt, bevor NAS-Mount und Scan-Thread gestartet werden.
 8. **Dateinamen zentral bereinigen:** (Erledigt) Manuelle Namen aus Quick-Fixes und dem NAS-Renaming-Tool vor `os.rename()` zentral validieren und für das Zieldateisystem bereinigen (z.B. `:` und `?`), damit Sonderzeichen nicht zu Abbrüchen führen.
-9. **Ausblendbare Konsole:** Die Konsole am unteren Bildschirmrand standardmäßig ausblenden und über einen "Debug-Modus"-Schalter in den Einstellungen optional aktivierbar machen.
+9. **Ausblendbare Konsole:** (Erledigt) Die Konsole am unteren Bildschirmrand standardmäßig ausblenden und über einen "Debug-Modus"-Schalter in den Einstellungen optional aktivierbar machen.
+10. **Server-spezifische Artwork-Benennung durchgängig in der Pipeline:** Auch außerhalb des reinen Metadaten-Downloads (z. B. beim Verschieben, Kopieren und YouTube-/Fallback-Pfaden in `processor.py`) müssen die Dateinamen für Poster/Fanart/Logo/Banner konsequent über `artwork_validators` für Emby/Jellyfin/Plex aufgelöst werden, damit keine festen `poster.jpg`/`fanart.jpg`-Annahmen mehr übrig bleiben.
 
 #### 1. Der Hard-Cut (Git-Branching)
 Um deinen täglichen Workflow nicht zu stören, wird die Weiterentwicklung über **Git-Branches** getrennt — nicht über eine physische Ordner-Kopie (die würde innerhalb von Tagen auseinanderlaufen):
