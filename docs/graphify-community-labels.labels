@@ -7,8 +7,11 @@
     "gui_static_app_js"
   ],
   "Search and Folder Matching API & Utility Tests and Series Folder Matching": [
-    "tests_test_utils_py",
     "gui_api_search_api_py"
+  ],
+  "Search and Folder Matching API & Utility Tests and Series Folder Matching & TestMediawerkzeugLogic": [
+    "tests_test_utils_py",
+    "tests_test_utils_testmediawerkzeuglogic"
   ],
   "Future Feature Roadmap": [
     "roadmap_md"
@@ -29,9 +32,11 @@
     "static_app_initviews"
   ],
   "Project Inbox API & Queue and YouTube API & Storage Statistics and Profiles": [
-    "gui_api_project_api_py",
     "gui_api_queue_api_py",
     "gui_core_utils_py"
+  ],
+  "Project API and Folder Management": [
+    "gui_api_project_api_py"
   ],
   "Architecture Review Notes": [
     "review_md"
@@ -54,8 +59,9 @@
   "Claude Project Rules": [
     "claude_md"
   ],
-  "NAS Library and Transfers": [
-    "core_transfers_check_nas_status"
+  "Main Module & NAS Library and Transfers": [
+    "core_transfers_check_nas_status",
+    "gui_main_py"
   ],
   "Health Dashboard Frontend": [
     "static_app_inithealthdashboard"
@@ -138,9 +144,6 @@
   "Notifications Module": [
     "gui_core_notifications_py"
   ],
-  "TestMediawerkzeugLogic": [
-    "tests_test_utils_testmediawerkzeuglogic"
-  ],
   "Youtube Api Module": [
     "gui_api_youtube_api_py"
   ],
@@ -149,9 +152,6 @@
   ],
   "str": [
     "str"
-  ],
-  "Main Module": [
-    "gui_main_py"
   ],
   "Transfers Module": [
     "gui_core_transfers_py"
