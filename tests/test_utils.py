@@ -1565,58 +1565,71 @@ class TestMediawerkzeugLogic(unittest.TestCase):
     def test_api_scan_project_detect_doku(self):
         import gui.server as server
         from gui.server import GUIRequestHandler
+        import gui.core.persistence as persistence
+        from gui.core import utils
         
         inbox_root = os.path.join(self.temp_home, "Downloads", "Medien Input")
         os.makedirs(inbox_root, exist_ok=True)
         
-        # Test Case 1: Folder name contains "doku"
-        doku_folder_path = os.path.join(inbox_root, "Planet Erde Doku-Serie")
-        os.makedirs(doku_folder_path, exist_ok=True)
-        # Create a video file
-        with open(os.path.join(doku_folder_path, "episode1.mp4"), "w") as f:
-            f.write("")
-            
-        class DummyHandler:
-            def __init__(self):
-                self.sent_json = None
-            def send_json(self, data):
-                self.sent_json = data
-            def send_error(self, code, message=None):
-                pass
+        orig_mock_persistence = persistence._MOCK_SETTINGS
+        orig_mock_utils = utils._MOCK_SETTINGS
+        persistence._MOCK_SETTINGS = {
+            "inbox_dir": inbox_root
+        }
+        utils._MOCK_SETTINGS = persistence._MOCK_SETTINGS
+        
+        try:
+            # Test Case 1: Folder name contains "doku"
+            doku_folder_path = os.path.join(inbox_root, "Planet Erde Doku-Serie")
+            os.makedirs(doku_folder_path, exist_ok=True)
+            # Create a video file
+            with open(os.path.join(doku_folder_path, "episode1.mp4"), "w") as f:
+                f.write("")
                 
-        dummy = DummyHandler()
-        
-        GUIRequestHandler.handle_api_scan_project(dummy, {"project": ["Planet Erde Doku-Serie"]})
-        self.assertIsNotNone(dummy.sent_json)
-        self.assertTrue(dummy.sent_json.get("is_doku"))
-        self.assertEqual(dummy.sent_json.get("video_count"), 1)
-        
-        # Test Case 2: Folder name does NOT contain "doku", but NFO file contains documentary keywords
-        normal_folder_path = os.path.join(inbox_root, "Some Movie Title")
-        os.makedirs(normal_folder_path, exist_ok=True)
-        with open(os.path.join(normal_folder_path, "movie.mp4"), "w") as f:
-            f.write("")
-        # Create NFO file with documentary keyword
-        with open(os.path.join(normal_folder_path, "movie.nfo"), "w", encoding="utf-8") as f:
-            f.write("This is a fascinating documentary about wildlife.")
+            class DummyHandler:
+                def __init__(self):
+                    self.sent_json = None
+                def send_json(self, data):
+                    self.sent_json = data
+                def send_error(self, code, message=None):
+                    pass
+                    
+            dummy = DummyHandler()
             
-        dummy2 = DummyHandler()
-        GUIRequestHandler.handle_api_scan_project(dummy2, {"project": ["Some Movie Title"]})
-        self.assertIsNotNone(dummy2.sent_json)
-        self.assertTrue(dummy2.sent_json.get("is_doku"))
-        
-        # Test Case 3: Folder name and NFO files have no doku keywords
-        clean_folder_path = os.path.join(inbox_root, "Pure Fiction Movie")
-        os.makedirs(clean_folder_path, exist_ok=True)
-        with open(os.path.join(clean_folder_path, "movie.mp4"), "w") as f:
-            f.write("")
-        with open(os.path.join(clean_folder_path, "movie.nfo"), "w", encoding="utf-8") as f:
-            f.write("A cool action movie about heroes.")
+            GUIRequestHandler.handle_api_scan_project(dummy, {"project": ["Planet Erde Doku-Serie"]})
+            self.assertIsNotNone(dummy.sent_json)
+            self.assertTrue(dummy.sent_json.get("is_doku"))
+            self.assertEqual(dummy.sent_json.get("video_count"), 1)
             
-        dummy3 = DummyHandler()
-        GUIRequestHandler.handle_api_scan_project(dummy3, {"project": ["Pure Fiction Movie"]})
-        self.assertIsNotNone(dummy3.sent_json)
-        self.assertFalse(dummy3.sent_json.get("is_doku"))
+            # Test Case 2: Folder name does NOT contain "doku", but NFO file contains documentary keywords
+            normal_folder_path = os.path.join(inbox_root, "Some Movie Title")
+            os.makedirs(normal_folder_path, exist_ok=True)
+            with open(os.path.join(normal_folder_path, "movie.mp4"), "w") as f:
+                f.write("")
+            # Create NFO file with documentary keyword
+            with open(os.path.join(normal_folder_path, "movie.nfo"), "w", encoding="utf-8") as f:
+                f.write("This is a fascinating documentary about wildlife.")
+                
+            dummy2 = DummyHandler()
+            GUIRequestHandler.handle_api_scan_project(dummy2, {"project": ["Some Movie Title"]})
+            self.assertIsNotNone(dummy2.sent_json)
+            self.assertTrue(dummy2.sent_json.get("is_doku"))
+            
+            # Test Case 3: Folder name and NFO files have no doku keywords
+            clean_folder_path = os.path.join(inbox_root, "Pure Fiction Movie")
+            os.makedirs(clean_folder_path, exist_ok=True)
+            with open(os.path.join(clean_folder_path, "movie.mp4"), "w") as f:
+                f.write("")
+            with open(os.path.join(clean_folder_path, "movie.nfo"), "w", encoding="utf-8") as f:
+                f.write("A cool action movie about heroes.")
+                
+            dummy3 = DummyHandler()
+            GUIRequestHandler.handle_api_scan_project(dummy3, {"project": ["Pure Fiction Movie"]})
+            self.assertIsNotNone(dummy3.sent_json)
+            self.assertFalse(dummy3.sent_json.get("is_doku"))
+        finally:
+            persistence._MOCK_SETTINGS = orig_mock_persistence
+            utils._MOCK_SETTINGS = orig_mock_utils
 
     def test_api_split_project_file(self):
         import gui.server as server

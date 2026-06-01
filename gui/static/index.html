@@ -403,9 +403,7 @@
                         <div class="form-group inline-style-47"  id="movie-nas-destination-container">
                             <label for="movie-nas-destination">Zielordner (<span class="nas-target-name">NAS</span>):</label>
                             <select id="movie-nas-destination" class="form-select inline-style-40" >
-                                <option value="/Volumes/Kino/Filme">Standard-Film (/Volumes/Kino/Filme)</option>
-                                <option value="/Volumes/Kino/Filme 3D">3D-Film (/Volumes/Kino/Filme 3D)</option>
-                                <option value="/Volumes/Kino/Dokus/Einzelne Dokus">Einzel-Doku (/Volumes/Kino/Dokus/Einzelne Dokus)</option>
+                                <option value="">(Wähle Zielordner)</option>
                             </select>
                         </div>
                         <div class="form-group mt-15"  id="movie-pcloud-destination-container">
@@ -572,8 +570,7 @@
                         <div class="form-group inline-style-47"  id="series-nas-destination-container">
                             <label for="series-nas-destination">Zielordner (<span class="nas-target-name">NAS</span>):</label>
                             <select id="series-nas-destination" class="form-select inline-style-40" >
-                                <option value="/Volumes/Kino/Serien">Standard-Serie (/Volumes/Kino/Serien)</option>
-                                <option value="/Volumes/Kino/Dokus/Doku-Serien">Doku-Serie (/Volumes/Kino/Dokus/Doku-Serien)</option>
+                                <option value="">(Wähle Zielordner)</option>
                             </select>
                         </div>
                         <div class="form-group mt-15"  id="series-pcloud-destination-container">
@@ -1354,7 +1351,7 @@
                             </label>
                             <label class="checkbox-container" for="yt-option-copy-pcloud">
                                 <input type="checkbox" id="yt-option-copy-pcloud">
-                                <span class="checkmark"></span> Auch in <span class="cloud-target-name">pCloud</span> sichern
+                                <span class="checkmark"></span> Auch in <span class="cloud-target-name">Cloud</span> sichern
                             </label>
                             <label class="checkbox-container" for="yt-option-copy-local">
                                 <input type="checkbox" id="yt-option-copy-local">
@@ -1363,9 +1360,7 @@
                             <div class="form-group" id="yt-nas-destination-container">
                                 <label for="yt-nas-destination">Zielordner (<span class="nas-target-name">NAS</span>):</label>
                                 <select id="yt-nas-destination" class="form-select inline-style-40" >
-                                    <option value="/Volumes/Kino/Filme">Filme (/Volumes/Kino/Filme)</option>
-                                    <option value="/Volumes/Kino/Serien">Serien (/Volumes/Kino/Serien)</option>
-                                    <option value="/Volumes/Kino/Dokus/Einzelne Dokus">Einzel-Dokus (/Volumes/Kino/Dokus/Einzelne Dokus)</option>
+                                    <option value="">(Wähle Zielordner)</option>
                                 </select>
                             </div>
                             <div class="form-group mt-5" id="yt-pcloud-destination-container" >
@@ -1521,7 +1516,7 @@
                     <div class="inline-style-187">
                         <div>
                             <strong class="inline-style-188">📂 Lokal-Pfad (Wurzelverzeichnis)</strong>
-                            Der Pfad auf deinem Mac, unter dem das Speicherziel eingehängt (gemountet) oder lokal erreichbar ist (z. B. <code>/Volumes/Kino</code> für dein NAS oder <code>/Users/alex/pCloud Drive</code> für pCloud). Das Tool kopiert bevorzugt mit <code>rsync</code> an diesen lokalen Pfad.
+                            Der Pfad auf deinem System, unter dem das Speicherziel eingehängt (gemountet) oder lokal erreichbar ist (z. B. <code>/Volumes/Media</code> für dein NAS oder <code>/mnt/cloud</code>). Das Tool kopiert bevorzugt mit <code>rsync</code> an diesen lokalen Pfad.
                         </div>
                         <div>
                             <strong class="inline-style-188">☁️ rclone Remote (Optional)</strong>
@@ -1530,9 +1525,9 @@
                         <div>
                             <strong class="inline-style-188">🌐 SMB Details (nur bei NAS)</strong>
                             <ul>
-                                <li><strong>IP:</strong> Die lokale Netzwerk-IP deines NAS (z. B. <code>192.168.2.208</code>).</li>
-                                <li><strong>Backup/TS IP:</strong> Deine Tailscale- oder VPN-IP (z. B. <code>100.74.187.125</code>), um das NAS auch von unterwegs mounten zu können.</li>
-                                <li><strong>Share:</strong> Der Name des SMB-Freigabeordners auf dem NAS (z. B. <code>Kino</code>).</li>
+                                <li><strong>IP:</strong> Die lokale Netzwerk-IP deines NAS (z. B. <code>192.168.1.100</code>).</li>
+                                <li><strong>Backup/TS IP:</strong> Deine Tailscale- oder VPN-IP, um das NAS auch von unterwegs mounten zu können.</li>
+                                <li><strong>Share:</strong> Der Name des SMB-Freigabeordners auf dem NAS (z. B. <code>shared</code>).</li>
                             </ul>
                         </div>
                         <div class="inline-style-189">
@@ -1963,7 +1958,7 @@
             <div id="tool-modal-path-container" class="form-group inline-style-62" style="margin-bottom: 16px;">
                 <label for="tool-modal-target-path" class="inline-style-63">Zielordner-Pfad:</label>
                 <div class="inline-style-64" style="margin-bottom: 8px;">
-                    <input type="text" id="tool-modal-target-path" placeholder="/Volumes/Kino/..." class="inline-style-65">
+                    <input type="text" id="tool-modal-target-path" placeholder="/Volumes/Media/..." class="inline-style-65">
                     <button id="btn-browse-tool-modal-path" class="btn btn-secondary inline-style-66" title="Ordner durchsuchen">🔍 Durchsuchen...</button>
                 </div>
                 <div class="inline-style-67" style="margin-top: 4px;">

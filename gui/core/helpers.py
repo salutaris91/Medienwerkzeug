@@ -70,14 +70,12 @@ def is_path_allowed(target_path):
         
     settings = load_settings()
     allowed_roots = [
-        os.path.abspath(os.path.expanduser("~/Downloads/Medien Input")),
-        os.path.abspath(os.path.expanduser("~/Downloads/Medien Output")),
         os.path.abspath(settings.get("inbox_dir", "")),
         os.path.abspath(settings.get("outbox_dir", "")),
-        os.path.abspath(settings.get("nas_root", "/Volumes/Kino")),
+        os.path.abspath(settings.get("nas_root", "")),
     ]
     for t in settings.get("storage_targets", []):
-        t_path = t.get("path")
+        t_path = t.get("root_path") or t.get("path")
         if t_path:
             allowed_roots.append(os.path.abspath(os.path.expanduser(t_path)))
             

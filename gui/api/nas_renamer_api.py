@@ -7,7 +7,9 @@ nas_renamer_api = Blueprint('nas_renamer_api', __name__)
 
 def _get_nas_destination(destination_id, folder_name):
     settings = load_settings()
-    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    nas_root = settings.get("nas_root", "")
+    if not nas_root:
+        return None
     
     destination = None
     if destination_id:
@@ -36,6 +38,8 @@ def handle_api_nas_renamer_preview():
     folder_name = params.get("folder_name")
     
     target_folder = _get_nas_destination(destination_id, folder_name)
+    if not target_folder:
+        return jsonify({"status": "error", "message": "NAS-Root ist nicht konfiguriert."}), 400
     
     try:
         result = nas_renamer.preview_renames(target_folder)
@@ -59,6 +63,8 @@ def handle_api_nas_renamer_apply():
         return jsonify({"status": "error", "message": "Keine Dateien zum Umbenennen ausgewählt."}), 400
         
     target_folder = _get_nas_destination(destination_id, folder_name)
+    if not target_folder:
+        return jsonify({"status": "error", "message": "NAS-Root ist nicht konfiguriert."}), 400
     
     try:
         result = nas_renamer.apply_renames(target_folder, rename_plan)

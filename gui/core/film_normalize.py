@@ -46,7 +46,9 @@ def _is_genre_container(path):
 
 def _movie_categories(settings):
     """Film-artige Sync-Kategorien (keine Serien)."""
-    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    nas_root = settings.get("nas_root", "")
+    if not nas_root:
+        return []
     out = []
     for cat in settings.get("sync_categories", []):
         if "serie" in (cat.get("name", "")).lower():
@@ -130,7 +132,10 @@ def apply_moves(items, on_progress=None):
     on_progress(index, total, label) wird nach jedem Eintrag aufgerufen.
     """
     settings = utils.load_settings()
-    nas_root = os.path.realpath(settings.get("nas_root", "/Volumes/Kino"))
+    nas_root = settings.get("nas_root", "")
+    if not nas_root:
+        return {"moved": 0, "skipped": 0, "errors": ["NAS-Root ist nicht konfiguriert."]}
+    nas_root = os.path.realpath(nas_root)
     if not ensure_nas_mounted():
         return {"moved": 0, "skipped": 0, "errors": ["NAS nicht verfügbar."]}
 

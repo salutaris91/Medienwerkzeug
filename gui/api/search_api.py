@@ -180,7 +180,9 @@ def handle_api_match_episodes():
     show_name = params.get("show_name")
     
     settings = load_settings()
-    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    nas_root = settings.get("nas_root", "")
+    if not nas_root:
+        return jsonify({"matches": matches, "duplicates": duplicates})
     
     show_dir = None
     if show_name or nas_show_folder:
@@ -285,8 +287,12 @@ def handle_api_estimate_conversion():
     quality = params.get("quality", 60)
     
     settings = load_settings()
-    inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
+    inbox_root = settings.get("inbox_dir", "")
     
+    estimates = {}
+    if not inbox_root:
+        return jsonify({"estimates": estimates})
+        
     if project_name:
         target_dir = os.path.join(inbox_root, project_name)
     else:
@@ -591,7 +597,9 @@ def handle_api_find_folder_by_id():
         return jsonify({"folder": None}), 400
         
     settings = load_settings()
-    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    nas_root = settings.get("nas_root", "")
+    if not nas_root:
+        return jsonify({"folder": None})
     
     destination = None
     if destination_id:
@@ -630,8 +638,10 @@ def handle_api_series_detect():
         return
         
     settings = load_settings()
-    nas_root = settings.get("nas_root", "/Volumes/Kino")
-    outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
+    nas_root = settings.get("nas_root", "")
+    outbox_root = settings.get("outbox_dir", "")
+    if not nas_root or not outbox_root:
+        return jsonify({"found": False})
     
     # Resolve destination paths to search in
     destinations = []

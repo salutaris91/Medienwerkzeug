@@ -5420,7 +5420,7 @@ async function runToolGeneric(toolType, logMsg, extraParams = {}) {
     }
     
     // Check if a dangerous root directory is selected
-    const nasRoot = currentSettings.nas_root || "/Volumes/Kino";
+    const nasRoot = currentSettings.nas_root || "";
     const inbox = currentSettings.inbox_dir || "";
     const outbox = currentSettings.outbox_dir || "";
     
@@ -6132,8 +6132,8 @@ function initEventListeners() {
             const category = currentSettings.sync_categories.find(c => String(c.id) === String(dest));
             if(!category) return;
             
-            const nasRoot = currentSettings.nas_root || "/Volumes/Kino";
-            const destPath = `${nasRoot}${category.nas_sub}`;
+            const nasRoot = currentSettings.nas_root || "";
+            const destPath = nasRoot ? `${nasRoot}${category.nas_sub}` : category.nas_sub;
             
             const doPcloud = confirm("Soll das Projekt zusätzlich auch in die pCloud hochgeladen werden?");
             expandConsole();
@@ -6945,7 +6945,7 @@ function renderStorageTargets() {
         pathInput.style.border = "1px solid var(--border-glass)";
         pathInput.style.background = "var(--bg-surface)";
         pathInput.style.color = "var(--text-main)";
-        pathInput.placeholder = "z.B. /Volumes/Kino oder /Users/alex/pCloud Drive";
+        pathInput.placeholder = "z.B. /Volumes/Media oder /mnt/nas";
         pathInput.value = target.root_path || "";
         pathInput.addEventListener("input", (e) => {
             target.root_path = e.target.value;
@@ -7006,7 +7006,7 @@ function renderStorageTargets() {
             const hostnameField = createField("Finder-Servername:", target.nas_hostname, "z.B. ALEXNAS91", (val) => {
                 target.nas_hostname = val;
             });
-            const shareField = createField("SMB Share-Name:", target.nas_share, "z.B. Kino", (val) => {
+            const shareField = createField("SMB Share-Name:", target.nas_share, "z.B. share", (val) => {
                 target.nas_share = val;
             });
             
@@ -7192,9 +7192,9 @@ function renderSyncCategories() {
                 const response = await fetch("/api/browse-folder");
                 const data = await response.json();
                 if (data.path) {
-                    const nasRoot = currentSettings.nas_root || "/Volumes/Kino";
+                    const nasRoot = currentSettings.nas_root || "";
                     let subPath = data.path;
-                    if (subPath.startsWith(nasRoot)) {
+                    if (nasRoot && subPath.startsWith(nasRoot)) {
                         subPath = subPath.substring(nasRoot.length);
                         if (!subPath.startsWith("/")) subPath = "/" + subPath;
                     }
@@ -7225,9 +7225,9 @@ function renderSyncCategories() {
                 const response = await fetch("/api/browse-folder");
                 const data = await response.json();
                 if (data.path) {
-                    const pcloudRoot = currentSettings.pcloud_dir || "/Users/alex/pCloud Drive";
+                    const pcloudRoot = currentSettings.pcloud_dir || "";
                     let subPath = data.path;
-                    if (subPath.startsWith(pcloudRoot)) {
+                    if (pcloudRoot && subPath.startsWith(pcloudRoot)) {
                         subPath = subPath.substring(pcloudRoot.length);
                         if (subPath.startsWith("/")) subPath = subPath.substring(1);
                         subPath = "pcloud:" + subPath;

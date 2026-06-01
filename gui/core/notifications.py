@@ -71,19 +71,19 @@ def trigger_job_notifications(params, job_size_gb, is_end_of_job=False):
 
 def open_folders_post_processing(params):
     settings = load_settings()
-    outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
-    nas_root = settings.get("nas_root", "/Volumes/Kino")
-    pcloud_dir = settings.get("pcloud_dir", os.path.expanduser("~/pCloud Drive"))
+    outbox_root = settings.get("outbox_dir", "")
+    nas_root = settings.get("nas_root", "")
+    pcloud_dir = settings.get("pcloud_dir", "")
     
     media_type = params.get("media_type")
     
-    if settings.get("open_outbox_finder"):
+    if settings.get("open_outbox_finder") and outbox_root:
         if os.path.exists(outbox_root):
             try:
                 open_folder_in_finder(outbox_root)
             except Exception as e: print(f"Warning: Ignored exception {e}")
 
-    if settings.get("open_nas_finder"):
+    if settings.get("open_nas_finder") and nas_root:
         nas_dir = None
         nas_destination_id = params.get("nas_destination_id") or params.get("destination_id")
         if nas_destination_id:
@@ -116,12 +116,12 @@ def open_folders_post_processing(params):
         if not nas_dir:
             nas_dir = nas_root
             
-        if os.path.exists(nas_dir):
+        if nas_dir and os.path.exists(nas_dir):
             try:
                 open_folder_in_finder(nas_dir)
             except Exception as e: print(f"Warning: Ignored exception {e}")
             
-    if settings.get("open_pcloud_finder"):
+    if settings.get("open_pcloud_finder") and pcloud_dir:
         pcloud_target_dir = None
         pcloud_destination_id = params.get("pcloud_destination_id") or params.get("destination_id")
         if pcloud_destination_id:

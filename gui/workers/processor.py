@@ -260,9 +260,12 @@ def process_worker(params):
     nfo_overrides = params.get("nfo_overrides", {})
 
     settings = load_settings()
-    inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
-    nas_root = settings.get("nas_root", "/Volumes/Kino")
-    outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
+    inbox_root = settings.get("inbox_dir", "")
+    nas_root = settings.get("nas_root", "")
+    outbox_root = settings.get("outbox_dir", "")
+    
+    if not inbox_root or not outbox_root:
+        raise RuntimeError("Inbox- oder Output-Verzeichnis ist nicht konfiguriert.")
     
     destination = None
     # Resolve NAS destination path
@@ -1660,8 +1663,10 @@ def process_worker(params):
         copy_to_nas = params.get("copy_to_nas", False)
         
         settings = load_settings()
-        inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
-        nas_root = settings.get("nas_root", "/Volumes/Kino")
+        inbox_root = settings.get("inbox_dir", "")
+        nas_root = settings.get("nas_root", "")
+        if not inbox_root:
+            raise RuntimeError("Inbox-Verzeichnis ist nicht konfiguriert.")
         
         # Temp dir inside Downloads/Medien Input/.temp_yt_<task_id>
         temp_dir = os.path.join(inbox_root, f".temp_yt_{task_id}")
@@ -2127,10 +2132,10 @@ def process_worker(params):
                 if destination and transfer_successful:
                     settings = load_settings()
                     nas_target = next((t for t in settings.get("storage_targets", []) if t.get("id") == "nas"), None)
-                    nas_root = nas_target.get("root_path", "/Volumes/Kino") if nas_target else settings.get("nas_root", "/Volumes/Kino")
+                    nas_root = nas_target.get("root_path", "") if nas_target else settings.get("nas_root", "")
                     
                     rel_sub = ""
-                    if destination.startswith(nas_root):
+                    if nas_root and destination.startswith(nas_root):
                         rel_sub = destination[len(nas_root):]
                     else:
                         rel_sub = os.path.basename(destination)
@@ -2439,7 +2444,9 @@ def process_worker(params):
         
                     
     elif media_type == "tool_manual_sync":
-        dest = params.get("destination", "/Volumes/Kino/Filme")
+        dest = params.get("destination", "")
+        if not dest:
+            raise RuntimeError("Sync-Ziel (destination) ist nicht konfiguriert.")
         do_pcloud = params.get("copy_to_pcloud", False)
         open_after = params.get("open_after", False)
         delete_original = params.get("delete_original", False)
@@ -2477,7 +2484,9 @@ def process_worker(params):
                 log_message(f"⚠️ Konnte Originalordner nicht löschen: {e}")
 
     elif media_type == "tool_pcloud_sync":
-        dest = params.get("destination", "/Volumes/Kino/Filme")
+        dest = params.get("destination", "")
+        if not dest:
+            raise RuntimeError("Sync-Ziel (destination) ist nicht konfiguriert.")
         open_after = params.get("open_after", False)
         delete_original = params.get("delete_original", False)
         task_id = params.get("task_id")

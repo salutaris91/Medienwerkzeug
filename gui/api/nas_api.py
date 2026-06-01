@@ -42,7 +42,9 @@ def handle_api_check_nas_duplicate():
         return
     
     settings = load_settings()
-    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    nas_root = settings.get("nas_root", "")
+    if not nas_root:
+        return jsonify({"duplicate": None})
     
     destination = None
     if nas_destination_id:
@@ -60,7 +62,9 @@ def handle_api_check_nas_duplicate():
         return
     
     # Also check outbox for matched series name
-    outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
+    outbox_root = settings.get("outbox_dir", "")
+    if not outbox_root:
+        return jsonify({"duplicate": None})
     rel_dest = os.path.relpath(destination, nas_root)
     outbox_serien = os.path.join(outbox_root, rel_dest)
     clean_show_name = get_matched_series_name(destination, outbox_serien, limit_filename_length(sanitize_filename(clean_show_name)))
@@ -148,8 +152,10 @@ def handle_api_nas_series():
         params = {}
     query = request.args
     settings = load_settings()
-    nas_root = settings.get("nas_root", "/Volumes/Kino")
-    outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
+    nas_root = settings.get("nas_root", "")
+    outbox_root = settings.get("outbox_dir", "")
+    if not nas_root or not outbox_root:
+        return jsonify([])
     
     # Das Frontend ruft diesen Endpoint per GET mit ?destination_id=... auf, daher
     # zusätzlich die Query-Args lesen (nicht nur den JSON-Body).
@@ -259,9 +265,11 @@ def handle_api_nas_seasons():
         return jsonify({"seasons": [], "folder": folder_name})
         
     settings = load_settings()
+    nas_root = settings.get("nas_root", "")
+    outbox_root = settings.get("outbox_dir", "")
+    if not nas_root or not outbox_root:
+        return jsonify({"seasons": [], "folder": folder_name})
     ensure_nas_mounted()
-    nas_root = settings.get("nas_root", "/Volumes/Kino")
-    outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
     sync_cats = settings.get("sync_categories", [])
     
     # Resolve which NAS destinations to scan
@@ -409,8 +417,10 @@ def handle_api_media_compare():
         
     # Security validation for paths
     settings = load_settings()
-    inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
-    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    inbox_root = settings.get("inbox_dir", "")
+    nas_root = settings.get("nas_root", "")
+    if not inbox_root or not nas_root:
+        return jsonify({"error": "Inbox oder NAS-Root ist nicht konfiguriert."}), 400
     
     # Ensure we only check files in allowed directories
     abs_new = os.path.abspath(new_path)
@@ -520,7 +530,9 @@ def handle_api_resolve_duplicate():
         
     # Security validation for paths
     settings = load_settings()
-    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    nas_root = settings.get("nas_root", "")
+    if not nas_root:
+        return jsonify({"error": "NAS-Root ist nicht konfiguriert."}), 400
     abs_existing = os.path.abspath(existing_path)
     
     if not (abs_existing.startswith(os.path.abspath(nas_root) + os.sep) or abs_existing == os.path.abspath(nas_root)):
@@ -718,9 +730,12 @@ def handle_api_health_fix():
         return jsonify({"ok": False, "message": "Ordner nicht gefunden."}), 400
 
     settings = load_settings()
-    nas_root = os.path.realpath(settings.get("nas_root", "/Volumes/Kino"))
+    nas_root = settings.get("nas_root", "")
+    if not nas_root:
+        return jsonify({"ok": False, "message": "NAS-Root ist nicht konfiguriert."}), 400
+    nas_root = os.path.realpath(nas_root)
     real_path = os.path.realpath(path)
-    if not real_path.startswith(nas_root + os.sep):
+    if not real_path.startswith(nas_root + os.sep) and real_path != nas_root:
         return jsonify({"ok": False, "message": "Pfad liegt außerhalb des NAS."}), 403
 
     try:

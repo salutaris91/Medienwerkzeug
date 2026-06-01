@@ -7,6 +7,8 @@ import gui.core.media as media
 _rsync_progress_flag = None
 
 def _is_nas_root_mounted(nas_root):
+    if not nas_root:
+        return False
     try:
         out = subprocess.check_output(["mount"], text=True)
         return f"on {nas_root}" in out
@@ -44,15 +46,18 @@ def check_nas_status():
     settings = load_settings()
     nas_target = next((t for t in settings.get("storage_targets", []) if t.get("id") == "nas"), None)
     if nas_target:
-        nas_root = nas_target.get("root_path", "/Volumes/Kino")
-        nas_host = nas_target.get("nas_ip", "192.168.2.208")
-        nas_host_ts = nas_target.get("nas_ip_backup", "100.74.187.125")
+        nas_root = nas_target.get("root_path", "")
+        nas_host = nas_target.get("nas_ip", "")
+        nas_host_ts = nas_target.get("nas_ip_backup", "")
         if not nas_target.get("enabled", True):
             return "offline"
     else:
-        nas_root = settings.get("nas_root", "/Volumes/Kino")
-        nas_host = "192.168.2.208"
-        nas_host_ts = "100.74.187.125"
+        nas_root = settings.get("nas_root", "")
+        nas_host = ""
+        nas_host_ts = ""
+    
+    if not nas_root:
+        return "offline"
     
     # 1. Check if mounted
     mounted = _is_nas_root_mounted(nas_root)
@@ -83,11 +88,14 @@ def ensure_nas_mounted():
     settings = load_settings()
     nas_target = next((t for t in settings.get("storage_targets", []) if t.get("id") == "nas"), None)
     if nas_target:
-        nas_root = nas_target.get("root_path", "/Volumes/Kino")
+        nas_root = nas_target.get("root_path", "")
         if not nas_target.get("enabled", True):
             return False
     else:
-        nas_root = settings.get("nas_root", "/Volumes/Kino")
+        nas_root = settings.get("nas_root", "")
+        
+    if not nas_root:
+        return False
         
     status = check_nas_status()
     if status == "connected":
@@ -106,15 +114,15 @@ def ensure_nas_mounted():
         
     if status in ["available_not_mounted", "offline"]:
         if nas_target:
-            nas_host = nas_target.get("nas_ip", "192.168.2.208")
-            nas_host_ts = nas_target.get("nas_ip_backup", "100.74.187.125")
-            nas_share = nas_target.get("nas_share", "Kino")
-            nas_hostname = nas_target.get("nas_hostname", "ALEXNAS91")
+            nas_host = nas_target.get("nas_ip", "")
+            nas_host_ts = nas_target.get("nas_ip_backup", "")
+            nas_share = nas_target.get("nas_share", "")
+            nas_hostname = nas_target.get("nas_hostname", "")
         else:
-            nas_host = "192.168.2.208"
-            nas_host_ts = "100.74.187.125"
-            nas_share = "Kino"
-            nas_hostname = "ALEXNAS91"
+            nas_host = ""
+            nas_host_ts = ""
+            nas_share = ""
+            nas_hostname = ""
         
         chosen_ip = None
         for ip in [nas_host, nas_host_ts]:
@@ -321,21 +329,21 @@ def resolve_target_destination(target, rel_sub, media_type="movie"):
             if "targets" in cat and t_id in cat["targets"]:
                 val = cat["targets"][t_id]
                 if t_type == "nas" or t_id == "nas" or t_type == "local":
-                    root = target.get("root_path", "/Volumes/Kino")
-                    if val.startswith(root):
+                    root = target.get("root_path", "")
+                    if val.startswith(root) and root:
                         return val
                     else:
                         return os.path.join(root, val.lstrip("/"))
                 return val
             # Fallbacks
             if t_type == "nas" or t_id == "nas":
-                return os.path.join(target.get("root_path", "/Volumes/Kino"), cat.get("nas_sub", rel_sub).lstrip("/"))
+                return os.path.join(target.get("root_path", ""), cat.get("nas_sub", rel_sub).lstrip("/"))
             else:
                 return cat.get("pcloud_remote", "")
                 
     # 2. Fallback if no sync category matches rel_sub
     if t_type == "nas" or t_id == "nas":
-        return os.path.join(target.get("root_path", "/Volumes/Kino"), rel_sub.lstrip("/"))
+        return os.path.join(target.get("root_path", ""), rel_sub.lstrip("/"))
     else:
         # Cloud/Rclone remote prefix
         rclone_remote = target.get("rclone_remote", "")
@@ -350,8 +358,7 @@ def resolve_target_destination(target, rel_sub, media_type="movie"):
 def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, explicit_remote_base=None):
     import shutil
     settings = load_settings()
-    nas_target = next((t for t in settings.get("storage_targets", []) if t.get("id") == "nas"), None)
-    nas_root = nas_target.get("root_path", "/Volumes/Kino") if nas_target else settings.get("nas_root", "/Volumes/Kino")
+    nas_root = nas_target.get("root_path", "") if nas_target else settings.get("nas_root", "")
     
     # Find the target configuration
     target = next((t for t in settings.get("storage_targets", []) if t.get("id") == target_id), None)
@@ -495,9 +502,9 @@ def walk_nas_categories(settings=None, category_ids=None):
     'type' wird primär über den Kategorienamen bestimmt ("Serie" -> series),
     mit Fallback auf das Vorhandensein von "Staffel/Season"-Unterordnern.
     """
-    if settings is None:
-        settings = load_settings()
-    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    nas_root = settings.get("nas_root", "")
+    if not nas_root:
+        return
     sync_cats = settings.get("sync_categories", [])
 
     def looks_like_season(entry_name):
@@ -524,9 +531,9 @@ def walk_nas_categories(settings=None, category_ids=None):
             continue
             
         nas_sub = cat.get("nas_sub")
-        if not nas_sub:
+        if not nas_sub or not nas_root:
             continue
-        cat_path = f"{nas_root}{nas_sub}"
+        cat_path = os.path.join(nas_root, nas_sub.lstrip("/"))
         if not os.path.isdir(cat_path):
             continue
 

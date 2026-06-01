@@ -278,7 +278,10 @@ def resolve_duplicate(file_path):
     Gibt (ok: bool, message: str) zurück.
     """
     settings = utils.load_settings()
-    nas_root = os.path.realpath(settings.get("nas_root", "/Volumes/Kino"))
+    nas_root = settings.get("nas_root", "")
+    if not nas_root:
+        return False, "NAS-Root ist nicht konfiguriert."
+    nas_root = os.path.realpath(nas_root)
     target = os.path.realpath(file_path)
 
     # Containment-Check: nur innerhalb der NAS-Root löschen

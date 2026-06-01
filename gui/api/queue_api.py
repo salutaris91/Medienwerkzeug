@@ -37,13 +37,18 @@ def handle_api_preview_process():
     nfo_overrides = params.get("nfo_overrides", {})
     
     settings = load_settings()
-    inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
-    outbox_root = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
-    nas_root = settings.get("nas_root", "/Volumes/Kino")
+    inbox_root = settings.get("inbox_dir", "")
+    outbox_root = settings.get("outbox_dir", "")
+    nas_root = settings.get("nas_root", "")
     
+    if not inbox_root or not outbox_root:
+        return jsonify({"status": "error", "message": "Inbox- oder Output-Verzeichnis ist nicht konfiguriert."}), 400
+        
     destination = params.get("destination")
     # Resolve NAS destination path
     if nas_destination_id:
+        if not nas_root:
+            return jsonify({"status": "error", "message": "NAS-Root ist nicht konfiguriert."}), 400
         sync_cats = settings.get("sync_categories", [])
         found_cat = None
         for cat in sync_cats:
@@ -57,7 +62,7 @@ def handle_api_preview_process():
                     found_cat = cat
                     break
         if found_cat:
-            destination = f"{nas_root}{found_cat.get('nas_sub')}"
+            destination = os.path.join(nas_root, found_cat.get('nas_sub', '').lstrip("/"))
 
     # Resolve pCloud destination remote base
     explicit_pcloud_base = None

@@ -271,7 +271,9 @@ def handle_api_system_open_folder():
         folder_name = query.get("folder_name") or params.get("folder_name") or ""
         
         settings = load_settings()
-        nas_root = settings.get("nas_root", "/Volumes/Kino")
+        nas_root = settings.get("nas_root", "")
+        if not nas_root:
+            return jsonify({"error": "NAS-Root ist nicht konfiguriert."}), 400
         sync_categories = settings.get("sync_categories", [])
         
         category = None

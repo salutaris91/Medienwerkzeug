@@ -103,7 +103,11 @@ def handle_api_scan_project():
         params = {}
     query = request.args
     project = query.get("project", "")
-    inbox_root = os.path.expanduser("~/Downloads/Medien Input")
+    settings = load_settings()
+    inbox_root = settings.get("inbox_dir", "")
+    if not inbox_root:
+        return jsonify({"error": "Inbox-Verzeichnis ist nicht konfiguriert."}), 400
+        
     is_recursive_inbox = (project == "__inbox_recursive__")
     if project and not is_recursive_inbox:
         target_dir = os.path.abspath(os.path.join(inbox_root, project))
@@ -251,8 +255,12 @@ def handle_api_preview_clean():
     except Exception:
         params = {}
     query = request.args
-    project = params.get("project", "")
-    inbox_root = os.path.expanduser("~/Downloads/Medien Input")
+    project = params.get("project", "") or query.get("project", "")
+    settings = load_settings()
+    inbox_root = settings.get("inbox_dir", "")
+    if not inbox_root:
+        return jsonify({"error": "Inbox-Verzeichnis ist nicht konfiguriert."}), 400
+        
     is_recursive_inbox = (project == "__inbox_recursive__")
     if project and not is_recursive_inbox:
         target_dir = os.path.abspath(os.path.join(inbox_root, project))
@@ -440,8 +448,12 @@ def handle_api_clean_project():
     except Exception:
         params = {}
     query = request.args
-    project = params.get("project", "")
-    inbox_root = os.path.expanduser("~/Downloads/Medien Input")
+    project = params.get("project", "") or query.get("project", "")
+    settings = load_settings()
+    inbox_root = settings.get("inbox_dir", "")
+    if not inbox_root:
+        return jsonify({"error": "Inbox-Verzeichnis ist nicht konfiguriert."}), 400
+        
     is_recursive_inbox = (project == "__inbox_recursive__")
     if project and not is_recursive_inbox:
         target_dir = os.path.abspath(os.path.join(inbox_root, project))
@@ -526,7 +538,9 @@ def handle_api_delete_project():
         return jsonify({"status": "error", "error": "System-Ordner kann nicht gelöscht werden."})
         
     settings = load_settings()
-    inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
+    inbox_root = settings.get("inbox_dir", "")
+    if not inbox_root:
+        return jsonify({"status": "error", "error": "Inbox-Verzeichnis ist nicht konfiguriert."})
     
     target_dir = os.path.join(inbox_root, project)
     inbox_root_abs = os.path.abspath(inbox_root)
@@ -569,7 +583,9 @@ def handle_api_merge_projects():
         return jsonify({"status": "error", "error": "System-Ordner können nicht zusammengeführt werden."})
         
     settings = load_settings()
-    inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
+    inbox_root = settings.get("inbox_dir", "")
+    if not inbox_root:
+        return jsonify({"status": "error", "error": "Inbox-Verzeichnis ist nicht konfiguriert."})
     inbox_root_abs = os.path.abspath(inbox_root)
     
     source_dir = os.path.join(inbox_root, source)
@@ -642,7 +658,9 @@ def handle_api_split_project_file():
         return
         
     settings = load_settings()
-    inbox_root = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
+    inbox_root = settings.get("inbox_dir", "")
+    if not inbox_root:
+        return jsonify({"status": "error", "error": "Inbox-Verzeichnis ist nicht konfiguriert."})
     
     inbox_root_abs = os.path.abspath(inbox_root)
     
