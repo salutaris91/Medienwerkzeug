@@ -9726,8 +9726,10 @@ function initHealthDashboard() {
 
 async function startHealthScan() {
     const btn = document.getElementById("btn-health-scan");
+    const deepCheck = document.getElementById("health-option-deep");
+    const deep = deepCheck ? deepCheck.checked : false;
     try {
-        const res = await fetch("/api/nas/health-scan", { method: "POST" });
+        const res = await fetch(`/api/nas/health-scan?deep=${deep}`, { method: "POST" });
         const data = await res.json();
         if (data.started === false) {
             // Läuft bereits -> einfach weiterpollen

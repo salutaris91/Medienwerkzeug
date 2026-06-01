@@ -558,7 +558,12 @@ def handle_api_nas_health_scan():
     """Startet einen Bibliotheks-Health-Scan im Hintergrund."""
     import gui.core.health as health
     try:
-        started = health.start_health_scan()
+        params = request.get_json(silent=True) or {}
+        deep_dive = params.get("deep", False)
+        if not deep_dive:
+            deep_dive = request.args.get("deep", "false").lower() == "true"
+
+        started = health.start_health_scan(deep_dive=deep_dive)
         if not started:
             return jsonify({"started": False, "message": "Ein Scan läuft bereits."})
         return jsonify({"started": True, "message": "Scan gestartet."})

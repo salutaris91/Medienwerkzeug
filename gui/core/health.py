@@ -23,6 +23,7 @@ from gui.core import media
 from gui.core.transfers import ensure_nas_mounted, walk_nas_categories
 from gui.core.helpers import log_message
 from gui.core import artwork_validators
+from gui.core import health_cache
 
 # ---------------------------------------------------------------------------
 # Konfiguration
@@ -496,10 +497,70 @@ def _check_movie(issues, category, movie_path, validator):
     return len(videos)
 
 
+def _check_movie_cached(issues, category, movie_path, validator, cache_mgr, key, deep_dive):
+    cached_entry = cache_mgr.get_cached_entry(movie_path, key)
+    has_issues_in_cache = False
+    if cached_entry:
+        has_issues_in_cache = len(cached_entry.get("issues", [])) > 0
+
+    if cached_entry and not has_issues_in_cache:
+        if deep_dive:
+            current_state = cache_mgr.calculate_deep_hash(movie_path)
+        else:
+            current_state = cache_mgr.calculate_hybrid_state(movie_path, validator, is_movie=True)
+            
+        if cached_entry.get("state_data") == current_state:
+            issues.extend(cached_entry.get("issues", []))
+            return cached_entry.get("files_checked", 0)
+
+    # Cache-Miss oder bekannte Issues -> Vollständiger Scan
+    temp_issues = []
+    files_checked = _check_movie(temp_issues, category, movie_path, validator)
+    
+    if deep_dive:
+        state_data = cache_mgr.calculate_deep_hash(movie_path)
+    else:
+        state_data = cache_mgr.calculate_hybrid_state(movie_path, validator, is_movie=True)
+        
+    cache_mgr.set_cached_entry(movie_path, key, temp_issues, state_data, files_checked)
+    issues.extend(temp_issues)
+    return files_checked
+
+
+def _check_series_cached(issues, category, show_path, validator, cache_mgr, key, deep_dive):
+    cached_entry = cache_mgr.get_cached_entry(show_path, key)
+    has_issues_in_cache = False
+    if cached_entry:
+        has_issues_in_cache = len(cached_entry.get("issues", [])) > 0
+
+    if cached_entry and not has_issues_in_cache:
+        if deep_dive:
+            current_state = cache_mgr.calculate_deep_hash(show_path)
+        else:
+            current_state = cache_mgr.calculate_hybrid_state(show_path, validator, is_movie=False)
+            
+        if cached_entry.get("state_data") == current_state:
+            issues.extend(cached_entry.get("issues", []))
+            return cached_entry.get("files_checked", 0)
+
+    # Cache-Miss oder bekannte Issues -> Vollständiger Scan
+    temp_issues = []
+    files_checked = _check_series_show(temp_issues, category, show_path, validator)
+    
+    if deep_dive:
+        state_data = cache_mgr.calculate_deep_hash(show_path)
+    else:
+        state_data = cache_mgr.calculate_hybrid_state(show_path, validator, is_movie=False)
+        
+    cache_mgr.set_cached_entry(show_path, key, temp_issues, state_data, files_checked)
+    issues.extend(temp_issues)
+    return files_checked
+
+
 # ---------------------------------------------------------------------------
 # Scan-Steuerung
 # ---------------------------------------------------------------------------
-def _run_health_scan():
+def _run_health_scan(deep_dive: bool = False):
     issues = []
     files_checked = 0
     try:
@@ -508,14 +569,17 @@ def _run_health_scan():
                        error="nas_unavailable", finished_at=time.time())
             log_message("❌ [Health-Scan] NAS nicht verfügbar.")
             return
-
+ 
         settings = utils.load_settings()
         server_type = settings.get("media_server", "emby")
         validator = artwork_validators.get_validator(server_type)
+        cache_key = health_cache.get_cache_key(server_type)
+        cache_mgr = health_cache.HealthCacheManager()
+        
         shows = list(walk_nas_categories(settings))
         total = len(shows)
-        log_message(f"🔍 [Health-Scan] Starte Prüfung von {total} Ordnern...")
-
+        log_message(f"🔍 [Health-Scan] Starte Prüfung von {total} Ordnern (deep_dive={deep_dive})...")
+ 
         for idx, show in enumerate(shows):
             _set_state(
                 progress=int((idx / total) * 100) if total else 100,
@@ -523,7 +587,7 @@ def _run_health_scan():
                 scanned={"shows": idx, "files": files_checked},
             )
             if show["type"] == "series":
-                files_checked += _check_series_show(issues, show["category"], show["path"], validator)
+                files_checked += _check_series_cached(issues, show["category"], show["path"], validator, cache_mgr, cache_key, deep_dive)
             elif _is_genre_container(show["path"]):
                 # Genre-Sammelordner (z. B. Filme/Action): nicht selbst als Film prüfen,
                 # sondern die enthaltenen Film-Unterordner einzeln.
@@ -534,18 +598,18 @@ def _run_health_scan():
                 for sd in subdirs:
                     sp = os.path.join(show["path"], sd)
                     if os.path.isdir(sp):
-                        files_checked += _check_movie(issues, show["category"], sp, validator)
+                        files_checked += _check_movie_cached(issues, show["category"], sp, validator, cache_mgr, cache_key, deep_dive)
             else:
-                files_checked += _check_movie(issues, show["category"], show["path"], validator)
-
+                files_checked += _check_movie_cached(issues, show["category"], show["path"], validator, cache_mgr, cache_key, deep_dive)
+ 
             if (idx + 1) % 25 == 0:
                 log_message(f"🔍 [Health-Scan] {idx + 1}/{total} Ordner geprüft, "
                             f"{len(issues)} Auffälligkeiten bisher...")
-
+ 
         summary = {"critical": 0, "warning": 0, "info": 0}
         for it in issues:
             summary[it["severity"]] = summary.get(it["severity"], 0) + 1
-
+ 
         result = {
             "status": "done",
             "progress": 100,
@@ -560,16 +624,16 @@ def _run_health_scan():
         _write_cache()
         log_message(f"✅ [Health-Scan] Fertig: {summary['critical']} kritisch, "
                     f"{summary['warning']} Warnungen, {summary['info']} Hinweise.")
-
+ 
     except Exception as e:
         import traceback
         traceback.print_exc()
         _set_state(status="error", message=f"Fehler beim Scan: {e}",
                    error=str(e), finished_at=time.time())
         log_message(f"❌ [Health-Scan] Fehler: {e}")
-
-
-def start_health_scan():
+ 
+ 
+def start_health_scan(deep_dive: bool = False):
     """Startet den Scan im Hintergrund. Gibt False zurück, wenn bereits einer läuft."""
     with _state_lock:
         if _scan_state["status"] == "running":
@@ -585,7 +649,7 @@ def start_health_scan():
             "scanned": {"shows": 0, "files": 0},
             "error": None,
         })
-    threading.Thread(target=_run_health_scan, daemon=True).start()
+    threading.Thread(target=_run_health_scan, args=(deep_dive,), daemon=True).start()
     return True
 
 
