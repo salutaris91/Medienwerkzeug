@@ -451,8 +451,14 @@ def handle_api_process():
         "pipeline": build_job_pipeline(params, has_metadata, convert)
     }
     
-    with active_jobs_lock:
-        active_jobs[task_id] = job_info
+    from gui.core.jobs import create_job
+    create_job(
+        job_id=task_id,
+        name=name,
+        job_type=media_type,
+        params=params,
+        pipeline=job_info["pipeline"]
+    )
         
     job_queue.put(job_info)
         
@@ -467,20 +473,21 @@ def handle_api_queue():
     except Exception:
         params = {}
     query = request.args
-    with active_jobs_lock:
-        jobs_list = []
-        for j in active_jobs.values():
-            jobs_list.append({
-                "id": j["id"],
-                "type": j["type"],
-                "name": j["name"],
-                "status": j["status"],
-                "progress": j["progress"],
-                "message": j["message"],
-                "timestamp": j["timestamp"],
-                "pipeline": j.get("pipeline"),
-                "project_name": j.get("params", {}).get("project_name", "")
-            })
+    from gui.core.jobs import get_all_jobs
+    all_jobs = get_all_jobs()
+    jobs_list = []
+    for j in all_jobs:
+        jobs_list.append({
+            "id": j["id"],
+            "type": j["type"],
+            "name": j["name"],
+            "status": j["status"],
+            "progress": j["progress"],
+            "message": j["message"],
+            "timestamp": j["timestamp"],
+            "pipeline": j.get("pipeline"),
+            "project_name": j.get("params", {}).get("project_name", "")
+        })
     jobs_list.sort(key=lambda x: x["timestamp"])
     return jsonify({"jobs": jobs_list})
 
@@ -493,14 +500,8 @@ def handle_api_queue_clear():
         params = request.get_json() or {}
     except Exception:
         params = {}
-    query = request.args
-    with active_jobs_lock:
-        to_keep = {}
-        for task_id, job in active_jobs.items():
-            if job.get("status") not in ("done", "error"):
-                to_keep[task_id] = job
-        active_jobs.clear()
-        active_jobs.update(to_keep)
+    from gui.core.jobs import clear_finished_jobs
+    clear_finished_jobs()
     return jsonify({"status": "success"})
 
 
@@ -517,33 +518,39 @@ def handle_api_queue_retry():
     if not task_id:
         return jsonify({"status": "error", "message": "Missing task_id"}), 400
         
-    with active_jobs_lock:
-        if task_id not in active_jobs:
-            return jsonify({"status": "error", "message": "Job nicht gefunden"}), 404
-            
-        job = active_jobs[task_id]
-        if job.get("status") not in ("error", "done"):
-            return jsonify({"status": "error", "message": "Job ist nicht fehlgeschlagen oder beendet"}), 400
-            
-        # Parameter kopieren und Pipeline neu initialisieren
-        job_params = job.get("params", {})
-        convert = job_params.get("convert", False)
+    from gui.core.jobs import get_job, update_job
+    job = get_job(task_id)
+    if not job:
+        return jsonify({"status": "error", "message": "Job nicht gefunden"}), 404
         
-        # Bestimme has_metadata
-        show_id = job_params.get("show_id")
-        movie_id = job_params.get("movie_id")
-        provider = job_params.get("provider")
-        has_metadata = (show_id and provider) or (movie_id and provider)
+    if job.get("status") not in ("error", "done"):
+        return jsonify({"status": "error", "message": "Job ist nicht fehlgeschlagen oder beendet"}), 400
         
-        # Zurücksetzen auf initialen Warteschlangen-Zustand
-        job["status"] = "queued"
-        job["progress"] = 0
-        job["message"] = "Wiederholung eingereiht..."
-        job["pipeline"] = build_job_pipeline(job_params, has_metadata, convert)
-        
-        # In die Queue einreihen
-        job_queue.put(job)
-        
+    # Parameter kopieren und Pipeline neu initialisieren
+    job_params = job.get("params", {})
+    convert = job_params.get("convert", False)
+    
+    # Bestimme has_metadata
+    show_id = job_params.get("show_id")
+    movie_id = job_params.get("movie_id")
+    provider = job_params.get("provider")
+    has_metadata = (show_id and provider) or (movie_id and provider)
+    
+    new_pipeline = build_job_pipeline(job_params, has_metadata, convert)
+    
+    # Zurücksetzen auf initialen Warteschlangen-Zustand
+    update_job(
+        task_id,
+        status="queued",
+        progress=0,
+        message="Wiederholung eingereiht...",
+        pipeline=new_pipeline
+    )
+    
+    # In die Queue einreihen
+    updated_job = get_job(task_id)
+    job_queue.put(updated_job)
+    
     return jsonify({"status": "success"})
 
 

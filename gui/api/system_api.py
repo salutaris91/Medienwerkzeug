@@ -109,12 +109,11 @@ def handle_api_system_restart():
     except Exception:
         params = {}
     query = request.args
-    # Check active background tasks
     active_count = 0
-    with active_jobs_lock:
-        for job in active_jobs.values():
-            if job.get("status") not in ("done", "error"):
-                active_count += 1
+    from gui.core.jobs import get_all_jobs
+    for job in get_all_jobs():
+        if job.get("status") not in ("done", "error"):
+            active_count += 1
                 
     if active_count > 0:
         return jsonify({

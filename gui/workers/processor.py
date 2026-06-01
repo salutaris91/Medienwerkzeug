@@ -39,8 +39,7 @@ def _get_movie_artwork_lists(settings, video_filename):
 JOB_QUEUE = []
 SYSTEM_STATUS = {'running': True}
 STATUS_LOCK = threading.Lock()
-active_jobs = {}
-active_jobs_lock = threading.Lock()
+from gui.core.jobs import active_jobs, active_jobs_lock
 def build_job_pipeline(params, has_metadata, convert):
     pipeline = {
         "metadata": {"status": "pending" if has_metadata else "skipped", "progress": 0},
@@ -195,10 +194,8 @@ def run_subscription_check_job(task_id):
         active_subs = [s for s in subs if s.get("enabled")]
         if not active_subs:
             log_message("[YouTube Abo-Überwachung]: Keine aktiven Abonnements zum Überprüfen gefunden.")
-            with active_jobs_lock:
-                if task_id in active_jobs:
-                    active_jobs[task_id]["progress"] = 100
-                    active_jobs[task_id]["message"] = "Keine aktiven Abonnements"
+            from gui.core.jobs import update_job
+            update_job(task_id, progress=100, message="Keine aktiven Abonnements", status="done")
             return
             
         total = len(active_subs)
@@ -208,10 +205,8 @@ def run_subscription_check_job(task_id):
             current_progress = int((idx / total) * 100)
             sub_name = sub.get("name", "Unbekannt")
             
-            with active_jobs_lock:
-                if task_id in active_jobs:
-                    active_jobs[task_id]["progress"] = current_progress
-                    active_jobs[task_id]["message"] = f"Prüfe '{sub_name}' ({idx + 1}/{total})..."
+            from gui.core.jobs import update_job
+            update_job(task_id, progress=current_progress, message=f"Prüfe '{sub_name}' ({idx + 1}/{total})...")
                     
             log_message(f"[YouTube Abo-Überwachung] Überprüfe '{sub_name}' ({idx + 1}/{total})...")
             try:
@@ -219,10 +214,8 @@ def run_subscription_check_job(task_id):
             except Exception as sub_err:
                 log_message(f"[YouTube Abo-Überwachung] Fehler bei '{sub_name}': {sub_err}")
             
-        with active_jobs_lock:
-            if task_id in active_jobs:
-                active_jobs[task_id]["progress"] = 100
-                active_jobs[task_id]["message"] = f"{total} Abonnements erfolgreich überprüft."
+        from gui.core.jobs import update_job
+        update_job(task_id, progress=100, message=f"{total} Abonnements erfolgreich überprüft.", status="done")
     except Exception as e:
         log_message(f"[YouTube Abo-Überwachung] Fehler bei der manuellen Überprüfung: {e}")
         raise e
@@ -436,10 +429,8 @@ def process_worker(params):
         log_message(f"Typ: Serie | Name: {show_name} (Bereinigt: {clean_show_name}) | Staffel: {season}")
         
         # 1. Generate tvshow.nfo and download show artwork (poster.jpg, fanart.jpg)
-        with active_jobs_lock:
-            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                active_jobs[task_id]["pipeline"]["metadata"]["status"] = "running"
-                active_jobs[task_id]["pipeline"]["metadata"]["progress"] = 50
+        from gui.core.jobs import update_job
+        update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=50)
         if show_id and provider:
             log_message("Generiere tvshow.nfo und lade Poster/Fanart...")
             try:
@@ -601,10 +592,8 @@ def process_worker(params):
                 message = " | ".join(status_parts)
                 
                 if task_id:
-                    with active_jobs_lock:
-                        if task_id in active_jobs:
-                            active_jobs[task_id]["progress"] = percent
-                            active_jobs[task_id]["message"] = message
+                    from gui.core.jobs import update_job
+                    update_job(task_id, progress=percent, message=message)
 
         transfer_queue = queue.Queue()
         transfer_errors = []
@@ -2345,22 +2334,16 @@ def process_worker(params):
                 # Open temp folder in Finder so the user can access files manually
                 open_folder_in_finder(temp_dir)
                 
-            with active_jobs_lock:
-                if task_id in active_jobs:
-                    if not all_transfers_successful:
-                        active_jobs[task_id]["status"] = "error"
-                        active_jobs[task_id]["message"] = "Übertragung unvollständig oder fehlgeschlagen"
-                    else:
-                        active_jobs[task_id]["status"] = "done"
-                        active_jobs[task_id]["progress"] = 100
-                        active_jobs[task_id]["message"] = "Erfolgreich beendet"
+            from gui.core.jobs import update_job
+            if not all_transfers_successful:
+                update_job(task_id, status="error", message="Übertragung unvollständig oder fehlgeschlagen")
+            else:
+                update_job(task_id, status="done", progress=100, message="Erfolgreich beendet")
                     
         except Exception as e:
             log_message(f"❌ Fehler in YouTube-Pipeline: {e}")
-            with active_jobs_lock:
-                if task_id in active_jobs:
-                    active_jobs[task_id]["status"] = "error"
-                    active_jobs[task_id]["message"] = f"Fehler: {str(e)}"
+            from gui.core.jobs import update_job
+            update_job(task_id, status="error", message=f"Fehler: {str(e)}")
         finally:
             with active_yt_tasks_lock:
                 active_yt_tasks.pop(task_id, None)
@@ -2522,30 +2505,27 @@ def job_queue_worker():
         if job is None:
             break
         task_id = job["id"]
-        with active_jobs_lock:
-            active_jobs[task_id]["status"] = "running"
-            active_jobs[task_id]["message"] = "Verarbeitung gestartet..."
+        from gui.core.jobs import update_job, get_job
+        update_job(task_id, status="running", message="Verarbeitung gestartet...")
         
         try:
             params = job["params"]
             params["task_id"] = task_id
             process_worker(params)
             
-            with active_jobs_lock:
-                if active_jobs[task_id]["status"] != "error":
-                    active_jobs[task_id]["status"] = "done"
-                    active_jobs[task_id]["progress"] = 100
-                    active_jobs[task_id]["message"] = "Erfolgreich beendet"
+            job_state = get_job(task_id)
+            if job_state and job_state.get("status") != "error":
+                update_job(task_id, status="done", progress=100, message="Erfolgreich beendet")
         except Exception as e:
-            with active_jobs_lock:
-                active_jobs[task_id]["status"] = "error"
-                active_jobs[task_id]["message"] = f"Fehler: {str(e)}"
-                # Setze alle unvollständigen Pipeline-Schritte bei einem Abbruch auf error
-                if "pipeline" in active_jobs[task_id]:
-                    for step_key, step_info in active_jobs[task_id]["pipeline"].items():
-                        if step_info.get("status") in ["running", "pending"]:
-                            step_info["status"] = "error"
-                            step_info["message"] = "Fehlgeschlagen"
+            job_state = get_job(task_id)
+            pipeline = None
+            if job_state and "pipeline" in job_state:
+                pipeline = job_state["pipeline"]
+                for step_key, step_info in pipeline.items():
+                    if step_info.get("status") in ["running", "pending"]:
+                        step_info["status"] = "error"
+                        step_info["message"] = "Fehlgeschlagen"
+            update_job(task_id, status="error", message=f"Fehler: {str(e)}", pipeline=pipeline)
             print(f"Job {task_id} failed: {e}")
         finally:
             job_queue.task_done()

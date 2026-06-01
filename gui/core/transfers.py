@@ -211,10 +211,8 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False):
                 if callable(task_id):
                     task_id(percent, msg)
                 else:
-                    with active_jobs_lock:
-                        if task_id in active_jobs:
-                            active_jobs[task_id]["progress"] = percent
-                            active_jobs[task_id]["message"] = msg
+                    from gui.core.jobs import update_job
+                    update_job(task_id, progress=percent, message=msg)
             # Throttle logging: only print to log_message at multiples of 10%
             if percent % 10 == 0 and percent != last_logged_pct:
                 log_message(msg)
@@ -280,10 +278,8 @@ def run_ffmpeg_with_progress(cmd, filepath, task_id=None, log_queue=None):
                 if callable(task_id):
                     task_id(percent, f"Konvertierung: {percent}%")
                 else:
-                    with active_jobs_lock:
-                        if task_id in active_jobs:
-                            active_jobs[task_id]["progress"] = percent
-                            active_jobs[task_id]["message"] = f"Konvertierung: {percent}%"
+                    from gui.core.jobs import update_job
+                    update_job(task_id, progress=percent, message=f"Konvertierung: {percent}%")
                         
     proc.wait()
     return proc.returncode == 0
@@ -303,13 +299,9 @@ def run_ytdlp_with_progress(cmd, task_id=None, log_queue=None):
         if match:
             percent = int(float(match.group(1)))
             if task_id:
-                with active_jobs_lock:
-                    if task_id in active_jobs:
-                        active_jobs[task_id]["progress"] = percent
-                        active_jobs[task_id]["message"] = f"Download: {percent}%"
-                        if "pipeline" in active_jobs[task_id] and "metadata" in active_jobs[task_id]["pipeline"]:
-                            active_jobs[task_id]["pipeline"]["metadata"]["progress"] = percent
-                            active_jobs[task_id]["pipeline"]["metadata"]["status"] = "running"
+                from gui.core.jobs import update_job
+                update_job(task_id, progress=percent, message=f"Download: {percent}%",
+                           pipeline_step="metadata", pipeline_status="running", pipeline_progress=percent)
                         
     proc.wait()
     return proc.returncode == 0
@@ -465,10 +457,8 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
                         if callable(task_id):
                             task_id(percent, msg)
                         else:
-                            with active_jobs_lock:
-                                if task_id in active_jobs:
-                                    active_jobs[task_id]["progress"] = percent
-                                    active_jobs[task_id]["message"] = msg
+                            from gui.core.jobs import update_job
+                            update_job(task_id, progress=percent, message=msg)
                     if percent % 10 == 0 and percent != last_logged_pct:
                         log_message(msg)
                         last_logged_pct = percent

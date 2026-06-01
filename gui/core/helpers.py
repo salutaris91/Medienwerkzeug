@@ -201,12 +201,8 @@ def log_message(msg):
 def update_task_pipeline_status(task_id, step, status, progress=None):
     if not task_id:
         return
-    with active_jobs_lock:
-        if task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-            if step in active_jobs[task_id]["pipeline"]:
-                active_jobs[task_id]["pipeline"][step]["status"] = status
-                if progress is not None:
-                    active_jobs[task_id]["pipeline"][step]["progress"] = progress
+    from gui.core.jobs import update_job
+    update_job(task_id, pipeline_step=step, pipeline_status=status, pipeline_progress=progress)
 
 def get_local_version(cmd, args, version_pattern, split_line=False):
     import shutil

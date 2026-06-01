@@ -54,6 +54,16 @@ def main():
     # Init settings
     settings = load_settings()
     
+    # Crash recovery & Temp cleaning
+    try:
+        from gui.core.jobs import recover_interrupted_jobs, clean_orphaned_temp_files
+        print("Running crash recovery for jobs...")
+        recover_interrupted_jobs()
+        print("Cleaning orphaned temp files (>12h) to quarantine...")
+        clean_orphaned_temp_files()
+    except Exception as e:
+        print(f"Error running startup jobs tasks: {e}", file=sys.stderr)
+    
     # Ensure standard directories exist
     inbox = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
     outbox = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))

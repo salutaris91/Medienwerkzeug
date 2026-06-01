@@ -458,8 +458,14 @@ def check_single_subscription(sub):
                                 "pipeline": build_job_pipeline(job_params, True, True)
                             }
                         
-                            with active_jobs_lock:
-                                active_jobs[task_id] = job_info
+                            from gui.core.jobs import create_job
+                            create_job(
+                                job_id=task_id,
+                                name=job_info["name"],
+                                job_type=job_info["type"],
+                                params=job_params,
+                                pipeline=job_info.get("pipeline")
+                            )
                             
                             job_queue.put(job_info)
                             downloaded_ids.append(v_id)
@@ -531,18 +537,15 @@ def _do_subscription_check():
 
 def trigger_youtube_subscriptions_check():
     import uuid
-    from gui.core.helpers import job_queue, active_jobs, active_jobs_lock
+    from gui.core.helpers import job_queue
+    from gui.core.jobs import create_job
     task_id = str(uuid.uuid4())
-    job_info = {
-        "id": task_id,
-        "name": "YouTube Abo-Check",
-        "type": "youtube_subscription_check",
-        "status": "queued",
-        "message": "Wartet auf Ausführung...",
-        "progress": 0,
-        "params": {"media_type": "youtube_subscription_check"}
-    }
-    with active_jobs_lock:
-        active_jobs[task_id] = job_info
+    job_params = {"media_type": "youtube_subscription_check"}
+    job_info = create_job(
+        job_id=task_id,
+        name="YouTube Abo-Check",
+        job_type="youtube_subscription_check",
+        params=job_params
+    )
     job_queue.put(job_info)
 

@@ -53,8 +53,14 @@ def handle_api_check_subscriptions():
         "timestamp": time.time(),
         "params": job_params
     }
-    with active_jobs_lock:
-        active_jobs[task_id] = job_info
+    from gui.core.jobs import create_job
+    create_job(
+        job_id=task_id,
+        name=job_info["name"],
+        job_type=job_info["type"],
+        params=job_params,
+        pipeline=job_info.get("pipeline")
+    )
     job_queue.put(job_info)
     return jsonify({"status": "success", "message": "Überprüfung in Warteschlange eingereiht", "task_id": task_id})
 
@@ -139,8 +145,14 @@ def handle_api_subscriptions_approve():
             "pipeline": build_job_pipeline(job_params, True, True)
         }
         
-        with active_jobs_lock:
-            active_jobs[task_id] = job_info
+        from gui.core.jobs import create_job
+        create_job(
+            job_id=task_id,
+            name=job_info["name"],
+            job_type=job_info["type"],
+            params=job_params,
+            pipeline=job_info.get("pipeline")
+        )
             
         job_queue.put(job_info)
         
@@ -350,8 +362,14 @@ def handle_api_youtube_merge():
         "pipeline": build_job_pipeline(job_params, True, True)
     }
     
-    with active_jobs_lock:
-        active_jobs[task_id] = job_info
+    from gui.core.jobs import create_job
+    create_job(
+        job_id=task_id,
+        name=job_info["name"],
+        job_type=job_info["type"],
+        params=job_params,
+        pipeline=job_info.get("pipeline")
+    )
         
     job_queue.put(job_info)
     return jsonify({"status": "success", "task_id": task_id, "message": "Zusammenfügen gestartet"})

@@ -879,30 +879,25 @@ def handle_api_normalize_films_apply():
         return jsonify({"ok": False, "message": "Keine Einträge ausgewählt."}), 400
 
     task_id = str(uuid.uuid4())
-    job_info = {
-        "id": task_id,
-        "type": "normalize",
-        "name": f"Filme normalisieren ({len(items)})",
-        "status": "running",
-        "progress": 0,
-        "message": "Starte Verschiebungen…",
-        "timestamp": time.time(),
-        "params": {},
-        "pipeline": {
-            "normalize": {"status": "running", "progress": 0},
-        },
+    from gui.core.jobs import create_job, update_job
+    pipeline = {
+        "normalize": {"status": "running", "progress": 0},
     }
-    with active_jobs_lock:
-        active_jobs[task_id] = job_info
+    create_job(
+        job_id=task_id,
+        name=f"Filme normalisieren ({len(items)})",
+        job_type="normalize",
+        params={},
+        pipeline=pipeline,
+        status="running"
+    )
 
     def _run():
         try:
             def _on_progress(idx, total, label):
                 pct = int((idx / total) * 100) if total else 100
-                with active_jobs_lock:
-                    active_jobs[task_id]["progress"] = pct
-                    active_jobs[task_id]["message"] = f"Verschiebe {idx + 1}/{total}: {label}"
-                    active_jobs[task_id]["pipeline"]["normalize"]["progress"] = pct
+                update_job(task_id, progress=pct, message=f"Verschiebe {idx + 1}/{total}: {label}",
+                           pipeline_step="normalize", pipeline_progress=pct)
 
             results = fn.apply_moves(items, on_progress=_on_progress)
             moved = results.get("moved", 0)
@@ -911,17 +906,11 @@ def handle_api_normalize_films_apply():
             msg = f"{moved} verschoben, {skipped} übersprungen"
             if errors:
                 msg += f", {len(errors)} Fehler"
-            with active_jobs_lock:
-                active_jobs[task_id]["status"] = "done"
-                active_jobs[task_id]["progress"] = 100
-                active_jobs[task_id]["message"] = msg
-                active_jobs[task_id]["pipeline"]["normalize"]["status"] = "done"
-                active_jobs[task_id]["pipeline"]["normalize"]["progress"] = 100
+            update_job(task_id, status="done", progress=100, message=msg,
+                       pipeline_step="normalize", pipeline_status="done", pipeline_progress=100)
         except Exception as e:
-            with active_jobs_lock:
-                active_jobs[task_id]["status"] = "error"
-                active_jobs[task_id]["message"] = f"Fehler: {e}"
-                active_jobs[task_id]["pipeline"]["normalize"]["status"] = "error"
+            update_job(task_id, status="error", message=f"Fehler: {e}",
+                       pipeline_step="normalize", pipeline_status="error")
 
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"ok": True, "task_id": task_id, "message": "In Warteschlange eingereiht."})
