@@ -93,7 +93,7 @@ Bevor wir den `release`-Branch abzweigen, werden folgende Verbesserungen direkt 
    - Nummerierte Artwork-Varianten nur entsprechend der Konvention des gewählten Medienservers akzeptieren (z.B. Jellyfin-Backdrops `backdrop-1.jpg` und `backdrop2.jpg`; Plex-Fanarts `fanart-1.jpg`).
    - Die Fehlermeldung neutral zu "Hintergrundbild fehlt" vereinheitlichen.
    - Den Hybrid-Cache-Zustand um alle tatsächlich geprüften Kerndateien erweitern: NFO, Video sowie serverabhängige Poster, Backdrops, Logos und Banner. Dadurch bleiben gelöschte Artworks auch dann erkennbar, wenn das NAS den Ordner-`mtime` nicht zuverlässig aktualisiert.
-2. **Hybrid- und Deep-Dive-Cache sauber trennen:**
+2. **Hybrid- und Deep-Dive-Cache sauber trennen:** (Erledigt)
    - `hybrid_state` und `deep_hash` separat speichern, damit ein Deep-Dive-Lauf den schnellen Folgescan nicht unnötig invalidiert.
    - Laufzeit und Cache-Statistik anzeigen: Treffer, erneute Prüfungen wegen Änderungen und erneute Prüfungen wegen bekannter Issues. Bekannte Issues werden bewusst erneut vollständig geprüft; bei fehlerreichen Bibliotheken bleibt der Folgescan daher erwartbar langsamer.
 3. **Race-Condition beim Smart-Inbox-Profil-Laden beheben:**
