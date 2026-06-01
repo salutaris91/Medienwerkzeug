@@ -81,7 +81,7 @@ Vor diesen Aktionen stoppen, genau auflisten was betroffen ist, und auf explizit
 
 ### Git und Commits
 
-- Niemals direkt auf `main` arbeiten — bei Bedarf vorher einen Branch anlegen
+- Niemals direkt auf `main` arbeiten — jedes Feature muss zwingend in einem eigenen, neuen Branch bearbeitet werden
 - Nach jedem abgeschlossenen Plan-Schritt lokal committen: `git add -A && git commit -m "<kurze Beschreibung>"` — das ist ohne Rückfrage erlaubt
 - Pushen nur auf ausdrückliche Nachfrage
 - Commit-Messages auf Englisch, knapp und im Imperativ (`add folder-size monitor`, nicht `added ...`)
