@@ -424,5 +424,51 @@ class TestHealthScanApi(unittest.TestCase):
         self.assertEqual(os.path.basename(args[1]), "My - Awesome Show")
 
 
+class TestPipelineArtworkNaming(unittest.TestCase):
+    def test_series_meta_files_resolution(self):
+        from gui.workers import processor
+        
+        # Test for Emby
+        settings = {"media_server": "emby"}
+        meta_files = processor._get_series_meta_files(settings)
+        self.assertIn("tvshow.nfo", meta_files)
+        self.assertIn("poster.jpg", meta_files)
+        self.assertIn("fanart.jpg", meta_files)
+        
+        # Test for Plex
+        settings = {"media_server": "plex"}
+        meta_files = processor._get_series_meta_files(settings)
+        self.assertIn("tvshow.nfo", meta_files)
+        self.assertIn("poster.jpg", meta_files)
+        self.assertIn("fanart.jpg", meta_files)
+        
+        # Test for Jellyfin
+        settings = {"media_server": "jellyfin"}
+        meta_files = processor._get_series_meta_files(settings)
+        self.assertIn("tvshow.nfo", meta_files)
+        self.assertIn("folder.jpg", meta_files)
+        self.assertIn("backdrop.jpg", meta_files)
+
+    def test_movie_artwork_lists_resolution(self):
+        from gui.workers import processor
+        video_filename = "My Movie (2026).mkv"
+        
+        # Test for Plex
+        settings = {"media_server": "plex"}
+        posters, backdrops = processor._get_movie_artwork_lists(settings, video_filename)
+        self.assertIn("poster.jpg", posters)
+        self.assertIn("My Movie (2026)-poster.jpg", posters)
+        self.assertIn("fanart.jpg", backdrops)
+        self.assertIn("My Movie (2026)-fanart.jpg", backdrops)
+        
+        # Test for Jellyfin
+        settings = {"media_server": "jellyfin"}
+        posters, backdrops = processor._get_movie_artwork_lists(settings, video_filename)
+        self.assertIn("folder.jpg", posters)
+        self.assertIn("My Movie (2026)-poster.jpg", posters)
+        self.assertIn("backdrop.jpg", backdrops)
+        self.assertIn("My Movie (2026)-fanart.jpg", backdrops)
+
+
 if __name__ == "__main__":
     unittest.main()

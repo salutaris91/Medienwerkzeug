@@ -5,6 +5,36 @@ from gui.core.notifications import *
 import gui.mw_metadata as mw_metadata
 import gui.core.media as media
 from gui.core.utils import load_settings, save_settings, clean_show_name
+from gui.core import artwork_validators
+
+def _get_series_meta_files(settings):
+    """Returns 'tvshow.nfo' and all server-specific series artwork names."""
+    server_type = settings.get("media_server", "emby") or "emby"
+    validator = artwork_validators.get_validator(server_type)
+    
+    show_artworks = []
+    show_artworks.extend(validator.get_series_poster_names())
+    show_artworks.extend(validator.get_series_backdrop_names())
+    if validator.supports_logos:
+        show_artworks.extend(validator.get_series_logo_names())
+    if validator.supports_banners:
+        show_artworks.extend(validator.get_series_banner_names())
+    
+    unique_artworks = []
+    for art in show_artworks:
+        if art not in unique_artworks:
+            unique_artworks.append(art)
+            
+    return ["tvshow.nfo"] + unique_artworks
+
+def _get_movie_artwork_lists(settings, video_filename):
+    """Returns (poster_names, backdrop_names) for the configured media server and film."""
+    server_type = settings.get("media_server", "emby") or "emby"
+    validator = artwork_validators.get_validator(server_type)
+    return (
+        validator.get_movie_poster_names(video_filename),
+        validator.get_movie_backdrop_names(video_filename)
+    )
 
 JOB_QUEUE = []
 SYSTEM_STATUS = {'running': True}
@@ -645,7 +675,9 @@ def process_worker(params):
                         
                         log_message(f"[Transfer Thread]: Kopiere Serien-Metadaten auf {dest_show_dir_nas}...")
                         os.makedirs(dest_show_dir_nas, exist_ok=True)
-                        for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]:
+                        settings = load_settings()
+                        meta_files = _get_series_meta_files(settings)
+                        for f in meta_files:
                             p_src = os.path.join(dest_show_dir_outbox, f)
                             if os.path.exists(p_src):
                                 p_dest = os.path.join(dest_show_dir_nas, f)
@@ -988,7 +1020,8 @@ def process_worker(params):
         dest_show_dir_outbox = os.path.join(outbox_serien, clean_show_name)
         try:
             os.makedirs(dest_show_dir_outbox, exist_ok=True)
-            for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]:
+            meta_files = _get_series_meta_files(settings)
+            for f in meta_files:
                 p_src = os.path.join(current_dir, f)
                 if os.path.exists(p_src):
                     p_dest = os.path.join(dest_show_dir_outbox, f)
@@ -1476,18 +1509,34 @@ def process_worker(params):
                         shutil.move(os.path.join(current_dir, f), os.path.join(dest_movie_dir_outbox, f))
                         log_message(f"Begleitdatei in Output-Ordner verschoben: {f}")
                         
-                # Ensure both poster.jpg/fanart.jpg and [clean_movie_name]-poster.jpg / [clean_movie_name]-fanart.jpg exist
-                for art_name in ["poster.jpg", "fanart.jpg"]:
-                    art_src = os.path.join(dest_movie_dir_outbox, art_name)
-                    suffix = "-poster.jpg" if art_name == "poster.jpg" else "-fanart.jpg"
-                    art_dst = os.path.join(dest_movie_dir_outbox, f"{clean_movie_name}{suffix}")
-                    
-                    if os.path.exists(art_src) and not os.path.exists(art_dst):
-                        shutil.copy(art_src, art_dst)
-                        log_message(f"Erstellt: {clean_movie_name}{suffix}")
-                    elif os.path.exists(art_dst) and not os.path.exists(art_src):
-                        shutil.copy(art_dst, art_src)
-                        log_message(f"Erstellt: {art_name}")
+                # Ensure all server-specific poster/backdrop variants exist
+                poster_names, backdrop_names = _get_movie_artwork_lists(settings, final_filename)
+                
+                existing_poster_src = None
+                for p_name in poster_names:
+                    p_path = os.path.join(dest_movie_dir_outbox, p_name)
+                    if os.path.exists(p_path):
+                        existing_poster_src = p_path
+                        break
+                if existing_poster_src:
+                    for p_name in poster_names:
+                        p_dst = os.path.join(dest_movie_dir_outbox, p_name)
+                        if not os.path.exists(p_dst):
+                            shutil.copy(existing_poster_src, p_dst)
+                            log_message(f"Erstellt (Filmplakat-Kompatibilität): {p_name}")
+                            
+                existing_backdrop_src = None
+                for b_name in backdrop_names:
+                    b_path = os.path.join(dest_movie_dir_outbox, b_name)
+                    if os.path.exists(b_path):
+                        existing_backdrop_src = b_path
+                        break
+                if existing_backdrop_src:
+                    for b_name in backdrop_names:
+                        b_dst = os.path.join(dest_movie_dir_outbox, b_name)
+                        if not os.path.exists(b_dst):
+                            shutil.copy(existing_backdrop_src, b_dst)
+                            log_message(f"Erstellt (Hintergrundbild-Kompatibilität): {b_name}")
                         
                 # Open output directory in Finder
                 if settings.get("open_outbox_finder"):
@@ -2011,7 +2060,11 @@ def process_worker(params):
                             with urllib.request.urlopen(req) as response:
                                 thumb_data = response.read()
                             
-                            for filename_artwork in ["poster.jpg", "fanart.jpg"]:
+                            poster_names, backdrop_names = _get_movie_artwork_lists(settings, target_filename)
+                            pref_poster = poster_names[0] if poster_names else "poster.jpg"
+                            pref_backdrop = backdrop_names[0] if backdrop_names else "fanart.jpg"
+                            
+                            for filename_artwork in [pref_poster, pref_backdrop]:
                                 art_path = os.path.join(temp_dir, filename_artwork)
                                 with open(art_path, "wb") as f_art:
                                     f_art.write(thumb_data)
@@ -2047,14 +2100,30 @@ def process_worker(params):
                         if f.startswith(clean_base) and f != target_filename:
                             shutil.move(os.path.join(temp_dir, f), os.path.join(dest_dir_outbox, f))
                             
-                    # Copy poster/fanart if they exist
-                    for art_name in ["poster.jpg", "fanart.jpg"]:
-                        art_src = os.path.join(temp_dir, art_name)
-                        if os.path.exists(art_src):
-                            shutil.copy(art_src, os.path.join(dest_dir_outbox, art_name))
-                            suffix = "-poster.jpg" if art_name == "poster.jpg" else "-fanart.jpg"
-                            shutil.copy(art_src, os.path.join(dest_dir_outbox, f"{clean_base}{suffix}"))
-                            log_message(f"  ✅ Artwork kopiert: {art_name}")
+                    # Ensure all server-specific poster/backdrop variants exist in outbox
+                    poster_names, backdrop_names = _get_movie_artwork_lists(settings, target_filename)
+                    
+                    existing_poster_src = None
+                    for p_name in poster_names:
+                        p_path = os.path.join(temp_dir, p_name)
+                        if os.path.exists(p_path):
+                            existing_poster_src = p_path
+                            break
+                    if existing_poster_src:
+                        for p_name in poster_names:
+                            shutil.copy(existing_poster_src, os.path.join(dest_dir_outbox, p_name))
+                            log_message(f"  ✅ Filmplakat kopiert: {p_name}")
+                            
+                    existing_backdrop_src = None
+                    for b_name in backdrop_names:
+                        b_path = os.path.join(temp_dir, b_name)
+                        if os.path.exists(b_path):
+                            existing_backdrop_src = b_path
+                            break
+                    if existing_backdrop_src:
+                        for b_name in backdrop_names:
+                            shutil.copy(existing_backdrop_src, os.path.join(dest_dir_outbox, b_name))
+                            log_message(f"  ✅ Hintergrundbild kopiert: {b_name}")
                             
                     log_message(f"  ✅ Erfolgreich in Output-Ordner übertragen: {target_filename}")
                     transfer_successful = True
@@ -2114,12 +2183,16 @@ def process_worker(params):
                                     for f in os.listdir(dest_dir_outbox):
                                         if f.startswith(clean_base) and f != target_filename:
                                             shutil.copy(os.path.join(dest_dir_outbox, f), os.path.join(dest_dir_target, f))
-                                    for art_name in ["poster.jpg", "fanart.jpg"]:
-                                        art_src = os.path.join(dest_dir_outbox, art_name)
-                                        if os.path.exists(art_src):
-                                            shutil.copy(art_src, os.path.join(dest_dir_target, art_name))
-                                            suffix = "-poster.jpg" if art_name == "poster.jpg" else "-fanart.jpg"
-                                            shutil.copy(art_src, os.path.join(dest_dir_target, f"{clean_base}{suffix}"))
+                                    # Copy all server-specific movie artwork variants to target
+                                    poster_names, backdrop_names = _get_movie_artwork_lists(settings, target_filename)
+                                    for p_name in poster_names:
+                                        p_src = os.path.join(dest_dir_outbox, p_name)
+                                        if os.path.exists(p_src):
+                                            shutil.copy(p_src, os.path.join(dest_dir_target, p_name))
+                                    for b_name in backdrop_names:
+                                        b_src = os.path.join(dest_dir_outbox, b_name)
+                                        if os.path.exists(b_src):
+                                            shutil.copy(b_src, os.path.join(dest_dir_target, b_name))
                                     log_message(f"  ✅ Erfolgreich auf {target.get('name', t_id)} kopiert.")
                                     update_task_pipeline_status(task_id, t_id, "done", 100)
                                     if t_id == "nas" and settings.get("open_nas_finder"):
@@ -2157,7 +2230,8 @@ def process_worker(params):
                 dest_show_dir_outbox = os.path.join(outbox_dest, clean_show_name)
                 try:
                     os.makedirs(dest_show_dir_outbox, exist_ok=True)
-                    for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]:
+                    meta_files = _get_series_meta_files(settings)
+                    for f in meta_files:
                         p_src = os.path.join(temp_dir, f)
                         if os.path.exists(p_src):
                             p_dest = os.path.join(dest_show_dir_outbox, f)
@@ -2189,7 +2263,8 @@ def process_worker(params):
                         dest_show_dir_target = os.path.join(target_base, clean_show_name)
                         try:
                             os.makedirs(dest_show_dir_target, exist_ok=True)
-                            for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]:
+                            meta_files = _get_series_meta_files(settings)
+                            for f in meta_files:
                                 p_src = os.path.join(dest_show_dir_outbox, f) if dest_show_dir_outbox else os.path.join(temp_dir, f)
                                 if os.path.exists(p_src):
                                     p_dest = os.path.join(dest_show_dir_target, f)
@@ -2229,14 +2304,16 @@ def process_worker(params):
                     for f in os.listdir(source_dir):
                         f_path = os.path.join(source_dir, f)
                         if os.path.isfile(f_path) and f != target_filename:
-                            if f.startswith(clean_base) or f in ["poster.jpg", "fanart.jpg"]:
+                            poster_names, backdrop_names = _get_movie_artwork_lists(settings, target_filename)
+                            if f.startswith(clean_base) or f in poster_names or f in backdrop_names:
                                 shutil.copy2(f_path, os.path.join(local_dest_dir, f))
                     
                     # Copy show-level files for series
                     if metadata_mode == "tv" and show_id and dest_show_dir_outbox and os.path.isdir(dest_show_dir_outbox):
                         local_show_dir = os.path.join(local_destination_path, clean_show_name)
                         os.makedirs(local_show_dir, exist_ok=True)
-                        for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]:
+                        meta_files = _get_series_meta_files(settings)
+                        for f in meta_files:
                             src = os.path.join(dest_show_dir_outbox, f)
                             if os.path.exists(src):
                                 dest_f = os.path.join(local_show_dir, f)
