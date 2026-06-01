@@ -1,7 +1,6 @@
 {
-  "Legacy Test Facade & Processing Helpers and Transfers": [
-    "gui_server_py",
-    "gui_server_guirequesthandler"
+  "Legacy Server and YouTube processing": [
+    "gui_server_py"
   ],
   "Frontend Application State": [
     "gui_static_app_js"
@@ -15,7 +14,7 @@
   "Media Health Core": [
     "gui_core_health_py"
   ],
-  "NAS Health and Ignore API": [
+  "NAS Health, Ignore and Renamer APIs": [
     "gui_api_nas_api_py"
   ],
   "Frontend Initialization": [
@@ -65,9 +64,6 @@
   ],
   "Queue Dashboard Frontend": [
     "static_app_initqueue"
-  ],
-  "NAS Renamer API": [
-    "gui_api_nas_renamer_api_py"
   ],
   "Local Profiles Frontend": [
     "static_app_populatelocalprofilesdropdown"
@@ -145,20 +141,13 @@
     "tests_test_utils_testmediawerkzeuglogic"
   ],
   "System, Stats and YouTube APIs": [
-    "gui_api_system_api_py",
-    "gui_api_youtube_api_py"
-  ],
-  "YouTube Worker and Processor": [
-    "gui_workers_youtube_worker_py"
+    "gui_api_system_api_py"
   ],
   "Manual NAS Connect API Tests": [
     "tests_test_nas_connect_testnasconnectapi"
   ],
-  "NAS Renamer and Processing Helpers": [
+  "NAS Renamer, Notifications and General Helpers": [
     "gui_core_nas_renamer_py"
-  ],
-  "Notifications and General Helpers": [
-    "gui_core_notifications_py"
   ],
   "NAS Mount Fallback Tests": [
     "tests_test_transfers_nas_mount_py"
