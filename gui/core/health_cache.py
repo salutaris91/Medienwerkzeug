@@ -130,21 +130,17 @@ class HealthCacheManager:
                     pass
 
             # 3. Poster suchen
-            preferred_poster = None
-            if video_file and hasattr(validator, 'get_preferred_movie_poster_name'):
-                preferred_poster = validator.get_preferred_movie_poster_name(video_file)
-            
             poster_file = None
-            if preferred_poster and preferred_poster in entries:
-                poster_file = preferred_poster
-            else:
-                patterns = []
-                if hasattr(validator, 'get_movie_poster_names'):
-                    patterns = validator.get_movie_poster_names(video_file if video_file else "")
-                for pattern in patterns:
-                    if pattern in entries:
-                        poster_file = pattern
+            patterns = []
+            if hasattr(validator, 'get_movie_poster_names'):
+                patterns = validator.get_movie_poster_names(video_file if video_file else "")
+            for pattern in patterns:
+                for entry in entries:
+                    if validator.matches_artwork_name(entry, pattern):
+                        poster_file = entry
                         break
+                if poster_file:
+                    break
             
             if poster_file:
                 poster_path = os.path.join(abs_path, poster_file)
@@ -152,6 +148,62 @@ class HealthCacheManager:
                     state["poster_mtime"] = os.path.getmtime(poster_path)
                 except Exception:
                     pass
+
+            # 4. Backdrop/Fanart suchen
+            backdrop_file = None
+            patterns = []
+            if hasattr(validator, 'get_movie_backdrop_names'):
+                patterns = validator.get_movie_backdrop_names(video_file if video_file else "")
+            for pattern in patterns:
+                for entry in entries:
+                    if validator.matches_artwork_name(entry, pattern):
+                        backdrop_file = entry
+                        break
+                if backdrop_file:
+                    break
+            if backdrop_file:
+                try:
+                    state["backdrop_mtime"] = os.path.getmtime(os.path.join(abs_path, backdrop_file))
+                except Exception:
+                    pass
+
+            # 5. Logo suchen
+            if validator.supports_logos:
+                logo_file = None
+                patterns = []
+                if hasattr(validator, 'get_movie_logo_names'):
+                    patterns = validator.get_movie_logo_names(video_file if video_file else "")
+                for pattern in patterns:
+                    for entry in entries:
+                        if validator.matches_artwork_name(entry, pattern):
+                            logo_file = entry
+                            break
+                    if logo_file:
+                        break
+                if logo_file:
+                    try:
+                        state["logo_mtime"] = os.path.getmtime(os.path.join(abs_path, logo_file))
+                    except Exception:
+                        pass
+
+            # 6. Banner suchen
+            if validator.supports_banners:
+                banner_file = None
+                patterns = []
+                if hasattr(validator, 'get_movie_banner_names'):
+                    patterns = validator.get_movie_banner_names(video_file if video_file else "")
+                for pattern in patterns:
+                    for entry in entries:
+                        if validator.matches_artwork_name(entry, pattern):
+                            banner_file = entry
+                            break
+                    if banner_file:
+                        break
+                if banner_file:
+                    try:
+                        state["banner_mtime"] = os.path.getmtime(os.path.join(abs_path, banner_file))
+                    except Exception:
+                        pass
 
         else:
             # Serien-Ebene
@@ -163,28 +215,80 @@ class HealthCacheManager:
                     pass
 
             # 2. Serienposter suchen
-            preferred_poster = "poster.jpg"
-            if hasattr(validator, 'get_preferred_series_poster_name'):
-                preferred_poster = validator.get_preferred_series_poster_name()
-            
             poster_file = None
-            if preferred_poster in entries:
-                poster_file = preferred_poster
-            else:
-                patterns = []
-                if hasattr(validator, 'get_series_poster_names'):
-                    patterns = validator.get_series_poster_names()
-                for pattern in patterns:
-                    if pattern in entries:
-                        poster_file = pattern
+            patterns = []
+            if hasattr(validator, 'get_series_poster_names'):
+                patterns = validator.get_series_poster_names()
+            for pattern in patterns:
+                for entry in entries:
+                    if validator.matches_artwork_name(entry, pattern):
+                        poster_file = entry
                         break
+                if poster_file:
+                    break
             if poster_file:
                 try:
                     state["series_poster_mtime"] = os.path.getmtime(os.path.join(abs_path, poster_file))
                 except Exception:
                     pass
 
-            # 3. Staffel-Unterordner erfassen
+            # 3. Backdrop/Fanart suchen
+            backdrop_file = None
+            patterns = []
+            if hasattr(validator, 'get_series_backdrop_names'):
+                patterns = validator.get_series_backdrop_names()
+            for pattern in patterns:
+                for entry in entries:
+                    if validator.matches_artwork_name(entry, pattern):
+                        backdrop_file = entry
+                        break
+                if backdrop_file:
+                    break
+            if backdrop_file:
+                try:
+                    state["series_backdrop_mtime"] = os.path.getmtime(os.path.join(abs_path, backdrop_file))
+                except Exception:
+                    pass
+
+            # 4. Logo suchen
+            if validator.supports_logos:
+                logo_file = None
+                patterns = []
+                if hasattr(validator, 'get_series_logo_names'):
+                    patterns = validator.get_series_logo_names()
+                for pattern in patterns:
+                    for entry in entries:
+                        if validator.matches_artwork_name(entry, pattern):
+                            logo_file = entry
+                            break
+                    if logo_file:
+                        break
+                if logo_file:
+                    try:
+                        state["series_logo_mtime"] = os.path.getmtime(os.path.join(abs_path, logo_file))
+                    except Exception:
+                        pass
+
+            # 5. Banner suchen
+            if validator.supports_banners:
+                banner_file = None
+                patterns = []
+                if hasattr(validator, 'get_series_banner_names'):
+                    patterns = validator.get_series_banner_names()
+                for pattern in patterns:
+                    for entry in entries:
+                        if validator.matches_artwork_name(entry, pattern):
+                            banner_file = entry
+                            break
+                    if banner_file:
+                        break
+                if banner_file:
+                    try:
+                        state["series_banner_mtime"] = os.path.getmtime(os.path.join(abs_path, banner_file))
+                    except Exception:
+                        pass
+
+            # 6. Staffel-Unterordner erfassen
             season_dirs = {}
             for e in entries:
                 if os.path.isdir(os.path.join(abs_path, e)) and not e.startswith('.'):
@@ -196,6 +300,39 @@ class HealthCacheManager:
                             pass
             if season_dirs:
                 state["season_dirs"] = season_dirs
+
+            # 7. Staffel-Poster erfassen (sowohl im Serienordner als auch im Staffelordner)
+            import re
+            season_posters = {}
+            for e in entries:
+                if os.path.isdir(os.path.join(abs_path, e)) and not e.startswith('.'):
+                    e_lower = e.lower()
+                    if e_lower.startswith("staffel ") or e_lower.startswith("season ") or e_lower.startswith("specials"):
+                        season_num = 1
+                        if "specials" in e_lower:
+                            season_num = 0
+                        else:
+                            m = re.search(r'\d+', e_lower)
+                            if m:
+                                season_num = int(m.group(0))
+                                
+                        sp_patterns = validator.get_season_poster_names(season_num)
+                        for pattern in sp_patterns:
+                            if "/" in pattern:
+                                sp_path = os.path.join(abs_path, pattern)
+                                if os.path.exists(sp_path):
+                                    try:
+                                        season_posters[pattern] = os.path.getmtime(sp_path)
+                                    except Exception:
+                                        pass
+                            else:
+                                if pattern in entries:
+                                    try:
+                                        season_posters[pattern] = os.path.getmtime(os.path.join(abs_path, pattern))
+                                    except Exception:
+                                        pass
+            if season_posters:
+                state["season_posters"] = season_posters
 
         return state
 

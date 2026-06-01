@@ -236,17 +236,7 @@ def _check_season(issues, category, show_name, season_path, validator):
             season_num = int(m.group(0))
 
     show_path = os.path.dirname(season_path)
-    has_season_poster = False
-    for name in validator.get_season_poster_names(season_num):
-        full_path = os.path.join(show_path, name)
-        if os.path.exists(full_path):
-            has_season_poster = True
-            break
-        fn = os.path.basename(name)
-        if os.path.exists(os.path.join(season_path, fn)):
-            has_season_poster = True
-            break
-
+    has_season_poster = validator.has_artwork_file(show_path, validator.get_season_poster_names(season_num))
     if not has_season_poster:
         preferred = validator.get_preferred_season_poster_name(season_num)
         _add_issue(issues, "warning", "missing_season_poster", category, season_path,
@@ -284,34 +274,22 @@ def _check_series_show(issues, category, show_path, validator):
     show_dir_name = os.path.basename(show_path)
 
     # 1. Poster check
-    has_poster = False
-    for name in validator.get_series_poster_names():
-        if os.path.exists(os.path.join(show_path, name)):
-            has_poster = True
-            break
+    has_poster = validator.has_artwork_file(show_path, validator.get_series_poster_names())
     if not has_poster:
         preferred = validator.get_preferred_series_poster_name()
         _add_issue(issues, "warning", "missing_poster", category, show_path,
                    f"{show_dir_name}: Serienposter fehlt — ggf. manuell als '{preferred}' ablegen")
 
     # 2. Fanart/Backdrop check
-    has_backdrop = False
-    for name in validator.get_series_backdrop_names():
-        if os.path.exists(os.path.join(show_path, name)):
-            has_backdrop = True
-            break
+    has_backdrop = validator.has_artwork_file(show_path, validator.get_series_backdrop_names())
     if not has_backdrop:
         preferred = validator.get_preferred_series_backdrop_name()
         _add_issue(issues, "warning", "missing_backdrop", category, show_path,
-                   f"{show_dir_name}: Hintergrundbild (Fanart) fehlt — ggf. manuell als '{preferred}' ablegen")
+                   f"{show_dir_name}: Hintergrundbild fehlt — ggf. manuell als '{preferred}' ablegen")
 
     # 3. Logo check
     if validator.supports_logos:
-        has_logo = False
-        for name in validator.get_series_logo_names():
-            if os.path.exists(os.path.join(show_path, name)):
-                has_logo = True
-                break
+        has_logo = validator.has_artwork_file(show_path, validator.get_series_logo_names())
         if not has_logo:
             preferred = validator.get_preferred_series_logo_name()
             msg = f"{show_dir_name}: ClearLogo fehlt — ggf. manuell als '{preferred}' ablegen"
@@ -321,11 +299,7 @@ def _check_series_show(issues, category, show_path, validator):
 
     # 4. Banner check
     if validator.supports_banners:
-        has_banner = False
-        for name in validator.get_series_banner_names():
-            if os.path.exists(os.path.join(show_path, name)):
-                has_banner = True
-                break
+        has_banner = validator.has_artwork_file(show_path, validator.get_series_banner_names())
         if not has_banner:
             preferred = validator.get_preferred_series_banner_name()
             msg = f"{show_dir_name}: Banner fehlt — ggf. manuell als '{preferred}' ablegen"
@@ -433,34 +407,22 @@ def _check_movie(issues, category, movie_path, validator):
     provider = _get_provider_from_nfo(os.path.join(movie_path, f"{video_stem}.nfo"))
 
     # 1. Poster check
-    has_poster = False
-    for p_name in validator.get_movie_poster_names(video_filename):
-        if os.path.exists(os.path.join(movie_path, p_name)):
-            has_poster = True
-            break
+    has_poster = validator.has_artwork_file(movie_path, validator.get_movie_poster_names(video_filename))
     if not has_poster:
         preferred = validator.get_preferred_movie_poster_name(video_filename)
         _add_issue(issues, "warning", "missing_poster", category, movie_path,
                    f"{name}: Filmplakat (Poster) fehlt — ggf. manuell als '{preferred}' ablegen")
 
     # 2. Fanart/Backdrop check
-    has_backdrop = False
-    for b_name in validator.get_movie_backdrop_names(video_filename):
-        if os.path.exists(os.path.join(movie_path, b_name)):
-            has_backdrop = True
-            break
+    has_backdrop = validator.has_artwork_file(movie_path, validator.get_movie_backdrop_names(video_filename))
     if not has_backdrop:
         preferred = validator.get_preferred_movie_backdrop_name(video_filename)
         _add_issue(issues, "warning", "missing_backdrop", category, movie_path,
-                   f"{name}: Hintergrundbild (Fanart) fehlt — ggf. manuell als '{preferred}' ablegen")
+                   f"{name}: Hintergrundbild fehlt — ggf. manuell als '{preferred}' ablegen")
 
     # 3. Logo check
     if validator.supports_logos:
-        has_logo = False
-        for l_name in validator.get_movie_logo_names(video_filename):
-            if os.path.exists(os.path.join(movie_path, l_name)):
-                has_logo = True
-                break
+        has_logo = validator.has_artwork_file(movie_path, validator.get_movie_logo_names(video_filename))
         if not has_logo:
             preferred = validator.get_preferred_movie_logo_name(video_filename)
             msg = f"{name}: ClearLogo fehlt — ggf. manuell als '{preferred}' ablegen"
@@ -470,11 +432,7 @@ def _check_movie(issues, category, movie_path, validator):
 
     # 4. Banner check
     if validator.supports_banners:
-        has_banner = False
-        for bn_name in validator.get_movie_banner_names(video_filename):
-            if os.path.exists(os.path.join(movie_path, bn_name)):
-                has_banner = True
-                break
+        has_banner = validator.has_artwork_file(movie_path, validator.get_movie_banner_names(video_filename))
         if not has_banner:
             preferred = validator.get_preferred_movie_banner_name(video_filename)
             msg = f"{name}: Banner fehlt — ggf. manuell als '{preferred}' ablegen"

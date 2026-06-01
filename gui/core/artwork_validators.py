@@ -1,4 +1,5 @@
 import os
+import re
 
 class ArtworkValidator:
     """Base class defining artwork naming conventions for media servers."""
@@ -7,6 +8,51 @@ class ArtworkValidator:
     def server_name(self) -> str:
         raise NotImplementedError
         
+    def matches_artwork_name(self, filename: str, expected_name: str) -> bool:
+        """Checks if a filename matches an expected artwork name, including allowed numbered suffixes."""
+        filename_lower = filename.lower()
+        expected_lower = expected_name.lower()
+        if filename_lower == expected_lower:
+            return True
+            
+        stem, ext = os.path.splitext(expected_lower)
+        exts = {'.jpg', '.jpeg', '.png', '.webp'}
+        if ext not in exts:
+            return False
+            
+        # Select suffix conventions based on media server
+        server = self.server_name.lower()
+        if server == "plex":
+            # Plex only allows hyphenated numbers (e.g., fanart-1.jpg, but not fanart1.jpg)
+            pattern = rf"^{re.escape(stem)}(?:-\d+)?\.(?:jpg|jpeg|png|webp)$"
+        else:
+            # Emby and Jellyfin allow both (e.g., fanart1.jpg, fanart-1.jpg)
+            pattern = rf"^{re.escape(stem)}[-_]?\d*\.(?:jpg|jpeg|png|webp)$"
+            
+        return bool(re.match(pattern, filename_lower))
+
+    def has_artwork_file(self, directory: str, expected_names: list[str]) -> bool:
+        """Checks if a directory contains any file matching the expected artwork names."""
+        if not os.path.isdir(directory):
+            return False
+        try:
+            entries = os.listdir(directory)
+        except OSError:
+            return False
+            
+        for name in expected_names:
+            if "/" in name:
+                # Handle subdirectory paths (e.g., "Staffel 01/folder.jpg")
+                sub_dir, sub_name = name.split("/", 1)
+                if self.has_artwork_file(os.path.join(directory, sub_dir), [sub_name]):
+                    return True
+                continue
+                
+            for entry in entries:
+                if self.matches_artwork_name(entry, name):
+                    return True
+        return False
+
     @property
     def supports_banners(self) -> bool:
         return True
