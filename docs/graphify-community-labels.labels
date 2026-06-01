@@ -144,10 +144,8 @@
   "Utility Logic Tests": [
     "tests_test_utils_testmediawerkzeuglogic"
   ],
-  "System API and Stats": [
-    "gui_api_system_api_py"
-  ],
-  "YouTube and Queue API Handler": [
+  "System, Stats and YouTube APIs": [
+    "gui_api_system_api_py",
     "gui_api_youtube_api_py"
   ],
   "YouTube Worker and Processor": [

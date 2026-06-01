@@ -96,7 +96,7 @@ Bevor wir den `release`-Branch abzweigen, werden folgende Verbesserungen direkt 
 2. **Hybrid- und Deep-Dive-Cache sauber trennen:** (Erledigt)
    - `hybrid_state` und `deep_hash` separat speichern, damit ein Deep-Dive-Lauf den schnellen Folgescan nicht unnötig invalidiert.
    - Laufzeit und Cache-Statistik anzeigen: Treffer, erneute Prüfungen wegen Änderungen und erneute Prüfungen wegen bekannter Issues. Bekannte Issues werden bewusst erneut vollständig geprüft; bei fehlerreichen Bibliotheken bleibt der Folgescan daher erwartbar langsamer.
-3. **Race-Condition beim Smart-Inbox-Profil-Laden beheben:**
+3. **Race-Condition beim Smart-Inbox-Profil-Laden beheben:** (Erledigt)
    - Profil, finale NAS-Kategorie und vorhandenen NAS-Ordner geordnet ermitteln und anschließend die Staffelanzeige aktualisieren.
    - Veraltete Staffel-Requests per Request-ID oder `AbortController` ignorieren, damit eine später eintreffende alte Antwort keine korrekte Anzeige überschreibt.
 4. **Health-Scan nach Bibliothekskategorien trennen:** Auswahl einer oder mehrerer konfigurierter Kategorien (z.B. nur Filme oder nur Serien), um Laufzeit und Testergebnisse gezielt beurteilen zu können.
