@@ -20,19 +20,21 @@ from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
 
 @system_api.route('/settings', methods=['GET', 'POST'])
 def handle_api_settings():
-    settings = load_settings()
     if request.method == 'POST':
         try:
             params = request.get_json() or {}
         except Exception:
             params = {}
-        for k, v in params.items():
-            settings[k] = v
-        if save_settings(settings):
+        from gui.core.persistence import update_settings
+        def mutate(data):
+            for k, v in params.items():
+                data[k] = v
+        if update_settings(mutate):
             return jsonify({"status": "success"})
         else:
             return jsonify({"error": "Failed to save settings"})
     else:
+        settings = load_settings()
         for key in ["telegram_token", "telegram_chat_id", "whatsapp_apikey", "whatsapp_phone"]:
             settings.pop(key, None)
         return jsonify(settings)
@@ -58,11 +60,11 @@ def handle_api_post_settings_legacy():
         params = request.get_json() or {}
     except Exception:
         params = {}
-    query = request.args
-    settings = load_settings()
-    for k, v in params.items():
-        settings[k] = v
-    if save_settings(settings):
+    from gui.core.persistence import update_settings
+    def mutate(data):
+        for k, v in params.items():
+            data[k] = v
+    if update_settings(mutate):
         return jsonify({"status": "success"})
     else:
         return jsonify({"error": "Failed to save settings"})

@@ -14,7 +14,8 @@ if sys.platform == "darwin":
     _paths = _extra_paths + _paths
     os.environ["PATH"] = os.pathsep.join(_paths)
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+from gui.core.persistence import load_settings, save_settings, get_data_dir_path, settings_lock
+DATA_DIR = get_data_dir_path()
 PROFILES_DIR = os.path.join(DATA_DIR, "profiles")
 HISTORY_FILE = os.path.join(DATA_DIR, "konv_history.json")
 
@@ -187,177 +188,22 @@ def save_konv_history(history_data):
         print(f"Error saving conversion history to {HISTORY_FILE}: {e}")
         return False
 
-# ==========================================================================
-# THREAD-SAFE GLOBAL SETTINGS CONFIGURATION MANAGEMENT
-# ==========================================================================
-SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "settings.json")
-settings_lock = threading.Lock()
-
-_cached_settings = None
+# settings management is now delegated to gui.core.persistence
+import gui.core.persistence as persistence
 
 _MOCK_SETTINGS = None
 
 def load_settings():
     if _MOCK_SETTINGS is not None:
         return _MOCK_SETTINGS
-    global _cached_settings
-    default_settings = {
-        "inbox_dir": os.path.expanduser("~/Downloads/Medien Input"),
-        "outbox_dir": os.path.expanduser("~/Downloads/Medien Output"),
-        "nas_root": "/Volumes/Kino",
-        "pcloud_dir": os.path.expanduser("~/pCloud Drive"),
-        "import_sources": [os.path.expanduser("~/Documents/StreamFab/StreamFab")],
-        "check_dependency_updates": False,
-        "open_outbox_finder": False,
-        "open_nas_finder": False,
-        "open_pcloud_finder": False,
-        "notify_macos": False,
-                "notify_telegram": False,
-        "notify_whatsapp": False,
-        "folder_monitor_enabled": True,
-        "folder_monitor_inbox_threshold_gb": 50.0,
-        "folder_monitor_outbox_threshold_gb": 50.0,
-        "folder_monitor_notify_macos": True,
-        "folder_monitor_notify_telegram": False,
-        "folder_monitor_notify_whatsapp": False,
-        "folder_monitor_interval_minutes": 30,
-        "telegram_token": "",
-        "telegram_chat_id": "",
-        "notify_whatsapp": False,
-        "whatsapp_apikey": "",
-        "whatsapp_phone": "",
-        "notify_min_size": 10,
-        "notify_min_size_macos": 10,
-        "notify_min_size_telegram": 10,
-        "notify_min_size_whatsapp": 10,
-        "notify_only_end": True,
-        "show_jokes": True,
-        "show_quote": True,
-        "app_theme": "deep-space",
-        "smart_conversion_default": True,
-        "storage_targets": [
-            {
-                "id": "nas",
-                "name": "Speicherziel 1",
-                "type": "nas",
-                "root_path": "/Volumes/Kino",
-                "rclone_remote": "",
-                "nas_ip": "192.168.2.208",
-                "nas_ip_backup": "100.74.187.125",
-                "nas_hostname": "ALEXNAS91",
-                "nas_share": "Kino",
-                "enabled": True
-            },
-            {
-                "id": "pcloud",
-                "name": "Speicherziel 2",
-                "type": "pcloud",
-                "root_path": os.path.expanduser("~/pCloud Drive"),
-                "rclone_remote": "pcloud:",
-                "enabled": True
-            }
-        ],
-        "sync_categories": [
-            {"id": "1", "name": "Filme", "nas_sub": "/Filme", "pcloud_remote": "pcloud:03_Filme", "targets": {"nas": "/Filme", "pcloud": "pcloud:03_Filme"}},
-            {"id": "2", "name": "Serien", "nas_sub": "/Serien", "pcloud_remote": "pcloud:04_Serien", "targets": {"nas": "/Serien", "pcloud": "pcloud:04_Serien"}},
-            {"id": "3", "name": "Einzel-Dokus", "nas_sub": "/Dokus/Einzelne Dokus", "pcloud_remote": "pcloud:04a_Dokus", "targets": {"nas": "/Dokus/Einzelne Dokus", "pcloud": "pcloud:04a_Dokus"}},
-            {"id": "4", "name": "Doku-Serien", "nas_sub": "/Dokus/Doku-Serien", "pcloud_remote": "pcloud:04a_Dokus", "targets": {"nas": "/Dokus/Doku-Serien", "pcloud": "pcloud:04a_Dokus"}},
-            {"id": "5", "name": "Filme 3D", "nas_sub": "/Filme 3D", "pcloud_remote": "pcloud:03a_3D Filme", "targets": {"nas": "/Filme 3D", "pcloud": "pcloud:03a_3D Filme"}},
-            {"id": "6", "name": "Sonstiges", "nas_sub": "/Sonstiges", "pcloud_remote": "pcloud:05_Sonstiges", "targets": {"nas": "/Sonstiges", "pcloud": "pcloud:05_Sonstiges"}}
-        ],
-        "youtube_subscriptions": [],
-        "media_server": "",
-        "show_console": False
-    }
-    
-    with settings_lock:
-        if _cached_settings is not None:
-            import copy
-            return copy.deepcopy(_cached_settings)
-            
-        if os.path.exists(SETTINGS_FILE):
-            try:
-                with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                    settings = json.load(f)
-                    
-                    # Migration: if storage_targets not present in existing settings file
-                    if "storage_targets" not in settings:
-                        settings["storage_targets"] = [
-                            {
-                                "id": "nas",
-                                "name": "Speicherziel 1",
-                                "type": "nas",
-                                "root_path": settings.get("nas_root", "/Volumes/Kino"),
-                                "rclone_remote": "",
-                                "nas_ip": "192.168.2.208",
-                                "nas_ip_backup": "100.74.187.125",
-                                "nas_hostname": "ALEXNAS91",
-                                "nas_share": "Kino",
-                                "enabled": True
-                            },
-                            {
-                                "id": "pcloud",
-                                "name": "Speicherziel 2",
-                                "type": "pcloud",
-                                "root_path": settings.get("pcloud_dir", os.path.expanduser("~/pCloud Drive")),
-                                "rclone_remote": "pcloud:",
-                                "enabled": True
-                            }
-                        ]
-                    
-                    # Migrate categories targets mapping
-                    if "sync_categories" in settings:
-                        for cat in settings["sync_categories"]:
-                            if "targets" not in cat:
-                                cat["targets"] = {}
-                            if "nas_sub" in cat and "nas" not in cat["targets"]:
-                                cat["targets"]["nas"] = cat["nas_sub"]
-                            if "pcloud_remote" in cat and "pcloud" not in cat["targets"]:
-                                cat["targets"]["pcloud"] = cat["pcloud_remote"]
-
-                    # Migration of per-notification type GB thresholds
-                    if "notify_min_size_macos" not in settings:
-                        settings["notify_min_size_macos"] = settings.get("notify_min_size", 10)
-                    if "notify_min_size_telegram" not in settings:
-                        settings["notify_min_size_telegram"] = settings.get("notify_min_size", 10)
-                    if "notify_min_size_whatsapp" not in settings:
-                        settings["notify_min_size_whatsapp"] = settings.get("notify_min_size", 10)
-
-                    for k, v in default_settings.items():
-                        if k not in settings:
-                            settings[k] = v
-                            
-                    # Keep legacy keys in sync with storage_targets root paths
-                    for target in settings.get("storage_targets", []):
-                        if target.get("id") == "nas":
-                            settings["nas_root"] = target.get("root_path", settings.get("nas_root", "/Volumes/Kino"))
-                        elif target.get("id") == "pcloud":
-                            settings["pcloud_dir"] = target.get("root_path", settings.get("pcloud_dir", os.path.expanduser("~/pCloud Drive")))
-                            
-                    _cached_settings = settings
-                    import copy
-                    return copy.deepcopy(_cached_settings)
-            except Exception:
-                return default_settings
-        _cached_settings = default_settings
-        import copy
-        return copy.deepcopy(_cached_settings)
+    if persistence._MOCK_SETTINGS is not None:
+        return persistence._MOCK_SETTINGS
+    return persistence.load_settings()
 
 def save_settings(settings):
-    global _cached_settings
-    # Synchronize legacy keys on save
-    for target in settings.get("storage_targets", []):
-        if target.get("id") == "nas":
-            settings["nas_root"] = target.get("root_path", settings.get("nas_root", "/Volumes/Kino"))
-        elif target.get("id") == "pcloud":
-            settings["pcloud_dir"] = target.get("root_path", settings.get("pcloud_dir", os.path.expanduser("~/pCloud Drive")))
-            
-    with settings_lock:
-        try:
-            with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-                json.dump(settings, f, indent=4, ensure_ascii=False)
-            import copy
-            _cached_settings = copy.deepcopy(settings)
-            return True
-        except Exception:
-            return False
+    # Sync mock settings if it's set
+    global _MOCK_SETTINGS
+    if _MOCK_SETTINGS is not None:
+        _MOCK_SETTINGS = settings
+        return True
+    return persistence.save_settings(settings)
