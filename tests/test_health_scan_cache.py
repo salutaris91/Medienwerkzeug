@@ -171,7 +171,7 @@ class TestHealthScanCache(unittest.TestCase):
         os.makedirs(show_path)
         
         with open(os.path.join(show_path, "tvshow.nfo"), "w") as f:
-            f.write("<tvshow><mw_provider>tmdb</mw_provider></tvshow>")
+            f.write("<tvshow><mw_provider>tmdb</mw_provider><mpaa>FSK 12</mpaa></tvshow>")
         with open(os.path.join(show_path, "poster.jpg"), "w") as f:
             f.write("poster")
         with open(os.path.join(show_path, "fanart.jpg"), "w") as f:

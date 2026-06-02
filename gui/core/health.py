@@ -176,21 +176,27 @@ def find_primary_nfo(folder_path, is_movie=False):
     nfos = [e for e in entries if not e.startswith('.') and e.lower().endswith('.nfo')]
     if len(nfos) == 0:
         return None
-    if len(nfos) == 1:
-        return os.path.join(folder_path, nfos[0])
     
-    # Mehrere NFOs: Versuche anhand der Videodatei aufzulösen
     video_extensions = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv', '.webm', '.m2ts'}
     videos = [e for e in entries if not e.startswith('.') and os.path.splitext(e)[1].lower() in video_extensions]
     
+    expected_nfo = None
     if len(videos) == 1:
         video_stem = os.path.splitext(videos[0])[0]
-        # Prio 1: <video_stem>.nfo
+        expected_nfo = f"{video_stem}.nfo"
+        
+    # Prio 1: <videostem>.nfo
+    if expected_nfo:
         for nfo in nfos:
-            if nfo == f"{video_stem}.nfo":
+            if nfo == expected_nfo:
                 return os.path.join(folder_path, nfo)
                 
-    # Im Zweifel bei mehreren NFOs: None (unsicher, nichts ändern)
+    # Prio 2: movie.nfo
+    for nfo in nfos:
+        if nfo.lower() == "movie.nfo":
+            return os.path.join(folder_path, nfo)
+            
+    # Im Zweifel bei unsicheren NFOs: None (nichts ändern)
     return None
 
 

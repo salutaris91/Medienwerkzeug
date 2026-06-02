@@ -75,25 +75,63 @@ class TestFSKHealthCheck(unittest.TestCase):
         with open(nfo_path, 'w') as f:
             f.write("<movie>\n  <title>Test</title>\n</movie>")
 
-        # API Call
+        # API Call - Valid
         response = self.client.post('/api/nas/health-fix', json={
             "action": "set_fsk",
             "path": self.movie_dir,
             "new_fsk": "12"
         })
-        
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json['ok'])
-        
-        # Check if file was modified correctly
         with open(nfo_path, 'r') as f:
             content = f.read()
         self.assertIn("<mpaa>FSK 12</mpaa>", content)
-        
-        # Check if backup exists
         bak_files = [f for f in os.listdir(self.movie_dir) if f.endswith('.bak')]
-        # Should have .bak.TIMESTAMP
         self.assertTrue(any(".bak." in f for f in os.listdir(self.movie_dir)))
+
+        # API Call - Invalid value
+        response = self.client.post('/api/nas/health-fix', json={
+            "action": "set_fsk",
+            "path": self.movie_dir,
+            "new_fsk": "99"
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Ungültiger FSK-Wert", response.json['message'])
+
+        # API Call - Path outside NAS
+        mock_load_settings.return_value = {"nas_root": "/some/other/fake/nas"}
+        response = self.client.post('/api/nas/health-fix', json={
+            "action": "set_fsk",
+            "path": self.movie_dir,
+            "new_fsk": "12"
+        })
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("außerhalb des NAS", response.json['message'])
+        
+        # Restore mock for further tests
+        mock_load_settings.return_value = {"nas_root": self.temp_dir}
+
+        # API Call - Multiple mpaa tags
+        with open(nfo_path, 'w') as f:
+            f.write("<movie><mpaa>FSK 12</mpaa><mpaa>FSK 16</mpaa></movie>")
+        response = self.client.post('/api/nas/health-fix', json={
+            "action": "set_fsk",
+            "path": self.movie_dir,
+            "new_fsk": "16"
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Mehrere", response.json['message'])
+
+        # API Call - Broken XML
+        with open(nfo_path, 'w') as f:
+            f.write("<movie><title>broken</title>")
+        response = self.client.post('/api/nas/health-fix', json={
+            "action": "set_fsk",
+            "path": self.movie_dir,
+            "new_fsk": "16"
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Original-XML fehlerhaft", response.json['message'])
 
 if __name__ == '__main__':
     unittest.main()

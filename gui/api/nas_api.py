@@ -773,21 +773,18 @@ def handle_api_health_fix():
             except Exception as e:
                 return jsonify({"ok": False, "message": f"NFO lesefehler: {e}"}), 500
                 
-            if "</tvshow>" not in content and "</movie>" not in content:
-                return jsonify({"ok": False, "message": "NFO-Datei ist unvollständig (End-Tag fehlt)."}), 400
-                
-            mpaa_matches = re.findall(r'<mpaa>.*?</mpaa>', content)
-            if len(mpaa_matches) > 1:
-                return jsonify({"ok": False, "message": "Mehrere <mpaa>-Tags gefunden. Bitte manuell bereinigen."}), 400
-                
-            # Plausibilitätscheck 1
+            # Plausibilitätscheck 1 und Tag-Zählung
             try:
-                ET.fromstring(content)
+                tree = ET.fromstring(content)
             except Exception as e:
                 return jsonify({"ok": False, "message": f"Original-XML fehlerhaft: {e}"}), 400
                 
-            if len(mpaa_matches) == 1:
-                new_content = re.sub(r'<mpaa>.*?</mpaa>', f'<mpaa>{fsk_str}</mpaa>', content, count=1)
+            mpaa_elements = tree.findall('.//mpaa')
+            if len(mpaa_elements) > 1:
+                return jsonify({"ok": False, "message": "Mehrere <mpaa>-Tags gefunden. Bitte manuell bereinigen."}), 400
+                
+            if len(mpaa_elements) == 1:
+                new_content = re.sub(r'<mpaa[\s>].*?</mpaa>', f'<mpaa>{fsk_str}</mpaa>', content, count=1, flags=re.DOTALL|re.IGNORECASE)
             else:
                 # Insert before closing tag
                 if "</tvshow>" in content:
