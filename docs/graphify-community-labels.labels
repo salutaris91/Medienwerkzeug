@@ -5,9 +5,7 @@
   "Media Transfers Core": [
     "gui_core_transfers_py"
   ],
-  "NAS Renaming Core": [
-    "gui_core_nas_renamer_py"
-  ],
+
   "Frontend Application State and Queue Dashboard": [
     "gui_static_app_js"
   ],
