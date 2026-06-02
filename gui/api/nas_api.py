@@ -751,20 +751,20 @@ def handle_api_health_fix():
             valid_fsks = ["0", "6", "12", "16", "18", 0, 6, 12, 16, 18]
             if new_fsk not in valid_fsks:
                 return jsonify({"ok": False, "message": f"Ungültiger FSK-Wert: {new_fsk}"}), 400
-            
+
             fsk_str = f"FSK {new_fsk}"
-            
+
             import gui.core.health as health
-            
+
             settings = load_settings()
             nas_root_setting = os.path.realpath(settings.get("nas_root", ""))
 
             is_movie = True
             real_path = os.path.realpath(path)
-            
+
             best_cat = None
             best_cat_len = -1
-            
+
             for cat in settings.get("sync_categories", []):
                 nas_sub = cat.get("nas_sub")
                 if not nas_sub: continue
@@ -788,36 +788,36 @@ def handle_api_health_fix():
                             is_movie = False
                     except OSError:
                         pass
-                    
+
             nfo_path = health.find_primary_nfo(path, is_movie=is_movie)
-                
+
             if not nfo_path or not os.path.exists(nfo_path):
                 return jsonify({"ok": False, "message": "NFO-Datei konnte nicht eindeutig bestimmt werden."}), 400
-                
+
             import xml.etree.ElementTree as ET
             import tempfile
             import time
             import re
-            
+
             try:
                 with open(nfo_path, "r", encoding="utf-8", errors="ignore") as f:
                     content = f.read()
             except Exception as e:
                 return jsonify({"ok": False, "message": f"NFO lesefehler: {e}"}), 500
-                
+
             # Plausibilitätscheck 1 und Tag-Zählung
             try:
                 tree = ET.fromstring(content)
             except Exception as e:
                 return jsonify({"ok": False, "message": f"Original-XML fehlerhaft: {e}"}), 400
-                
+
             if tree.tag not in ["movie", "tvshow", "episodedetails"]:
                 return jsonify({"ok": False, "message": f"Ungültiges NFO Root-Tag: {tree.tag}"}), 400
-                
+
             mpaa_elements = tree.findall('.//mpaa')
             if len(mpaa_elements) > 1:
                 return jsonify({"ok": False, "message": "Mehrere <mpaa>-Tags gefunden. Bitte manuell bereinigen."}), 400
-                
+
             if len(mpaa_elements) == 1:
                 new_content = re.sub(r'<mpaa[\s>].*?</mpaa>', f'<mpaa>{fsk_str}</mpaa>', content, count=1, flags=re.DOTALL|re.IGNORECASE)
             else:
@@ -826,13 +826,14 @@ def handle_api_health_fix():
                 if closing_tag not in content:
                     return jsonify({"ok": False, "message": f"NFO-Datei ist unvollständig (End-Tag {closing_tag} fehlt)."}), 400
                 new_content = content.replace(closing_tag, f"  <mpaa>{fsk_str}</mpaa>\n{closing_tag}")
-                    
+
             # Plausibilitätscheck 2
             try:
                 ET.fromstring(new_content)
             except Exception as e:
                 return jsonify({"ok": False, "message": f"Generiertes XML fehlerhaft: {e}"}), 500
-                
+
+            temp_path = None
             try:
                 # Backup anlegen
                 ts = time.strftime("%Y%m%d_%H%M%S")
@@ -842,17 +843,24 @@ def handle_api_health_fix():
                     bak_path = f"{nfo_path}.bak.{ts}_{suffix}"
                     suffix += 1
                 shutil.copy2(nfo_path, bak_path)
-                
+
                 # Temp file schreiben
                 fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(nfo_path), text=True)
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     f.write(new_content)
-                    
+
                 os.replace(temp_path, nfo_path)
+                temp_path = None # Set to None after successful replace so finally doesn't delete it
                 log_message(f"🔧 [Health-Fix] FSK aktualisiert auf {fsk_str} in {os.path.basename(nfo_path)}")
                 return jsonify({"ok": True, "message": f"FSK aktualisiert auf {fsk_str}."})
             except Exception as e:
                 return jsonify({"ok": False, "message": f"Fehler beim Speichern: {e}"}), 500
+            finally:
+                if temp_path and os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except OSError:
+                        pass
 
         if action == "flatten":
             entries = [e for e in os.listdir(path) if not e.startswith('.')]

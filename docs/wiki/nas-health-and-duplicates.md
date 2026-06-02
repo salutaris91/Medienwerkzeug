@@ -20,7 +20,7 @@ anderem fehlende NFOs oder Artworks, Episodenlücken, leere Ordner, auffällig
 kleine Dateien, Namensprobleme sowie fehlende oder ungültige FSK-Altersfreigaben.
 Ergebnisse werden gecacht und über `/api/nas/health-status` abgefragt.
 
-Einige Findings können über `/api/nas/health-fix` korrigiert werden (z. B. 
+Einige Findings können über `/api/nas/health-fix` korrigiert werden (z. B.
 Verschachtelungen auflösen, Umbenennen oder FSK-Werte per XML-Validierung sicher in NFOs eintragen). Diese
 Aktionen müssen innerhalb der konfigurierten NAS-Root bleiben und dürfen
 bestehende Dateien nicht überschreiben (Ausnahme: FSK-Fix überschreibt das `<mpaa>`-Tag in der NFO).

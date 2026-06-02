@@ -11038,7 +11038,7 @@ function renderHealthStatus(data) {
                     return;
                 }
                 if (!confirm("Die NFO-Datei wird nun angepasst. Fortfahren?")) return;
-                
+
                 b.disabled = true;
                 try {
                     const res = await fetch("/api/nas/health-fix", {

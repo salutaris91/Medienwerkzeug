@@ -176,26 +176,26 @@ def find_primary_nfo(folder_path, is_movie=False):
     nfos = [e for e in entries if not e.startswith('.') and e.lower().endswith('.nfo')]
     if len(nfos) == 0:
         return None
-    
+
     video_extensions = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv', '.webm', '.m2ts'}
     videos = [e for e in entries if not e.startswith('.') and os.path.splitext(e)[1].lower() in video_extensions]
-    
+
     expected_nfo = None
     if len(videos) == 1:
         video_stem = os.path.splitext(videos[0])[0]
         expected_nfo = f"{video_stem}.nfo"
-        
+
     # Prio 1: <videostem>.nfo
     if expected_nfo:
         for nfo in nfos:
             if nfo == expected_nfo:
                 return os.path.join(folder_path, nfo)
-                
+
     # Prio 2: movie.nfo
     for nfo in nfos:
         if nfo.lower() == "movie.nfo":
             return os.path.join(folder_path, nfo)
-            
+
     # Im Zweifel bei unsicheren NFOs: None (nichts ändern)
     return None
 
@@ -203,29 +203,29 @@ def find_primary_nfo(folder_path, is_movie=False):
 def _check_fsk(issues, category, folder_path, nfo_path):
     if not nfo_path or not os.path.exists(nfo_path):
         return
-        
+
     try:
         with open(nfo_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
-            
+
         m = re.search(r'<mpaa>(.*?)</mpaa>', content)
         if not m:
             _add_issue(issues, "warning", "missing_age_rating", category, folder_path,
                        f"{os.path.basename(folder_path)}: Altersfreigabe (FSK) fehlt in der NFO")
             return
-            
+
         val = m.group(1).strip()
         if not val:
             _add_issue(issues, "warning", "missing_age_rating", category, folder_path,
                        f"{os.path.basename(folder_path)}: Altersfreigabe (FSK) ist leer in der NFO")
             return
-            
+
         # Gültige Werte prüfen
         valid_values = {"FSK 0", "FSK 6", "FSK 12", "FSK 16", "FSK 18"}
         if val not in valid_values:
             _add_issue(issues, "warning", "invalid_age_rating", category, folder_path,
                        f"{os.path.basename(folder_path)}: Ungültige Altersfreigabe in NFO ({val})")
-                       
+
     except Exception:
         pass
 
