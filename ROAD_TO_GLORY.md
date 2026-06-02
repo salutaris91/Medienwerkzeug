@@ -139,37 +139,50 @@ Bevor wir den Release-Branch abzweigen, stellen wir sicher, dass das Fundament a
 ### Phase 1: Code-Härtung & Robustheit
 *Alles, was der Code braucht, um bei Dritten zuverlässig zu laufen.*
 
-#### 1.1 Default-Pfade neutralisieren
-Aktuelle Defaults im Code (wie `~/pCloud Drive`) müssen leer sein. **Wichtig:** Deine eigenen Einstellungen in der `settings.json` bleiben davon völlig unberührt! Wir ändern nur die Fallbacks für *neue* Nutzer.
+#### 1.1 Default-Pfade neutralisieren (Erledigt)
+- Aktuelle Defaults im Code (wie `~/pCloud Drive`) müssen leer sein. **Wichtig:** Deine eigenen Einstellungen in der `settings.json` bleiben davon völlig unberührt! Wir ändern nur die Fallbacks für *neue* Nutzer.
+- **Backup & Ausfallsicherheit:** Vor jeder Migration von Konfigurationsdateien wird automatisch ein lokales Backup (z.B. `.bak`) angelegt. Beim Laden beschädigter JSON-Dateien wird der Fehler nicht stillgeschwiegen, sondern prominent gemeldet, und das System versucht, sich aus dem letzten intakten Backup zu reparieren.
 
-#### 1.2 Cross-Platform-Weichen (Mac / Windows / Linux)
-- Ist der Nutzer auf Mac: `osascript` (Finder)
-- Ist er auf Windows: native Windows-Pfade (`os.startfile` für Explorer, `win10toast` für Benachrichtigungen)
-- Ist er im Docker/Linux: keine Desktop-Integrationen nötig, nur CLI-Fallbacks
+#### 1.2 Cross-Platform-Weichen (Mac / Windows / Linux) (Erledigt)
+- **Desktop-Integration:** 
+  - Ist der Nutzer auf Mac: `osascript` (Finder-Aufrufe, Mount-AppleScripts).
+  - Ist er auf Windows: native Windows-Pfade (Backslashes), `os.startfile` für Explorer und Windows-Systembenachrichtigungen.
+  - Ist er im Docker/Linux: Deaktivierung aller Desktop-Integrationen, reine CLI-Fallbacks.
+- **Dateisystem & Aufrufe:** Konsequente Nutzung von `os.path.join` für Pfadtrenner, Anpassung des Dateinamen-Sanitizings an Windows/Linux-Grenzwerte, Docker-Volume-Kompatibilität sowie robuste, plattformunabhängige Systemaufrufe für externe Abhängigkeiten (`ffmpeg`, `rclone`, `yt-dlp`).
 
-#### 1.3 `.env`-Handling & Settings-UI
-Die Einstellungs-Seite wird um Felder für TMDB/TVDB API-Keys erweitert. Das Backend speichert diese unsichtbar in der `.env`-Datei, sodass der Nutzer nie eine Textdatei anfassen muss.
+#### 1.3 `.env`-Handling & Settings-UI (Erledigt)
+- Die Einstellungs-Seite wird um Eingabefelder für TMDB/TVDB API-Keys erweitert. Das Backend speichert diese unsichtbar in der `.env`-Datei, sodass der Nutzer keine Textdatei anfassen muss.
+- **Sicherheits-Vorkehrungen:**
+  - Automatische Pflege von `.env.example` und Sicherstellung des `.gitignore`-Eintrags für `.env`.
+  - Maskierte Rückgabe über die Settings-API (z.B. `****abcd`), um Ausspähen im Client zu verhindern.
+  - API-Schutzmechanismus: Schutz davor, dass maskierte Platzhalter (wie `"****abcd"`) bei einer erneuten Speicherung versehentlich als echte Schlüssel in die `.env` zurückgeschrieben werden.
 
-#### 1.4 Error-Logging & Crash Recovery
-- **Strukturiertes Logging** in eine rotierende Log-Datei (nicht nur Konsole) — damit Fehler bei Dritten nachvollziehbar sind.
-- **"Bug melden"-Button** in der UI, der relevante Logs anonymisiert exportiert.
-- **Crash Recovery für Jobs:** Wenn die App abstürzt während ein Job in `jobs_state.json` auf `in_progress` steht, muss beim Neustart erkannt und bereinigt werden (Status zurücksetzen auf `failed` oder `pending`, nicht auf ewig hängen bleiben).
+#### 1.4 Error-Logging & Crash Recovery (Erledigt)
+- **Strukturiertes Logging:** Logging in eine rotierende Log-Datei (z. B. `app.log`) auf der Festplatte (nicht nur Standardausgabe), um Fehler bei Dritten nachvollziehbar zu machen.
+- **"Bug melden"-Button:** Eine Option im GUI-Dashboard, um relevante Logs anonymisiert zu exportieren.
+- **Crash Recovery für Jobs:** Beim Start prüft die App, ob Jobs in `jobs_state.json` unvollständig (z.B. `in_progress`) zurückgelassen wurden. Diese werden mit einer verständlichen Fehlermeldung (z.B. "Prozess durch unerwarteten App-Neustart abgebrochen") auf `failed` gesetzt.
+- **Aufräumen von temporären Dateien:** Verwaiste temporäre Konvertierungsdateien (z.B. `.tmp.mkv` oder unvollständige Download-Reste) in der Inbox oder im Arbeitsverzeichnis werden erkannt und sicher bereinigt, um Dateinamenskonflikte zu verhindern.
 
-#### 1.5 Settings-Versionierung & Migration
-- Ein `version`-Feld in `settings.json` und `jobs_state.json`.
-- Bei App-Updates, die das Schema ändern, läuft eine Migrationsfunktion, die alte Settings automatisch ins neue Format überführt. Ohne das brechen Updates bei bestehenden Nutzern.
+#### 1.5 Settings-Versionierung & Migration (Erledigt)
+- Einführung eines `version`-Feldes in `settings.json` und `jobs_state.json`.
+- Bei Schemaänderungen migriert eine Funktion die Altdaten automatisch ins neue Format (nach Backup-Erstellung). Defekte JSONs werden abgefangen und gemeldet.
 
-#### 1.6 Threadsichere Datei-Schreibvorgänge
-`jobs_state.json` und `settings.json` müssen atomar geschrieben werden (Write → Temp-File → `os.rename`), damit bei Stromausfällen oder Neustarts keine korrupten JSON-Dateien entstehen.
+#### 1.6 Threadsichere & atomare Datei-Schreibvorgänge (Erledigt)
+- **Atomares Schreiben:** Alle JSON-Schreibvorgänge erfolgen über eine temporäre Datei und anschließendes `os.replace()`, um unvollständige Schreibvorgänge (z. B. bei abruptem Beenden) zu vermeiden.
+- **Threadsicherheit:** Einführung von exklusiven `threading.Lock`s (bzw. bei Bedarf File Locks) für alle Lese-Schreib-Modifikationen (Read-Modify-Write) auf den geteilten Dateien `settings.json`, `jobs_state.json` und `action_log.json`.
 
-#### 1.7 Aktionslog & Undo-Fähigkeit
-Wenn die App eine Datei umbenennt, verschiebt oder Ordnerstrukturen anlegt, muss jede Aktion in einem **Aktionslog** (`action_log.json`) protokolliert werden:
-- Was wurde gemacht (rename, move, create_folder)
-- Quellpfad → Zielpfad
-- Zeitstempel
-- Zugehöriger Job/Projekt
+#### 1.7 Aktionslog (Erledigt)
+- Jede Dateisystem-Aktion, die die App vornimmt, wird lückenlos protokolliert.
+- **Erfasste Aktionen:** `rename`, `move`, `create_folder`, `copy` und `delete`.
+- **Protokollierte Daten:** Erfolg/Fehlermeldung, Zeitstempel, Job-ID/Projekt-ID sowie Quell- und Zielpfad in der `action_log.json`.
+- Legt das Fundament für ein späteres "Undo"-Feature (Rückgängig-Machen) in v1.1.
 
-Das Log ermöglicht:
+#### 1.8 Phase-1 Tests (Automatisierte Verifizierung)
+Um die Robustheit abiszusichern, werden folgende Testfälle explizit implementiert:
+- **Migration:** Test der automatischen Migration von alten Einstellungs-Dateien (Schema-Upgrades).
+- **Concurrency:** Parallele Schreibtests auf Settings und Status-Dateien zur Verifizierung der Threadsicherheits-Locks.
+- **JSON-Fehlertoleranz:** Laden von beschädigten JSON-Dateien und automatische Wiederherstellung aus dem Backup.
+- **Crash Recovery:** Test der Bereinigung eines hängengebliebenen `in_progress`-Jobs und Beseitigung von Restdateien beim Systemstart.
 - **Fehler nachvollziehen:** Wenn ein Nutzer meldet "meine Datei ist weg", kann man im Log nachschauen wohin sie verschoben wurde.
 - **Undo (v1.1):** Später kann daraus ein "Rückgängig"-Button gebaut werden, der die letzte Aktion oder den letzten Job zurückrollt.
 - Für v1.0 reicht das Log als passive Absicherung — der Undo-Button ist kein Release-Blocker.
@@ -183,9 +196,9 @@ Das Log ermöglicht:
 - Double-Submit-Cookie CSRF-Schutz für alle schreibenden Requests (`POST`, `PUT`, `DELETE`).
 - Beschränkung aller seiteneffektbehafteten/mutierenden Endpunkte auf reine `POST`-Requests (insbesondere Finder `/api/system-open-folder` und YouTube-Fetch `/api/yt/fetch`).
 - IP-basiertes Brute-Force-Schutz-Rate-Limiting (Lockout mit HTTP 429 nach 5 Fehlversuchen innerhalb 1 min, remote_addr-basiert, lockgeschützt) und progressive Login-Verzögerung.
-- Session-Widerruf bei Passwort-Rotation über Fingerprint-Abgleich von `auth_version` in der Middleware.
+- Session-Widerruf bei Passwort-Rotation über Fingerprint-Abgleich von `auth_version` in der Middleware und im Auth-Status-Endpunkt.
 - Sidebar- & Settings-Logout-Integration in der GUI.
-- 13 dedizierte Sicherheitstests in `test_auth.py` (insgesamt 111 Tests).
+- 14 dedizierte Sicherheitstests in `test_auth.py` (insgesamt 112 Tests).
 
 #### 2.2 API-Key-Schutz - Umgesetzt
 - Die Settings-API gibt sensible API-Keys (Telegram, TMDB, TVDB, WhatsApp) maskiert zurück. Vollständige Keys werden nur geschrieben, nie im Klartext gelesen.

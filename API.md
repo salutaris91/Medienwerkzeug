@@ -201,7 +201,7 @@ Serien-Details, Episodenlisten, Episoden-Zuordnung, Serien-Erkennung, Staffel-Sc
 ### `GET|POST /api/estimate-conversion`
 Schätzt die Konvertierungs-Ersparnis (Payload: `filenames`, `quality`).
 
-### `GET|POST /api/joke`, `/api/quote`, `/api/toggle-visibility`
+### `GET|POST /api/joke` · `GET|POST /api/quote` · `POST /api/toggle-visibility`
 UI-Beiwerk und Sichtbarkeits-Toggles.
 
 ---
@@ -221,7 +221,6 @@ Reiht einen Verarbeitungs-Job in die Queue ein (Payload: `media_type`,
 ### `GET /api/queue` · `POST /api/queue-clear` · `POST /api/queue-retry`
 Job-Status abrufen (GET), abgeschlossene Jobs aus der Liste leeren (POST), fehlgeschlagenen Job wiederholen (POST).
 
----
 
 ## youtube_api — YouTube
 
