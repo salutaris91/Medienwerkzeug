@@ -249,6 +249,29 @@ End-to-End Tests für die Flask-Endpunkte. Was passiert bei defekten Payloads, f
 
 ---
 
+### Phase 4.5: Docker-Produktcheck & Runtime-Profile
+*Vor dem Packaging wird der Docker-Betrieb bewusst vom Desktop-Komfort getrennt, ohne ein zweites Repository anzulegen.*
+
+#### 4.5.1 Runtime-Profile (Erledigt)
+- `MW_RUNTIME=desktop|docker` steuert, welche Funktionen im Backend und Frontend verfügbar sind.
+- `GET /api/system/capabilities` liefert die aktiven Fähigkeiten an die UI.
+- Im Docker-Profil werden Finder-/AppleScript-Funktionen, NAS-Automounts, macOS-Benachrichtigungen und nutzerseitige Löschaktionen blockiert oder ausgeblendet.
+- Importquellen bleiben möglich, werden aber als Docker-Volume-pflichtige Expertenfunktion erklärt.
+
+#### 4.5.2 Docker-Ordneransicht (geplant)
+Im Docker-Betrieb kann der Container keinen Finder oder Explorer auf dem Nutzerrechner öffnen. Stattdessen ersetzt die App die Aktion "Im Finder öffnen" durch eine read-only Ordneransicht im Browser.
+
+- **Backend:** Neuer Endpunkt (z.B. `POST /api/system/list-folder`) liefert für erlaubte Pfade nur Dateiname, Typ, Größe und Änderungsdatum.
+- **Sicherheit:** Dieselben Pfadgrenzen wie bei `/api/system-open-folder`; keine Downloads, kein Löschen, kein Umbenennen.
+- **Frontend:** Modal "Ordnerinhalt anzeigen" mit Dateiliste, leerem Zustand, Fehlerzustand und "Pfad kopieren".
+- **Capabilities:** `open_local_folder=false`, zusätzlich `browse_folder_contents=true` im Docker-Profil.
+- **Tests:** Erlaubter Pfad liefert Liste, Pfad außerhalb erlaubter Roots wird abgelehnt, fehlender Pfad meldet verständlich, Docker-Capabilities enthalten die neue Fähigkeit.
+
+#### 4.5.3 Quarantäne-Papierkorb (geplant)
+Nutzerseitige Löschaktionen bleiben im Docker-Profil blockiert, bis ein sicherer Quarantäne-Ordner umgesetzt ist. Ziel ist kein endgültiges Löschen, sondern ein Verschieben in einen persistent gemounteten Papierkorb (z.B. `/media/.medienwerkzeug-trash`) mit späterer Wiederherstellungsoption.
+
+---
+
 ### Phase 5: Packaging & Distribution
 
 #### 5.1 Docker-Image (Primärer Kanal – Ziel für v1.0)
