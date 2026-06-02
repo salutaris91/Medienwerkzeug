@@ -221,6 +221,7 @@ Reiht einen Verarbeitungs-Job in die Queue ein (Payload: `media_type`,
 ### `GET /api/queue` · `POST /api/queue-clear` · `POST /api/queue-retry`
 Job-Status abrufen (GET), abgeschlossene Jobs aus der Liste leeren (POST), fehlgeschlagenen Job wiederholen (POST).
 
+---
 
 ## youtube_api — YouTube
 

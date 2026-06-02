@@ -144,7 +144,7 @@ Bevor wir den Release-Branch abzweigen, stellen wir sicher, dass das Fundament a
 - **Backup & Ausfallsicherheit:** Vor jeder Migration von Konfigurationsdateien wird automatisch ein lokales Backup (z.B. `.bak`) angelegt. Beim Laden beschädigter JSON-Dateien wird der Fehler nicht stillgeschwiegen, sondern prominent gemeldet, und das System versucht, sich aus dem letzten intakten Backup zu reparieren.
 
 #### 1.2 Cross-Platform-Weichen (Mac / Windows / Linux) (Erledigt)
-- **Desktop-Integration:** 
+- **Desktop-Integration:**
   - Ist der Nutzer auf Mac: `osascript` (Finder-Aufrufe, Mount-AppleScripts).
   - Ist er auf Windows: native Windows-Pfade (Backslashes), `os.startfile` für Explorer und Windows-Systembenachrichtigungen.
   - Ist er im Docker/Linux: Deaktivierung aller Desktop-Integrationen, reine CLI-Fallbacks.
