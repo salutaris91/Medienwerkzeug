@@ -16,6 +16,7 @@ angegangen werden.
 | 11 | Inkrementeller Cache für den Duplikat-Scan | geplant | mittel |
 | 12 | Performance-Optimierung für sehr große Serienbibliotheken | geplant | mittel |
 | 13 | Komfortablere Health-Quick-Fix-Oberfläche | geplant | klein–mittel |
+| 14 | Health-Status-Vertrag & Frontend-Testabdeckung | geplant | klein–mittel |
 
 ---
 
@@ -353,3 +354,29 @@ vollständig neu aufgebaut wird oder der Nutzer seine Position verliert.
 
 ### Aufwand (grob)
 ~0,5–1 Tag.
+
+---
+
+## 14. Health-Status-Vertrag & Frontend-Testabdeckung
+
+Für den Vor-Release reicht eine pragmatische Health-UI-Limitierung mit Backend-
+Regressionstest. Eine gründlichere Absicherung der Health-Status-Schnittstelle
+und der Frontend-Reaktion kann nach dem Release separat umgesetzt werden.
+
+### Ziel
+Der Health-Scan-Status soll einen stabilen, dokumentierten Response-Vertrag
+bekommen, damit Frontend und Backend auch bei großen Ergebnislisten, Abbrüchen,
+Fehlern und Offline-Zuständen nicht auseinanderlaufen.
+
+### Umsetzung
+- JSON-Schema oder strukturierte Contract-Tests für `/api/nas/health-status`
+  definieren.
+- Health-Status-Zustände explizit abdecken: `idle`, `running`, `done`,
+  `cancelled`, `error` und NAS-offline-nahe Fehlerfälle.
+- Frontend-Tests für `renderHealthStatus()` ergänzen, insbesondere für das
+  500-Befunde-Limit, Gesamtzähler, Cache-Statistik, Abbruchstatus und Fehlertexte.
+- Testdaten mit sehr vielen Befunden als Fixture bereitstellen, ohne echte NAS-
+  oder Browser-Abhängigkeit.
+
+### Aufwand (grob)
+~0,5–1 Tag inklusive Test-Fixtures.
