@@ -205,29 +205,29 @@ Um die Robustheit abiszusichern, werden folgende Testfälle explizit implementie
 
 ---
 
-### Phase 3: Onboarding & First-Time User Experience
+### Phase 3: Onboarding & First-Time User Experience (Erledigt)
 *Was sieht der Nutzer beim allerersten Start? Diese Phase kommt VOR dem Packaging, damit der Wizard getestet werden kann, bevor die App eingepackt wird.*
 
-#### 3.1 Onboarding-Wizard
+#### 3.1 Onboarding-Wizard - Umgesetzt
 Beim ersten Öffnen darf nicht direkt das leere Dashboard erscheinen. Es muss ein Willkommens-Wizard (Setup) kommen:
-1. **Willkommen & Opt-In:** Vorstellung des Tools. Optionales Feld für die E-Mail-Adresse des Nutzers (zur Newsletter-Anmeldung/Updates) und eine Checkbox für anonyme Telemetrie (Nutzungsdaten wie OS, verarbeitete Job-Zahlen zur Verbesserung des Tools; standardmäßig aktiv mit klarem Opt-Out).
-2. **API-Keys abfragen:** TMDB-Key eintragen.
-3. **Medienserver auswählen:** Emby, Jellyfin oder Plex.
-4. **Speicherziele konfigurieren:** NAS-Pfad / lokaler Pfad.
+1. **Willkommen & Opt-In:** Vorstellung des Tools. Optionales Feld für die E-Mail-Adresse des Nutzers (zur Newsletter-Anmeldung/Updates) und eine Checkbox für anonyme Telemetrie (Nutzungsdaten wie OS, verarbeitete Job-Zahlen zur Verbesserung des Tools; standardmäßig inaktiv mit echtem Opt-In).
+2. **Sicherheit:** Optionale PIN/Passwort-Einrichtung mit anschließender Session-Authentifizierung und CSRF-Token-Austausch.
+3. **API-Keys abfragen:** TMDB-Key eintragen (wird verschlüsselt/.env gespeichert).
+4. **Speicherziele konfigurieren:** NAS-Pfad / lokaler Pfad mit darwin-kompatiblem Verbindungstest.
 5. **Inbox/Outbox Ordner festlegen:** Pfade für Quell- und Zielordner.
+6. **Abhängigkeiten:** System-Abhängigkeitsprüfung.
+7. **Abschluss:** ASCII- paypal Spendenlinks und Bestätigung.
 
-#### 3.2 Telemetrie & Opt-In-Handling (Backend)
-- **Schnittstelle:** Einrichten einer minimalen Anbindung an einen Telemetriedienst (z. B. PostHog, Mixpanel oder ein einfacher eigener Cloudflare Worker/Serverless Endpoint), der anonymisierte Events sammelt.
-- **Opt-Out-Flag:** Ein `telemetry_enabled`-Schalter in `settings.json`, der auch im Einstellungs-Tab der UI jederzeit deaktiviert werden kann.
-- **E-Mail-Übertragung:** Wenn der Nutzer seine E-Mail eingibt, wird diese einmalig an deine zentrale E-Mail-Erfassungsstelle (z. B. SendGrid, Mailchimp oder einen einfachen Webhook) geschickt.
+#### 3.2 Telemetrie & Opt-In-Handling (Backend) - Umgesetzt
+- **Schnittstelle:** Einrichten einer minimalen Anbindung an einen Telemetriedienst (eigener Cloudflare Worker/Serverless Endpoint), der anonymisierte Events sammelt.
+- **Opt-In-Flag:** Ein `telemetry_enabled`-Schalter in `settings.json`, der standardmäßig `false` ist und auch im Einstellungs-Tab der UI jederzeit geändert werden kann.
+- **E-Mail-Übertragung:** Wenn der Nutzer seine E-Mail eingibt, wird diese einmalig an deine zentrale E-Mail-Erfassungsstelle (Cloudflare Worker Webhook) datenschutzkonform übertragen (ohne E-Mail-Klartextspeicherung).
 
-> **Prioritäts-Hinweis:** Die E-Mail-Erfassung wird realistisch nur 5–15 % Conversion erreichen — NAS-Nutzer klicken erfahrungsgemäß "Überspringen". Der eigentliche Wert liegt in der **anonymen Telemetrie** (aktive Installationen, OS-Verteilung, Feature-Nutzung). Diese liefert die harten Zahlen zur App-Akzeptanz. Den E-Mail-Flow daher schlank halten und den Hauptaufwand in die Telemetrie-Anbindung stecken.
+#### 3.3 Fallback-Artworks - Umgesetzt
+Wenn keine Cover gefunden werden, generische, farbige HSL-Gradienten-Platzhalter im App-Design anzeigen (deterministisch aus dem Medientitel über globalen `onerror` Listener berechnet).
 
-#### 3.3 Fallback-Artworks
-Wenn keine Cover gefunden werden, generische (aber hübsche) Platzhalter im Design anzeigen.
-
-#### 3.4 In-App-Hilfe
-Eine kurze, nutzerfreundliche Hilfe direkt in der App (Tooltips, FAQ-Seite). Kein externes Wiki nötig für den Anfang.
+#### 3.4 In-App-Hilfe - Umgesetzt
+Eine kurze, nutzerfreundliche Hilfe direkt in der App (Tooltips, die via Tastatur/Fokus gesteuert werden können, FAQ-Seite in Sidebar). Kein externes Wiki nötig für den Anfang.
 
 ---
 

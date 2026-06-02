@@ -11,7 +11,7 @@ angegangen werden.
 | 3 | KI-Cover- & Logo-Generierung (Gemini/OpenRouter) | geplant | mittel |
 | 4 | Selektiver Import für StreamFab-Downloads | erledigt | klein |
 | 5 | Angleichung an Metadatendienst (NAS-Renaming-Tool) | erledigt | mittel |
-| 9 | Eingebaute Authentifizierung (PIN/Passwort) | geplant | mittel |
+| 9 | Eingebaute Authentifizierung (PIN/Passwort) | erledigt | mittel |
 | 10 | Duplikat-Erkennung für Filme | geplant | mittel |
 | 11 | Inkrementeller Cache für den Duplikat-Scan | geplant | mittel |
 | 12 | Performance-Optimierung für sehr große Serienbibliotheken | geplant | mittel |
