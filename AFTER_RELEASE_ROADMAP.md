@@ -17,6 +17,7 @@ angegangen werden.
 | 12 | Performance-Optimierung für sehr große Serienbibliotheken | geplant | mittel |
 | 13 | Komfortablere Health-Quick-Fix-Oberfläche | geplant | klein–mittel |
 | 14 | Health-Status-Vertrag & Frontend-Testabdeckung | geplant | klein–mittel |
+| 15 | FAQ sprachlich und visuell überarbeiten | geplant | klein |
 
 ---
 
@@ -380,3 +381,22 @@ Fehlern und Offline-Zuständen nicht auseinanderlaufen.
 
 ### Aufwand (grob)
 ~0,5–1 Tag inklusive Test-Fixtures.
+
+---
+
+## 15. FAQ sprachlich und visuell überarbeiten
+
+Die FAQ-Texte sollen sprachlich sauber auf Deutsch überarbeitet werden. Aktuell
+fehlen an mehreren Stellen Umlaute oder wurden durch Umschreibungen wie `Ae`,
+`Oe` und `Ue` ersetzt. Zusätzlich wirkt das Fragezeichen-Icon über dem
+FAQ-Bereich noch nicht stimmig.
+
+### Ziel
+- Deutsche FAQ-Texte vollständig prüfen und fehlende Umlaute korrekt einsetzen.
+- Formulierungen überarbeiten, damit die Fragen und Antworten natürlich auf
+  Deutsch klingen.
+- Gestaltung, Größe und Position des Fragezeichen-Icons prüfen und optisch
+  verbessern.
+
+### Aufwand (grob)
+Klein: Textkorrektur und eine gezielte visuelle Anpassung im Frontend.
