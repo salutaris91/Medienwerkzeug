@@ -213,7 +213,7 @@ Beim ersten Öffnen darf nicht direkt das leere Dashboard erscheinen. Es muss ei
 1. **Willkommen & Opt-In:** Vorstellung des Tools. Optionales Feld für die E-Mail-Adresse des Nutzers (zur Newsletter-Anmeldung/Updates) und eine Checkbox für anonyme Telemetrie (Nutzungsdaten wie OS, verarbeitete Job-Zahlen zur Verbesserung des Tools; standardmäßig inaktiv mit echtem Opt-In).
 2. **Sicherheit:** Optionale PIN/Passwort-Einrichtung mit anschließender Session-Authentifizierung und CSRF-Token-Austausch.
 3. **API-Keys abfragen:** TMDB-Key eintragen (wird verschlüsselt/.env gespeichert).
-4. **Speicherziele konfigurieren:** NAS-Pfad / lokaler Pfad mit darwin-kompatiblem Verbindungstest.
+4. **Speicherziele konfigurieren:** NAS-Pfad / lokaler Pfad mit darwin-kompatiblem Verbindungstest (Achtung: dieser Test ist nicht frei von Seiteneffekten; er führt unter macOS reale SMB-Mounts per AppleScript durch und öffnet im Fallback den Finder, was den System-Mount-Zustand verändert).
 5. **Inbox/Outbox Ordner festlegen:** Pfade für Quell- und Zielordner.
 6. **Abhängigkeiten:** System-Abhängigkeitsprüfung.
 7. **Abschluss:** ASCII- paypal Spendenlinks und Bestätigung.

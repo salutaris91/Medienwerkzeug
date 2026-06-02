@@ -1038,6 +1038,34 @@ function closeAllTooltips() {
     });
 }
 
+// Central helper to create HSL gradient fallback artwork
+function createFallbackPoster(title, isTv, width, height) {
+    const fallback = document.createElement("div");
+    fallback.className = "fallback-poster";
+
+    let hash = 0;
+    for (let i = 0; i < title.length; i++) {
+        hash = title.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const hue = Math.abs(hash % 360);
+    fallback.style.background = `linear-gradient(135deg, hsl(${hue}, 45%, 16%) 0%, hsl(${(hue + 45) % 360}, 50%, 26%) 100%)`;
+
+    const icon = document.createElement("div");
+    icon.className = "fallback-poster-icon";
+    icon.textContent = isTv ? "📺" : "🎬";
+
+    const titleEl = document.createElement("p");
+    titleEl.className = "fallback-poster-title";
+    titleEl.textContent = title;
+
+    fallback.appendChild(icon);
+    fallback.appendChild(titleEl);
+
+    fallback.style.width = width || "100%";
+    fallback.style.height = height || "auto";
+    return fallback;
+}
+
 // Global Image Error Handler for CSS fallbacks
 window.addEventListener('error', function (e) {
     if (e.target.tagName && e.target.tagName.toLowerCase() === 'img') {
@@ -1045,31 +1073,10 @@ window.addEventListener('error', function (e) {
         if (img.classList.contains("poster-img") || img.getAttribute("data-fallback") === "true") {
             const title = img.getAttribute("alt") || img.getAttribute("data-title") || "Medienwerkzeug";
             const isTv = img.getAttribute("data-media-type") === "tv" || img.classList.contains("type-tv");
+            const width = img.style.width || "100%";
+            const height = img.style.height || "auto";
 
-            const fallback = document.createElement("div");
-            fallback.className = "fallback-poster";
-
-            let hash = 0;
-            for (let i = 0; i < title.length; i++) {
-                hash = title.charCodeAt(i) + ((hash << 5) - hash);
-            }
-            const hue = Math.abs(hash % 360);
-            fallback.style.background = `linear-gradient(135deg, hsl(${hue}, 45%, 16%) 0%, hsl(${(hue + 45) % 360}, 50%, 26%) 100%)`;
-
-            const icon = document.createElement("div");
-            icon.className = "fallback-poster-icon";
-            icon.textContent = isTv ? "📺" : "🎬";
-
-            const titleEl = document.createElement("p");
-            titleEl.className = "fallback-poster-title";
-            titleEl.textContent = title;
-
-            fallback.appendChild(icon);
-            fallback.appendChild(titleEl);
-
-            fallback.style.width = img.style.width || "100%";
-            fallback.style.height = img.style.height || "auto";
-
+            const fallback = createFallbackPoster(title, isTv, width, height);
             img.replaceWith(fallback);
         }
     }
@@ -4216,19 +4223,15 @@ function renderDownloaderMergeItems() {
             img.setAttribute("data-fallback", "true");
             img.setAttribute("alt", item.title || "Video");
             img.setAttribute("data-media-type", "tv");
-            img.src = item.thumbnail;
             img.style.width = "54px";
             img.style.height = "30px";
             img.style.objectFit = "cover";
             img.style.borderRadius = "2px";
             left.appendChild(img);
+            img.src = item.thumbnail;
         } else {
-            const placeholder = document.createElement("div");
-            placeholder.style.width = "54px";
-            placeholder.style.height = "30px";
-            placeholder.style.background = "rgba(255,255,255,0.05)";
-            placeholder.style.borderRadius = "2px";
-            left.appendChild(placeholder);
+            const fallback = createFallbackPoster(item.title || "Video", true, "54px", "30px");
+            left.appendChild(fallback);
         }
         
         const info = document.createElement("div");
@@ -5236,21 +5239,16 @@ function renderSubscriptionsList() {
                         img.setAttribute("data-fallback", "true");
                         img.setAttribute("alt", v.title || "Video");
                         img.setAttribute("data-media-type", "tv");
-                        img.src = v.thumbnail;
-                        img.alt = "Thumbnail";
                         img.style.width = "72px";
                         img.style.height = "40px";
                         img.style.objectFit = "cover";
                         img.style.borderRadius = "4px";
                         img.style.border = "1px solid rgba(255, 255, 255, 0.05)";
                         vLeft.appendChild(img);
+                        img.src = v.thumbnail;
                     } else {
-                        const imgPlaceholder = document.createElement("div");
-                        imgPlaceholder.style.width = "72px";
-                        imgPlaceholder.style.height = "40px";
-                        imgPlaceholder.style.background = "rgba(255, 255, 255, 0.05)";
-                        imgPlaceholder.style.borderRadius = "4px";
-                        vLeft.appendChild(imgPlaceholder);
+                        const fallback = createFallbackPoster(v.title || "Video", true, "72px", "40px");
+                        vLeft.appendChild(fallback);
                     }
                     
                     const vInfo = document.createElement("div");
@@ -9832,19 +9830,15 @@ function renderMergeItems() {
             img.setAttribute("data-fallback", "true");
             img.setAttribute("alt", item.title || "Video");
             img.setAttribute("data-media-type", "tv");
-            img.src = item.thumbnail;
             img.style.width = "54px";
             img.style.height = "30px";
             img.style.objectFit = "cover";
             img.style.borderRadius = "2px";
             left.appendChild(img);
+            img.src = item.thumbnail;
         } else {
-            const placeholder = document.createElement("div");
-            placeholder.style.width = "54px";
-            placeholder.style.height = "30px";
-            placeholder.style.background = "rgba(255,255,255,0.05)";
-            placeholder.style.borderRadius = "2px";
-            left.appendChild(placeholder);
+            const fallback = createFallbackPoster(item.title || "Video", true, "54px", "30px");
+            left.appendChild(fallback);
         }
         
         const info = document.createElement("div");

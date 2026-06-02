@@ -87,11 +87,11 @@ def main():
         print(f"Error running startup jobs tasks: {e}", file=sys.stderr)
     
     # Ensure standard directories exist if configured
-    inbox = settings.get("inbox_dir") or os.path.expanduser("~/Downloads/Medien Input")
-    outbox = settings.get("outbox_dir") or os.path.expanduser("~/Downloads/Medien Output")
-    if inbox:
+    inbox = settings.get("inbox_dir")
+    outbox = settings.get("outbox_dir")
+    if inbox and inbox.strip():
         os.makedirs(inbox, exist_ok=True)
-    if outbox:
+    if outbox and outbox.strip():
         os.makedirs(outbox, exist_ok=True)
     
     # Start background worker
