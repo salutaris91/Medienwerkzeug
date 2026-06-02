@@ -1,0 +1,42 @@
+import os
+import hashlib
+from flask import request, session, abort, redirect
+from gui.core.persistence import load_settings
+
+def auth_before_request():
+    # 1. Allowlist exceptions that bypass authentication completely
+    # request.endpoint == 'static' allows serving JS/CSS/assets without login
+    if (request.endpoint == 'static' or 
+        request.path == '/' or 
+        request.path == '/favicon.ico' or 
+        request.path == '/api/auth/login' or 
+        request.path == '/api/auth/status'):
+        return
+
+    # 2. Check if authentication is active (password_hash is set)
+    settings = load_settings()
+    password_hash = settings.get("password_hash", "")
+    
+    if password_hash:
+        # Check session authentication state
+        authenticated = session.get('authenticated', False)
+        
+        if not authenticated:
+            if request.path.startswith('/api/'):
+                abort(401, "Authentication required")
+            else:
+                return redirect('/')
+
+        # 3. CSRF Token Validation for state-changing requests
+        # (POST, PUT, DELETE) when authentication is active
+        if request.method in ('POST', 'PUT', 'DELETE'):
+            csrf_token = request.headers.get('X-CSRF-Token')
+            csrf_hash = session.get('csrf_hash')
+            
+            if not csrf_token or not csrf_hash:
+                abort(400, "CSRF validation failed: Missing token or session hash")
+                
+            # Verify SHA-256 hash match
+            computed_hash = hashlib.sha256(csrf_token.encode('utf-8')).hexdigest()
+            if computed_hash != csrf_hash:
+                abort(400, "CSRF validation failed: Invalid token")

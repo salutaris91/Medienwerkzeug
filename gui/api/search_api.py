@@ -327,7 +327,7 @@ def handle_api_estimate_conversion():
 
 
 
-@search_api.route('/toggle-visibility', methods=['GET', 'POST'])
+@search_api.route('/toggle-visibility', methods=['POST'])
 def handle_api_toggle_visibility():
     try:
         params = request.get_json() or {}

@@ -100,6 +100,7 @@ DEFAULT_SETTINGS = {
     "youtube_subscriptions": [],
     "media_server": "",
     "show_console": False,
+    "password_hash": "",
     "version": 1
 }
 
@@ -146,7 +147,9 @@ def read_json_file(file_path, lock, default_data=None):
                         print(f"[Persistence] Error reading backup {backup_path}: {backup_err}", file=sys.stderr)
                 else:
                     print(f"[Persistence] No backup file found for {file_path}", file=sys.stderr)
-        return default_data if default_data is not None else {}
+        import copy
+        return copy.deepcopy(default_data) if default_data is not None else {}
+
 
 def write_json_file(file_path, lock, data):
     """
@@ -205,7 +208,8 @@ def update_json_file(file_path, lock, update_fn, default_data=None):
                     except Exception as backup_err:
                         print(f"[Persistence] RMW backup load error: {backup_err}", file=sys.stderr)
         if data is None:
-            data = default_data if default_data is not None else {}
+            import copy
+            data = copy.deepcopy(default_data) if default_data is not None else {}
         try:
             update_fn(data)
         except Exception as e:
@@ -469,3 +473,24 @@ def update_settings(update_fn):
     if success:
         _cached_settings = None
     return success
+
+def set_password(password):
+    from werkzeug.security import generate_password_hash
+    pw_hash = generate_password_hash(password, method='pbkdf2:sha256')
+    def mutate(data):
+        data["password_hash"] = pw_hash
+    return update_settings(mutate)
+
+def check_password(password):
+    from werkzeug.security import check_password_hash
+    settings = load_settings()
+    pw_hash = settings.get("password_hash", "")
+    if not pw_hash:
+        return False
+    return check_password_hash(pw_hash, password)
+
+def clear_password():
+    def mutate(data):
+        data["password_hash"] = ""
+    return update_settings(mutate)
+

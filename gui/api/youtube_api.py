@@ -35,7 +35,7 @@ def handle_api_youtube_subscriptions():
 
 
 
-@youtube_api.route('/youtube/subscriptions/check', methods=['GET', 'POST'])
+@youtube_api.route('/youtube/subscriptions/check', methods=['POST'])
 def handle_api_check_subscriptions():
     import uuid
     task_id = str(uuid.uuid4())
@@ -66,7 +66,7 @@ def handle_api_check_subscriptions():
 
 
 
-@youtube_api.route('/youtube/subscriptions/approve', methods=['GET', 'POST'])
+@youtube_api.route('/youtube/subscriptions/approve', methods=['POST'])
 def handle_api_subscriptions_approve():
     try:
         params = request.get_json() or {}
@@ -162,7 +162,7 @@ def handle_api_subscriptions_approve():
 
 
 
-@youtube_api.route('/youtube/subscriptions/ignore', methods=['GET', 'POST'])
+@youtube_api.route('/youtube/subscriptions/ignore', methods=['POST'])
 def handle_api_subscriptions_ignore():
     try:
         params = request.get_json() or {}
@@ -279,7 +279,7 @@ def handle_api_youtube_search_parts():
 
 
 
-@youtube_api.route('/youtube/merge', methods=['GET', 'POST'])
+@youtube_api.route('/youtube/merge', methods=['POST'])
 def handle_api_youtube_merge():
     urls = params.get("urls", [])
     title = params.get("title", "Merged Video")
@@ -376,7 +376,7 @@ def handle_api_youtube_merge():
 
 
 
-@youtube_api.route('/yt/fetch', methods=['GET', 'POST'])
+@youtube_api.route('/yt/fetch', methods=['POST'])
 def handle_api_yt_fetch():
     try:
         params = request.get_json() or {}
@@ -580,7 +580,7 @@ def handle_api_yt_segments():
 
 
 
-@youtube_api.route('/yt/cut-done', methods=['GET', 'POST'])
+@youtube_api.route('/yt/cut-done', methods=['POST'])
 def handle_api_yt_cut_done():
     try:
         params = request.get_json() or {}
@@ -605,7 +605,7 @@ def handle_api_yt_cut_done():
 
 
 
-@youtube_api.route('/yt/finalize', methods=['GET', 'POST'])
+@youtube_api.route('/yt/finalize', methods=['POST'])
 def handle_api_yt_finalize():
     try:
         params = request.get_json() or {}

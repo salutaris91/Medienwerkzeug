@@ -903,6 +903,7 @@
                         <button class="settings-tab-btn" data-settings-tab="tab-sync">🔄 Speicher & Sync</button>
                         <button class="settings-tab-btn" data-settings-tab="tab-notifications">🔔 Benachrichtigungen</button>
                         <button class="settings-tab-btn" data-settings-tab="tab-appearance">🎨 Darstellung & Tools</button>
+                        <button class="settings-tab-btn" data-settings-tab="tab-security">🔒 Sicherheit</button>
                     </div>
 
                     <!-- TAB 1: PATHS & DIRECTORIES -->
@@ -1232,6 +1233,37 @@
                             <button id="btn-restart-server" class="btn btn-danger inline-style-145" >
                                 🔄 Server neu starten
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- TAB 5: SECURITY -->
+                    <div id="settings-tab-security" class="settings-tab-panel hidden">
+                        <div class="form-group inline-style-120">
+                            <span class="form-label-style">LAN-Zugriffsschutz (Passwort):</span>
+                            <p class="inline-style-121">Schütze den Zugriff auf das Medienwerkzeug im lokalen Netzwerk. Wenn kein Passwort gesetzt ist, ist die App für jeden im LAN frei zugänglich.</p>
+                            
+                            <div style="display: flex; flex-direction: column; gap: 15px; max-width: 500px; margin-top: 15px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 20px; border-radius: 8px;">
+                                <div id="settings-password-status-area" style="font-weight: 500; font-size: 0.95em; color: var(--text-main); margin-bottom: 5px;">
+                                    Status: <span id="settings-password-status-text" style="color: #ef4444;">Ungeschützt (Kein Passwort gesetzt)</span>
+                                </div>
+
+                                <div class="form-group" id="settings-current-password-group" style="margin: 0;">
+                                    <label for="settings-current-password" style="font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Aktuelles Passwort:</label>
+                                    <input type="password" id="settings-current-password" placeholder="Aktuelles Passwort bestätigen..." style="width: 100%; box-sizing: border-box;">
+                                </div>
+
+                                <div class="form-group" style="margin: 0;">
+                                    <label for="settings-new-password" style="font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Neues Passwort (leer lassen zum Deaktivieren):</label>
+                                    <input type="password" id="settings-new-password" placeholder="Neues Passwort oder PIN..." style="width: 100%; box-sizing: border-box;">
+                                </div>
+
+                                <div id="settings-password-error-message" class="hidden" style="color: #ef4444; font-size: 0.85em;"></div>
+                                <div id="settings-password-success-message" class="hidden" style="color: #10b981; font-size: 0.85em;"></div>
+
+                                <div>
+                                    <button id="btn-update-password" class="btn btn-primary" type="button" style="font-weight: 600;">🔒 Passwort aktualisieren</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -2017,6 +2049,23 @@
                 <button class="btn btn-secondary" onclick="closeImportPreview()">Abbrechen</button>
                 <button class="btn btn-accent" id="btn-import-preview-confirm" onclick="confirmImportPreview()">Auswahl Importieren</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Login Overlay Screen -->
+    <div id="login-screen" class="hidden" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg-main); display: flex; justify-content: center; align-items: center; z-index: 9999999;">
+        <div class="card" style="width: 100%; max-width: 400px; padding: 32px; border: 1px solid var(--border-light); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); text-align: center;">
+            <img src="logo.png" alt="Medienwerkzeug Logo" style="width: 80px; height: 80px; margin-bottom: 20px;">
+            <h2 style="margin-top: 0; margin-bottom: 8px; color: var(--text-main);">Medienwerkzeug</h2>
+            <p class="text-muted" style="font-size: 0.9em; margin-bottom: 24px;">Bitte Passwort eingeben, um fortzufahren.</p>
+            <form id="login-form" onsubmit="handleLoginSubmit(event)" style="display: flex; flex-direction: column; gap: 16px;">
+                <div class="form-group" style="text-align: left; margin: 0;">
+                    <label for="login-password" style="font-size: 0.85em; margin-bottom: 6px; color: var(--text-muted);">Passwort:</label>
+                    <input type="password" id="login-password" placeholder="Passwort..." required style="width: 100%; box-sizing: border-box;">
+                </div>
+                <div id="login-error-message" class="hidden" style="color: #ef4444; font-size: 0.85em; text-align: left;"></div>
+                <button type="submit" class="btn btn-accent btn-lg" style="width: 100%; justify-content: center; font-weight: 600;">🔓 Anmelden</button>
+            </form>
         </div>
     </div>
 

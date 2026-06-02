@@ -1,4 +1,179 @@
 // ==========================================================================
+// AUTHENTICATION & CSRF WRAPPER
+// ==========================================================================
+const originalFetch = window.fetch;
+window.fetch = async function (resource, options = {}) {
+    options.headers = options.headers || {};
+    
+    const csrfToken = getCookie('mw_csrf_token');
+    const method = (options.method || 'GET').toUpperCase();
+    if (csrfToken && ['POST', 'PUT', 'DELETE'].includes(method)) {
+        if (!(options.headers instanceof Headers)) {
+            options.headers['X-CSRF-Token'] = csrfToken;
+        } else {
+            options.headers.set('X-CSRF-Token', csrfToken);
+        }
+    }
+    
+    const response = await originalFetch(resource, options);
+    
+    if (response.status === 401 && !resource.toString().includes('/api/auth/status')) {
+        showLoginScreen();
+    }
+    
+    return response;
+};
+
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+
+function showLoginScreen() {
+    const screen = document.getElementById('login-screen');
+    if (screen) {
+        screen.classList.remove('hidden');
+        const pwInput = document.getElementById('login-password');
+        if (pwInput) pwInput.focus();
+    }
+}
+
+function hideLoginScreen() {
+    const screen = document.getElementById('login-screen');
+    if (screen) {
+        screen.classList.add('hidden');
+    }
+}
+
+async function checkAuthStatus() {
+    try {
+        const response = await originalFetch('/api/auth/status');
+        const data = await response.json();
+        
+        const statusText = document.getElementById('settings-password-status-text');
+        const currentPwGroup = document.getElementById('settings-current-password-group');
+        
+        if (data.auth_required) {
+            if (statusText) {
+                statusText.textContent = "Geschützt (Passwort aktiv)";
+                statusText.style.color = "#10b981";
+            }
+            if (currentPwGroup) {
+                currentPwGroup.classList.remove('hidden');
+            }
+            
+            if (!data.authenticated) {
+                showLoginScreen();
+                return false;
+            }
+        } else {
+            if (statusText) {
+                statusText.textContent = "Ungeschützt (Kein Passwort gesetzt)";
+                statusText.style.color = "#ef4444";
+            }
+            if (currentPwGroup) {
+                currentPwGroup.classList.add('hidden');
+            }
+        }
+        hideLoginScreen();
+        return true;
+    } catch (e) {
+        console.error("Error checking auth status:", e);
+        return true;
+    }
+}
+
+async function handleLoginSubmit(event) {
+    event.preventDefault();
+    const passwordInput = document.getElementById('login-password');
+    const password = passwordInput.value;
+    const errorMsg = document.getElementById('login-error-message');
+    
+    if (errorMsg) errorMsg.classList.add('hidden');
+    
+    try {
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.status === 200 && data.status === 'success') {
+            hideLoginScreen();
+            passwordInput.value = '';
+            window.location.reload();
+        } else {
+            if (errorMsg) {
+                errorMsg.textContent = data.message || "Ungültiges Passwort.";
+                errorMsg.classList.remove('hidden');
+            }
+        }
+    } catch (e) {
+        console.error("Login error:", e);
+        if (errorMsg) {
+            errorMsg.textContent = "Netzwerkfehler beim Anmelden.";
+            errorMsg.classList.remove('hidden');
+        }
+    }
+}
+
+async function handlePasswordUpdate() {
+    const currentPasswordInput = document.getElementById('settings-current-password');
+    const newPasswordInput = document.getElementById('settings-new-password');
+    const errorMsg = document.getElementById('settings-password-error-message');
+    const successMsg = document.getElementById('settings-password-success-message');
+    
+    if (errorMsg) errorMsg.classList.add('hidden');
+    if (successMsg) successMsg.classList.add('hidden');
+    
+    const current_password = currentPasswordInput ? currentPasswordInput.value : '';
+    const new_password = newPasswordInput ? newPasswordInput.value : '';
+    
+    try {
+        const response = await fetch('/api/settings/password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                current_password: current_password,
+                new_password: new_password
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.status === 200) {
+            if (successMsg) {
+                successMsg.textContent = data.message || "Passwort erfolgreich aktualisiert.";
+                successMsg.classList.remove('hidden');
+            }
+            if (currentPasswordInput) currentPasswordInput.value = '';
+            if (newPasswordInput) newPasswordInput.value = '';
+            
+            checkAuthStatus();
+        } else {
+            if (errorMsg) {
+                errorMsg.textContent = data.message || "Fehler beim Aktualisieren des Passworts.";
+                errorMsg.classList.remove('hidden');
+            }
+        }
+    } catch (e) {
+        console.error("Password update error:", e);
+        if (errorMsg) {
+            errorMsg.textContent = "Netzwerkfehler.";
+            errorMsg.classList.remove('hidden');
+        }
+    }
+}
+
+window.handleLoginSubmit = handleLoginSubmit;
+window.handlePasswordUpdate = handlePasswordUpdate;
+window.checkAuthStatus = checkAuthStatus;
+
+// ==========================================================================
 // STATE MANAGEMENT
 // ==========================================================================
 let currentProject = "";
@@ -173,6 +348,15 @@ async function fetchYtNasSeasons() {
 // INITIALIZATION
 // ==========================================================================
 document.addEventListener("DOMContentLoaded", () => {
+    // Check security authentication first
+    checkAuthStatus();
+
+    // Bind security settings button
+    const btnUpdatePw = document.getElementById("btn-update-password");
+    if (btnUpdatePw) {
+        btnUpdatePw.addEventListener("click", handlePasswordUpdate);
+    }
+
     // Apply theme from localStorage immediately to prevent flashes on load
     const savedTheme = localStorage.getItem("app_theme");
     if (savedTheme) {

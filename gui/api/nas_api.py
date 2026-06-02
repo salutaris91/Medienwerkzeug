@@ -126,7 +126,7 @@ def handle_api_check_nas_duplicate():
 
 
 
-@nas_api.route('/streamfab-import', methods=['GET', 'POST'])
+@nas_api.route('/streamfab-import', methods=['POST'])
 def handle_api_streamfab_import():
     try:
         params = request.get_json() or {}
@@ -513,7 +513,7 @@ def handle_api_media_compare():
 
 
 
-@nas_api.route('/resolve-duplicate', methods=['GET', 'POST'])
+@nas_api.route('/resolve-duplicate', methods=['POST'])
 def handle_api_resolve_duplicate():
     try:
         params = request.get_json() or {}

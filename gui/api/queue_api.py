@@ -414,7 +414,7 @@ def handle_api_preview_process():
 
 
 
-@queue_api.route('/process', methods=['GET', 'POST'])
+@queue_api.route('/process', methods=['POST'])
 def handle_api_process():
     try:
         params = request.get_json() or {}
@@ -498,8 +498,8 @@ def handle_api_queue():
 
 
 
-@queue_api.route('/queue-clear', methods=['GET', 'POST'])
-@queue_api.route('/queue/clear', methods=['GET', 'POST'])
+@queue_api.route('/queue-clear', methods=['POST'])
+@queue_api.route('/queue/clear', methods=['POST'])
 def handle_api_queue_clear():
     try:
         params = request.get_json() or {}

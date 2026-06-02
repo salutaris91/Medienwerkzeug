@@ -12,6 +12,7 @@ import gui.mw_metadata as mw_metadata
 
 system_api = Blueprint('system_api', __name__)
 NAS_CONNECT_COOLDOWN_SECONDS = 5
+failed_attempts = {}
 
 # Global variables imported from processor
 from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
@@ -90,38 +91,50 @@ def handle_api_check_dependencies():
 
 
 
-@system_api.route('/profile', methods=['GET', 'POST'])
-@system_api.route('/get-profile', methods=['GET', 'POST'])
-@system_api.route('/post-profile', methods=['GET', 'POST'])
-def handle_api_profile():
-    if request.method == 'GET' or (request.method == 'POST' and not request.is_json):
-        show_name = request.args.get("show_name", "").strip()
-        if not show_name:
-            try:
-                params = request.get_json() or {}
-            except Exception:
-                params = {}
-            show_name = params.get("show_name", "").strip()
-        if not show_name:
-            return jsonify({"error": "show_name parameter is missing"}), 400
-        profile = load_show_profile(show_name)
-        return jsonify(profile)
-    else: # POST with JSON
+def _get_profile_logic():
+    show_name = request.args.get("show_name", "").strip()
+    if not show_name:
         try:
             params = request.get_json() or {}
         except Exception:
             params = {}
-        show_name = params.get("show_name")
-        profile_data = params.get("profile")
-        if not show_name or not profile_data:
-            return jsonify({"error": "show_name or profile parameter is missing"}), 400
-        success = save_show_profile(show_name, profile_data)
-        return jsonify({"success": success})
+        show_name = params.get("show_name", "").strip()
+    if not show_name:
+        return jsonify({"error": "show_name parameter is missing"}), 400
+    profile = load_show_profile(show_name)
+    return jsonify(profile)
+
+def _post_profile_logic():
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    show_name = params.get("show_name")
+    profile_data = params.get("profile")
+    if not show_name or not profile_data:
+        return jsonify({"error": "show_name or profile parameter is missing"}), 400
+    success = save_show_profile(show_name, profile_data)
+    return jsonify({"success": success})
+
+@system_api.route('/profile', methods=['GET', 'POST'])
+def handle_api_profile():
+    if request.method == 'GET' or (request.method == 'POST' and not request.is_json):
+        return _get_profile_logic()
+    else:
+        return _post_profile_logic()
+
+@system_api.route('/get-profile', methods=['GET'])
+def handle_api_get_profile():
+    return _get_profile_logic()
+
+@system_api.route('/post-profile', methods=['POST'])
+def handle_api_post_profile():
+    return _post_profile_logic()
 
 
 
-@system_api.route('/system-restart', methods=['GET', 'POST'])
-@system_api.route('/system/restart', methods=['GET', 'POST'])
+@system_api.route('/system-restart', methods=['POST'])
+@system_api.route('/system/restart', methods=['POST'])
 def handle_api_system_restart():
     try:
         params = request.get_json() or {}
@@ -269,7 +282,7 @@ def handle_api_nas_connect():
 
 
 
-@system_api.route('/system-open-folder', methods=['GET', 'POST'])
+@system_api.route('/system-open-folder', methods=['POST'])
 def handle_api_system_open_folder():
     try:
         params = request.get_json() or {}
@@ -580,3 +593,104 @@ def api_profiles():
             return jsonify({"status": "success"})
 
         return jsonify({"status": "error", "message": "Unbekannte Aktion."}), 400
+
+@system_api.route('/auth/login', methods=['POST'])
+def handle_api_auth_login():
+    from flask import request, jsonify, session, make_response
+    import secrets
+    import hashlib
+    import time
+    from gui.core.persistence import check_password
+
+    # Get client IP
+    client_ip = request.remote_addr or '127.0.0.1'
+    if request.headers.getlist("X-Forwarded-For"):
+        client_ip = request.headers.getlist("X-Forwarded-For")[0]
+
+    now = time.time()
+
+    # Check rate limit lockout (5 failed attempts in last 60s)
+    if client_ip in failed_attempts:
+        attempts, lockout_time = failed_attempts[client_ip]
+        if attempts >= 5 and now - lockout_time < 60:
+            return jsonify({"status": "error", "message": "Zu viele Fehlversuche. Bitte warte eine Minute."}), 429
+
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+
+    password = params.get("password", "")
+
+    if check_password(password):
+        # Reset counter on successful login
+        failed_attempts.pop(client_ip, None)
+
+        session['authenticated'] = True
+
+        # Generate CSRF token
+        csrf_token = secrets.token_hex(32)
+        session['csrf_hash'] = hashlib.sha256(csrf_token.encode('utf-8')).hexdigest()
+
+        resp = make_response(jsonify({"status": "success"}))
+        resp.set_cookie('mw_csrf_token', csrf_token, samesite='Lax', secure=False)
+        return resp
+    else:
+        attempts, lockout_time = failed_attempts.get(client_ip, (0, 0))
+        attempts += 1
+        lockout_time = now if attempts >= 5 else 0
+        failed_attempts[client_ip] = (attempts, lockout_time)
+
+        # Progressive delay capped strictly at 2.0s
+        delay = min(2.0, 0.5 * (2 ** (attempts - 1)))
+        time.sleep(delay)
+
+        return jsonify({"status": "error", "message": "Ungültiges Passwort."}), 401
+
+@system_api.route('/auth/logout', methods=['POST'])
+def handle_api_auth_logout():
+    from flask import session, make_response, jsonify
+    session.clear()
+    resp = make_response(jsonify({"status": "success"}))
+    resp.delete_cookie('mw_csrf_token')
+    return resp
+
+@system_api.route('/auth/status', methods=['GET'])
+def handle_api_auth_status():
+    from flask import jsonify, session
+    from gui.core.persistence import load_settings
+    settings = load_settings()
+    has_password = bool(settings.get("password_hash", ""))
+    authenticated = session.get('authenticated', False) if has_password else True
+    return jsonify({
+        "auth_required": has_password,
+        "authenticated": authenticated
+    })
+
+@system_api.route('/settings/password', methods=['POST'])
+def handle_api_settings_password():
+    from flask import request, jsonify
+    from gui.core.persistence import load_settings, set_password, clear_password, check_password
+
+    settings = load_settings()
+    has_password = bool(settings.get("password_hash", ""))
+
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+
+    current_password = params.get("current_password", "")
+    new_password = params.get("new_password", "")
+
+    # If password configured, old confirmation required
+    if has_password:
+        if not check_password(current_password):
+            return jsonify({"status": "error", "message": "Aktuelles Passwort ist ungültig."}), 403
+
+    if new_password:
+        set_password(new_password)
+        return jsonify({"status": "success", "message": "Passwort erfolgreich aktualisiert."})
+    else:
+        clear_password()
+        return jsonify({"status": "success", "message": "Passwort erfolgreich entfernt."})

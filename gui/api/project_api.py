@@ -362,8 +362,8 @@ def handle_api_paths_preview_clean():
 
 
 
-@project_api.route('/paths-clean', methods=['GET', 'POST'])
-@project_api.route('/paths/clean', methods=['GET', 'POST'])
+@project_api.route('/paths-clean', methods=['POST'])
+@project_api.route('/paths/clean', methods=['POST'])
 def handle_api_paths_clean():
     try:
         params = request.get_json() or {}
@@ -441,7 +441,7 @@ def handle_api_paths_clean():
 
 
 
-@project_api.route('/clean-project', methods=['GET', 'POST'])
+@project_api.route('/clean-project', methods=['POST'])
 def handle_api_clean_project():
     try:
         params = request.get_json() or {}
@@ -523,7 +523,7 @@ def handle_api_clean_project():
 
 
 
-@project_api.route('/delete-project', methods=['GET', 'POST'])
+@project_api.route('/delete-project', methods=['POST'])
 def handle_api_delete_project():
     try:
         params = request.get_json() or {}
@@ -644,7 +644,7 @@ def handle_api_merge_projects():
 
 
 
-@project_api.route('/split-project-file', methods=['GET', 'POST'])
+@project_api.route('/split-project-file', methods=['POST'])
 def handle_api_split_project_file():
     try:
         params = request.get_json() or {}

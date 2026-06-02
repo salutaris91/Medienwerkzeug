@@ -16,6 +16,26 @@ from gui.core.utils import load_settings
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 
+# Configure Flask sessions and secure cookies
+from gui.core.persistence import load_env_keys, save_env_keys
+env_keys = load_env_keys()
+secret_key = os.environ.get("FLASK_SECRET_KEY") or env_keys.get("FLASK_SECRET_KEY")
+if not secret_key:
+    import secrets
+    secret_key = secrets.token_hex(32)
+    save_env_keys({"FLASK_SECRET_KEY": secret_key})
+
+app.config.update(
+    SECRET_KEY=secret_key,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+)
+
+# Register central auth and CSRF middleware hook
+from gui.core.auth_middleware import auth_before_request
+app.before_request(auth_before_request)
+
+
 # Register endpoints blueprint
 app.register_blueprint(system_api, url_prefix='/api')
 app.register_blueprint(youtube_api, url_prefix='/api')
