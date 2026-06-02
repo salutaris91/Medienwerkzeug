@@ -2,6 +2,7 @@ from gui.core.utils import load_settings, save_settings
 import os, socket, subprocess, time, shlex, shutil
 from urllib.parse import quote
 from gui.core.helpers import *
+from gui.core.resilience import run_with_retries_and_timeout
 import gui.core.media as media
 
 _rsync_progress_flag = None
@@ -446,38 +447,39 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
             log_message("⚠️ Warnung: rclone nicht gefunden. Upload abgebrochen.")
             return False
             
-        try:
-            cmd = ["rclone", "copy", source_dir, remote_target, "--transfers", "2", "--retries", "3", "--stats", "1s", "--stats-one-line"]
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
-            rclone_pattern = re.compile(r'(\d+)%,')
-            speed_pattern = re.compile(r'(\d+\.?\d*\s*[kKMG]i?B/s)')
-            
-            last_logged_pct = -1
-            for line in read_lines_from_stream(process.stdout):
-                match = rclone_pattern.search(line)
-                if match:
-                    percent = int(match.group(1))
-                    speed_match = speed_pattern.search(line)
-                    speed_str = f" ({speed_match.group(1)})" if speed_match else ""
-                    msg = f"Upload ({target_name}): {percent}%{speed_str}"
-                    if task_id:
-                        if callable(task_id):
-                            task_id(percent, msg)
-                        else:
-                            from gui.core.jobs import update_job
-                            update_job(task_id, progress=percent, message=msg)
-                    if percent % 10 == 0 and percent != last_logged_pct:
-                        log_message(msg)
-                        last_logged_pct = percent
-                            
-            process.wait()
-            if process.returncode == 0:
-                log_message(f"✅ {target_name}: Rclone-Upload abgeschlossen nach {remote_target}")
-                return True
-            else:
-                log_message(f"❌ {target_name} Rclone Fehler.")
-        except Exception as e:
-            log_message(f"❌ Fehler bei {target_name} Rclone: {e}")
+        cmd = ["rclone", "copy", source_dir, remote_target, "--transfers", "2", "--retries", "1", "--stats", "1s", "--stats-one-line"]
+        rclone_pattern = re.compile(r'(\d+)%,')
+        speed_pattern = re.compile(r'(\d+\.?\d*\s*[kKMG]i?B/s)')
+        
+        last_logged_pct = [-1]
+        def handle_line(line):
+            match = rclone_pattern.search(line)
+            if match:
+                percent = int(match.group(1))
+                speed_match = speed_pattern.search(line)
+                speed_str = f" ({speed_match.group(1)})" if speed_match else ""
+                msg = f"Upload ({target_name}): {percent}%{speed_str}"
+                if task_id:
+                    if callable(task_id):
+                        task_id(percent, msg)
+                    else:
+                        from gui.core.jobs import update_job
+                        update_job(task_id, progress=percent, message=msg)
+                if percent % 10 == 0 and percent != last_logged_pct[0]:
+                    log_message(msg)
+                    last_logged_pct[0] = percent
+
+        success = run_with_retries_and_timeout(
+            cmd, 
+            max_attempts=3, 
+            timeout_sec=3600, # 1h default timeout for an upload, rclone might hang due to network
+            line_callback=handle_line
+        )
+        if success:
+            log_message(f"✅ {target_name}: Rclone-Upload abgeschlossen nach {remote_target}")
+            return True
+        else:
+            log_message(f"❌ {target_name} Rclone-Upload fehlgeschlagen nach allen Retrys.")
             
     return False
 

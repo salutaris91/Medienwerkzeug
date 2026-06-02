@@ -20,9 +20,7 @@
   "Media Health Core": [
     "gui_core_health_py"
   ],
-  "System, Project, NAS Health, and Renamer APIs": [
-    "gui_api_nas_api_py"
-  ],
+  "System, Project, NAS Health, and Renamer APIs": [],
   "Frontend Initialization": [
     "static_app_initviews"
   ],
@@ -32,7 +30,6 @@
   "Release Hardening Roadmap": [
     "road_to_glory_md"
   ],
-
   "Frontend Workflow Modals": [
     "static_app_executeseriesworkflow"
   ],
@@ -54,13 +51,9 @@
   "Post Release Roadmap": [
     "after_release_roadmap_md"
   ],
-  "Dependency Tests": [
-    "tests_test_dependencies_py"
-  ],
   "Media Inspection and History": [
     "gui_core_media_py"
   ],
-
   "Ignored Findings Storage": [
     "gui_core_ignores_py"
   ],
@@ -121,7 +114,6 @@
   "Artwork Validators": [
     "gui_core_artwork_validators_py"
   ],
-
   "Health Scan Cache": [
     "gui_core_health_cache_py"
   ],
@@ -131,16 +123,13 @@
   "Queue and Search APIs": [
     "gui_api_search_api_py"
   ],
-
   "Utility Logic Tests": [
     "tests_test_utils_testmediawerkzeuglogic"
   ],
-  "System, Project, NAS Health, and Renamer APIs": [
-    "gui_api_system_api_py"
-  ],
-
   "NAS Mount Fallback Tests": [
     "tests_test_transfers_nas_mount_py"
+  ],
+  "System API": [
+    "gui_api_system_api_py"
   ]
 }
-

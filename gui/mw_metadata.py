@@ -51,6 +51,29 @@ def reload_metadata_keys():
     tvdb_token = None
     tvdb_token_time = 0
 
+
+class MetadataProviderUnavailable(Exception):
+    def __init__(self, message, status_code=503):
+        super().__init__(message)
+        self.status_code = status_code
+
+def _handle_metadata_error(e, context=""):
+    import urllib.error
+    import socket
+    import json
+    
+    if isinstance(e, json.JSONDecodeError):
+        raise MetadataProviderUnavailable(f"Ungueltige Provider-Antwort (JSON): {e}", status_code=503)
+        
+    if isinstance(e, urllib.error.HTTPError):
+        if e.code in (401, 403):
+            raise MetadataProviderUnavailable(f"API-Key ungueltig oder fehlend (HTTP {e.code})", status_code=502)
+        elif e.code == 429 or e.code >= 500:
+            raise MetadataProviderUnavailable(f"Provider temporaer nicht erreichbar (HTTP {e.code})", status_code=503)
+            
+    if isinstance(e, (urllib.error.URLError, socket.timeout)):
+        raise MetadataProviderUnavailable(f"Netzwerk- oder Timeout-Fehler: {e}", status_code=503)
+
 def get_tvdb_token():
     global tvdb_token, tvdb_token_time
     now = time.time()
@@ -65,7 +88,13 @@ def get_tvdb_token():
             tvdb_token = res.get('data', {}).get('token')
             tvdb_token_time = time.time()
             return tvdb_token
+    except urllib.error.HTTPError as e:
+        _handle_metadata_error(e)
+        # fallback down to exception handling if not raised
     except urllib.error.URLError as e:
+        _handle_metadata_error(e)
+        # fallback
+
         print(f"[TVDB Login Error] Netzwerk/Timeout Fehler: {e}", file=sys.stderr)
         return None
     except json.JSONDecodeError as e:
@@ -104,13 +133,20 @@ def search_tvdb(query, lang="deu"):
                     'provider': 'tvdb'
                 })
             return results
+    except urllib.error.HTTPError as e:
+        _handle_metadata_error(e)
+        # fallback down to exception handling if not raised
     except urllib.error.URLError as e:
+        _handle_metadata_error(e)
+        # fallback
+
         print(f"[TVDB Search Error] Netzwerk/Timeout Fehler bei '{query}': {e}", file=sys.stderr)
         return []
     except json.JSONDecodeError as e:
-        print(f"[TVDB Search Error] Ungültige JSON Antwort: {e}", file=sys.stderr)
-        return []
+        _handle_metadata_error(e, context="[TVDB Search Error]")
+        raise MetadataProviderUnavailable(f"Ungueltiges JSON: {e}", status_code=503)
     except Exception as e:
+        _handle_metadata_error(e, context="[TVDB Search Error]")
         print(f"[TVDB Search Error] Unerwarteter Fehler: {e}", file=sys.stderr)
         return []
 
@@ -156,7 +192,13 @@ def fetch_tvdb(show_id, season, lang="deu"):
                     page += 1
                 else:
                     break
+        except urllib.error.HTTPError as e:
+            _handle_metadata_error(e)
+            # fallback down to exception handling if not raised
         except urllib.error.URLError as e:
+            _handle_metadata_error(e)
+            # fallback
+
             print(f"[TVDB Fetch Error] Netzwerk/Timeout bei Staffel {season}: {e}", file=sys.stderr)
             break
         except json.JSONDecodeError as e:
@@ -389,7 +431,13 @@ def search_tmdb_movie(query):
                     title = item.get('title', '')
                     results.append({'id': item['id'], 'name': f"{title} ({year})", 'genre_ids': item.get('genre_ids', [])})
                 if results: return results
+        except urllib.error.HTTPError as e:
+            _handle_metadata_error(e)
+            # fallback down to exception handling if not raised
         except urllib.error.URLError as e:
+            _handle_metadata_error(e)
+            # fallback
+
             print(f"[TMDb Movie Error] Netzwerk/Timeout bei ID-Suche: {e}", file=sys.stderr)
         except Exception as e:
             print(f"[TMDb Movie Error] Unerwarteter Fehler bei ID-Suche: {e}", file=sys.stderr)
@@ -404,7 +452,13 @@ def search_tmdb_movie(query):
                 title = item.get('title', '')
                 gids = [g.get('id') for g in item.get('genres', [])] if 'genres' in item else item.get('genre_ids', [])
                 return [{'id': item['id'], 'name': f"{title} ({year})", 'genre_ids': gids}]
+        except urllib.error.HTTPError as e:
+            _handle_metadata_error(e)
+            # fallback down to exception handling if not raised
         except urllib.error.URLError as e:
+            _handle_metadata_error(e)
+            # fallback
+
             print(f"[TMDb Movie Error] Netzwerk/Timeout bei TMDB-ID-Suche: {e}", file=sys.stderr)
         except Exception as e:
             print(f"[TMDb Movie Error] Unerwarteter Fehler bei TMDB-ID-Suche: {e}", file=sys.stderr)
@@ -429,6 +483,8 @@ def search_tmdb_movie(query):
                     })
                 return results
         except Exception as e:
+            _handle_metadata_error(e, context="[TMDb Movie Error]")
+            raise MetadataProviderUnavailable(f"Unerwarteter Provider-Fehler: {e}", status_code=503)
             print(f"[TMDb Movie Error] Fehler bei Suche '{q_str}': {e}", file=sys.stderr)
             return []
 
@@ -464,7 +520,13 @@ def search_tmdb_tv(query, lang="de-DE"):
                     country = item.get('origin_country', [''])[0] if item.get('origin_country') else 'Unbekannt'
                     results.append({'id': item['id'], 'name': f"{title} ({year}) [{country}]", 'genre_ids': item.get('genre_ids', [])})
                 if results: return results
+        except urllib.error.HTTPError as e:
+            _handle_metadata_error(e)
+            # fallback down to exception handling if not raised
         except urllib.error.URLError as e:
+            _handle_metadata_error(e)
+            # fallback
+
             print(f"[TMDb TV Error] Netzwerk/Timeout bei ID-Suche: {e}", file=sys.stderr)
         except Exception as e:
             print(f"[TMDb TV Error] Unerwarteter Fehler bei ID-Suche: {e}", file=sys.stderr)
@@ -480,7 +542,13 @@ def search_tmdb_tv(query, lang="de-DE"):
                 country = item.get('origin_country', [''])[0] if item.get('origin_country') else 'Unbekannt'
                 gids = [g.get('id') for g in item.get('genres', [])] if 'genres' in item else item.get('genre_ids', [])
                 return [{'id': item['id'], 'name': f"{title} ({year}) [{country}]", 'genre_ids': gids}]
+        except urllib.error.HTTPError as e:
+            _handle_metadata_error(e)
+            # fallback down to exception handling if not raised
         except urllib.error.URLError as e:
+            _handle_metadata_error(e)
+            # fallback
+
             print(f"[TMDb TV Error] Netzwerk/Timeout bei TMDB-ID-Suche: {e}", file=sys.stderr)
         except Exception as e:
             print(f"[TMDb TV Error] Unerwarteter Fehler bei TMDB-ID-Suche: {e}", file=sys.stderr)
@@ -502,7 +570,13 @@ def search_tmdb_tv(query, lang="de-DE"):
                     'genre_ids': item.get('genre_ids', [])
                 })
             return results
+    except urllib.error.HTTPError as e:
+        _handle_metadata_error(e)
+        # fallback down to exception handling if not raised
     except urllib.error.URLError as e:
+        _handle_metadata_error(e)
+        # fallback
+
         print(f"[TMDb TV Error] Netzwerk/Timeout bei Textsuche '{query}': {e}", file=sys.stderr)
         return []
     except json.JSONDecodeError as e:

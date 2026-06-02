@@ -74,6 +74,9 @@ def handle_api_match_episodes():
                 for idx, ent in enumerate(entries):
                     ep_idx = ent.get("playlist_index") or ent.get("playlist_autonumber") or (idx + 1)
                     episodes[str(ep_idx)] = {"title": ent.get("title", ""), "plot": ent.get("description", "")}
+    except mw_metadata.MetadataProviderUnavailable as e:
+        print(f"Provider Error: {e}")
+        return jsonify({"error": str(e), "status": "error"}), getattr(e, 'status_code', 503)
     except Exception as e:
         print(f"Error fetching episodes for matching: {e}")
         
@@ -481,6 +484,9 @@ def handle_api_search():
             
             # Sort combined results
             results.sort(key=lambda r: mw_metadata.calculate_match_score(q, r['name']), reverse=True)
+    except mw_metadata.MetadataProviderUnavailable as e:
+        print(f"Provider Error: {e}")
+        return jsonify({"error": str(e), "status": "error"}), getattr(e, 'status_code', 503)
     except Exception as e:
         print(f"Search error: {e}")
         
@@ -546,6 +552,9 @@ def handle_api_fetch_episodes():
                     episodes[str(ep_idx)] = {"title": ep_title, "plot": ent.get("description", ""), "date": ent.get("upload_date", "")}
         elif provider == "fernsehserien":
             episodes = mw_metadata.get_fernsehserien_episodes(show_id, season)
+    except mw_metadata.MetadataProviderUnavailable as e:
+        print(f"Provider Error: {e}")
+        return jsonify({"error": str(e), "status": "error"}), getattr(e, 'status_code', 503)
     except Exception as e:
         print(f"Error fetching episodes: {e}")
         

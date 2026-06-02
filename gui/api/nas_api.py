@@ -263,14 +263,14 @@ def handle_api_nas_seasons():
     exact_match = query.get("exact", "0") == "1"
     
     if not folder_name:
-        return jsonify({"seasons": [], "folder": folder_name})
+        return jsonify({"seasons": [], "folder": folder_name, "connected": False})
         
     settings = load_settings()
     nas_root = settings.get("nas_root", "")
     outbox_root = settings.get("outbox_dir", "")
     if not nas_root or not outbox_root:
-        return jsonify({"seasons": [], "folder": folder_name})
-    ensure_nas_mounted()
+        return jsonify({"seasons": [], "folder": folder_name, "connected": False})
+    connected = ensure_nas_mounted()
     sync_cats = settings.get("sync_categories", [])
     
     # Resolve which NAS destinations to scan
@@ -392,6 +392,7 @@ def handle_api_nas_seasons():
     seasons.sort(key=season_sort_key)
     
     return jsonify({
+        "connected": connected,
         "seasons": seasons,
         "folder": folder_name,
         "matched_destination_id": matched_dest_id
@@ -572,6 +573,8 @@ def handle_api_nas_health_scan():
     import gui.core.health as health
     try:
         from gui.core import utils
+        if not ensure_nas_mounted():
+            return jsonify({"started": False, "error": "NAS ist offline"}), 503
         settings = utils.load_settings()
         media_server = settings.get("media_server", "").strip()
         if not media_server:
@@ -627,6 +630,8 @@ def handle_api_nas_health_cancel():
 def handle_api_nas_scan_duplicates():
     """Startet die Duplikat-Erkennung im Hintergrund."""
     import gui.core.duplicates as duplicates
+    if not ensure_nas_mounted():
+        return jsonify({"started": False, "error": "NAS ist offline"}), 503
     try:
         started = duplicates.start_duplicate_scan()
         if not started:

@@ -197,6 +197,9 @@ def handle_api_preview_process():
                             elif alt_title and not title:
                                 ep_title = alt_title
                             episodes[str(ep_idx)] = {"title": ep_title, "plot": ent.get("description", "")}
+            except mw_metadata.MetadataProviderUnavailable as e:
+                print(f"Provider Error: {e}")
+                return jsonify({"error": str(e), "status": "error"}), getattr(e, 'status_code', 503)
             except Exception as e:
                 print(f"Error fetching preview episodes: {e}")
         

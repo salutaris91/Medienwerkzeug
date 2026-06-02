@@ -287,6 +287,11 @@ async function fetchNasSeasons(requestId = null) {
         const data = await res.json();
         if (targetRequestId !== selectShowRequestId) return;
         
+        if (data.connected === false) {
+            infoContainer.innerHTML = '<span style="color:var(--text-warning); font-size: 0.9em;">⚠️ NAS offline (keine Staffelinfo verfügbar)</span>';
+            return;
+        }
+
         // 1. Check if the backend matched a different destination category
         if (data.matched_destination_id && destSelect && destSelect.value !== data.matched_destination_id) {
             window.isProgrammaticCategoryChange = true;

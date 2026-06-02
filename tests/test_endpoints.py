@@ -94,9 +94,9 @@ class TestEndpoints(unittest.TestCase):
         res = self._post("/api/streamfab-import", json={"import_groups": []})
         self.assertEqual(res.status_code, 200)
 
-    @patch("gui.api.search_api.mw_metadata.search_tvdb", return_value=[])
+    @patch("gui.api.search_api.mw_metadata.search_all_db", return_value=[])
     @patch("gui.api.search_api.mw_metadata.search_tmdb_movie", return_value=[])
-    def test_search_api(self, mock_tmdb, mock_tvdb):
+    def test_search_api(self, mock_tmdb, mock_all):
         res = self._post("/api/search", json={"query": "test", "type": "show"})
         self.assertEqual(res.status_code, 200)
         
@@ -113,6 +113,32 @@ class TestEndpoints(unittest.TestCase):
         # process
         res = self._post("/api/process", json={"folder": "test_folder", "metadata": {}})
         self.assertEqual(res.status_code, 200)
+
+    @patch('gui.mw_metadata.search_all_db')
+    def test_search_provider_unavailable(self, mock_search):
+        from gui.mw_metadata import MetadataProviderUnavailable
+        mock_search.side_effect = MetadataProviderUnavailable("TMDB offline", status_code=503)
+        res = self._post("/api/search", json={"query": "test", "type": "movie"})
+        self.assertEqual(res.status_code, 503)
+        self.assertIn("error", res.json)
+        self.assertIn("TMDB offline", res.json["error"])
+
+    @patch('gui.mw_metadata.search_all_db')
+    def test_search_provider_invalid_key(self, mock_search):
+        from gui.mw_metadata import MetadataProviderUnavailable
+        mock_search.side_effect = MetadataProviderUnavailable("API-Key ungueltig", status_code=502)
+        res = self._post("/api/search", json={"query": "test", "type": "movie"})
+        self.assertEqual(res.status_code, 502)
+        self.assertIn("error", res.json)
+        self.assertIn("API-Key ungueltig", res.json["error"])
+
+
+    @patch('gui.api.nas_api.ensure_nas_mounted')
+    def test_nas_seasons_offline(self, mock_ensure_mounted):
+        mock_ensure_mounted.return_value = False
+        res = self.client.get('/api/nas-seasons?folder=Test')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json["connected"], False)
 
 if __name__ == "__main__":
     unittest.main()
