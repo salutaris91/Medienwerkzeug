@@ -86,11 +86,13 @@ def main():
     except Exception as e:
         print(f"Error running startup jobs tasks: {e}", file=sys.stderr)
     
-    # Ensure standard directories exist
-    inbox = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
-    outbox = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
-    os.makedirs(inbox, exist_ok=True)
-    os.makedirs(outbox, exist_ok=True)
+    # Ensure standard directories exist if configured
+    inbox = settings.get("inbox_dir") or os.path.expanduser("~/Downloads/Medien Input")
+    outbox = settings.get("outbox_dir") or os.path.expanduser("~/Downloads/Medien Output")
+    if inbox:
+        os.makedirs(inbox, exist_ok=True)
+    if outbox:
+        os.makedirs(outbox, exist_ok=True)
     
     # Start background worker
     worker_thread = threading.Thread(target=job_queue_worker, daemon=True)

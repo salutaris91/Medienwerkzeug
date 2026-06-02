@@ -600,7 +600,7 @@ async function initOnboardingWizard() {
         btnNext2.addEventListener("click", async () => {
             const pwInput = document.getElementById("onboarding-password");
             const password = pwInput ? pwInput.value : "";
-            
+
             if (password) {
                 btnNext2.disabled = true;
                 btnNext2.textContent = "Speichere...";
@@ -1045,31 +1045,31 @@ window.addEventListener('error', function (e) {
         if (img.classList.contains("poster-img") || img.getAttribute("data-fallback") === "true") {
             const title = img.getAttribute("alt") || img.getAttribute("data-title") || "Medienwerkzeug";
             const isTv = img.getAttribute("data-media-type") === "tv" || img.classList.contains("type-tv");
-            
+
             const fallback = document.createElement("div");
             fallback.className = "fallback-poster";
-            
+
             let hash = 0;
             for (let i = 0; i < title.length; i++) {
                 hash = title.charCodeAt(i) + ((hash << 5) - hash);
             }
             const hue = Math.abs(hash % 360);
             fallback.style.background = `linear-gradient(135deg, hsl(${hue}, 45%, 16%) 0%, hsl(${(hue + 45) % 360}, 50%, 26%) 100%)`;
-            
+
             const icon = document.createElement("div");
             icon.className = "fallback-poster-icon";
             icon.textContent = isTv ? "📺" : "🎬";
-            
+
             const titleEl = document.createElement("p");
             titleEl.className = "fallback-poster-title";
             titleEl.textContent = title;
-            
+
             fallback.appendChild(icon);
             fallback.appendChild(titleEl);
-            
+
             fallback.style.width = img.style.width || "100%";
             fallback.style.height = img.style.height || "auto";
-            
+
             img.replaceWith(fallback);
         }
     }
@@ -1665,7 +1665,7 @@ function initViews() {
             if(navDashboard) navDashboard.classList.remove("active");
             if(navTools) navTools.classList.remove("active");
             if(navSettings) navSettings.classList.remove("active");
-            
+
             document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
             const faqView = document.getElementById("view-faq");
             if (faqView) {
@@ -4212,6 +4212,10 @@ function renderDownloaderMergeItems() {
         
         if (item.thumbnail) {
             const img = document.createElement("img");
+            img.className = "poster-img";
+            img.setAttribute("data-fallback", "true");
+            img.setAttribute("alt", item.title || "Video");
+            img.setAttribute("data-media-type", "tv");
             img.src = item.thumbnail;
             img.style.width = "54px";
             img.style.height = "30px";
@@ -5228,6 +5232,10 @@ function renderSubscriptionsList() {
                     
                     if (v.thumbnail) {
                         const img = document.createElement("img");
+                        img.className = "poster-img";
+                        img.setAttribute("data-fallback", "true");
+                        img.setAttribute("alt", v.title || "Video");
+                        img.setAttribute("data-media-type", "tv");
                         img.src = v.thumbnail;
                         img.alt = "Thumbnail";
                         img.style.width = "72px";
@@ -7405,6 +7413,7 @@ async function loadSettings() {
             setCheckbox("settings-show-quote", currentSettings.show_quote !== false); // default to true
             setCheckbox("settings-smart-conversion-default", currentSettings.smart_conversion_default !== false); // default to true
             setCheckbox("settings-show-console", currentSettings.show_console || false);
+            setCheckbox("settings-telemetry-enabled", !!currentSettings.telemetry_enabled);
             applyConsoleVisibility(currentSettings.show_console || false);
             
             let themeVal = currentSettings.app_theme || "deep-space";
@@ -8107,6 +8116,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 show_quote: document.getElementById("settings-show-quote")?.checked || false,
                 smart_conversion_default: document.getElementById("settings-smart-conversion-default")?.checked || false,
                 show_console: document.getElementById("settings-show-console")?.checked || false,
+                telemetry_enabled: document.getElementById("settings-telemetry-enabled")?.checked || false,
                 app_theme: document.getElementById("settings-app-theme")?.value || "deep-space",
                 media_server: document.getElementById("settings-media-server")?.value || "",
                 
@@ -9818,6 +9828,10 @@ function renderMergeItems() {
         
         if (item.thumbnail) {
             const img = document.createElement("img");
+            img.className = "poster-img";
+            img.setAttribute("data-fallback", "true");
+            img.setAttribute("alt", item.title || "Video");
+            img.setAttribute("data-media-type", "tv");
             img.src = item.thumbnail;
             img.style.width = "54px";
             img.style.height = "30px";

@@ -122,8 +122,8 @@ class TestOnboarding(unittest.TestCase):
         self.assertEqual(res_fail.status_code, 400) # Bad request: CSRF validation failed
 
         res_success = self.client.post(
-            "/api/onboarding/setup-settings", 
-            json={"media_server": "jellyfin"}, 
+            "/api/onboarding/setup-settings",
+            json={"media_server": "jellyfin"},
             headers={"X-CSRF-Token": csrf_token}
         )
         self.assertEqual(res_success.status_code, 200)
@@ -145,7 +145,7 @@ class TestOnboarding(unittest.TestCase):
         # Complete should now succeed
         res = self.client.post("/api/onboarding/complete", json={"telemetry_enabled": True})
         self.assertEqual(res.status_code, 200)
-        
+
         # Verify status
         settings = self.persistence.load_settings()
         self.assertTrue(settings["onboarded"])
@@ -162,7 +162,7 @@ class TestOnboarding(unittest.TestCase):
         # Skip should succeed immediately (expert mode)
         res = self.client.post("/api/onboarding/skip")
         self.assertEqual(res.status_code, 200)
-        
+
         settings = self.persistence.load_settings()
         self.assertTrue(settings["onboarded"])
         self.assertIsNotNone(settings["onboarding_skipped_at"])
@@ -210,6 +210,22 @@ class TestOnboarding(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
         self.assertTrue(data["ok"])
+
+    def test_settings_telemetry_opt_out(self):
+        """Verifies settings API allows modifying telemetry_enabled."""
+        # 1. First onboard the setup so we can access /api/settings
+        settings = self.persistence.load_settings()
+        settings["onboarded"] = True
+        settings["telemetry_enabled"] = True
+        self.persistence.save_settings(settings)
+
+        # 2. POST to /api/settings to turn telemetry_enabled off
+        res = self.client.post("/api/settings", json={"telemetry_enabled": False})
+        self.assertEqual(res.status_code, 200)
+
+        # 3. Verify it was written to settings
+        settings = self.persistence.load_settings()
+        self.assertFalse(settings["telemetry_enabled"])
 
 if __name__ == "__main__":
     unittest.main()

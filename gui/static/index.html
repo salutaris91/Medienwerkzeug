@@ -64,10 +64,10 @@
             <div class="onboarding-step active" id="onboarding-step-1">
                 <h3>Willkommen!</h3>
                 <p class="text-muted">Lass uns das Medienwerkzeug in wenigen Schritten fuer dich einrichten.</p>
-                
+
                 <div class="onboarding-dev-note mt-15">
                     <strong>Wichtiger Hinweis zur Telemetrie:</strong><br>
-                    Ich entwickle diese App als einzelner Entwickler in meiner Freizeit. Um Fehler schneller zu beheben und die App zu verbessern, bin ich auf anonymisierte Nutzungsdaten angewiesen. Bitte unterstuetze mich, indem du das optionale Tracking einschaltest. 
+                    Ich entwickle diese App als einzelner Entwickler in meiner Freizeit. Um Fehler schneller zu beheben und die App zu verbessern, bin ich auf anonymisierte Nutzungsdaten angewiesen. Bitte unterstuetze mich, indem du das optionale Tracking einschaltest.
                     Bei Bedenken kannst du mich direkt unter <a href="mailto:support@mediawerkzeug.xyz" style="color:var(--accent);">support@mediawerkzeug.xyz</a> kontaktieren.
                 </div>
 
@@ -109,13 +109,13 @@
             <div class="onboarding-step hidden" id="onboarding-step-2">
                 <h3>Sicherheit &amp; Zugriffsschutz</h3>
                 <p class="text-muted">Da das Medienwerkzeug als Flask-Server im lokalen Netzwerk erreichbar ist, kannst du den Zugriff mit einer PIN oder einem Passwort sperren.</p>
-                
+
                 <div class="form-group mt-20">
                     <label for="onboarding-password">Passwort / PIN einrichten (optional):</label>
                     <input type="password" id="onboarding-password" placeholder="Passwort leer lassen fuer ungeschuetzten Zugriff..." class="form-input">
                     <p class="text-muted text-xs mt-5">Wenn du ein Passwort festlegst, musst du dich bei jedem Oeffnen der App authentifizieren.</p>
                 </div>
-                
+
                 <div class="onboarding-actions mt-30">
                     <button class="btn btn-secondary btn-onboarding-prev" data-target="1" type="button">← Zurueck</button>
                     <button class="btn btn-primary" id="btn-onboarding-next-2" type="button">Weiter →</button>
@@ -126,7 +126,7 @@
             <div class="onboarding-step hidden" id="onboarding-step-3">
                 <h3>Metadaten-API-Keys</h3>
                 <p class="text-muted">Um deutsche Filminformationen, Episodentitel und Cover von TMDB abzurufen, wird ein API-Key benoetigt.</p>
-                
+
                 <div class="form-group mt-20">
                     <div style="display:flex; align-items:center; gap:8px;">
                         <label for="onboarding-tmdb-key">TMDB API-Key (v3 auth):</label>
@@ -149,7 +149,7 @@
             <div class="onboarding-step hidden" id="onboarding-step-4">
                 <h3>NAS &amp; Cloud Speicherziele</h3>
                 <p class="text-muted">Konfiguriere das primaere Ziel (deinen NAS-Server) und die Zugangsdaten.</p>
-                
+
                 <div class="form-group">
                     <label for="onboarding-nas-ip">NAS IP-Adresse:</label>
                     <input type="text" id="onboarding-nas-ip" placeholder="z.B. 192.168.2.208" class="form-input">
@@ -188,7 +188,7 @@
             <div class="onboarding-step hidden" id="onboarding-step-5">
                 <h3>Inbox- &amp; Outbox-Pfade</h3>
                 <p class="text-muted">Lege fest, wo deine Rohmedien hereinkommen und wo fertig transkodierte Medien abgelegt werden.</p>
-                
+
                 <div class="form-group">
                     <label for="onboarding-inbox-dir">Inbox-Verzeichnis (Medien Input):</label>
                     <input type="text" id="onboarding-inbox-dir" placeholder="z.B. /Users/username/Downloads/Medien Input" class="form-input">
@@ -218,7 +218,7 @@
             <div class="onboarding-step hidden" id="onboarding-step-6">
                 <h3>System-Abhaengigkeiten pruefen</h3>
                 <p class="text-muted">Das Medienwerkzeug benoetigt einige Systemtools im Systempfad, um reibungslos zu funktionieren.</p>
-                
+
                 <div class="dependency-check-list mt-15" id="onboarding-dep-list">
                     <div class="loading-spinner"></div>
                 </div>
@@ -237,7 +237,7 @@
             <div class="onboarding-step hidden" id="onboarding-step-7">
                 <h3>Einrichtung abgeschlossen!</h3>
                 <p class="text-muted">Vielen Dank. Dein Medienwerkzeug ist jetzt einsatzbereit.</p>
-                
+
                 <div class="onboarding-dev-note mt-20">
                     <strong>Unterstuetze die Entwicklung:</strong><br>
                     Wenn dir das Tool gefaellt und du die weitere Entwicklung unterstuetzen moechtest, freue ich mich sehr ueber eine kleine, freiwillige Kaffeespende per PayPal.<br>
@@ -1493,6 +1493,15 @@
                                     <button id="btn-logout" class="btn btn-secondary" type="button" style="font-weight: 600; color: #ef4444; border-color: rgba(239, 68, 68, 0.25);">🔓 Abmelden (Logout)</button>
                                 </div>
                             </div>
+                        </div>
+
+                        <div class="form-group inline-style-120" style="margin-top: 25px; border-top: 1px solid var(--border-light); padding-top: 20px;">
+                            <span class="form-label-style">Datenschutz & Telemetrie:</span>
+                            <p class="inline-style-121">Hilf mit, das Medienwerkzeug zu verbessern, indem du uns erlaubst, anonymisierte Telemetriedaten zu sammeln.</p>
+                            <label class="checkbox-container" for="settings-telemetry-enabled">
+                                <input type="checkbox" id="settings-telemetry-enabled">
+                                <span class="checkmark"></span> Anonyme Telemetriedaten übertragen (Opt-In)
+                            </label>
                         </div>
                     </div>
 

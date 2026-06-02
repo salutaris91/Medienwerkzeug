@@ -6,7 +6,7 @@ import hashlib
 import subprocess
 from flask import Blueprint, request, jsonify, session
 from gui.core.persistence import (
-    load_settings, save_settings, update_settings, 
+    load_settings, save_settings, update_settings,
     set_password, load_env_keys, save_env_keys, mask_credential
 )
 
@@ -142,7 +142,7 @@ def handle_onboarding_set_password():
     # Load mutated settings to compute current hash version for session
     settings = load_settings()
     pw_hash = settings.get("password_hash", "")
-    
+
     # Establish authenticated session directly
     session['authenticated'] = True
     session['auth_version'] = hashlib.sha256(pw_hash.encode('utf-8')).hexdigest()
