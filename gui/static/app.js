@@ -3181,6 +3181,9 @@ async function selectShow(show) {
 }
 
 async function fetchEpisodes(requestId = null) {
+    if (requestId && typeof requestId !== 'number') {
+        requestId = null; // Ignore Event objects from click listeners
+    }
     const targetRequestId = requestId !== null ? requestId : selectShowRequestId;
     if (!selectedShow) return;
     
