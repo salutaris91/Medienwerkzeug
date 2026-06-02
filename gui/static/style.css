@@ -2619,3 +2619,220 @@ body.theme-superfood-light #queue-panel {
     display: inline-block;
     animation: spin 1.5s linear infinite;
 }
+
+/* ==========================================================================
+   ONBOARDING SETUP WIZARD (PHASE 3)
+   ========================================================================== */
+.onboarding-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(8, 6, 15, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000000;
+    transition: opacity 0.3s ease;
+}
+
+.onboarding-overlay.hidden {
+    display: none !important;
+}
+
+.onboarding-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg), 0 0 50px rgba(6, 182, 212, 0.15);
+    padding: 35px;
+    width: 90%;
+    max-width: 620px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.onboarding-header {
+    border-bottom: 1px solid var(--border-glass);
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.onboarding-header h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #fff 0%, var(--primary) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.onboarding-steps-indicator {
+    display: flex;
+    gap: 6px;
+}
+
+.step-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-glass);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.step-dot.active {
+    background: var(--primary);
+    border-color: var(--accent);
+    color: white;
+    box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.step-dot.completed {
+    background: var(--success);
+    border-color: var(--success);
+    color: white;
+}
+
+.onboarding-step {
+    animation: fadeUp 0.4s ease;
+}
+
+.onboarding-dev-note {
+    background: rgba(6, 182, 212, 0.08);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 14px 18px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-main);
+}
+
+.onboarding-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+}
+
+.onboarding-actions button {
+    min-width: 120px;
+}
+
+.onboarding-actions .btn-primary {
+    margin-left: auto;
+}
+
+/* Dynamische Fallback Artworks */
+.fallback-poster {
+    background: linear-gradient(135deg, #161124 0%, #2b163d 100%);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-md);
+    aspect-ratio: 2/3;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    text-align: center;
+    box-sizing: border-box;
+    box-shadow: var(--shadow-md);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.fallback-poster:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.fallback-poster-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+    filter: drop-shadow(0 2px 5px rgba(0,0,0,0.5));
+}
+
+.fallback-poster-title {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1.3;
+    color: var(--text-main);
+    word-break: break-word;
+    margin: 0;
+}
+
+/* Tooltip & Info-Icon Styles */
+.tooltip-container {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.tooltip-trigger {
+    background: none;
+    border: none;
+    padding: 0 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s, transform 0.2s;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.tooltip-trigger:hover,
+.tooltip-trigger:focus {
+    color: var(--accent);
+    transform: scale(1.1);
+    background: rgba(6, 182, 212, 0.15);
+    outline: none;
+}
+
+.tooltip-box {
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%) translateY(5px);
+    background: #0b0813;
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-main);
+    width: 250px;
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 10000;
+    transition: opacity 0.2s, transform 0.2s;
+    word-break: break-word;
+    white-space: normal;
+}
+
+.tooltip-container.active .tooltip-box,
+.tooltip-trigger:hover + .tooltip-box,
+.tooltip-trigger:focus + .tooltip-box {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+}

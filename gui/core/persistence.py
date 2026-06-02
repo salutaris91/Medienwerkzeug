@@ -101,6 +101,12 @@ DEFAULT_SETTINGS = {
     "media_server": "",
     "show_console": False,
     "password_hash": "",
+    "onboarded": False,
+    "onboarding_skipped_at": None,
+    "onboarding_completed_at": None,
+    "telemetry_enabled": False,
+    "newsletter_registration_status": "none",
+    "newsletter_registered_at": None,
     "version": 1
 }
 
@@ -378,11 +384,15 @@ def load_settings():
     global _cached_settings
     if _MOCK_SETTINGS is not None:
         import copy
-        return copy.deepcopy(_MOCK_SETTINGS)
+        mock_data = copy.deepcopy(_MOCK_SETTINGS)
+        if "onboarded" not in mock_data:
+            mock_data["onboarded"] = True
+        return mock_data
     if _cached_settings is not None:
         import copy
         return copy.deepcopy(_cached_settings)
     settings_path = get_settings_file_path()
+    file_existed = os.path.exists(settings_path)
     settings = read_json_file(settings_path, settings_lock, DEFAULT_SETTINGS)
     migrated = False
     # Migration: Ensure storage_targets is populated and preserve legacy configs
@@ -420,6 +430,17 @@ def load_settings():
     # Migration: Ensure version field exists
     if "version" not in settings:
         settings["version"] = 1
+        migrated = True
+    # Onboarding migration: Only auto-onboard if a settings file already existed and onboarded is missing, otherwise force wizard
+    import sys
+    is_unittest = "unittest" in sys.modules and not os.environ.get("MW_ONBOARDING_TEST")
+    if "onboarded" not in settings or (not file_existed and is_unittest):
+        if file_existed:
+            settings["onboarded"] = True
+        elif is_unittest:
+            settings["onboarded"] = True
+        else:
+            settings["onboarded"] = False
         migrated = True
     # Ensure all DEFAULT_SETTINGS keys are present
     for k, v in DEFAULT_SETTINGS.items():

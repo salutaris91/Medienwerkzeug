@@ -11,6 +11,7 @@ from gui.api.project_api import project_api
 from gui.api.search_api import search_api
 from gui.api.queue_api import queue_api
 from gui.api.nas_renamer_api import nas_renamer_api
+from gui.api.onboarding_api import onboarding_api
 from gui.workers.processor import job_queue_worker, SYSTEM_STATUS
 from gui.core.utils import load_settings
 
@@ -44,6 +45,7 @@ app.register_blueprint(project_api, url_prefix='/api')
 app.register_blueprint(search_api, url_prefix='/api')
 app.register_blueprint(queue_api, url_prefix='/api')
 app.register_blueprint(nas_renamer_api, url_prefix='/api')
+app.register_blueprint(onboarding_api, url_prefix='/api')
 
 @app.route('/')
 def index():
@@ -100,6 +102,13 @@ def main():
     monitor_thread = threading.Thread(target=folder_size_monitor, daemon=True)
     monitor_thread.start()
     print("Folder size monitor thread started.")
+
+    # Trigger app_start telemetry if enabled
+    try:
+        from gui.core.telemetry import track_event_async
+        track_event_async("app_start")
+    except Exception:
+        pass
     
     # Fetch jokes from online repository asynchronously on startup
     try:

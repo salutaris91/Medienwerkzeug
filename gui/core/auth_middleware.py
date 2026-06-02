@@ -4,20 +4,32 @@ from flask import request, session, abort, redirect
 from gui.core.persistence import load_settings
 
 def auth_before_request():
-    # 1. Allowlist exceptions that bypass authentication completely
-    # request.endpoint == 'static' allows serving JS/CSS/assets without login
-    if (request.endpoint == 'static' or
+    settings = load_settings()
+    onboarded = settings.get("onboarded", False)
+
+    # 1. Allowlist exceptions that bypass onboarding-block completely
+    is_allowlist = (
+        request.endpoint == 'static' or
         request.path == '/' or
         request.path == '/favicon.ico' or
+        request.path.startswith('/api/onboarding/') or
+        request.path == '/api/keys' or
+        request.path == '/api/check-dependencies' or
         request.path == '/api/auth/login' or
-        request.path == '/api/auth/status'):
-        return
+        request.path == '/api/auth/status'
+    )
+
+    if not is_allowlist and not onboarded:
+        abort(403, "Setup erforderlich")
 
     # 2. Check if authentication is active (password_hash is set)
-    settings = load_settings()
     password_hash = settings.get("password_hash", "")
 
     if password_hash:
+        # Bypassed routes for auth when password is active
+        if request.path in ('/api/auth/login', '/api/onboarding/set-password', '/api/auth/status'):
+            return
+
         # Check session authentication state
         authenticated = session.get('authenticated', False)
 
@@ -46,3 +58,7 @@ def auth_before_request():
             computed_hash = hashlib.sha256(csrf_token.encode('utf-8')).hexdigest()
             if computed_hash != csrf_hash:
                 abort(400, "CSRF validation failed: Invalid token")
+    else:
+        # No password set: Allowlist routes bypass everything completely
+        if is_allowlist:
+            return

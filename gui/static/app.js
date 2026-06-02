@@ -519,7 +519,562 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    // Initialize Onboarding Wizard, FAQ navigation and Tooltips
+    initOnboardingWizard();
+    initTooltips();
 });
+
+// ==========================================================================
+// ONBOARDING WIZARD & TOOLTIPS (PHASE 3)
+// ==========================================================================
+async function initOnboardingWizard() {
+    const overlay = document.getElementById("onboarding-wizard-overlay");
+    if (!overlay) return;
+
+    try {
+        const response = await fetch('/api/onboarding/status');
+        if (response.ok) {
+            const data = await response.json();
+            if (data.onboarded) {
+                overlay.classList.add("hidden");
+                return;
+            } else {
+                overlay.classList.remove("hidden");
+                loadOnboardingFields();
+            }
+        }
+    } catch (e) {
+        console.error("Fehler beim Abrufen des Onboarding-Status:", e);
+    }
+
+    let currentStep = 1;
+    const totalSteps = 7;
+
+    function showStep(stepNum) {
+        document.querySelectorAll(".onboarding-step").forEach(step => {
+            step.classList.add("hidden");
+            step.classList.remove("active");
+        });
+        const targetStep = document.getElementById(`onboarding-step-${stepNum}`);
+        if (targetStep) {
+            targetStep.classList.remove("hidden");
+            targetStep.classList.add("active");
+        }
+
+        document.querySelectorAll(".step-dot").forEach(dot => {
+            const dStep = parseInt(dot.getAttribute("data-step"));
+            dot.classList.remove("active", "completed");
+            if (dStep === stepNum) {
+                dot.classList.add("active");
+            } else if (dStep < stepNum) {
+                dot.classList.add("completed");
+            }
+        });
+
+        currentStep = stepNum;
+
+        if (stepNum === 6) {
+            checkOnboardingDependencies();
+        }
+    }
+
+    document.querySelectorAll(".btn-onboarding-prev").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const target = parseInt(btn.getAttribute("data-target"));
+            if (target >= 1 && target <= totalSteps) {
+                showStep(target);
+            }
+        });
+    });
+
+    const btnNext1 = document.getElementById("btn-onboarding-next-1");
+    if (btnNext1) {
+        btnNext1.addEventListener("click", () => {
+            showStep(2);
+        });
+    }
+
+    const btnNext2 = document.getElementById("btn-onboarding-next-2");
+    if (btnNext2) {
+        btnNext2.addEventListener("click", async () => {
+            const pwInput = document.getElementById("onboarding-password");
+            const password = pwInput ? pwInput.value : "";
+            
+            if (password) {
+                btnNext2.disabled = true;
+                btnNext2.textContent = "Speichere...";
+                try {
+                    const res = await fetch('/api/onboarding/set-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password: password })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.status === 'success') {
+                        document.cookie = `mw_csrf_token=${data.csrf_token}; path=/; SameSite=Strict`;
+                        showStep(3);
+                    } else {
+                        alert("Fehler beim Speichern des Passworts: " + (data.error || "Unbekannter Fehler"));
+                    }
+                } catch (e) {
+                    console.error("Error setting onboarding password:", e);
+                    alert("Verbindungsfehler beim Passwort-Speichern.");
+                } finally {
+                    btnNext2.disabled = false;
+                    btnNext2.textContent = "Weiter →";
+                }
+            } else {
+                showStep(3);
+            }
+        });
+    }
+
+    const btnNext3 = document.getElementById("btn-onboarding-next-3");
+    if (btnNext3) {
+        btnNext3.addEventListener("click", async () => {
+            const tmdbKey = document.getElementById("onboarding-tmdb-key").value.trim();
+            if (tmdbKey) {
+                btnNext3.disabled = true;
+                btnNext3.textContent = "Speichere...";
+                try {
+                    const res = await fetch('/api/keys', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ TMDB_API_KEY: tmdbKey })
+                    });
+                    if (res.ok) {
+                        showStep(4);
+                    } else {
+                        const data = await res.json();
+                        alert("Fehler beim Speichern des TMDB Keys: " + (data.error || "Unbekannter Fehler"));
+                    }
+                } catch (e) {
+                    console.error("Error saving TMDB key:", e);
+                    alert("Verbindungsfehler beim Speichern des Keys.");
+                } finally {
+                    btnNext3.disabled = false;
+                    btnNext3.textContent = "Weiter →";
+                }
+            } else {
+                showStep(4);
+            }
+        });
+    }
+
+    const btnNext4 = document.getElementById("btn-onboarding-next-4");
+    if (btnNext4) {
+        btnNext4.addEventListener("click", async () => {
+            const nasIp = document.getElementById("onboarding-nas-ip").value.trim();
+            const nasShare = document.getElementById("onboarding-nas-share").value.trim();
+            const nasRoot = document.getElementById("onboarding-nas-root").value.trim();
+            const nasHostname = document.getElementById("onboarding-nas-hostname").value.trim();
+
+            const storage_targets = [
+                {
+                    id: "nas",
+                    name: "NAS Server",
+                    root_path: nasRoot,
+                    nas_ip: nasIp,
+                    nas_share: nasShare,
+                    nas_hostname: nasHostname,
+                    active: true
+                }
+            ];
+
+            btnNext4.disabled = true;
+            btnNext4.textContent = "Speichere...";
+            try {
+                const res = await fetch('/api/onboarding/setup-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ storage_targets: storage_targets })
+                });
+                if (res.ok) {
+                    showStep(5);
+                } else {
+                    const data = await res.json();
+                    alert("Fehler beim Speichern der Speicherziele: " + (data.error || "Unbekannter Fehler"));
+                }
+            } catch (e) {
+                console.error("Error saving storage targets:", e);
+                alert("Verbindungsfehler.");
+            } finally {
+                btnNext4.disabled = false;
+                btnNext4.textContent = "Weiter →";
+            }
+        });
+    }
+
+    const btnNext5 = document.getElementById("btn-onboarding-next-5");
+    if (btnNext5) {
+        btnNext5.addEventListener("click", async () => {
+            const inboxDir = document.getElementById("onboarding-inbox-dir").value.trim();
+            const outboxDir = document.getElementById("onboarding-outbox-dir").value.trim();
+            const mediaServer = document.getElementById("onboarding-medienserver").value;
+
+            if (!inboxDir || !outboxDir || !mediaServer) {
+                alert("Bitte fülle alle Pflichtfelder aus (Inbox-Verzeichnis, Outbox-Verzeichnis, Medienserver).");
+                return;
+            }
+
+            btnNext5.disabled = true;
+            btnNext5.textContent = "Speichere...";
+            try {
+                const res = await fetch('/api/onboarding/setup-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        inbox_dir: inboxDir,
+                        outbox_dir: outboxDir,
+                        media_server: mediaServer
+                    })
+                });
+                if (res.ok) {
+                    showStep(6);
+                } else {
+                    const data = await res.json();
+                    alert("Fehler beim Speichern: " + (data.error || "Unbekannter Fehler"));
+                }
+            } catch (e) {
+                console.error("Error saving paths:", e);
+                alert("Verbindungsfehler.");
+            } finally {
+                btnNext5.disabled = false;
+                btnNext5.textContent = "Weiter →";
+            }
+        });
+    }
+
+    const btnNext6 = document.getElementById("btn-onboarding-next-6");
+    if (btnNext6) {
+        btnNext6.addEventListener("click", () => {
+            showStep(7);
+        });
+    }
+
+    const btnFinish = document.getElementById("btn-onboarding-finish");
+    if (btnFinish) {
+        btnFinish.addEventListener("click", async () => {
+            const telemetryChecked = document.getElementById("onboarding-telemetry").checked;
+            btnFinish.disabled = true;
+            btnFinish.textContent = "Schließe ab...";
+            try {
+                const res = await fetch('/api/onboarding/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ telemetry_enabled: telemetryChecked })
+                });
+                if (res.ok) {
+                    overlay.classList.add("hidden");
+                    window.location.reload();
+                } else {
+                    const data = await res.json();
+                    alert("Fehler beim Abschließen des Setups: " + (data.error || "Unbekannter Fehler"));
+                }
+            } catch (e) {
+                console.error("Error completing onboarding:", e);
+                alert("Verbindungsfehler.");
+            } finally {
+                btnFinish.disabled = false;
+                btnFinish.textContent = "Onboarding abschliessen";
+            }
+        });
+    }
+
+    const btnSkip = document.getElementById("btn-onboarding-skip");
+    if (btnSkip) {
+        btnSkip.addEventListener("click", async () => {
+            if (!confirm("Bist du sicher, dass du das Onboarding überspringen möchtest? (Empfohlen nur für Experten)")) {
+                return;
+            }
+            btnSkip.disabled = true;
+            try {
+                const res = await fetch('/api/onboarding/skip', { method: 'POST' });
+                if (res.ok) {
+                    overlay.classList.add("hidden");
+                    window.location.reload();
+                } else {
+                    const data = await res.json();
+                    alert("Fehler beim Überspringen: " + (data.error || "Unbekannter Fehler"));
+                }
+            } catch (e) {
+                console.error("Error skipping onboarding:", e);
+                alert("Verbindungsfehler.");
+            } finally {
+                btnSkip.disabled = false;
+            }
+        });
+    }
+
+    const btnTestNas = document.getElementById("btn-onboarding-test-nas");
+    if (btnTestNas) {
+        btnTestNas.addEventListener("click", async () => {
+            const nasIp = document.getElementById("onboarding-nas-ip").value.trim();
+            const nasShare = document.getElementById("onboarding-nas-share").value.trim();
+            const nasRoot = document.getElementById("onboarding-nas-root").value.trim();
+            const nasHostname = document.getElementById("onboarding-nas-hostname").value.trim();
+            const statusDiv = document.getElementById("onboarding-nas-test-status");
+
+            if (!nasIp || !nasShare || !nasRoot) {
+                if (statusDiv) {
+                    statusDiv.textContent = "Bitte IP, Share und Einhaengepfad ausfüllen.";
+                    statusDiv.style.color = "var(--danger)";
+                }
+                return;
+            }
+
+            if (statusDiv) {
+                statusDiv.textContent = "Teste Verbindung...";
+                statusDiv.style.color = "var(--text-muted)";
+            }
+            btnTestNas.disabled = true;
+
+            try {
+                const res = await fetch('/api/onboarding/test-nas-connection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        nas_ip: nasIp,
+                        nas_share: nasShare,
+                        root_path: nasRoot,
+                        nas_hostname: nasHostname
+                    })
+                });
+                const data = await res.json();
+                if (statusDiv) {
+                    statusDiv.textContent = data.message;
+                    statusDiv.style.color = data.ok ? "var(--success)" : "var(--danger)";
+                }
+            } catch (e) {
+                console.error("Error testing NAS connection:", e);
+                if (statusDiv) {
+                    statusDiv.textContent = "Fehler bei der Verbindung zum Backend.";
+                    statusDiv.style.color = "var(--danger)";
+                }
+            } finally {
+                btnTestNas.disabled = false;
+            }
+        });
+    }
+
+    const newsletterToggle = document.getElementById("onboarding-newsletter-toggle");
+    const newsletterContainer = document.getElementById("onboarding-newsletter-email-container");
+    if (newsletterToggle && newsletterContainer) {
+        newsletterToggle.addEventListener("change", () => {
+            if (newsletterToggle.checked) {
+                newsletterContainer.classList.remove("hidden");
+            } else {
+                newsletterContainer.classList.add("hidden");
+            }
+        });
+    }
+
+    const btnRegisterEmail = document.getElementById("btn-onboarding-register-email");
+    if (btnRegisterEmail) {
+        btnRegisterEmail.addEventListener("click", async () => {
+            const emailInput = document.getElementById("onboarding-newsletter-email");
+            const email = emailInput ? emailInput.value.trim() : "";
+            const statusDiv = document.getElementById("onboarding-newsletter-status");
+
+            if (!email) {
+                if (statusDiv) {
+                    statusDiv.textContent = "Bitte E-Mail-Adresse eingeben.";
+                    statusDiv.style.color = "var(--danger)";
+                }
+                return;
+            }
+
+            if (statusDiv) {
+                statusDiv.textContent = "Registriere...";
+                statusDiv.style.color = "var(--text-muted)";
+            }
+            btnRegisterEmail.disabled = true;
+
+            try {
+                const res = await fetch('/api/onboarding/register-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    if (statusDiv) {
+                        statusDiv.textContent = data.message || "Erfolgreich registriert!";
+                        statusDiv.style.color = "var(--success)";
+                    }
+                    if (emailInput) emailInput.disabled = true;
+                    btnRegisterEmail.disabled = true;
+                } else {
+                    if (statusDiv) {
+                        statusDiv.textContent = data.error || "Fehler bei der Registrierung.";
+                        statusDiv.style.color = "var(--danger)";
+                    }
+                    btnRegisterEmail.disabled = false;
+                }
+            } catch (e) {
+                console.error("Error registering newsletter email:", e);
+                if (statusDiv) {
+                    statusDiv.textContent = "Verbindungsfehler.";
+                    statusDiv.style.color = "var(--danger)";
+                }
+                btnRegisterEmail.disabled = false;
+            }
+        });
+    }
+
+    const btnCheckDeps = document.getElementById("btn-onboarding-check-deps");
+    if (btnCheckDeps) {
+        btnCheckDeps.addEventListener("click", checkOnboardingDependencies);
+    }
+}
+
+async function loadOnboardingFields() {
+    try {
+        const keysRes = await fetch('/api/keys');
+        if (keysRes.ok) {
+            const keys = await keysRes.json();
+            const tmdbInput = document.getElementById("onboarding-tmdb-key");
+            if (tmdbInput && keys.TMDB_API_KEY && !keys.TMDB_API_KEY.includes("...")) {
+                tmdbInput.value = keys.TMDB_API_KEY;
+            }
+        }
+    } catch (e) {
+        console.error("Error loading onboarding keys:", e);
+    }
+}
+
+async function checkOnboardingDependencies() {
+    const listContainer = document.getElementById("onboarding-dep-list");
+    if (!listContainer) return;
+
+    listContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);"><span style="display: inline-block; animation: spin 1s linear infinite; margin-right: 8px;">🔄</span> Abhängigkeiten werden geprüft...</div>';
+
+    try {
+        const response = await fetch('/api/check-dependencies?force=true');
+        if (response.ok) {
+            const data = await response.json();
+            listContainer.innerHTML = "";
+            const statusLabels = {
+                "missing": "Nicht installiert",
+                "installed": "Bereit",
+                "up_to_date": "Aktuell",
+                "update_available": "Update verfügbar",
+                "unknown": "Unbekannt"
+            };
+
+            for (const [name, info] of Object.entries(data)) {
+                const card = document.createElement("div");
+                card.className = `dep-card status-${info.status}`;
+                card.style.display = "flex";
+                card.style.justifyContent = "space-between";
+                card.style.alignItems = "center";
+                card.style.padding = "10px 15px";
+                card.style.background = "rgba(255,255,255,0.03)";
+                card.style.border = "1px solid var(--border-light)";
+                card.style.borderRadius = "var(--radius-sm)";
+                card.style.marginBottom = "8px";
+
+                const label = statusLabels[info.status] || info.status;
+                const badgeColor = info.status === "missing" ? "var(--danger)" : "var(--success)";
+
+                card.innerHTML = `
+                    <span style="font-weight: 600;">${name}</span>
+                    <span class="dep-badge" style="background: ${info.status === 'missing' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)'}; color: ${badgeColor}; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">${label}</span>
+                `;
+                listContainer.appendChild(card);
+            }
+        } else {
+            listContainer.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--danger);">Fehler beim Abrufen des Status der Abhängigkeiten.</div>`;
+        }
+    } catch (e) {
+        console.error("Error checking onboarding dependencies:", e);
+        listContainer.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--danger);">Verbindungsfehler: ${e.message}</div>`;
+    }
+}
+
+// Tooltips Logic
+function initTooltips() {
+    const triggers = document.querySelectorAll(".tooltip-trigger");
+    triggers.forEach(trigger => {
+        const box = trigger.nextElementSibling;
+        if (!box || !box.classList.contains("tooltip-box")) return;
+
+        trigger.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggleTooltip(trigger, box);
+            }
+        });
+
+        trigger.addEventListener("click", (e) => {
+            e.stopPropagation();
+            toggleTooltip(trigger, box);
+        });
+    });
+
+    document.addEventListener("click", () => {
+        closeAllTooltips();
+    });
+}
+
+function toggleTooltip(trigger, box) {
+    const container = trigger.closest(".tooltip-container");
+    const isActive = container.classList.contains("active");
+
+    closeAllTooltips();
+
+    if (!isActive) {
+        container.classList.add("active");
+        trigger.setAttribute("aria-expanded", "true");
+    }
+}
+
+function closeAllTooltips() {
+    document.querySelectorAll(".tooltip-container").forEach(container => {
+        container.classList.remove("active");
+        const trigger = container.querySelector(".tooltip-trigger");
+        if (trigger) trigger.setAttribute("aria-expanded", "false");
+    });
+}
+
+// Global Image Error Handler for CSS fallbacks
+window.addEventListener('error', function (e) {
+    if (e.target.tagName && e.target.tagName.toLowerCase() === 'img') {
+        const img = e.target;
+        if (img.classList.contains("poster-img") || img.getAttribute("data-fallback") === "true") {
+            const title = img.getAttribute("alt") || img.getAttribute("data-title") || "Medienwerkzeug";
+            const isTv = img.getAttribute("data-media-type") === "tv" || img.classList.contains("type-tv");
+            
+            const fallback = document.createElement("div");
+            fallback.className = "fallback-poster";
+            
+            let hash = 0;
+            for (let i = 0; i < title.length; i++) {
+                hash = title.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const hue = Math.abs(hash % 360);
+            fallback.style.background = `linear-gradient(135deg, hsl(${hue}, 45%, 16%) 0%, hsl(${(hue + 45) % 360}, 50%, 26%) 100%)`;
+            
+            const icon = document.createElement("div");
+            icon.className = "fallback-poster-icon";
+            icon.textContent = isTv ? "📺" : "🎬";
+            
+            const titleEl = document.createElement("p");
+            titleEl.className = "fallback-poster-title";
+            titleEl.textContent = title;
+            
+            fallback.appendChild(icon);
+            fallback.appendChild(titleEl);
+            
+            fallback.style.width = img.style.width || "100%";
+            fallback.style.height = img.style.height || "auto";
+            
+            img.replaceWith(fallback);
+        }
+    }
+}, true);
+
 
 // ==========================================================================
 // NAS RENAMER TOOL
@@ -1091,12 +1646,34 @@ function initViews() {
             navSettings.classList.add("active");
             if(navDashboard) navDashboard.classList.remove("active");
             if(navTools) navTools.classList.remove("active");
+            if(navFaq) navFaq.classList.remove("active");
             
             document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
             document.getElementById("view-settings").classList.remove("hidden");
             
             loadSettings();
             scrollToDetailTop();
+        });
+    }
+
+    // Hilfe & FAQ Nav
+    const navFaq = document.getElementById("nav-faq");
+    if(navFaq) {
+        navFaq.addEventListener("click", () => {
+            document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
+            navFaq.classList.add("active");
+            if(navDashboard) navDashboard.classList.remove("active");
+            if(navTools) navTools.classList.remove("active");
+            if(navSettings) navSettings.classList.remove("active");
+            
+            document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+            const faqView = document.getElementById("view-faq");
+            if (faqView) {
+                faqView.classList.remove("hidden");
+                faqView.classList.add("active");
+            }
+            scrollToDetailTop();
+            currentProject = "";
         });
     }
 

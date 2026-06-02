@@ -42,6 +42,219 @@
 
 </head>
 <body>
+    <!-- Onboarding Setup Wizard Overlay -->
+    <div id="onboarding-wizard-overlay" class="onboarding-overlay hidden">
+        <div class="onboarding-card">
+            <!-- Header -->
+            <div class="onboarding-header">
+                <h2>Medienwerkzeug Setup</h2>
+                <div class="onboarding-steps-indicator">
+                    <span class="step-dot active" data-step="1">1</span>
+                    <span class="step-dot" data-step="2">2</span>
+                    <span class="step-dot" data-step="3">3</span>
+                    <span class="step-dot" data-step="4">4</span>
+                    <span class="step-dot" data-step="5">5</span>
+                    <span class="step-dot" data-step="6">6</span>
+                    <span class="step-dot" data-step="7">7</span>
+                </div>
+            </div>
+
+            <!-- Steps -->
+            <!-- Step 1: Willkommen & Telemetrie -->
+            <div class="onboarding-step active" id="onboarding-step-1">
+                <h3>Willkommen!</h3>
+                <p class="text-muted">Lass uns das Medienwerkzeug in wenigen Schritten fuer dich einrichten.</p>
+                
+                <div class="onboarding-dev-note mt-15">
+                    <strong>Wichtiger Hinweis zur Telemetrie:</strong><br>
+                    Ich entwickle diese App als einzelner Entwickler in meiner Freizeit. Um Fehler schneller zu beheben und die App zu verbessern, bin ich auf anonymisierte Nutzungsdaten angewiesen. Bitte unterstuetze mich, indem du das optionale Tracking einschaltest. 
+                    Bei Bedenken kannst du mich direkt unter <a href="mailto:support@mediawerkzeug.xyz" style="color:var(--accent);">support@mediawerkzeug.xyz</a> kontaktieren.
+                </div>
+
+                <div class="form-group mt-20">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <label class="checkbox-container" for="onboarding-telemetry">
+                            <input type="checkbox" id="onboarding-telemetry">
+                            <span class="checkmark"></span> Anonyme Telemetriedaten senden
+                        </label>
+                        <div class="tooltip-container">
+                            <button class="tooltip-trigger" type="button" aria-expanded="false" aria-label="Informationen zur Telemetrie">?</button>
+                            <div class="tooltip-box" role="tooltip">Die Telemetrie hilft, Fehler zu analysieren. Es werden nur die Systemversion (Mac), Fehlerklassen und App-Events übertragen. Keine persönlichen Daten.</div>
+                        </div>
+                    </div>
+                    <p class="text-muted text-xs mt-5">Es werden keine sensiblen Daten wie Dateinamen, Pfade, Keys, Medientitel oder IPs uebertragen.</p>
+                </div>
+
+                <div class="form-group mt-20">
+                    <label class="checkbox-container" for="onboarding-newsletter-toggle">
+                        <input type="checkbox" id="onboarding-newsletter-toggle">
+                        <span class="checkmark"></span> Info-E-Mails zu neuen Versionen erhalten (getrennt)
+                    </label>
+                    <div id="onboarding-newsletter-email-container" class="hidden mt-10">
+                        <div style="display:flex; gap:8px;">
+                            <input type="email" id="onboarding-newsletter-email" placeholder="Deine E-Mail-Adresse..." class="form-input" style="flex:1;">
+                            <button class="btn btn-accent btn-sm" id="btn-onboarding-register-email" type="button">Registrieren</button>
+                        </div>
+                        <div id="onboarding-newsletter-status" class="mt-5 text-xs font-semibold"></div>
+                    </div>
+                </div>
+
+                <div class="onboarding-actions mt-30">
+                    <button class="btn btn-secondary" id="btn-onboarding-skip" type="button">Ueberspringen fuer Experten</button>
+                    <button class="btn btn-primary" id="btn-onboarding-next-1" type="button">Weiter →</button>
+                </div>
+            </div>
+
+            <!-- Step 2: Sicherheit -->
+            <div class="onboarding-step hidden" id="onboarding-step-2">
+                <h3>Sicherheit &amp; Zugriffsschutz</h3>
+                <p class="text-muted">Da das Medienwerkzeug als Flask-Server im lokalen Netzwerk erreichbar ist, kannst du den Zugriff mit einer PIN oder einem Passwort sperren.</p>
+                
+                <div class="form-group mt-20">
+                    <label for="onboarding-password">Passwort / PIN einrichten (optional):</label>
+                    <input type="password" id="onboarding-password" placeholder="Passwort leer lassen fuer ungeschuetzten Zugriff..." class="form-input">
+                    <p class="text-muted text-xs mt-5">Wenn du ein Passwort festlegst, musst du dich bei jedem Oeffnen der App authentifizieren.</p>
+                </div>
+                
+                <div class="onboarding-actions mt-30">
+                    <button class="btn btn-secondary btn-onboarding-prev" data-target="1" type="button">← Zurueck</button>
+                    <button class="btn btn-primary" id="btn-onboarding-next-2" type="button">Weiter →</button>
+                </div>
+            </div>
+
+            <!-- Step 3: API-Keys -->
+            <div class="onboarding-step hidden" id="onboarding-step-3">
+                <h3>Metadaten-API-Keys</h3>
+                <p class="text-muted">Um deutsche Filminformationen, Episodentitel und Cover von TMDB abzurufen, wird ein API-Key benoetigt.</p>
+                
+                <div class="form-group mt-20">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <label for="onboarding-tmdb-key">TMDB API-Key (v3 auth):</label>
+                        <div class="tooltip-container">
+                            <button class="tooltip-trigger" type="button" aria-expanded="false" aria-label="Was ist ein TMDB Key?">?</button>
+                            <div class="tooltip-box" role="tooltip">Der Key wird benötigt, um Metadaten (Filmtitel, Beschreibungen, Episodennamen) von TheMovieDb herunterzuladen. Er ist kostenlos.</div>
+                        </div>
+                    </div>
+                    <input type="text" id="onboarding-tmdb-key" placeholder="z.B. a1b2c3d4..." class="form-input">
+                    <p class="text-muted text-xs mt-5">Du kannst einen kostenlosen Key auf <a href="https://www.themoviedb.org/" target="_blank" rel="noopener" style="color:var(--accent);">themoviedb.org</a> in deinen Kontoeinstellungen erstellen.</p>
+                </div>
+
+                <div class="onboarding-actions mt-30">
+                    <button class="btn btn-secondary btn-onboarding-prev" data-target="2" type="button">← Zurueck</button>
+                    <button class="btn btn-primary" id="btn-onboarding-next-3" type="button">Weiter →</button>
+                </div>
+            </div>
+
+            <!-- Step 4: Speicherziele -->
+            <div class="onboarding-step hidden" id="onboarding-step-4">
+                <h3>NAS &amp; Cloud Speicherziele</h3>
+                <p class="text-muted">Konfiguriere das primaere Ziel (deinen NAS-Server) und die Zugangsdaten.</p>
+                
+                <div class="form-group">
+                    <label for="onboarding-nas-ip">NAS IP-Adresse:</label>
+                    <input type="text" id="onboarding-nas-ip" placeholder="z.B. 192.168.2.208" class="form-input">
+                </div>
+                <div class="form-group mt-10">
+                    <label for="onboarding-nas-share">NAS Share-Name:</label>
+                    <input type="text" id="onboarding-nas-share" placeholder="z.B. Kino" class="form-input">
+                </div>
+                <div class="form-group mt-10">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <label for="onboarding-nas-root">Lokaler Einhaengepfad (nas_root):</label>
+                        <div class="tooltip-container">
+                            <button class="tooltip-trigger" type="button" aria-expanded="false" aria-label="Was ist der Einhaengepfad?">?</button>
+                            <div class="tooltip-box" role="tooltip">Das Verzeichnis, unter dem dein NAS-Server auf deinem Mac gemountet ist (z.B. /Volumes/Kino).</div>
+                        </div>
+                    </div>
+                    <input type="text" id="onboarding-nas-root" placeholder="z.B. /Volumes/Kino" class="form-input">
+                </div>
+                <div class="form-group mt-10">
+                    <label for="onboarding-nas-hostname">NAS Hostname (fuer Finder-Fallback):</label>
+                    <input type="text" id="onboarding-nas-hostname" placeholder="z.B. ALEXNAS91" class="form-input">
+                </div>
+
+                <div class="mt-15">
+                    <button class="btn btn-sm btn-secondary" id="btn-onboarding-test-nas" type="button">Verbindung testen</button>
+                    <div id="onboarding-nas-test-status" class="mt-5 text-xs font-semibold"></div>
+                </div>
+
+                <div class="onboarding-actions mt-30">
+                    <button class="btn btn-secondary btn-onboarding-prev" data-target="3" type="button">← Zurueck</button>
+                    <button class="btn btn-primary" id="btn-onboarding-next-4" type="button">Weiter →</button>
+                </div>
+            </div>
+
+            <!-- Step 5: Inbox/Outbox Pfade -->
+            <div class="onboarding-step hidden" id="onboarding-step-5">
+                <h3>Inbox- &amp; Outbox-Pfade</h3>
+                <p class="text-muted">Lege fest, wo deine Rohmedien hereinkommen und wo fertig transkodierte Medien abgelegt werden.</p>
+                
+                <div class="form-group">
+                    <label for="onboarding-inbox-dir">Inbox-Verzeichnis (Medien Input):</label>
+                    <input type="text" id="onboarding-inbox-dir" placeholder="z.B. /Users/username/Downloads/Medien Input" class="form-input">
+                </div>
+                <div class="form-group mt-15">
+                    <label for="onboarding-outbox-dir">Outbox-Verzeichnis (Medien Output):</label>
+                    <input type="text" id="onboarding-outbox-dir" placeholder="z.B. /Users/username/Downloads/Medien Output" class="form-input">
+                </div>
+
+                <div class="form-group mt-15">
+                    <label for="onboarding-medienserver">Gewuenschter Medienserver (fuer Artwork-Validierung):</label>
+                    <select id="onboarding-medienserver" class="form-select">
+                        <option value="">-- Bitte waehlen --</option>
+                        <option value="emby">Emby</option>
+                        <option value="jellyfin">Jellyfin</option>
+                        <option value="plex">Plex</option>
+                    </select>
+                </div>
+
+                <div class="onboarding-actions mt-30">
+                    <button class="btn btn-secondary btn-onboarding-prev" data-target="4" type="button">← Zurueck</button>
+                    <button class="btn btn-primary" id="btn-onboarding-next-5" type="button">Weiter →</button>
+                </div>
+            </div>
+
+            <!-- Step 6: Abhaengigkeitspruefung -->
+            <div class="onboarding-step hidden" id="onboarding-step-6">
+                <h3>System-Abhaengigkeiten pruefen</h3>
+                <p class="text-muted">Das Medienwerkzeug benoetigt einige Systemtools im Systempfad, um reibungslos zu funktionieren.</p>
+                
+                <div class="dependency-check-list mt-15" id="onboarding-dep-list">
+                    <div class="loading-spinner"></div>
+                </div>
+
+                <div class="mt-15">
+                    <button class="btn btn-sm btn-secondary" id="btn-onboarding-check-deps" type="button">Erneut pruefen</button>
+                </div>
+
+                <div class="onboarding-actions mt-30">
+                    <button class="btn btn-secondary btn-onboarding-prev" data-target="5" type="button">← Zurueck</button>
+                    <button class="btn btn-primary" id="btn-onboarding-next-6" type="button">Weiter →</button>
+                </div>
+            </div>
+
+            <!-- Step 7: Abschluss & Support -->
+            <div class="onboarding-step hidden" id="onboarding-step-7">
+                <h3>Einrichtung abgeschlossen!</h3>
+                <p class="text-muted">Vielen Dank. Dein Medienwerkzeug ist jetzt einsatzbereit.</p>
+                
+                <div class="onboarding-dev-note mt-20">
+                    <strong>Unterstuetze die Entwicklung:</strong><br>
+                    Wenn dir das Tool gefaellt und du die weitere Entwicklung unterstuetzen moechtest, freue ich mich sehr ueber eine kleine, freiwillige Kaffeespende per PayPal.<br>
+                    <div style="margin-top: 15px; text-align: center;">
+                        <a href="https://www.paypal.com/paypalme/alexmediatool" target="_blank" rel="noopener" class="btn btn-accent" style="text-decoration:none; display:inline-block;">Entwicklung unterstuetzen</a>
+                    </div>
+                </div>
+
+                <div class="onboarding-actions mt-30">
+                    <button class="btn btn-secondary btn-onboarding-prev" data-target="6" type="button">← Zurueck</button>
+                    <button class="btn btn-accent btn-lg" id="btn-onboarding-finish" type="button">Onboarding abschliessen</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
     <a href="#main-content" class="skip-link" style="position:absolute; left:-9999px; z-index:999; padding:1em; background-color:black; color:white;">Zum Hauptinhalt springen</a>
     <!-- Top-Header & Statusbar -->
     <header class="app-header">
@@ -119,9 +332,18 @@
                         <span class="project-item-name">📋 Warteschlange</span>
                         <span id="queue-badge" class="badge hidden inline-style-8" >0</span>
                     </button>
+                    <button class="project-item" id="nav-faq" aria-label="Hilfe &amp; FAQ öffnen">
+                        <span class="project-item-name">❓ Hilfe &amp; FAQ</span>
+                    </button>
                     <button class="project-item hidden" id="btn-sidebar-logout" aria-label="Abmelden (Logout)" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px; color: #ef4444;">
                         <span class="project-item-name">🔓 Abmelden</span>
                     </button>
+                </div>
+                <!-- Support-Link in Sidebar -->
+                <div style="margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px; padding-left: 10px; font-size: 0.85em;">
+                    <a href="https://www.paypal.com/paypalme/alexmediatool" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; display: flex; align-items: center; gap: 8px;">
+                        <span>☕</span> <span>Entwicklung unterstuetzen</span>
+                    </a>
                 </div>
             </div>
         </nav>
@@ -1707,6 +1929,38 @@
                     <h3 class="inline-style-209">Aktive Abonnements</h3>
                     <div id="youtube-abos-list" class="inline-style-210">
                         <div class="inline-style-211">Lade Abonnements...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STATE: HELP & FAQ -->
+            <div id="view-faq" class="view-panel hidden">
+                <div class="card mb-20">
+                    <div style="font-size: 2rem; margin-bottom: 10px;">❓</div>
+                    <h2>Hilfe &amp; FAQ</h2>
+                    <p class="text-muted">Hier findest du Antworten auf haeufige Fragen zur Einrichtung und Nutzung des Medienwerkzeugs.</p>
+                </div>
+
+                <div class="faq-list">
+                    <div class="card mb-15">
+                        <h3>🔑 Woher bekomme ich einen TMDB API-Key?</h3>
+                        <p>Gehe auf <a href="https://www.themoviedb.org/" target="_blank" rel="noopener" style="color:var(--accent); text-decoration: underline;">themoviedb.org</a>, erstelle einen kostenlosen Account und gehe in deinen Kontoeinstellungen auf den Reiter "API". Dort kannst du einen API-Key (v3 auth) erstellen, den das Medienwerkzeug verwendet, um deutsche Filminformationen, Episodentitel und Cover abzurufen.</p>
+                    </div>
+
+                    <div class="card mb-15">
+                        <h3>📁 Was bedeuten Inbox und Outbox?</h3>
+                        <p><strong>Inbox (Medien Input):</strong> Der Ordner, in den neue, unbearbeitete Downloads (z.B. von StreamFab) abgelegt werden. Das Medienwerkzeug scannt diesen Ordner, um neue Projekte zu erkennen.<br><br>
+                        <strong>Outbox (Medien Output):</strong> Das temporäre Verzeichnis, in dem die Videos transkodiert und mit Metadaten versehen werden, bevor sie final auf dein NAS kopiert werden.</p>
+                    </div>
+
+                    <div class="card mb-15">
+                        <h3>🌐 Wie funktioniert das NAS-Mounting?</h3>
+                        <p>Das Medienwerkzeug versucht beim Starten eines Scans oder Kopiervorgangs automatisch, das konfigurierte NAS-Laufwerk via AppleScript/SMB einzubinden. Auf macOS wird dafür der SMB-Pfad (z.B. <code>smb://192.168.2.208/Kino</code>) verwendet. Bitte stelle sicher, dass das NAS erreichbar ist (z.B. via Tailscale, wenn du unterwegs bist) und die Zugangsdaten im macOS-Schlüsselbund gespeichert sind.</p>
+                    </div>
+
+                    <div class="card mb-15">
+                        <h3>⚙️ Warum schlaegt der Abhaengigkeitscheck fehl?</h3>
+                        <p>Das Medienwerkzeug benoetigt die CLI-Tools <code>ffmpeg</code>, <code>rclone</code> und <code>yt-dlp</code> im Systempfad. Du kannst diese unter macOS am einfachsten per Homebrew installieren: <code>brew install ffmpeg rclone yt-dlp</code>. Wenn du die App ueber den Finder startest, bindet sie die Standardpfade von Homebrew automatisch ein.</p>
                     </div>
                 </div>
             </div>
