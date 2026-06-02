@@ -4227,8 +4227,8 @@ function renderDownloaderMergeItems() {
             img.style.height = "30px";
             img.style.objectFit = "cover";
             img.style.borderRadius = "2px";
-            left.appendChild(img);
             img.src = item.thumbnail;
+            left.appendChild(img);
         } else {
             const fallback = createFallbackPoster(item.title || "Video", true, "54px", "30px");
             left.appendChild(fallback);
@@ -5244,8 +5244,8 @@ function renderSubscriptionsList() {
                         img.style.objectFit = "cover";
                         img.style.borderRadius = "4px";
                         img.style.border = "1px solid rgba(255, 255, 255, 0.05)";
-                        vLeft.appendChild(img);
                         img.src = v.thumbnail;
+                        vLeft.appendChild(img);
                     } else {
                         const fallback = createFallbackPoster(v.title || "Video", true, "72px", "40px");
                         vLeft.appendChild(fallback);
@@ -9834,8 +9834,8 @@ function renderMergeItems() {
             img.style.height = "30px";
             img.style.objectFit = "cover";
             img.style.borderRadius = "2px";
-            left.appendChild(img);
             img.src = item.thumbnail;
+            left.appendChild(img);
         } else {
             const fallback = createFallbackPoster(item.title || "Video", true, "54px", "30px");
             left.appendChild(fallback);
