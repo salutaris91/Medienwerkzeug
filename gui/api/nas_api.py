@@ -755,9 +755,33 @@ def handle_api_health_fix():
             fsk_str = f"FSK {new_fsk}"
             
             import gui.core.health as health
-            nfo_path = health.find_primary_nfo(path, is_movie=False)
-            if not nfo_path:
-                nfo_path = health.find_primary_nfo(path, is_movie=True)
+            
+            settings = load_settings()
+            nas_root_setting = os.path.realpath(settings.get("nas_root", ""))
+            
+            is_movie = True
+            real_path = os.path.realpath(path)
+            for cat in settings.get("sync_categories", []):
+                nas_sub = cat.get("nas_sub")
+                if not nas_sub: continue
+                
+                cat_path = os.path.realpath(os.path.join(nas_root_setting, nas_sub.lstrip("/")))
+                try:
+                    if os.path.commonpath([real_path, cat_path]) == cat_path:
+                        cat_name = cat.get("name", "")
+                        if "serie" in cat_name.lower():
+                            is_movie = False
+                        else:
+                            try:
+                                if any(os.path.isdir(os.path.join(real_path, e)) and (e.lower().startswith("staffel ") or e.lower().startswith("season ") or e.lower().startswith("specials")) for e in os.listdir(real_path)):
+                                    is_movie = False
+                            except OSError:
+                                pass
+                        break
+                except ValueError:
+                    continue
+                    
+            nfo_path = health.find_primary_nfo(path, is_movie=is_movie)
                 
             if not nfo_path or not os.path.exists(nfo_path):
                 return jsonify({"ok": False, "message": "NFO-Datei konnte nicht eindeutig bestimmt werden."}), 400
@@ -779,6 +803,9 @@ def handle_api_health_fix():
             except Exception as e:
                 return jsonify({"ok": False, "message": f"Original-XML fehlerhaft: {e}"}), 400
                 
+            if tree.tag not in ["movie", "tvshow", "episodedetails"]:
+                return jsonify({"ok": False, "message": f"Ungültiges NFO Root-Tag: {tree.tag}"}), 400
+                
             mpaa_elements = tree.findall('.//mpaa')
             if len(mpaa_elements) > 1:
                 return jsonify({"ok": False, "message": "Mehrere <mpaa>-Tags gefunden. Bitte manuell bereinigen."}), 400
@@ -787,10 +814,10 @@ def handle_api_health_fix():
                 new_content = re.sub(r'<mpaa[\s>].*?</mpaa>', f'<mpaa>{fsk_str}</mpaa>', content, count=1, flags=re.DOTALL|re.IGNORECASE)
             else:
                 # Insert before closing tag
-                if "</tvshow>" in content:
-                    new_content = content.replace("</tvshow>", f"  <mpaa>{fsk_str}</mpaa>\n</tvshow>")
-                else:
-                    new_content = content.replace("</movie>", f"  <mpaa>{fsk_str}</mpaa>\n</movie>")
+                closing_tag = f"</{tree.tag}>"
+                if closing_tag not in content:
+                    return jsonify({"ok": False, "message": f"NFO-Datei ist unvollständig (End-Tag {closing_tag} fehlt)."}), 400
+                new_content = content.replace(closing_tag, f"  <mpaa>{fsk_str}</mpaa>\n{closing_tag}")
                     
             # Plausibilitätscheck 2
             try:

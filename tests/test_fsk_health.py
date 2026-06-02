@@ -133,5 +133,50 @@ class TestFSKHealthCheck(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("Original-XML fehlerhaft", response.json['message'])
 
+    @patch('gui.api.nas_api.load_settings')
+    def test_set_fsk_api_series(self, mock_load_settings):
+        # Setup settings mock to pass NAS validation and simulate a series category
+        mock_load_settings.return_value = {
+            "nas_root": self.temp_dir,
+            "sync_categories": [
+                {
+                    "name": "Serien",
+                    "nas_sub": "/Serien"
+                }
+            ]
+        }
+        
+        series_dir = os.path.join(self.temp_dir, "Serien", "My Show")
+        os.makedirs(series_dir)
+        
+        # Erstelle eine tvshow.nfo
+        tvshow_nfo_path = os.path.join(series_dir, "tvshow.nfo")
+        with open(tvshow_nfo_path, 'w') as f:
+            f.write("<tvshow>\n  <title>Test Show</title>\n</tvshow>")
+            
+        # Erstelle EINE Film-NFO (Fehlerfall: Film-NFO in einem Serienordner)
+        movie_nfo_path = os.path.join(series_dir, "movie.nfo")
+        with open(movie_nfo_path, 'w') as f:
+            f.write("<movie>\n  <title>Test Movie</title>\n</movie>")
+
+        # API Call - Valid
+        response = self.client.post('/api/nas/health-fix', json={
+            "action": "set_fsk",
+            "path": series_dir,
+            "new_fsk": "16"
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json['ok'])
+        
+        # Check if tvshow.nfo was modified
+        with open(tvshow_nfo_path, 'r') as f:
+            content = f.read()
+        self.assertIn("<mpaa>FSK 16</mpaa>", content)
+        
+        # Check if movie.nfo remained untouched
+        with open(movie_nfo_path, 'r') as f:
+            movie_content = f.read()
+        self.assertNotIn("<mpaa>", movie_content)
+
 if __name__ == '__main__':
     unittest.main()
