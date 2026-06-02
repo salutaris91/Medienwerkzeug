@@ -20,7 +20,7 @@
   "Media Health Core": [
     "gui_core_health_py"
   ],
-  "NAS Health, Ignore and Renamer APIs": [
+  "System, Project, NAS Health, and Renamer APIs": [
     "gui_api_nas_api_py"
   ],
   "Frontend Initialization": [
@@ -135,7 +135,7 @@
   "Utility Logic Tests": [
     "tests_test_utils_testmediawerkzeuglogic"
   ],
-  "Project and System APIs": [
+  "System, Project, NAS Health, and Renamer APIs": [
     "gui_api_system_api_py"
   ],
 
