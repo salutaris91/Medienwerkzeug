@@ -746,6 +746,82 @@ def handle_api_health_fix():
         return jsonify({"ok": False, "message": "Pfad liegt außerhalb des NAS."}), 403
 
     try:
+        if action == "set_fsk":
+            new_fsk = params.get("new_fsk")
+            valid_fsks = ["0", "6", "12", "16", "18", 0, 6, 12, 16, 18]
+            if new_fsk not in valid_fsks:
+                return jsonify({"ok": False, "message": f"Ungültiger FSK-Wert: {new_fsk}"}), 400
+            
+            fsk_str = f"FSK {new_fsk}"
+            
+            import gui.core.health as health
+            nfo_path = health.find_primary_nfo(path, is_movie=False)
+            if not nfo_path:
+                nfo_path = health.find_primary_nfo(path, is_movie=True)
+                
+            if not nfo_path or not os.path.exists(nfo_path):
+                return jsonify({"ok": False, "message": "NFO-Datei konnte nicht eindeutig bestimmt werden."}), 400
+                
+            import xml.etree.ElementTree as ET
+            import tempfile
+            import time
+            import re
+            
+            try:
+                with open(nfo_path, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+            except Exception as e:
+                return jsonify({"ok": False, "message": f"NFO lesefehler: {e}"}), 500
+                
+            if "</tvshow>" not in content and "</movie>" not in content:
+                return jsonify({"ok": False, "message": "NFO-Datei ist unvollständig (End-Tag fehlt)."}), 400
+                
+            mpaa_matches = re.findall(r'<mpaa>.*?</mpaa>', content)
+            if len(mpaa_matches) > 1:
+                return jsonify({"ok": False, "message": "Mehrere <mpaa>-Tags gefunden. Bitte manuell bereinigen."}), 400
+                
+            # Plausibilitätscheck 1
+            try:
+                ET.fromstring(content)
+            except Exception as e:
+                return jsonify({"ok": False, "message": f"Original-XML fehlerhaft: {e}"}), 400
+                
+            if len(mpaa_matches) == 1:
+                new_content = re.sub(r'<mpaa>.*?</mpaa>', f'<mpaa>{fsk_str}</mpaa>', content, count=1)
+            else:
+                # Insert before closing tag
+                if "</tvshow>" in content:
+                    new_content = content.replace("</tvshow>", f"  <mpaa>{fsk_str}</mpaa>\n</tvshow>")
+                else:
+                    new_content = content.replace("</movie>", f"  <mpaa>{fsk_str}</mpaa>\n</movie>")
+                    
+            # Plausibilitätscheck 2
+            try:
+                ET.fromstring(new_content)
+            except Exception as e:
+                return jsonify({"ok": False, "message": f"Generiertes XML fehlerhaft: {e}"}), 500
+                
+            try:
+                # Backup anlegen
+                ts = time.strftime("%Y%m%d_%H%M%S")
+                bak_path = f"{nfo_path}.bak.{ts}"
+                suffix = 1
+                while os.path.exists(bak_path):
+                    bak_path = f"{nfo_path}.bak.{ts}_{suffix}"
+                    suffix += 1
+                shutil.copy2(nfo_path, bak_path)
+                
+                # Temp file schreiben
+                fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(nfo_path), text=True)
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(new_content)
+                    
+                os.replace(temp_path, nfo_path)
+                log_message(f"🔧 [Health-Fix] FSK aktualisiert auf {fsk_str} in {os.path.basename(nfo_path)}")
+                return jsonify({"ok": True, "message": f"FSK aktualisiert auf {fsk_str}."})
+            except Exception as e:
+                return jsonify({"ok": False, "message": f"Fehler beim Speichern: {e}"}), 500
+
         if action == "flatten":
             entries = [e for e in os.listdir(path) if not e.startswith('.')]
             subdirs = [e for e in entries if os.path.isdir(os.path.join(path, e))]

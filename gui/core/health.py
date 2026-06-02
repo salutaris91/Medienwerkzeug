@@ -156,6 +156,74 @@ def _get_provider_from_nfo(nfo_path):
     return None
 
 
+def find_primary_nfo(folder_path, is_movie=False):
+    """Sucht die primäre NFO-Datei für einen Ordner (Filme oder Serien).
+    Gibt bei mehrdeutigen Zuordnungen None zurück."""
+    if not os.path.isdir(folder_path):
+        return None
+    try:
+        entries = os.listdir(folder_path)
+    except OSError:
+        return None
+
+    if not is_movie:
+        for e in entries:
+            if e.lower() == "tvshow.nfo":
+                return os.path.join(folder_path, e)
+        return None
+
+    # Für Filme
+    nfos = [e for e in entries if not e.startswith('.') and e.lower().endswith('.nfo')]
+    if len(nfos) == 0:
+        return None
+    if len(nfos) == 1:
+        return os.path.join(folder_path, nfos[0])
+    
+    # Mehrere NFOs: Versuche anhand der Videodatei aufzulösen
+    video_extensions = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv', '.webm', '.m2ts'}
+    videos = [e for e in entries if not e.startswith('.') and os.path.splitext(e)[1].lower() in video_extensions]
+    
+    if len(videos) == 1:
+        video_stem = os.path.splitext(videos[0])[0]
+        # Prio 1: <video_stem>.nfo
+        for nfo in nfos:
+            if nfo == f"{video_stem}.nfo":
+                return os.path.join(folder_path, nfo)
+                
+    # Im Zweifel bei mehreren NFOs: None (unsicher, nichts ändern)
+    return None
+
+
+def _check_fsk(issues, category, folder_path, nfo_path):
+    if not nfo_path or not os.path.exists(nfo_path):
+        return
+        
+    try:
+        with open(nfo_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+            
+        m = re.search(r'<mpaa>(.*?)</mpaa>', content)
+        if not m:
+            _add_issue(issues, "warning", "missing_age_rating", category, folder_path,
+                       f"{os.path.basename(folder_path)}: Altersfreigabe (FSK) fehlt in der NFO")
+            return
+            
+        val = m.group(1).strip()
+        if not val:
+            _add_issue(issues, "warning", "missing_age_rating", category, folder_path,
+                       f"{os.path.basename(folder_path)}: Altersfreigabe (FSK) ist leer in der NFO")
+            return
+            
+        # Gültige Werte prüfen
+        valid_values = {"FSK 0", "FSK 6", "FSK 12", "FSK 16", "FSK 18"}
+        if val not in valid_values:
+            _add_issue(issues, "warning", "invalid_age_rating", category, folder_path,
+                       f"{os.path.basename(folder_path)}: Ungültige Altersfreigabe in NFO ({val})")
+                       
+    except Exception:
+        pass
+
+
 def _check_season(issues, category, show_name, season_path, validator):
     """Prüft einen einzelnen Staffel-Ordner (rekursiv). Gibt geprüfte Dateien zurück."""
     # Showname voranstellen, damit das Issue auf einen Blick zuordenbar ist
@@ -271,6 +339,9 @@ def _check_series_show(issues, category, show_path, validator):
     if "tvshow.nfo" not in entries_lower:
         _add_issue(issues, "warning", "missing_nfo", category, show_path,
                    f"{os.path.basename(show_path)}: tvshow.nfo fehlt")
+    else:
+        nfo_path = find_primary_nfo(show_path, is_movie=False)
+        _check_fsk(issues, category, show_path, nfo_path)
 
     # Fetch provider from tvshow.nfo if it exists
     provider = _get_provider_from_nfo(os.path.join(show_path, "tvshow.nfo"))
@@ -403,6 +474,10 @@ def _check_movie(issues, category, movie_path, validator):
     if not has_nfo:
         _add_issue(issues, "warning", "missing_nfo", category, movie_path,
                    f"{name}: keine NFO vorhanden")
+    else:
+        nfo_path = find_primary_nfo(movie_path, is_movie=True)
+        if nfo_path:
+            _check_fsk(issues, category, movie_path, nfo_path)
 
     # Artwork checks using validator
     video_filename = videos[0][1] if videos else f"{name}.mkv"

@@ -5,7 +5,7 @@ import time
 import tempfile
 from typing import Dict, List, Optional
 
-SCAN_VERSION = 1
+SCAN_VERSION = 2
 
 def get_cache_key(media_server: str) -> str:
     """Berechnet den Cache-Schlüssel basierend auf Scan-Version und Medienserver."""

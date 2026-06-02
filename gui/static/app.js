@@ -10929,6 +10929,8 @@ function renderHealthStatus(data) {
                     fixBtns = `<button class="btn btn-secondary btn-sm health-fix-flatten" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen">🔧 Auflösen</button>`;
                 } else if (it.type === "name_mismatch" || it.type === "bad_folder_name") {
                     fixBtns = `<button class="btn btn-secondary btn-sm health-fix-rename" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Umbenennen">🔧 Umbenennen</button>`;
+                } else if (it.type === "missing_age_rating" || it.type === "invalid_age_rating") {
+                    fixBtns = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" title="FSK-Stufe setzen">🔧 FSK setzen</button>`;
                 }
                 html += `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:0.9em; padding:4px 0; border-top:1px solid rgba(255,255,255,0.04);">
                             <span>${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
@@ -11016,6 +11018,33 @@ function renderHealthStatus(data) {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(body),
+                    });
+                    const data = await res.json();
+                    if (data.ok) { pollHealthStatus(false); }
+                    else { alert(data.message || "Fehler"); b.disabled = false; }
+                } catch (e) { alert("Fehler: " + e); b.disabled = false; }
+            });
+        });
+
+        issuesEl.querySelectorAll(".health-fix-fsk").forEach(b => {
+            b.addEventListener("click", async () => {
+                const p = b.getAttribute("data-path");
+                const input = prompt("Bitte FSK-Stufe eingeben (0, 6, 12, 16, 18):");
+                if (!input) return;
+                const fskVal = input.trim();
+                const validFsks = ["0", "6", "12", "16", "18"];
+                if (!validFsks.includes(fskVal)) {
+                    alert("Ungültiger Wert. Bitte nur 0, 6, 12, 16 oder 18 eingeben.");
+                    return;
+                }
+                if (!confirm("Die NFO-Datei wird nun angepasst. Fortfahren?")) return;
+                
+                b.disabled = true;
+                try {
+                    const res = await fetch("/api/nas/health-fix", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "set_fsk", path: p, new_fsk: fskVal }),
                     });
                     const data = await res.json();
                     if (data.ok) { pollHealthStatus(false); }
