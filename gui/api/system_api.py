@@ -13,6 +13,7 @@ import gui.mw_metadata as mw_metadata
 system_api = Blueprint('system_api', __name__)
 NAS_CONNECT_COOLDOWN_SECONDS = 5
 failed_attempts = {}
+failed_attempts_lock = threading.Lock()
 
 # Global variables imported from processor
 from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
@@ -288,19 +289,15 @@ def handle_api_system_open_folder():
         params = request.get_json() or {}
     except Exception:
         params = {}
-    query = request.args
-    # Flask liefert request.args.get() als String (nicht als Liste wie das frühere
-    # parse_qs). Daher direkt verwenden – früher wurde fälschlich [0] genommen, was
-    # nur das erste Zeichen des Pfades lieferte ("/").
-    path = query.get("path") or params.get("path")
-    category_id = query.get("category_id") or params.get("category_id")
+    path = params.get("path")
+    category_id = params.get("category_id")
 
     folder_path = None
 
     if path:
         folder_path = path
     elif category_id:
-        folder_name = query.get("folder_name") or params.get("folder_name") or ""
+        folder_name = params.get("folder_name") or ""
 
         settings = load_settings()
         nas_root = settings.get("nas_root", "")
@@ -600,20 +597,18 @@ def handle_api_auth_login():
     import secrets
     import hashlib
     import time
-    from gui.core.persistence import check_password
+    from gui.core.persistence import check_password, load_settings
 
-    # Get client IP
+    # Get client IP strictly from remote_addr to prevent spoofing
     client_ip = request.remote_addr or '127.0.0.1'
-    if request.headers.getlist("X-Forwarded-For"):
-        client_ip = request.headers.getlist("X-Forwarded-For")[0]
-
     now = time.time()
 
     # Check rate limit lockout (5 failed attempts in last 60s)
-    if client_ip in failed_attempts:
-        attempts, lockout_time = failed_attempts[client_ip]
-        if attempts >= 5 and now - lockout_time < 60:
-            return jsonify({"status": "error", "message": "Zu viele Fehlversuche. Bitte warte eine Minute."}), 429
+    with failed_attempts_lock:
+        if client_ip in failed_attempts:
+            attempts, lockout_time = failed_attempts[client_ip]
+            if attempts >= 5 and now - lockout_time < 60:
+                return jsonify({"status": "error", "message": "Zu viele Fehlversuche. Bitte warte eine Minute."}), 429
 
     try:
         params = request.get_json() or {}
@@ -624,9 +619,15 @@ def handle_api_auth_login():
 
     if check_password(password):
         # Reset counter on successful login
-        failed_attempts.pop(client_ip, None)
+        with failed_attempts_lock:
+            failed_attempts.pop(client_ip, None)
 
         session['authenticated'] = True
+
+        # Generate auth_version based on password hash to support session invalidation on rotation
+        settings = load_settings()
+        pw_hash = settings.get("password_hash", "")
+        session['auth_version'] = hashlib.sha256(pw_hash.encode('utf-8')).hexdigest()
 
         # Generate CSRF token
         csrf_token = secrets.token_hex(32)
@@ -636,10 +637,11 @@ def handle_api_auth_login():
         resp.set_cookie('mw_csrf_token', csrf_token, samesite='Lax', secure=False)
         return resp
     else:
-        attempts, lockout_time = failed_attempts.get(client_ip, (0, 0))
-        attempts += 1
-        lockout_time = now if attempts >= 5 else 0
-        failed_attempts[client_ip] = (attempts, lockout_time)
+        with failed_attempts_lock:
+            attempts, lockout_time = failed_attempts.get(client_ip, (0, 0))
+            attempts += 1
+            lockout_time = now if attempts >= 5 else 0
+            failed_attempts[client_ip] = (attempts, lockout_time)
 
         # Progressive delay capped strictly at 2.0s
         delay = min(2.0, 0.5 * (2 ** (attempts - 1)))
@@ -690,7 +692,15 @@ def handle_api_settings_password():
 
     if new_password:
         set_password(new_password)
+        # Update current session auth_version so the current user remains logged in
+        from flask import session
+        import hashlib
+        settings = load_settings()
+        pw_hash = settings.get("password_hash", "")
+        session['auth_version'] = hashlib.sha256(pw_hash.encode('utf-8')).hexdigest()
         return jsonify({"status": "success", "message": "Passwort erfolgreich aktualisiert."})
     else:
         clear_password()
+        from flask import session
+        session.pop('auth_version', None)
         return jsonify({"status": "success", "message": "Passwort erfolgreich entfernt."})

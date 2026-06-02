@@ -54,6 +54,8 @@ async function checkAuthStatus() {
         
         const statusText = document.getElementById('settings-password-status-text');
         const currentPwGroup = document.getElementById('settings-current-password-group');
+        const logoutArea = document.getElementById('settings-logout-area');
+        const sidebarLogout = document.getElementById('btn-sidebar-logout');
         
         if (data.auth_required) {
             if (statusText) {
@@ -62,6 +64,12 @@ async function checkAuthStatus() {
             }
             if (currentPwGroup) {
                 currentPwGroup.classList.remove('hidden');
+            }
+            if (logoutArea) {
+                logoutArea.classList.remove('hidden');
+            }
+            if (sidebarLogout) {
+                sidebarLogout.classList.remove('hidden');
             }
             
             if (!data.authenticated) {
@@ -75,6 +83,12 @@ async function checkAuthStatus() {
             }
             if (currentPwGroup) {
                 currentPwGroup.classList.add('hidden');
+            }
+            if (logoutArea) {
+                logoutArea.classList.add('hidden');
+            }
+            if (sidebarLogout) {
+                sidebarLogout.classList.add('hidden');
             }
         }
         hideLoginScreen();
@@ -168,6 +182,24 @@ async function handlePasswordUpdate() {
         }
     }
 }
+
+async function handleLogout() {
+    try {
+        const response = await fetch('/api/auth/logout', {
+            method: 'POST'
+        });
+        if (response.ok) {
+            window.location.reload();
+        } else {
+            alert("Fehler beim Abmelden.");
+        }
+    } catch (e) {
+        console.error("Logout error:", e);
+        alert("Netzwerkfehler beim Abmelden.");
+    }
+}
+
+window.handleLogout = handleLogout;
 
 window.handleLoginSubmit = handleLoginSubmit;
 window.handlePasswordUpdate = handlePasswordUpdate;
@@ -355,6 +387,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnUpdatePw = document.getElementById("btn-update-password");
     if (btnUpdatePw) {
         btnUpdatePw.addEventListener("click", handlePasswordUpdate);
+    }
+
+    // Bind logout buttons
+    const btnLogout = document.getElementById("btn-logout");
+    if (btnLogout) {
+        btnLogout.addEventListener("click", handleLogout);
+    }
+    const btnSidebarLogout = document.getElementById("btn-sidebar-logout");
+    if (btnSidebarLogout) {
+        btnSidebarLogout.addEventListener("click", handleLogout);
     }
 
     // Apply theme from localStorage immediately to prevent flashes on load
@@ -2697,7 +2739,11 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     btnScrape.textContent = "...";
                     
                     try {
-                        const response = await fetch(`/api/yt/fetch?url=${encodeURIComponent(urlVal)}`);
+                        const response = await fetch('/api/yt/fetch', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: urlVal })
+                        });
                         if (response.ok) {
                             const data = await response.json();
                             if (data.error) {
@@ -3446,7 +3492,11 @@ async function analyseYtLink(isHandoff = false) {
     detailsPanel.classList.add("hidden");
     
     try {
-        const response = await fetch(`/api/yt/fetch?url=${encodeURIComponent(url)}`);
+        const response = await fetch('/api/yt/fetch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: url })
+        });
         if (!response.ok) {
             alert("Fehler bei der Link-Analyse. Bitte Logs prüfen.");
             loading.classList.add("hidden");
@@ -5764,7 +5814,7 @@ function initEventListeners() {
     document.getElementById("btn-streamfab-import").addEventListener("click", async () => {
         appendConsoleLog("[System]: Lade Import-Vorschau...");
         try {
-            const response = await fetch("/api/streamfab-import", { method: "GET" });
+            const response = await fetch("/api/streamfab-import/preview", { method: "GET" });
             const data = await response.json();
             if (data.status === "ok") {
                 currentImportPreviewData = data.preview;
@@ -5783,7 +5833,11 @@ function initEventListeners() {
     };
 
     window.openFolderInFinder = function(path) {
-        fetch(`/api/system-open-folder?path=${encodeURIComponent(path)}`).catch(() => {});
+        fetch('/api/system-open-folder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: path })
+        }).catch(() => {});
     };
 
     function renderImportPreviewModal(previewData) {
@@ -8061,7 +8115,11 @@ document.addEventListener("DOMContentLoaded", () => {
         const folderName = folderInput ? folderInput.value.trim() : "";
         
         try {
-            const res = await fetch(`/api/system/open-folder?category_id=${catId}&folder_name=${encodeURIComponent(folderName)}`);
+            const res = await fetch("/api/system-open-folder", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ category_id: catId, folder_name: folderName })
+            });
             if (res.ok) {
                 const data = await res.json();
                 if (data.error) {
@@ -10263,7 +10321,11 @@ function renderHealthStatus(data) {
         issuesEl.querySelectorAll(".health-open-folder").forEach(b => {
             b.addEventListener("click", () => {
                 const p = b.getAttribute("data-path");
-                fetch(`/api/system-open-folder?path=${encodeURIComponent(p)}`).catch(() => {});
+                fetch('/api/system-open-folder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: p })
+                }).catch(() => {});
             });
         });
 
@@ -10555,7 +10617,11 @@ function renderDuplicateStatus(data) {
             b.addEventListener("click", () => {
                 const p = b.getAttribute("data-path");
                 const folder = p.substring(0, p.lastIndexOf("/"));
-                fetch(`/api/system-open-folder?path=${encodeURIComponent(folder)}`).catch(() => {});
+                fetch('/api/system-open-folder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: folder })
+                }).catch(() => {});
             });
         });
         card.querySelectorAll(".dup-delete").forEach(b => {

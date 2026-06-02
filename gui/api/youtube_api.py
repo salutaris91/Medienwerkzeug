@@ -382,9 +382,7 @@ def handle_api_yt_fetch():
         params = request.get_json() or {}
     except Exception:
         params = {}
-    query = request.args
-    url_list = query.get("url", [""])
-    url = url_list[0]
+    url = params.get("url", "")
     if not url:
         return jsonify({"error": "Keine URL angegeben."})
         return

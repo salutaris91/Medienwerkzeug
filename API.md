@@ -75,8 +75,8 @@ Einzel-Profil laden/speichern bzw. alle lokalen Profile auflisten.
 ### `GET|POST /api/check-dependencies`
 Prüft Verfügbarkeit/Versionen externer Tools (`ffmpeg`, `yt-dlp`, `rclone`).
 
-### `GET|POST /api/system-open-folder`
-Öffnet einen Ordner im macOS-Finder. Query/Payload: `path` oder `category_id`.
+### `POST /api/system-open-folder`
+Öffnet einen Ordner im macOS-Finder. Payload (JSON): `path` (absoluter Pfad) oder `category_id` (und optional `folder_name`).
 
 ### `GET|POST /api/system-restart`
 Startet den Server-Prozess neu.
@@ -134,8 +134,11 @@ Vorhandene Staffeln + Episodenzahlen einer Show.
 ### `GET|POST /api/check-nas-duplicate`, `/api/media-compare`, `/api/resolve-duplicate`
 Einzel-Duplikat-Prüfung beim Verarbeiten, ffprobe-Vergleich, Auflösung.
 
-### `GET|POST /api/streamfab-import`
-Importiert StreamFab-Downloads in die Inbox.
+### `GET /api/streamfab-import/preview`
+Scannt die konfigurierten globalen Import-Quellen und liefert eine Vorschau der importierbaren Download-Elemente.
+
+### `POST /api/streamfab-import`
+Importiert ausgewählte StreamFab-Downloads in die Inbox und löscht abgewiesene Elemente. Payload (JSON): `import_items`, `delete_items`.
 
 ### Feature 3 — Media Health Dashboard
 * `POST /api/nas/health-scan` — startet den Bibliotheks-Scan im Hintergrund.
@@ -203,8 +206,11 @@ Job-Status abrufen, abgeschlossene Jobs leeren, fehlgeschlagenen Job wiederholen
 
 ## youtube_api — YouTube
 
-### `GET|POST /api/yt/fetch`, `/api/yt/segments`, `/api/yt/cut-done`, `/api/yt/finalize`
-Metadaten lesen, Segmente schneiden, finalisieren/herunterladen.
+### `POST /api/yt/fetch`
+Ruft Metadaten und verfügbare Videoauflösungen/-formate eines YouTube-Links (oder einer Mediatheks-URL) ab. Payload (JSON): `{"url": "<video-url>"}`.
+
+### `/api/yt/segments`, `/api/yt/cut-done`, `/api/yt/finalize`
+Segmente schneiden, finalisieren/herunterladen.
 
 ### `GET|POST /api/youtube/merge`, `/api/youtube/search-parts`
 Teile zusammenführen, mehrteilige Videos suchen.

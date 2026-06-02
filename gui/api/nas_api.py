@@ -126,6 +126,12 @@ def handle_api_check_nas_duplicate():
 
 
 
+@nas_api.route('/streamfab-import/preview', methods=['GET'])
+def handle_api_streamfab_preview():
+    preview_data = preview_streamfab_import()
+    return jsonify({"status": "ok", "preview": preview_data})
+
+
 @nas_api.route('/streamfab-import', methods=['POST'])
 def handle_api_streamfab_import():
     try:
@@ -133,15 +139,10 @@ def handle_api_streamfab_import():
     except Exception:
         params = {}
         
-    if request.method == 'GET':
-        preview_data = preview_streamfab_import()
-        return jsonify({"status": "ok", "preview": preview_data})
-        
-    elif request.method == 'POST':
-        import_items = params.get("import_items", {})
-        delete_items = params.get("delete_items", [])
-        count = execute_streamfab_import(import_items, delete_items)
-        return jsonify({"status": "ok", "moved_count": count})
+    import_items = params.get("import_items", {})
+    delete_items = params.get("delete_items", [])
+    count = execute_streamfab_import(import_items, delete_items)
+    return jsonify({"status": "ok", "moved_count": count})
 
 
 @nas_api.route('/nas-series', methods=['GET', 'POST'])

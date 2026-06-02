@@ -5,6 +5,7 @@ import json
 import time
 from werkzeug.security import generate_password_hash
 from flask import session
+from unittest.mock import patch, MagicMock
 
 class TestAuth(unittest.TestCase):
     def setUp(self):
@@ -38,6 +39,13 @@ class TestAuth(unittest.TestCase):
         app.config['SECRET_KEY'] = 'test-secret-key-12345'
         self.app = app
         self.client = app.test_client()
+
+        # Set up test folder paths in temporary settings
+        settings = self.persistence.load_settings()
+        settings["inbox_dir"] = os.path.join(self.temp_dir.name, "inbox")
+        settings["outbox_dir"] = os.path.join(self.temp_dir.name, "outbox")
+        settings["nas_root"] = os.path.join(self.temp_dir.name, "nas")
+        self.persistence.save_settings(settings)
 
     def tearDown(self):
         os.environ.pop("MW_SETTINGS_FILE", None)
@@ -197,6 +205,145 @@ class TestAuth(unittest.TestCase):
 
         res = self.client.get("/api/paths/clean")
         self.assertIn(res.status_code, (404, 405))
+
+    def test_logout_invalidates_session(self):
+        """Test 9: Logout POST clears session and deletes CSRF cookie, blocking subsequent requests."""
+        self.persistence.set_password("my-test-password")
+
+        # 1. Login
+        self.client.post("/api/auth/login", json={"password": "my-test-password"})
+        csrf_token = self.client.get_cookie("mw_csrf_token").value
+        headers = {"X-CSRF-Token": csrf_token}
+
+        # Verify access works
+        res = self.client.get("/api/settings")
+        self.assertEqual(res.status_code, 200)
+
+        # 2. Logout
+        res_logout = self.client.post("/api/auth/logout", headers=headers)
+        self.assertEqual(res_logout.status_code, 200)
+
+        # Verify access is blocked now
+        res = self.client.get("/api/settings")
+        self.assertEqual(res.status_code, 401)
+
+    def test_password_rotation_invalidates_old_sessions(self):
+        """Test 10: Changing password rotates the hash fingerprint and invalidates all other devices' sessions."""
+        self.persistence.set_password("old-password")
+
+        # Client A logs in
+        client_a = self.app.test_client()
+        res = client_a.post("/api/auth/login", json={"password": "old-password"})
+        self.assertEqual(res.status_code, 200)
+
+        # Client B logs in
+        client_b = self.app.test_client()
+        client_b.post("/api/auth/login", json={"password": "old-password"})
+        csrf_token = client_b.get_cookie("mw_csrf_token").value
+
+        # Client B changes password
+        res_change = client_b.post("/api/settings/password", json={
+            "current_password": "old-password",
+            "new_password": "new-secure-password"
+        }, headers={"X-CSRF-Token": csrf_token})
+        self.assertEqual(res_change.status_code, 200)
+
+        # Client A (old session) should now be blocked with HTTP 401
+        res = client_a.get("/api/settings")
+        self.assertEqual(res.status_code, 401)
+
+        # Client B (current session who did the change) should still be authenticated
+        res = client_b.get("/api/settings")
+        self.assertEqual(res.status_code, 200)
+
+    def test_system_open_folder_post_only(self):
+        """Test 11: /api/system-open-folder accepts only POST and rejects GET."""
+        self.persistence.set_password("my-test-password")
+
+        # Login
+        self.client.post("/api/auth/login", json={"password": "my-test-password"})
+        csrf_token = self.client.get_cookie("mw_csrf_token").value
+        headers = {"X-CSRF-Token": csrf_token}
+
+        # GET should be rejected with 404 or 405 Method Not Allowed
+        res = self.client.get("/api/system-open-folder")
+        self.assertIn(res.status_code, (404, 405))
+
+        nonexistent_allowed_path = os.path.join(self.temp_dir.name, "inbox", "nonexistent-folder-12345")
+
+        # POST with missing CSRF should fail with 400
+        res = self.client.post("/api/system-open-folder", json={"path": nonexistent_allowed_path})
+        self.assertEqual(res.status_code, 400)
+
+        # POST with valid CSRF should pass the auth/csrf check and return 200 (with error message inside JSON) instead of 401/400 CSRF
+        res = self.client.post("/api/system-open-folder", json={"path": nonexistent_allowed_path}, headers=headers)
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("existiert nicht", res.get_json().get("error", ""))
+
+    @patch("subprocess.run")
+    def test_youtube_fetch_post_only(self, mock_run):
+        """Test 12: /api/yt/fetch accepts only POST and rejects GET."""
+        self.persistence.set_password("my-test-password")
+
+        # Login
+        self.client.post("/api/auth/login", json={"password": "my-test-password"})
+        csrf_token = self.client.get_cookie("mw_csrf_token").value
+        headers = {"X-CSRF-Token": csrf_token}
+
+        # GET should be rejected with 404 or 405 Method Not Allowed
+        res = self.client.get("/api/yt/fetch")
+        self.assertIn(res.status_code, (404, 405))
+
+        # Mock successful subprocess execution
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.stdout = json.dumps({
+            "title": "Mock Video",
+            "uploader": "Mock Channel",
+            "thumbnail": "mock.jpg",
+            "duration": 120,
+            "formats": [{"format_note": "1080p", "height": 1080, "vcodec": "av01"}]
+        })
+        mock_run.return_value = mock_proc
+
+        # POST with valid CSRF should succeed
+        res = self.client.post("/api/yt/fetch", json={"url": "https://youtube.com/watch?v=abc"}, headers=headers)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json().get("title"), "Mock Video")
+
+    def test_streamfab_preview_and_import_separated(self):
+        """Test 13: StreamFab routes are correctly separated into GET (preview) and POST (import)."""
+        self.persistence.set_password("my-test-password")
+
+        # Login
+        self.client.post("/api/auth/login", json={"password": "my-test-password"})
+        csrf_token = self.client.get_cookie("mw_csrf_token").value
+        headers = {"X-CSRF-Token": csrf_token}
+
+        # GET on preview should succeed without CSRF headers
+        res = self.client.get("/api/streamfab-import/preview")
+        self.assertEqual(res.status_code, 200)
+
+        # POST on preview without CSRF should fail with 400 (due to global CSRF middleware check)
+        res = self.client.post("/api/streamfab-import/preview")
+        self.assertEqual(res.status_code, 400)
+
+        # POST on preview with CSRF should fail with 405 Method Not Allowed
+        res = self.client.post("/api/streamfab-import/preview", headers=headers)
+        self.assertEqual(res.status_code, 405)
+
+        # GET on import should be rejected with 404 or 405
+        res = self.client.get("/api/streamfab-import")
+        self.assertIn(res.status_code, (404, 405))
+
+        # POST on import without CSRF should fail (400)
+        res = self.client.post("/api/streamfab-import", json={})
+        self.assertEqual(res.status_code, 400)
+
+        # POST on import with CSRF should succeed (200)
+        res = self.client.post("/api/streamfab-import", json={}, headers=headers)
+        self.assertEqual(res.status_code, 200)
+
 
 if __name__ == "__main__":
     unittest.main()

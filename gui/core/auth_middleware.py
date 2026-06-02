@@ -21,7 +21,13 @@ def auth_before_request():
         # Check session authentication state
         authenticated = session.get('authenticated', False)
         
-        if not authenticated:
+        # Calculate current hash fingerprint
+        current_version = hashlib.sha256(password_hash.encode('utf-8')).hexdigest()
+        session_version = session.get('auth_version')
+
+        if not authenticated or session_version != current_version:
+            # Session is invalid or expired
+            session.clear()
             if request.path.startswith('/api/'):
                 abort(401, "Authentication required")
             else:
