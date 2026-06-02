@@ -17,6 +17,12 @@ def test_capabilities_default_desktop():
         assert caps["runtime"] == "desktop"
         assert caps["capabilities"]["open_local_folder"] is True
 
+def test_capabilities_invalid_fallback():
+    with mock.patch.dict(os.environ, {"MW_RUNTIME": "invalid_value"}, clear=True):
+        caps = get_runtime_capabilities()
+        assert caps["runtime"] == "desktop"
+        assert caps["capabilities"]["open_local_folder"] is True
+
 def test_capabilities_docker_profile():
     with mock.patch.dict(os.environ, {"MW_RUNTIME": "docker"}, clear=True):
         caps = get_runtime_capabilities()
