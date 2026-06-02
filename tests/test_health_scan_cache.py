@@ -369,8 +369,9 @@ class TestHealthScanApi(unittest.TestCase):
         self.app.register_blueprint(nas_api, url_prefix="/api")
         self.client = self.app.test_client()
 
+    @unittest.mock.patch("gui.api.nas_api.ensure_nas_mounted", return_value=True)
     @unittest.mock.patch("gui.core.utils.load_settings")
-    def test_health_scan_no_media_server(self, mock_load_settings):
+    def test_health_scan_no_media_server(self, mock_load_settings, mock_nas):
         # Wenn media_server ein leerer String ist
         mock_load_settings.return_value = {
             "media_server": ""
@@ -383,8 +384,9 @@ class TestHealthScanApi(unittest.TestCase):
         self.assertIn("Medienserver", data["error"])
 
     @unittest.mock.patch("gui.core.health.start_health_scan")
+    @unittest.mock.patch("gui.api.nas_api.ensure_nas_mounted", return_value=True)
     @unittest.mock.patch("gui.core.utils.load_settings")
-    def test_health_scan_with_media_server(self, mock_load_settings, mock_start):
+    def test_health_scan_with_media_server(self, mock_load_settings, mock_nas, mock_start):
         # Wenn media_server gesetzt ist
         mock_load_settings.return_value = {
             "media_server": "emby"
