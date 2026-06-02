@@ -1071,7 +1071,31 @@ function createFallbackPoster(title, isTv, width, height) {
     return fallback;
 }
 
-// Global Image Error Handler for CSS fallbacks
+window.AppCapabilities = {
+    runtime: "desktop",
+    capabilities: {
+        open_local_folder: true,
+        mount_nas: true,
+        native_notifications: true,
+        import_sources: true,
+        browser_upload: false,
+        safe_delete: true
+    }
+};
+
+fetch('/api/system/capabilities')
+    .then(res => res.json())
+    .then(data => {
+        if (data.capabilities) {
+            window.AppCapabilities = data;
+            if (data.runtime === 'docker') {
+                document.body.classList.add('runtime-docker');
+            }
+        }
+    })
+    .catch(err => console.error("Failed to load capabilities", err));
+
+// Global variables Error Handler for CSS fallbacks
 window.addEventListener('error', function (e) {
     if (e.target.tagName && e.target.tagName.toLowerCase() === 'img') {
         const img = e.target;

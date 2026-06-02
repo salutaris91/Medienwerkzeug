@@ -2836,3 +2836,14 @@ body.theme-superfood-light #queue-panel {
     transform: translateX(-50%) translateY(0);
     pointer-events: auto;
 }
+
+/* Docker Runtime Overrides */
+body.runtime-docker [onclick*="openFolderInFinder"],
+body.runtime-docker .project-item-delete,
+body.runtime-docker .dup-delete,
+body.runtime-docker #btn-connect-nas {
+    display: none !important;
+}
+body.runtime-docker .docker-only-info {
+    display: block !important;
+}

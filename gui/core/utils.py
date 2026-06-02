@@ -207,3 +207,22 @@ def save_settings(settings):
         _MOCK_SETTINGS = settings
         return True
     return persistence.save_settings(settings)
+
+def get_runtime_capabilities():
+    runtime = os.environ.get("MW_RUNTIME", "desktop").lower()
+    if runtime not in ("desktop", "docker"):
+        runtime = "desktop"
+    
+    is_docker = (runtime == "docker")
+    
+    return {
+        "runtime": runtime,
+        "capabilities": {
+            "open_local_folder": not is_docker,
+            "mount_nas": not is_docker,
+            "native_notifications": not is_docker,
+            "import_sources": True,
+            "browser_upload": False,
+            "safe_delete": not is_docker
+        }
+    }

@@ -277,6 +277,10 @@ def resolve_duplicate(file_path):
 
     Gibt (ok: bool, message: str) zurück.
     """
+    caps = utils.get_runtime_capabilities()
+    if not caps["capabilities"]["safe_delete"]:
+        return False, "Löschen von Dateien ist im Docker-Betrieb deaktiviert."
+
     settings = utils.load_settings()
     nas_root = settings.get("nas_root", "")
     if not nas_root:

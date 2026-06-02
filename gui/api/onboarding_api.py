@@ -9,6 +9,7 @@ from gui.core.persistence import (
     load_settings, save_settings, update_settings,
     set_password, load_env_keys, save_env_keys, mask_credential
 )
+from gui.core.utils import get_runtime_capabilities
 
 onboarding_api = Blueprint('onboarding_api', __name__)
 
@@ -88,8 +89,9 @@ def handle_onboarding_test_nas_connection():
             "message": f"NAS-IP {nas_ip} ist offline oder auf Port 445 nicht erreichbar."
         })
 
-    # 2. Try mounting if on macOS
-    if sys.platform == "darwin":
+    # 2. Try mounting if on macOS and capability allows
+    caps = get_runtime_capabilities()
+    if sys.platform == "darwin" and caps["capabilities"]["mount_nas"]:
         try:
             cmd = ["osascript", "-e", f'mount volume "smb://{nas_ip}/{nas_share}"']
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)

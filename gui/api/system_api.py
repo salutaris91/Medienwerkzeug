@@ -1,7 +1,7 @@
 from gui.core.helpers import get_folder_size_bytes
 import os, sys, json, time, shutil, subprocess, urllib, threading, math
 from flask import Blueprint, request, jsonify, Response, send_file, send_from_directory
-from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history
+from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history, get_runtime_capabilities
 from gui.core.helpers import *
 from gui.core.helpers import log_queue
 from gui.core.transfers import *
@@ -19,6 +19,10 @@ failed_attempts_lock = threading.Lock()
 from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
 
 
+
+@system_api.route('/capabilities', methods=['GET'])
+def handle_api_capabilities():
+    return jsonify(get_runtime_capabilities())
 
 @system_api.route('/settings', methods=['GET', 'POST'])
 def handle_api_settings():
@@ -236,6 +240,14 @@ def handle_api_status():
 @system_api.route('/nas/connect', methods=['POST'])
 def handle_api_nas_connect():
     """Try to mount the configured NAS immediately and refresh the cached status."""
+    caps = get_runtime_capabilities()
+    if not caps["capabilities"]["mount_nas"]:
+        return jsonify({
+            "ok": False,
+            "nas_status": "offline",
+            "message": "NAS muss im Docker-Betrieb als externes Volume gemountet sein."
+        }), 403
+
     now = time.time()
     last_attempt = getattr(handle_api_nas_connect, "last_attempt", 0)
     if now - last_attempt < NAS_CONNECT_COOLDOWN_SECONDS:
@@ -285,6 +297,10 @@ def handle_api_nas_connect():
 
 @system_api.route('/system-open-folder', methods=['POST'])
 def handle_api_system_open_folder():
+    caps = get_runtime_capabilities()
+    if not caps["capabilities"]["open_local_folder"]:
+        return jsonify({"error": "Diese Funktion ist im Docker-Betrieb nicht verfügbar."}), 403
+
     try:
         params = request.get_json() or {}
     except Exception:

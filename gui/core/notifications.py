@@ -1,7 +1,10 @@
-from gui.core.utils import load_settings, save_settings
+from gui.core.utils import load_settings, save_settings, get_runtime_capabilities
 import os, subprocess, urllib.request, urllib.parse, json
 from gui.core.helpers import *
 def send_macos_notification(title, message):
+    caps = get_runtime_capabilities()
+    if not caps["capabilities"]["native_notifications"]:
+        return
     try:
         script = 'on run argv\n display notification item 1 of argv with title item 2 of argv\n end run'
         subprocess.run(["osascript", "-e", script, message, title])
@@ -70,6 +73,9 @@ def trigger_job_notifications(params, job_size_gb, is_end_of_job=False):
                 send_whatsapp_notification(apikey, phone, f"🚀 {title}\n\n{message}")
 
 def open_folders_post_processing(params):
+    caps = get_runtime_capabilities()
+    if not caps["capabilities"]["open_local_folder"]:
+        return
     settings = load_settings()
     outbox_root = settings.get("outbox_dir", "")
     nas_root = settings.get("nas_root", "")

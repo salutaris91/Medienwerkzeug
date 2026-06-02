@@ -1,6 +1,6 @@
 import os, sys, json, time, shutil, subprocess, urllib, threading, math
 from flask import Blueprint, request, jsonify, Response, send_file, send_from_directory
-from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history
+from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history, get_runtime_capabilities
 from gui.core.helpers import *
 from gui.core.helpers import log_queue
 from gui.core.transfers import *
@@ -365,6 +365,10 @@ def handle_api_paths_preview_clean():
 @project_api.route('/paths-clean', methods=['POST'])
 @project_api.route('/paths/clean', methods=['POST'])
 def handle_api_paths_clean():
+    caps = get_runtime_capabilities()
+    if not caps["capabilities"]["safe_delete"]:
+        return jsonify({"error": "Löschen von Dateien ist im Docker-Betrieb deaktiviert."}), 403
+
     try:
         params = request.get_json() or {}
     except Exception:
@@ -443,6 +447,10 @@ def handle_api_paths_clean():
 
 @project_api.route('/clean-project', methods=['POST'])
 def handle_api_clean_project():
+    caps = get_runtime_capabilities()
+    if not caps["capabilities"]["safe_delete"]:
+        return jsonify({"error": "Löschen von Dateien ist im Docker-Betrieb deaktiviert."}), 403
+
     try:
         params = request.get_json() or {}
     except Exception:
@@ -525,6 +533,10 @@ def handle_api_clean_project():
 
 @project_api.route('/delete-project', methods=['POST'])
 def handle_api_delete_project():
+    caps = get_runtime_capabilities()
+    if not caps["capabilities"]["safe_delete"]:
+        return jsonify({"status": "error", "error": "Löschen von Ordnern ist im Docker-Betrieb deaktiviert."}), 403
+
     try:
         params = request.get_json() or {}
     except Exception:
