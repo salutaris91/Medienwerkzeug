@@ -10872,6 +10872,10 @@ function renderHealthStatus(data) {
         data.issues.forEach(it => { (grouped[it.severity] || grouped.info).push(it); });
 
         let html = "";
+        let totalRendered = 0;
+        const DOM_LIMIT = 500;
+        let limitReached = false;
+
         order.forEach(sev => {
             const list = grouped[sev];
             if (!list.length) return;
@@ -10879,7 +10883,17 @@ function renderHealthStatus(data) {
             html += `<details data-sev="${sev}" ${sev === "critical" ? "open" : ""} style="border:1px solid var(--border-light); border-radius:8px; padding:8px 12px;">
                         <summary style="cursor:pointer; color:${m.color}; font-weight:500;">${m.icon} ${m.label} (${list.length})</summary>
                         <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">`;
-            list.forEach(it => {
+            
+            for (let i = 0; i < list.length; i++) {
+                if (totalRendered >= DOM_LIMIT) {
+                    if (!limitReached) {
+                        html += `<div style="padding: 10px; text-align: center; color: var(--text-muted); font-style: italic;">⚠️ Anzeige-Limit erreicht. Es werden nur die ersten ${DOM_LIMIT} Befunde dargestellt.</div>`;
+                        limitReached = true;
+                    }
+                    break;
+                }
+                const it = list[i];
+                totalRendered++;
                 let fixBtns = "";
                 if (it.type === "nested_duplicate") {
                     fixBtns = `<button class="btn btn-secondary btn-sm health-fix-flatten" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen">🔧 Auflösen</button>`;
@@ -10894,7 +10908,7 @@ function renderHealthStatus(data) {
                                 <button class="btn btn-secondary btn-sm finding-ignore" data-key="${escapeHTML(it.key || "")}" title="Diesen Befund dauerhaft ausblenden">🚫 Ignorieren</button>
                             </span>
                          </div>`;
-            });
+            }
             html += `</div></details>`;
         });
         html += renderIgnoredFooter(data.ignored_count);

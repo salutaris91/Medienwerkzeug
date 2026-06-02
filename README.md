@@ -4,6 +4,16 @@
 
 ---
 
+
+## ⚙️ Systemanforderungen
+Das Medienwerkzeug ist für performante, fehlerresiliente Arbeitsabläufe optimiert.
+
+* **Betriebssystem:** macOS (nativ optimiert für lokale Pfade und Papierkorb-Integration), auch lauffähig auf Linux/Windows mit angepassten Pfaden.
+* **Prozessor (CPU):** Multicore empfohlen (für asynchrone Health-Scans und rclone-Uploads).
+* **Arbeitsspeicher (RAM):** Mindestens 2 GB RAM (für Caching der Verzeichnisbäume beim Health-Scan mit +10.000 Dateien).
+* **NAS & Storage:** SMB/NFS Freigaben müssen im OS erreichbar sein.
+* **Abhängigkeiten:** `rclone` für pCloud-Sync, `ffmpeg`/`ffprobe` für intelligente Videokonvertierung (optional).
+
 ## 🚀 Hauptfunktionen
 1. **Automatischer Metadaten-Abgleich:** Vollautomatische, fuzzy-gewichtete Suche auf TMDB und TVDB für Serien, Einzelepisoden, Filme und Dokumentationen mit intelligenter Namensbereinigung.
 2. **Klares Vorschau-System:** Detaillierte Vorschau aller geplanten Umbenennungen, Zielpfade (NAS & pCloud getrennt) sowie Junk-Dateien vor der Ausführung.
