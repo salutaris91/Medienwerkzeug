@@ -758,28 +758,36 @@ def handle_api_health_fix():
             
             settings = load_settings()
             nas_root_setting = os.path.realpath(settings.get("nas_root", ""))
-            
+
             is_movie = True
             real_path = os.path.realpath(path)
+            
+            best_cat = None
+            best_cat_len = -1
+            
             for cat in settings.get("sync_categories", []):
                 nas_sub = cat.get("nas_sub")
                 if not nas_sub: continue
-                
+
                 cat_path = os.path.realpath(os.path.join(nas_root_setting, nas_sub.lstrip("/")))
                 try:
                     if os.path.commonpath([real_path, cat_path]) == cat_path:
-                        cat_name = cat.get("name", "")
-                        if "serie" in cat_name.lower():
-                            is_movie = False
-                        else:
-                            try:
-                                if any(os.path.isdir(os.path.join(real_path, e)) and (e.lower().startswith("staffel ") or e.lower().startswith("season ") or e.lower().startswith("specials")) for e in os.listdir(real_path)):
-                                    is_movie = False
-                            except OSError:
-                                pass
-                        break
+                        if len(cat_path) > best_cat_len:
+                            best_cat_len = len(cat_path)
+                            best_cat = cat
                 except ValueError:
                     continue
+
+            if best_cat:
+                cat_name = best_cat.get("name", "")
+                if "serie" in cat_name.lower():
+                    is_movie = False
+                else:
+                    try:
+                        if any(os.path.isdir(os.path.join(real_path, e)) and (e.lower().startswith("staffel ") or e.lower().startswith("season ") or e.lower().startswith("specials")) for e in os.listdir(real_path)):
+                            is_movie = False
+                    except OSError:
+                        pass
                     
             nfo_path = health.find_primary_nfo(path, is_movie=is_movie)
                 

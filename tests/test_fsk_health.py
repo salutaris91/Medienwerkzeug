@@ -178,5 +178,54 @@ class TestFSKHealthCheck(unittest.TestCase):
             movie_content = f.read()
         self.assertNotIn("<mpaa>", movie_content)
 
+    @patch('gui.api.nas_api.load_settings')
+    def test_set_fsk_api_nested_categories(self, mock_load_settings):
+        # Setup settings mit verschachtelten Kategorien
+        mock_load_settings.return_value = {
+            "nas_root": self.temp_dir,
+            "sync_categories": [
+                {
+                    "name": "Dokus",
+                    "nas_sub": "/Dokus" # generic docs -> movie
+                },
+                {
+                    "name": "Doku-Serien",
+                    "nas_sub": "/Dokus/Doku-Serien" # specific docs -> series
+                }
+            ]
+        }
+        
+        series_dir = os.path.join(self.temp_dir, "Dokus", "Doku-Serien", "My Planet")
+        os.makedirs(series_dir)
+        
+        # Erstelle eine tvshow.nfo
+        tvshow_nfo_path = os.path.join(series_dir, "tvshow.nfo")
+        with open(tvshow_nfo_path, 'w') as f:
+            f.write("<tvshow>\n  <title>Test Planet</title>\n</tvshow>")
+            
+        # Erstelle EINE Film-NFO (Fehlerfall)
+        movie_nfo_path = os.path.join(series_dir, "movie.nfo")
+        with open(movie_nfo_path, 'w') as f:
+            f.write("<movie>\n  <title>Test Movie</title>\n</movie>")
+
+        # API Call
+        response = self.client.post('/api/nas/health-fix', json={
+            "action": "set_fsk",
+            "path": series_dir,
+            "new_fsk": "6"
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json['ok'])
+        
+        # Check if tvshow.nfo was modified (da Doku-Serien als best_cat mit längstem Pfad matcht)
+        with open(tvshow_nfo_path, 'r') as f:
+            content = f.read()
+        self.assertIn("<mpaa>FSK 6</mpaa>", content)
+        
+        # Check if movie.nfo remained untouched
+        with open(movie_nfo_path, 'r') as f:
+            movie_content = f.read()
+        self.assertNotIn("<mpaa>", movie_content)
+
 if __name__ == '__main__':
     unittest.main()
