@@ -20,7 +20,7 @@ from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
 
 
 
-@system_api.route('/capabilities', methods=['GET'])
+@system_api.route('/system/capabilities', methods=['GET'])
 def handle_api_capabilities():
     return jsonify(get_runtime_capabilities())
 

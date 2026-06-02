@@ -18,6 +18,10 @@ from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
 
 @project_api.route('/browse-folder', methods=['GET', 'POST'])
 def handle_api_browse_folder():
+    caps = get_runtime_capabilities()
+    if not caps["capabilities"]["open_local_folder"]:
+        return jsonify({"error": "Ordnerauswahl ist im Docker-Betrieb deaktiviert."}), 403
+
     try:
         params = request.get_json() or {}
     except Exception:

@@ -1,4 +1,4 @@
-from gui.core.utils import load_settings, save_settings
+from gui.core.utils import load_settings, save_settings, get_runtime_capabilities
 import os, socket, subprocess, time, shlex, shutil
 from urllib.parse import quote
 from gui.core.helpers import *
@@ -97,6 +97,11 @@ def ensure_nas_mounted():
         
     if not nas_root:
         return False
+        
+    caps = get_runtime_capabilities()
+    if not caps["capabilities"]["mount_nas"]:
+        # Im Docker-Modus prüfen wir nur die Erreichbarkeit, kein automatisches Mounten!
+        return os.path.isdir(nas_root)
         
     status = check_nas_status()
     if status == "connected":
