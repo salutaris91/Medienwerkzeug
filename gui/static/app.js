@@ -4,7 +4,7 @@
 const originalFetch = window.fetch;
 window.fetch = async function (resource, options = {}) {
     options.headers = options.headers || {};
-    
+
     const csrfToken = getCookie('mw_csrf_token');
     const method = (options.method || 'GET').toUpperCase();
     if (csrfToken && ['POST', 'PUT', 'DELETE'].includes(method)) {
@@ -14,13 +14,13 @@ window.fetch = async function (resource, options = {}) {
             options.headers.set('X-CSRF-Token', csrfToken);
         }
     }
-    
+
     const response = await originalFetch(resource, options);
-    
+
     if (response.status === 401 && !resource.toString().includes('/api/auth/status')) {
         showLoginScreen();
     }
-    
+
     return response;
 };
 
@@ -51,12 +51,12 @@ async function checkAuthStatus() {
     try {
         const response = await originalFetch('/api/auth/status');
         const data = await response.json();
-        
+
         const statusText = document.getElementById('settings-password-status-text');
         const currentPwGroup = document.getElementById('settings-current-password-group');
         const logoutArea = document.getElementById('settings-logout-area');
         const sidebarLogout = document.getElementById('btn-sidebar-logout');
-        
+
         if (data.auth_required) {
             if (statusText) {
                 statusText.textContent = "Geschützt (Passwort aktiv)";
@@ -71,7 +71,7 @@ async function checkAuthStatus() {
             if (sidebarLogout) {
                 sidebarLogout.classList.remove('hidden');
             }
-            
+
             if (!data.authenticated) {
                 showLoginScreen();
                 return false;
@@ -104,18 +104,18 @@ async function handleLoginSubmit(event) {
     const passwordInput = document.getElementById('login-password');
     const password = passwordInput.value;
     const errorMsg = document.getElementById('login-error-message');
-    
+
     if (errorMsg) errorMsg.classList.add('hidden');
-    
+
     try {
         const response = await fetch('/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password: password })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.status === 200 && data.status === 'success') {
             hideLoginScreen();
             passwordInput.value = '';
@@ -140,13 +140,13 @@ async function handlePasswordUpdate() {
     const newPasswordInput = document.getElementById('settings-new-password');
     const errorMsg = document.getElementById('settings-password-error-message');
     const successMsg = document.getElementById('settings-password-success-message');
-    
+
     if (errorMsg) errorMsg.classList.add('hidden');
     if (successMsg) successMsg.classList.add('hidden');
-    
+
     const current_password = currentPasswordInput ? currentPasswordInput.value : '';
     const new_password = newPasswordInput ? newPasswordInput.value : '';
-    
+
     try {
         const response = await fetch('/api/settings/password', {
             method: 'POST',
@@ -156,9 +156,9 @@ async function handlePasswordUpdate() {
                 new_password: new_password
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.status === 200) {
             if (successMsg) {
                 successMsg.textContent = data.message || "Passwort erfolgreich aktualisiert.";
@@ -166,7 +166,7 @@ async function handlePasswordUpdate() {
             }
             if (currentPasswordInput) currentPasswordInput.value = '';
             if (newPasswordInput) newPasswordInput.value = '';
-            
+
             checkAuthStatus();
         } else {
             if (errorMsg) {

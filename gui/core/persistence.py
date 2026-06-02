@@ -493,4 +493,3 @@ def clear_password():
     def mutate(data):
         data["password_hash"] = ""
     return update_settings(mutate)
-

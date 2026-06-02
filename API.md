@@ -78,8 +78,27 @@ Prüft Verfügbarkeit/Versionen externer Tools (`ffmpeg`, `yt-dlp`, `rclone`).
 ### `POST /api/system-open-folder`
 Öffnet einen Ordner im macOS-Finder. Payload (JSON): `path` (absoluter Pfad) oder `category_id` (und optional `folder_name`).
 
-### `GET|POST /api/system-restart`
+### `POST /api/system-restart` · `POST /api/system/restart`
 Startet den Server-Prozess neu.
+
+### `POST /api/auth/login`
+Meldet den Benutzer mit dem Passwort an. Payload (JSON): `{"password": "<passwort>"}`.
+
+### `POST /api/auth/logout`
+Meldet den Benutzer ab und löscht die Session-Daten sowie Cookies.
+
+### `GET /api/auth/status`
+Liefert den aktuellen Authentifizierungsstatus der Anwendung.
+Liefert:
+```json
+{
+  "auth_required": true,
+  "authenticated": false
+}
+```
+
+### `POST /api/settings/password`
+Ändert das bestehende Passwort oder löscht es. Payload (JSON): `{"current_password": "<altes_passwort>", "new_password": "<neues_passwort>"}` (falls `new_password` leer oder nicht vorhanden ist, wird das Passwort gelöscht).
 
 ### `GET /api/logs`
 Server-Sent-Events-Stream der Live-Logs.
@@ -110,15 +129,15 @@ Codec-Status und Begründungs-Chips (`reasons`).
 }
 ```
 
-### `GET|POST /api/paths-preview-clean` · `GET|POST /api/paths-clean`
-Vorschau bzw. Ausführung der Bereinigung von Inbox/Outbox (Payload: `inbox_files`,
+### `GET|POST /api/paths-preview-clean` · `POST /api/paths-clean`
+Vorschau (GET/POST) bzw. Ausführung der Bereinigung von Inbox/Outbox (POST, Payload: `inbox_files`,
 `output_files` als relative Pfade).
 
 ### `GET|POST /api/browse-folder`, `/api/list-subfolders`
 Dateisystem-Browser für die Pfadauswahl.
 
-### `GET|POST /api/clean-project`, `/api/delete-project`, `/api/split-project-file`
-Projekt bereinigen, löschen, Datei aufteilen.
+### `POST /api/clean-project` · `POST /api/delete-project` · `POST /api/split-project-file`
+Projekt bereinigen, löschen oder Videodatei aufteilen.
 
 ---
 
@@ -131,8 +150,8 @@ Liest `destination_id` aus **Query und Body**.
 ### `GET|POST /api/nas-seasons?folder=<Show>&destination_id=<id>`
 Vorhandene Staffeln + Episodenzahlen einer Show.
 
-### `GET|POST /api/check-nas-duplicate`, `/api/media-compare`, `/api/resolve-duplicate`
-Einzel-Duplikat-Prüfung beim Verarbeiten, ffprobe-Vergleich, Auflösung.
+### `GET|POST /api/check-nas-duplicate`, `/api/media-compare`, `POST /api/resolve-duplicate`
+Einzel-Duplikat-Prüfung beim Verarbeiten, ffprobe-Vergleich, Auflösung (POST).
 
 ### `GET /api/streamfab-import/preview`
 Scannt die konfigurierten globalen Import-Quellen und liefert eine Vorschau der importierbaren Download-Elemente.
@@ -192,15 +211,15 @@ UI-Beiwerk und Sichtbarkeits-Toggles.
 ### `GET|POST /api/preview-process`
 Erzeugt die detaillierte Zuordnungs-Vorschau (Umbenennung/Ziele) vor dem Job.
 
-### `GET|POST /api/process`
+### `POST /api/process`
 Reiht einen Verarbeitungs-Job in die Queue ein (Payload: `media_type`,
 `mappings`, Ziel-IDs, `copy_to_nas`/`copy_to_pcloud`, `is_anime` etc.).
 ```json
 { "status": "ok", "task_id": "<uuid>" }
 ```
 
-### `GET|POST /api/queue`, `/api/queue-clear`, `POST /api/queue-retry`
-Job-Status abrufen, abgeschlossene Jobs leeren, fehlgeschlagenen Job wiederholen.
+### `GET /api/queue` · `POST /api/queue-clear` · `POST /api/queue-retry`
+Job-Status abrufen (GET), abgeschlossene Jobs aus der Liste leeren (POST), fehlgeschlagenen Job wiederholen (POST).
 
 ---
 
@@ -209,14 +228,14 @@ Job-Status abrufen, abgeschlossene Jobs leeren, fehlgeschlagenen Job wiederholen
 ### `POST /api/yt/fetch`
 Ruft Metadaten und verfügbare Videoauflösungen/-formate eines YouTube-Links (oder einer Mediatheks-URL) ab. Payload (JSON): `{"url": "<video-url>"}`.
 
-### `/api/yt/segments`, `/api/yt/cut-done`, `/api/yt/finalize`
-Segmente schneiden, finalisieren/herunterladen.
+### `GET|POST /api/yt/segments` · `POST /api/yt/cut-done` · `POST /api/yt/finalize`
+Segmente ermitteln/schneiden (GET/POST), Schnitt abschließen (POST) oder Finalisieren des Download-Jobs (POST).
 
-### `GET|POST /api/youtube/merge`, `/api/youtube/search-parts`
-Teile zusammenführen, mehrteilige Videos suchen.
+### `POST /api/youtube/merge` · `GET|POST /api/youtube/search-parts`
+Teile zusammenführen (POST), mehrteilige Videos suchen (GET/POST).
 
 ### `GET|POST /api/youtube/subscriptions`
-Abonnements lesen/speichern.
+Abonnements lesen (GET) oder speichern (POST).
 
 ### `POST /api/youtube/subscriptions/approve` · `/ignore` · `/check`
 Pending-Video freigeben (reiht Download-Job ein), ignorieren, alle Abos prüfen.

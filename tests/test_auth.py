@@ -344,6 +344,27 @@ class TestAuth(unittest.TestCase):
         res = self.client.post("/api/streamfab-import", json={}, headers=headers)
         self.assertEqual(res.status_code, 200)
 
+    def test_auth_status_updates_on_password_rotation(self):
+        """Test 14: /api/auth/status reflects authentication status immediately after password rotation."""
+        self.persistence.set_password("first-password")
+
+        # Login
+        res = self.client.post("/api/auth/login", json={"password": "first-password"})
+        self.assertEqual(res.status_code, 200)
+
+        # Check status (should be authenticated)
+        res = self.client.get("/api/auth/status")
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.get_json().get("authenticated"))
+
+        # Rotate password
+        self.persistence.set_password("second-password")
+
+        # Check status (should be unauthenticated and cleared)
+        res = self.client.get("/api/auth/status")
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.get_json().get("authenticated"))
+
 
 if __name__ == "__main__":
     unittest.main()

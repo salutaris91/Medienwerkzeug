@@ -661,9 +661,22 @@ def handle_api_auth_logout():
 def handle_api_auth_status():
     from flask import jsonify, session
     from gui.core.persistence import load_settings
+    import hashlib
     settings = load_settings()
-    has_password = bool(settings.get("password_hash", ""))
-    authenticated = session.get('authenticated', False) if has_password else True
+    password_hash = settings.get("password_hash", "")
+    has_password = bool(password_hash)
+
+    authenticated = False
+    if not has_password:
+        authenticated = True
+    else:
+        if session.get('authenticated', False):
+            current_version = hashlib.sha256(password_hash.encode('utf-8')).hexdigest()
+            if session.get('auth_version') == current_version:
+                authenticated = True
+            else:
+                session.clear()
+
     return jsonify({
         "auth_required": has_password,
         "authenticated": authenticated
