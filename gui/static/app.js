@@ -2909,7 +2909,10 @@ async function selectShow(show) {
                     const normP = normalizeCompareName(pData.show_name);
                     const normF = pData.filename ? normalizeCompareName(pData.filename.replace(".json", "")) : "";
                     
-                    if (pData.show_name === show.name || 
+                    const idMatch = (pData.show_id && show.id && String(pData.show_id) === String(show.id) && pData.provider === show.provider);
+                    
+                    if (idMatch || 
+                        pData.show_name === show.name || 
                         (normP && normP === normS) || 
                         (normF && normF === normS)) {
                         localProfileSelect.selectedIndex = i;
