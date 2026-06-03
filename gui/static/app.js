@@ -2144,6 +2144,7 @@ async function deleteProject(project) {
         const data = await response.json();
         if (data.status === "success") {
             appendConsoleLog(`🗑️ Ordner "${project}" wurde erfolgreich in Quarantäne verschoben.`);
+            alert(`🗑️ Ordner "${project}" wurde erfolgreich in Quarantäne verschoben.`);
             if (currentProject === project) {
                 selectProject("");
             }
@@ -6220,6 +6221,7 @@ async function executePathsClean() {
             if (dirsDeletedCount > 0) {
                 appendConsoleLog(`[System]: -> ${dirsDeletedCount} leere Ordner in Quarantäne verschoben.`);
             }
+            alert(`Quarantäne-Vorgang erfolgreich abgeschlossen!\n\n${filesDeletedCount} Dateien und ${dirsDeletedCount} Ordner wurden in Quarantäne verschoben.`);
             loadStatus();
         } else {
             appendConsoleLog(`[System]: ❌ Fehler beim Verschieben in Quarantäne: ${data.error || 'Unbekannter Fehler'}`);

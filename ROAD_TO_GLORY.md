@@ -267,8 +267,9 @@ Im Docker-Betrieb kann der Container keinen Finder oder Explorer auf dem Nutzerr
 - **Capabilities:** `open_local_folder=false`, zusätzlich `browse_folder_contents=true` im Docker-Profil.
 - **Tests:** Erlaubter Pfad liefert Liste, Pfad außerhalb erlaubter Roots wird abgelehnt, fehlender Pfad meldet verständlich, Docker-Capabilities enthalten die neue Fähigkeit.
 
-#### 4.5.3 Quarantäne-Papierkorb (geplant)
+#### 4.5.3 Quarantäne-Papierkorb (Erledigt)
 Nutzerseitige Löschaktionen bleiben im Docker-Profil blockiert, bis ein sicherer Quarantäne-Ordner umgesetzt ist. Ziel ist kein endgültiges Löschen, sondern ein Verschieben in einen persistent gemounteten Papierkorb (z.B. `/media/.medienwerkzeug-trash`) mit späterer Wiederherstellungsoption.
+- **Hinweis für zukünftige Tests (Phase 5):** Ein abschließender manueller End-to-End-Test der Docker-Quarantäne auf einer echten NAS-Umgebung steht noch aus, da der Mount-Fallback in lokalen Docker-Desktop-Tests nicht vollständig die NAS-Realität abbildet.
 
 ---
 
