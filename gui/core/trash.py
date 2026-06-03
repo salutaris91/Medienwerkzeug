@@ -22,8 +22,11 @@ def get_allowed_roots():
         
     sources = settings.get("import_sources", [])
     for src in sources:
-        path = src.get("path")
-        if path: roots.append(os.path.realpath(path))
+        if isinstance(src, str):
+            roots.append(os.path.realpath(src))
+        elif isinstance(src, dict):
+            path = src.get("path")
+            if path: roots.append(os.path.realpath(path))
         
     return [r for r in roots if os.path.exists(r)]
 

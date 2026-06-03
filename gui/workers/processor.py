@@ -159,7 +159,7 @@ def execute_streamfab_import(import_items, delete_items):
             try:
                 trash.send_to_trash(src)
             except Exception as e:
-                print(f"Error deleting {src}: {e}")
+                raise Exception(f"Quarantäne-Fehler bei {os.path.basename(src)}: {e}")
 
     for sf_dir in sources:
         if not os.path.exists(sf_dir):

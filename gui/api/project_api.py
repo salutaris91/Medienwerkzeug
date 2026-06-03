@@ -397,10 +397,8 @@ def handle_api_paths_clean():
                     try:
                         trash.send_to_trash(path_f)
                         deleted_files.append(f"inbox/{f}")
-                    except trash.TrashError as e:
-                        print(f"TrashError removing {path_f}: {e}")
                     except Exception as e:
-                        print(f"Error removing {path_f}: {e}")
+                        return jsonify({"error": f"Quarantäne-Fehler bei inbox/{f}: {e}"}), 500
                         
         # Lösche Dateien aus Output
         if outbox_dir and os.path.exists(outbox_dir):
@@ -413,10 +411,8 @@ def handle_api_paths_clean():
                     try:
                         trash.send_to_trash(path_f)
                         deleted_files.append(f"output/{f}")
-                    except trash.TrashError as e:
-                        print(f"TrashError removing {path_f}: {e}")
                     except Exception as e:
-                        print(f"Error removing {path_f}: {e}")
+                        return jsonify({"error": f"Quarantäne-Fehler bei output/{f}: {e}"}), 500
                         
         # Leere Ordner aufräumen
         def cleanup_empty_dirs(base_dir):

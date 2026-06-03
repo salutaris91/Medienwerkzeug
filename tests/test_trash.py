@@ -24,6 +24,22 @@ def test_get_allowed_roots_uses_correct_keys(mock_realpath, mock_exists):
         assert "/mock/nas" in roots
         assert "/mock/import" in roots
 
+@patch("gui.core.trash.os.path.exists", return_value=True)
+@patch("gui.core.trash.os.path.realpath", side_effect=lambda x: x)
+def test_get_allowed_roots_with_mixed_sources(mock_realpath, mock_exists):
+    """Testfall: Es prüft, dass get_allowed_roots() mit Strings und Dicts in import_sources umgehen kann"""
+    with patch("gui.core.utils.load_settings") as mock_load:
+        mock_load.return_value = {
+            "inbox_dir": "/mock/inbox",
+            "import_sources": [{"path": "/mock/dict_import"}, "/mock/string_import"]
+        }
+        
+        roots = get_allowed_roots()
+        
+        assert "/mock/inbox" in roots
+        assert "/mock/dict_import" in roots
+        assert "/mock/string_import" in roots
+
 
 @patch("gui.core.trash.os.path.exists", return_value=True)
 @patch("gui.core.trash.os.path.realpath", side_effect=lambda x: x)
@@ -152,3 +168,47 @@ def test_docker_mode_collision_avoidance(mock_time, mock_access, mock_makedirs, 
             
             # Should have moved with timestamp added
             mock_move.assert_called_once_with("/allowed/file.txt", "/allowed/.medienwerkzeug-trash/file_1234567890.txt")
+
+@pytest.fixture
+def test_client():
+    from flask import Flask
+    from gui.api.project_api import project_api
+    app = Flask(__name__)
+    app.register_blueprint(project_api, url_prefix='/api/project')
+    app.config["TESTING"] = True
+    with app.test_client() as client:
+        yield client
+
+def test_project_api_returns_500_on_trash_error(test_client):
+    """Testfall: Es prüft, dass API bulk delete bei Quarantäne-Fehler einen 500er Fehler liefert"""
+    with patch("gui.api.project_api.load_settings") as mock_settings:
+        mock_settings.return_value = {"inbox_dir": "/mock/inbox"}
+        with patch("gui.api.project_api.os.path.exists", return_value=True), \
+             patch("gui.api.project_api.is_path_allowed", return_value=True), \
+             patch("gui.api.project_api.os.path.abspath", side_effect=lambda x: x), \
+             patch("gui.api.project_api.trash.send_to_trash") as mock_trash:
+             
+            mock_trash.side_effect = Exception("API Trash Error")
+            
+            response = test_client.post("/api/project/paths-clean", json={
+                "action": "delete",
+                "inbox_files": ["file1.mp4"],
+                "output_files": []
+            })
+            
+            assert response.status_code == 500
+            data = response.get_json()
+            assert "Quarantäne-Fehler bei inbox/file1.mp4: API Trash Error" in data["error"]
+
+def test_processor_propagates_trash_error():
+    """Testfall: Es prüft, dass processor.py bei Quarantäne-Fehler eine Exception wirft"""
+    from gui.workers.processor import execute_streamfab_import
+    with patch("gui.workers.processor.trash.send_to_trash") as mock_trash, \
+         patch("gui.workers.processor.os.makedirs"), \
+         patch("gui.workers.processor.os.path.exists", return_value=True), \
+         patch("gui.workers.processor.shutil.move"):
+         
+        mock_trash.side_effect = Exception("Simulated Trash Error")
+        
+        with pytest.raises(Exception, match="Quarantäne-Fehler bei test_file: Simulated Trash Error"):
+            execute_streamfab_import({}, ["/some/path/test_file"])
