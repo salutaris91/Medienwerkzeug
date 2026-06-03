@@ -728,6 +728,8 @@ def handle_api_health_fix():
     except Exception:
         params = {}
 
+    import gui.core.health as health
+
     action = params.get("action")
     path = params.get("path")
     from gui.core.helpers import sanitize_filename
@@ -753,8 +755,6 @@ def handle_api_health_fix():
                 return jsonify({"ok": False, "message": f"Ungültiger FSK-Wert: {new_fsk}"}), 400
 
             fsk_str = f"FSK {new_fsk}"
-
-            import gui.core.health as health
 
             settings = load_settings()
             nas_root_setting = os.path.realpath(settings.get("nas_root", ""))
@@ -882,7 +882,6 @@ def handle_api_health_fix():
             if not rest:
                 shutil.rmtree(inner)
             log_message(f"🔧 [Health-Fix] Verschachtelung aufgelöst: {path}")
-            import gui.core.health as health
             health.remove_issue(path, "nested_duplicate")
             return jsonify({"ok": True, "message": "Verschachtelung aufgelöst."})
 
@@ -895,7 +894,6 @@ def handle_api_health_fix():
                 return jsonify({"ok": False, "message": f"Zielordner existiert bereits: {new_name}"}), 409
             os.rename(path, dst)
             log_message(f"🔧 [Health-Fix] Ordner umbenannt: {os.path.basename(path)} → {new_name}")
-            import gui.core.health as health
             health.remove_issue(path)
             return jsonify({"ok": True, "message": f"Ordner umbenannt zu '{new_name}'."})
 
@@ -940,7 +938,6 @@ def handle_api_health_fix():
             if err:
                 return jsonify({"ok": False, "message": err}), 409
             log_message(f"🔧 [Health-Fix] Dateien umbenannt in {path}: {', '.join(renamed)}")
-            import gui.core.health as health
             health.remove_issue(path)
             return jsonify({"ok": True, "message": f"{len(renamed)} Datei(en) umbenannt."})
 
@@ -958,7 +955,6 @@ def handle_api_health_fix():
                 return jsonify({"ok": False, "message": f"Zielordner existiert bereits: {video_stem}"}), 409
             os.rename(path, dst)
             log_message(f"🔧 [Health-Fix] Ordner an Datei angeglichen: {folder_name} → {video_stem}")
-            import gui.core.health as health
             health.remove_issue(path)
             return jsonify({"ok": True, "message": f"Ordner umbenannt zu '{video_stem}'."})
 
@@ -974,7 +970,6 @@ def handle_api_health_fix():
             if err:
                 return jsonify({"ok": False, "message": err}), 409
             log_message(f"🔧 [Health-Fix] Datei an Ordner angeglichen: {old_stem} → {folder_name}")
-            import gui.core.health as health
             health.remove_issue(path)
             return jsonify({"ok": True, "message": f"{len(renamed)} Datei(en) umbenannt."})
 
@@ -994,7 +989,6 @@ def handle_api_health_fix():
                 return jsonify({"ok": False, "message": f"Zielordner existiert bereits: {new_name}"}), 409
             os.rename(path, dst)
             log_message(f"🔧 [Health-Fix] Ordner + Dateien umbenannt: {os.path.basename(path)} → {new_name}")
-            import gui.core.health as health
             health.remove_issue(path)
             return jsonify({"ok": True, "message": f"Ordner und {len(renamed)} Datei(en) umbenannt zu '{new_name}'."})
 
