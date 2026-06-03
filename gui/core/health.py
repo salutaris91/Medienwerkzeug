@@ -816,6 +816,36 @@ def get_health_status():
     return _apply_ignores(snapshot)
 
 
+def remove_issue(path: str, issue_type: str = None):
+    """Entfernt einen behobenen Befund aus dem State und Cache, damit er in der UI sofort verschwindet."""
+    changed = False
+    with _state_lock:
+        if _scan_state["status"] == "idle":
+            # Wenn wir idle sind, müssen wir den Cache laden, falls _scan_state leer ist
+            cached = _read_cache()
+            if cached and "issues" in cached:
+                original_len = len(cached["issues"])
+                if issue_type:
+                    cached["issues"] = [i for i in cached["issues"] if not (i.get("path") == path and i.get("type") == issue_type)]
+                else:
+                    cached["issues"] = [i for i in cached["issues"] if i.get("path") != path]
+                if len(cached["issues"]) < original_len:
+                    _scan_state.update(cached)
+                    changed = True
+        else:
+            if "issues" in _scan_state:
+                original_len = len(_scan_state["issues"])
+                if issue_type:
+                    _scan_state["issues"] = [i for i in _scan_state["issues"] if not (i.get("path") == path and i.get("type") == issue_type)]
+                else:
+                    _scan_state["issues"] = [i for i in _scan_state["issues"] if i.get("path") != path]
+                if len(_scan_state["issues"]) < original_len:
+                    changed = True
+
+    if changed:
+        _write_cache()
+
+
 # ---------------------------------------------------------------------------
 # Cache I/O
 # ---------------------------------------------------------------------------
