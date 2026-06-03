@@ -84,6 +84,24 @@ class TestEndpoints(unittest.TestCase):
         res = self._post("/api/queue-clear", json={"job_id": "all"})
         self.assertEqual(res.status_code, 200)
 
+    @patch("gui.core.jobs.get_all_jobs", return_value=[{"id": "legacy-job", "status": "queued"}])
+    def test_queue_endpoint_handles_incomplete_legacy_jobs(self, mock_get):
+        res = self.client.get("/api/queue")
+
+        self.assertEqual(res.status_code, 200)
+        payload = res.get_json()
+        self.assertEqual(payload["jobs"], [{
+            "id": "legacy-job",
+            "type": "unknown",
+            "name": "",
+            "status": "queued",
+            "progress": 0,
+            "message": "",
+            "timestamp": 0,
+            "pipeline": None,
+            "project_name": ""
+        }])
+
     @patch("gui.api.nas_api.ensure_nas_mounted", return_value=True)
     def test_streamfab_import(self, mock_nas):
         # Preview is GET

@@ -485,18 +485,19 @@ def handle_api_queue():
     all_jobs = get_all_jobs()
     jobs_list = []
     for j in all_jobs:
+        params = j.get("params") or {}
         jobs_list.append({
-            "id": j["id"],
-            "type": j["type"],
-            "name": j["name"],
-            "status": j["status"],
-            "progress": j["progress"],
-            "message": j["message"],
-            "timestamp": j["timestamp"],
+            "id": j.get("id", ""),
+            "type": j.get("type", "unknown"),
+            "name": j.get("name", ""),
+            "status": j.get("status", "unknown"),
+            "progress": j.get("progress", 0),
+            "message": j.get("message", ""),
+            "timestamp": j.get("timestamp", 0),
             "pipeline": j.get("pipeline"),
-            "project_name": j.get("params", {}).get("project_name", "")
+            "project_name": params.get("project_name", "")
         })
-    jobs_list.sort(key=lambda x: x["timestamp"])
+    jobs_list.sort(key=lambda x: x.get("timestamp", 0))
     return jsonify({"jobs": jobs_list})
 
 
@@ -560,5 +561,4 @@ def handle_api_queue_retry():
     job_queue.put(updated_job)
     
     return jsonify({"status": "success"})
-
 
