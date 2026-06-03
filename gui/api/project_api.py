@@ -39,15 +39,15 @@ def handle_api_browse_folder():
     script = '''
     on run argv
         set defaultPath to item 1 of argv
-        tell application "System Events"
+        tell application "Finder"
             activate
             try
                 if defaultPath is not "" then
-                    set f to choose folder with prompt "Wähle einen Zielordner für die Werkzeuge:" default location (POSIX file defaultPath)
+                    set f to choose folder with prompt "Wähle einen Ordner:" default location (POSIX file defaultPath)
                 else
-                    set f to choose folder with prompt "Wähle einen Zielordner für die Werkzeuge:"
+                    set f to choose folder with prompt "Wähle einen Ordner:"
                 end if
-                POSIX path of f
+                return POSIX path of f
             on error
                 return ""
             end try
