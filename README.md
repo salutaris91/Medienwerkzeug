@@ -102,7 +102,7 @@ graph TD
 ## 🛠️ Setup & Installation
 
 ### 1. Voraussetzungen
-* **Python 3.9+** (Verwendet ausschließlich standardmäßige Bibliotheken, keine externen `pip`-Pakete benötigt!)
+* **Python 3.9+** (Die erforderlichen Abhängigkeiten können über `pip install -r requirements.txt` installiert werden)
 * **macOS** (für NAS SMB-Mounting und AppleScript-Wrapper)
 * **yt-dlp** (muss im PATH erreichbar sein für YouTube-Downloads)
 * **rclone** (für den pCloud-Upload über ein eingerichtetes Remote namens `pcloud:`)
@@ -166,7 +166,7 @@ Unter dem Einstellungs-Tab **"Speicher & Sync"** kannst du beliebig viele Speich
 > den Namen des Speicherziels (z. B. „Auch in Google Drive sichern").
 >
 > **Mehrere Clouds gleichzeitig** (unabhängig schaltbar) sind noch nicht umgesetzt – siehe
-> [`ROADMAP.md`](ROADMAP.md) (Abschnitt 1).
+> [`ROAD_TO_GLORY.md`](ROAD_TO_GLORY.md) (Abschnitt 1).
 >
 > 💡 In den Einstellungen unter **„Speicher & Sync"** gibt es neben der Erklärung ein
 > **❓-Symbol**, das beim Drüberfahren eine rclone-Kurzanleitung einblendet.
@@ -196,7 +196,7 @@ sudo chown 1000:1000 config
 
 Starte den Container anschließend mit:
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 Die Anwendung ist danach (standardmäßig) unter `http://deine-nas-ip:5811` erreichbar.
 
