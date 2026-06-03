@@ -8455,13 +8455,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const bindBrowse = (btnId, inputId) => {
         const btn = document.getElementById(btnId);
         if(btn) {
-            btn.addEventListener("click", async () => {
+            btn.addEventListener("click", async (e) => {
+                e.preventDefault();
                 try {
                     const response = await fetch("/api/browse-folder");
                     const data = await response.json();
-                    if (data.folder) {
+                    if (data.path || data.folder) {
                         const inputEl = document.getElementById(inputId);
-                        if (inputEl) inputEl.value = data.folder;
+                        if (inputEl) {
+                            inputEl.value = data.path || data.folder;
+                            inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+                        }
                     }
                 } catch (e) { console.error("Browse error:", e); }
             });
