@@ -276,9 +276,9 @@ Nutzerseitige Löschaktionen bleiben im Docker-Profil blockiert, bis ein sichere
 ### Phase 5: Packaging & Distribution
 
 #### 5.1 Docker-Image (Primärer Kanal – Ziel für v1.0)
-- `Dockerfile` auf Basis eines schlanken Python-Images (z.B. `python:3.12-slim`)
-- `ffmpeg`, `yt-dlp`, `rclone` werden per `apt-get` / `pip` im Image installiert
-- `docker-compose.yml` mit sinnvollen Defaults und kommentierten Volume-Mounts
+- `Dockerfile` auf Basis eines schlanken Python-Images (z.B. `python:3.12-slim`) **(Erledigt)**
+- `ffmpeg`, `yt-dlp`, `rclone` werden per `apt-get` / `pip` im Image installiert **(Erledigt)**
+- `docker-compose.yml` mit sinnvollen Defaults und kommentierten Volume-Mounts **(Erledigt)**
 - Kompatibilität mit Portainer, Synology Docker-UI und Unraid Community Apps testen
 - **Rclone-Setup UI:** Der rclone OAuth-Login (aktuell Terminal-basiert) muss im Frontend als geführter Web-Flow nachgebaut werden, damit Nutzer sich über die Browser-UI mit Google Drive/pCloud verbinden können.
 - **Web-UI Upload-Button (Ziel v1.1):** Für Nutzer, die ihren NAS-Share nicht als Netzlaufwerk auf dem PC eingebunden haben, wird ein Upload-Button (inkl. Drag & Drop) eingebaut. **Achtung:** Für Videodateien (2-10 GB) braucht das Chunked Uploads, Fortschrittsanzeige und Resume bei Abbruch — das ist ein eigenständiges Feature, kein Einzeiler. Für v1.0 reicht der Verweis auf den NAS-Share als Netzlaufwerk; der Upload-Button kommt in v1.1.
