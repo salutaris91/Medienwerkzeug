@@ -295,16 +295,7 @@ def handle_api_nas_connect():
 
 
 
-@system_api.route('/system-open-folder', methods=['POST'])
-def handle_api_system_open_folder():
-    caps = get_runtime_capabilities()
-    if not caps["capabilities"]["open_local_folder"]:
-        return jsonify({"error": "Diese Funktion ist im Docker-Betrieb nicht verfügbar."}), 403
-
-    try:
-        params = request.get_json() or {}
-    except Exception:
-        params = {}
+def resolve_folder_request_path(params):
     path = params.get("path")
     category_id = params.get("category_id")
 
@@ -318,7 +309,7 @@ def handle_api_system_open_folder():
         settings = load_settings()
         nas_root = settings.get("nas_root", "")
         if not nas_root:
-            return jsonify({"error": "NAS-Root ist nicht konfiguriert."}), 400
+            return None, "NAS-Root ist nicht konfiguriert."
         sync_categories = settings.get("sync_categories", [])
 
         category = None
@@ -328,8 +319,7 @@ def handle_api_system_open_folder():
                 break
 
         if not category:
-            return jsonify({"error": f"Kategorie mit ID {category_id} nicht gefunden."})
-            return
+            return None, f"Kategorie mit ID {category_id} nicht gefunden."
 
         nas_sub = category.get("nas_sub", "").lstrip("/")
         cat_path = os.path.join(nas_root, nas_sub)
@@ -344,28 +334,92 @@ def handle_api_system_open_folder():
             folder_path = cat_path
 
     if not folder_path:
-        return jsonify({"error": "Pfad oder Kategorie-Parameter fehlt."})
-        return
+        return None, "Pfad oder Kategorie-Parameter fehlt."
 
-    folder_path = os.path.abspath(folder_path)
+    folder_path = os.path.realpath(folder_path)
     if not is_path_allowed(folder_path):
-        return jsonify({"error": "Access Denied"})
-        return
+        return None, "Access Denied"
 
     if not os.path.exists(folder_path):
-        return jsonify({"error": f"Pfad existiert nicht: {folder_path}. Ist das NAS gemountet?"})
-        return
+        return None, f"Pfad existiert nicht: {folder_path}. Ist das NAS gemountet?"
 
-    # Security: verify path is a directory, not an executable
     if not os.path.isdir(folder_path):
-        return jsonify({"error": f"Pfad ist kein Ordner: {folder_path}"})
-        return
+        return None, f"Pfad ist kein Ordner: {folder_path}"
+
+    return folder_path, None
+
+@system_api.route('/system-open-folder', methods=['POST'])
+def handle_api_system_open_folder():
+    caps = get_runtime_capabilities()
+    if not caps["capabilities"]["open_local_folder"]:
+        return jsonify({"error": "Diese Funktion ist im Docker-Betrieb nicht verfügbar."}), 403
+
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+
+    folder_path, error = resolve_folder_request_path(params)
+    if error:
+        status_code = 403 if "Access Denied" in error else 400
+        return jsonify({"error": error}), status_code
 
     try:
         open_folder_in_finder(folder_path)
         return jsonify({"success": True, "msg": f"Ordner {folder_path} im Finder geöffnet."})
     except Exception as e:
         return jsonify({"error": f"Fehler beim Öffnen des Ordners: {str(e)}"})
+
+@system_api.route('/system-folder-contents', methods=['POST'])
+def handle_api_system_folder_contents():
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+
+    folder_path, error = resolve_folder_request_path(params)
+    if error:
+        status_code = 403 if "Access Denied" in error else 400
+        return jsonify({"error": error}), status_code
+
+    try:
+        entries = []
+        with os.scandir(folder_path) as it:
+            for entry in it:
+                if entry.name.startswith('.'):
+                    continue
+                try:
+                    stat = entry.stat()
+                    is_dir = entry.is_dir()
+                    entries.append({
+                        "name": entry.name,
+                        "is_dir": is_dir,
+                        "size_bytes": stat.st_size if not is_dir else None,
+                        "modified_time": stat.st_mtime,
+                        "is_error": False
+                    })
+                except OSError as e:
+                    entries.append({
+                        "name": entry.name,
+                        "is_dir": False,
+                        "size_bytes": None,
+                        "modified_time": None,
+                        "is_error": True,
+                        "error": str(e)
+                    })
+                if len(entries) >= 1000:
+                    break
+
+        entries.sort(key=lambda x: (not x.get("is_dir", False), x.get("name", "").lower()))
+        
+        return jsonify({
+            "success": True,
+            "path": folder_path,
+            "folder_name": os.path.basename(folder_path),
+            "files": entries
+        })
+    except Exception as e:
+        return jsonify({"error": f"Fehler beim Lesen des Ordners: {str(e)}"}), 500
 
 
 

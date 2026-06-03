@@ -2838,7 +2838,7 @@ body.theme-superfood-light #queue-panel {
 }
 
 /* Docker Runtime Overrides */
-body.runtime-docker [onclick*="openFolderInFinder"],
+
 body.runtime-docker .project-item-delete,
 body.runtime-docker .dup-delete,
 body.runtime-docker #btn-connect-nas,

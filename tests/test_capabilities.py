@@ -57,3 +57,70 @@ def test_ensure_nas_mounted_docker(mock_load_settings, mock_isdir):
         result = ensure_nas_mounted()
         assert result is True
         mock_isdir.assert_called_once_with("/mock/nas")
+
+@mock.patch('gui.api.system_api.load_settings')
+@mock.patch('gui.core.helpers.load_settings')
+def test_system_folder_contents_allowed(mock_helper_load, mock_api_load, client, tmp_path):
+    mock_helper_load.return_value = {"inbox_dir": str(tmp_path)}
+    mock_api_load.return_value = {"inbox_dir": str(tmp_path)}
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("hello")
+    
+    res = client.post('/api/system-folder-contents', json={"path": str(tmp_path)})
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    assert len(data["files"]) == 1
+    assert data["files"][0]["name"] == "test.txt"
+    assert data["files"][0]["is_dir"] is False
+    assert data["files"][0]["size_bytes"] == 5
+    assert data["files"][0]["is_error"] is False
+
+@mock.patch('gui.api.system_api.load_settings')
+@mock.patch('gui.core.helpers.load_settings')
+def test_system_folder_contents_denied(mock_helper_load, mock_api_load, client, tmp_path):
+    mock_helper_load.return_value = {"inbox_dir": str(tmp_path)}
+    mock_api_load.return_value = {"inbox_dir": str(tmp_path)}
+    
+    res = client.post('/api/system-folder-contents', json={"path": "/etc"})
+    assert res.status_code == 403
+    assert "Access Denied" in res.get_json()["error"]
+
+@mock.patch('gui.api.system_api.load_settings')
+@mock.patch('gui.core.helpers.load_settings')
+def test_system_folder_contents_file_instead_of_dir(mock_helper_load, mock_api_load, client, tmp_path):
+    mock_helper_load.return_value = {"inbox_dir": str(tmp_path)}
+    mock_api_load.return_value = {"inbox_dir": str(tmp_path)}
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("hello")
+    
+    res = client.post('/api/system-folder-contents', json={"path": str(test_file)})
+    assert res.status_code == 400
+    assert "Pfad ist kein Ordner" in res.get_json()["error"]
+
+@mock.patch('gui.core.helpers.load_settings')
+def test_is_path_allowed_symlink_breakout(mock_load, tmp_path):
+    from gui.core.helpers import is_path_allowed
+    import os
+    allowed_dir = tmp_path / "allowed"
+    allowed_dir.mkdir()
+    
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    outside_file = outside_dir / "secret.txt"
+    outside_file.write_text("secret")
+    
+    mock_load.return_value = {"inbox_dir": str(allowed_dir)}
+    
+    # Create symlink inside allowed_dir pointing outside
+    symlink_path = allowed_dir / "breakout_link"
+    try:
+        os.symlink(str(outside_dir), str(symlink_path))
+        
+        # Ensure allowed_dir itself is allowed
+        assert is_path_allowed(str(allowed_dir)) is True
+        
+        # Ensure the symlink resolving to outside is denied
+        assert is_path_allowed(str(symlink_path)) is False
+    except OSError:
+        pytest.skip("Symlinks not supported on this OS/filesystem")

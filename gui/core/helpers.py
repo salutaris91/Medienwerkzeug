@@ -63,32 +63,46 @@ def clean_series_name_for_fs(name):
 def is_path_allowed(target_path):
     """
     Security check: Ensure a path is within the allowed directories configured by the user.
-    Prevents path traversal attacks.
+    Prevents path traversal and symlink breakout attacks.
     """
     if not target_path:
         return False
         
     settings = load_settings()
-    allowed_roots = [
-        os.path.abspath(settings.get("inbox_dir", "")),
-        os.path.abspath(settings.get("outbox_dir", "")),
-        os.path.abspath(settings.get("nas_root", "")),
-    ]
+    
+    # Hilfsfunktion zum sicheren Hinzufügen von Pfaden
+    allowed_roots = []
+    def add_root(p):
+        if p and isinstance(p, str):
+            p = p.strip()
+            if p and os.path.exists(p):
+                allowed_roots.append(os.path.realpath(os.path.expanduser(p)))
+
+    add_root(settings.get("inbox_dir", ""))
+    add_root(settings.get("outbox_dir", ""))
+    add_root(settings.get("nas_root", ""))
+    
     for t in settings.get("storage_targets", []):
-        t_path = t.get("root_path") or t.get("path")
-        if t_path:
-            allowed_roots.append(os.path.abspath(os.path.expanduser(t_path)))
+        add_root(t.get("root_path") or t.get("path"))
             
     for s in settings.get("import_sources", []):
-        if s:
-            allowed_roots.append(os.path.abspath(os.path.expanduser(s)))
+        add_root(s)
             
-    allowed_roots = [r for r in allowed_roots if r]
-    target_abs = os.path.abspath(os.path.expanduser(target_path))
+    # Filtere Duplikate und leere Einträge heraus
+    allowed_roots = list(set(r for r in allowed_roots if r))
     
-    for root in allowed_roots:
-        if target_abs == root or target_abs.startswith(root + os.sep):
-            return True
+    if not allowed_roots:
+        return False
+
+    target_real = os.path.realpath(os.path.expanduser(target_path))
+    
+    for root_real in allowed_roots:
+        try:
+            # os.path.commonpath throws ValueError if paths are on different drives (Windows)
+            if os.path.commonpath([target_real, root_real]) == root_real:
+                return True
+        except ValueError:
+            continue
             
     return False
 
