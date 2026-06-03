@@ -175,7 +175,7 @@ Unter dem Einstellungs-Tab **"Speicher & Sync"** kannst du beliebig viele Speich
 
 ## 💻 Starten der Anwendung
 
-### Variante A: macOS App (Empfohlen)
+### Variante A: macOS App (Empfohlen für Desktop)
 Doppelklicke auf `Medienwerkzeug.app` im Hauptverzeichnis. Das startet den Server im Hintergrund und öffnet die GUI automatisch im Webbrowser.
 
 ### Variante B: Kommandozeile
@@ -184,6 +184,21 @@ Doppelklicke auf `Medienwerkzeug.app` im Hauptverzeichnis. Das startet den Serve
 python3 gui/main.py
 ```
 Die Anwendung ist danach unter [http://127.0.0.1:5001](http://127.0.0.1:5001) erreichbar.
+
+### Variante C: Docker (Empfohlen für NAS / Server)
+Das Medienwerkzeug kann als Docker-Container (inkl. aller Abhängigkeiten wie `ffmpeg`, `yt-dlp` und `rclone`) auf einem NAS oder Server betrieben werden. Eine fertige `docker-compose.yml` liegt bei.
+
+**Wichtig vor dem Start:** Lege den config-Ordner auf dem Host-System manuell an und setze die Besitzerrechte passend (z. B. auf User 1000). Andernfalls könnte Docker das Verzeichnis als `root` anlegen, wodurch die App keine Schreibrechte für die Einstellungs-Dateien hat:
+```bash
+mkdir -p config
+sudo chown 1000:1000 config
+```
+
+Starte den Container anschließend mit:
+```bash
+docker-compose up -d
+```
+Die Anwendung ist danach (standardmäßig) unter `http://deine-nas-ip:5811` erreichbar.
 
 ---
 
