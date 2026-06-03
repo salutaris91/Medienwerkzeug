@@ -122,10 +122,10 @@ def main():
         print(f"Failed to start async joke fetch: {e}")
         
     try:
-        def open_browser():
-            if os.environ.get("MW_RUNTIME") != "docker":
+        if os.environ.get("MW_RUNTIME") != "docker":
+            def open_browser():
                 webbrowser.open(f"http://127.0.0.1:{port}")
-        threading.Timer(1.0, open_browser).start()
+            threading.Timer(1.0, open_browser).start()
         
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
     except OSError as e:

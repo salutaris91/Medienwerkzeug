@@ -3,6 +3,7 @@ services:
     image: ghcr.io/dein-username/medienwerkzeug:latest # Ersetze dein-username durch deinen GitHub-Namen
     container_name: medienwerkzeug
     build: . # Für lokale Builds
+    user: "${PUID:-1000}:${PGID:-1000}"
     ports:
       - "5811:5001"
     environment:
