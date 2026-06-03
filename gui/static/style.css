@@ -2841,6 +2841,7 @@ body.theme-superfood-light #queue-panel {
 
 body.runtime-docker .project-item-delete,
 body.runtime-docker .dup-delete,
+body.runtime-docker #nas-status-container,
 body.runtime-docker #btn-connect-nas,
 body.runtime-docker #btn-settings-browse-inbox,
 body.runtime-docker #btn-settings-browse-outbox,
