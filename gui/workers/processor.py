@@ -6,6 +6,7 @@ import gui.mw_metadata as mw_metadata
 import gui.core.media as media
 from gui.core.utils import load_settings, save_settings, clean_show_name
 from gui.core import artwork_validators
+import gui.core.trash as trash
 
 def _get_series_meta_files(settings):
     """Returns 'tvshow.nfo' and all server-specific series artwork names."""
@@ -156,10 +157,7 @@ def execute_streamfab_import(import_items, delete_items):
     for src in delete_items:
         if os.path.exists(src):
             try:
-                if os.path.isdir(src):
-                    shutil.rmtree(src)
-                else:
-                    os.remove(src)
+                trash.send_to_trash(src)
             except Exception as e:
                 print(f"Error deleting {src}: {e}")
 
@@ -171,7 +169,7 @@ def execute_streamfab_import(import_items, delete_items):
                 dir_path = os.path.join(root, d)
                 if not os.listdir(dir_path):
                     try:
-                        os.rmdir(dir_path)
+                        trash.send_to_trash(dir_path)
                     except Exception:
                         pass
     return count
@@ -376,11 +374,8 @@ def process_worker(params):
                 jp = os.path.join(current_dir, j)
                 if os.path.exists(jp):
                     try:
-                        if os.path.isdir(jp):
-                            shutil.rmtree(jp)
-                        else:
-                            os.remove(jp)
-                        log_message(f"Gelöscht (Junk): {j}")
+                        trash.send_to_trash(jp)
+                        log_message(f"In Quarantäne (Junk): {j}")
                     except Exception as e:
                         log_message(f"Fehler beim Löschen von Junk {j}: {e}")
                     
@@ -405,7 +400,7 @@ def process_worker(params):
             if root == current_dir: continue
             if not os.listdir(root):
                 try:
-                    os.rmdir(root)
+                    trash.send_to_trash(root)
                     log_message(f"Leeren Unterordner entfernt: {os.path.basename(root)}")
                 except Exception as e: print(f"Warning: Ignored exception {e}")
     
@@ -915,11 +910,11 @@ def process_worker(params):
                         except Exception as e:
                             log_message(f"Fehler beim Erfassen des Konvertierungs-Verhältnisses: {e}")
                         if delete_original:
-                            os.remove(target_filepath)
-                            log_message("Originaldatei gelöscht.")
+                            trash.send_to_trash(target_filepath)
+                            log_message("Originaldatei in Quarantäne verschoben.")
                         final_filepath = os.path.join(current_dir, f"{clean_title}.mkv")
                         if os.path.exists(final_filepath):
-                            os.remove(final_filepath)
+                            trash.send_to_trash(final_filepath)
                         os.rename(temp_output, final_filepath)
                         final_filename = f"{clean_title}.mkv"
                         conv_pct[file_idx] = 100
@@ -1109,12 +1104,12 @@ def process_worker(params):
                             remaining_videos.append(os.path.join(root, f))
                 
                 if not remaining_videos:
-                    shutil.rmtree(current_dir)
+                    trash.send_to_trash(current_dir)
                     log_message(f"Projekt-Ordner im Input bereinigt (keine Videos mehr vorhanden): {os.path.basename(current_dir)}")
                 else:
                     non_dot_files = [f for f in os.listdir(current_dir) if not f.startswith(".")]
                     if not non_dot_files:
-                        shutil.rmtree(current_dir)
+                        trash.send_to_trash(current_dir)
                         log_message(f"Leeren Projekt-Ordner im Input bereinigt: {os.path.basename(current_dir)}")
             except Exception as e:
                 log_message(f"Fehler beim Bereinigen des Projekt-Ordners: {e}")
@@ -1456,11 +1451,11 @@ def process_worker(params):
                         except Exception as e:
                             log_message(f"Fehler beim Erfassen des Konvertierungs-Verhältnisses: {e}")
                         if delete_original:
-                            os.remove(target_filepath)
-                            log_message("Originaldatei gelöscht.")
+                            trash.send_to_trash(target_filepath)
+                            log_message("Originaldatei in Quarantäne verschoben.")
                         final_filepath = os.path.join(current_dir, f"{clean_movie_name}.mkv")
                         if os.path.exists(final_filepath):
-                            os.remove(final_filepath)
+                            trash.send_to_trash(final_filepath)
                         os.rename(temp_output, final_filepath)
                         final_filename = f"{clean_movie_name}.mkv"
                         conv_pct[file_idx] = 100
@@ -1620,12 +1615,12 @@ def process_worker(params):
                             remaining_videos.append(os.path.join(root, f))
                 
                 if not remaining_videos:
-                    shutil.rmtree(current_dir)
+                    trash.send_to_trash(current_dir)
                     log_message(f"Projekt-Ordner im Input bereinigt (keine Videos mehr vorhanden): {os.path.basename(current_dir)}")
                 else:
                     non_dot_files = [f for f in os.listdir(current_dir) if not f.startswith(".")]
                     if not non_dot_files:
-                        shutil.rmtree(current_dir)
+                        trash.send_to_trash(current_dir)
                         log_message(f"Leeren Projekt-Ordner im Input bereinigt: {os.path.basename(current_dir)}")
             except Exception as e:
                 log_message(f"Fehler beim Bereinigen des Projekt-Ordners: {e}")
@@ -1894,10 +1889,10 @@ def process_worker(params):
                     if cut_files:
                         log_message(f"Schnittdateien gefunden: {', '.join(cut_files)}")
                         try:
-                            os.remove(primary_filepath)
-                            log_message("Ungeschnittene Originaldatei gelöscht.")
+                            trash.send_to_trash(primary_filepath)
+                            log_message("Ungeschnittene Originaldatei in Quarantäne verschoben.")
                         except Exception as e:
-                            log_message(f"Fehler beim Loeschen des Originals: {e}")
+                            log_message(f"Fehler beim In-Quarantäne-Verschieben des Originals: {e}")
                         downloaded_files = cut_files
                     else:
                         log_message("Keine Schnittdateien gefunden. Verwende Originaldatei.")
@@ -2426,7 +2421,7 @@ def process_worker(params):
                                     log_message(f"Konvertierungs-Verhältnis erfasst: {ratio:.4f}")
                             except Exception as e:
                                 log_message(f"Fehler beim Erfassen des Konvertierungs-Verhältnisses: {e}")
-                            os.remove(filepath)
+                            trash.send_to_trash(filepath)
                             os.rename(temp_output, os.path.join(current_dir, f"{base}.mkv"))
                         else:
                             log_message(f"❌ Fehler bei der Konvertierung von {f}.")
@@ -2479,9 +2474,9 @@ def process_worker(params):
         if delete_original and nas_success and pcloud_success:
             log_message(f"🗑️ Lösche Originalordner nach erfolgreichem Transfer: {current_dir}")
             try:
-                shutil.rmtree(current_dir)
+                trash.send_to_trash(current_dir)
             except Exception as e:
-                log_message(f"⚠️ Konnte Originalordner nicht löschen: {e}")
+                log_message(f"⚠️ Konnte Originalordner nicht in Quarantäne verschieben: {e}")
 
     elif media_type == "tool_pcloud_sync":
         dest = params.get("destination", "")
@@ -2497,9 +2492,9 @@ def process_worker(params):
         if success and delete_original:
             log_message(f"🗑️ Lösche Originalordner nach erfolgreichem Transfer: {current_dir}")
             try:
-                shutil.rmtree(current_dir)
+                trash.send_to_trash(current_dir)
             except Exception as e:
-                log_message(f"⚠️ Konnte Originalordner nicht löschen: {e}")
+                log_message(f"⚠️ Konnte Originalordner nicht in Quarantäne verschieben: {e}")
                 
         if success and open_after:
             # We don't exactly know the local fuse path here easily without reproducing it, 

@@ -198,9 +198,6 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False):
     os.makedirs(os.path.dirname(dst) if not os.path.isdir(dst) else dst, exist_ok=True)
     
     cmd = ["rsync", "-a", "--inplace", "--no-owner", "--no-group", get_rsync_progress_flag()]
-    if move:
-        cmd.append("--remove-source-files")
-        
     src_path = src
     if os.path.isdir(src) and not src.endswith('/'):
         src_path += '/'
@@ -241,11 +238,14 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False):
             if not progress_pattern.search(line) and line:
                 log_message(f"   rsync: {line}")
                 
-    if success and move and os.path.isdir(src):
+    if success and move:
+        import gui.core.trash as trash
         try:
-            shutil.rmtree(src)
-        except Exception:
-            pass
+            trash.send_to_trash(src)
+        except trash.TrashError as e:
+            log_message(f"⚠️ TrashError für Quellpfad {src}: {e}")
+        except Exception as e:
+            log_message(f"⚠️ Konnte Quellpfad {src} nach Move nicht in Quarantäne verschieben: {e}")
             
     return success
 

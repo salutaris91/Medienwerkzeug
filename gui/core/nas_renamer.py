@@ -5,6 +5,7 @@ import time
 import shutil
 import gui.mw_metadata as mw_metadata
 from gui.core.helpers import limit_filename_length, sanitize_filename
+import gui.core.trash as trash
 
 TRANSACTIONS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "rename_transactions")
 
@@ -296,7 +297,7 @@ def rollback_renames(transaction_id):
             # It was a backup creation (e.g. .nfo.bak), we don't strictly need to delete it, but we could.
             if os.path.exists(old_path):
                 try:
-                    os.remove(old_path)
+                    trash.send_to_trash(old_path)
                 except Exception:
                     pass
             continue

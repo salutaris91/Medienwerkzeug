@@ -19,6 +19,7 @@ from gui.core import utils
 from gui.core import media
 from gui.core.transfers import ensure_nas_mounted, walk_nas_categories
 from gui.core.helpers import log_message
+import gui.core.trash as trash
 
 VIDEO_EXTENSIONS = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv'}
 EFFICIENT_CODECS = {'hevc', 'h265', 'av1', 'vp9'}
@@ -277,10 +278,6 @@ def resolve_duplicate(file_path):
 
     Gibt (ok: bool, message: str) zurück.
     """
-    caps = utils.get_runtime_capabilities()
-    if not caps["capabilities"]["safe_delete"]:
-        return False, "Löschen von Dateien ist im Docker-Betrieb deaktiviert."
-
     settings = utils.load_settings()
     nas_root = settings.get("nas_root", "")
     if not nas_root:
@@ -300,10 +297,12 @@ def resolve_duplicate(file_path):
 
     deleted = []
     try:
-        os.remove(target)
+        trash.send_to_trash(target)
         deleted.append(os.path.basename(target))
+    except trash.TrashError as e:
+        return False, str(e)
     except Exception as e:
-        return False, f"Fehler beim Löschen: {e}"
+        return False, f"Fehler beim in Quarantäne verschieben: {e}"
 
     # Begleitdateien mit gleichem Basisnamen entfernen
     base = os.path.splitext(target)[0]
@@ -311,7 +310,7 @@ def resolve_duplicate(file_path):
         sidecar = base + suffix
         if os.path.isfile(sidecar):
             try:
-                os.remove(sidecar)
+                trash.send_to_trash(sidecar)
                 deleted.append(os.path.basename(sidecar))
             except Exception:
                 pass
@@ -320,7 +319,7 @@ def resolve_duplicate(file_path):
     parent = os.path.dirname(target)
     try:
         if os.path.realpath(parent) != nas_root and not os.listdir(parent):
-            os.rmdir(parent)
+            trash.send_to_trash(parent)
     except Exception:
         pass
 
