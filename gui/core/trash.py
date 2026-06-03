@@ -11,13 +11,13 @@ def get_allowed_roots():
     settings = load_settings()
     roots = []
     
-    inbox = settings.get("inbox_path")
+    inbox = settings.get("inbox_dir")
     if inbox: roots.append(os.path.realpath(inbox))
         
-    outbox = settings.get("outbox_path")
+    outbox = settings.get("outbox_dir")
     if outbox: roots.append(os.path.realpath(outbox))
         
-    nas = settings.get("nas_path")
+    nas = settings.get("nas_root")
     if nas: roots.append(os.path.realpath(nas))
         
     sources = settings.get("import_sources", [])
