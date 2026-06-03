@@ -361,8 +361,7 @@ def handle_api_system_open_folder():
 
     folder_path, error = resolve_folder_request_path(params)
     if error:
-        status_code = 403 if "Access Denied" in error else 400
-        return jsonify({"error": error}), status_code
+        return jsonify({"error": error})
 
     try:
         open_folder_in_finder(folder_path)

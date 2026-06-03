@@ -75,7 +75,7 @@ def is_path_allowed(target_path):
     def add_root(p):
         if p and isinstance(p, str):
             p = p.strip()
-            if p and os.path.exists(p):
+            if p:
                 allowed_roots.append(os.path.realpath(os.path.expanduser(p)))
 
     add_root(settings.get("inbox_dir", ""))
