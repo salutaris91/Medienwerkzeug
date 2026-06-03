@@ -6450,12 +6450,111 @@ function initEventListeners() {
         document.getElementById("modal-import-preview").classList.remove("active");
     };
 
+    window.openFolder = async function(params) {
+        if (window.AppCapabilities && window.AppCapabilities.capabilities && !window.AppCapabilities.capabilities.open_local_folder) {
+            // Docker Modus: Web-Ansicht öffnen
+            document.getElementById("docker-folder-view-list").innerHTML = "";
+            document.getElementById("docker-folder-view-loading").classList.remove("hidden");
+            document.getElementById("docker-folder-view-empty").classList.add("hidden");
+            document.getElementById("docker-folder-view-error").classList.add("hidden");
+            document.getElementById("docker-folder-view-path").textContent = params.path || "Lade...";
+            document.getElementById("docker-folder-view-title").textContent = "Ordnerinhalt";
+            document.getElementById("modal-docker-folder-view").classList.remove("hidden");
+            
+            try {
+                const res = await fetch('/api/system-folder-contents', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(params)
+                });
+                const data = await res.json();
+                
+                document.getElementById("docker-folder-view-loading").classList.add("hidden");
+                
+                if (!res.ok || data.error) {
+                    document.getElementById("docker-folder-view-error").textContent = data.error || "Unbekannter Fehler beim Laden des Ordners.";
+                    document.getElementById("docker-folder-view-error").classList.remove("hidden");
+                    return;
+                }
+                
+                if (data.path) {
+                    document.getElementById("docker-folder-view-path").textContent = data.path;
+                }
+                if (data.folder_name) {
+                    document.getElementById("docker-folder-view-title").textContent = data.folder_name;
+                }
+                
+                const listEl = document.getElementById("docker-folder-view-list");
+                if (!data.files || data.files.length === 0) {
+                    document.getElementById("docker-folder-view-empty").classList.remove("hidden");
+                } else {
+                    data.files.forEach(f => {
+                        const tr = document.createElement("tr");
+                        tr.style.borderBottom = "1px solid rgba(255,255,255,0.05)";
+                        
+                        const tdIcon = document.createElement("td");
+                        tdIcon.style.padding = "10px 15px";
+                        tdIcon.style.color = f.is_error ? "#ef4444" : "inherit";
+                        tdIcon.textContent = f.is_error ? "⚠️" : (f.is_dir ? "📁" : "📄");
+                        
+                        const tdName = document.createElement("td");
+                        tdName.style.padding = "10px 15px";
+                        tdName.style.color = f.is_error ? "#ef4444" : "var(--text-main)";
+                        tdName.style.wordBreak = "break-all";
+                        tdName.textContent = f.name + (f.is_error ? " (Fehler: " + f.error + ")" : "");
+                        
+                        const tdSize = document.createElement("td");
+                        tdSize.style.padding = "10px 15px";
+                        tdSize.style.textAlign = "right";
+                        tdSize.style.color = "var(--text-muted)";
+                        if (!f.is_dir && !f.is_error && f.size_bytes !== null) {
+                            tdSize.textContent = formatBytes(f.size_bytes);
+                        } else {
+                            tdSize.textContent = "-";
+                        }
+                        
+                        const tdTime = document.createElement("td");
+                        tdTime.style.padding = "10px 15px";
+                        tdTime.style.textAlign = "right";
+                        tdTime.style.color = "var(--text-muted)";
+                        if (f.modified_time) {
+                            const d = new Date(f.modified_time * 1000);
+                            tdTime.textContent = d.toLocaleString();
+                        } else {
+                            tdTime.textContent = "-";
+                        }
+                        
+                        tr.appendChild(tdIcon);
+                        tr.appendChild(tdName);
+                        tr.appendChild(tdSize);
+                        tr.appendChild(tdTime);
+                        listEl.appendChild(tr);
+                    });
+                }
+            } catch (e) {
+                document.getElementById("docker-folder-view-loading").classList.add("hidden");
+                document.getElementById("docker-folder-view-error").textContent = "Netzwerkfehler: " + e.message;
+                document.getElementById("docker-folder-view-error").classList.remove("hidden");
+            }
+        } else {
+            // Desktop Modus: Normal im OS öffnen
+            return fetch('/api/system-open-folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            }).then(res => res.json()).then(data => {
+                if (data.error && params.category_id) { 
+                    alert(data.error);
+                } else if (data.msg && params.category_id) {
+                    appendConsoleLog(`[System]: ${data.msg}`);
+                }
+                return data;
+            }).catch(() => {});
+        }
+    };
+
     window.openFolderInFinder = function(path) {
-        fetch('/api/system-open-folder', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: path })
-        }).catch(() => {});
+        return window.openFolder({ path: path });
     };
 
     function renderImportPreviewModal(previewData) {
@@ -8291,6 +8390,23 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btnCloseStorageHelp) btnCloseStorageHelp.addEventListener("click", closeStorageHelp);
     if (btnCloseStorageHelpOk) btnCloseStorageHelpOk.addEventListener("click", closeStorageHelp);
 
+    // Docker Folder View Modal Listeners
+    document.getElementById("btn-close-docker-folder-view")?.addEventListener("click", () => {
+        document.getElementById("modal-docker-folder-view").classList.add("hidden");
+    });
+    document.getElementById("btn-docker-folder-view-ok")?.addEventListener("click", () => {
+        document.getElementById("modal-docker-folder-view").classList.add("hidden");
+    });
+    document.getElementById("btn-docker-folder-copy-path")?.addEventListener("click", () => {
+        const pathText = document.getElementById("docker-folder-view-path").textContent;
+        navigator.clipboard.writeText(pathText).then(() => {
+            const btn = document.getElementById("btn-docker-folder-copy-path");
+            const oldText = btn.textContent;
+            btn.textContent = "✅ Kopiert!";
+            setTimeout(() => btn.textContent = oldText, 2000);
+        });
+    });
+
     const btnAddSource = document.getElementById("btn-settings-add-source");
     if(btnAddSource) {
         btnAddSource.addEventListener("click", () => {
@@ -8735,23 +8851,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const folderName = folderInput ? folderInput.value.trim() : "";
         
         try {
-            const res = await fetch("/api/system-open-folder", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ category_id: catId, folder_name: folderName })
-            });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.error) {
-                    alert(data.error);
-                } else {
-                    appendConsoleLog(`[System]: ${data.msg || "Ordner im Finder geöffnet."}`);
-                }
-            } else {
-                alert("Fehler beim Senden der Anfrage an den Server.");
-            }
+            await window.openFolder({ category_id: catId, folder_name: folderName });
         } catch (err) {
-            alert("Fehler beim Öffnen des Ordners: " + err.message);
+            console.error("Fehler beim Öffnen des Ordners:", err);
         }
     });
 
@@ -10957,11 +11059,7 @@ function renderHealthStatus(data) {
         issuesEl.querySelectorAll(".health-open-folder").forEach(b => {
             b.addEventListener("click", () => {
                 const p = b.getAttribute("data-path");
-                fetch('/api/system-open-folder', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ path: p })
-                }).catch(() => {});
+                window.openFolder({ path: p });
             });
         });
 
@@ -11280,11 +11378,7 @@ function renderDuplicateStatus(data) {
             b.addEventListener("click", () => {
                 const p = b.getAttribute("data-path");
                 const folder = p.substring(0, p.lastIndexOf("/"));
-                fetch('/api/system-open-folder', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ path: folder })
-                }).catch(() => {});
+                window.openFolder({ path: folder });
             });
         });
         card.querySelectorAll(".dup-delete").forEach(b => {
