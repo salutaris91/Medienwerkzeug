@@ -70,7 +70,8 @@ def main():
             
     if is_port_in_use(port):
         print(f"Server is already running on port {port}! Just opening the browser...")
-        webbrowser.open(f"http://127.0.0.1:{port}")
+        if os.environ.get("MW_RUNTIME") != "docker":
+            webbrowser.open(f"http://127.0.0.1:{port}")
         sys.exit(0)
         
     # Init settings
@@ -122,14 +123,16 @@ def main():
         
     try:
         def open_browser():
-            webbrowser.open(f"http://127.0.0.1:{port}")
+            if os.environ.get("MW_RUNTIME") != "docker":
+                webbrowser.open(f"http://127.0.0.1:{port}")
         threading.Timer(1.0, open_browser).start()
         
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
     except OSError as e:
         if e.errno == 48 or "Address already in use" in str(e):
             print(f"Server is already running on port {port}! Just opening the browser...")
-            webbrowser.open(f"http://127.0.0.1:{port}")
+            if os.environ.get("MW_RUNTIME") != "docker":
+                webbrowser.open(f"http://127.0.0.1:{port}")
         else:
             raise e
     except KeyboardInterrupt:
