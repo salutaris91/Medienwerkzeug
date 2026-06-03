@@ -2143,17 +2143,17 @@ async function deleteProject(project) {
         });
         const data = await response.json();
         if (data.status === "success") {
-            appendConsoleLog(`🗑️ Ordner "${project}" wurde erfolgreich gelöscht.`);
+            appendConsoleLog(`🗑️ Ordner "${project}" wurde erfolgreich in Quarantäne verschoben.`);
             if (currentProject === project) {
                 selectProject("");
             }
             await loadStatus();
         } else {
-            alert(`Fehler beim Löschen des Ordners: ${data.error}`);
+            alert(`Fehler beim Verschieben des Ordners in Quarantäne: ${data.error}`);
         }
     } catch (e) {
         console.error("Error deleting project:", e);
-        alert(`Netzwerkfehler beim Löschen des Ordners.`);
+        alert(`Netzwerkfehler beim Verschieben des Ordners in Quarantäne.`);
     }
 }
 
@@ -6173,7 +6173,7 @@ async function runPathsCleanScan() {
 async function executePathsClean() {
     const cbs = document.querySelectorAll(".paths-clean-cb-item:checked");
     if (cbs.length === 0) {
-        alert("Bitte wähle mindestens eine Datei zum Löschen aus!");
+        alert("Bitte wähle mindestens eine Datei zum Verschieben in Quarantäne aus!");
         return;
     }
     
@@ -6195,7 +6195,7 @@ async function executePathsClean() {
     
     closePathsCleanModal();
     expandConsole();
-    appendConsoleLog("[System]: Löschvorgang gestartet...");
+    appendConsoleLog("[System]: Quarantäne-Vorgang gestartet...");
     
     try {
         const response = await fetch("/api/paths/clean", {
@@ -6207,25 +6207,27 @@ async function executePathsClean() {
             })
         });
         
-        if (!response.ok) throw new Error("Fehler bei der Übertragung an den Server.");
         const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || "Fehler bei der Übertragung an den Server.");
+        }
         
         if (data.status === "ok") {
             const filesDeletedCount = (data.deleted_files || []).length;
             const dirsDeletedCount = (data.deleted_dirs || []).length;
-            appendConsoleLog(`[System]: Löschvorgang erfolgreich abgeschlossen!`);
-            appendConsoleLog(`[System]: -> ${filesDeletedCount} Dateien gelöscht.`);
+            appendConsoleLog(`[System]: Quarantäne-Vorgang erfolgreich abgeschlossen!`);
+            appendConsoleLog(`[System]: -> ${filesDeletedCount} Dateien in Quarantäne verschoben.`);
             if (dirsDeletedCount > 0) {
-                appendConsoleLog(`[System]: -> ${dirsDeletedCount} leere Ordner bereinigt.`);
+                appendConsoleLog(`[System]: -> ${dirsDeletedCount} leere Ordner in Quarantäne verschoben.`);
             }
             loadStatus();
         } else {
-            appendConsoleLog(`[System]: ❌ Fehler beim Löschen: ${data.error || 'Unbekannter Fehler'}`);
-            alert(`Fehler beim Löschen: ${data.error}`);
+            appendConsoleLog(`[System]: ❌ Fehler beim Verschieben in Quarantäne: ${data.error || 'Unbekannter Fehler'}`);
+            alert(`Fehler beim Verschieben in Quarantäne: ${data.error}`);
         }
     } catch (e) {
-        appendConsoleLog(`[System]: ❌ Fehler beim Löschen: ${e.message}`);
-        alert("Fehler beim Löschen: " + e.message);
+        appendConsoleLog(`[System]: ❌ Fehler beim Verschieben in Quarantäne: ${e.message}`);
+        alert("Fehler beim Verschieben in Quarantäne: " + e.message);
     }
 }
 
@@ -11416,12 +11418,12 @@ async function resolveDuplicate(path, btn, card) {
             const remaining = card.querySelectorAll(".dup-file-row").length;
             if (remaining <= 1) card.remove();
         } else {
-            alert("Löschen fehlgeschlagen: " + (data.message || "Unbekannt"));
+            alert("Verschieben in Quarantäne fehlgeschlagen: " + (data.message || "Unbekannt"));
             btn.disabled = false;
             btn.textContent = "🗑️ In Quarantäne";
         }
     } catch (e) {
-        alert("Fehler beim Löschen: " + e);
+        alert("Fehler beim Verschieben in Quarantäne: " + e);
         btn.disabled = false;
         btn.textContent = "🗑️ In Quarantäne";
     }

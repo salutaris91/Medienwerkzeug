@@ -39,26 +39,33 @@ def handle_api_browse_folder():
     script = '''
     on run argv
         set defaultPath to item 1 of argv
-        tell application "Finder"
-            activate
-            try
-                if defaultPath is not "" then
-                    set f to choose folder with prompt "Wähle einen Ordner:" default location (POSIX file defaultPath)
-                else
-                    set f to choose folder with prompt "Wähle einen Ordner:"
-                end if
-                return POSIX path of f
-            on error
-                return ""
-            end try
-        end tell
+        -- Bring osascript dialog to front directly
+        activate
+        try
+            if defaultPath is not "" then
+                set f to choose folder with prompt "Wähle einen Ordner:" default location (POSIX file defaultPath)
+            else
+                set f to choose folder with prompt "Wähle einen Ordner:"
+            end if
+            return POSIX path of f
+        on error errStr
+            return "ERROR:" & errStr
+        end try
     end run
     '''
     try:
         result = subprocess.run(["osascript", "-", default_path], input=script, capture_output=True, text=True)
         folder_path = result.stdout.strip()
+        print(f"[DEBUG-BROWSE] osascript stdout: {repr(folder_path)}", flush=True)
+        if result.stderr:
+            print(f"[DEBUG-BROWSE] osascript stderr: {repr(result.stderr)}", flush=True)
+            
+        if folder_path.startswith("ERROR:"):
+            return jsonify({"status": "error", "message": folder_path})
+            
         return jsonify({"status": "ok", "path": folder_path})
     except Exception as e:
+        print(f"[DEBUG-BROWSE] Exception: {e}", flush=True)
         return jsonify({"status": "error", "message": str(e)})
 
 
