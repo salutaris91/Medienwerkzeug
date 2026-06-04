@@ -4,6 +4,24 @@
 
 ---
 
+## Inhaltsverzeichnis
+
+- [Systemanforderungen](#%EF%B8%8F-systemanforderungen)
+- [Hauptfunktionen](#-hauptfunktionen)
+- [Projektstruktur](#-projektstruktur)
+- [Entwickler-Wiki](#-entwickler-wiki)
+- [System- & Datenfluss](#-system---datenfluss)
+- [Setup & Installation](#%EF%B8%8F-setup--installation)
+- [Starten der Anwendung](#-starten-der-anwendung)
+  - [Variante A: macOS App](#variante-a-macos-app-empfohlen-für-desktop)
+  - [Variante B: Kommandozeile](#variante-b-kommandozeile)
+  - [Variante C: Docker (NAS / Server)](#variante-c-docker-empfohlen-für-nas--server)
+- [Sicherheit & Zugriffskontrolle](#-sicherheit--zugriffskontrolle)
+- [Best Practices](#-best-practices-serien-universen--sendeplätze-zb-arte-entdeckung-der-welt)
+- [Unit-Tests ausführen](#-unit-tests-ausführen)
+
+---
+
 
 ## ⚙️ Systemanforderungen
 Das Medienwerkzeug ist für performante, fehlerresiliente Arbeitsabläufe optimiert.
@@ -186,19 +204,86 @@ python3 gui/main.py
 Die Anwendung ist danach unter [http://127.0.0.1:5001](http://127.0.0.1:5001) erreichbar.
 
 ### Variante C: Docker (Empfohlen für NAS / Server)
-Das Medienwerkzeug kann als Docker-Container (inkl. aller Abhängigkeiten wie `ffmpeg`, `yt-dlp` und `rclone`) auf einem NAS oder Server betrieben werden. Eine fertige `docker-compose.yml` liegt bei.
 
-**Wichtig vor dem Start:** Lege den config-Ordner auf dem Host-System manuell an und setze die Besitzerrechte passend (z. B. auf User 1000). Andernfalls könnte Docker das Verzeichnis als `root` anlegen, wodurch die App keine Schreibrechte für die Einstellungs-Dateien hat:
+Das Medienwerkzeug kann als Docker-Container auf einem NAS oder Server betrieben werden. Das Image enthält alle Abhängigkeiten (`ffmpeg`, `yt-dlp`, `rclone`) — auf dem NAS muss nichts installiert werden.
+
+#### 1. Voraussetzungen
+
+- Docker auf dem NAS installiert (Synology: Paketcenter → Docker)
+- SSH-Zugang zum NAS
+
+#### 2. Ordner anlegen
+
+Lege den Konfigurationsordner auf dem NAS an und setze die Besitzerrechte auf deinen NAS-Benutzer, damit die App darin schreiben darf:
+
 ```bash
-mkdir -p config
-sudo chown 1000:1000 config
+mkdir -p /pfad/zu/medienwerkzeug/config
+chown PUID:PGID /pfad/zu/medienwerkzeug/config
 ```
 
-Starte den Container anschließend mit:
+> **Deine PUID und PGID findest du mit:**
+> ```bash
+> id dein-nas-benutzername
+> # Beispielausgabe: uid=1000(alex) gid=10(admin)
+> # → PUID=1000, PGID=10
+> ```
+
+#### 3. docker-compose.yml anlegen
+
+Erstelle eine `docker-compose.yml` auf dem NAS (z. B. unter `/pfad/zu/medienwerkzeug/docker-compose.yml`):
+
+```yaml
+services:
+  medienwerkzeug:
+    image: ghcr.io/dein-github-username/medienwerkzeug:latest
+    container_name: medienwerkzeug
+    user: "PUID:PGID"          # Ersetze mit deinen Werten, z. B. "1000:10"
+    ports:
+      - "5811:5001"
+    environment:
+      - TZ=Europe/Berlin
+      - PUID=1000               # Deine UID
+      - PGID=10                 # Deine GID
+    volumes:
+      - /pfad/zu/medienwerkzeug/config:/config
+      - /pfad/zu/deinen/medien:/media   # Übergeordneter Ordner deiner Mediathek
+    restart: unless-stopped
+```
+
+> **Zum Volume `/media`:** Trage den übergeordneten Ordner deiner Mediathek ein. Liegen deine Medien z. B. unter `/volume1/Kino` mit Unterordnern `Filme`, `Serien`, `Doku` usw., reicht ein einziger Eintrag:
+> ```yaml
+> - /volume1/Kino:/media
+> ```
+> Die App sieht dann intern `/media/Filme`, `/media/Serien` usw. — alle Unterordner automatisch.
+
+#### 4. Container starten
+
 ```bash
 docker compose up -d
 ```
-Die Anwendung ist danach (standardmäßig) unter `http://deine-nas-ip:5811` erreichbar.
+
+Die Anwendung ist danach unter `http://deine-nas-ip:5811` erreichbar.
+
+Beim ersten Start öffnet sich der Einrichtungsassistent, der dich durch API-Keys, Pfade und Sicherheitseinstellungen führt.
+
+#### 5. Updates einspielen
+
+Wenn eine neue Version verfügbar ist, reichen zwei Befehle auf dem NAS:
+
+```bash
+docker compose pull     # Neues Image holen
+docker compose up -d    # Container mit neuem Image neu starten
+```
+
+Deine Konfiguration in `/config` bleibt dabei vollständig erhalten.
+
+#### 6. Fehlerdiagnose
+
+```bash
+docker logs medienwerkzeug        # Letzter Output
+docker logs -f medienwerkzeug     # Live mitlesen
+docker ps                         # Prüfen ob Container läuft
+```
 
 ---
 

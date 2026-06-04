@@ -13,6 +13,9 @@ gui/jobs_state.json
 # Flüchtiges Übergabe-Dokument zwischen Chats (siehe CLAUDE.md)
 STAND.md
 
+# Local deployment walkthroughs / notes
+DOCKER_DEPLOYMENT_GUIDE.md
+
 # Generated knowledge graph output
 graphify-out/
 
