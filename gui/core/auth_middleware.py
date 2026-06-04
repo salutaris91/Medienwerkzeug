@@ -28,7 +28,7 @@ def auth_before_request():
 
     if password_hash:
         # Bypassed routes for auth when password is active
-        if request.path in ('/api/auth/login', '/api/onboarding/set-password', '/api/auth/status'):
+        if request.path in ('/api/auth/login', '/api/onboarding/set-password', '/api/auth/status', '/api/system/capabilities'):
             return
 
         # Check session authentication state

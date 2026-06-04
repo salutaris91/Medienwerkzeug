@@ -86,6 +86,14 @@ class TestOnboarding(unittest.TestCase):
         res = self.client.get("/api/check-dependencies")
         self.assertEqual(res.status_code, 200)
 
+        # Capabilities must also pass after a password was set but before onboarding is complete.
+        # Otherwise the frontend falls back to desktop mode during Docker setup.
+        settings = self.persistence.load_settings()
+        settings["password_hash"] = "pbkdf2:sha256:1000000$test$hash"
+        self.persistence.save_settings(settings)
+        res = self.client.get("/api/system/capabilities")
+        self.assertEqual(res.status_code, 200)
+
     def test_onboarding_status_endpoint(self):
         """Verifies GET /api/onboarding/status endpoint values."""
         res = self.client.get("/api/onboarding/status")
