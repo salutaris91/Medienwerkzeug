@@ -1993,7 +1993,7 @@ function renderProjectList(projects) {
             <button class="project-item ${currentProject === p ? "active" : ""}" data-project="${escapedP}" draggable="true">
                 <span class="project-item-icon">📁</span>
                 <span class="project-item-name">${escapedP}</span>
-                <span class="project-item-delete" title="Ordner löschen" data-project="${escapedP}">🗑️</span>
+                <span class="project-item-delete" title="Ordner in Quarantäne verschieben" data-project="${escapedP}">🗑️</span>
             </button>
         `;
     });
@@ -2017,7 +2017,7 @@ function renderProjectList(projects) {
         btn.addEventListener("click", async (e) => {
             e.stopPropagation();
             const p = btn.getAttribute("data-project");
-            if (confirm(`Möchtest du den Ordner "${p}" und alle darin enthaltenen Dateien wirklich unwiderruflich löschen?`)) {
+            if (confirm(`Möchtest du den Ordner "${p}" und alle darin enthaltenen Dateien wirklich in Quarantäne verschieben?`)) {
                 await deleteProject(p);
             }
         });
@@ -2143,17 +2143,18 @@ async function deleteProject(project) {
         });
         const data = await response.json();
         if (data.status === "success") {
-            appendConsoleLog(`🗑️ Ordner "${project}" wurde erfolgreich gelöscht.`);
+            appendConsoleLog(`🗑️ Ordner "${project}" wurde erfolgreich in Quarantäne verschoben.`);
+            alert(`🗑️ Ordner "${project}" wurde erfolgreich in Quarantäne verschoben.`);
             if (currentProject === project) {
                 selectProject("");
             }
             await loadStatus();
         } else {
-            alert(`Fehler beim Löschen des Ordners: ${data.error}`);
+            alert(`Fehler beim Verschieben des Ordners in Quarantäne: ${data.error}`);
         }
     } catch (e) {
         console.error("Error deleting project:", e);
-        alert(`Netzwerkfehler beim Löschen des Ordners.`);
+        alert(`Netzwerkfehler beim Verschieben des Ordners in Quarantäne.`);
     }
 }
 
@@ -5191,7 +5192,7 @@ function renderSubscriptionsList() {
         // Delete button
         const deleteBtn = document.createElement("button");
         deleteBtn.className = "btn btn-danger btn-sm";
-        deleteBtn.innerHTML = "🗑️ Löschen";
+        deleteBtn.innerHTML = "🗑️ In Quarantäne";
         deleteBtn.addEventListener("click", async () => {
             if (confirm(`Abonnement "${sub.name}" wirklich löschen?`)) {
                 // Visual fadeout effect
@@ -6173,11 +6174,11 @@ async function runPathsCleanScan() {
 async function executePathsClean() {
     const cbs = document.querySelectorAll(".paths-clean-cb-item:checked");
     if (cbs.length === 0) {
-        alert("Bitte wähle mindestens eine Datei zum Löschen aus!");
+        alert("Bitte wähle mindestens eine Datei zum Verschieben in Quarantäne aus!");
         return;
     }
     
-    const confirmDelete = confirm(`Bist du sicher, dass du die ${cbs.length} ausgewählten Dateien unwiderruflich löschen möchtest?`);
+    const confirmDelete = confirm(`Bist du sicher, dass du die ${cbs.length} ausgewählten Dateien in Quarantäne verschieben möchtest?`);
     if (!confirmDelete) return;
     
     const inboxFiles = [];
@@ -6195,7 +6196,7 @@ async function executePathsClean() {
     
     closePathsCleanModal();
     expandConsole();
-    appendConsoleLog("[System]: Löschvorgang gestartet...");
+    appendConsoleLog("[System]: Quarantäne-Vorgang gestartet...");
     
     try {
         const response = await fetch("/api/paths/clean", {
@@ -6207,25 +6208,28 @@ async function executePathsClean() {
             })
         });
         
-        if (!response.ok) throw new Error("Fehler bei der Übertragung an den Server.");
         const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || "Fehler bei der Übertragung an den Server.");
+        }
         
         if (data.status === "ok") {
             const filesDeletedCount = (data.deleted_files || []).length;
             const dirsDeletedCount = (data.deleted_dirs || []).length;
-            appendConsoleLog(`[System]: Löschvorgang erfolgreich abgeschlossen!`);
-            appendConsoleLog(`[System]: -> ${filesDeletedCount} Dateien gelöscht.`);
+            appendConsoleLog(`[System]: Quarantäne-Vorgang erfolgreich abgeschlossen!`);
+            appendConsoleLog(`[System]: -> ${filesDeletedCount} Dateien in Quarantäne verschoben.`);
             if (dirsDeletedCount > 0) {
-                appendConsoleLog(`[System]: -> ${dirsDeletedCount} leere Ordner bereinigt.`);
+                appendConsoleLog(`[System]: -> ${dirsDeletedCount} leere Ordner in Quarantäne verschoben.`);
             }
+            alert(`Quarantäne-Vorgang erfolgreich abgeschlossen!\n\n${filesDeletedCount} Dateien und ${dirsDeletedCount} Ordner wurden in Quarantäne verschoben.`);
             loadStatus();
         } else {
-            appendConsoleLog(`[System]: ❌ Fehler beim Löschen: ${data.error || 'Unbekannter Fehler'}`);
-            alert(`Fehler beim Löschen: ${data.error}`);
+            appendConsoleLog(`[System]: ❌ Fehler beim Verschieben in Quarantäne: ${data.error || 'Unbekannter Fehler'}`);
+            alert(`Fehler beim Verschieben in Quarantäne: ${data.error}`);
         }
     } catch (e) {
-        appendConsoleLog(`[System]: ❌ Fehler beim Löschen: ${e.message}`);
-        alert("Fehler beim Löschen: " + e.message);
+        appendConsoleLog(`[System]: ❌ Fehler beim Verschieben in Quarantäne: ${e.message}`);
+        alert("Fehler beim Verschieben in Quarantäne: " + e.message);
     }
 }
 
@@ -6594,7 +6598,7 @@ function initEventListeners() {
                 <select id="bulk-action" class="input input-sm" style="width:130px;">
                     <option value="import">Importieren</option>
                     <option value="ignore">Ignorieren</option>
-                    <option value="delete">🗑 Löschen</option>
+                    <option value="delete">🗑 In Quarantäne</option>
                 </select>
                 <button class="btn btn-sm btn-secondary" onclick="applyBulkImportAction()">Anwenden</button>
             </div>
@@ -6677,7 +6681,7 @@ function initEventListeners() {
                     <select class="input input-sm action-select" data-group="${group.safe_folder_name}" data-path="${file.path}" data-filename="${file.filename}" style="width: 130px;">
                         <option value="import" ${defaultAction === 'import' ? 'selected' : ''}>Importieren</option>
                         <option value="ignore">Ignorieren</option>
-                        <option value="delete">🗑 Löschen</option>
+                        <option value="delete">🗑 In Quarantäne</option>
                     </select>
                 `;
                 groupDiv.appendChild(fileRow);
@@ -8453,13 +8457,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const bindBrowse = (btnId, inputId) => {
         const btn = document.getElementById(btnId);
         if(btn) {
-            btn.addEventListener("click", async () => {
+            btn.addEventListener("click", async (e) => {
+                e.preventDefault();
                 try {
                     const response = await fetch("/api/browse-folder");
                     const data = await response.json();
-                    if (data.folder) {
+                    if (data.path || data.folder) {
                         const inputEl = document.getElementById(inputId);
-                        if (inputEl) inputEl.value = data.folder;
+                        if (inputEl) {
+                            inputEl.value = data.path || data.folder;
+                            inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+                        }
                     }
                 } catch (e) { console.error("Browse error:", e); }
             });
@@ -10233,7 +10241,7 @@ document.addEventListener("DOMContentLoaded", () => {
         btnUpgrade.addEventListener("click", async () => {
             if (!activeDuplicateInfo) return;
             
-            if (confirm("Möchtest du die existierende Datei auf dem NAS wirklich löschen? Dieser Schritt kann nicht rückgängig gemacht werden.")) {
+            if (confirm("Möchtest du die existierende Datei auf dem NAS wirklich in Quarantäne verschieben?")) {
                 btnUpgrade.disabled = true;
                 btnUpgrade.textContent = "⌛ Führe Upgrade aus...";
                 
@@ -10267,7 +10275,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     alert("Netzwerkfehler beim Ausführen des Upgrades.");
                 } finally {
                     btnUpgrade.disabled = false;
-                    btnUpgrade.innerHTML = "🗑️ Vorhandene löschen & Upgrade";
+                    btnUpgrade.innerHTML = "🗑️ Vorhandene in Quarantäne & Upgrade";
                 }
             }
         });
@@ -11363,7 +11371,7 @@ function renderDuplicateStatus(data) {
             // Kollision: kein Auto-Vorschlag -> Löschen pro Datei manuell möglich.
             const showDelete = isCollision ? true : !keep;
             const delBtn = showDelete
-                ? `<button class="btn btn-secondary btn-sm dup-delete" data-path="${escapeHTML(f.path)}" style="white-space:nowrap; color:#ef4444;">🗑️ Löschen</button>`
+                ? `<button class="btn btn-secondary btn-sm dup-delete" data-path="${escapeHTML(f.path)}" style="white-space:nowrap; color:#ef4444;">🗑️ In Quarantäne</button>`
                 : "";
             html += `<div class="dup-file-row" style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:0.88em; padding:4px 0; border-top:1px solid rgba(255,255,255,0.04);">
                         <span style="overflow:hidden; text-overflow:ellipsis;">${badge} &nbsp; ${escapeHTML(f.filename)}<br><span class="text-muted" style="font-size:0.85em;">${details}</span></span>
@@ -11397,11 +11405,11 @@ function renderDuplicateStatus(data) {
 
 async function resolveDuplicate(path, btn, card) {
     const name = path.split("/").pop();
-    if (!confirm(`Diese Datei wirklich endgültig löschen?\n\n${name}\n\nBegleitdateien (NFO/Untertitel/Thumbnail) werden mitgelöscht.`)) {
+    if (!confirm(`Diese Datei wirklich in Quarantäne verschieben?\n\n${name}\n\nBegleitdateien (NFO/Untertitel/Thumbnail) werden mitverschoben.`)) {
         return;
     }
     btn.disabled = true;
-    btn.textContent = "Lösche...";
+    btn.textContent = "Verschiebe...";
     try {
         const res = await fetch("/api/nas/resolve-duplicate-global", {
             method: "POST",
@@ -11416,14 +11424,14 @@ async function resolveDuplicate(path, btn, card) {
             const remaining = card.querySelectorAll(".dup-file-row").length;
             if (remaining <= 1) card.remove();
         } else {
-            alert("Löschen fehlgeschlagen: " + (data.message || "Unbekannt"));
+            alert("Verschieben in Quarantäne fehlgeschlagen: " + (data.message || "Unbekannt"));
             btn.disabled = false;
-            btn.textContent = "🗑️ Löschen";
+            btn.textContent = "🗑️ In Quarantäne";
         }
     } catch (e) {
-        alert("Fehler beim Löschen: " + e);
+        alert("Fehler beim Verschieben in Quarantäne: " + e);
         btn.disabled = false;
-        btn.textContent = "🗑️ Löschen";
+        btn.textContent = "🗑️ In Quarantäne";
     }
 }
 

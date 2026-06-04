@@ -223,6 +223,6 @@ def get_runtime_capabilities():
             "native_notifications": not is_docker,
             "import_sources": True,
             "browser_upload": False,
-            "safe_delete": not is_docker
+            "safe_delete": True
         }
     }

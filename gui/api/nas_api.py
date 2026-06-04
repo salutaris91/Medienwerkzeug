@@ -8,6 +8,7 @@ from gui.workers.processor import *
 from gui.workers.youtube_worker import *
 import gui.core.media as media
 import gui.mw_metadata as mw_metadata
+import gui.core.trash as trash
 
 nas_api = Blueprint('nas_api', __name__)
 
@@ -543,8 +544,8 @@ def handle_api_resolve_duplicate():
         
     if action == "upgrade":
         try:
-            os.remove(existing_path)
-            log_message(f"🗑️ [Dubletten-Upgrade] Existierende Datei auf NAS gelöscht: {existing_path}")
+            trash.send_to_trash(existing_path)
+            log_message(f"🗑️ [Dubletten-Upgrade] Existierende Datei auf NAS in Quarantäne verschoben: {existing_path}")
             
             # Delete corresponding nfo / artwork if present
             base_path = os.path.splitext(existing_path)[0]
@@ -552,12 +553,14 @@ def handle_api_resolve_duplicate():
                 art_file = base_path + ext
                 if os.path.exists(art_file):
                     try:
-                        os.remove(art_file)
-                        log_message(f"  🗑️ Zugehörige Datei gelöscht: {art_file}")
+                        trash.send_to_trash(art_file)
+                        log_message(f"  🗑️ Zugehörige Datei in Quarantäne verschoben: {art_file}")
                     except Exception:
                         pass
                         
-            return jsonify({"status": "success", "message": "Existierende Datei gelöscht. Bereit für Upgrade."})
+            return jsonify({"status": "success", "message": "Existierende Datei in Quarantäne verschoben. Bereit für Upgrade."})
+        except trash.TrashError as e:
+            return jsonify({"error": str(e)}), 500
         except Exception as e:
             return jsonify({"error": f"Error deleting file: {e}"}), 500
     else:
@@ -880,7 +883,10 @@ def handle_api_health_fix():
                 shutil.move(src, dst)
             rest = [e for e in os.listdir(inner) if not e.startswith('.')]
             if not rest:
-                shutil.rmtree(inner)
+                try:
+                    trash.send_to_trash(inner)
+                except Exception as e:
+                    log_message(f"⚠️ [Health-Fix] Konnte leeren Ordner {inner} nicht in Quarantäne verschieben: {e}")
             log_message(f"🔧 [Health-Fix] Verschachtelung aufgelöst: {path}")
             health.remove_issue(path, "nested_duplicate")
             return jsonify({"ok": True, "message": "Verschachtelung aufgelöst."})

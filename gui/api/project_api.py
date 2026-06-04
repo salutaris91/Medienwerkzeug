@@ -39,26 +39,33 @@ def handle_api_browse_folder():
     script = '''
     on run argv
         set defaultPath to item 1 of argv
-        tell application "System Events"
-            activate
-            try
-                if defaultPath is not "" then
-                    set f to choose folder with prompt "Wähle einen Zielordner für die Werkzeuge:" default location (POSIX file defaultPath)
-                else
-                    set f to choose folder with prompt "Wähle einen Zielordner für die Werkzeuge:"
-                end if
-                POSIX path of f
-            on error
-                return ""
-            end try
-        end tell
+        -- Bring osascript dialog to front directly
+        activate
+        try
+            if defaultPath is not "" then
+                set f to choose folder with prompt "Wähle einen Ordner:" default location (POSIX file defaultPath)
+            else
+                set f to choose folder with prompt "Wähle einen Ordner:"
+            end if
+            return POSIX path of f
+        on error errStr
+            return "ERROR:" & errStr
+        end try
     end run
     '''
     try:
         result = subprocess.run(["osascript", "-", default_path], input=script, capture_output=True, text=True)
         folder_path = result.stdout.strip()
+        print(f"[DEBUG-BROWSE] osascript stdout: {repr(folder_path)}", flush=True)
+        if result.stderr:
+            print(f"[DEBUG-BROWSE] osascript stderr: {repr(result.stderr)}", flush=True)
+            
+        if folder_path.startswith("ERROR:"):
+            return jsonify({"status": "error", "message": folder_path})
+            
         return jsonify({"status": "ok", "path": folder_path})
     except Exception as e:
+        print(f"[DEBUG-BROWSE] Exception: {e}", flush=True)
         return jsonify({"status": "error", "message": str(e)})
 
 
@@ -369,9 +376,6 @@ def handle_api_paths_preview_clean():
 @project_api.route('/paths-clean', methods=['POST'])
 @project_api.route('/paths/clean', methods=['POST'])
 def handle_api_paths_clean():
-    caps = get_runtime_capabilities()
-    if not caps["capabilities"]["safe_delete"]:
-        return jsonify({"error": "Löschen von Dateien ist im Docker-Betrieb deaktiviert."}), 403
 
     try:
         params = request.get_json() or {}
@@ -398,10 +402,10 @@ def handle_api_paths_clean():
                     continue
                 if os.path.exists(path_f):
                     try:
-                        os.remove(path_f)
+                        trash.send_to_trash(path_f)
                         deleted_files.append(f"inbox/{f}")
                     except Exception as e:
-                        print(f"Error removing {path_f}: {e}")
+                        return jsonify({"error": f"Quarantäne-Fehler bei inbox/{f}: {e}"}), 500
                         
         # Lösche Dateien aus Output
         if outbox_dir and os.path.exists(outbox_dir):
@@ -412,10 +416,10 @@ def handle_api_paths_clean():
                     continue
                 if os.path.exists(path_f):
                     try:
-                        os.remove(path_f)
+                        trash.send_to_trash(path_f)
                         deleted_files.append(f"output/{f}")
                     except Exception as e:
-                        print(f"Error removing {path_f}: {e}")
+                        return jsonify({"error": f"Quarantäne-Fehler bei output/{f}: {e}"}), 500
                         
         # Leere Ordner aufräumen
         def cleanup_empty_dirs(base_dir):
@@ -425,7 +429,7 @@ def handle_api_paths_clean():
                     dir_path = os.path.join(root, d)
                     try:
                         if not os.listdir(dir_path):
-                            os.rmdir(dir_path)
+                            trash.send_to_trash(dir_path)
                             cleaned.append(os.path.relpath(dir_path, base_dir))
                     except Exception:
                         pass
@@ -451,9 +455,6 @@ def handle_api_paths_clean():
 
 @project_api.route('/clean-project', methods=['POST'])
 def handle_api_clean_project():
-    caps = get_runtime_capabilities()
-    if not caps["capabilities"]["safe_delete"]:
-        return jsonify({"error": "Löschen von Dateien ist im Docker-Betrieb deaktiviert."}), 403
 
     try:
         params = request.get_json() or {}
@@ -490,7 +491,7 @@ def handle_api_clean_project():
                 continue
             if os.path.exists(path_f):
                 try:
-                    os.remove(path_f)
+                    trash.send_to_trash(path_f)
                     deleted_files.append(f)
                 except Exception:
                     pass
@@ -500,7 +501,7 @@ def handle_api_clean_project():
             if root == target_dir: continue
             if not os.listdir(root):
                 try:
-                    os.rmdir(root)
+                    trash.send_to_trash(root)
                     deleted_dirs.append(os.path.relpath(root, target_dir))
                 except Exception:
                     pass
@@ -514,7 +515,7 @@ def handle_api_clean_project():
                 if ext in ['.txt', '.url']:
                     path_f = os.path.join(root, f)
                     try:
-                        os.remove(path_f)
+                        trash.send_to_trash(path_f)
                         deleted_files.append(os.path.relpath(path_f, target_dir))
                     except Exception:
                         pass
@@ -522,7 +523,7 @@ def handle_api_clean_project():
                 path_d = os.path.join(root, d)
                 if not os.listdir(path_d):
                     try:
-                        os.rmdir(path_d)
+                        trash.send_to_trash(path_d)
                         deleted_dirs.append(os.path.relpath(path_d, target_dir))
                     except Exception:
                         pass
@@ -537,9 +538,6 @@ def handle_api_clean_project():
 
 @project_api.route('/delete-project', methods=['POST'])
 def handle_api_delete_project():
-    caps = get_runtime_capabilities()
-    if not caps["capabilities"]["safe_delete"]:
-        return jsonify({"status": "error", "error": "Löschen von Ordnern ist im Docker-Betrieb deaktiviert."}), 403
 
     try:
         params = request.get_json() or {}
@@ -572,11 +570,14 @@ def handle_api_delete_project():
         return
         
     try:
-        import shutil
-        shutil.rmtree(target_dir_abs)
-        log_message(f"🗑️ Ordner erfolgreich gelöscht: {project}")
+        trash.send_to_trash(target_dir_abs)
+        def log_message(m): print(m)
+        log_message(f"🗑️ Ordner erfolgreich in Quarantäne verschoben: {project}")
         return jsonify({"status": "success"})
+    except trash.TrashError as e:
+        return jsonify({"status": "error", "error": str(e)})
     except Exception as e:
+        def log_message(m): print(m)
         log_message(f"❌ Fehler beim Löschen des Ordners {project}: {e}")
         return jsonify({"status": "error", "error": str(e)})
 
@@ -650,7 +651,7 @@ def handle_api_merge_projects():
         # Remove source directory if empty or has only dotfiles
         remaining = [f for f in os.listdir(source_dir_abs) if not f.startswith('.')]
         if len(remaining) == 0:
-            shutil.rmtree(source_dir_abs)
+            trash.send_to_trash(source_dir_abs)
             
         log_message(f"🔄 Ordner zusammengeführt: '{source}' -> '{target}'")
         return jsonify({"status": "success"})
@@ -751,8 +752,8 @@ def handle_api_split_project_file():
             remaining = [r for r in remaining if not r.startswith(".")]
             if not remaining:
                 try:
-                    shutil.rmtree(source_dir_abs)
-                    log_message(f"🗑️ Quellordner gelöscht, da leer: {project}")
+                    trash.send_to_trash(source_dir_abs)
+                    log_message(f"🗑️ Quellordner in Quarantäne verschoben, da leer: {project}")
                 except Exception as e:
                     log_message(f"⚠️ Fehler beim Löschen des leeren Quellordners {project}: {e}")
                     
@@ -769,9 +770,10 @@ def handle_api_split_project_file():
 import os
 import re
 import time
-from flask import jsonify
+from flask import Blueprint, request, jsonify
 from gui.core.utils import load_settings, load_show_profile, clean_show_name
 import gui.core.media as media
+import gui.core.trash as trash
 
 _inbox_cache = {}
 _inbox_cache_time = 0

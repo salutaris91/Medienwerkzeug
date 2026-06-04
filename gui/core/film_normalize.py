@@ -17,6 +17,7 @@ import shutil
 from gui.core import utils
 from gui.core.transfers import ensure_nas_mounted
 from gui.core.helpers import log_message
+import gui.core.trash as trash
 
 VIDEO_EXTENSIONS = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv'}
 
@@ -188,7 +189,10 @@ def apply_moves(items, on_progress=None):
             if os.path.isdir(g) and _within(g, nas_root):
                 rest = [e for e in os.listdir(g) if not e.startswith('.')]
                 if not rest:
-                    shutil.rmtree(g)
+                    try:
+                        trash.send_to_trash(g)
+                    except trash.TrashError as e:
+                        log_message(f"⚠️ Konnte leeren Genre-Ordner {g} nicht in Quarantäne verschieben: {e}")
         except Exception:
             pass
 
