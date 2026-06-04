@@ -79,7 +79,13 @@ def handle_onboarding_test_nas_connection():
     caps = get_runtime_capabilities()
     if caps.get("runtime") == "docker":
         if os.path.exists(nas_root):
-            return jsonify({"ok": True, "message": "Verbindung erfolgreich! Medien-Root ist erreichbar."})
+            if os.access(nas_root, os.W_OK):
+                return jsonify({"ok": True, "message": "Verbindung erfolgreich! Medien-Root ist erreichbar und beschreibbar."})
+            else:
+                return jsonify({
+                    "ok": False,
+                    "message": f"Der Medien-Root Pfad '{nas_root}' existiert, aber es fehlen die Schreibrechte. Bitte prüfe die PUID/PGID im Docker Compose."
+                })
         else:
             return jsonify({
                 "ok": False,
