@@ -40,7 +40,7 @@ Das Medienwerkzeug ist für performante, fehlerresiliente Arbeitsabläufe optimi
    * **Serien & Doku-Serien:** `[Kategorie-Unterpfad]/[Serienname]/Staffel X/[Episode].mkv` sowie `tvshow.nfo` und Artworks.
 4. **Zwei-Kanal-Synchronisation (Entkoppelt):**
    * **Lokale Outbox:** Verarbeitete Projekte landen strukturiert in `Medien Output`.
-   * **NAS (SMB):** Robustes Mounten per Verarbeitung oder manuellem Verbinden-Button und progressives Kopieren via `rsync` (mit macOS-Fallbacks und `--inplace`-Kompatibilität für Mounts).
+   * **NAS:** Robustes Übertragen durch lokale Container-Volumes (Docker) oder automatisches SMB-Mounten (macOS Desktop).
    * **pCloud:** Paralleler, performanter Upload via `rclone` (mit Echtzeit-Fortschritt).
 5. **Integriertes Einstellungs-Dashboard (⚙️):** Bequeme Verwaltung von globalen Pfaden, flexiblen Importquellen (z.B. StreamFab, JDownloader) und dynamischen Sync-Kategorien über die Weboberfläche.
 6. **Warteschlange & Persistenz:** Thread-sicheres Queue-System mit Speicherung des aktuellen Zustands. Abgebrochene Jobs können nach Server-Neustarts per Knopfdruck fortgesetzt werden.
@@ -48,7 +48,7 @@ Das Medienwerkzeug ist für performante, fehlerresiliente Arbeitsabläufe optimi
 8. **Native macOS Papierkorb-Integration:** Gelöschte Projektordner und Junk-Dateien werden sicher in den macOS-Papierkorb verschoben statt unwiderruflich gelöscht zu werden.
 9. **Wartungs-Werkzeug (Medienpfade bereinigen):** Komfortabler Scan und Bereinigung von Müll- und Junkdateien in den Arbeitsordnern mit automatischer Entfernung leerer Unterordner.
 10. **YouTube-Download:** Download einzelner Videos oder Playlists über `yt-dlp` mit Fortschrittsanzeige und automatischer Metadaten-Zuordnung.
-11. **Finder-Integration & Autostart (📂):** Direktes Öffnen der Medienordner über Finder-Buttons im UI sowie optionales automatisches Öffnen von Outbox, NAS und pCloud im Finder nach erfolgreicher Verarbeitung.
+11. **Ordner-Zugriff & Autostart (📂):** Direktes Öffnen der Medienordner über native macOS Finder-Buttons (nur Desktop-Modus) oder eine sichere, integrierte Web-Ordneransicht (Docker-Modus).
 12. **Doubletten-Erkennung:** Automatischer Scan des NAS-Zielverzeichnisses nach bereits existierenden Episoden (Muster `SxxExx`) inklusive Anzeige von Auflösung und Dateigröße (via `ffprobe`) vor dem Starten.
 13. **Visualisierte Fortschritts-Pipeline:** Vierstufige Fortschrittsanzeige in Echtzeit (`[Metadaten] ➔ [Konvertierung] ➔ [NAS-Kopieren] ➔ [pCloud-Sync]`) mit Statussymbolen und Prozentsätzen pro Job.
 14. **Multi-Kanal-Benachrichtigungen:** Statusbenachrichtigungen über macOS (AppleScript), Telegram (Bot-API) und WhatsApp (CallMeBot) bei Abschluss von Jobs ab einer konfigurierbaren GB-Größenschwelle.
@@ -211,6 +211,8 @@ Das Medienwerkzeug kann als Docker-Container auf einem NAS oder Server betrieben
 
 - Docker auf dem NAS installiert (Synology: Paketcenter → Docker)
 - SSH-Zugang zum NAS
+
+> ⚠️ **Performance-Hinweis:** Videokonvertierungen (z. B. HEVC Umwandlung per FFmpeg) direkt auf dem NAS können durch schwächere NAS-CPUs deutlich langsamer sein als auf einem dedizierten Mac/PC. Nutze für große Video-Umwandlungen ggf. bevorzugt die macOS-Desktop-App.
 
 #### 2. Ordner anlegen
 
