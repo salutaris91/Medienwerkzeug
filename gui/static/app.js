@@ -4152,6 +4152,11 @@ async function analyseYtLink(isHandoff = false) {
             body: JSON.stringify({ url: url })
         });
         if (!response.ok) {
+            if (response.status === 401) {
+                alert("Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.");
+                window.location.reload();
+                return;
+            }
             alert("Fehler bei der Link-Analyse. Bitte Logs prüfen.");
             loading.classList.add("hidden");
             return;

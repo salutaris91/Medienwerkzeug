@@ -1,6 +1,6 @@
 import os, sys, json, time, shutil, subprocess, urllib, threading, math
 from flask import Blueprint, request, jsonify, Response, send_file, send_from_directory
-from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history
+from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history, get_runtime_capabilities
 from gui.core.helpers import *
 from gui.core.helpers import log_queue
 from gui.core.transfers import *
@@ -387,10 +387,12 @@ def handle_api_yt_fetch():
         return jsonify({"error": "Keine URL angegeben."})
         return
         
-    cmd = ["yt-dlp", "--dump-json", "--skip-download", "--cookies-from-browser", "chrome", url]
+    is_docker = get_runtime_capabilities().get("runtime") == "docker"
+    base_cmd = ["yt-dlp", "--dump-json", "--skip-download"]
+    cmd = base_cmd + ([url] if is_docker else ["--cookies-from-browser", "chrome", url])
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-        if proc.returncode != 0:
+        if proc.returncode != 0 and not is_docker:
             cmd_fallback = ["yt-dlp", "--dump-json", "--skip-download", url]
             proc = subprocess.run(cmd_fallback, capture_output=True, text=True, timeout=15)
             
@@ -539,6 +541,8 @@ def handle_api_yt_fetch():
             "subtitles": all_subs,
             "description": description
         })
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "yt-dlp hat nicht rechtzeitig geantwortet. Bitte versuche es erneut oder prüfe die YouTube-URL."}), 504
     except Exception as e:
         return jsonify({"error": f"Fehler bei Link-Analyse: {str(e)}"})
 
@@ -628,5 +632,4 @@ def handle_api_yt_finalize():
     task["state"] = "finalizing"
     task["mapping_event"].set()
     return jsonify({"status": "ok"})
-
 

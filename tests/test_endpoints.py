@@ -156,6 +156,53 @@ class TestEndpoints(unittest.TestCase):
         mock_ensure_mounted.return_value = False
         res = self.client.get('/api/nas-seasons?folder=Test')
         self.assertEqual(res.status_code, 200)
+
+    @patch.dict(os.environ, {"MW_RUNTIME": "docker"})
+    @patch("gui.api.youtube_api.subprocess.run")
+    def test_yt_fetch_docker_skips_browser_cookies(self, mock_run):
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=json.dumps({
+                "title": "Test Video",
+                "uploader": "Test Channel",
+                "duration": 42,
+                "formats": [],
+                "subtitles": {},
+                "automatic_captions": {}
+            }),
+            stderr=""
+        )
+
+        res = self._post("/api/yt/fetch", json={"url": "https://youtube.com/watch?v=abc"})
+
+        self.assertEqual(res.status_code, 200)
+        called_cmd = mock_run.call_args[0][0]
+        self.assertNotIn("--cookies-from-browser", called_cmd)
+        self.assertEqual(called_cmd[-1], "https://youtube.com/watch?v=abc")
+
+    @patch.dict(os.environ, {"MW_RUNTIME": "desktop"})
+    @patch("gui.api.youtube_api.subprocess.run")
+    def test_yt_fetch_desktop_uses_browser_cookies_first(self, mock_run):
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=json.dumps({
+                "title": "Test Video",
+                "uploader": "Test Channel",
+                "duration": 42,
+                "formats": [],
+                "subtitles": {},
+                "automatic_captions": {}
+            }),
+            stderr=""
+        )
+
+        res = self._post("/api/yt/fetch", json={"url": "https://youtube.com/watch?v=abc"})
+
+        self.assertEqual(res.status_code, 200)
+        called_cmd = mock_run.call_args[0][0]
+        self.assertIn("--cookies-from-browser", called_cmd)
+        self.assertIn("chrome", called_cmd)
+
     def test_api_profiles_fallback(self):
         settings = self.persistence.load_settings()
         settings["profiles_path"] = "/readonly/invalid/path/profiles"
