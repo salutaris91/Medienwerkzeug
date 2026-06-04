@@ -82,6 +82,13 @@ class TestAuth(unittest.TestCase):
         res = self.client.post("/api/settings", json={})
         self.assertEqual(res.status_code, 401)
 
+    def test_root_page_loads_with_password(self):
+        """Test 2b: The root page must load when locked so the login UI can render."""
+        self.persistence.set_password("my-test-password")
+
+        res = self.client.get("/")
+        self.assertEqual(res.status_code, 200)
+
     def test_login_success(self):
         """Test 3: Correct credentials log in successfully, set session, and set CSRF cookie."""
         self.persistence.set_password("my-test-password")
