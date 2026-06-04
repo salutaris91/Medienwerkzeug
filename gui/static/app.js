@@ -1090,6 +1090,31 @@ fetch('/api/system/capabilities')
             window.AppCapabilities = data;
             if (data.runtime === 'docker') {
                 document.body.classList.add('runtime-docker');
+                
+                const headerBadge = document.getElementById("header-version-badge");
+                if (headerBadge) headerBadge.textContent = "v1.0 Docker/Server Edition";
+                
+                const nasIpGroup = document.getElementById("onboarding-nas-ip-group");
+                if (nasIpGroup) nasIpGroup.classList.add("hidden");
+                const nasShareGroup = document.getElementById("onboarding-nas-share-group");
+                if (nasShareGroup) nasShareGroup.classList.add("hidden");
+                const nasHostnameGroup = document.getElementById("onboarding-nas-hostname-group");
+                if (nasHostnameGroup) nasHostnameGroup.classList.add("hidden");
+                
+                const nasRootLabel = document.getElementById("onboarding-nas-root-label");
+                if (nasRootLabel) nasRootLabel.textContent = "Medien-Root im Container:";
+                
+                const depDesc = document.getElementById("onboarding-dep-desc");
+                if (depDesc) depDesc.classList.add("hidden");
+                const dockerDepNote = document.getElementById("onboarding-docker-dep-note");
+                if (dockerDepNote) dockerDepNote.classList.remove("hidden");
+                
+                const rootInput = document.getElementById("onboarding-nas-root");
+                if (rootInput && !rootInput.value) rootInput.value = "/media";
+                const inInput = document.getElementById("onboarding-inbox-dir");
+                if (inInput && !inInput.value) inInput.value = "/media/Input";
+                const outInput = document.getElementById("onboarding-outbox-dir");
+                if (outInput && !outInput.value) outInput.value = "/media/Output";
             }
         }
     })

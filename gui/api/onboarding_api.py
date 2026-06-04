@@ -69,7 +69,22 @@ def handle_onboarding_test_nas_connection():
     nas_hostname = params.get("nas_hostname", "").strip()
 
     if not nas_ip or not nas_share or not nas_root:
-        return jsonify({"ok": False, "message": "Unvollständige NAS-Daten."}), 400
+        # In Docker mode we actually don't need ip/share from frontend, so we only need to check nas_root
+        caps = get_runtime_capabilities()
+        if caps.get("runtime") == "docker" and nas_root:
+            pass # proceed
+        else:
+            return jsonify({"ok": False, "message": "Unvollständige NAS-Daten."}), 400
+
+    caps = get_runtime_capabilities()
+    if caps.get("runtime") == "docker":
+        if os.path.exists(nas_root):
+            return jsonify({"ok": True, "message": "Verbindung erfolgreich! Medien-Root ist erreichbar."})
+        else:
+            return jsonify({
+                "ok": False,
+                "message": f"Der Medien-Root Pfad '{nas_root}' existiert nicht im Container. Bitte prüfe die Docker-Volumes."
+            })
 
     # 1. Test ping (port 445)
     import socket
