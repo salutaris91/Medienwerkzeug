@@ -78,6 +78,10 @@ class TestOnboarding(unittest.TestCase):
         res = self.client.get("/api/keys")
         self.assertEqual(res.status_code, 200)
 
+        # GET /api/system/capabilities should pass so the frontend can detect Docker before setup
+        res = self.client.get("/api/system/capabilities")
+        self.assertEqual(res.status_code, 200)
+
         # GET /api/check-dependencies should pass
         res = self.client.get("/api/check-dependencies")
         self.assertEqual(res.status_code, 200)

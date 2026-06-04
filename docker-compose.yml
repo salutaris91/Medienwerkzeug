@@ -8,6 +8,7 @@ services:
       - "5811:5001"
     environment:
       - TZ=Europe/Berlin
+      - MW_RUNTIME=docker
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
     volumes:
