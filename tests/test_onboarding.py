@@ -226,6 +226,34 @@ class TestOnboarding(unittest.TestCase):
         # 3. Verify it was written to settings
         settings = self.persistence.load_settings()
         self.assertFalse(settings["telemetry_enabled"])
+    @patch("gui.api.onboarding_api.get_runtime_capabilities")
+    @patch("os.path.exists")
+    @patch("os.access")
+    def test_test_nas_connection_docker_mode_success(self, mock_access, mock_exists, mock_caps):
+        mock_caps.return_value = {"runtime": "docker"}
+        mock_exists.return_value = True
+        mock_access.return_value = True
+        
+        res = self.client.post("/api/onboarding/test-nas-connection", json={
+            "root_path": "/media"
+        })
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.get_json()["ok"])
+
+    @patch("gui.api.onboarding_api.get_runtime_capabilities")
+    @patch("os.path.exists")
+    @patch("os.access")
+    def test_test_nas_connection_docker_mode_no_write_access(self, mock_access, mock_exists, mock_caps):
+        mock_caps.return_value = {"runtime": "docker"}
+        mock_exists.return_value = True
+        mock_access.return_value = False
+        
+        res = self.client.post("/api/onboarding/test-nas-connection", json={
+            "root_path": "/media"
+        })
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.get_json()["ok"])
+        self.assertIn("fehlen die Schreibrechte", res.get_json()["message"])
 
 if __name__ == "__main__":
     unittest.main()

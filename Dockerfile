@@ -6,7 +6,23 @@ RUN apt-get update && apt-get install -y \
     rclone \
     curl \
     wget \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
+
+# Install deno
+ARG DENO_VERSION=v2.1.4
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then \
+        DENO_ARCH="x86_64-unknown-linux-gnu"; \
+    elif [ "$ARCH" = "aarch64" ]; then \
+        DENO_ARCH="aarch64-unknown-linux-gnu"; \
+    else \
+        echo "Unsupported architecture: $ARCH" && exit 1; \
+    fi && \
+    curl -fsSL "https://github.com/denoland/deno/releases/download/${DENO_VERSION}/deno-${DENO_ARCH}.zip" -o deno.zip && \
+    unzip deno.zip -d /usr/local/bin/ && \
+    rm deno.zip && \
+    chmod +x /usr/local/bin/deno
 
 # Set up environment variables for paths and configuration
 ENV MW_RUNTIME=docker

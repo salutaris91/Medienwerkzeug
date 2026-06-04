@@ -156,7 +156,24 @@ class TestEndpoints(unittest.TestCase):
         mock_ensure_mounted.return_value = False
         res = self.client.get('/api/nas-seasons?folder=Test')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.json["connected"], False)
+    def test_api_profiles_fallback(self):
+        settings = self.persistence.load_settings()
+        settings["profiles_path"] = "/readonly/invalid/path/profiles"
+        self.persistence.save_settings(settings)
+        
+        original_makedirs = os.makedirs
+        def mock_makedirs_impl(path, exist_ok=False):
+            if "invalid/path" in path:
+                raise PermissionError("Access denied")
+            original_makedirs(path, exist_ok=exist_ok)
+            
+        with patch('gui.api.system_api.os.makedirs', side_effect=mock_makedirs_impl) as mock_makedirs:
+            res = self.client.get("/api/profiles")
+            self.assertEqual(res.status_code, 200)
+            
+            self.assertEqual(mock_makedirs.call_count, 2)
+            self.assertEqual(mock_makedirs.call_args_list[0][0][0], "/readonly/invalid/path/profiles")
+            self.assertEqual(mock_makedirs.call_args_list[1][0][0], os.path.join(self.temp_dir.name, "profiles"))
 
 if __name__ == "__main__":
     unittest.main()

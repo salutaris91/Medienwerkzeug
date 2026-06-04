@@ -638,15 +638,20 @@ async function initOnboardingWizard() {
     const btnNext3 = document.getElementById("btn-onboarding-next-3");
     if (btnNext3) {
         btnNext3.addEventListener("click", async () => {
-            const tmdbKey = document.getElementById("onboarding-tmdb-key").value.trim();
-            if (tmdbKey) {
+            const tmdbKey = document.getElementById("onboarding-tmdb-key")?.value.trim() || "";
+            const tvdbKey = document.getElementById("onboarding-tvdb-key")?.value.trim() || "";
+            if (tmdbKey || tvdbKey) {
                 btnNext3.disabled = true;
                 btnNext3.textContent = "Speichere...";
                 try {
+                    const keyPayload = {};
+                    if (tmdbKey) keyPayload.TMDB_API_KEY = tmdbKey;
+                    if (tvdbKey) keyPayload.TVDB_API_KEY = tvdbKey;
+
                     const res = await fetch('/api/keys', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ TMDB_API_KEY: tmdbKey })
+                        body: JSON.stringify(keyPayload)
                     });
                     if (res.ok) {
                         showStep(4);
@@ -943,6 +948,10 @@ async function loadOnboardingFields() {
             if (tmdbInput && keys.TMDB_API_KEY && !keys.TMDB_API_KEY.includes("...")) {
                 tmdbInput.value = keys.TMDB_API_KEY;
             }
+            const tvdbInput = document.getElementById("onboarding-tvdb-key");
+            if (tvdbInput && keys.TVDB_API_KEY && !keys.TVDB_API_KEY.includes("...")) {
+                tvdbInput.value = keys.TVDB_API_KEY;
+            }
         }
     } catch (e) {
         console.error("Error loading onboarding keys:", e);
@@ -1090,6 +1099,31 @@ fetch('/api/system/capabilities')
             window.AppCapabilities = data;
             if (data.runtime === 'docker') {
                 document.body.classList.add('runtime-docker');
+                
+                const headerBadge = document.getElementById("header-version-badge");
+                if (headerBadge) headerBadge.textContent = "v1.0 Docker/Server Edition";
+                
+                const nasIpGroup = document.getElementById("onboarding-nas-ip-group");
+                if (nasIpGroup) nasIpGroup.classList.add("hidden");
+                const nasShareGroup = document.getElementById("onboarding-nas-share-group");
+                if (nasShareGroup) nasShareGroup.classList.add("hidden");
+                const nasHostnameGroup = document.getElementById("onboarding-nas-hostname-group");
+                if (nasHostnameGroup) nasHostnameGroup.classList.add("hidden");
+                
+                const nasRootLabel = document.getElementById("onboarding-nas-root-label");
+                if (nasRootLabel) nasRootLabel.textContent = "Medien-Root im Container:";
+                
+                const depDesc = document.getElementById("onboarding-dep-desc");
+                if (depDesc) depDesc.classList.add("hidden");
+                const dockerDepNote = document.getElementById("onboarding-docker-dep-note");
+                if (dockerDepNote) dockerDepNote.classList.remove("hidden");
+                
+                const rootInput = document.getElementById("onboarding-nas-root");
+                if (rootInput && !rootInput.value) rootInput.value = "/media";
+                const inInput = document.getElementById("onboarding-inbox-dir");
+                if (inInput && !inInput.value) inInput.value = "/media/Input";
+                const outInput = document.getElementById("onboarding-outbox-dir");
+                if (outInput && !outInput.value) outInput.value = "/media/Output";
             }
         }
     })
@@ -7528,8 +7562,6 @@ async function loadSettings() {
             setCheckbox("settings-notify-whatsapp", currentSettings.notify_whatsapp);
             setInputVal("settings-whatsapp-apikey", currentSettings.whatsapp_apikey);
             setInputVal("settings-whatsapp-phone", currentSettings.whatsapp_phone);
-            setInputVal("settings-tmdb-key", currentSettings.tmdb_api_key);
-            setInputVal("settings-tvdb-key", currentSettings.tvdb_api_key);
             setInputVal("settings-notify-min-size-macos", currentSettings.notify_min_size_macos !== undefined ? currentSettings.notify_min_size_macos : 10);
             setInputVal("settings-notify-min-size-telegram", currentSettings.notify_min_size_telegram !== undefined ? currentSettings.notify_min_size_telegram : 10);
             setInputVal("settings-notify-min-size-whatsapp", currentSettings.notify_min_size_whatsapp !== undefined ? currentSettings.notify_min_size_whatsapp : 10);
@@ -7568,6 +7600,27 @@ async function loadSettings() {
             renderSyncCategories();
             renderStorageTargets();
             updateDestinationDropdowns();
+            
+            // Fetch API keys separately to populate settings fields without writing mask to value
+            fetch('/api/keys')
+                .then(res => res.json())
+                .then(keys => {
+                    if (keys.TMDB_API_KEY) {
+                        const tmdbInput = document.getElementById("settings-tmdb-key");
+                        if (tmdbInput) {
+                            tmdbInput.value = "";
+                            tmdbInput.placeholder = `Hinterlegt (${keys.TMDB_API_KEY})`;
+                        }
+                    }
+                    if (keys.TVDB_API_KEY) {
+                        const tvdbInput = document.getElementById("settings-tvdb-key");
+                        if (tvdbInput) {
+                            tvdbInput.value = "";
+                            tvdbInput.placeholder = `Hinterlegt (${keys.TVDB_API_KEY})`;
+                        }
+                    }
+                })
+                .catch(e => console.error("Error loading API keys:", e));
             
             checkDependencies(false);
         }
@@ -8241,8 +8294,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 notify_whatsapp: document.getElementById("settings-notify-whatsapp")?.checked || false,
                 whatsapp_apikey: document.getElementById("settings-whatsapp-apikey")?.value || "",
                 whatsapp_phone: document.getElementById("settings-whatsapp-phone")?.value || "",
-                tmdb_api_key: document.getElementById("settings-tmdb-key")?.value || "",
-                tvdb_api_key: document.getElementById("settings-tvdb-key")?.value || "",
                 notify_min_size_macos: parseInt(document.getElementById("settings-notify-min-size-macos")?.value, 10) || 0,
                 notify_min_size_telegram: parseInt(document.getElementById("settings-notify-min-size-telegram")?.value, 10) || 0,
                 notify_min_size_whatsapp: parseInt(document.getElementById("settings-notify-min-size-whatsapp")?.value, 10) || 0,
@@ -8279,6 +8330,24 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
                 
                 if (response.ok) {
+                    const tmdbKey = document.getElementById("settings-tmdb-key")?.value.trim() || "";
+                    const tvdbKey = document.getElementById("settings-tvdb-key")?.value.trim() || "";
+                    const keyPayload = {};
+                    if (tmdbKey && !tmdbKey.includes("...")) keyPayload.TMDB_API_KEY = tmdbKey;
+                    if (tvdbKey && !tvdbKey.includes("...")) keyPayload.TVDB_API_KEY = tvdbKey;
+                    
+                    if (Object.keys(keyPayload).length > 0) {
+                        try {
+                            await fetch('/api/keys', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(keyPayload)
+                            });
+                        } catch (ek) {
+                            console.error("Error saving keys:", ek);
+                        }
+                    }
+                    
                     alert("Einstellungen erfolgreich gespeichert!");
                     loadSettings(); // Reload
                 } else {

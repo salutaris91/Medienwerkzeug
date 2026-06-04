@@ -139,6 +139,18 @@
                     <p class="text-muted text-xs mt-5">Du kannst einen kostenlosen Key auf <a href="https://www.themoviedb.org/" target="_blank" rel="noopener" style="color:var(--accent);">themoviedb.org</a> in deinen Kontoeinstellungen erstellen.</p>
                 </div>
 
+
+                <div class="form-group mt-20">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <label for="onboarding-tvdb-key">TVDB API-Key (Optional):</label>
+                        <div class="tooltip-container">
+                            <button class="tooltip-trigger" type="button" aria-expanded="false" aria-label="Was ist ein TVDB Key?">?</button>
+                            <div class="tooltip-box" role="tooltip">Der Key wird benötigt, um Metadaten von TheTVDB herunterzuladen. Er ist optional, aber hilfreich für Serien, die auf TMDB fehlen.</div>
+                        </div>
+                    </div>
+                    <input type="text" id="onboarding-tvdb-key" placeholder="z.B. xyz123..." class="form-input">
+                </div>
+
                 <div class="onboarding-actions mt-30">
                     <button class="btn btn-secondary btn-onboarding-prev" data-target="2" type="button">← Zurueck</button>
                     <button class="btn btn-primary" id="btn-onboarding-next-3" type="button">Weiter →</button>
@@ -150,17 +162,17 @@
                 <h3>NAS &amp; Cloud Speicherziele</h3>
                 <p class="text-muted">Konfiguriere das primaere Ziel (deinen NAS-Server) und die Zugangsdaten.</p>
 
-                <div class="form-group">
+                <div class="form-group" id="onboarding-nas-ip-group">
                     <label for="onboarding-nas-ip">NAS IP-Adresse:</label>
                     <input type="text" id="onboarding-nas-ip" placeholder="z.B. 192.168.2.208" class="form-input">
                 </div>
-                <div class="form-group mt-10">
+                <div class="form-group mt-10" id="onboarding-nas-share-group">
                     <label for="onboarding-nas-share">NAS Share-Name:</label>
                     <input type="text" id="onboarding-nas-share" placeholder="z.B. Kino" class="form-input">
                 </div>
                 <div class="form-group mt-10">
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <label for="onboarding-nas-root">Lokaler Einhaengepfad (nas_root):</label>
+                        <label for="onboarding-nas-root" id="onboarding-nas-root-label">Lokaler Einhaengepfad (nas_root):</label>
                         <div class="tooltip-container">
                             <button class="tooltip-trigger" type="button" aria-expanded="false" aria-label="Was ist der Einhaengepfad?">?</button>
                             <div class="tooltip-box" role="tooltip">Das Verzeichnis, unter dem dein NAS-Server auf deinem Mac gemountet ist (z.B. /Volumes/Kino).</div>
@@ -168,7 +180,7 @@
                     </div>
                     <input type="text" id="onboarding-nas-root" placeholder="z.B. /Volumes/Kino" class="form-input">
                 </div>
-                <div class="form-group mt-10">
+                <div class="form-group mt-10" id="onboarding-nas-hostname-group">
                     <label for="onboarding-nas-hostname">NAS Hostname (fuer Finder-Fallback):</label>
                     <input type="text" id="onboarding-nas-hostname" placeholder="z.B. ALEXNAS91" class="form-input">
                 </div>
@@ -217,7 +229,10 @@
             <!-- Step 6: Abhaengigkeitspruefung -->
             <div class="onboarding-step hidden" id="onboarding-step-6">
                 <h3>System-Abhaengigkeiten pruefen</h3>
-                <p class="text-muted">Das Medienwerkzeug benoetigt einige Systemtools im Systempfad, um reibungslos zu funktionieren.</p>
+                <p class="text-muted" id="onboarding-dep-desc">Das Medienwerkzeug benoetigt einige Systemtools im Systempfad, um reibungslos zu funktionieren.</p>
+                <div id="onboarding-docker-dep-note" class="hidden" style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: var(--success); padding: 12px; border-radius: 6px; margin-top: 10px;">
+                    ℹ️ <strong>Docker-Modus:</strong> Alle Tools sind sicher im Image enthalten. Updates erfolgen zentral via <code>docker compose pull</code>.
+                </div>
 
                 <div class="dependency-check-list mt-15" id="onboarding-dep-list">
                     <div class="loading-spinner"></div>
@@ -262,7 +277,7 @@
             <img src="logo.png" alt="Medienwerkzeug Logo" class="logo-img">
             <div class="logo-text">
                 <h1>Medienwerkzeug</h1>
-                <span class="version">v5.0 Native Edition</span>
+                <span class="version" id="header-version-badge">v5.0 Native Edition</span>
             </div>
         </div>
         
@@ -1323,13 +1338,13 @@
                                 <div class="inline-style-135">
                                     <div class="inline-style-138" style="margin-bottom: 10px;">
                                         <label for="settings-tmdb-key" class="inline-style-134">TMDb API-Key:</label>
-                                        <input type="text" id="settings-tmdb-key" class="inline-style-40" placeholder="Wird aus .env geladen...">
+                                        <input type="text" id="settings-tmdb-key" class="inline-style-40" placeholder="Wird aus lokaler Konfiguration geladen...">
                                     </div>
                                     <div class="inline-style-139">
                                         <label for="settings-tvdb-key" class="inline-style-134">TVDb API-Key:</label>
-                                        <input type="text" id="settings-tvdb-key" class="inline-style-40" placeholder="Wird aus .env geladen...">
+                                        <input type="text" id="settings-tvdb-key" class="inline-style-40" placeholder="Wird aus lokaler Konfiguration geladen...">
                                     </div>
-                                    <p class="inline-style-118" style="margin-top: 8px;">Keys können hier oder direkt in der <code>gui/.env</code> Datei gepflegt werden.</p>
+                                    <p class="inline-style-118" style="margin-top: 8px;">Keys können hier oder direkt in der lokalen Config (z.B. <code>/config/.env</code>) gepflegt werden.</p>
                                 </div>
                             </div>
                         </div>

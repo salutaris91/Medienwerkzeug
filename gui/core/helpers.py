@@ -280,8 +280,11 @@ def fetch_latest_ffmpeg_version():
 
 def check_dependency_status(force_updates=False):
     import re
+    from gui.core.utils import get_runtime_capabilities
     settings = load_settings()
-    check_updates = settings.get("check_dependency_updates", False) or force_updates
+    
+    is_docker = get_runtime_capabilities().get("runtime") == "docker"
+    check_updates = (settings.get("check_dependency_updates", False) or force_updates) and not is_docker
     
     deps = {
         "yt-dlp": {

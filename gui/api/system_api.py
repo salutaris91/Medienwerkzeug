@@ -611,9 +611,10 @@ def api_profiles():
     import json
     from flask import request, jsonify
     from gui.core.utils import load_settings
+    from gui.core.persistence import get_data_dir_path
 
     settings = load_settings()
-    default_profiles_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'profiles')
+    default_profiles_dir = os.path.join(get_data_dir_path(), 'profiles')
     profiles_dir = settings.get("profiles_path", default_profiles_dir)
 
     # If the configured path doesn't exist, we fallback to default to avoid errors
