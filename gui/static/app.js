@@ -7715,6 +7715,21 @@ function updateDestinationDropdowns() {
             select.value = currentVal;
         }
     });
+
+    // Fetch API keys separately to populate settings fields
+    fetch('/api/keys')
+        .then(res => res.json())
+        .then(keys => {
+            if (keys.TMDB_API_KEY) {
+                const tmdbInput = document.getElementById("settings-tmdb-key");
+                if (tmdbInput) tmdbInput.value = keys.TMDB_API_KEY;
+            }
+            if (keys.TVDB_API_KEY) {
+                const tvdbInput = document.getElementById("settings-tvdb-key");
+                if (tvdbInput) tvdbInput.value = keys.TVDB_API_KEY;
+            }
+        })
+        .catch(e => console.error("Error loading API keys:", e));
 }
 
 function setupDestinationToggles() {
@@ -7749,22 +7764,6 @@ function setupDestinationToggles() {
             updateVisibility();
         }
     });
-    });
-    
-    // Fetch API keys separately to populate settings fields
-    fetch('/api/keys')
-        .then(res => res.json())
-        .then(keys => {
-            if (keys.TMDB_API_KEY) {
-                const tmdbInput = document.getElementById("settings-tmdb-key");
-                if (tmdbInput) tmdbInput.value = keys.TMDB_API_KEY;
-            }
-            if (keys.TVDB_API_KEY) {
-                const tvdbInput = document.getElementById("settings-tvdb-key");
-                if (tvdbInput) tvdbInput.value = keys.TVDB_API_KEY;
-            }
-        })
-        .catch(e => console.error("Error loading API keys:", e));
 }
 
 function renderStorageTargets() {
