@@ -161,9 +161,13 @@ class TestEndpoints(unittest.TestCase):
         settings["profiles_path"] = "/readonly/invalid/path/profiles"
         self.persistence.save_settings(settings)
         
-        with patch('gui.api.system_api.os.makedirs') as mock_makedirs:
-            mock_makedirs.side_effect = [PermissionError("Access denied"), None]
+        original_makedirs = os.makedirs
+        def mock_makedirs_impl(path, exist_ok=False):
+            if "invalid/path" in path:
+                raise PermissionError("Access denied")
+            original_makedirs(path, exist_ok=exist_ok)
             
+        with patch('gui.api.system_api.os.makedirs', side_effect=mock_makedirs_impl) as mock_makedirs:
             res = self.client.get("/api/profiles")
             self.assertEqual(res.status_code, 200)
             

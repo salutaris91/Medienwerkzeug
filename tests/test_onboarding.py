@@ -225,6 +225,7 @@ class TestOnboarding(unittest.TestCase):
 
         # 3. Verify it was written to settings
         settings = self.persistence.load_settings()
+        self.assertFalse(settings["telemetry_enabled"])
     @patch("gui.api.onboarding_api.get_runtime_capabilities")
     @patch("os.path.exists")
     @patch("os.access")
