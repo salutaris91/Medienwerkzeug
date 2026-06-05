@@ -8571,20 +8571,26 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btnGenerateDefaults) {
         btnGenerateDefaults.addEventListener("click", () => {
             if (confirm("Dies fügt 'Filme', 'Serien' und 'Dokus' als Standard-Kategorien hinzu. Fortfahren?")) {
-                const prefix = (window.AppCapabilities && window.AppCapabilities.runtime === "docker") ? "/media/" : "/";
-                
                 if (!currentSettings.sync_categories) currentSettings.sync_categories = [];
                 
                 const defaults = [
-                    { id: "movies", name: "Filme", nas_sub: prefix + "Filme", pcloud_remote: "pcloud:03_Filme" },
-                    { id: "series", name: "Serien", nas_sub: prefix + "Serien", pcloud_remote: "pcloud:04_Serien" },
-                    { id: "docs", name: "Dokus", nas_sub: prefix + "Dokus", pcloud_remote: "pcloud:06_Dokus" }
+                    { id: "movies", name: "Filme", nas_sub: "/Filme" },
+                    { id: "series", name: "Serien", nas_sub: "/Serien" },
+                    { id: "docs", name: "Dokus", nas_sub: "/Dokus" }
                 ];
                 
                 defaults.forEach(def => {
                     const existing = currentSettings.sync_categories.find(c => c.id === def.id || c.name === def.name);
-                    if (!existing) {
-                        currentSettings.sync_categories.push(def);
+                    if (existing) {
+                        if (!existing.nas_sub) existing.nas_sub = def.nas_sub;
+                        if (!existing.targets) existing.targets = {};
+                        if (!existing.targets.nas) existing.targets.nas = def.nas_sub;
+                    } else {
+                        currentSettings.sync_categories.push({
+                            ...def,
+                            pcloud_remote: "",
+                            targets: { nas: def.nas_sub, pcloud: "" }
+                        });
                     }
                 });
                 renderSyncCategories();
