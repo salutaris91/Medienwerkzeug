@@ -553,7 +553,8 @@ async function initOnboardingWizard() {
         console.error("Fehler beim Abrufen des Onboarding-Status:", e);
     }
 
-    let currentStep = 1;
+    let currentStep = parseInt(localStorage.getItem('mw_onboarding_step') || '1');
+    if (isNaN(currentStep) || currentStep < 1 || currentStep > 7) currentStep = 1;
     const totalSteps = 7;
 
     function showStep(stepNum) {
@@ -578,10 +579,32 @@ async function initOnboardingWizard() {
         });
 
         currentStep = stepNum;
+        localStorage.setItem('mw_onboarding_step', stepNum.toString());
+        
+        const resetBtn = document.getElementById("btn-onboarding-reset");
+        if (resetBtn) {
+            if (stepNum > 1) {
+                resetBtn.classList.remove("hidden");
+                resetBtn.style.display = "inline-block";
+            } else {
+                resetBtn.classList.add("hidden");
+                resetBtn.style.display = "none";
+            }
+        }
 
         if (stepNum === 6) {
             checkOnboardingDependencies();
         }
+    }
+
+    const btnReset = document.getElementById("btn-onboarding-reset");
+    if (btnReset) {
+        btnReset.addEventListener("click", () => {
+            if (confirm("Möchtest du das Onboarding wirklich von vorne beginnen? Bisherige Fortschritte werden zurückgesetzt.")) {
+                localStorage.removeItem('mw_onboarding_step');
+                showStep(1);
+            }
+        });
     }
 
     document.querySelectorAll(".btn-onboarding-prev").forEach(btn => {
@@ -828,12 +851,22 @@ async function initOnboardingWizard() {
             const nasHostname = document.getElementById("onboarding-nas-hostname").value.trim();
             const statusDiv = document.getElementById("onboarding-nas-test-status");
 
-            if (!nasIp || !nasShare || !nasRoot) {
-                if (statusDiv) {
-                    statusDiv.textContent = "Bitte IP, Share und Einhaengepfad ausfüllen.";
-                    statusDiv.style.color = "var(--danger)";
+            if (window.AppCapabilities && window.AppCapabilities.runtime === "docker") {
+                if (!nasRoot) {
+                    if (statusDiv) {
+                        statusDiv.textContent = "Bitte Einhängepfad (nasRoot) ausfüllen.";
+                        statusDiv.style.color = "var(--danger)";
+                    }
+                    return;
                 }
-                return;
+            } else {
+                if (!nasIp || !nasShare || !nasRoot) {
+                    if (statusDiv) {
+                        statusDiv.textContent = "Bitte IP, Share und Einhängepfad ausfüllen.";
+                        statusDiv.style.color = "var(--danger)";
+                    }
+                    return;
+                }
             }
 
             if (statusDiv) {
@@ -1122,6 +1155,8 @@ fetch('/api/system/capabilities')
                 
                 const rootInput = document.getElementById("onboarding-nas-root");
                 if (rootInput && !rootInput.value) rootInput.value = "/media";
+                const testNasBtn = document.getElementById("btn-onboarding-test-nas");
+                if (testNasBtn) testNasBtn.textContent = "Medien-Root prüfen";
                 const inInput = document.getElementById("onboarding-inbox-dir");
                 if (inInput && !inInput.value) inInput.value = "/media/Input";
                 const outInput = document.getElementById("onboarding-outbox-dir");
@@ -1130,13 +1165,16 @@ fetch('/api/system/capabilities')
                 const finderElements = [
                     "btn-open-nas-folder-series",
                     "btn-settings-toggle-inbox", 
-                    "btn-settings-toggle-outbox"
+                    "btn-settings-toggle-outbox",
+                    "yt-open-losslesscut-container"
                 ];
                 finderElements.forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.style.display = 'none';
                 });
 
+                const losslessCutCheck = document.getElementById("yt-open-losslesscut");
+                if (losslessCutCheck) losslessCutCheck.checked = false;
                 const outboxFinder = document.getElementById("settings-open-outbox-finder");
                 if (outboxFinder) {
                     const group = outboxFinder.closest('.form-group');
@@ -7811,6 +7849,9 @@ function renderStorageTargets() {
     const container = document.getElementById("settings-storage-targets-container");
     if (!container) return;
     container.innerHTML = "";
+    container.style.display = "grid";
+    container.style.gridTemplateColumns = "repeat(auto-fit, minmax(320px, 1fr))";
+    container.style.gap = "15px";
     
     if (!currentSettings.storage_targets) currentSettings.storage_targets = [];
     
@@ -7844,8 +7885,16 @@ function renderStorageTargets() {
         deleteBtn.onclick = (e) => {
             e.preventDefault();
             if (confirm(`Möchtest du das Speicherziel "${target.name || target.id}" wirklich entfernen?`)) {
+                if (currentSettings.sync_categories) {
+                    Object.values(currentSettings.sync_categories).forEach(cat => {
+                        if (cat.targets && cat.targets[target.id] !== undefined) {
+                            delete cat.targets[target.id];
+                        }
+                    });
+                }
                 currentSettings.storage_targets.splice(index, 1);
                 renderStorageTargets();
+                renderSyncCategories();
             }
         };
         

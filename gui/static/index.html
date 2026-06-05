@@ -47,7 +47,10 @@
         <div class="onboarding-card">
             <!-- Header -->
             <div class="onboarding-header">
-                <h2>Medienwerkzeug Setup</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <h2>Medienwerkzeug Setup</h2>
+                    <button class="btn btn-secondary btn-xs hidden" id="btn-onboarding-reset" type="button" title="Onboarding von vorne beginnen" style="display:none;">Neu starten</button>
+                </div>
                 <div class="onboarding-steps-indicator">
                     <span class="step-dot active" data-step="1">1</span>
                     <span class="step-dot" data-step="2">2</span>
@@ -113,7 +116,7 @@
                 <div class="form-group mt-20">
                     <label for="onboarding-password">Passwort / PIN einrichten (optional):</label>
                     <input type="password" id="onboarding-password" placeholder="Passwort leer lassen für ungeschützten Zugriff..." class="form-input">
-                    <p class="text-muted text-xs mt-5">Wenn du ein Passwort festlegst, musst du dich bei jedem Oeffnen der App authentifizieren.</p>
+                    <p class="text-muted text-xs mt-5">Wenn du ein Passwort festlegst, musst du dich bei jedem Öffnen der App authentifizieren.</p>
                 </div>
 
                 <div class="onboarding-actions mt-30">
@@ -172,9 +175,9 @@
                 </div>
                 <div class="form-group mt-10">
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <label for="onboarding-nas-root" id="onboarding-nas-root-label">Lokaler Einhaengepfad (nas_root):</label>
+                        <label for="onboarding-nas-root" id="onboarding-nas-root-label">Lokaler Einhängepfad (nas_root):</label>
                         <div class="tooltip-container">
-                            <button class="tooltip-trigger" type="button" aria-expanded="false" aria-label="Was ist der Einhaengepfad?">?</button>
+                            <button class="tooltip-trigger" type="button" aria-expanded="false" aria-label="Was ist der Einhängepfad?">?</button>
                             <div class="tooltip-box" role="tooltip">Das Verzeichnis, unter dem dein NAS-Server auf deinem Mac gemountet ist (z.B. /Volumes/Kino).</div>
                         </div>
                     </div>
@@ -213,7 +216,7 @@
                 <div class="form-group mt-15">
                     <label for="onboarding-medienserver">Gewünschter Medienserver (für Artwork-Validierung):</label>
                     <select id="onboarding-medienserver" class="form-select">
-                        <option value="">-- Bitte waehlen --</option>
+                        <option value="">-- Bitte wählen --</option>
                         <option value="emby">Emby</option>
                         <option value="jellyfin">Jellyfin</option>
                         <option value="plex">Plex</option>
@@ -226,7 +229,7 @@
                 </div>
             </div>
 
-            <!-- Step 6: Abhaengigkeitspruefung -->
+            <!-- Step 6: Abhängigkeitsprüfung -->
             <div class="onboarding-step hidden" id="onboarding-step-6">
                 <h3>System-Abhängigkeiten prüfen</h3>
                 <p class="text-muted" id="onboarding-dep-desc">Das Medienwerkzeug benötigt einige Systemtools im Systempfad, um reibungslos zu funktionieren.</p>
@@ -1238,7 +1241,10 @@
                             <div id="settings-sync-categories-container" class="inline-style-127">
                                 <!-- Dynamically populated -->
                             </div>
-                            <button id="btn-settings-add-category" class="btn btn-secondary btn-sm">➕ Neue Kategorie hinzufügen</button>
+                            <div style="display:flex; gap: 10px; align-items:center;">
+                                <button id="btn-settings-add-category" class="btn btn-secondary btn-sm">➕ Neue Kategorie hinzufügen</button>
+                                <button id="btn-settings-generate-default-categories" class="btn btn-secondary btn-sm" style="background: rgba(0, 184, 148, 0.2); border-color: #00b894; color: #00b894;">✨ Standard-Kategorien generieren</button>
+                            </div>
                         </div>
 
                         <div class="form-group inline-style-126">
@@ -1636,7 +1642,7 @@
                                     <input type="checkbox" id="yt-split-chapters">
                                     <span class="checkmark"></span> Kapitel aufteilen
                                 </label>
-                                <label class="checkbox-container" for="yt-open-losslesscut">
+                                <label class="checkbox-container" id="yt-open-losslesscut-container" for="yt-open-losslesscut">
                                     <input type="checkbox" id="yt-open-losslesscut" checked>
                                     <span class="checkmark"></span> In LosslessCut öffnen
                                 </label>
@@ -1827,7 +1833,7 @@
                         </div>
                         <div>
                             <strong class="inline-style-188">☁️ rclone Remote (Optional)</strong>
-                            Der Name deiner eingerichteten rclone-Verbindung (z. B. <code>pcloud:</code> oder <code>gdrive:</code>). Dies dient als **automatisches Fallback**: Ist der lokale Mountpfad offline (weil die Sync-App geschlossen ist), lädt das Backend die Dateien per rclone direkt hoch.
+                            Der Name deiner eingerichteten rclone-Verbindung (z. B. <code>pcloud:</code> oder <code>gdrive:</code>). <strong>Desktop-Modus:</strong> Dient als Fallback, wenn der Mountpfad offline ist. <strong>Docker-Modus:</strong> Dies ist die primäre Upload-Methode. Die Verbindung läuft eigenständig aus dem Container heraus, nicht über den Desktop.
                         </div>
                         <div>
                             <strong class="inline-style-188">🌐 SMB Details (nur bei NAS)</strong>
