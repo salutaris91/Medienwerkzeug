@@ -3,7 +3,7 @@ import os, urllib.request, json, time, asyncio, subprocess, threading
 from gui.core.helpers import *
 def fetch_online_jokes_async():
     def target():
-        url = "https://raw.githubusercontent.com/salutaris91/Mediawerkzeug/main/gui/data/jokes.json"
+        url = "https://raw.githubusercontent.com/salutaris91/Mediawerkzeug/main/gui/resources/jokes.json"
         import urllib.request
         import json
         try:
@@ -25,6 +25,11 @@ def get_random_joke():
     import random
     import json
     local_path = os.path.join(DATA_DIR, "jokes.json")
+    resource_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "resources",
+        "jokes.json"
+    )
     try:
         if os.path.exists(local_path):
             with open(local_path, "r", encoding="utf-8") as f:
@@ -32,7 +37,16 @@ def get_random_joke():
                 if isinstance(jokes, list) and len(jokes) > 0:
                     return random.choice(jokes)
     except Exception as e:
-        print(f"Error loading joke: {e}")
+        print(f"Error loading joke from local path: {e}")
+        
+    try:
+        if os.path.exists(resource_path):
+            with open(resource_path, "r", encoding="utf-8") as f:
+                jokes = json.load(f)
+                if isinstance(jokes, list) and len(jokes) > 0:
+                    return random.choice(jokes)
+    except Exception as e:
+        print(f"Error loading joke from resource path: {e}")
         
     return "Was ist gelb und kann nicht schwimmen? Ein Bagger!"
 

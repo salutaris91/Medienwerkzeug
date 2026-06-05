@@ -5,6 +5,8 @@
 gui/.env
 gui/settings.json
 gui/jobs_state.json
+/.env
+/data/
 
 # Backup files
 *.bak

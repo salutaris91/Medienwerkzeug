@@ -15,22 +15,125 @@ action_log_lock = threading.Lock()
 # Support mocking settings in legacy unit tests
 _MOCK_SETTINGS = None
 
+_migration_lock = threading.Lock()
+_migration_done = False
+
+def migrate_legacy_data():
+    """
+    Kopiert Altdaten aus gui/ in das neue data/ Verzeichnis (oder .env im Root),
+    falls die neuen Dateien noch nicht existieren, die alten vorhanden sind
+    und keine Umgebungsvariablen-Overrides gesetzt sind.
+    """
+    # 1. settings.json migration
+    if "MW_SETTINGS_FILE" not in os.environ:
+        old_settings = os.path.join(APP_ROOT, "gui", "settings.json")
+        new_settings = os.path.join(APP_ROOT, "data", "settings.json")
+        if os.path.exists(old_settings) and not os.path.exists(new_settings):
+            try:
+                os.makedirs(os.path.dirname(new_settings), exist_ok=True)
+                shutil.copy2(old_settings, new_settings)
+                print(f"[Migration] Copied legacy settings from {old_settings} to {new_settings}")
+            except Exception as e:
+                print(f"[Migration] Error copying settings: {e}", file=sys.stderr)
+
+    # 2. jobs_state.json migration
+    if "MW_JOBS_STATE_FILE" not in os.environ:
+        old_jobs = os.path.join(APP_ROOT, "gui", "jobs_state.json")
+        new_jobs = os.path.join(APP_ROOT, "data", "jobs_state.json")
+        if os.path.exists(old_jobs) and not os.path.exists(new_jobs):
+            try:
+                os.makedirs(os.path.dirname(new_jobs), exist_ok=True)
+                shutil.copy2(old_jobs, new_jobs)
+                print(f"[Migration] Copied legacy jobs state from {old_jobs} to {new_jobs}")
+            except Exception as e:
+                print(f"[Migration] Error copying jobs state: {e}", file=sys.stderr)
+
+    # 3. .env migration
+    if "MW_ENV_FILE" not in os.environ:
+        old_env = os.path.join(APP_ROOT, "gui", ".env")
+        new_env = os.path.join(APP_ROOT, ".env")
+        if os.path.exists(old_env) and not os.path.exists(new_env):
+            try:
+                shutil.copy2(old_env, new_env)
+                print(f"[Migration] Copied legacy env from {old_env} to {new_env}")
+            except Exception as e:
+                print(f"[Migration] Error copying env file: {e}", file=sys.stderr)
+
+    # 4. action_log.jsonl migration
+    if "MW_ACTION_LOG_FILE" not in os.environ:
+        old_log = os.path.join(APP_ROOT, "gui", "data", "action_log.jsonl")
+        new_log = os.path.join(APP_ROOT, "data", "action_log.jsonl")
+        if os.path.exists(old_log) and not os.path.exists(new_log):
+            try:
+                os.makedirs(os.path.dirname(new_log), exist_ok=True)
+                shutil.copy2(old_log, new_log)
+                print(f"[Migration] Copied legacy action log from {old_log} to {new_log}")
+            except Exception as e:
+                print(f"[Migration] Error copying action log: {e}", file=sys.stderr)
+
+    # 5. data directory migration (profiles, quarantine, caches)
+    if "MW_DATA_DIR" not in os.environ:
+        old_data_dir = os.path.join(APP_ROOT, "gui", "data")
+        new_data_dir = os.path.join(APP_ROOT, "data")
+        
+        if os.path.exists(old_data_dir):
+            os.makedirs(new_data_dir, exist_ok=True)
+            # Kopiere Profile-Ordner falls vorhanden
+            old_profiles = os.path.join(old_data_dir, "profiles")
+            new_profiles = os.path.join(new_data_dir, "profiles")
+            if os.path.exists(old_profiles) and not os.path.exists(new_profiles):
+                try:
+                    shutil.copytree(old_profiles, new_profiles, symlinks=True)
+                    print(f"[Migration] Copied profiles directory from {old_profiles} to {new_profiles}")
+                except Exception as e:
+                    print(f"[Migration] Error copying profiles: {e}", file=sys.stderr)
+            
+            # Kopiere Quarantäne-Ordner falls vorhanden
+            old_quarantine = os.path.join(old_data_dir, "quarantine")
+            new_quarantine = os.path.join(new_data_dir, "quarantine")
+            if os.path.exists(old_quarantine) and not os.path.exists(new_quarantine):
+                try:
+                    shutil.copytree(old_quarantine, new_quarantine, symlinks=True)
+                    print(f"[Migration] Copied quarantine directory from {old_quarantine} to {new_quarantine}")
+                except Exception as e:
+                    print(f"[Migration] Error copying quarantine: {e}", file=sys.stderr)
+            
+            # Kopiere json Cache-Dateien (ohne jokes.json)
+            try:
+                for item in os.listdir(old_data_dir):
+                    if item.endswith(".json") and item != "jokes.json":
+                        old_file = os.path.join(old_data_dir, item)
+                        new_file = os.path.join(new_data_dir, item)
+                        if os.path.isfile(old_file) and not os.path.exists(new_file):
+                            shutil.copy2(old_file, new_file)
+                            print(f"[Migration] Copied data file {item} to {new_file}")
+            except Exception as e:
+                print(f"[Migration] Error copying data files: {e}", file=sys.stderr)
+
+def ensure_legacy_data_migrated():
+    global _migration_done
+    if _migration_done:
+        return
+    with _migration_lock:
+        if not _migration_done:
+            migrate_legacy_data()
+            _migration_done = True
+
 # Injectable path configurations via environment variables (with APP-Root fallback)
 def get_settings_file_path():
-    return os.environ.get("MW_SETTINGS_FILE", os.path.join(APP_ROOT, "gui", "settings.json"))
+    return os.environ.get("MW_SETTINGS_FILE", os.path.join(APP_ROOT, "data", "settings.json"))
 
 def get_jobs_state_file_path():
-    return os.environ.get("MW_JOBS_STATE_FILE", os.path.join(APP_ROOT, "gui", "jobs_state.json"))
+    return os.environ.get("MW_JOBS_STATE_FILE", os.path.join(APP_ROOT, "data", "jobs_state.json"))
 
 def get_action_log_file_path():
-    return os.environ.get("MW_ACTION_LOG_FILE", os.path.join(APP_ROOT, "gui", "data", "action_log.jsonl"))
+    return os.environ.get("MW_ACTION_LOG_FILE", os.path.join(APP_ROOT, "data", "action_log.jsonl"))
 
 def get_data_dir_path():
-    return os.environ.get("MW_DATA_DIR", os.path.join(APP_ROOT, "gui", "data"))
+    return os.environ.get("MW_DATA_DIR", os.path.join(APP_ROOT, "data"))
 
 def get_env_file_path():
-    # Keep env default path compatible with application and README (gui/.env)
-    return os.environ.get("MW_ENV_FILE", os.path.join(APP_ROOT, "gui", ".env"))
+    return os.environ.get("MW_ENV_FILE", os.path.join(APP_ROOT, ".env"))
 
 # Neutralized default settings (no private folders, IPs, or hostnames)
 DEFAULT_SETTINGS = {
@@ -131,6 +234,7 @@ def read_json_file(file_path, lock, default_data=None):
     Reads a JSON file thread-safely.
     Falls back to backup (.bak) if parsing fails, and then to default_data.
     """
+    ensure_legacy_data_migrated()
     backup_path = file_path + ".bak"
     with lock:
         if os.path.exists(file_path):
@@ -162,6 +266,7 @@ def write_json_file(file_path, lock, data):
     Writes data to a JSON file thread-safely and atomically.
     Validates data, copies current file to backup if valid, and does temp-write + replace + fsync.
     """
+    ensure_legacy_data_migrated()
     backup_path = file_path + ".bak"
     temp_path = file_path + ".tmp"
     parent_dir = os.path.dirname(file_path)
@@ -194,6 +299,7 @@ def update_json_file(file_path, lock, update_fn, default_data=None):
     Performs a thread-safe and atomic Read-Modify-Write (RMW) operation.
     Locks the file for the entire duration of reading, modifying, and writing back.
     """
+    ensure_legacy_data_migrated()
     backup_path = file_path + ".bak"
     temp_path = file_path + ".tmp"
     parent_dir = os.path.dirname(file_path)
@@ -247,6 +353,7 @@ def update_json_file(file_path, lock, update_fn, default_data=None):
 # ==========================================================================
 
 def load_env_keys():
+    ensure_legacy_data_migrated()
     env_path = get_env_file_path()
     keys = {}
     if os.path.exists(env_path):
@@ -267,6 +374,7 @@ def load_env_keys():
     return keys
 
 def save_env_keys(updates):
+    ensure_legacy_data_migrated()
     env_path = get_env_file_path()
     lines = []
     if os.path.exists(env_path):
@@ -341,7 +449,7 @@ def ensure_env_gitignore():
             f.write(f"{env_filename}\n")
 
 def ensure_env_example():
-    example_path = os.path.join(APP_ROOT, "gui", ".env.example")
+    example_path = os.path.join(APP_ROOT, ".env.example")
     keys_to_ensure = ["TMDB_API_KEY", "TVDB_API_KEY"]
 
     existing_lines = []
@@ -388,6 +496,7 @@ def load_settings():
         if "onboarded" not in mock_data:
             mock_data["onboarded"] = True
         return mock_data
+    ensure_legacy_data_migrated()
     if _cached_settings is not None:
         import copy
         return copy.deepcopy(_cached_settings)

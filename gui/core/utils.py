@@ -19,9 +19,6 @@ DATA_DIR = get_data_dir_path()
 PROFILES_DIR = os.path.join(DATA_DIR, "profiles")
 HISTORY_FILE = os.path.join(DATA_DIR, "konv_history.json")
 
-# Ensure directories exist
-os.makedirs(PROFILES_DIR, exist_ok=True)
-
 def clean_show_name(show_name):
     if not show_name:
         return "default"

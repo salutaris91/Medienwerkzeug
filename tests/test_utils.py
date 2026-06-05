@@ -41,7 +41,21 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             return self.orig_expanduser(path)
         os.path.expanduser = mock_expanduser
 
+        # Mock send2trash to perform direct deletion to avoid macOS permission issues
+        from unittest.mock import patch
+        def mock_s2t_action(path):
+            if os.path.exists(path):
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
+        self.s2t_patcher = patch("send2trash.send2trash", side_effect=mock_s2t_action)
+        self.s2t_patcher.start()
+
     def tearDown(self):
+        # Stop send2trash patcher
+        self.s2t_patcher.stop()
+
         # Restore original variables and functions
         utils.DATA_DIR = self.orig_data_dir
         utils.PROFILES_DIR = self.orig_profiles_dir

@@ -78,13 +78,10 @@ class TestEnvHandling(unittest.TestCase):
         import gui.core.persistence as p
         orig_app_root = p.APP_ROOT
         try:
-            # We mock APP_ROOT to self.test_dir.name but since it appends 'gui', we create it
-            gui_dir = os.path.join(self.test_dir.name, "gui")
-            os.makedirs(gui_dir, exist_ok=True)
             p.APP_ROOT = self.test_dir.name
 
-            # Re-write the mock example to the new mocked location
-            example_path = os.path.join(gui_dir, ".env.example")
+            # Re-write the mock example to the new mocked location (Root)
+            example_path = os.path.join(self.test_dir.name, ".env.example")
             with open(example_path, "w") as f:
                 f.write('TMDB_API_KEY="old_val"\n')
                 f.write('OTHER_KEY="val"\n')
