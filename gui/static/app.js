@@ -8617,13 +8617,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    const btnAddCategory = document.getElementById("btn-settings-add-category");
-    if(btnAddCategory) {
-        btnAddCategory.addEventListener("click", () => {
-            currentSettings.sync_categories.push({id: "", name: "", nas_sub: "", pcloud_remote: ""});
-            renderSyncCategories();
-        });
-    }
 
     const btnAddLocalFolder = document.getElementById("btn-settings-add-local-folder");
     if (btnAddLocalFolder) {
