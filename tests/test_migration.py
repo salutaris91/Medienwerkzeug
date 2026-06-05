@@ -126,8 +126,8 @@ class TestMigration(unittest.TestCase):
         self.assertFalse(os.path.exists(default_new_settings_path))
         self.assertFalse(os.path.exists(custom_settings_path))
 
-    def test_migration_triggered_on_path_getter(self):
-        """Prüft, ob die Migration erst beim Aufruf eines Pfad-Getters getriggert wird (kein Import-Side-Effect)."""
+    def test_migration_not_triggered_on_path_getter_but_on_io(self):
+        """Prüft, ob Pfad-Getter keine Migration auslösen, I/O-Funktionen wie load_settings aber schon."""
         self.persistence._migration_done = False
         
         legacy_gui_dir = os.path.join(self.app_root, "gui")
@@ -138,10 +138,12 @@ class TestMigration(unittest.TestCase):
         new_settings_path = os.path.join(self.app_root, "data", "settings.json")
         self.assertFalse(os.path.exists(new_settings_path))
         
-        # Aufrufen des Pfad-Getters
+        # 1. Aufrufen des Pfad-Getters darf KEINE Migration auslösen!
         path = self.persistence.get_settings_file_path()
+        self.assertFalse(os.path.exists(new_settings_path))
         
-        # Nun muss die Migration gelaufen sein
+        # 2. Aufrufen einer I/O-Funktion (load_settings) MUSS die Migration triggern!
+        self.persistence.load_settings()
         self.assertTrue(os.path.exists(new_settings_path))
 
     def test_jokes_fallback(self):

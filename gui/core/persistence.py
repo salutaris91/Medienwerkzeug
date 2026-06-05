@@ -121,23 +121,18 @@ def ensure_legacy_data_migrated():
 
 # Injectable path configurations via environment variables (with APP-Root fallback)
 def get_settings_file_path():
-    ensure_legacy_data_migrated()
     return os.environ.get("MW_SETTINGS_FILE", os.path.join(APP_ROOT, "data", "settings.json"))
 
 def get_jobs_state_file_path():
-    ensure_legacy_data_migrated()
     return os.environ.get("MW_JOBS_STATE_FILE", os.path.join(APP_ROOT, "data", "jobs_state.json"))
 
 def get_action_log_file_path():
-    ensure_legacy_data_migrated()
     return os.environ.get("MW_ACTION_LOG_FILE", os.path.join(APP_ROOT, "data", "action_log.jsonl"))
 
 def get_data_dir_path():
-    ensure_legacy_data_migrated()
     return os.environ.get("MW_DATA_DIR", os.path.join(APP_ROOT, "data"))
 
 def get_env_file_path():
-    ensure_legacy_data_migrated()
     return os.environ.get("MW_ENV_FILE", os.path.join(APP_ROOT, ".env"))
 
 # Neutralized default settings (no private folders, IPs, or hostnames)
@@ -239,6 +234,7 @@ def read_json_file(file_path, lock, default_data=None):
     Reads a JSON file thread-safely.
     Falls back to backup (.bak) if parsing fails, and then to default_data.
     """
+    ensure_legacy_data_migrated()
     backup_path = file_path + ".bak"
     with lock:
         if os.path.exists(file_path):
@@ -270,6 +266,7 @@ def write_json_file(file_path, lock, data):
     Writes data to a JSON file thread-safely and atomically.
     Validates data, copies current file to backup if valid, and does temp-write + replace + fsync.
     """
+    ensure_legacy_data_migrated()
     backup_path = file_path + ".bak"
     temp_path = file_path + ".tmp"
     parent_dir = os.path.dirname(file_path)
@@ -302,6 +299,7 @@ def update_json_file(file_path, lock, update_fn, default_data=None):
     Performs a thread-safe and atomic Read-Modify-Write (RMW) operation.
     Locks the file for the entire duration of reading, modifying, and writing back.
     """
+    ensure_legacy_data_migrated()
     backup_path = file_path + ".bak"
     temp_path = file_path + ".tmp"
     parent_dir = os.path.dirname(file_path)
@@ -355,6 +353,7 @@ def update_json_file(file_path, lock, update_fn, default_data=None):
 # ==========================================================================
 
 def load_env_keys():
+    ensure_legacy_data_migrated()
     env_path = get_env_file_path()
     keys = {}
     if os.path.exists(env_path):
@@ -375,6 +374,7 @@ def load_env_keys():
     return keys
 
 def save_env_keys(updates):
+    ensure_legacy_data_migrated()
     env_path = get_env_file_path()
     lines = []
     if os.path.exists(env_path):
@@ -490,6 +490,7 @@ _cached_settings = None
 
 def load_settings():
     global _cached_settings
+    ensure_legacy_data_migrated()
     if _MOCK_SETTINGS is not None:
         import copy
         mock_data = copy.deepcopy(_MOCK_SETTINGS)
