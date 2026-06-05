@@ -711,7 +711,7 @@ async function initOnboardingWizard() {
                     nas_ip: nasIp,
                     nas_share: nasShare,
                     nas_hostname: nasHostname,
-                    active: true
+                    enabled: true
                 }
             ];
 
@@ -8012,6 +8012,7 @@ function renderStorageTargets() {
         enabledCheckbox.style.accentColor = "var(--accent)";
         enabledCheckbox.addEventListener("change", (e) => {
             target.enabled = e.target.checked;
+            renderSyncCategories();
         });
         
         const enabledLabel = document.createElement("label");
@@ -8253,12 +8254,16 @@ function renderSyncCategories() {
     if(!container) return;
     container.innerHTML = "";
     
+    // Get enabled storage targets
+    const activeTargets = (currentSettings.storage_targets || []).filter(t => t.enabled !== false);
+    
     currentSettings.sync_categories.forEach((cat, index) => {
         const row = document.createElement("div");
         row.style.display = "flex";
         row.style.gap = "8px";
+        row.style.marginBottom = "8px";
         
-        const createInput = (val, placeholder, width, field) => {
+        const createInput = (val, placeholder, width, onchangeCallback) => {
             const input = document.createElement("input");
             input.type = "text";
             input.className = "form-select";
@@ -8269,80 +8274,103 @@ function renderSyncCategories() {
             input.style.background = "var(--bg-surface)";
             input.style.color = "var(--text-main)";
             input.placeholder = placeholder;
-            input.value = val;
-            input.onchange = (e) => { currentSettings.sync_categories[index][field] = e.target.value; };
+            input.value = val || "";
+            input.onchange = onchangeCallback;
             return input;
         };
         
-        row.appendChild(createInput(cat.id, "ID (z.B. 1)", "0.5", "id"));
-        row.appendChild(createInput(cat.name, "Name", "1", "name"));
+        row.appendChild(createInput(cat.id, "ID (z.B. 1)", "0.5", (e) => { currentSettings.sync_categories[index].id = e.target.value; }));
+        row.appendChild(createInput(cat.name, "Name", "1", (e) => { currentSettings.sync_categories[index].name = e.target.value; }));
         
-        // NAS Sub-path field with browse button
-        const nasWrapper = document.createElement("div");
-        nasWrapper.style.flex = "1";
-        nasWrapper.style.display = "flex";
-        nasWrapper.style.gap = "5px";
-        
-        const nasInput = createInput(cat.nas_sub, "NAS (/Filme)", "1", "nas_sub");
-        nasWrapper.appendChild(nasInput);
-        
-        const browseBtn = document.createElement("button");
-        browseBtn.className = "btn btn-secondary";
-        browseBtn.textContent = "🔍";
-        browseBtn.title = "Ordner auswählen";
-        browseBtn.style.padding = "5px 10px";
-        browseBtn.onclick = async () => {
-            try {
-                const response = await fetch("/api/browse-folder");
-                const data = await response.json();
-                if (data.path) {
-                    const nasRoot = currentSettings.nas_root || "";
-                    let subPath = data.path;
-                    if (nasRoot && subPath.startsWith(nasRoot)) {
-                        subPath = subPath.substring(nasRoot.length);
-                        if (!subPath.startsWith("/")) subPath = "/" + subPath;
-                    }
-                    nasInput.value = subPath;
-                    currentSettings.sync_categories[index].nas_sub = subPath;
+        // Dynamically add columns for active storage targets
+        activeTargets.forEach(target => {
+            const targetWrapper = document.createElement("div");
+            targetWrapper.style.flex = target.id === "pcloud" ? "1.5" : "1";
+            targetWrapper.style.display = "flex";
+            targetWrapper.style.gap = "5px";
+            
+            let val = "";
+            if (cat.targets && cat.targets[target.id] !== undefined) {
+                val = cat.targets[target.id];
+            } else if (target.id === "nas") {
+                val = cat.nas_sub || "";
+            } else if (target.id === "pcloud") {
+                val = cat.pcloud_remote || "";
+            }
+            
+            let placeholder = `${target.name || target.id}`;
+            if (target.id === "nas") placeholder += " (/Filme)";
+            else if (target.id === "pcloud") placeholder += " (pcloud:03_Filme)";
+            
+            const input = createInput(val, placeholder, "1", (e) => {
+                const newVal = e.target.value;
+                if (!currentSettings.sync_categories[index].targets) {
+                    currentSettings.sync_categories[index].targets = {};
                 }
-            } catch (e) { console.error("Browse error:", e); }
-        };
-        nasWrapper.appendChild(browseBtn);
-        row.appendChild(nasWrapper);
-        
-        // pCloud Sub-path field with browse button
-        const pcloudWrapper = document.createElement("div");
-        pcloudWrapper.style.flex = "1.5";
-        pcloudWrapper.style.display = "flex";
-        pcloudWrapper.style.gap = "5px";
-        
-        const pcloudInput = createInput(cat.pcloud_remote, "pCloud (pcloud:03_Filme)", "1", "pcloud_remote");
-        pcloudWrapper.appendChild(pcloudInput);
-        
-        const browsePcloudBtn = document.createElement("button");
-        browsePcloudBtn.className = "btn btn-secondary";
-        browsePcloudBtn.textContent = "🔍";
-        browsePcloudBtn.title = "pCloud-Ordner auswählen";
-        browsePcloudBtn.style.padding = "5px 10px";
-        browsePcloudBtn.onclick = async () => {
-            try {
-                const response = await fetch("/api/browse-folder");
-                const data = await response.json();
-                if (data.path) {
-                    const pcloudRoot = currentSettings.pcloud_dir || "";
-                    let subPath = data.path;
-                    if (pcloudRoot && subPath.startsWith(pcloudRoot)) {
-                        subPath = subPath.substring(pcloudRoot.length);
-                        if (subPath.startsWith("/")) subPath = subPath.substring(1);
-                        subPath = "pcloud:" + subPath;
-                    }
-                    pcloudInput.value = subPath;
-                    currentSettings.sync_categories[index].pcloud_remote = subPath;
+                currentSettings.sync_categories[index].targets[target.id] = newVal;
+                
+                // Backwards compatibility spiegeln
+                if (target.id === "nas") {
+                    currentSettings.sync_categories[index].nas_sub = newVal;
+                } else if (target.id === "pcloud") {
+                    currentSettings.sync_categories[index].pcloud_remote = newVal;
                 }
-            } catch (e) { console.error("Browse error:", e); }
-        };
-        pcloudWrapper.appendChild(browsePcloudBtn);
-        row.appendChild(pcloudWrapper);
+            });
+            targetWrapper.appendChild(input);
+            
+            const browseBtn = document.createElement("button");
+            browseBtn.className = "btn btn-secondary";
+            browseBtn.textContent = "🔍";
+            browseBtn.title = `${target.name || target.id}-Ordner auswählen`;
+            browseBtn.style.padding = "5px 10px";
+            
+            // Check capability for opening local folder (disable browse under Docker runtime)
+            const caps = window.AppCapabilities;
+            const openLocalEnabled = caps && caps.capabilities && caps.capabilities.open_local_folder;
+            if (!openLocalEnabled) {
+                browseBtn.disabled = true;
+                browseBtn.style.opacity = "0.5";
+                browseBtn.title = "Ordnerauswahl unter Docker deaktiviert";
+            }
+            
+            browseBtn.onclick = async () => {
+                if (browseBtn.disabled) return;
+                try {
+                    const response = await fetch("/api/browse-folder");
+                    const data = await response.json();
+                    if (data.path) {
+                        let subPath = data.path;
+                        if (target.id === "nas") {
+                            const nasRoot = currentSettings.nas_root || "";
+                            if (nasRoot && subPath.startsWith(nasRoot)) {
+                                subPath = subPath.substring(nasRoot.length);
+                                if (!subPath.startsWith("/")) subPath = "/" + subPath;
+                            }
+                        } else if (target.id === "pcloud") {
+                            const pcloudRoot = currentSettings.pcloud_dir || "";
+                            if (pcloudRoot && subPath.startsWith(pcloudRoot)) {
+                                subPath = subPath.substring(pcloudRoot.length);
+                                if (subPath.startsWith("/")) subPath = subPath.substring(1);
+                                subPath = "pcloud:" + subPath;
+                            }
+                        }
+                        input.value = subPath;
+                        if (!currentSettings.sync_categories[index].targets) {
+                            currentSettings.sync_categories[index].targets = {};
+                        }
+                        currentSettings.sync_categories[index].targets[target.id] = subPath;
+                        if (target.id === "nas") {
+                            currentSettings.sync_categories[index].nas_sub = subPath;
+                        } else if (target.id === "pcloud") {
+                            currentSettings.sync_categories[index].pcloud_remote = subPath;
+                        }
+                    }
+                } catch (e) { console.error("Browse error:", e); }
+            };
+            
+            targetWrapper.appendChild(browseBtn);
+            row.appendChild(targetWrapper);
+        });
         
         const removeBtn = document.createElement("button");
         removeBtn.className = "btn btn-danger";
@@ -8609,7 +8637,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnAddCategory = document.getElementById("btn-settings-add-category");
     if(btnAddCategory) {
         btnAddCategory.addEventListener("click", () => {
-            currentSettings.sync_categories.push({id: "", name: "", nas_sub: "", pcloud_remote: ""});
+            currentSettings.sync_categories.push({id: "", name: "", nas_sub: "", pcloud_remote: "", targets: {}});
             renderSyncCategories();
         });
     }
