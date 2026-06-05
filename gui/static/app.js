@@ -997,6 +997,40 @@ async function checkOnboardingDependencies() {
     const listContainer = document.getElementById("onboarding-dep-list");
     if (!listContainer) return;
 
+    const renderOnboardingDepCard = (name, status) => {
+        const statusLabels = {
+            "missing": "Nicht installiert",
+            "installed": "Bereit",
+            "up_to_date": "Aktuell",
+            "update_available": "Update verfügbar",
+            "unknown": "Unbekannt"
+        };
+        const card = document.createElement("div");
+        card.className = `dep-card status-${status}`;
+        card.style.display = "flex";
+        card.style.justifyContent = "space-between";
+        card.style.alignItems = "center";
+        card.style.padding = "10px 15px";
+        card.style.background = "rgba(255,255,255,0.03)";
+        card.style.border = "1px solid var(--border-light)";
+        card.style.borderRadius = "var(--radius-sm)";
+        card.style.marginBottom = "8px";
+
+        const label = statusLabels[status] || status;
+        const badgeColor = status === "missing" ? "var(--danger)" : "var(--success)";
+        card.innerHTML = `
+            <span style="font-weight: 600;">${name}</span>
+            <span class="dep-badge" style="background: ${status === 'missing' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)'}; color: ${badgeColor}; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">${label}</span>
+        `;
+        listContainer.appendChild(card);
+    };
+
+    if (window.AppCapabilities && window.AppCapabilities.runtime === "docker") {
+        listContainer.innerHTML = "";
+        ["deno", "ffmpeg", "rclone", "yt-dlp"].forEach(name => renderOnboardingDepCard(name, "installed"));
+        return;
+    }
+
     listContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);"><span style="display: inline-block; animation: spin 1s linear infinite; margin-right: 8px;">🔄</span> Abhängigkeiten werden geprüft...</div>';
 
     try {
@@ -1004,34 +1038,8 @@ async function checkOnboardingDependencies() {
         if (response.ok) {
             const data = await response.json();
             listContainer.innerHTML = "";
-            const statusLabels = {
-                "missing": "Nicht installiert",
-                "installed": "Bereit",
-                "up_to_date": "Aktuell",
-                "update_available": "Update verfügbar",
-                "unknown": "Unbekannt"
-            };
-
             for (const [name, info] of Object.entries(data)) {
-                const card = document.createElement("div");
-                card.className = `dep-card status-${info.status}`;
-                card.style.display = "flex";
-                card.style.justifyContent = "space-between";
-                card.style.alignItems = "center";
-                card.style.padding = "10px 15px";
-                card.style.background = "rgba(255,255,255,0.03)";
-                card.style.border = "1px solid var(--border-light)";
-                card.style.borderRadius = "var(--radius-sm)";
-                card.style.marginBottom = "8px";
-
-                const label = statusLabels[info.status] || info.status;
-                const badgeColor = info.status === "missing" ? "var(--danger)" : "var(--success)";
-
-                card.innerHTML = `
-                    <span style="font-weight: 600;">${name}</span>
-                    <span class="dep-badge" style="background: ${info.status === 'missing' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)'}; color: ${badgeColor}; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">${label}</span>
-                `;
-                listContainer.appendChild(card);
+                renderOnboardingDepCard(name, info.status);
             }
         } else {
             listContainer.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--danger);">Fehler beim Abrufen des Status der Abhängigkeiten.</div>`;
