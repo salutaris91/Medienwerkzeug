@@ -100,6 +100,12 @@ def main():
     worker_thread.start()
     print("Background worker thread started.")
     
+    # Start metrics worker
+    from gui.workers.processor import system_metrics_worker
+    metrics_thread = threading.Thread(target=system_metrics_worker, daemon=True)
+    metrics_thread.start()
+    print("System metrics worker thread started.")
+    
     # Start folder monitor thread
     from gui.core.helpers import folder_size_monitor
     monitor_thread = threading.Thread(target=folder_size_monitor, daemon=True)
