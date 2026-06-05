@@ -132,5 +132,42 @@ class TestPersistence(unittest.TestCase):
         final_settings = self.persistence.load_settings()
         self.assertEqual(final_settings["counter"], num_threads * increments_per_thread)
 
+    def test_active_to_enabled_migration(self):
+        """Verifies migration of 'active' key to 'enabled' and DEFAULT values."""
+        # Create a raw settings file with active: true/false in storage_targets
+        raw_settings = {
+            "storage_targets": [
+                {
+                    "id": "nas",
+                    "name": "NAS",
+                    "type": "nas",
+                    "root_path": "/test/nas",
+                    "active": True
+                },
+                {
+                    "id": "pcloud",
+                    "name": "Cloud",
+                    "type": "pcloud",
+                    "root_path": "/test/pcloud",
+                    "active": False
+                }
+            ]
+        }
+        with open(self.settings_file, "w", encoding="utf-8") as f:
+            json.dump(raw_settings, f)
+        
+        # Force fresh load
+        self.persistence._cached_settings = None
+        settings = self.persistence.load_settings()
+        
+        # Verify that 'active' is removed and replaced by 'enabled'
+        nas_target = next(t for t in settings["storage_targets"] if t["id"] == "nas")
+        pcloud_target = next(t for t in settings["storage_targets"] if t["id"] == "pcloud")
+        
+        self.assertNotIn("active", nas_target)
+        self.assertNotIn("active", pcloud_target)
+        self.assertEqual(nas_target.get("enabled"), True)
+        self.assertEqual(pcloud_target.get("enabled"), False)
+
 if __name__ == "__main__":
     unittest.main()
