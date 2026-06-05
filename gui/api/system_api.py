@@ -215,9 +215,15 @@ def handle_api_status():
         handle_api_status.last_nas_status = check_nas_status()
         handle_api_status.last_nas_check = time.time()
 
-    from gui.workers.processor import SYSTEM_METRICS
-    inbox_size_gb = SYSTEM_METRICS.get('inbox_size_gb', 0.0)
-    outbox_size_gb = SYSTEM_METRICS.get('outbox_size_gb', 0.0)
+    from gui.workers.processor import SYSTEM_METRICS, METRICS_LOCK
+    with METRICS_LOCK:
+        inbox_size_gb = SYSTEM_METRICS.get('inbox_size_gb')
+        outbox_size_gb = SYSTEM_METRICS.get('outbox_size_gb')
+        metrics_loading = (SYSTEM_METRICS.get('last_updated', 0) == 0)
+
+    # Use 0.0 as fallback for UI if None
+    inbox_val = inbox_size_gb if inbox_size_gb is not None else 0.0
+    outbox_val = outbox_size_gb if outbox_size_gb is not None else 0.0
 
     status = {
         "nas_status": handle_api_status.last_nas_status,
@@ -225,8 +231,9 @@ def handle_api_status():
         "outbox_path": outbox,
         "streamfab_downloads": check_streamfab(),
         "projects": sorted(projects),
-        "inbox_size_gb": inbox_size_gb,
-        "outbox_size_gb": outbox_size_gb
+        "inbox_size_gb": inbox_val,
+        "outbox_size_gb": outbox_val,
+        "metrics_loading": metrics_loading
     }
 
     return jsonify(status)
@@ -430,8 +437,11 @@ def handle_api_stats():
     try:
         settings = load_settings()
 
-        from gui.workers.processor import SYSTEM_METRICS
-        nas_info = SYSTEM_METRICS.get('nas_info')
+        from gui.workers.processor import SYSTEM_METRICS, METRICS_LOCK
+        with METRICS_LOCK:
+            nas_info = SYSTEM_METRICS.get('nas_info')
+            metrics_loading = (SYSTEM_METRICS.get('last_updated', 0) == 0)
+            
         if nas_info is None:
             targets = [t for t in settings.get("storage_targets", []) if t.get("enabled", True)]
             nas_info = {

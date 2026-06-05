@@ -41,11 +41,12 @@ JOB_QUEUE = []
 SYSTEM_STATUS = {'running': True}
 STATUS_LOCK = threading.Lock()
 SYSTEM_METRICS = {
-    'inbox_size_gb': 0.0,
-    'outbox_size_gb': 0.0,
+    'inbox_size_gb': None,
+    'outbox_size_gb': None,
     'nas_info': None,
     'last_updated': 0
 }
+METRICS_LOCK = threading.Lock()
 
 from gui.core.jobs import active_jobs, active_jobs_lock
 def build_job_pipeline(params, has_metadata, convert):
@@ -2608,24 +2609,37 @@ def system_metrics_worker():
     from gui.core.helpers import get_folder_size_bytes
     from gui.core.utils import load_settings
     
+    def run_with_timeout(func, arg, timeout_sec=20):
+        result = [None]
+        def _worker():
+            try:
+                result[0] = func(arg)
+            except Exception:
+                pass
+        t = threading.Thread(target=_worker, daemon=True)
+        t.start()
+        t.join(timeout_sec)
+        return result[0]
+
     while SYSTEM_STATUS.get('running', True):
         try:
             settings = load_settings()
             inbox = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
             outbox = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
             
-            # 1. Berechne Ordnergrößen
-            inbox_bytes = get_folder_size_bytes(inbox) if inbox else 0
-            outbox_bytes = get_folder_size_bytes(outbox) if outbox else 0
-            SYSTEM_METRICS['inbox_size_gb'] = round(inbox_bytes / (1024**3), 2)
-            SYSTEM_METRICS['outbox_size_gb'] = round(outbox_bytes / (1024**3), 2)
+            # 1. Berechne Ordnergrößen (mit 20s Timeout)
+            inbox_bytes = run_with_timeout(get_folder_size_bytes, inbox, 20) if inbox else 0
+            outbox_bytes = run_with_timeout(get_folder_size_bytes, outbox, 20) if outbox else 0
+            with METRICS_LOCK:
+                SYSTEM_METRICS['inbox_size_gb'] = round(inbox_bytes / (1024**3), 2) if inbox_bytes is not None else None
+                SYSTEM_METRICS['outbox_size_gb'] = round(outbox_bytes / (1024**3), 2) if outbox_bytes is not None else None
             
-            # 2. Berechne Speicherplatz (NAS/Cloud)
+            # 2. Berechne Speicherplatz (NAS/Cloud) mit 20s Timeout
             targets = [t for t in settings.get("storage_targets", []) if t.get("enabled", True)]
             nas_info = None
             for target in targets:
-                candidate = _read_target_storage(target)
-                if candidate["available"]:
+                candidate = run_with_timeout(_read_target_storage, target, 20)
+                if candidate and candidate.get("available"):
                     nas_info = candidate
                     break
                     
@@ -2639,8 +2653,9 @@ def system_metrics_worker():
                     "error": "Kein Speicherziel verbunden.",
                 }
                 
-            SYSTEM_METRICS['nas_info'] = nas_info
-            SYSTEM_METRICS['last_updated'] = time.time()
+            with METRICS_LOCK:
+                SYSTEM_METRICS['nas_info'] = nas_info
+                SYSTEM_METRICS['last_updated'] = time.time()
             
         except Exception as e:
             print(f"[System Metrics Worker] Fehler: {e}")
