@@ -47,7 +47,10 @@
         <div class="onboarding-card">
             <!-- Header -->
             <div class="onboarding-header">
-                <h2>Medienwerkzeug Setup</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <h2>Medienwerkzeug Setup</h2>
+                    <button class="btn btn-secondary btn-xs hidden" id="btn-onboarding-reset" type="button" title="Onboarding von vorne beginnen" style="display:none;">Neu starten</button>
+                </div>
                 <div class="onboarding-steps-indicator">
                     <span class="step-dot active" data-step="1">1</span>
                     <span class="step-dot" data-step="2">2</span>
@@ -63,11 +66,11 @@
             <!-- Step 1: Willkommen & Telemetrie -->
             <div class="onboarding-step active" id="onboarding-step-1">
                 <h3>Willkommen!</h3>
-                <p class="text-muted">Lass uns das Medienwerkzeug in wenigen Schritten fuer dich einrichten.</p>
+                <p class="text-muted">Lass uns das Medienwerkzeug in wenigen Schritten für dich einrichten.</p>
 
                 <div class="onboarding-dev-note mt-15">
                     <strong>Wichtiger Hinweis zur Telemetrie:</strong><br>
-                    Ich entwickle diese App als einzelner Entwickler in meiner Freizeit. Um Fehler schneller zu beheben und die App zu verbessern, bin ich auf anonymisierte Nutzungsdaten angewiesen. Bitte unterstuetze mich, indem du das optionale Tracking einschaltest.
+                    Ich entwickle diese App als einzelner Entwickler in meiner Freizeit. Um Fehler schneller zu beheben und die App zu verbessern, bin ich auf anonymisierte Nutzungsdaten angewiesen. Bitte unterstütze mich, indem du das optionale Tracking einschaltest.
                     Bei Bedenken kannst du mich direkt unter <a href="mailto:support@mediawerkzeug.xyz" style="color:var(--accent);">support@mediawerkzeug.xyz</a> kontaktieren.
                 </div>
 
@@ -82,7 +85,7 @@
                             <div class="tooltip-box" role="tooltip">Die Telemetrie hilft, Fehler zu analysieren. Es werden nur die Systemversion (Mac), Fehlerklassen und App-Events übertragen. Keine persönlichen Daten.</div>
                         </div>
                     </div>
-                    <p class="text-muted text-xs mt-5">Es werden keine sensiblen Daten wie Dateinamen, Pfade, Keys, Medientitel oder IPs uebertragen.</p>
+                    <p class="text-muted text-xs mt-5">Es werden keine sensiblen Daten wie Dateinamen, Pfade, Keys, Medientitel oder IPs übertragen.</p>
                 </div>
 
                 <div class="form-group mt-20">
@@ -100,7 +103,7 @@
                 </div>
 
                 <div class="onboarding-actions mt-30">
-                    <button class="btn btn-secondary" id="btn-onboarding-skip" type="button">Ueberspringen fuer Experten</button>
+                    <button class="btn btn-secondary" id="btn-onboarding-skip" type="button">Überspringen für Experten</button>
                     <button class="btn btn-primary" id="btn-onboarding-next-1" type="button">Weiter →</button>
                 </div>
             </div>
@@ -112,12 +115,12 @@
 
                 <div class="form-group mt-20">
                     <label for="onboarding-password">Passwort / PIN einrichten (optional):</label>
-                    <input type="password" id="onboarding-password" placeholder="Passwort leer lassen fuer ungeschuetzten Zugriff..." class="form-input">
-                    <p class="text-muted text-xs mt-5">Wenn du ein Passwort festlegst, musst du dich bei jedem Oeffnen der App authentifizieren.</p>
+                    <input type="password" id="onboarding-password" placeholder="Passwort leer lassen für ungeschützten Zugriff..." class="form-input">
+                    <p class="text-muted text-xs mt-5">Wenn du ein Passwort festlegst, musst du dich bei jedem Öffnen der App authentifizieren.</p>
                 </div>
 
                 <div class="onboarding-actions mt-30">
-                    <button class="btn btn-secondary btn-onboarding-prev" data-target="1" type="button">← Zurueck</button>
+                    <button class="btn btn-secondary btn-onboarding-prev" data-target="1" type="button">← Zurück</button>
                     <button class="btn btn-primary" id="btn-onboarding-next-2" type="button">Weiter →</button>
                 </div>
             </div>
@@ -125,7 +128,7 @@
             <!-- Step 3: API-Keys -->
             <div class="onboarding-step hidden" id="onboarding-step-3">
                 <h3>Metadaten-API-Keys</h3>
-                <p class="text-muted">Um deutsche Filminformationen, Episodentitel und Cover von TMDB abzurufen, wird ein API-Key benoetigt.</p>
+                <p class="text-muted">Um deutsche Filminformationen, Episodentitel und Cover von TMDB abzurufen, wird ein API-Key benötigt.</p>
 
                 <div class="form-group mt-20">
                     <div style="display:flex; align-items:center; gap:8px;">
@@ -152,7 +155,7 @@
                 </div>
 
                 <div class="onboarding-actions mt-30">
-                    <button class="btn btn-secondary btn-onboarding-prev" data-target="2" type="button">← Zurueck</button>
+                    <button class="btn btn-secondary btn-onboarding-prev" data-target="2" type="button">← Zurück</button>
                     <button class="btn btn-primary" id="btn-onboarding-next-3" type="button">Weiter →</button>
                 </div>
             </div>
@@ -160,7 +163,7 @@
             <!-- Step 4: Speicherziele -->
             <div class="onboarding-step hidden" id="onboarding-step-4">
                 <h3>NAS &amp; Cloud Speicherziele</h3>
-                <p class="text-muted">Konfiguriere das primaere Ziel (deinen NAS-Server) und die Zugangsdaten.</p>
+                <p class="text-muted">Konfiguriere das primäre Ziel (deinen NAS-Server) und die Zugangsdaten.</p>
 
                 <div class="form-group" id="onboarding-nas-ip-group">
                     <label for="onboarding-nas-ip">NAS IP-Adresse:</label>
@@ -172,16 +175,16 @@
                 </div>
                 <div class="form-group mt-10">
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <label for="onboarding-nas-root" id="onboarding-nas-root-label">Lokaler Einhaengepfad (nas_root):</label>
+                        <label for="onboarding-nas-root" id="onboarding-nas-root-label">Lokaler Einhängepfad (nas_root):</label>
                         <div class="tooltip-container">
-                            <button class="tooltip-trigger" type="button" aria-expanded="false" aria-label="Was ist der Einhaengepfad?">?</button>
+                            <button class="tooltip-trigger" type="button" aria-expanded="false" aria-label="Was ist der Einhängepfad?">?</button>
                             <div class="tooltip-box" role="tooltip">Das Verzeichnis, unter dem dein NAS-Server auf deinem Mac gemountet ist (z.B. /Volumes/Kino).</div>
                         </div>
                     </div>
                     <input type="text" id="onboarding-nas-root" placeholder="z.B. /Volumes/Kino" class="form-input">
                 </div>
                 <div class="form-group mt-10" id="onboarding-nas-hostname-group">
-                    <label for="onboarding-nas-hostname">NAS Hostname (fuer Finder-Fallback):</label>
+                    <label for="onboarding-nas-hostname">NAS Hostname (für Finder-Fallback):</label>
                     <input type="text" id="onboarding-nas-hostname" placeholder="z.B. ALEXNAS91" class="form-input">
                 </div>
 
@@ -191,7 +194,7 @@
                 </div>
 
                 <div class="onboarding-actions mt-30">
-                    <button class="btn btn-secondary btn-onboarding-prev" data-target="3" type="button">← Zurueck</button>
+                    <button class="btn btn-secondary btn-onboarding-prev" data-target="3" type="button">← Zurück</button>
                     <button class="btn btn-primary" id="btn-onboarding-next-4" type="button">Weiter →</button>
                 </div>
             </div>
@@ -211,9 +214,9 @@
                 </div>
 
                 <div class="form-group mt-15">
-                    <label for="onboarding-medienserver">Gewuenschter Medienserver (fuer Artwork-Validierung):</label>
+                    <label for="onboarding-medienserver">Gewünschter Medienserver (für Artwork-Validierung):</label>
                     <select id="onboarding-medienserver" class="form-select">
-                        <option value="">-- Bitte waehlen --</option>
+                        <option value="">-- Bitte wählen --</option>
                         <option value="emby">Emby</option>
                         <option value="jellyfin">Jellyfin</option>
                         <option value="plex">Plex</option>
@@ -221,15 +224,15 @@
                 </div>
 
                 <div class="onboarding-actions mt-30">
-                    <button class="btn btn-secondary btn-onboarding-prev" data-target="4" type="button">← Zurueck</button>
+                    <button class="btn btn-secondary btn-onboarding-prev" data-target="4" type="button">← Zurück</button>
                     <button class="btn btn-primary" id="btn-onboarding-next-5" type="button">Weiter →</button>
                 </div>
             </div>
 
-            <!-- Step 6: Abhaengigkeitspruefung -->
+            <!-- Step 6: Abhängigkeitsprüfung -->
             <div class="onboarding-step hidden" id="onboarding-step-6">
-                <h3>System-Abhaengigkeiten pruefen</h3>
-                <p class="text-muted" id="onboarding-dep-desc">Das Medienwerkzeug benoetigt einige Systemtools im Systempfad, um reibungslos zu funktionieren.</p>
+                <h3>System-Abhängigkeiten prüfen</h3>
+                <p class="text-muted" id="onboarding-dep-desc">Das Medienwerkzeug benötigt einige Systemtools im Systempfad, um reibungslos zu funktionieren.</p>
                 <div id="onboarding-docker-dep-note" class="hidden" style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: var(--success); padding: 12px; border-radius: 6px; margin-top: 10px;">
                     ℹ️ <strong>Docker-Modus:</strong> Alle Tools sind sicher im Image enthalten. Updates erfolgen zentral via <code>docker compose pull</code>.
                 </div>
@@ -239,11 +242,11 @@
                 </div>
 
                 <div class="mt-15">
-                    <button class="btn btn-sm btn-secondary" id="btn-onboarding-check-deps" type="button">Erneut pruefen</button>
+                    <button class="btn btn-sm btn-secondary" id="btn-onboarding-check-deps" type="button">Erneut prüfen</button>
                 </div>
 
                 <div class="onboarding-actions mt-30">
-                    <button class="btn btn-secondary btn-onboarding-prev" data-target="5" type="button">← Zurueck</button>
+                    <button class="btn btn-secondary btn-onboarding-prev" data-target="5" type="button">← Zurück</button>
                     <button class="btn btn-primary" id="btn-onboarding-next-6" type="button">Weiter →</button>
                 </div>
             </div>
@@ -254,16 +257,16 @@
                 <p class="text-muted">Vielen Dank. Dein Medienwerkzeug ist jetzt einsatzbereit.</p>
 
                 <div class="onboarding-dev-note mt-20">
-                    <strong>Unterstuetze die Entwicklung:</strong><br>
-                    Wenn dir das Tool gefaellt und du die weitere Entwicklung unterstuetzen moechtest, freue ich mich sehr ueber eine kleine, freiwillige Kaffeespende per PayPal.<br>
+                    <strong>Unterstütze die Entwicklung:</strong><br>
+                    Wenn dir das Tool gefällt und du die weitere Entwicklung unterstützen möchtest, freue ich mich sehr über eine kleine, freiwillige Kaffeespende per PayPal.<br>
                     <div style="margin-top: 15px; text-align: center;">
-                        <a href="https://www.paypal.com/paypalme/alexmediatool" target="_blank" rel="noopener" class="btn btn-accent" style="text-decoration:none; display:inline-block;">Entwicklung unterstuetzen</a>
+                        <a href="https://www.paypal.com/paypalme/alexmediatool" target="_blank" rel="noopener" class="btn btn-accent" style="text-decoration:none; display:inline-block;">Entwicklung unterstützen</a>
                     </div>
                 </div>
 
                 <div class="onboarding-actions mt-30">
-                    <button class="btn btn-secondary btn-onboarding-prev" data-target="6" type="button">← Zurueck</button>
-                    <button class="btn btn-accent btn-lg" id="btn-onboarding-finish" type="button">Onboarding abschliessen</button>
+                    <button class="btn btn-secondary btn-onboarding-prev" data-target="6" type="button">← Zurück</button>
+                    <button class="btn btn-accent btn-lg" id="btn-onboarding-finish" type="button">Onboarding abschließen</button>
                 </div>
             </div>
 
@@ -357,7 +360,7 @@
                 <!-- Support-Link in Sidebar -->
                 <div style="margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px; padding-left: 10px; font-size: 0.85em;">
                     <a href="https://www.paypal.com/paypalme/alexmediatool" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; display: flex; align-items: center; gap: 8px;">
-                        <span>☕</span> <span>Entwicklung unterstuetzen</span>
+                        <span>☕</span> <span>Entwicklung unterstützen</span>
                     </a>
                 </div>
             </div>
@@ -1238,7 +1241,10 @@
                             <div id="settings-sync-categories-container" class="inline-style-127">
                                 <!-- Dynamically populated -->
                             </div>
-                            <button id="btn-settings-add-category" class="btn btn-secondary btn-sm">➕ Neue Kategorie hinzufügen</button>
+                            <div style="display:flex; gap: 10px; align-items:center;">
+                                <button id="btn-settings-add-category" class="btn btn-secondary btn-sm">➕ Neue Kategorie hinzufügen</button>
+                                <button id="btn-settings-generate-default-categories" class="btn btn-secondary btn-sm" style="background: rgba(0, 184, 148, 0.2); border-color: #00b894; color: #00b894;">✨ Standard-Kategorien generieren</button>
+                            </div>
                         </div>
 
                         <div class="form-group inline-style-126">
@@ -1472,7 +1478,7 @@
 
                         <div class="form-group inline-style-120" >
                             <span class="form-label-style">System-Aktionen:</span>
-                            <p class="inline-style-121">Starte den Python-Server neu, falls du Code-Änderungen eingespielt hast oder der Server blockiert ist.</p>
+                            <p class="inline-style-121">Starte den Server neu, wenn die App hängt oder der Server blockiert ist.</p>
                             <button id="btn-restart-server" class="btn btn-danger inline-style-145" >
                                 🔄 Server neu starten
                             </button>
@@ -1630,13 +1636,13 @@
                         </div>
 
                         <div id="yt-trim-section">
-                            <h3 class="inline-style-47">Schnitt</h3>
+                            <h3 class="inline-style-47">Videoschnitt</h3>
                             <div class="options-grid inline-style-156" >
                                 <label class="checkbox-container" for="yt-split-chapters">
                                     <input type="checkbox" id="yt-split-chapters">
                                     <span class="checkmark"></span> Kapitel aufteilen
                                 </label>
-                                <label class="checkbox-container" for="yt-open-losslesscut">
+                                <label class="checkbox-container" id="yt-open-losslesscut-container" for="yt-open-losslesscut">
                                     <input type="checkbox" id="yt-open-losslesscut" checked>
                                     <span class="checkmark"></span> In LosslessCut öffnen
                                 </label>
@@ -1827,7 +1833,7 @@
                         </div>
                         <div>
                             <strong class="inline-style-188">☁️ rclone Remote (Optional)</strong>
-                            Der Name deiner eingerichteten rclone-Verbindung (z. B. <code>pcloud:</code> oder <code>gdrive:</code>). Dies dient als **automatisches Fallback**: Ist der lokale Mountpfad offline (weil die Sync-App geschlossen ist), lädt das Backend die Dateien per rclone direkt hoch.
+                            Der Name deiner eingerichteten rclone-Verbindung (z. B. <code>pcloud:</code> oder <code>gdrive:</code>). <strong>Desktop-Modus:</strong> Dient als Fallback, wenn der Mountpfad offline ist. <strong>Docker-Modus:</strong> Dies ist die primäre Upload-Methode. Die Verbindung läuft eigenständig aus dem Container heraus, nicht über den Desktop.
                         </div>
                         <div>
                             <strong class="inline-style-188">🌐 SMB Details (nur bei NAS)</strong>
@@ -2012,7 +2018,7 @@
                 <div class="card mb-20">
                     <div style="font-size: 2rem; margin-bottom: 10px;">❓</div>
                     <h2>Hilfe &amp; FAQ</h2>
-                    <p class="text-muted">Hier findest du Antworten auf haeufige Fragen zur Einrichtung und Nutzung des Medienwerkzeugs.</p>
+                    <p class="text-muted">Hier findest du Antworten auf häufige Fragen zur Einrichtung und Nutzung des Medienwerkzeugs.</p>
                 </div>
 
                 <div class="faq-list">
@@ -2029,12 +2035,12 @@
 
                     <div class="card mb-15">
                         <h3>🌐 Wie funktioniert das NAS-Mounting?</h3>
-                        <p>Das Medienwerkzeug versucht beim Starten eines Scans oder Kopiervorgangs automatisch, das konfigurierte NAS-Laufwerk via AppleScript/SMB einzubinden. Auf macOS wird dafür der SMB-Pfad (z.B. <code>smb://192.168.2.208/Kino</code>) verwendet. Bitte stelle sicher, dass das NAS erreichbar ist (z.B. via Tailscale, wenn du unterwegs bist) und die Zugangsdaten im macOS-Schlüsselbund gespeichert sind.</p>
+                        <p><strong>Desktop-Modus (macOS):</strong> Das Medienwerkzeug versucht beim Starten eines Scans oder Kopiervorgangs automatisch, das konfigurierte NAS-Laufwerk via AppleScript/SMB einzubinden. Dafür wird der konfigurierte SMB-Pfad (z.B. <code>smb://192.168.2.208/Kino</code>) verwendet. Bitte stelle sicher, dass das NAS erreichbar ist (z.B. via Tailscale) und die Zugangsdaten im macOS-Schlüsselbund gespeichert sind.<br><br><strong>Docker-Modus (NAS):</strong> Der Dateizugriff geschieht direkt und sehr schnell über die konfigurierten Container-Volumes (z.B. <code>/media</code>). Ein SMB-Mounting ist hierbei nicht nötig.</p>
                     </div>
 
                     <div class="card mb-15">
-                        <h3>⚙️ Warum schlaegt der Abhaengigkeitscheck fehl?</h3>
-                        <p>Das Medienwerkzeug benoetigt die CLI-Tools <code>ffmpeg</code>, <code>rclone</code> und <code>yt-dlp</code> im Systempfad. Du kannst diese unter macOS am einfachsten per Homebrew installieren: <code>brew install ffmpeg rclone yt-dlp</code>. Wenn du die App ueber den Finder startest, bindet sie die Standardpfade von Homebrew automatisch ein.</p>
+                        <h3>⚙️ Warum schlägt der Abhängigkeitscheck fehl?</h3>
+                        <p><strong>Desktop-Modus (macOS):</strong> Das Medienwerkzeug benötigt die CLI-Tools <code>ffmpeg</code>, <code>rclone</code> und <code>yt-dlp</code> im Systempfad. Du kannst diese am einfachsten per Homebrew installieren: <code>brew install ffmpeg rclone yt-dlp</code>. Wenn du die App über den Finder startest, bindet sie die Standardpfade von Homebrew automatisch ein.<br><br><strong>Docker-Modus (NAS):</strong> Alle benötigten Abhängigkeiten sind bereits fix und fertig im Container-Image integriert. Ein lokaler Abhängigkeiten-Check entfällt.</p>
                     </div>
                 </div>
             </div>

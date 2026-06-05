@@ -4,7 +4,7 @@ from gui.core.transfers import *
 from gui.core.notifications import *
 import gui.mw_metadata as mw_metadata
 import gui.core.media as media
-from gui.core.utils import load_settings, save_settings, clean_show_name
+from gui.core.utils import load_settings, save_settings, clean_show_name, get_runtime_capabilities
 from gui.core import artwork_validators
 import gui.core.trash as trash
 
@@ -1727,7 +1727,8 @@ def process_worker(params):
                     t_end = trim_end if trim_end else "*inf"
                     cmd.extend(["--download-sections", f"*{t_start}-{t_end}"])
                     
-                cmd.extend(["--cookies-from-browser", "chrome"])
+                if get_runtime_capabilities().get("runtime") != "docker":
+                    cmd.extend(["--cookies-from-browser", "chrome"])
                 cmd.append(url)
                 
                 log_message(f"Fuehre aus: {' '.join(cmd)}")
@@ -1790,7 +1791,10 @@ def process_worker(params):
                     else:
                         cmd.extend(["-f", "bv*+ba/b"])
                         
-                    cmd.extend(["--cookies-from-browser", "chrome", part_url])
+                    if get_runtime_capabilities().get("runtime") != "docker":
+                        cmd.extend(["--cookies-from-browser", "chrome", part_url])
+                    else:
+                        cmd.extend([part_url])
                     
                     log_message(f"Lade Teil {idx}/{num_urls}: {' '.join(cmd)}")
                     success = run_ytdlp_with_progress(cmd, task_id=None, log_queue=log_queue)

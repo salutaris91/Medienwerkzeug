@@ -553,7 +553,8 @@ async function initOnboardingWizard() {
         console.error("Fehler beim Abrufen des Onboarding-Status:", e);
     }
 
-    let currentStep = 1;
+    let currentStep = parseInt(localStorage.getItem('mw_onboarding_step') || '1');
+    if (isNaN(currentStep) || currentStep < 1 || currentStep > 7) currentStep = 1;
     const totalSteps = 7;
 
     function showStep(stepNum) {
@@ -578,10 +579,32 @@ async function initOnboardingWizard() {
         });
 
         currentStep = stepNum;
+        localStorage.setItem('mw_onboarding_step', stepNum.toString());
+        
+        const resetBtn = document.getElementById("btn-onboarding-reset");
+        if (resetBtn) {
+            if (stepNum > 1) {
+                resetBtn.classList.remove("hidden");
+                resetBtn.style.display = "inline-block";
+            } else {
+                resetBtn.classList.add("hidden");
+                resetBtn.style.display = "none";
+            }
+        }
 
         if (stepNum === 6) {
             checkOnboardingDependencies();
         }
+    }
+
+    const btnReset = document.getElementById("btn-onboarding-reset");
+    if (btnReset) {
+        btnReset.addEventListener("click", () => {
+            if (confirm("Möchtest du das Onboarding wirklich von vorne beginnen? Bisherige Fortschritte werden zurückgesetzt.")) {
+                localStorage.removeItem('mw_onboarding_step');
+                showStep(1);
+            }
+        });
     }
 
     document.querySelectorAll(".btn-onboarding-prev").forEach(btn => {
@@ -776,6 +799,7 @@ async function initOnboardingWizard() {
                     body: JSON.stringify({ telemetry_enabled: telemetryChecked })
                 });
                 if (res.ok) {
+                    localStorage.removeItem('mw_onboarding_step');
                     overlay.classList.add("hidden");
                     window.location.reload();
                 } else {
@@ -802,6 +826,7 @@ async function initOnboardingWizard() {
             try {
                 const res = await fetch('/api/onboarding/skip', { method: 'POST' });
                 if (res.ok) {
+                    localStorage.removeItem('mw_onboarding_step');
                     overlay.classList.add("hidden");
                     window.location.reload();
                 } else {
@@ -826,12 +851,22 @@ async function initOnboardingWizard() {
             const nasHostname = document.getElementById("onboarding-nas-hostname").value.trim();
             const statusDiv = document.getElementById("onboarding-nas-test-status");
 
-            if (!nasIp || !nasShare || !nasRoot) {
-                if (statusDiv) {
-                    statusDiv.textContent = "Bitte IP, Share und Einhaengepfad ausfüllen.";
-                    statusDiv.style.color = "var(--danger)";
+            if (window.AppCapabilities && window.AppCapabilities.runtime === "docker") {
+                if (!nasRoot) {
+                    if (statusDiv) {
+                        statusDiv.textContent = "Bitte Einhängepfad (nasRoot) ausfüllen.";
+                        statusDiv.style.color = "var(--danger)";
+                    }
+                    return;
                 }
-                return;
+            } else {
+                if (!nasIp || !nasShare || !nasRoot) {
+                    if (statusDiv) {
+                        statusDiv.textContent = "Bitte IP, Share und Einhängepfad ausfüllen.";
+                        statusDiv.style.color = "var(--danger)";
+                    }
+                    return;
+                }
             }
 
             if (statusDiv) {
@@ -1120,10 +1155,43 @@ fetch('/api/system/capabilities')
                 
                 const rootInput = document.getElementById("onboarding-nas-root");
                 if (rootInput && !rootInput.value) rootInput.value = "/media";
+                const testNasBtn = document.getElementById("btn-onboarding-test-nas");
+                if (testNasBtn) testNasBtn.textContent = "Medien-Root prüfen";
                 const inInput = document.getElementById("onboarding-inbox-dir");
                 if (inInput && !inInput.value) inInput.value = "/media/Input";
                 const outInput = document.getElementById("onboarding-outbox-dir");
                 if (outInput && !outInput.value) outInput.value = "/media/Output";
+
+                const finderElements = [
+                    "btn-open-nas-folder-series",
+                    "btn-settings-toggle-inbox", 
+                    "btn-settings-toggle-outbox",
+                    "yt-open-losslesscut-container"
+                ];
+                finderElements.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = 'none';
+                });
+
+                const losslessCutCheck = document.getElementById("yt-open-losslesscut");
+                if (losslessCutCheck) losslessCutCheck.checked = false;
+                const outboxFinder = document.getElementById("settings-open-outbox-finder");
+                if (outboxFinder) {
+                    const group = outboxFinder.closest('.form-group');
+                    if (group) group.style.display = 'none';
+                }
+
+                const notifyMacos = document.getElementById("settings-notify-macos");
+                if (notifyMacos) {
+                    const group = notifyMacos.closest('.inline-style-130');
+                    if (group) group.style.display = 'none';
+                }
+
+                const monitorNotifyMacos = document.getElementById("set-monitor-notify-macos");
+                if (monitorNotifyMacos) {
+                    const label = monitorNotifyMacos.closest('label');
+                    if (label) label.style.display = 'none';
+                }
             }
         }
     })
@@ -4565,7 +4633,10 @@ function resetYtDownload() {
 }
 
 async function startYtPipeline() {
-    if (!ytFetchedInfo) return;
+    if (!ytFetchedInfo) {
+        alert("Bitte zuerst Video-Informationen abrufen ('Analysieren' klicken)!");
+        return;
+    }
     
     if (ytDownloaderMergeMode) {
         const finalTitleInput = document.getElementById("yt-merge-details-title");
@@ -7781,6 +7852,9 @@ function renderStorageTargets() {
     const container = document.getElementById("settings-storage-targets-container");
     if (!container) return;
     container.innerHTML = "";
+    container.style.display = "grid";
+    container.style.gridTemplateColumns = "repeat(auto-fit, minmax(320px, 1fr))";
+    container.style.gap = "15px";
     
     if (!currentSettings.storage_targets) currentSettings.storage_targets = [];
     
@@ -8493,6 +8567,45 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    const btnGenerateDefaults = document.getElementById("btn-settings-generate-default-categories");
+    if (btnGenerateDefaults) {
+        btnGenerateDefaults.addEventListener("click", () => {
+            if (confirm("Dies fügt 'Filme', 'Serien' und 'Dokus' als Standard-Kategorien hinzu. Fortfahren?")) {
+                if (!currentSettings.sync_categories) currentSettings.sync_categories = [];
+                
+                const defaults = [
+                    { id: "movies", name: "Filme", nas_sub: "/Filme" },
+                    { id: "series", name: "Serien", nas_sub: "/Serien" },
+                    { id: "docs", name: "Dokus", nas_sub: "/Dokus" }
+                ];
+                
+                defaults.forEach(def => {
+                    const existing = currentSettings.sync_categories.find(c => c.id === def.id || c.name === def.name);
+                    if (existing) {
+                        if (!existing.nas_sub) existing.nas_sub = def.nas_sub;
+                        if (!existing.targets) existing.targets = {};
+                        if (!existing.targets.nas) existing.targets.nas = def.nas_sub;
+                    } else {
+                        currentSettings.sync_categories.push({
+                            ...def,
+                            pcloud_remote: "",
+                            targets: { nas: def.nas_sub, pcloud: "" }
+                        });
+                    }
+                });
+                renderSyncCategories();
+            }
+        });
+    }
+
+    const btnAddCategory = document.getElementById("btn-settings-add-category");
+    if(btnAddCategory) {
+        btnAddCategory.addEventListener("click", () => {
+            currentSettings.sync_categories.push({id: "", name: "", nas_sub: "", pcloud_remote: ""});
+            renderSyncCategories();
+        });
+    }
+
     const btnAddTarget = document.getElementById("btn-settings-add-target");
     if(btnAddTarget) {
         btnAddTarget.addEventListener("click", () => {
@@ -8510,13 +8623,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    const btnAddCategory = document.getElementById("btn-settings-add-category");
-    if(btnAddCategory) {
-        btnAddCategory.addEventListener("click", () => {
-            currentSettings.sync_categories.push({id: "", name: "", nas_sub: "", pcloud_remote: ""});
-            renderSyncCategories();
-        });
-    }
 
     const btnAddLocalFolder = document.getElementById("btn-settings-add-local-folder");
     if (btnAddLocalFolder) {
