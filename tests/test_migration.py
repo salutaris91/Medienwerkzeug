@@ -146,6 +146,23 @@ class TestMigration(unittest.TestCase):
         self.persistence.load_settings()
         self.assertTrue(os.path.exists(new_settings_path))
 
+    def test_import_has_no_side_effects(self):
+        """Verifiziert, dass der Import von utils.py keine Verzeichnisse anlegt."""
+        new_data_dir = os.path.join(self.app_root, "data")
+        if os.path.exists(new_data_dir):
+            shutil.rmtree(new_data_dir)
+            
+        old_utils = sys.modules.get("gui.core.utils")
+        sys.modules.pop("gui.core.utils", None)
+        try:
+            import gui.core.utils as utils
+            self.assertFalse(os.path.exists(new_data_dir))
+        finally:
+            if old_utils is not None:
+                sys.modules["gui.core.utils"] = old_utils
+            else:
+                sys.modules.pop("gui.core.utils", None)
+
     def test_jokes_fallback(self):
         """Prüft, ob get_random_joke auf die Ressource zurückgreift, wenn DATA_DIR leer ist."""
         # DATA_DIR auf leeres temporäres Verzeichnis setzen

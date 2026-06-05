@@ -490,13 +490,13 @@ _cached_settings = None
 
 def load_settings():
     global _cached_settings
-    ensure_legacy_data_migrated()
     if _MOCK_SETTINGS is not None:
         import copy
         mock_data = copy.deepcopy(_MOCK_SETTINGS)
         if "onboarded" not in mock_data:
             mock_data["onboarded"] = True
         return mock_data
+    ensure_legacy_data_migrated()
     if _cached_settings is not None:
         import copy
         return copy.deepcopy(_cached_settings)
