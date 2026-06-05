@@ -68,16 +68,20 @@ Das Medienwerkzeug ist für performante, fehlerresiliente Arbeitsabläufe optimi
 ```
 Medienwerkzeug/
 ├── Medienwerkzeug.app/       # Nativer macOS AppleScript-Wrapper zum Starten per Doppelklick
-├── gui/
+├── .env.example              # API-Keys Vorlage
+├── .env                      # API-Keys (TMDB, TVDB, gitignored)
+├── data/                     # Zentraler lokaler Datenordner (Einstellungen, Jobs, Caches, gitignored)
+│   ├── settings.json         # Konfigurationsdatei der Pfade, Quellen und Kategorien
+│   └── jobs_state.json       # Persistierter Status der Hintergrund-Jobs
+├── logs/                     # Lokales Logverzeichnis (gitignored)
+├── gui/                      # Schreibgeschützter Quellcode-Ordner
 │   ├── main.py               # Einstiegspunkt & Flask-Server-Start
 │   ├── server.py             # Test-Kompatibilitäts-Fassade (für alte Unittests)
-│   ├── settings.json         # Konfigurationsdatei der Pfade, Quellen und Kategorien
-│   ├── jobs_state.json       # Persistierter Status der Hintergrund-Jobs
-│   ├── .env                  # API-Keys (TMDB, TVDB, gitignored)
 │   ├── api/                  # Flask-Blueprints nach Domänen aufgeteilt
 │   ├── core/                 # Backend-Logik (helpers, media, transfers, utils, notifications, health, duplicates)
 │   ├── workers/              # Asynchrone Hintergrund-Worker (processor, youtube_worker)
-│   ├── data/                 # Lokaler Datenordner (Profiles und Konvertierungshistorie, gitignored)
+│   ├── resources/            # Statische Release-Assets
+│   │   └── jokes.json        # Witz des Tages (statische Vorlage)
 │   └── static/               # Frontend-Ressourcen (HTML, CSS, JS, keine Stray-Skripte)
 │       ├── index.html        # Modernes Master-Detail Dashboard
 │       ├── style.css         # Modernes Styling (Dark Mode, responsive Layout)
@@ -128,13 +132,13 @@ graph TD
 ### 2. Konfiguration
 API-Keys können direkt in der Web-GUI unter **Einstellungen** (Metadaten API-Keys) eingetragen werden. Die Werte werden in der UI maskiert angezeigt (z. B. `****abcd`), um sie vor unbefugtem Auslesen zu schützen.
 
-Alternativ kann manuell eine `.env` Datei im Ordner `gui/` (oder gem. `MW_ENV_FILE`) angelegt werden:
+Alternativ kann manuell eine `.env` Datei im Projekt-Root (oder gem. `MW_ENV_FILE`) angelegt werden:
 ```env
 TMDB_API_KEY=dein_tmdb_api_key
 TVDB_API_KEY=dein_tvdb_api_key
 ```
 
-Pfade und Synchronisationseinstellungen werden in `gui/settings.json` verwaltet (oder direkt über die GUI-Einstellungen angepasst):
+Pfade und Synchronisationseinstellungen werden in `data/settings.json` verwaltet (oder direkt über die GUI-Einstellungen angepasst):
 * **inbox_dir:** Pfad zum Ordner `Medien Input`.
 * **outbox_dir:** Pfad zum Ordner `Medien Output`.
 * **nas_root:** Mount-Pfad des NAS (z. B. `/Volumes/Kino`).
@@ -300,7 +304,7 @@ Da das Medienwerkzeug als Flask-Server im lokalen Netzwerk (LAN) erreichbar ist,
 * **Passwortschutz:** In den Einstellungen unter **„Sicherheit“** kann ein Passwort oder eine PIN festgelegt werden. Ist ein Passwort aktiv, sperrt die App den Zugriff für alle nicht-authentifizierten Clients im LAN. Ohne Passwort bleibt das Tool frei zugänglich.
 * **CSRF-Schutz:** Alle zustandsändernden Endpunkte (POST, PUT, DELETE) sind über ein Double-Submit-Cookie-Verfahren (Custom Header `X-CSRF-Token` abgeglichen mit einem session-gebundenen Cookie-Hash) gegen Cross-Site Request Forgery geschützt.
 * **Brute-Force-Schutz:** Der Login-Endpunkt blockiert Angreifer nach 5 Fehlversuchen automatisch für eine Minute (IP-basiert) und wendet ein progressives Anmelde-Verzögerungsverhalten an.
-* **Passwort-Reset (Notfall-Reset):** Solltest du dein Passwort vergessen haben, kannst du den Zugriffsschutz manuell zurücksetzen. Lösche dazu einfach den Wert von `"password_hash"` in deiner `gui/settings.json`-Datei:
+* **Passwort-Reset (Notfall-Reset):** Solltest du dein Passwort vergessen haben, kannst du den Zugriffsschutz manuell zurücksetzen. Lösche dazu einfach den Wert von `"password_hash"` in deiner `data/settings.json`-Datei:
   ```json
   "password_hash": ""
   ```
