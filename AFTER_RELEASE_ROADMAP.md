@@ -18,6 +18,7 @@ angegangen werden.
 | 13 | Komfortablere Health-Quick-Fix-Oberfläche | geplant | klein–mittel |
 | 14 | Health-Status-Vertrag & Frontend-Testabdeckung | geplant | klein–mittel |
 | 15 | FAQ sprachlich und visuell überarbeiten | geplant | klein |
+| 16 | System Metrics Worker: Thread-Akkumulation verhindern | geplant | klein |
 
 ---
 
@@ -400,3 +401,20 @@ FAQ-Bereich noch nicht stimmig.
 
 ### Aufwand (grob)
 Klein: Textkorrektur und eine gezielte visuelle Anpassung im Frontend.
+
+---
+
+## 16. System Metrics Worker: Thread-Akkumulation verhindern
+
+Die Hintergrundberechnung der Speicherauslastung (NAS und Inbox/Outbox) nutzt aktuell einen simplen `threading.Thread`-Wrapper mit `join(timeout)`, um Stale Mounts abzufangen, ohne den gesamten Worker-Loop zu blockieren.
+
+### Ziel
+Verhindern, dass sich hängende Daemon-Threads ansammeln, wenn das NAS über viele Stunden offline oder "stale" (eingefroren) ist. Da in jedem 60s-Zyklus ein neuer Timeout-Thread gestartet wird, können diese sich andernfalls langsam akkumulieren.
+
+### Umsetzung
+- Umstellung des `get_folder_size_bytes` und `_read_target_storage` Aufrufs auf echte Prozesse via `multiprocessing.Process` oder die Ausführung über `subprocess`.
+- Ein echter Prozess kann nach einem Timeout via SIGKILL hart beendet werden, während Python-Threads im Status "D" (Uninterruptible Sleep) systembedingt nicht hart getötet werden können.
+- Ggf. Einführung eines Circuit Breakers: Nach 3 gescheiterten Timeouts wird die Speichermessung für X Minuten pausiert, um nicht sinnlos Prozesse/Threads zu starten.
+
+### Aufwand (grob)
+~0,5 Tage (Klein). Vor allem Architektur-Tests nötig, um sicherzustellen, dass die Multiprocessing-Aufrufe nicht auf die bestehende Job-Queue oder Gunicorn durchschlagen.

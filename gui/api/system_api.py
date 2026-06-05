@@ -215,14 +215,15 @@ def handle_api_status():
         handle_api_status.last_nas_status = check_nas_status()
         handle_api_status.last_nas_check = time.time()
 
-    # Cache folder sizes for 60 seconds
-    now = time.time()
-    if not hasattr(handle_api_status, "cached_inbox_size") or now - getattr(handle_api_status, "last_size_check", 0) > 60:
-        inbox_bytes = get_folder_size_bytes(inbox)
-        outbox_bytes = get_folder_size_bytes(outbox)
-        handle_api_status.cached_inbox_size = round(inbox_bytes / (1024**3), 2)
-        handle_api_status.cached_outbox_size = round(outbox_bytes / (1024**3), 2)
-        handle_api_status.last_size_check = now
+    from gui.workers.processor import SYSTEM_METRICS, METRICS_LOCK
+    with METRICS_LOCK:
+        inbox_size_gb = SYSTEM_METRICS.get('inbox_size_gb')
+        outbox_size_gb = SYSTEM_METRICS.get('outbox_size_gb')
+        metrics_loading = (SYSTEM_METRICS.get('last_updated', 0) == 0)
+
+    # Use 0.0 as fallback for UI if None
+    inbox_val = inbox_size_gb if inbox_size_gb is not None else 0.0
+    outbox_val = outbox_size_gb if outbox_size_gb is not None else 0.0
 
     status = {
         "nas_status": handle_api_status.last_nas_status,
@@ -230,8 +231,9 @@ def handle_api_status():
         "outbox_path": outbox,
         "streamfab_downloads": check_streamfab(),
         "projects": sorted(projects),
-        "inbox_size_gb": handle_api_status.cached_inbox_size,
-        "outbox_size_gb": handle_api_status.cached_outbox_size
+        "inbox_size_gb": inbox_val,
+        "outbox_size_gb": outbox_val,
+        "metrics_loading": metrics_loading
     }
 
     return jsonify(status)
@@ -422,71 +424,7 @@ def handle_api_system_folder_contents():
 
 
 
-# Cache für rclone-about-Abfragen (Cloud-Speicher), um wiederholte Netzaufrufe zu vermeiden
-_rclone_about_cache = {}      # remote -> (timestamp, data|None)
-_RCLONE_ABOUT_TTL = 300       # 5 Minuten
 
-
-def _rclone_about(remote):
-    """Liefert {total,used,free} eines rclone-Remotes via 'rclone about --json' (gecacht)."""
-    now = time.time()
-    cached = _rclone_about_cache.get(remote)
-    if cached and now - cached[0] < _RCLONE_ABOUT_TTL:
-        return cached[1]
-    data = None
-    try:
-        out = subprocess.check_output(["rclone", "about", remote, "--json"], text=True, timeout=20)
-        parsed = json.loads(out)
-        if parsed.get("total"):
-            data = {"total": parsed.get("total"), "used": parsed.get("used"), "free": parsed.get("free")}
-    except Exception:
-        data = None
-    _rclone_about_cache[remote] = (now, data)
-    return data
-
-
-def _read_target_storage(target):
-    """Speicher-Infos eines Speicherziels.
-
-    Ist ein rclone_remote gesetzt -> Cloud-Ziel: zuverlässige Werte via 'rclone about'.
-    Sonst lokales/NAS-Ziel: shutil.disk_usage mit Netzlaufwerk-Guard (frei > gesamt
-    -> Belegung nicht verwertbar, nur freien Platz anzeigen).
-    """
-    info = {
-        "name": target.get("name", ""),
-        "type": target.get("type", ""),
-        "available": False,
-        "total": None, "used": None, "free": None, "used_percent": None,
-        "path": target.get("root_path", ""),
-    }
-    remote = (target.get("rclone_remote") or "").strip()
-    if remote:
-        about = _rclone_about(remote)
-        if about and about.get("total"):
-            info["available"] = True
-            info["path"] = remote
-            info["total"] = about["total"]
-            info["used"] = about.get("used")
-            info["free"] = about.get("free")
-            if about["total"] > 0 and about.get("used") is not None:
-                info["used_percent"] = round((about["used"] / about["total"]) * 100, 2)
-        return info
-
-    root_path = target.get("root_path")
-    if root_path and os.path.exists(root_path):
-        try:
-            usage = shutil.disk_usage(root_path)
-            info["available"] = True
-            info["total"] = usage.total
-            info["free"] = usage.free
-            if usage.free > usage.total or usage.used < 0:
-                info["usage_unreliable"] = True
-            else:
-                info["used"] = usage.used
-                info["used_percent"] = round((usage.used / usage.total) * 100, 2) if usage.total > 0 else 0.0
-        except Exception as e:
-            info["error"] = str(e)
-    return info
 
 
 @system_api.route('/stats', methods=['GET', 'POST'])
@@ -499,24 +437,20 @@ def handle_api_stats():
     try:
         settings = load_settings()
 
-        # Aktives Speicherziel ermitteln: Speicherziele der Reihe nach durchgehen,
-        # das erste erreichbare gewinnt (Speicherziel 1 -> 2 -> 3 ... als Fallback).
-        # So funktioniert die Anzeige mit NAS, nur Cloud oder beidem.
-        targets = [t for t in settings.get("storage_targets", []) if t.get("enabled", True)]
-        nas_info = None
-        for target in targets:
-            candidate = _read_target_storage(target)
-            if candidate["available"]:
-                nas_info = candidate
-                break
+        from gui.workers.processor import SYSTEM_METRICS, METRICS_LOCK
+        with METRICS_LOCK:
+            nas_info = SYSTEM_METRICS.get('nas_info')
+            metrics_loading = (SYSTEM_METRICS.get('last_updated', 0) == 0)
+            
         if nas_info is None:
+            targets = [t for t in settings.get("storage_targets", []) if t.get("enabled", True)]
             nas_info = {
                 "name": targets[0]["name"] if targets else "",
                 "type": targets[0].get("type", "") if targets else "",
                 "available": False,
                 "total": None, "used": None, "free": None, "used_percent": None,
                 "path": targets[0].get("root_path", "") if targets else "",
-                "error": "Kein Speicherziel verbunden.",
+                "error": "Lade Speicherdaten...",
             }
 
         # Conversion savings calculations

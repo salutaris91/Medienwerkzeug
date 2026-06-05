@@ -40,6 +40,14 @@ def _get_movie_artwork_lists(settings, video_filename):
 JOB_QUEUE = []
 SYSTEM_STATUS = {'running': True}
 STATUS_LOCK = threading.Lock()
+SYSTEM_METRICS = {
+    'inbox_size_gb': None,
+    'outbox_size_gb': None,
+    'nas_info': None,
+    'last_updated': 0
+}
+METRICS_LOCK = threading.Lock()
+
 from gui.core.jobs import active_jobs, active_jobs_lock
 def build_job_pipeline(params, has_metadata, convert):
     pipeline = {
@@ -2537,3 +2545,119 @@ def job_queue_worker():
             print(f"Job {task_id} failed: {e}")
         finally:
             job_queue.task_done()
+
+_rclone_about_cache = {}
+_RCLONE_ABOUT_TTL = 300
+
+def _rclone_about(remote):
+    import subprocess, json, time
+    now = time.time()
+    cached = _rclone_about_cache.get(remote)
+    if cached and now - cached[0] < _RCLONE_ABOUT_TTL:
+        return cached[1]
+    data = None
+    try:
+        out = subprocess.check_output(["rclone", "about", remote, "--json"], text=True, timeout=20)
+        parsed = json.loads(out)
+        if parsed.get("total"):
+            data = {"total": parsed.get("total"), "used": parsed.get("used"), "free": parsed.get("free")}
+    except Exception:
+        data = None
+    _rclone_about_cache[remote] = (now, data)
+    return data
+
+def _read_target_storage(target):
+    import shutil, os
+    info = {
+        "name": target.get("name", ""),
+        "type": target.get("type", ""),
+        "available": False,
+        "total": None, "used": None, "free": None, "used_percent": None,
+        "path": target.get("root_path", ""),
+    }
+    remote = (target.get("rclone_remote") or "").strip()
+    if remote:
+        about = _rclone_about(remote)
+        if about and about.get("total"):
+            info["available"] = True
+            info["path"] = remote
+            info["total"] = about["total"]
+            info["used"] = about.get("used")
+            info["free"] = about.get("free")
+            if about["total"] > 0 and about.get("used") is not None:
+                info["used_percent"] = round((about["used"] / about["total"]) * 100, 2)
+        return info
+
+    root_path = target.get("root_path")
+    if root_path and os.path.exists(root_path):
+        try:
+            usage = shutil.disk_usage(root_path)
+            info["available"] = True
+            info["total"] = usage.total
+            info["free"] = usage.free
+            if usage.free > usage.total or usage.used < 0:
+                info["usage_unreliable"] = True
+            else:
+                info["used"] = usage.used
+                info["used_percent"] = round((usage.used / usage.total) * 100, 2) if usage.total > 0 else 0.0
+        except Exception as e:
+            info["error"] = str(e)
+    return info
+
+def system_metrics_worker():
+    import time
+    from gui.core.helpers import get_folder_size_bytes
+    from gui.core.utils import load_settings
+    
+    def run_with_timeout(func, arg, timeout_sec=20):
+        result = [None]
+        def _worker():
+            try:
+                result[0] = func(arg)
+            except Exception:
+                pass
+        t = threading.Thread(target=_worker, daemon=True)
+        t.start()
+        t.join(timeout_sec)
+        return result[0]
+
+    while SYSTEM_STATUS.get('running', True):
+        try:
+            settings = load_settings()
+            inbox = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
+            outbox = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
+            
+            # 1. Berechne Ordnergrößen (mit 20s Timeout)
+            inbox_bytes = run_with_timeout(get_folder_size_bytes, inbox, 20) if inbox else 0
+            outbox_bytes = run_with_timeout(get_folder_size_bytes, outbox, 20) if outbox else 0
+            with METRICS_LOCK:
+                SYSTEM_METRICS['inbox_size_gb'] = round(inbox_bytes / (1024**3), 2) if inbox_bytes is not None else None
+                SYSTEM_METRICS['outbox_size_gb'] = round(outbox_bytes / (1024**3), 2) if outbox_bytes is not None else None
+            
+            # 2. Berechne Speicherplatz (NAS/Cloud) mit 20s Timeout
+            targets = [t for t in settings.get("storage_targets", []) if t.get("enabled", True)]
+            nas_info = None
+            for target in targets:
+                candidate = run_with_timeout(_read_target_storage, target, 20)
+                if candidate and candidate.get("available"):
+                    nas_info = candidate
+                    break
+                    
+            if nas_info is None:
+                nas_info = {
+                    "name": targets[0]["name"] if targets else "",
+                    "type": targets[0].get("type", "") if targets else "",
+                    "available": False,
+                    "total": None, "used": None, "free": None, "used_percent": None,
+                    "path": targets[0].get("root_path", "") if targets else "",
+                    "error": "Kein Speicherziel verbunden.",
+                }
+                
+            with METRICS_LOCK:
+                SYSTEM_METRICS['nas_info'] = nas_info
+                SYSTEM_METRICS['last_updated'] = time.time()
+            
+        except Exception as e:
+            print(f"[System Metrics Worker] Fehler: {e}")
+            
+        time.sleep(60)

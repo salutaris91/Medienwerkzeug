@@ -419,11 +419,10 @@ def folder_size_monitor():
             thresh_in_gb = float(settings.get("folder_monitor_inbox_threshold_gb", 50.0))
             thresh_out_gb = float(settings.get("folder_monitor_outbox_threshold_gb", 50.0))
             
-            inbox_bytes = get_folder_size_bytes(inbox) if inbox else 0
-            outbox_bytes = get_folder_size_bytes(outbox) if outbox else 0
+            from gui.workers.processor import SYSTEM_METRICS
             
-            inbox_gb = inbox_bytes / (1024**3)
-            outbox_gb = outbox_bytes / (1024**3)
+            inbox_gb = SYSTEM_METRICS.get('inbox_size_gb', 0.0)
+            outbox_gb = SYSTEM_METRICS.get('outbox_size_gb', 0.0)
             
             now = time.time()
             

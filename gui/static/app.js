@@ -10486,18 +10486,23 @@ async function updateHomepageData(statusData) {
         const threshInbox = parseFloat(document.getElementById("set-monitor-inbox-gb")?.value) || 50.0;
         const threshOutbox = parseFloat(document.getElementById("set-monitor-outbox-gb")?.value) || 50.0;
         
-        if (inboxSize > threshInbox) {
-            warnings.push(`Der Inbox-Ordner belegt ${inboxSize.toFixed(1)} GB (Schwelle: ${threshInbox} GB).`);
-        }
-        if (outboxSize > threshOutbox) {
-            warnings.push(`Der Outbox-Ordner belegt ${outboxSize.toFixed(1)} GB (Schwelle: ${threshOutbox} GB). Denke daran, verarbeitete Projekte zu löschen.`);
-        }
-        
-        if (warnings.length > 0) {
-            warningText.innerHTML = warnings.join("<br>");
+        if (statusData.metrics_loading) {
+            warningText.innerHTML = "Speichergrößen werden im Hintergrund berechnet...";
             warningBanner.classList.remove("hidden");
         } else {
-            warningBanner.classList.add("hidden");
+            if (inboxSize > threshInbox) {
+                warnings.push(`Der Inbox-Ordner belegt ${inboxSize.toFixed(1)} GB (Schwelle: ${threshInbox} GB).`);
+            }
+            if (outboxSize > threshOutbox) {
+                warnings.push(`Der Outbox-Ordner belegt ${outboxSize.toFixed(1)} GB (Schwelle: ${threshOutbox} GB). Denke daran, verarbeitete Projekte zu löschen.`);
+            }
+        
+            if (warnings.length > 0) {
+                warningText.innerHTML = warnings.join("<br>");
+                warningBanner.classList.remove("hidden");
+            } else {
+                warningBanner.classList.add("hidden");
+            }
         }
     }
 
@@ -10553,7 +10558,12 @@ async function updateHomepageData(statusData) {
             const usageText = document.getElementById("hero-nas-usage-text");
             const heroStorageLabel = document.getElementById("hero-storage-label");
             if (heroStorageLabel && nasInfo) heroStorageLabel.textContent = (nasInfo.name || "Speicher") + " Speicherbelegung:";
-            if (nasInfo && nasInfo.available && nasInfo.usage_unreliable) {
+            if (statsData.metrics_loading) {
+                if (progress) progress.style.width = "0%";
+                if (usageText) {
+                    usageText.textContent = "Speicherdaten werden im Hintergrund berechnet...";
+                }
+            } else if (nasInfo && nasInfo.available && nasInfo.usage_unreliable) {
                 if (progress) progress.style.width = "0%";
                 if (usageText) {
                     usageText.textContent = `${formatBytes(nasInfo.free)} frei (Belegung bei Netzlaufwerk nicht ermittelbar)`;
