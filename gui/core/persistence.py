@@ -86,7 +86,7 @@ DEFAULT_SETTINGS = {
             "type": "pcloud",
             "root_path": "",
             "rclone_remote": "",
-            "enabled": True
+            "enabled": False
         }
     ],
     "sync_categories": [
@@ -406,6 +406,12 @@ def load_settings():
             elif target["id"] == "pcloud" and "pcloud_dir" in settings:
                 target["root_path"] = settings["pcloud_dir"]
         migrated = True
+    # Migration: Convert active key to enabled in storage_targets
+    if "storage_targets" in settings:
+        for target in settings["storage_targets"]:
+            if "active" in target:
+                target["enabled"] = target.pop("active")
+                migrated = True
     # Migration: Ensure sync_categories is populated
     if "sync_categories" not in settings or not settings["sync_categories"]:
         settings["sync_categories"] = DEFAULT_SETTINGS["sync_categories"]
