@@ -16,6 +16,10 @@ class TestMigration(unittest.TestCase):
         self.persistence = persistence
         self.original_app_root = persistence.APP_ROOT
         persistence.APP_ROOT = self.app_root
+        
+        # Reset local cache and migration states
+        self.persistence._cached_settings = None
+        self.persistence._migration_done = False
 
     def tearDown(self):
         # Mock zurücksetzen
@@ -61,6 +65,12 @@ class TestMigration(unittest.TestCase):
         with open(os.path.join(legacy_profiles_dir, "test_profile.json"), "w", encoding="utf-8") as f:
             json.dump({"profile_name": "test"}, f)
 
+        # Quarantäne anlegen
+        legacy_quarantine_dir = os.path.join(legacy_data_dir, "quarantine")
+        os.makedirs(legacy_quarantine_dir, exist_ok=True)
+        with open(os.path.join(legacy_quarantine_dir, "quarantine_item.txt"), "w", encoding="utf-8") as f:
+            f.write("deleted movie")
+
         # 3. Migration ausführen
         self.persistence.migrate_legacy_data()
 
@@ -71,6 +81,7 @@ class TestMigration(unittest.TestCase):
         new_log_path = os.path.join(self.app_root, "data", "action_log.jsonl")
         new_cache_path = os.path.join(self.app_root, "data", "health_scan_cache.json")
         new_profiles_path = os.path.join(self.app_root, "data", "profiles", "test_profile.json")
+        new_quarantine_path = os.path.join(self.app_root, "data", "quarantine", "quarantine_item.txt")
 
         self.assertTrue(os.path.exists(new_settings_path))
         self.assertTrue(os.path.exists(new_jobs_path))
@@ -78,12 +89,15 @@ class TestMigration(unittest.TestCase):
         self.assertTrue(os.path.exists(new_log_path))
         self.assertTrue(os.path.exists(new_cache_path))
         self.assertTrue(os.path.exists(new_profiles_path))
+        self.assertTrue(os.path.exists(new_quarantine_path))
 
         # Verifizieren, dass Inhalte identisch sind
         with open(new_settings_path, "r", encoding="utf-8") as f:
             self.assertEqual(json.load(f)["inbox_dir"], "/old/inbox")
         with open(new_env_path, "r", encoding="utf-8") as f:
             self.assertEqual(f.read(), old_env_content)
+        with open(new_quarantine_path, "r", encoding="utf-8") as f:
+            self.assertEqual(f.read(), "deleted movie")
 
         # Verifizieren, dass alte Dateien NICHT gelöscht wurden
         self.assertTrue(os.path.exists(os.path.join(legacy_gui_dir, "settings.json")))
@@ -111,6 +125,24 @@ class TestMigration(unittest.TestCase):
         default_new_settings_path = os.path.join(self.app_root, "data", "settings.json")
         self.assertFalse(os.path.exists(default_new_settings_path))
         self.assertFalse(os.path.exists(custom_settings_path))
+
+    def test_migration_triggered_on_path_getter(self):
+        """Prüft, ob die Migration erst beim Aufruf eines Pfad-Getters getriggert wird (kein Import-Side-Effect)."""
+        self.persistence._migration_done = False
+        
+        legacy_gui_dir = os.path.join(self.app_root, "gui")
+        os.makedirs(legacy_gui_dir, exist_ok=True)
+        with open(os.path.join(legacy_gui_dir, "settings.json"), "w", encoding="utf-8") as f:
+            json.dump({"version": 1}, f)
+            
+        new_settings_path = os.path.join(self.app_root, "data", "settings.json")
+        self.assertFalse(os.path.exists(new_settings_path))
+        
+        # Aufrufen des Pfad-Getters
+        path = self.persistence.get_settings_file_path()
+        
+        # Nun muss die Migration gelaufen sein
+        self.assertTrue(os.path.exists(new_settings_path))
 
     def test_jokes_fallback(self):
         """Prüft, ob get_random_joke auf die Ressource zurückgreift, wenn DATA_DIR leer ist."""

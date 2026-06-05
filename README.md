@@ -73,7 +73,6 @@ Medienwerkzeug/
 ├── data/                     # Zentraler lokaler Datenordner (Einstellungen, Jobs, Caches, gitignored)
 │   ├── settings.json         # Konfigurationsdatei der Pfade, Quellen und Kategorien
 │   └── jobs_state.json       # Persistierter Status der Hintergrund-Jobs
-├── logs/                     # Lokales Logverzeichnis (gitignored)
 ├── gui/                      # Schreibgeschützter Quellcode-Ordner
 │   ├── main.py               # Einstiegspunkt & Flask-Server-Start
 │   ├── server.py             # Test-Kompatibilitäts-Fassade (für alte Unittests)
