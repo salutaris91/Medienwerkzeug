@@ -287,6 +287,10 @@ docker logs -f medienwerkzeug     # Live mitlesen
 docker ps                         # Prüfen ob Container läuft
 ```
 
+#### 7. Daten & Profile (Data Profiles)
+
+Das Medienwerkzeug speichert Zustandsdaten, Konvertierungshistorien und spezifische Metadaten (wie YouTube-Kanal-Logos und Abo-Informationen) im Ordner `/config/data/profiles`. Diese Profile ermöglichen eine schnelle Erkennung bei wiederkehrenden Downloads und sorgen dafür, dass z.B. bei YouTube-Abonnements nur neue Videos geladen werden. Durch das `/config` Volume bleiben diese Daten auch bei Container-Updates sicher erhalten.
+
 ---
 
 ## 🔒 Sicherheit & Zugriffskontrolle

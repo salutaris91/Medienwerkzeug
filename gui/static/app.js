@@ -776,6 +776,7 @@ async function initOnboardingWizard() {
                     body: JSON.stringify({ telemetry_enabled: telemetryChecked })
                 });
                 if (res.ok) {
+                    localStorage.removeItem('mw_onboarding_step');
                     overlay.classList.add("hidden");
                     window.location.reload();
                 } else {
@@ -802,6 +803,7 @@ async function initOnboardingWizard() {
             try {
                 const res = await fetch('/api/onboarding/skip', { method: 'POST' });
                 if (res.ok) {
+                    localStorage.removeItem('mw_onboarding_step');
                     overlay.classList.add("hidden");
                     window.location.reload();
                 } else {
@@ -1124,6 +1126,34 @@ fetch('/api/system/capabilities')
                 if (inInput && !inInput.value) inInput.value = "/media/Input";
                 const outInput = document.getElementById("onboarding-outbox-dir");
                 if (outInput && !outInput.value) outInput.value = "/media/Output";
+
+                const finderElements = [
+                    "btn-open-nas-folder-series",
+                    "btn-settings-toggle-inbox", 
+                    "btn-settings-toggle-outbox"
+                ];
+                finderElements.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = 'none';
+                });
+
+                const outboxFinder = document.getElementById("settings-open-outbox-finder");
+                if (outboxFinder) {
+                    const group = outboxFinder.closest('.form-group');
+                    if (group) group.style.display = 'none';
+                }
+
+                const notifyMacos = document.getElementById("settings-notify-macos");
+                if (notifyMacos) {
+                    const group = notifyMacos.closest('.inline-style-130');
+                    if (group) group.style.display = 'none';
+                }
+
+                const monitorNotifyMacos = document.getElementById("set-monitor-notify-macos");
+                if (monitorNotifyMacos) {
+                    const label = monitorNotifyMacos.closest('label');
+                    if (label) label.style.display = 'none';
+                }
             }
         }
     })
