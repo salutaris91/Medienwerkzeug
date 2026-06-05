@@ -4633,7 +4633,10 @@ function resetYtDownload() {
 }
 
 async function startYtPipeline() {
-    if (!ytFetchedInfo) return;
+    if (!ytFetchedInfo) {
+        alert("Bitte zuerst Video-Informationen abrufen ('Analysieren' klicken)!");
+        return;
+    }
     
     if (ytDownloaderMergeMode) {
         const finalTitleInput = document.getElementById("yt-merge-details-title");
@@ -7885,16 +7888,8 @@ function renderStorageTargets() {
         deleteBtn.onclick = (e) => {
             e.preventDefault();
             if (confirm(`Möchtest du das Speicherziel "${target.name || target.id}" wirklich entfernen?`)) {
-                if (currentSettings.sync_categories) {
-                    Object.values(currentSettings.sync_categories).forEach(cat => {
-                        if (cat.targets && cat.targets[target.id] !== undefined) {
-                            delete cat.targets[target.id];
-                        }
-                    });
-                }
                 currentSettings.storage_targets.splice(index, 1);
                 renderStorageTargets();
-                renderSyncCategories();
             }
         };
         
@@ -8569,6 +8564,39 @@ document.addEventListener("DOMContentLoaded", () => {
         btnAddSource.addEventListener("click", () => {
             currentSettings.import_sources.push("");
             renderImportSources();
+        });
+    }
+
+    const btnGenerateDefaults = document.getElementById("btn-settings-generate-default-categories");
+    if (btnGenerateDefaults) {
+        btnGenerateDefaults.addEventListener("click", () => {
+            if (confirm("Dies fügt 'Filme', 'Serien' und 'Dokus' als Standard-Kategorien hinzu. Fortfahren?")) {
+                const prefix = (window.AppCapabilities && window.AppCapabilities.runtime === "docker") ? "/media/" : "/";
+                
+                if (!currentSettings.sync_categories) currentSettings.sync_categories = [];
+                
+                const defaults = [
+                    { id: "movies", name: "Filme", nas_sub: prefix + "Filme", pcloud_remote: "pcloud:03_Filme" },
+                    { id: "series", name: "Serien", nas_sub: prefix + "Serien", pcloud_remote: "pcloud:04_Serien" },
+                    { id: "docs", name: "Dokus", nas_sub: prefix + "Dokus", pcloud_remote: "pcloud:06_Dokus" }
+                ];
+                
+                defaults.forEach(def => {
+                    const existing = currentSettings.sync_categories.find(c => c.id === def.id || c.name === def.name);
+                    if (!existing) {
+                        currentSettings.sync_categories.push(def);
+                    }
+                });
+                renderSyncCategories();
+            }
+        });
+    }
+
+    const btnAddCategory = document.getElementById("btn-settings-add-category");
+    if(btnAddCategory) {
+        btnAddCategory.addEventListener("click", () => {
+            currentSettings.sync_categories.push({id: "", name: "", nas_sub: "", pcloud_remote: ""});
+            renderSyncCategories();
         });
     }
 
