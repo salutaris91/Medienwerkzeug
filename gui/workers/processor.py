@@ -2846,7 +2846,10 @@ def process_worker(params):
                     continue
                 
                 # Resolve NAS path
-                rel_sub = category.get("targets", {}).get(t_id) or category.get("nas_sub", "")
+                rel_sub = category.get("targets", {}).get(t_id)
+                if not rel_sub and t_id == "nas":
+                    rel_sub = category.get("nas_sub", "")
+                
                 if not rel_sub:
                     log_message(f"❌ Kein Zielpfad-Mapping konfiguriert für Ziel {target.get('name')}.")
                     all_success = False
@@ -2873,7 +2876,10 @@ def process_worker(params):
                     all_success = False
             else:
                 # Cloud target
-                t_sub = category.get("targets", {}).get(t_id) or category.get("pcloud_remote", "")
+                t_sub = category.get("targets", {}).get(t_id)
+                if not t_sub and t_id == "pcloud":
+                    t_sub = category.get("pcloud_remote", "")
+                
                 if not t_sub:
                     log_message(f"❌ Kein Remote-Zielpfad-Mapping konfiguriert für Cloud-Ziel {target.get('name')}.")
                     all_success = False
@@ -2892,6 +2898,9 @@ def process_worker(params):
 
         if not any_attempted:
             raise RuntimeError("Keine Speicherziele ausgewählt oder Mapping ungültig.")
+            
+        if not all_success:
+            raise RuntimeError("Fehler bei mindestens einem Synchronisations-Ziel.")
 
         if delete_original and all_success:
             log_message(f"🗑️ Lösche Originalordner nach erfolgreichem Transfer: {current_dir}")
