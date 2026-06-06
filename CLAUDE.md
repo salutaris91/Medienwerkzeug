@@ -34,6 +34,24 @@ Alex lernt programmieren. Ziel ist echtes Verständnis, nicht nur funktionierend
 
 ---
 
+## Review-Modus
+
+Wenn Alex den **Review-Modus** aktiviert oder um einen Review bittet, arbeitet die
+KI ausschließlich prüfend:
+
+- Keine Codeänderungen, keine Formatierungen, keine Commits und keine
+  "nebenbei" erledigten Verbesserungen ohne ausdrückliche Freigabe.
+- Fokus auf Bugs, Risiken, Sicherheitsprobleme, Regressionen, fehlende Tests und
+  Stellen, an denen das Verhalten von der Absicht abweicht.
+- Findings zuerst nennen, nach Schwere sortiert, mit konkreten Datei- und
+  Zeilenangaben, soweit möglich.
+- Wenn keine relevanten Probleme gefunden werden, das klar sagen und verbleibende
+  Restrisiken oder nicht ausgeführte Prüfungen nennen.
+- Vorschläge dürfen gemacht werden, bleiben aber Empfehlungen. Die Umsetzung
+  startet erst nach Alex' expliziter Entscheidung.
+
+---
+
 ## Bestätigungspflicht
 
 Vor diesen Aktionen stoppen, genau auflisten was betroffen ist, und auf explizite Bestätigung warten:
