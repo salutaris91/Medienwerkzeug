@@ -35,15 +35,15 @@ def handle_api_preview_process():
     nas_destination_id = params.get("nas_destination_id") or params.get("destination_id")
     pcloud_destination_id = params.get("pcloud_destination_id") or params.get("destination_id")
     nfo_overrides = params.get("nfo_overrides", {})
-    
+
     settings = load_settings()
     inbox_root = settings.get("inbox_dir", "")
     outbox_root = settings.get("outbox_dir", "")
     nas_root = settings.get("nas_root", "")
-    
+
     if not inbox_root or not outbox_root:
         return jsonify({"status": "error", "message": "Inbox- oder Output-Verzeichnis ist nicht konfiguriert."}), 400
-        
+
     destination = params.get("destination")
     # Resolve NAS destination path
     if nas_destination_id:
@@ -81,28 +81,28 @@ def handle_api_preview_process():
                     break
         if found_cat:
             explicit_pcloud_base = found_cat.get('pcloud_remote')
-    
+
     if project_name:
         current_dir = os.path.join(inbox_root, project_name)
     else:
         current_dir = inbox_root
-        
+
     if not os.path.exists(current_dir):
         return jsonify({"error": "Ordner existiert nicht."})
         return
-        
+
     all_files = find_files_recursively(current_dir)
     video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
     sub_exts = ('.srt', '.vtt', '.ass')
     good_meta = ('tvshow.nfo', 'poster.jpg', 'fanart.jpg', 'season.nfo', 'movie.nfo')
-    
+
     preview = {
         "renames": [],
         "subs": [],
         "junk": [],
         "destination": ""
     }
-    
+
     if media_type == "movie":
         movie_name = params.get("movie_name", "Unbekannter Film")
         if movie_name:
@@ -116,15 +116,15 @@ def handle_api_preview_process():
                     movie_name = f"{movie_name} ({year})"
         dest_movies = destination if destination else f"{nas_root}/Filme"
         clean_movie_name = limit_filename_length(sanitize_filename(movie_name))
-        
+
         nas_path = os.path.join(dest_movies, clean_movie_name)
         pcloud_path = f"{explicit_pcloud_base}/{clean_movie_name}" if explicit_pcloud_base else None
-        
+
         if params.get("copy_to_nas", True):
             dest_str = f"NAS: {nas_path}"
         else:
             dest_str = "NAS: (nicht aktiv)"
-            
+
         if params.get("copy_to_pcloud", False):
             if pcloud_path:
                 dest_str += f"\n☁️ pCloud: {pcloud_path}"
@@ -133,13 +133,84 @@ def handle_api_preview_process():
         else:
             dest_str += "\n☁️ pCloud: (nicht aktiv)"
         preview["destination"] = dest_str
-        
+
+        # Collect video files to identify main film and samples
+        video_files_in_proj = []
+        for f in all_files:
+            ext = os.path.splitext(f)[1].lower()
+            if ext in video_exts:
+                full_p = os.path.join(current_dir, f)
+                try:
+                    sz = os.path.getsize(full_p) if os.path.exists(full_p) else 0
+                except Exception:
+                    sz = 0
+                video_files_in_proj.append((f, sz))
+
+        # Determine main video and samples
+        video_files_in_proj.sort(key=lambda x: x[1], reverse=True)
+        main_video = None
+        samples = set()
+
+        if video_files_in_proj:
+            largest_file, largest_size = video_files_in_proj[0]
+
+            for f, sz in video_files_in_proj:
+                is_sample = False
+                basename_lower = os.path.basename(f).lower()
+                # Kriterium 1: "sample" im Namen oder Pfad
+                if "sample" in basename_lower or "sample" in f.lower().split(os.sep):
+                    is_sample = True
+                # Kriterium 2: Datei < 300 MB und es gibt eine signifikant größere Videodatei
+                elif sz < 300 * 1024 * 1024 and largest_size > 300 * 1024 * 1024:
+                    is_sample = True
+
+                if is_sample:
+                    samples.add(f)
+
+            # Hauptfilm ist die größte Datei, die kein Sample ist
+            non_samples = [f for f, sz in video_files_in_proj if f not in samples]
+            if non_samples:
+                main_video = non_samples[0]
+            else:
+                main_video = largest_file
+                if main_video in samples:
+                    samples.remove(main_video)
+
+            # Alle Videodateien außer dem Hauptfilm werden als Samples gewertet
+            for f, sz in video_files_in_proj:
+                if f != main_video:
+                    samples.add(f)
+
         for f in all_files:
             basename = os.path.basename(f)
             ext = os.path.splitext(f)[1].lower()
+
+            # Check if this file belongs to a sample
+            belongs_to_sample = False
+            if f == main_video:
+                belongs_to_sample = False
+            elif f in samples:
+                belongs_to_sample = True
+            elif samples and ("sample" in basename.lower() or "sample" in f.lower().split(os.sep)):
+                belongs_to_sample = True
+            else:
+                # Prüfen, ob die Datei zu einem der Sample-Videos gehört (Name match)
+                for s_video in samples:
+                    s_base = os.path.splitext(os.path.basename(s_video))[0]
+                    if basename.startswith(s_base) and f != s_video:
+                        belongs_to_sample = True
+                        break
+
+            if belongs_to_sample:
+                preview["junk"].append(f)
+                continue
+
             if ext in video_exts:
-                target_filename = f"{clean_movie_name}{ext}"
-                preview["renames"].append({"old": f, "new": target_filename})
+                if f == main_video:
+                    target_filename = f"{clean_movie_name}{ext}"
+                    preview["renames"].append({"old": f, "new": target_filename})
+                else:
+                    preview["junk"].append(f)
             elif ext in sub_exts:
                 target_filename = f"{clean_movie_name}{ext}"
                 preview["subs"].append({"old": f, "new": target_filename})
@@ -153,7 +224,7 @@ def handle_api_preview_process():
                 preview["subs"].append({"old": f, "new": f"{clean_movie_name}-fanart{ext}"})
             else:
                 preview["junk"].append(f)
-                
+
     elif media_type == "tv":
         show_name = clean_series_name_for_fs(params.get("show_name", "Unknown Show"))
         nas_show_folder = params.get("nas_show_folder")
@@ -164,12 +235,12 @@ def handle_api_preview_process():
             rel_dest = os.path.relpath(nas_serien, nas_root)
             outbox_serien = os.path.join(outbox_root, rel_dest)
             clean_show_name = get_matched_series_name(nas_serien, outbox_serien, limit_filename_length(sanitize_filename(show_name)))
-            
+
         nas_serien = destination if destination else f"{nas_root}/Serien"
         dest_show_dir = os.path.join(nas_serien, clean_show_name)
-        
+
         pcloud_path = f"{explicit_pcloud_base}/{clean_show_name}" if explicit_pcloud_base else None
-        
+
         episodes = {}
         if provider and show_id:
             try:
@@ -202,12 +273,12 @@ def handle_api_preview_process():
                 return jsonify({"error": str(e), "status": "error"}), getattr(e, 'status_code', 503)
             except Exception as e:
                 print(f"Error fetching preview episodes: {e}")
-        
+
         clean_titles = []
         for f in all_files:
             basename = os.path.basename(f)
             ext = os.path.splitext(f)[1].lower()
-            
+
             if ext in video_exts:
                 rel_f = os.path.relpath(f, current_dir)
                 ep_num = mappings.get(rel_f) or mappings.get(f) or mappings.get(basename)
@@ -228,7 +299,7 @@ def handle_api_preview_process():
                         if not ep_data and provider == "ytdlp" and len(episodes) == 1:
                             ep_data = list(episodes.values())[0]
                         ep_title = ep_data.get("title", "") if isinstance(ep_data, dict) else str(ep_data)
-                        
+
                         match = re.match(r"^S(\d+)E(\d+)$", str(ep_num), re.IGNORECASE)
                         if match:
                             curr_season = int(match.group(1))
@@ -236,7 +307,7 @@ def handle_api_preview_process():
                         else:
                             curr_season = season
                             curr_ep_num = ep_num
-                    
+
                     force_abs = params.get("force_absolute_season_1", False)
                     if force_abs:
                         if isinstance(ep_num, dict):
@@ -248,9 +319,9 @@ def handle_api_preview_process():
                         abs_num = extract_absolute_episode_number(ep_num, ep_data, basename)
                         curr_season = 1
                         curr_ep_num = abs_num
-                        
+
                     ep_title = sanitize_filename(ep_title)
-                    
+
                     try:
                         season_str = f"S{int(curr_season):02d}"
                     except (ValueError, TypeError):
@@ -259,16 +330,16 @@ def handle_api_preview_process():
                         ep_str = f"E{int(curr_ep_num):02d}"
                     except (ValueError, TypeError):
                         ep_str = f"E{curr_ep_num}"
-                        
+
                     clean_title = f"{clean_show_name} - {season_str}{ep_str}"
                     if ep_title: clean_title += f" - {ep_title}"
                     clean_title = limit_filename_length(clean_title)
-                    
+
                     clean_titles.append((curr_season, clean_title))
-                    
+
                     target_filename = f"{clean_title}{ext}"
                     preview["renames"].append({"old": f, "new": target_filename})
-                    
+
                     base_old = os.path.splitext(basename)[0]
                     for sf in all_files:
                         sbasename = os.path.basename(sf)
@@ -300,10 +371,10 @@ def handle_api_preview_process():
                 preview["subs"].append({"old": f, "new": basename})
             else:
                 preview["junk"].append(f)
-                
+
         sub_olds = [x["old"] for x in preview["subs"]]
         preview["junk"] = [j for j in preview["junk"] if j not in sub_olds and j not in [r["old"] for r in preview["renames"]]]
-        
+
         if params.get("copy_to_nas", True):
             if clean_titles:
                 unique_paths = []
@@ -327,7 +398,7 @@ def handle_api_preview_process():
                     dest_str = f"NAS: {dest_show_dir}/[Staffeln]/[Episoden-Unterordner]"
         else:
             dest_str = "NAS: (nicht aktiv)"
-            
+
         if params.get("copy_to_pcloud", False):
             if pcloud_path:
                 dest_str += f"\n☁️ pCloud: {pcloud_path}"
@@ -335,12 +406,12 @@ def handle_api_preview_process():
                 dest_str += "\n☁️ pCloud: (Kein Mapping gefunden)"
         else:
             dest_str += "\n☁️ pCloud: (nicht aktiv)"
-        
+
         if params.get("copy_to_nas", True) and os.path.exists(dest_show_dir):
             if any(os.path.exists(os.path.join(dest_show_dir, f)) for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]):
                 dest_str += "\n⚠️ Serie existiert bereits auf NAS mit vorhandenen Metadaten (tvshow.nfo, poster.jpg, fanart.jpg). Diese Dateien werden nicht überschrieben."
         preview["destination"] = dest_str
-        
+
     # Season year warning
     # NAS structure mismatch warning
     if media_type == "tv" and not params.get("force_absolute_season_1", False):
@@ -348,13 +419,13 @@ def handle_api_preview_process():
         show_dirs = []
         if os.path.exists(dest_show_dir):
             show_dirs.append(dest_show_dir)
-        
+
         # Check outbox as well
         rel_dest = os.path.relpath(nas_serien, nas_root)
         outbox_show_dir = os.path.join(outbox_root, rel_dest, clean_show_name)
         if os.path.exists(outbox_show_dir):
             show_dirs.append(outbox_show_dir)
-            
+
         for sd in show_dirs:
             try:
                 for entry in os.listdir(sd):
@@ -367,7 +438,7 @@ def handle_api_preview_process():
                                 existing_seasons.append(int(entry))
             except Exception:
                 pass
-                
+
         preview_mapped_seasons = set()
         if season and season != "all":
             try:
@@ -392,13 +463,13 @@ def handle_api_preview_process():
                         preview_mapped_seasons.add(int(season))
                     except (ValueError, TypeError):
                         pass
-                        
+
         has_existing_year_seasons = any(s >= 1000 for s in existing_seasons)
         has_existing_standard_seasons = any(0 < s < 1000 for s in existing_seasons)
-        
+
         has_preview_year_seasons = any(s >= 1000 for s in preview_mapped_seasons)
         has_preview_standard_seasons = any(0 < s < 1000 for s in preview_mapped_seasons)
-        
+
         if has_existing_year_seasons and has_preview_standard_seasons:
             preview["warning"] = "Abweichung der Nummerierung: Auf dem NAS existieren Jahreszahl-Staffeln (z.B. Staffel 2026), aber die Vorschau ordnet die Episoden Standard-Staffeln (z.B. Staffel 1) zu! Bitte passe die Staffeln in den Episoden-Details an."
         elif has_existing_standard_seasons and has_preview_year_seasons:
@@ -412,7 +483,7 @@ def handle_api_preview_process():
                     "nas_name": nas_match_folder,
                     "metadata_name": clean_show_name
                 }
-            
+
     return jsonify(preview)
 
 
@@ -427,7 +498,7 @@ def handle_api_process():
     task_id = str(uuid.uuid4())
     params["task_id"] = task_id
     media_type = params.get("media_type", "unknown")
-    
+
     name = params.get("project_name", "Unbekannt")
     if name.endswith("/"): name = name[:-1]
     name = os.path.basename(name)
@@ -437,7 +508,7 @@ def handle_api_process():
         name = params.get("show_name")
     elif media_type == "youtube":
         name = "YouTube Download"
-        
+
     convert = params.get("convert", False)
     copy_to_nas = params.get("copy_to_nas", True)
     copy_to_pcloud = params.get("copy_to_pcloud", False)
@@ -446,7 +517,7 @@ def handle_api_process():
     movie_id = params.get("movie_id")
     provider = params.get("provider")
     has_metadata = (show_id and provider) or (movie_id and provider)
-    
+
     job_info = {
         "id": task_id,
         "type": media_type,
@@ -458,7 +529,7 @@ def handle_api_process():
         "params": params,
         "pipeline": build_job_pipeline(params, has_metadata, convert)
     }
-    
+
     from gui.core.jobs import create_job
     create_job(
         job_id=task_id,
@@ -467,9 +538,9 @@ def handle_api_process():
         params=params,
         pipeline=job_info["pipeline"]
     )
-        
+
     job_queue.put(job_info)
-        
+
     return jsonify({"status": "started", "task_id": task_id})
 
 
@@ -522,31 +593,31 @@ def handle_api_queue_retry():
         params = request.get_json() or {}
     except Exception:
         params = {}
-    
+
     task_id = params.get("task_id")
     if not task_id:
         return jsonify({"status": "error", "message": "Missing task_id"}), 400
-        
+
     from gui.core.jobs import get_job, update_job
     job = get_job(task_id)
     if not job:
         return jsonify({"status": "error", "message": "Job nicht gefunden"}), 404
-        
+
     if job.get("status") not in ("error", "done"):
         return jsonify({"status": "error", "message": "Job ist nicht fehlgeschlagen oder beendet"}), 400
-        
+
     # Parameter kopieren und Pipeline neu initialisieren
     job_params = job.get("params", {})
     convert = job_params.get("convert", False)
-    
+
     # Bestimme has_metadata
     show_id = job_params.get("show_id")
     movie_id = job_params.get("movie_id")
     provider = job_params.get("provider")
     has_metadata = (show_id and provider) or (movie_id and provider)
-    
+
     new_pipeline = build_job_pipeline(job_params, has_metadata, convert)
-    
+
     # Zurücksetzen auf initialen Warteschlangen-Zustand
     update_job(
         task_id,
@@ -555,10 +626,9 @@ def handle_api_queue_retry():
         message="Wiederholung eingereiht...",
         pipeline=new_pipeline
     )
-    
+
     # In die Queue einreihen
     updated_job = get_job(task_id)
     job_queue.put(updated_job)
-    
-    return jsonify({"status": "success"})
 
+    return jsonify({"status": "success"})

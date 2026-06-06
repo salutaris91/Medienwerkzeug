@@ -506,6 +506,7 @@ def resolve_target_destination(target, rel_sub, media_type="movie"):
 def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, explicit_remote_base=None):
     import shutil
     settings = load_settings()
+    nas_target = next((t for t in settings.get("storage_targets", []) if t.get("id") == "nas"), None)
     nas_root = nas_target.get("root_path", "") if nas_target else settings.get("nas_root", "")
     
     # Find the target configuration
