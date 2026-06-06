@@ -14,6 +14,21 @@ def _download_with_timeout(url, path, timeout=10):
     except Exception as e:
         print(f"Warning: Download failed: {e}")
         raise e
+
+def get_ext_from_url(url, fallback=".jpg"):
+    try:
+        parsed = urllib.parse.urlparse(url)
+        _, ext = os.path.splitext(parsed.path)
+        if ext:
+            ext_lower = ext.lower()
+            if ext_lower in (".jpg", ".jpeg", ".png", ".webp"):
+                if ext_lower == ".jpeg":
+                    return ".jpg"
+                return ext_lower
+    except Exception:
+        pass
+    return fallback
+
 import urllib.parse
 import re
 import os
@@ -106,16 +121,16 @@ def _handle_metadata_error(e, context=""):
     import urllib.error
     import socket
     import json
-    
+
     if isinstance(e, json.JSONDecodeError):
         raise MetadataProviderUnavailable(f"Ungueltige Provider-Antwort (JSON): {e}", status_code=503)
-        
+
     if isinstance(e, urllib.error.HTTPError):
         if e.code in (401, 403):
             raise MetadataProviderUnavailable(f"API-Key ungueltig oder fehlend (HTTP {e.code})", status_code=502)
         elif e.code == 429 or e.code >= 500:
             raise MetadataProviderUnavailable(f"Provider temporaer nicht erreichbar (HTTP {e.code})", status_code=503)
-            
+
     if isinstance(e, (urllib.error.URLError, socket.timeout)):
         raise MetadataProviderUnavailable(f"Netzwerk- oder Timeout-Fehler: {e}", status_code=503)
 
@@ -214,12 +229,12 @@ def fetch_tvdb(show_id, season, lang="deu"):
                     ep_season = ep.get('seasonNumber')
                     if ep_season is None or int(ep_season) <= 0:
                         continue
-                    
+
                     if is_all or str(ep_season) == str(season):
                         ep_num = str(ep.get('number'))
                         title = ep.get('name', '').replace('/', '-').replace(':', '').strip()
                         date_str = ep.get('aired', '')
-                        
+
                         abs_val = ep.get('absoluteNumber')
                         if is_all:
                             s_str = str(ep_season)
@@ -268,7 +283,7 @@ def search_all_db(query):
     clean_query = clean_search_query(query)
     if not clean_query:
         clean_query = query.strip()
-        
+
     errors = []
 
     def _do_search(q_str):
@@ -282,7 +297,7 @@ def search_all_db(query):
             errors.append(e)
         except Exception as e:
             errors.append(MetadataProviderUnavailable(f"TMDb DE Fehler: {e}"))
-            
+
         # 2. TVDb DE
         try:
             results.extend(search_tvdb(q_str, "deu"))
@@ -290,7 +305,7 @@ def search_all_db(query):
             errors.append(e)
         except Exception as e:
             errors.append(MetadataProviderUnavailable(f"TVDb DE Fehler: {e}"))
-            
+
         # 3. TVmaze
         try:
             for r in search_tvmaze(q_str):
@@ -300,7 +315,7 @@ def search_all_db(query):
             errors.append(e)
         except Exception as e:
             errors.append(MetadataProviderUnavailable(f"TVmaze Fehler: {e}"))
-            
+
         # 4. TMDb EN (Fallback)
         try:
             for r in search_tmdb_tv(q_str, "en-US"):
@@ -311,11 +326,11 @@ def search_all_db(query):
                 errors.append(e)
         except Exception as e:
             errors.append(MetadataProviderUnavailable(f"TMDb EN Fehler: {e}"))
-            
+
         return results
 
     results = _do_search(clean_query)
-    
+
     # Fallback für deutsche Umlaute (ae -> ä, oe -> ö, ue -> ü) da TMDB/TVDB sehr strikt suchen
     umlaut_query = clean_query
     umlaut_query = re.sub(r'ae', 'ä', umlaut_query, flags=re.IGNORECASE)
@@ -328,7 +343,7 @@ def search_all_db(query):
             sig = f"{r['name'].split('[')[0].strip().lower()}_{r['provider']}"
             if sig not in seen_sigs:
                 results.append(r)
-            
+
     final_results = []
     seen = set()
     for r in results:
@@ -339,10 +354,10 @@ def search_all_db(query):
             # Anbieter im Anzeigenamen markieren
             r['name'] = f"{r['name']} [{r['provider'].upper()}]"
             final_results.append(r)
-            
+
     # Sort results by match score with original query
     final_results.sort(key=lambda r: calculate_match_score(query, r['name']), reverse=True)
-    
+
     if not final_results and errors:
         first_error = None
         for err in errors:
@@ -352,7 +367,7 @@ def search_all_db(query):
         if not first_error:
             first_error = errors[0]
         raise first_error
-        
+
     return final_results[:20]
 
 
@@ -398,17 +413,17 @@ def get_show_info(provider, show_id):
 def search_tvmaze(query):
     # Automatische Fallbacks für eine tolerantere Suche
     queries_to_try = [query]
-    
+
     # 1. Fallback: Entferne Länderkürzel (USA, UK)
     clean_query = re.sub(r'\b(USA|UK|AU|NZ)\b', '', query, flags=re.IGNORECASE).strip()
     if clean_query != query and clean_query:
         queries_to_try.append(clean_query)
-        
+
     # 2. Fallback: Leerzeichen entfernen (z.B. "Master Chef" -> "MasterChef")
     no_space_query = clean_query.replace(' ', '')
     if no_space_query != clean_query and len(no_space_query) > 3:
         queries_to_try.append(no_space_query)
-        
+
     # 3. Fallback: Nur die ersten zwei Wörter nehmen
     words = clean_query.split()
     if len(words) > 2:
@@ -425,19 +440,19 @@ def search_tvmaze(query):
                     show = item['show']
                     if show['id'] not in all_results:
                         year = show.get('premiered', '')[:4] if show.get('premiered') else '?'
-                        
+
                         # Land ermitteln (aus Network oder WebChannel)
                         network = show.get('network') or show.get('webChannel') or {}
                         country = network.get('country') or {}
                         country_name = country.get('name') or 'Unbekannt'
-                        
+
                         all_results[show['id']] = {
                             'id': show['id'],
                             'name': f"{show['name']} ({year}) [{country_name}]"
                         }
         except Exception:
             continue
-            
+
     return list(all_results.values())[:8]
 
 def fetch_tvmaze(show_id, season):
@@ -447,13 +462,13 @@ def fetch_tvmaze(show_id, season):
         req = urllib.request.Request(episodes_url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=10) as response:
             episodes_data = json.loads(response.read().decode())
-            
+
         result = {}
         for ep in episodes_data:
             ep_season = ep.get('season')
             if ep_season is None or int(ep_season) <= 0:
                 continue
-            
+
             if is_all or str(ep_season) == str(season):
                 ep_num = str(ep.get('number'))
                 if ep_num and ep_num != 'None':
@@ -476,20 +491,20 @@ def get_fernsehserien_episodes(series_name_or_url, season):
     else:
         url_name = series_name_or_url.lower().replace(' ', '-').replace('.', '').replace(':', '')
         url = f"https://www.fernsehserien.de/{url_name}/episodenguide/staffel-{season}"
-    
+
     try:
         req = urllib.request.Request(url, headers={
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
         })
         with urllib.request.urlopen(req, timeout=10) as response:
             html = response.read().decode('utf-8')
-            
+
         result = {}
         for match in re.finditer(r'<td class="episodenliste-episodennummer">.*?(\d+).*?</td>.*?<span itemprop="name">(.*?)</span>', html, re.IGNORECASE | re.DOTALL):
             ep_num = match.group(1).strip()
             title = match.group(2).strip().replace('/', '-').replace(':', '')
             result[ep_num] = title
-            
+
         return result
     except Exception as e:
         return {}
@@ -545,7 +560,7 @@ def search_tmdb_movie(query):
 
     # Normale Textsuche
     clean_query = clean_search_query(query)
-    
+
     def _do_tmdb_search(q_str):
         url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={urllib.parse.quote(q_str)}&language=de-DE"
         try:
@@ -569,7 +584,7 @@ def search_tmdb_movie(query):
             return []
 
     results = _do_tmdb_search(clean_query)
-    
+
     # Fallback für deutsche Umlaute (ae -> ä, oe -> ö, ue -> ü) da TMDB sehr strikt sucht
     umlaut_query = clean_query
     umlaut_query = re.sub(r'ae', 'ä', umlaut_query, flags=re.IGNORECASE)
@@ -581,7 +596,7 @@ def search_tmdb_movie(query):
         for r in extra_results:
             if r['id'] not in seen_ids:
                 results.append(r)
-            
+
     return results
 
 def search_tmdb_tv(query, lang="de-DE"):
@@ -701,7 +716,7 @@ def match_episode(filename, json_str):
         episodes = json.loads(json_str)
         best_match = ""
         best_score = 0.0
-        
+
         import re
         def get_words(text):
             # Filtere Füllwörter aus
@@ -709,9 +724,9 @@ def match_episode(filename, json_str):
             text = text.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
             words = set(re.findall(r'\w+', text))
             return {w for w in words if w not in ['der', 'die', 'das', 'in', 'im', 'teil', 'part', 'von', 'und']}
-            
+
         file_words = get_words(filename)
-        
+
         for ep_num, ep_data in episodes.items():
             if isinstance(ep_data, dict):
                 title = ep_data.get('title', '')
@@ -719,7 +734,7 @@ def match_episode(filename, json_str):
             else:
                 title = str(ep_data)
                 date_str = ""
-                
+
             if date_str:
                 parts = date_str.split('-')
                 if len(parts) == 3:
@@ -727,17 +742,17 @@ def match_episode(filename, json_str):
                     # Prüfe gängige Datumsformate im Dateinamen
                     if f"{d}.{m}.{y}" in filename or f"{d}{m}{y}" in filename or f"{y}-{m}-{d}" in filename or f"{y}{m}{d}" in filename:
                         return ep_num
-                        
+
             title_words = get_words(title)
             if not title_words: continue
-            
+
             overlap = len(title_words.intersection(file_words))
             score = overlap / len(title_words)
-            
+
             if score > best_score:
                 best_score = score
                 best_match = ep_num
-                
+
         if best_score >= 0.5:
             return best_match
     except Exception as e:
@@ -747,7 +762,7 @@ def match_episode(filename, json_str):
 
 def search_ofdb(query):
     clean_query = clean_search_query(query)
-    
+
     def _do_ofdb_search(q_str):
         url = "https://www.ofdb.de/suchergebnis/"
         data = urllib.parse.urlencode({'QSinput': q_str}).encode('utf-8')
@@ -756,7 +771,7 @@ def search_ofdb(query):
             html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
         except Exception:
             return []
-            
+
         results = []
         matches = re.finditer(r'<a[^>]*href=\"https://www.ofdb.de/film/(\d+),([^\"]*)\"[^>]*>.*?<span class=\"tooltipster\"[^>]*>(.*?)</span></a>.*?</td>\s*<td>(\d{4})</td>', html, re.DOTALL | re.IGNORECASE)
         for m in matches:
@@ -773,7 +788,7 @@ def search_ofdb(query):
         return results
 
     results = _do_ofdb_search(clean_query)
-    
+
     # Fallback für deutsche Umlaute (ae -> ä, oe -> ö, ue -> ü)
     umlaut_query = clean_query
     umlaut_query = re.sub(r'ae', 'ä', umlaut_query, flags=re.IGNORECASE)
@@ -785,7 +800,7 @@ def search_ofdb(query):
         for r in extra_results:
             if r['id'] not in seen_ids:
                 results.append(r)
-                
+
     return results
 
 def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=None):
@@ -793,44 +808,44 @@ def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=
     if len(parts) != 3: return {}
     ofdb_id = parts[1]
     url_part = parts[2]
-    
+
     url = f"https://www.ofdb.de/film/{ofdb_id},{url_part}/"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     try:
         html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
     except Exception: return {}
-    
+
     title_m = re.search(r'<title>OFDb - (.*?) \(\d{4}\)</title>', html)
     title = title_m.group(1) if title_m else filename_base
-    
+
     year_m = re.search(r'Erscheinungsjahr:.*?<a[^>]*>(\d{4})</a>', html, re.DOTALL)
     year = year_m.group(1) if year_m else ""
-    
+
     plot_m = re.search(r'<div class=\"plot\">(.*?)</div>', html, re.DOTALL)
     plot = plot_m.group(1).strip() if plot_m else ""
     plot = re.sub(r'<[^>]+>', '', plot)
-    
+
     actors = []
     for m in re.finditer(r'<a[^>]*href=\"https://www.ofdb.de/person/[^>]*>(.*?)</a>', html):
         actor_name = re.sub(r'<[^>]+>', '', m.group(1)).strip()
         if actor_name and actor_name not in actors:
             actors.append(actor_name)
-            
+
     xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<movie>\n  <lockdata>true</lockdata>\n'
     xml += f"  <title>{escape_xml(title)}</title>\n"
     xml += f"  <plot>{escape_xml(plot)}</plot>\n"
     xml += f"  <year>{escape_xml(year)}</year>\n"
-    
+
     for a in actors[:15]:
         xml += "  <actor>\n"
         xml += f"    <name>{escape_xml(a)}</name>\n"
         xml += "  </actor>\n"
     xml += "</movie>\n"
-    
+
     nfo_path = os.path.join(target_folder, f"{filename_base}.nfo")
     with open(nfo_path, 'w', encoding='utf-8') as f:
         f.write(xml)
-        
+
     return {"nfo": True, "poster": False, "fanart": False, "msg": "OFDb NFO erstellt"}
 
 def fetch_tmdb_images(media_type, tmdb_id):
@@ -846,7 +861,7 @@ def fetch_tmdb_images(media_type, tmdb_id):
         req = make_tmdb_request(url)
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
-            
+
             def find_best_image(items):
                 if not items:
                     return None
@@ -860,11 +875,11 @@ def fetch_tmdb_images(media_type, tmdb_id):
                     if item.get('iso_639_1') == 'en':
                         return item.get('file_path')
                 return items[0].get('file_path')
-                
+
             poster_path = find_best_image(data.get('posters', []))
             backdrop_path = find_best_image(data.get('backdrops', []))
             logo_path = find_best_image(data.get('logos', []))
-            
+
             res = {}
             if poster_path:
                 res['poster'] = f"https://image.tmdb.org/t/p/original{poster_path}"
@@ -882,27 +897,44 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
 
     import os
     nfo_path = os.path.join(folder_path, f"{filename_base}.nfo")
-    
+
     settings = load_settings()
     server_type = settings.get("media_server", "emby")
     validator = artwork_validators.get_validator(server_type)
-    
+
     poster_filename = validator.get_preferred_movie_poster_name(f"{filename_base}.mkv")
     fanart_filename = validator.get_preferred_movie_backdrop_name(f"{filename_base}.mkv")
     logo_filename = validator.get_preferred_movie_logo_name(f"{filename_base}.mkv")
     banner_filename = validator.get_preferred_movie_banner_name(f"{filename_base}.mkv")
-    
+
     poster_path = os.path.join(folder_path, poster_filename)
     fanart_path = os.path.join(folder_path, fanart_filename)
     logo_path = os.path.join(folder_path, logo_filename)
     banner_path = os.path.join(folder_path, banner_filename)
-    
+
+    def has_movie_poster():
+        for ext in (".jpg", ".png", ".webp"):
+            if os.path.exists(os.path.join(folder_path, f"poster{ext}")): return True
+            if os.path.exists(os.path.join(folder_path, f"folder{ext}")): return True
+            if os.path.exists(os.path.join(folder_path, f"cover{ext}")): return True
+            if os.path.exists(os.path.join(folder_path, f"{filename_base}-poster{ext}")): return True
+        return False
+
+    def has_movie_fanart():
+        for ext in (".jpg", ".png", ".webp"):
+            if os.path.exists(os.path.join(folder_path, f"fanart{ext}")): return True
+            if os.path.exists(os.path.join(folder_path, f"backdrop{ext}")): return True
+            if os.path.exists(os.path.join(folder_path, f"background{ext}")): return True
+            if os.path.exists(os.path.join(folder_path, f"{filename_base}-fanart{ext}")): return True
+            if os.path.exists(os.path.join(folder_path, f"{filename_base}-backdrop{ext}")): return True
+        return False
+
     needs_nfo = not os.path.exists(nfo_path)
-    needs_poster = not os.path.exists(poster_path)
-    needs_fanart = not os.path.exists(fanart_path)
-    needs_logo = validator.supports_logos and not os.path.exists(logo_path)
-    needs_banner = validator.supports_banners and not os.path.exists(banner_path)
-    
+    needs_poster = not has_movie_poster()
+    needs_fanart = not has_movie_fanart()
+    needs_logo = validator.supports_logos and not any(os.path.exists(os.path.join(folder_path, f"logo{ext}")) or os.path.exists(os.path.join(folder_path, f"clearlogo{ext}")) or os.path.exists(os.path.join(folder_path, f"{filename_base}-logo{ext}")) for ext in (".jpg", ".png", ".webp"))
+    needs_banner = validator.supports_banners and not any(os.path.exists(os.path.join(folder_path, f"banner{ext}")) or os.path.exists(os.path.join(folder_path, f"{filename_base}-banner{ext}")) for ext in (".jpg", ".png", ".webp"))
+
     if isinstance(tmdb_id, str) and tmdb_id.startswith("url_mediathek:"):
         if needs_nfo:
             title = tmdb_id.split("url_mediathek:", 1)[1]
@@ -912,7 +944,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
                 if "title" in nfo_overrides: title = nfo_overrides["title"]
                 if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
                 if "year" in nfo_overrides: year = nfo_overrides["year"]
-            
+
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<movie>\n  <lockdata>true</lockdata>\n'
             xml += f"  <title>{escape_xml(title)}</title>\n"
@@ -939,7 +971,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
                 if "title" in nfo_overrides: title = nfo_overrides["title"]
                 if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
                 if "year" in nfo_overrides: year = nfo_overrides["year"]
-            
+
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<movie>\n  <lockdata>true</lockdata>\n'
             xml += f"  <title>{escape_xml(title)}</title>\n"
@@ -972,12 +1004,12 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
                     year = entry.get("upload_date")[:4]
                 elif entry.get("release_year"):
                     year = str(entry.get("release_year"))
-                    
+
             if nfo_overrides:
                 if "title" in nfo_overrides: title = nfo_overrides["title"]
                 if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
                 if "year" in nfo_overrides: year = nfo_overrides["year"]
-                
+
             if needs_nfo:
                 xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 xml += '<movie>\n  <lockdata>true</lockdata>\n'
@@ -992,19 +1024,19 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
                 xml += '</movie>\n'
                 with open(nfo_path, 'w', encoding='utf-8') as f:
                     f.write(xml)
-            
+
             if thumbnail_url and needs_poster:
                 try:
                     _download_with_timeout(thumbnail_url, poster_path)
                     downloaded_poster = True
                 except Exception as e:
                     print(f"[ytdlp poster error] {e}")
-                    
+
         return {"nfo": needs_nfo, "poster": downloaded_poster, "fanart": False, "msg": "ytdlp movie NFO erstellt"}
 
     if not (needs_nfo or needs_poster or needs_fanart):
         return {"nfo": False, "poster": False, "fanart": False, "msg": "existiert"}
-        
+
     url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}&language=de-DE&append_to_response=credits,release_dates"
     try:
         req = make_tmdb_request(url)
@@ -1012,7 +1044,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             data = json.loads(response.read().decode())
     except Exception as e:
         return {"error": str(e)}
-        
+
     if needs_nfo:
         yt_data = {}
         if fallback_json and os.path.exists(fallback_json):
@@ -1020,7 +1052,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
                 with open(fallback_json, 'r', encoding='utf-8') as f:
                     yt_data = json.load(f)
             except Exception as e: print(f"Warning: Ignored exception {e}")
-            
+
         fsk = ""
         for r in data.get('release_dates', {}).get('results', []):
             if r.get('iso_3166_1') == 'DE':
@@ -1029,23 +1061,23 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
                         fsk = rd.get('certification')
                         break
                 break
-            
+
         year = data.get('release_date', '')[:4] if data.get('release_date') else ''
         if not year and yt_data.get('upload_date'):
             year = yt_data.get('upload_date')[:4]
-            
+
         plot = data.get('overview', '')
         if yt_data.get('description') and len(yt_data.get('description', '')) > len(plot):
             plot = f"{plot}\n\n--- YouTube Info ---\n{yt_data['description']}".strip()
-            
+
         studio = yt_data.get('uploader', '')
         title = data.get('title', '')
-        
+
         if nfo_overrides:
             if "title" in nfo_overrides: title = nfo_overrides["title"]
             if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
             if "year" in nfo_overrides: year = nfo_overrides["year"]
-            
+
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<movie>\n  <lockdata>true</lockdata>\n'
         xml += f"  <title>{escape_xml(title)}</title>\n"
@@ -1063,10 +1095,10 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
         if studio:
             xml += f"  <studio>{escape_xml(studio)}</studio>\n"
         xml += f"  <tmdbid>{tmdb_id}</tmdbid>\n"
-        
+
         for g in data.get('genres', []):
             xml += f"  <genre>{escape_xml(g.get('name', ''))}</genre>\n"
-            
+
         for c in data.get('credits', {}).get('cast', [])[:15]:
             xml += "  <actor>\n"
             xml += f"    <name>{escape_xml(c.get('name', ''))}</name>\n"
@@ -1074,33 +1106,41 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             if c.get('profile_path'):
                 xml += f"    <thumb>https://image.tmdb.org/t/p/w500{c.get('profile_path')}</thumb>\n"
             xml += "  </actor>\n"
-            
+
         xml += '</movie>\n'
-        
+
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
-            
+
     # Download images using TMDB Images API for German-localized/higher-quality art
     if (needs_poster or needs_fanart or needs_logo or needs_banner) and str(tmdb_id).isdigit():
         images = fetch_tmdb_images("movie", tmdb_id)
-        
+
         if needs_poster and images.get('poster'):
             try:
-                _download_with_timeout(images['poster'], poster_path)
+                ext = get_ext_from_url(images['poster'], ".jpg")
+                p_path = os.path.join(folder_path, f"poster{ext}")
+                _download_with_timeout(images['poster'], p_path)
                 needs_poster = False
             except Exception:
                 pass
-                
+
         if needs_fanart and images.get('backdrop'):
             try:
-                _download_with_timeout(images['backdrop'], fanart_path)
+                ext = get_ext_from_url(images['backdrop'], ".jpg")
+                pref_name = validator.get_preferred_movie_backdrop_name(f"{filename_base}.mkv")
+                pref_base, _ = os.path.splitext(pref_name)
+                f_path = os.path.join(folder_path, f"{pref_base}{ext}")
+                _download_with_timeout(images['backdrop'], f_path)
                 needs_fanart = False
             except Exception:
                 pass
-                
+
         if needs_logo and images.get('logo'):
             try:
-                _download_with_timeout(images['logo'], logo_path)
+                ext = get_ext_from_url(images['logo'], ".png")
+                l_path = os.path.join(folder_path, f"logo{ext}")
+                _download_with_timeout(images['logo'], l_path)
                 needs_logo = False
             except Exception:
                 pass
@@ -1109,19 +1149,25 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
     if needs_poster and data.get('poster_path'):
         try:
             p_url = f"https://image.tmdb.org/t/p/original{data['poster_path']}"
-            _download_with_timeout(p_url, poster_path)
+            ext = get_ext_from_url(p_url, ".jpg")
+            p_path = os.path.join(folder_path, f"poster{ext}")
+            _download_with_timeout(p_url, p_path)
             needs_poster = False
         except Exception:
             pass
-            
+
     if needs_fanart and data.get('backdrop_path'):
         try:
             b_url = f"https://image.tmdb.org/t/p/original{data['backdrop_path']}"
-            _download_with_timeout(b_url, fanart_path)
+            ext = get_ext_from_url(b_url, ".jpg")
+            pref_name = validator.get_preferred_movie_backdrop_name(f"{filename_base}.mkv")
+            pref_base, _ = os.path.splitext(pref_name)
+            f_path = os.path.join(folder_path, f"{pref_base}{ext}")
+            _download_with_timeout(b_url, f_path)
             needs_fanart = False
         except Exception:
             pass
-            
+
     return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart, "logo": not needs_logo, "banner": not needs_banner}
 
 def fetch_show_nfo_data(provider, show_id):
@@ -1306,7 +1352,7 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
             token = get_tvdb_token()
             import tempfile
             cache_file = os.path.join(tempfile.gettempdir(), f"tvdb_{show_id}_deu.json")
-            
+
             def _tvdb_load_episodes(sid, lang_code, cache_path):
                 eps = []
                 if os.path.exists(cache_path):
@@ -1344,11 +1390,11 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
                 if str(ep.get('seasonNumber')) == str(season) and str(ep.get('number')) == str(episode):
                     ep_data = ep
                     break
-            
+
             ep_title = ep_data.get('name', '').strip() if ep_data else ""
             ep_plot  = ep_data.get('overview', '').strip() if ep_data else ""
             aired = ep_data.get('aired', '') if ep_data else ""
-            
+
             if not ep_title or not ep_plot:
                 cache_file_en = os.path.join(tempfile.gettempdir(), f"tvdb_{show_id}_eng.json")
                 all_episodes_en = _tvdb_load_episodes(show_id, "eng", cache_file_en)
@@ -1361,7 +1407,7 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
                         if not aired:
                             aired = ep_en.get('aired', '')
                         break
-            
+
             return {
                 "title": ep_title or f"Folge {episode}",
                 "plot": ep_plot,
@@ -1387,13 +1433,13 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
 
 def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
     import os
-    
+
     if provider == "manual":
         try:
             meta = json.loads(show_id) if isinstance(show_id, str) else show_id
         except Exception:
             meta = {"title": show_id or "Manuelle Serie", "plot": "", "year": ""}
-        
+
         nfo_path = os.path.join(target_folder, "tvshow.nfo")
         if os.path.exists(nfo_path):
             return {"nfo": False, "poster": False, "fanart": False, "msg": "tvshow.nfo existiert bereits"}
@@ -1404,7 +1450,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
             if "title" in nfo_overrides: title = nfo_overrides["title"]
             if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
             if "year" in nfo_overrides: year = nfo_overrides["year"]
-        
+
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
         xml += f"  <title>{escape_xml(title)}</title>\n"
@@ -1417,7 +1463,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
         return {"nfo": True, "poster": False, "fanart": False, "msg": "Manuelle tvshow.nfo erstellt"}
-        
+
     if provider == "mediathek":
         nfo_path = os.path.join(target_folder, "tvshow.nfo")
         if os.path.exists(nfo_path):
@@ -1429,7 +1475,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
             if "title" in nfo_overrides: title = nfo_overrides["title"]
             if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
             if "year" in nfo_overrides: year = nfo_overrides["year"]
-            
+
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
         xml += f"  <title>{escape_xml(title)}</title>\n"
@@ -1443,7 +1489,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
         return {"nfo": True, "poster": False, "fanart": False, "msg": "Mediathek tvshow.nfo erstellt"}
-        
+
     if provider == "ytdlp":
         nfo_path = os.path.join(target_folder, "tvshow.nfo")
         if os.path.exists(nfo_path):
@@ -1459,7 +1505,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
             if "title" in nfo_overrides: title = nfo_overrides["title"]
             if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
             if "year" in nfo_overrides: year = nfo_overrides["year"]
-            
+
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
         xml += f"  <title>{escape_xml(title)}</title>\n"
@@ -1473,35 +1519,35 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
         return {"nfo": True, "poster": False, "fanart": False, "msg": "ytdlp tvshow.nfo erstellt"}
-        
+
     if provider not in ["tmdb_tv", "tmdb_tv_en", "tvdb"]:
         return {"nfo": False, "poster": False, "fanart": False, "msg": f"Skipped for {provider}"}
-        
+
     nfo_path = os.path.join(target_folder, "tvshow.nfo")
-    
+
     settings = load_settings()
     server_type = settings.get("media_server", "emby")
     validator = artwork_validators.get_validator(server_type)
-    
+
     poster_filename = validator.get_preferred_series_poster_name()
     fanart_filename = validator.get_preferred_series_backdrop_name()
     logo_filename = validator.get_preferred_series_logo_name()
     banner_filename = validator.get_preferred_series_banner_name()
-    
+
     poster_path = os.path.join(target_folder, poster_filename)
     fanart_path = os.path.join(target_folder, fanart_filename)
     logo_path = os.path.join(target_folder, logo_filename)
     banner_path = os.path.join(target_folder, banner_filename)
-    
+
     needs_nfo = not os.path.exists(nfo_path)
     needs_poster = not os.path.exists(poster_path)
     needs_fanart = not os.path.exists(fanart_path)
     needs_logo = validator.supports_logos and not os.path.exists(logo_path)
     needs_banner = validator.supports_banners and not os.path.exists(banner_path)
-    
+
     if not (needs_nfo or needs_poster or needs_fanart or needs_logo or needs_banner):
         return {"nfo": False, "poster": False, "fanart": False, "logo": False, "banner": False, "msg": "existiert"}
-        
+
     if provider == "tvdb":
         token = get_tvdb_token()
         url = f"https://api4.thetvdb.com/v4/series/{show_id}/extended?meta=translations"
@@ -1511,7 +1557,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
                 data = json.loads(response.read().decode()).get('data', {})
         except Exception as e:
             return {"error": str(e)}
-            
+
         if needs_nfo:
             title = data.get('name', '')
             original_title = title
@@ -1526,20 +1572,20 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
                     if t.get('language') == 'deu':
                         plot = t.get('overview', plot)
                         break
-                        
+
             fsk = ""
             for cr in data.get('contentRatings', []):
                 if cr.get('country') == 'deu':
                     fsk = cr.get('name', '').replace('+', '')
                     break
-                        
+
             year = data.get('firstAired', '')[:4] if data.get('firstAired') else ''
-            
+
             if nfo_overrides:
                 if "title" in nfo_overrides: title = nfo_overrides["title"]
                 if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
                 if "year" in nfo_overrides: year = nfo_overrides["year"]
-                
+
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
             xml += f"  <title>{escape_xml(title)}</title>\n"
@@ -1571,10 +1617,10 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
             xml += '</tvshow>\n'
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
-                
+
         if needs_poster or needs_fanart or needs_logo or needs_banner:
             artworks = data.get('artworks', [])
-            
+
             def find_best_tvdb_art(art_type):
                 candidates = [a for a in artworks if a.get('type') == art_type]
                 if not candidates:
@@ -1598,7 +1644,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
                         needs_poster = False
                     except Exception as e:
                         print(f"Warning: TVDB poster download failed: {e}")
-                        
+
             if needs_fanart:
                 f_url = find_best_tvdb_art(3)
                 if f_url:
@@ -1607,7 +1653,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
                         needs_fanart = False
                     except Exception as e:
                         print(f"Warning: TVDB fanart download failed: {e}")
-                        
+
             if needs_logo:
                 l_url = find_best_tvdb_art(23)
                 if l_url:
@@ -1616,7 +1662,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
                         needs_logo = False
                     except Exception as e:
                         print(f"Warning: TVDB logo download failed: {e}")
-                        
+
             if needs_banner:
                 b_url = find_best_tvdb_art(1)
                 if b_url:
@@ -1625,7 +1671,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
                         needs_banner = False
                     except Exception as e:
                         print(f"Warning: TVDB banner download failed: {e}")
-                        
+
         return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart, "logo": not needs_logo, "banner": not needs_banner}
 
     lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
@@ -1636,22 +1682,22 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
             data = json.loads(response.read().decode())
     except Exception as e:
         return {"error": str(e)}
-        
+
     if needs_nfo:
         fsk = ""
         for r in data.get('content_ratings', {}).get('results', []):
             if r.get('iso_3166_1') == 'DE':
                 fsk = r.get('rating')
                 break
-                
+
         year = data.get('first_air_date', '')[:4] if data.get('first_air_date') else ''
         plot = data.get('overview', '')
-        
+
         if nfo_overrides:
             if "title" in nfo_overrides: data['name'] = nfo_overrides["title"]
             if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
             if "year" in nfo_overrides: year = nfo_overrides["year"]
-            
+
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
         xml += f"  <title>{escape_xml(data.get('name', ''))}</title>\n"
@@ -1682,24 +1728,24 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         xml += '</tvshow>\n'
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
-            
+
     if (needs_poster or needs_fanart or needs_logo or needs_banner) and str(show_id).isdigit():
         images = fetch_tmdb_images("tv", show_id)
-        
+
         if needs_poster and images.get('poster'):
             try:
                 _download_with_timeout(images['poster'], poster_path)
                 needs_poster = False
             except Exception:
                 pass
-                
+
         if needs_fanart and images.get('backdrop'):
             try:
                 _download_with_timeout(images['backdrop'], fanart_path)
                 needs_fanart = False
             except Exception:
                 pass
-                
+
         if needs_logo and images.get('logo'):
             try:
                 _download_with_timeout(images['logo'], logo_path)
@@ -1721,20 +1767,20 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
             needs_fanart = False
         except Exception:
             pass
-            
+
     return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart, "logo": not needs_logo, "banner": not needs_banner}
 
 def generate_episode_nfo(provider, show_id, season, episode, target_folder, filename_base, force_season=None, force_episode=None, nfo_overrides=None):
     import os
     nfo_path = os.path.join(target_folder, f"{filename_base}.nfo")
     thumb_path = os.path.join(target_folder, f"{filename_base}-thumb.jpg")
-    
+
     needs_nfo = not os.path.exists(nfo_path)
     needs_thumb = not os.path.exists(thumb_path)
-    
+
     nfo_season = force_season if force_season is not None else season
     nfo_episode = force_episode if force_episode is not None else episode
-    
+
     if provider == "manual":
         ep_title = ""
         ep_num = episode
@@ -1744,15 +1790,15 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             ep_title = episode.get("title", "")
             ep_num = episode.get("episode", 1)
             ep_plot = episode.get("plot", "")
-            
+
         if force_episode is not None:
             ep_num = force_episode
-            
+
         if nfo_overrides:
             if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
             if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
             if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
-            
+
         if needs_nfo:
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
@@ -1767,7 +1813,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
         return {"nfo": needs_nfo, "thumb": False}
-        
+
     if provider == "mediathek":
         if needs_nfo:
             eps = fetch_mediathek_episodes(show_id)
@@ -1779,7 +1825,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                 if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
                 if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
                 if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
-                
+
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
             xml += f"  <title>{escape_xml(ep_title)}</title>\n"
@@ -1793,7 +1839,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
         return {"nfo": needs_nfo, "thumb": False}
-        
+
     if provider == "ytdlp":
         downloaded_thumb = False
         if needs_nfo or needs_thumb:
@@ -1827,12 +1873,12 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                     if matched_entry.get("upload_date") and len(matched_entry.get("upload_date")) == 8:
                         d = matched_entry.get("upload_date")
                         ep_aired = f"{d[:4]}-{d[4:6]}-{d[6:8]}"
-            
+
             if nfo_overrides:
                 if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
                 if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
                 if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
-                
+
             if needs_nfo:
                 xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
@@ -1846,14 +1892,14 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                 xml += '</episodedetails>\n'
                 with open(nfo_path, 'w', encoding='utf-8') as f:
                     f.write(xml)
-            
+
             if thumbnail_url and needs_thumb:
                 try:
                     _download_with_timeout(thumbnail_url, thumb_path)
                     downloaded_thumb = True
                 except Exception as e:
                     print(f"[ytdlp episode thumb error] {e}")
-                    
+
         return {"nfo": needs_nfo, "thumb": downloaded_thumb}
 
     if not (needs_nfo or needs_thumb):
@@ -1862,18 +1908,18 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
     if provider == "tvdb":
         token = get_tvdb_token()
         ep_data = {}
-        
+
         # Caching logic
         import tempfile
         cache_file = os.path.join(tempfile.gettempdir(), f"tvdb_{show_id}_deu.json")
         all_episodes = []
-        
+
         if os.path.exists(cache_file):
             try:
                 with open(cache_file, 'r', encoding='utf-8') as f:
                     all_episodes = json.load(f)
             except Exception as e: print(f"Warning: Ignored exception {e}")
-            
+
         def _tvdb_load_episodes(sid, lang_code, cache_path):
             eps = []
             if os.path.exists(cache_path):
@@ -1922,7 +1968,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                         if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
                         if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
                         if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
-                        
+
                     xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                     xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
                     xml += f"  <title>{escape_xml(ep_title)}</title>\n"
@@ -1961,7 +2007,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
             if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
             if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
-            
+
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
             xml += f"  <title>{escape_xml(ep_title)}</title>\n"
@@ -1974,13 +2020,13 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             xml += '</episodedetails>\n'
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
-                
+
         if needs_thumb and ep_data.get('image'):
             try: _download_with_timeout(ep_data.get('image'), thumb_path); needs_thumb = False
             except Exception as e: print(f"Warning: Ignored exception {e}")
-            
+
         return {"nfo": needs_nfo, "thumb": not needs_thumb}
-        
+
     lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
     url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season}/episode/{episode}?api_key={TMDB_API_KEY}&language={lang}"
     try:
@@ -1997,7 +2043,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                     if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
                     if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
                     if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
-                    
+
                 xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
                 xml += f"  <title>{escape_xml(ep_title)}</title>\n"
@@ -2013,7 +2059,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             except Exception as write_err:
                 return {"error": f"Original: {str(e)}, Schreibfehler Fallback: {str(write_err)}"}
         return {"error": str(e)}
-        
+
     if needs_nfo:
         ep_title = data.get('name', '')
         ep_plot = data.get('overview', '')
@@ -2022,7 +2068,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
             if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
             if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
-            
+
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
         xml += f"  <title>{escape_xml(ep_title)}</title>\n"
@@ -2035,33 +2081,33 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
         xml += '</episodedetails>\n'
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
-            
+
     if needs_thumb and data.get('still_path'):
         try:
             t_url = f"https://image.tmdb.org/t/p/original{data['still_path']}"
             _download_with_timeout(t_url, thumb_path)
         except Exception:
             needs_thumb = False
-            
+
     return {"nfo": needs_nfo, "thumb": needs_thumb}
 
 def generate_youtube_nfo(json_path, nfo_path, nfo_type):
     import os
     if not os.path.exists(json_path):
         return {"nfo": False, "msg": "JSON not found"}
-        
+
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
     except Exception as e:
         return {"error": str(e)}
-        
+
     title = escape_xml(data.get('title', ''))
     plot = escape_xml(data.get('description', ''))
     year = data.get('upload_date', '')[:4] if data.get('upload_date') else ''
     premiered = f"{year}-{data['upload_date'][4:6]}-{data['upload_date'][6:8]}" if len(data.get('upload_date', '')) == 8 else ''
     channel = escape_xml(data.get('uploader', ''))
-    
+
     xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
     if nfo_type == "movie":
         xml += '<movie>\n  <lockdata>true</lockdata>\n'
@@ -2079,10 +2125,10 @@ def generate_youtube_nfo(json_path, nfo_path, nfo_type):
         xml += f"  <aired>{premiered}</aired>\n"
         xml += f"  <studio>{channel}</studio>\n"
         xml += '</episodedetails>\n'
-        
+
     with open(nfo_path, 'w', encoding='utf-8') as f:
         f.write(xml)
-        
+
     return {"nfo": True}
 
 def guess_season(provider, show_id, filenames_json_or_list):
@@ -2119,19 +2165,19 @@ def guess_season(provider, show_id, filenames_json_or_list):
                 seasons = [str(s['number']) for s in data if s.get('number', 0) > 0]
     except Exception:
         pass
-        
+
     if not seasons: return None
-    
+
     best_season = ""
     best_season_score = 0.0
-    
+
     import re
     def get_words(text):
         words = set(re.findall(r'\w+', text.lower()))
         return {w for w in words if w not in ['der', 'die', 'das', 'in', 'im', 'teil', 'part', 'von', 'und', 'folge', 'episode']}
-        
+
     file_word_sets = [get_words(f) for f in filenames]
-    
+
     for season in reversed(seasons):
         if provider in ["tmdb_tv", "tmdb_tv_en", "tmdb"]:
             episodes = fetch_tmdb_tv(show_id, season, lang="de-DE")
@@ -2141,10 +2187,10 @@ def guess_season(provider, show_id, filenames_json_or_list):
             episodes = fetch_tvmaze(show_id, season)
         else:
             episodes = {}
-            
+
         season_score = 0.0
         matches = 0
-        
+
         for file_words in file_word_sets:
             best_ep_score = 0.0
             for ep_num, ep_data in episodes.items():
@@ -2158,15 +2204,15 @@ def guess_season(provider, show_id, filenames_json_or_list):
             if best_ep_score > 0.4:
                 season_score += best_ep_score
                 matches += 1
-                
+
         if matches > 0 and season_score > best_season_score:
             best_season_score = season_score
             best_season = season
-            
+
         # Fast exit if we found matches for almost all files (at least half)
         if matches >= max(1, len(filenames) * 0.5):
             break
-            
+
     if best_season:
         return best_season
     return None
@@ -2178,10 +2224,10 @@ def clean_search_query(query):
     # If it is a direct ID (IMDB ID or TMDB ID) or digits, don't clean it
     if q.startswith("tt") or q.startswith("tmdb:") or q.isdigit():
         return q
-        
+
     # Remove video file extensions first
     q = re.sub(r"\.(mkv|mp4|avi|webm|mov|m4v|3gp|flv)$", "", q, flags=re.IGNORECASE)
-    
+
     # Clean prefix duplication: e.g. "Tom-Taxi.Taxi..." or "Tom-Taxi_Taxi..."
     temp_q = q.replace("_", ".").replace(" ", ".")
     if "." in temp_q:
@@ -2194,35 +2240,35 @@ def clean_search_query(query):
                 if prefix_len <= 10 or any(c in first_part for c in ('-', '_', ' ')):
                     pattern = r"^" + re.escape(first_part) + r"[\._\s-]+"
                     q = re.sub(pattern, "", q, flags=re.IGNORECASE)
-    
+
     # Check if the query looks like a raw release name containing common noise patterns.
     # We do this to distinguish release names from clean hyphenated titles like "He-Man".
     has_release_noise = bool(re.search(
-        r"\b(19\d{2}|20\d{2}|1080p|720p|2160p|4k|uhd|x264|x265|h264|h265|hevc|bluray|web-dl|webdl|webrip|web|hdtv|german|deutsch|dl|multi|S\d+(E\d+)?)\b", 
-        q, 
+        r"\b(19\d{2}|20\d{2}|1080p|720p|2160p|4k|uhd|x264|x265|h264|h265|hevc|bluray|web-dl|webdl|webrip|web|hdtv|german|deutsch|dl|multi|S\d+(E\d+)?)\b",
+        q,
         re.IGNORECASE
     ))
-    
+
     # Remove release tags at the end like "-GRP" or "-TvR" BEFORE replacing dashes,
     # but only if the query has release noise or the hyphen is preceded by a space, dot, underscore, or digit.
     if has_release_noise:
         q = re.sub(r"[\s\._-]\s*(?!\d{4}$)[a-zA-Z0-9]+$", "", q)
     elif re.search(r"[\s\._\d]-\s*[a-zA-Z0-9]+$", q):
         q = re.sub(r"-\s*[a-zA-Z0-9]+$", "", q)
-    
+
     # Remove lowercase short prefixes followed by a hyphen (e.g., "sh-") at the start,
     # but avoid stripping capitalized names like "He-Man" or "X-Men".
     q = re.sub(r"^[a-z]{2,3}-(?=[A-Z0-9])", "", q)
-    
+
     # Replace dots, underscores, dashes with spaces
     q = re.sub(r"[\._-]", " ", q)
-    
+
     # Extract and remove 4-digit years (e.g. 2011) to avoid confusing search APIs
     year_match = re.search(r"\b(19\d{2}|20\d{2})\b", q)
     if year_match:
         year = year_match.group(1)
         q = q.replace(year, " ")
-        
+
     # Noise terms commonly found in release filenames (resolutions, codecs, language, audio, groups)
     noise_patterns = [
         r"\bS\d+(E\d+)?\b",  # S01, S01E01
@@ -2236,10 +2282,10 @@ def clean_search_query(query):
         r"\b(directors?\s*cut|extended\s*cut|theatrical\s*cut|final\s*cut)\b",
         r"\b(extended|directors?|theatrical|remastered|limited|special|edition|imax|hdr(10)?(\+)?|sdr|dv|dovi|dolby\s*vision|10\s*bit|8\s*bit|10bit|8bit)\b",
     ]
-    
+
     for pat in noise_patterns:
         q = re.sub(pat, " ", q, flags=re.IGNORECASE)
-        
+
     # Clean up double/multiple spaces and brackets
     q = re.sub(r"\(\s*\)", " ", q)
     q = re.sub(r"\[\s*\]", " ", q)
@@ -2249,26 +2295,26 @@ def clean_search_query(query):
 def calculate_match_score(query, result_name):
     if not query or not result_name:
         return 0.0
-        
+
     # Extract year from query
     q_year_match = re.search(r"\b(19\d{2}|20\d{2})\b", query)
     q_year = q_year_match.group(1) if q_year_match else None
-    
+
     # Clean query (remove year for title matching)
     clean_q = query
     if q_year:
         clean_q = clean_q.replace(q_year, "")
     clean_q = clean_search_query(clean_q)
-    
+
     # Extract year from result_name
     res_year_match = re.search(r"\((\d{4})\)", result_name)
     res_year = res_year_match.group(1) if res_year_match else None
-    
+
     # Clean result name (remove year in parentheses and provider brackets)
     clean_res = re.sub(r"\[.*\]", "", result_name)
     clean_res = re.sub(r"\(\d{4}\)", "", clean_res)
     clean_res = clean_search_query(clean_res)
-    
+
     # Normalize German umlauts to make comparison robust
     def normalize_umlauts(s):
         if not s: return ""
@@ -2278,11 +2324,11 @@ def calculate_match_score(query, result_name):
 
     clean_q_norm = normalize_umlauts(clean_q)
     clean_res_norm = normalize_umlauts(clean_res)
-    
+
     # Compute words
     q_words = set(re.findall(r"\w+", clean_q_norm))
     res_words = set(re.findall(r"\w+", clean_res_norm))
-    
+
     if not q_words or not res_words:
         score = 0.0
     else:
@@ -2290,7 +2336,7 @@ def calculate_match_score(query, result_name):
         intersection = q_words.intersection(res_words)
         union = q_words.union(res_words)
         score = len(intersection) / len(union)
-        
+
         # Word set exact matching bonus
         q_sorted = " ".join(sorted(q_words))
         res_sorted = " ".join(sorted(res_words))
@@ -2298,14 +2344,14 @@ def calculate_match_score(query, result_name):
             score += 0.5
         elif clean_q_norm in clean_res_norm or clean_res_norm in clean_q_norm:
             score += 0.2
-            
+
     # Year compatibility score
     if q_year and res_year:
         if q_year == res_year:
             score += 0.3
         else:
             score -= 1.5  # Heavy penalty for mismatch
-            
+
     return max(0.0, score)
 
 
@@ -2326,7 +2372,7 @@ def search_mediathek(query):
         "offset": 0,
         "size": 50
     }
-    
+
     req = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
@@ -2336,7 +2382,7 @@ def search_mediathek(query):
         },
         method="POST"
     )
-    
+
     try:
         with urllib.request.urlopen(req, timeout=10) as response:
             res_data = json.loads(response.read().decode("utf-8"))
@@ -2380,7 +2426,7 @@ def fetch_mediathek_episodes(topic):
         "offset": 0,
         "size": 100
     }
-    
+
     req = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
@@ -2390,13 +2436,13 @@ def fetch_mediathek_episodes(topic):
         },
         method="POST"
     )
-    
+
     try:
         with urllib.request.urlopen(req, timeout=10) as response:
             res_data = json.loads(response.read().decode("utf-8"))
             episodes = {}
             results = res_data.get("result", {}).get("results", [])
-            
+
             if not results:
                 payload["queries"][0]["exact"] = False
                 req = urllib.request.Request(
@@ -2411,7 +2457,7 @@ def fetch_mediathek_episodes(topic):
                 with urllib.request.urlopen(req, timeout=10) as fallback_response:
                     res_data = json.loads(fallback_response.read().decode("utf-8"))
                     results = res_data.get("result", {}).get("results", [])
-            
+
             for idx, item in enumerate(results):
                 title = item.get("title") or f"Folge {idx+1}"
                 date_str = ""
@@ -2422,7 +2468,7 @@ def fetch_mediathek_episodes(topic):
                         date_str = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
                     except Exception:
                         pass
-                
+
                 ep_num = str(idx + 1)
                 episodes[ep_num] = {
                     "title": title.replace('/', '-').replace(':', '').strip(),
@@ -2439,10 +2485,10 @@ YTDLP_CACHE = {}
 def fetch_ytdlp_url_metadata(url):
     if url in YTDLP_CACHE:
         return YTDLP_CACHE[url]
-        
+
     import subprocess
     import json
-    
+
     cmd = [
         "yt-dlp",
         "--flat-playlist",
@@ -2450,11 +2496,11 @@ def fetch_ytdlp_url_metadata(url):
         "--cookies-from-browser", "chrome",
         url
     ]
-    
+
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         stdout, stderr = proc.communicate(timeout=30)
-        
+
         entries = []
         for line in stdout.splitlines():
             line = line.strip()
@@ -2463,7 +2509,7 @@ def fetch_ytdlp_url_metadata(url):
                     entries.append(json.loads(line))
                 except Exception:
                     pass
-                    
+
         if not entries:
             cmd_no_cookies = ["yt-dlp", "--flat-playlist", "--dump-json", url]
             proc = subprocess.Popen(cmd_no_cookies, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -2475,7 +2521,7 @@ def fetch_ytdlp_url_metadata(url):
                         entries.append(json.loads(line))
                     except Exception:
                         pass
-                        
+
         if len(YTDLP_CACHE) >= 100:
             first_key = next(iter(YTDLP_CACHE))
             YTDLP_CACHE.pop(first_key, None)
@@ -2489,9 +2535,9 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("{}")
         sys.exit(1)
-        
+
     action = sys.argv[1]
-    
+
     if action == "search_tvmaze":
         query = sys.argv[2]
         res = search_tvmaze(query)
