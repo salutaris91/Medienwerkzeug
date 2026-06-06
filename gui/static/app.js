@@ -7191,10 +7191,15 @@ function initEventListeners() {
     // Modal-Tool-Runner Events
     document.getElementById("btn-browse-tool-modal-path")?.addEventListener("click", async () => {
         try {
-            const response = await fetch("/api/browse-folder");
+            const inputEl = document.getElementById("tool-modal-target-path");
+            let qs = "";
+            if (inputEl && inputEl.value) {
+                qs = "?default_path=" + encodeURIComponent(inputEl.value);
+            }
+            const response = await fetch("/api/browse-folder" + qs);
             const data = await response.json();
             if (data.status === "ok" && data.path) {
-                document.getElementById("tool-modal-target-path").value = data.path;
+                inputEl.value = data.path;
             }
         } catch (e) {
             console.error("Fehler beim Browsen im Modal:", e);
@@ -7279,21 +7284,22 @@ function initEventListeners() {
         } else if (toolType === "tool_clean") {
             runToolClean(path);
         } else if (toolType === "tool_manual_sync") {
-            if(!currentSettings.sync_categories || currentSettings.sync_categories.length === 0) {
-                alert("Bitte lege zuerst Sync-Kategorien in den Einstellungen an."); return;
+            const catId = document.getElementById("tool-modal-sync-category")?.value;
+            const category = currentSettings.sync_categories?.find(c => String(c.id) === String(catId));
+            if(!category) {
+                alert("Bitte wähle eine gültige Kategorie."); return;
             }
-            const promptText = "Wohin soll der Ordner auf dem NAS kopiert werden?\n\n" +
-                               currentSettings.sync_categories.map(c => `${c.id} = ${c.name}`).join("\n") +
-                               "\n\nZiel wählen:";
-            const dest = prompt(promptText, currentSettings.sync_categories[0].id);
+            
+            const copyToTargets = {};
+            if (currentSettings.storage_targets) {
+                currentSettings.storage_targets.forEach(t => {
+                    const cb = document.getElementById(`tool-sync-target-${t.id}`);
+                    if (cb) {
+                        copyToTargets[`copy_to_${t.id}`] = cb.checked;
+                    }
+                });
+            }
 
-            const category = currentSettings.sync_categories.find(c => String(c.id) === String(dest));
-            if(!category) return;
-
-            const nasRoot = currentSettings.nas_root || "";
-            const destPath = nasRoot ? `${nasRoot}${category.nas_sub}` : category.nas_sub;
-
-            const doPcloud = confirm("Soll das Projekt zusätzlich auch in die pCloud hochgeladen werden?");
             expandConsole();
             appendConsoleLog("[System]: Starte NAS Sync...");
             try {
@@ -7303,8 +7309,8 @@ function initEventListeners() {
                     body: JSON.stringify({
                         media_type: "tool_manual_sync",
                         project_name: path,
-                        destination: destPath,
-                        copy_to_pcloud: doPcloud
+                        category_id: catId,
+                        ...copyToTargets
                     })
                 });
                 if (res.ok) connectLogStream();
@@ -8802,10 +8808,14 @@ document.addEventListener("DOMContentLoaded", () => {
             btn.addEventListener("click", async (e) => {
                 e.preventDefault();
                 try {
-                    const response = await fetch("/api/browse-folder");
+                    const inputEl = document.getElementById(inputId);
+                    let qs = "";
+                    if (inputEl && inputEl.value) {
+                        qs = "?default_path=" + encodeURIComponent(inputEl.value);
+                    }
+                    const response = await fetch("/api/browse-folder" + qs);
                     const data = await response.json();
                     if (data.path || data.folder) {
-                        const inputEl = document.getElementById(inputId);
                         if (inputEl) {
                             inputEl.value = data.path || data.folder;
                             inputEl.dispatchEvent(new Event("change", { bubbles: true }));
@@ -9363,7 +9373,11 @@ function initQueue() {
         clearBtn.addEventListener("click", async () => {
             if (confirm("Möchtest du die Warteschlange wirklich leeren? (Laufende Aufgaben werden nicht abgebrochen)")) {
                 try {
-                    const res = await fetch("/api/queue/clear", { method: "POST" });
+                    const res = await fetch("/api/queue/clear", { 
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({})
+                    });
                     if (res.ok) {
                         pollQueue();
                     }
@@ -12041,6 +12055,53 @@ function openToolRunnerModal(toolType, title, desc, hasQualitySlider = false) {
             if (slider && valText) {
                 slider.addEventListener("input", () => {
                     valText.textContent = slider.value;
+                });
+            }
+        } else if (toolType === "tool_manual_sync") {
+            extraOpt.innerHTML = `
+                <div class="form-group" style="margin-top: 15px;">
+                    <label style="font-weight: 500;">Kategorie wählen:</label>
+                    <select id="tool-modal-sync-category" class="form-select inline-style-40"></select>
+                </div>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label style="font-weight: 500;">Speicherziele aktivieren:</label>
+                    <div id="tool-modal-sync-targets" style="display: flex; flex-direction: column; gap: 8px; margin-top: 5px;"></div>
+                </div>
+            `;
+            extraOpt.style.display = "block";
+            
+            const catSelect = document.getElementById("tool-modal-sync-category");
+            if (currentSettings && currentSettings.sync_categories) {
+                currentSettings.sync_categories.forEach(c => {
+                    const opt = document.createElement("option");
+                    opt.value = c.id;
+                    opt.textContent = c.name;
+                    catSelect.appendChild(opt);
+                });
+            }
+            
+            const targetsDiv = document.getElementById("tool-modal-sync-targets");
+            if (currentSettings && currentSettings.storage_targets) {
+                currentSettings.storage_targets.forEach(t => {
+                    if (t.enabled === false) return;
+                    
+                    const label = document.createElement("label");
+                    label.className = "checkbox-container";
+                    
+                    const input = document.createElement("input");
+                    input.type = "checkbox";
+                    input.id = `tool-sync-target-${t.id}`;
+                    input.value = t.id;
+                    input.checked = true;
+                    
+                    const span = document.createElement("span");
+                    span.className = "checkmark";
+                    
+                    label.appendChild(input);
+                    label.appendChild(span);
+                    label.appendChild(document.createTextNode(" " + (t.name || t.id)));
+                    
+                    targetsDiv.appendChild(label);
                 });
             }
         } else {

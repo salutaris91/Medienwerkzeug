@@ -83,6 +83,14 @@ class TestEndpoints(unittest.TestCase):
         
         res = self._post("/api/queue-clear", json={"job_id": "all"})
         self.assertEqual(res.status_code, 200)
+        
+        # Test without body/content-type to ensure it's robust (silent=True)
+        headers = {}
+        if self.csrf_token:
+            headers["X-CSRF-Token"] = self.csrf_token
+        res_no_body = self.client.post("/api/queue-clear", headers=headers)
+        self.assertEqual(res_no_body.status_code, 200)
+        self.assertEqual(mock_clear.call_count, 2)
 
     @patch("gui.core.jobs.get_all_jobs", return_value=[{"id": "legacy-job", "status": "queued"}])
     def test_queue_endpoint_handles_incomplete_legacy_jobs(self, mock_get):

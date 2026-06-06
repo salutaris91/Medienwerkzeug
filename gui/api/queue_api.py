@@ -619,7 +619,7 @@ def handle_api_queue():
 @queue_api.route('/queue/clear', methods=['POST'])
 def handle_api_queue_clear():
     try:
-        params = request.get_json() or {}
+        params = request.get_json(silent=True) or {}
     except Exception:
         params = {}
     from gui.core.jobs import clear_finished_jobs
