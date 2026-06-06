@@ -489,3 +489,60 @@ def open_folder_in_finder(path):
     else:
         subprocess.run(["xdg-open", abs_path])
 
+
+def parse_subtitle_suffix(original_name):
+    """
+    Parses language codes (de, en, fr, es, it, nl, pt, ru, sv, tr, pl)
+    and the 'forced' indicator from the original subtitle filename.
+    Returns a combined suffix like '.de.forced', '.en', '.forced', or '' (empty string).
+    """
+    if not original_name:
+        return ""
+    
+    base_name = os.path.splitext(os.path.basename(original_name))[0].lower()
+    # Tokenize by replacing any non-alphanumeric chars with spaces and splitting
+    tokens = re.split(r'[^a-zA-Z0-9]', base_name)
+    
+    # Mapping of common language tags to ISO 2-letter codes
+    langs = {
+        'de': 'de', 'deu': 'de', 'ger': 'de', 'deutsch': 'de', 'german': 'de',
+        'en': 'en', 'eng': 'en', 'english': 'en',
+        'fr': 'fr', 'fre': 'fr', 'fra': 'fr', 'french': 'fr',
+        'es': 'es', 'spa': 'es', 'spanish': 'es',
+        'it': 'it', 'ita': 'it', 'italian': 'it',
+        'nl': 'nl', 'nld': 'nl', 'dut': 'nl', 'dutch': 'nl',
+        'pt': 'pt', 'por': 'pt', 'portuguese': 'pt',
+        'ru': 'ru', 'rus': 'ru', 'russian': 'ru',
+        'sv': 'sv', 'swe': 'sv', 'swedish': 'sv',
+        'tr': 'tr', 'tur': 'tr', 'turkish': 'tr',
+        'pl': 'pl', 'pol': 'pl', 'polish': 'pl',
+    }
+    
+    found_lang = None
+    is_forced = False
+    
+    for token in tokens:
+        if token in langs:
+            found_lang = langs[token]
+        if token == 'forced':
+            is_forced = True
+            
+    # Substring fallback if not matched as exact tokens
+    if not found_lang:
+        for term, code in langs.items():
+            if len(term) >= 3 and term in base_name:
+                found_lang = code
+                break
+                
+    if 'forced' in base_name:
+        is_forced = True
+        
+    suffix = ""
+    if found_lang:
+        suffix += f".{found_lang}"
+    if is_forced:
+        suffix += ".forced"
+        
+    return suffix
+
+
