@@ -145,9 +145,9 @@ def check_nas_connection_details():
                 "status": "connected",
                 "enabled": nas_enabled,
                 "has_root": has_root,
-                "checked_ips": checked_ips,
+                "checked_ips": [],
                 "reachable_ip": None,
-                "ip_details": ip_details,
+                "ip_details": [],
                 "error_message": None
             }
         else:
@@ -155,9 +155,9 @@ def check_nas_connection_details():
                 "status": "offline",
                 "enabled": nas_enabled,
                 "has_root": has_root,
-                "checked_ips": checked_ips,
+                "checked_ips": [],
                 "reachable_ip": None,
-                "ip_details": ip_details,
+                "ip_details": [],
                 "error_message": f"Docker-Volume nicht im Container verfügbar (nas_root Pfad '{nas_root}' existiert nicht). Bitte das Volume-Mapping in docker-compose.yml prüfen."
             }
 

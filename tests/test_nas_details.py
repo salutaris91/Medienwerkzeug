@@ -179,6 +179,8 @@ class TestNasDetails(unittest.TestCase):
         self.assertTrue(details["enabled"])
         self.assertTrue(details["has_root"])
         self.assertIsNone(details["reachable_ip"])
+        self.assertEqual(details["checked_ips"], [])
+        self.assertEqual(details["ip_details"], [])
         self.assertIsNone(details["error_message"])
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
@@ -190,6 +192,8 @@ class TestNasDetails(unittest.TestCase):
         self.assertTrue(details["enabled"])
         self.assertTrue(details["has_root"])
         self.assertIsNone(details["reachable_ip"])
+        self.assertEqual(details["checked_ips"], [])
+        self.assertEqual(details["ip_details"], [])
         self.assertIn("Docker-Volume nicht im Container verfügbar", details["error_message"])
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
