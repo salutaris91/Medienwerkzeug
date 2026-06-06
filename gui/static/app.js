@@ -7799,11 +7799,13 @@ async function loadSettings() {
                     const tmdbInput = document.getElementById("settings-tmdb-key");
                     if (tmdbInput) {
                         tmdbInput.value = "";
+                        tmdbInput.dataset.original = "";
                         tmdbInput.placeholder = "Nicht konfiguriert (Fehler beim Laden)";
                     }
                     const tvdbInput = document.getElementById("settings-tvdb-key");
                     if (tvdbInput) {
                         tvdbInput.value = "";
+                        tvdbInput.dataset.original = "";
                         tvdbInput.placeholder = "Nicht konfiguriert (Fehler beim Laden)";
                     }
                 });
@@ -8550,7 +8552,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     const tmdbInput = document.getElementById("settings-tmdb-key");
                     const tvdbInput = document.getElementById("settings-tvdb-key");
                     const keyPayload = {};
-                    
+
                     if (tmdbInput) {
                         const val = tmdbInput.value.trim();
                         const orig = tmdbInput.dataset.original || "";
@@ -8565,20 +8567,29 @@ document.addEventListener("DOMContentLoaded", () => {
                             keyPayload.TVDB_API_KEY = val;
                         }
                     }
-                    
+
+                    let keysSavedSuccessfully = true;
                     if (Object.keys(keyPayload).length > 0) {
                         try {
-                            await fetch('/api/keys', {
+                            const keysRes = await fetch('/api/keys', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(keyPayload)
                             });
+                            if (!keysRes.ok) {
+                                keysSavedSuccessfully = false;
+                            }
                         } catch (ek) {
                             console.error("Error saving keys:", ek);
+                            keysSavedSuccessfully = false;
                         }
                     }
-                    
-                    alert("Einstellungen erfolgreich gespeichert!");
+
+                    if (keysSavedSuccessfully) {
+                        alert("Einstellungen erfolgreich gespeichert!");
+                    } else {
+                        alert("Einstellungen gespeichert, aber Fehler beim Speichern der API-Keys.");
+                    }
                     loadSettings(); // Reload
                 } else {
                     alert("Fehler beim Speichern der Einstellungen.");
