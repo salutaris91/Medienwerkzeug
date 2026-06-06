@@ -65,32 +65,31 @@ def check_tmdb_auth_method():
     key = TMDB_API_KEY.strip()
     if not key:
         raise MetadataProviderUnavailable("TMDb API-Key ist nicht konfiguriert.", status_code=502)
-        
+
     import re
     if len(key) == 32 and re.match(r'^[0-9a-fA-F]{32}$', key):
         return 'v3', key
-        
+
     if len(key) > 50 and '.' in key:
         return 'v4', key
-        
     raise MetadataProviderUnavailable(
-        "Ungueltiges Format fuer den TMDb API-Key. Erwartet wird ein 32-stelliger v3 API-Key oder ein v4 Read Access Token (JWT).", 
+        "Ungueltiges Format fuer den TMDb API-Key. Erwartet wird ein 32-stelliger v3 API-Key oder ein v4 Read Access Token (JWT).",
         status_code=502
     )
 
 def make_tmdb_request(url, headers=None):
     import urllib.request
     import urllib.parse
-    
+
     if headers is None:
         headers = {'User-Agent': 'Mozilla/5.0'}
     else:
         headers = headers.copy()
         if 'User-Agent' not in headers:
             headers['User-Agent'] = 'Mozilla/5.0'
-            
+
     method, key = check_tmdb_auth_method()
-    
+
     if method == 'v4':
         parsed = urllib.parse.urlparse(url)
         params = urllib.parse.parse_qsl(parsed.query)
@@ -98,9 +97,9 @@ def make_tmdb_request(url, headers=None):
         new_query = urllib.parse.urlencode(new_params)
         parsed = parsed._replace(query=new_query)
         url = urllib.parse.urlunparse(parsed)
-        
+
         headers['Authorization'] = f'Bearer {key}'
-        
+
     return urllib.request.Request(url, headers=headers)
 
 def _handle_metadata_error(e, context=""):
@@ -1007,8 +1006,8 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
         return {"nfo": False, "poster": False, "fanart": False, "msg": "existiert"}
         
     url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}&language=de-DE&append_to_response=credits,release_dates"
-    req = make_tmdb_request(url)
     try:
+        req = make_tmdb_request(url)
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
     except Exception as e:
@@ -1631,8 +1630,8 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
 
     lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
     url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}&language={lang}&append_to_response=credits,content_ratings"
-    req = make_tmdb_request(url)
     try:
+        req = make_tmdb_request(url)
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
     except Exception as e:
@@ -1984,8 +1983,8 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
         
     lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
     url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season}/episode/{episode}?api_key={TMDB_API_KEY}&language={lang}"
-    req = make_tmdb_request(url)
     try:
+        req = make_tmdb_request(url)
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
     except Exception as e:
