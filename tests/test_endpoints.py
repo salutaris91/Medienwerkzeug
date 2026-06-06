@@ -176,6 +176,38 @@ class TestEndpoints(unittest.TestCase):
         self.assertIn("error", res.json)
         self.assertIn("TMDB offline", res.json["error"])
 
+    @patch('gui.mw_metadata.search_tmdb_tv')
+    @patch('gui.mw_metadata.search_tvdb')
+    @patch('gui.mw_metadata.search_tvmaze')
+    def test_search_resilience_tv_partial_failure(self, mock_tvmaze, mock_tvdb, mock_tmdb):
+        from gui.mw_metadata import MetadataProviderUnavailable
+        mock_tmdb.side_effect = MetadataProviderUnavailable("TMDB-TV offline", status_code=502)
+        mock_tvdb.side_effect = MetadataProviderUnavailable("TVDB offline", status_code=503)
+        mock_tvmaze.return_value = [{"id": "tvmaze_123", "name": "Test Show (2026)"}]
+        
+        res = self.client.get("/api/search?q=test&type=tv")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(len(data) >= 2)
+        providers = [item["provider"] for item in data]
+        self.assertIn("tvmaze", providers)
+        self.assertIn("mediathek", providers)
+
+    @patch('gui.mw_metadata.search_tmdb_tv')
+    @patch('gui.mw_metadata.search_tvdb')
+    @patch('gui.mw_metadata.search_tvmaze')
+    def test_search_resilience_tv_total_failure(self, mock_tvmaze, mock_tvdb, mock_tmdb):
+        from gui.mw_metadata import MetadataProviderUnavailable
+        mock_tmdb.side_effect = MetadataProviderUnavailable("TMDB-TV offline", status_code=502)
+        mock_tvdb.side_effect = MetadataProviderUnavailable("TVDB offline", status_code=503)
+        mock_tvmaze.return_value = []
+        
+        res = self.client.get("/api/search?q=test&type=tv")
+        self.assertIn(res.status_code, [502, 503])
+        self.assertIn("error", res.json)
+        self.assertTrue("offline" in res.json["error"])
+
+
 
     @patch('gui.api.nas_api.ensure_nas_mounted')
     def test_nas_seasons_offline(self, mock_ensure_mounted):
@@ -247,6 +279,20 @@ class TestEndpoints(unittest.TestCase):
             self.assertEqual(mock_makedirs.call_count, 2)
             self.assertEqual(mock_makedirs.call_args_list[0][0][0], "/readonly/invalid/path/profiles")
             self.assertEqual(mock_makedirs.call_args_list[1][0][0], os.path.join(self.temp_dir.name, "profiles"))
+
+    @patch('gui.mw_metadata.search_tmdb_tv')
+    @patch('gui.mw_metadata.search_tvdb')
+    @patch('gui.mw_metadata.search_tvmaze')
+    def test_search_tv_provider_unavailable(self, mock_tvmaze, mock_tvdb, mock_tmdb):
+        from gui.mw_metadata import MetadataProviderUnavailable
+        mock_tmdb.side_effect = MetadataProviderUnavailable("TMDb TV offline", status_code=502)
+        mock_tvdb.side_effect = MetadataProviderUnavailable("TVDb offline", status_code=503)
+        mock_tvmaze.return_value = []
+        
+        res = self.client.get("/api/search?q=test&type=tv")
+        self.assertEqual(res.status_code, 502)
+        self.assertIn("error", res.json)
+        self.assertIn("TMDb TV offline", res.json["error"])
 
 if __name__ == "__main__":
     unittest.main()

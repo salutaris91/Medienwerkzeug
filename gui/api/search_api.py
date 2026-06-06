@@ -522,7 +522,14 @@ def handle_api_search():
             has_real_results = len(results) > 0
             
     if not has_real_results and errors:
-        first_error = errors[0]
+        first_error = None
+        for err in errors:
+            if isinstance(err, mw_metadata.MetadataProviderUnavailable):
+                first_error = err
+                break
+        if not first_error:
+            first_error = errors[0]
+            
         if isinstance(first_error, mw_metadata.MetadataProviderUnavailable):
             print(f"Provider Error: {first_error}")
             return jsonify({"error": str(first_error), "status": "error"}), getattr(first_error, 'status_code', 503)

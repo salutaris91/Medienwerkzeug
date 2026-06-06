@@ -262,7 +262,7 @@ def search_all_db(query):
                 r['provider'] = 'tmdb_tv_en'
                 results.append(r)
         except MetadataProviderUnavailable as e:
-            if not any(isinstance(err, MetadataProviderUnavailable) and err.message == e.message for err in errors):
+            if not any(isinstance(err, MetadataProviderUnavailable) and str(err) == str(e) for err in errors):
                 errors.append(e)
         except Exception as e:
             errors.append(MetadataProviderUnavailable(f"TMDb EN Fehler: {e}"))
@@ -299,7 +299,14 @@ def search_all_db(query):
     final_results.sort(key=lambda r: calculate_match_score(query, r['name']), reverse=True)
     
     if not final_results and errors:
-        raise errors[0]
+        first_error = None
+        for err in errors:
+            if isinstance(err, MetadataProviderUnavailable):
+                first_error = err
+                break
+        if not first_error:
+            first_error = errors[0]
+        raise first_error
         
     return final_results[:20]
 
