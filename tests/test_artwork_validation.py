@@ -56,7 +56,7 @@ class TestArtworkValidation(unittest.TestCase):
         mock_urlopen.return_value.__enter__.return_value = mock_resp
         
         # Temporarily set key so it runs
-        with unittest.mock.patch("gui.mw_metadata.TMDB_API_KEY", "dummy_key"):
+        with unittest.mock.patch("gui.mw_metadata.TMDB_API_KEY", "a" * 32):
             images = fetch_tmdb_images("movie", 123)
             
             # Assert German posters/logos and neutral backdrops are preferred
