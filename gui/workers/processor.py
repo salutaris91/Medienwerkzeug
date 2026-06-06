@@ -37,6 +37,176 @@ def _get_movie_artwork_lists(settings, video_filename):
         validator.get_movie_backdrop_names(video_filename)
     )
 
+def path_endswith(full_path, suffix_path):
+    """Checks if full_path ends with the components of suffix_path, respecting path boundaries."""
+    full_parts = os.path.normpath(full_path).split(os.sep)
+    suffix_parts = os.path.normpath(suffix_path).split(os.sep)
+    # Filter out empty parts that might occur from trailing slashes or absolute paths
+    full_parts = [p for p in full_parts if p]
+    suffix_parts = [p for p in suffix_parts if p]
+    if len(full_parts) < len(suffix_parts):
+        return False
+    return full_parts[-len(suffix_parts):] == suffix_parts
+
+def move_with_fallback(src_path, dest_dir, fallback_basename, whitelist=None):
+    """
+    Moves a file at src_path to dest_dir.
+    If the file is in the whitelist (mapping old to new), it uses the new name.
+    Otherwise, it uses fallback_basename + extension (with collision counter if needed).
+    """
+    try:
+        if not os.path.exists(src_path):
+            log_message(f"⚠️ [Fallback-Verschiebung] Quelldatei existiert nicht: {src_path}")
+            return
+
+        os.makedirs(dest_dir, exist_ok=True)
+        filename = os.path.basename(src_path)
+        ext = os.path.splitext(filename)[1].lower()
+
+        target_name = None
+        if whitelist:
+            for item in whitelist:
+                if path_endswith(src_path, item["old"]) or os.path.basename(src_path) == item["new"]:
+                    target_name = item["new"]
+                    break
+
+        if not target_name:
+            lower_name = filename.lower()
+            is_metadata = False
+            if ext == '.nfo':
+                is_metadata = True
+            else:
+                metadata_keywords = ['poster', 'fanart', 'backdrop', 'folder', 'logo', 'banner', 'clearlogo', 'cover', 'background', 'art', 'default']
+                for kw in metadata_keywords:
+                    if kw in lower_name:
+                        is_metadata = True
+                        break
+            if is_metadata:
+                target_name = filename
+
+        if target_name:
+            dst_path = os.path.join(dest_dir, target_name)
+            log_message(f"[Fallback-Verschiebung] Verwende Whitelist-Name: {target_name} für {src_path}")
+        else:
+            # Check for VobSub pairing (.sub / .idx) at the source
+            is_vobsub_pair = False
+            partner_src = None
+            partner_ext = None
+            if ext in ('.sub', '.idx'):
+                partner_ext = '.idx' if ext == '.sub' else '.sub'
+                partner_src = os.path.splitext(src_path)[0] + partner_ext
+                if os.path.exists(partner_src):
+                    is_vobsub_pair = True
+
+            counter = 1
+            while True:
+                if counter == 1:
+                    candidate = f"{fallback_basename}{ext}"
+                else:
+                    candidate = f"{fallback_basename}.{counter}{ext}"
+                dst_path = os.path.join(dest_dir, candidate)
+
+                if is_vobsub_pair:
+                    if counter == 1:
+                        partner_candidate = f"{fallback_basename}{partner_ext}"
+                    else:
+                        partner_candidate = f"{fallback_basename}.{counter}{partner_ext}"
+                    partner_dst_path = os.path.join(dest_dir, partner_candidate)
+                    if not os.path.exists(dst_path) and not os.path.exists(partner_dst_path):
+                         break
+                else:
+                    if not os.path.exists(dst_path):
+                        break
+                counter += 1
+
+            log_message(f"[Fallback-Verschiebung] Auffangregel: {src_path} -> {os.path.basename(dst_path)}")
+
+            # If it's a VobSub pair, dynamically register the partner in the whitelist so it finds the same counter
+            if is_vobsub_pair and whitelist is not None:
+                whitelist.append({
+                    "old": partner_src,
+                    "new": os.path.basename(partner_dst_path)
+                })
+
+        os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+        if os.path.exists(dst_path):
+            log_message(f"⚠️ [Fallback-Verschiebung] Ziel existiert bereits und wird überschrieben: {dst_path}")
+            if os.path.isdir(dst_path):
+                shutil.rmtree(dst_path)
+            else:
+                os.remove(dst_path)
+        shutil.move(src_path, dst_path)
+        log_message(f"✅ Datei verschoben: {os.path.basename(src_path)} -> {os.path.basename(dst_path)}")
+
+    except Exception as e:
+        log_message(f"❌ Fehler bei Fallback-Verschiebung von {src_path} nach {dest_dir}: {e}")
+
+def safe_move_recursive(src_dir, dest_dir, prefix_filter=None, fallback_basename=None, whitelist=None, junk_list=None):
+    """
+    Recursively walks src_dir and moves files to dest_dir.
+    If prefix_filter is provided, only files whose name starts with prefix_filter
+    (or are whitelisted to a name starting with prefix_filter) are moved.
+    """
+    video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
+    if not os.path.exists(src_dir):
+        return
+
+    # Gather files
+    files_to_process = []
+    for root, dirs, files in os.walk(src_dir):
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        for f in files:
+            if f.startswith('.'):
+                continue
+            f_path = os.path.join(root, f)
+            files_to_process.append(f_path)
+
+    # Process files
+    for f_path in files_to_process:
+        filename = os.path.basename(f_path)
+        if filename.lower().endswith(video_exts):
+            continue
+
+        # Check junk list
+        is_junk = False
+        if junk_list:
+            for j in junk_list:
+                if path_endswith(f_path, j):
+                    is_junk = True
+                    break
+        if is_junk:
+            log_message(f"[Safe Move] Überspringe Junk-Datei: {f_path}")
+            continue
+
+        belongs = False
+        if prefix_filter is None:
+            belongs = True
+        else:
+            if filename.startswith(prefix_filter):
+                belongs = True
+            elif whitelist:
+                for item in whitelist:
+                    if path_endswith(f_path, item["old"]) or os.path.basename(f_path) == item["new"]:
+                        if item["new"].startswith(prefix_filter):
+                            belongs = True
+                            break
+
+        if belongs:
+            fb = prefix_filter if prefix_filter else fallback_basename
+            move_with_fallback(f_path, dest_dir, fb, whitelist=whitelist)
+
+    # Cleanup empty subdirectories
+    for root, dirs, files in os.walk(src_dir, topdown=False):
+        if root == src_dir:
+            continue
+        try:
+            non_dot_files = [f for f in os.listdir(root) if not f.startswith('.')]
+            if not non_dot_files:
+                trash.send_to_trash(root)
+                log_message(f"[Safe Move] Leeren Unterordner entfernt: {os.path.basename(root)}")
+        except Exception as e:
+            log_message(f"[Safe Move] Fehler beim Entfernen des Ordners {root}: {e}")
+
 JOB_QUEUE = []
 SYSTEM_STATUS = {'running': True}
 STATUS_LOCK = threading.Lock()
@@ -112,7 +282,7 @@ def preview_streamfab_import():
         for root, dirs, files in os.walk(sf_dir):
             for f in files:
                 if f.startswith('.'): continue
-                if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.srt', '.nfo', '.vtt', '.jpg', '.png')):
+                if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.srt', '.nfo', '.vtt', '.jpg', '.png', '.ass', '.ssa', '.sub', '.idx')):
                     src = os.path.join(root, f)
                     all_files_to_import.append((src, f))
 
@@ -900,7 +1070,7 @@ def process_worker(params):
                 for f in os.listdir(current_dir):
                     if f.startswith(base_old) and f != filename:
                         sub_ext = os.path.splitext(f)[1].lower()
-                        if sub_ext in ['.srt', '.vtt', '.ass']:
+                        if sub_ext in ['.srt', '.vtt', '.ass', '.ssa', '.sub', '.idx']:
                             sub_old_path = os.path.join(current_dir, f)
                             sub_new_path = os.path.join(current_dir, f"{clean_title}{sub_ext}")
                             log_message(f"Benenne Untertitel um: {f} -> {clean_title}{sub_ext}")
@@ -999,14 +1169,20 @@ def process_worker(params):
                 shutil.move(final_filepath, os.path.join(dest_dir_outbox, final_filename))
                 log_message(f"Erfolgreich in Output-Ordner verschoben: {final_filename}")
 
-                # Move accompanying files (excluding original unconverted videos)
-                video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
-                for f in os.listdir(current_dir):
-                    if f.startswith(clean_title) and f != final_filename:
-                        if f.lower().endswith(video_exts):
-                            continue
-                        shutil.move(os.path.join(current_dir, f), os.path.join(dest_dir_outbox, f))
-                        log_message(f"Begleitdatei in Output-Ordner verschoben: {f}")
+                # Move accompanying files safely (excluding original video files, handling subfolders recursively)
+                whitelist_tv = []
+                if explicit_renames:
+                    whitelist_tv.extend(explicit_renames)
+                if explicit_subs:
+                    whitelist_tv.extend(explicit_subs)
+                safe_move_recursive(
+                    current_dir,
+                    dest_dir_outbox,
+                    prefix_filter=clean_title,
+                    fallback_basename=None,
+                    whitelist=whitelist_tv,
+                    junk_list=explicit_junk
+                )
             except Exception as e:
                 log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
 
@@ -1075,6 +1251,24 @@ def process_worker(params):
                 open_folder_in_finder(dest_show_dir_outbox)
         except Exception as e:
             log_message(f"Fehler beim Verschieben der Serien-Metadaten in Output-Ordner: {e}")
+
+        # Auffangregel: Move any remaining non-video, non-dot files to the show folder
+        try:
+            whitelist_show = []
+            if explicit_renames:
+                whitelist_show.extend(explicit_renames)
+            if explicit_subs:
+                whitelist_show.extend(explicit_subs)
+            safe_move_recursive(
+                current_dir,
+                dest_show_dir_outbox,
+                prefix_filter=None,
+                fallback_basename=clean_show_name,
+                whitelist=whitelist_show,
+                junk_list=explicit_junk
+            )
+        except Exception as e:
+            log_message(f"Fehler bei finaler Safe-Move-Bereinigung: {e}")
 
         # Copy show-level files to NAS targets if requested
         for target in settings.get("storage_targets", []):
@@ -1544,14 +1738,20 @@ def process_worker(params):
                 shutil.move(final_filepath, os.path.join(dest_movie_dir_outbox, final_filename))
                 log_message(f"Erfolgreich in Output-Ordner verschoben: {final_filename}")
 
-                # Move accompanying files (excluding unconverted video files)
-                video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
-                for f in os.listdir(current_dir):
-                    if f != final_filename and not f.startswith("."):
-                        if f.lower().endswith(video_exts):
-                            continue
-                        shutil.move(os.path.join(current_dir, f), os.path.join(dest_movie_dir_outbox, f))
-                        log_message(f"Begleitdatei in Output-Ordner verschoben: {f}")
+                # Move accompanying files safely (excluding original video files, handling subfolders recursively)
+                whitelist_movie = []
+                if explicit_renames:
+                    whitelist_movie.extend(explicit_renames)
+                if explicit_subs:
+                    whitelist_movie.extend(explicit_subs)
+                safe_move_recursive(
+                    current_dir,
+                    dest_movie_dir_outbox,
+                    prefix_filter=None,
+                    fallback_basename=clean_movie_name,
+                    whitelist=whitelist_movie,
+                    junk_list=explicit_junk
+                )
 
                 # Ensure only server-specific core poster/backdrop variants exist
                 server_type = settings.get("media_server", "emby") or "emby"

@@ -2614,7 +2614,7 @@ async function scanProject(project) {
             let badgeClass = "file-type-badge";
             if (isDir) badgeClass += " dir";
             else if (isVideo) badgeClass += " video";
-            else if (['srt', 'vtt', 'ass'].includes(ext)) badgeClass += " subtitle";
+            else if (['srt', 'vtt', 'ass', 'ssa', 'sub', 'idx'].includes(ext)) badgeClass += " subtitle";
             else if (ext === 'nfo') badgeClass += " nfo";
 
             let actionHtml = "";

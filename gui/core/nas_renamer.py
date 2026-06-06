@@ -238,7 +238,16 @@ def apply_renames(target_folder, rename_plan):
         old_base = os.path.splitext(old_abs)[0]
         new_base = os.path.splitext(new_abs)[0]
         
-        assoc_exts = ['.nfo', '.srt', '.en.srt', '.de.srt', '-thumb.jpg', '-fanart.jpg', '-poster.jpg']
+        assoc_exts = [
+            '.nfo',
+            '.srt', '.en.srt', '.de.srt', '.en.forced.srt', '.de.forced.srt',
+            '.vtt', '.en.vtt', '.de.vtt', '.en.forced.vtt', '.de.forced.vtt',
+            '.ass', '.en.ass', '.de.ass', '.en.forced.ass', '.de.forced.ass',
+            '.ssa', '.en.ssa', '.de.ssa', '.en.forced.ssa', '.de.forced.ssa',
+            '.sub', '.en.sub', '.de.sub', '.en.forced.sub', '.de.forced.sub',
+            '.idx', '.en.idx', '.de.idx', '.en.forced.idx', '.de.forced.idx',
+            '-thumb.jpg', '-fanart.jpg', '-poster.jpg'
+        ]
         for ext in assoc_exts:
             old_assoc = old_base + ext
             new_assoc = new_base + ext
