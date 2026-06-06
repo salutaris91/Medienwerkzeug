@@ -389,5 +389,167 @@ class TestMovieProcessingFixes(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "Artwork Movie (2026)-poster.jpg")))
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "Artwork Movie (2026)-fanart.jpg")))
 
+    def test_artwork_source_jpg(self):
+        """Test: Quelle liefert .jpg -> nur .jpg Core-Dateien entstehen."""
+        proj_dir = os.path.join(self.inbox_dir, "JpgSourceMovie")
+        os.makedirs(proj_dir)
+
+        # Create movie video file
+        video = os.path.join(proj_dir, "movie.mkv")
+        with open(video, "wb") as f:
+            f.truncate(10 * 1024 * 1024)
+
+        # Create poster.jpg
+        with open(os.path.join(proj_dir, "poster.jpg"), "w") as f:
+            f.write("jpg poster")
+
+        params = {
+            "media_type": "movie",
+            "project_name": "JpgSourceMovie",
+            "movie_name": "Jpg Movie (2026)",
+            "destination_id": "1",
+            "copy_to_nas": True,
+            "explicit_renames": [
+                {"old": "movie.mkv", "new": "Jpg Movie (2026).mkv"}
+            ],
+            "explicit_subs": [],
+            "explicit_junk": []
+        }
+
+        processor.process_worker(params)
+        dest_movie_dir = os.path.join(self.outbox_dir, "Filme", "Jpg Movie (2026)")
+
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "poster.jpg")))
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "folder.jpg")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "poster.png")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "folder.png")))
+
+    def test_artwork_source_png(self):
+        """Test: Quelle liefert .png -> nur .png Core-Dateien entstehen."""
+        proj_dir = os.path.join(self.inbox_dir, "PngSourceMovie")
+        os.makedirs(proj_dir)
+
+        # Create movie video file
+        video = os.path.join(proj_dir, "movie.mkv")
+        with open(video, "wb") as f:
+            f.truncate(10 * 1024 * 1024)
+
+        # Create poster.png
+        with open(os.path.join(proj_dir, "poster.png"), "w") as f:
+            f.write("png poster")
+
+        params = {
+            "media_type": "movie",
+            "project_name": "PngSourceMovie",
+            "movie_name": "Png Movie (2026)",
+            "destination_id": "1",
+            "copy_to_nas": True,
+            "explicit_renames": [
+                {"old": "movie.mkv", "new": "Png Movie (2026).mkv"}
+            ],
+            "explicit_subs": [],
+            "explicit_junk": []
+        }
+
+        processor.process_worker(params)
+        dest_movie_dir = os.path.join(self.outbox_dir, "Filme", "Png Movie (2026)")
+
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "poster.png")))
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "folder.png")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "poster.jpg")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "folder.jpg")))
+
+    def test_artwork_reduction_of_parallel_extensions(self):
+        """Test: Parallele .jpg/.png-Varianten werden auf eine Quelle reduziert (andere gelöscht)."""
+        proj_dir = os.path.join(self.inbox_dir, "ReductionMovie")
+        os.makedirs(proj_dir)
+
+        # Create movie video file
+        video = os.path.join(proj_dir, "movie.mkv")
+        with open(video, "wb") as f:
+            f.truncate(10 * 1024 * 1024)
+
+        # Create poster.jpg AND poster.png
+        with open(os.path.join(proj_dir, "poster.jpg"), "w") as f:
+            f.write("jpg poster")
+        with open(os.path.join(proj_dir, "poster.png"), "w") as f:
+            f.write("png poster")
+
+        # Create fanart.jpg AND fanart.png
+        with open(os.path.join(proj_dir, "fanart.jpg"), "w") as f:
+            f.write("jpg fanart")
+        with open(os.path.join(proj_dir, "fanart.png"), "w") as f:
+            f.write("png fanart")
+
+        params = {
+            "media_type": "movie",
+            "project_name": "ReductionMovie",
+            "movie_name": "Reduction Movie (2026)",
+            "destination_id": "1",
+            "copy_to_nas": True,
+            "explicit_renames": [
+                {"old": "movie.mkv", "new": "Reduction Movie (2026).mkv"}
+            ],
+            "explicit_subs": [],
+            "explicit_junk": []
+        }
+
+        processor.process_worker(params)
+        dest_movie_dir = os.path.join(self.outbox_dir, "Filme", "Reduction Movie (2026)")
+
+        # Master poster.jpg is preferred in priority, so poster.png/folder.png should be deleted
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "poster.jpg")))
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "folder.jpg")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "poster.png")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "folder.png")))
+
+        # Master fanart.jpg is preferred, backdrop.jpg/fanart.jpg are created from it. fanart.png/backdrop.png should be deleted
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "fanart.jpg")))
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "backdrop.jpg")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "fanart.png")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "backdrop.png")))
+
+    def test_no_nas_cleanup_by_default(self):
+        """Test: NAS-Ziel wird ohne explizite Cleanup-Option nicht gelöscht/bereinigt."""
+        proj_dir = os.path.join(self.inbox_dir, "NasSafetyMovie")
+        os.makedirs(proj_dir)
+
+        # Create movie video file
+        video = os.path.join(proj_dir, "movie.mkv")
+        with open(video, "wb") as f:
+            f.truncate(10 * 1024 * 1024)
+
+        with open(os.path.join(proj_dir, "poster.jpg"), "w") as f:
+            f.write("jpg poster")
+
+        # Create a pre-existing unrelated file in the NAS destination directory
+        nas_movie_dir = os.path.join(self.nas_root, "Filme", "NasSafety Movie (2026)")
+        os.makedirs(nas_movie_dir, exist_ok=True)
+        unrelated_file = os.path.join(nas_movie_dir, "old_legacy_file.txt")
+        with open(unrelated_file, "w") as f:
+            f.write("existing legacy data")
+
+        params = {
+            "media_type": "movie",
+            "project_name": "NasSafetyMovie",
+            "movie_name": "NasSafety Movie (2026)",
+            "destination_id": "1",
+            "copy_to_nas": True,
+            "explicit_renames": [
+                {"old": "movie.mkv", "new": "NasSafety Movie (2026).mkv"}
+            ],
+            "explicit_subs": [],
+            "explicit_junk": []
+        }
+
+        processor.process_worker(params)
+
+        # The new files are copied to NAS
+        self.assertTrue(os.path.exists(os.path.join(nas_movie_dir, "NasSafety Movie (2026).mkv")))
+        self.assertTrue(os.path.exists(os.path.join(nas_movie_dir, "poster.jpg")))
+
+        # BUT the pre-existing unrelated file is NOT deleted / stays intact!
+        self.assertTrue(os.path.exists(unrelated_file))
+
 if __name__ == "__main__":
     unittest.main()

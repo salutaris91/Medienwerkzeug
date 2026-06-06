@@ -1556,81 +1556,122 @@ def process_worker(params):
                 # Ensure only server-specific core poster/backdrop variants exist
                 server_type = settings.get("media_server", "emby") or "emby"
                 all_outbox_files = os.listdir(dest_movie_dir_outbox)
-                found_poster_file = None
-                found_backdrop_file = None
-
-                poster_candidates = ["poster.jpg", "poster.png", "folder.jpg", "folder.png", "cover.jpg", "cover.png"]
-                backdrop_candidates = ["fanart.jpg", "fanart.png", "backdrop.jpg", "backdrop.png", "background.jpg", "background.png"]
-
                 base_movie, _ = os.path.splitext(final_filename)
 
-                # Find existing poster
+                # --- 1. Find all poster candidates ---
+                poster_candidates = ["poster.jpg", "poster.png", "folder.jpg", "folder.png", "cover.jpg", "cover.png", "default.jpg", "default.png"]
+                found_posters = []
                 for f in all_outbox_files:
                     f_lower = f.lower()
-                    if f_lower in poster_candidates:
-                        found_poster_file = f
-                        break
-                    elif f_lower.startswith(base_movie.lower() + "-poster"):
-                        found_poster_file = f
-                        break
+                    if f_lower in poster_candidates or f_lower.startswith(base_movie.lower() + "-poster") or f_lower.startswith(base_movie.lower() + "-cover"):
+                        found_posters.append(f)
 
-                # Find existing backdrop
-                for f in all_outbox_files:
-                    f_lower = f.lower()
-                    if f_lower in backdrop_candidates:
-                        found_backdrop_file = f
+                # Find the single best master poster
+                master_poster = None
+                poster_prio = ["poster.jpg", "poster.png", "folder.jpg", "folder.png", "cover.jpg", "cover.png", "default.jpg", "default.png"]
+                for p_name in poster_prio:
+                    for f in found_posters:
+                        if f.lower() == p_name:
+                            master_poster = f
+                            break
+                    if master_poster:
                         break
-                    elif f_lower.startswith(base_movie.lower() + "-fanart") or f_lower.startswith(base_movie.lower() + "-backdrop"):
-                        found_backdrop_file = f
-                        break
+                if not master_poster and found_posters:
+                    master_poster = found_posters[0]
 
-                # Determine core target names
+                # Determine poster core targets
                 target_posters = ["poster"]
                 if server_type in ("emby", "jellyfin"):
                     target_posters.append("folder")
 
-                if server_type == "jellyfin":
-                    target_backdrops = ["backdrop"]
-                else:
-                    target_backdrops = ["fanart"]
-
-                # Copy and clean poster
-                if found_poster_file:
-                    src_path = os.path.join(dest_movie_dir_outbox, found_poster_file)
-                    _, ext = os.path.splitext(found_poster_file)
+                # If master poster exists, copy/rename it and delete others
+                if master_poster:
+                    master_path = os.path.join(dest_movie_dir_outbox, master_poster)
+                    _, ext = os.path.splitext(master_poster)
                     ext = ext.lower()
 
-                    for target_base in target_posters:
-                        p_dst_name = f"{target_base}{ext}"
-                        p_dst_path = os.path.join(dest_movie_dir_outbox, p_dst_name)
-                        if not os.path.exists(p_dst_path):
-                            shutil.copy(src_path, p_dst_path)
-                            log_message(f"Erstellt (Filmplakat-Kompatibilität): {p_dst_name}")
+                    core_poster_names = [f"{t_base}{ext}" for t_base in target_posters]
+                    for core_name in core_poster_names:
+                        core_path = os.path.join(dest_movie_dir_outbox, core_name)
+                        if not os.path.exists(core_path):
+                            shutil.copy(master_path, core_path)
+                            log_message(f"Erstellt (Filmplakat-Kompatibilität): {core_name}")
 
-                    # Clean up filmtitle-specific poster file to avoid duplicates
-                    if found_poster_file != f"poster{ext}" and found_poster_file != f"folder{ext}":
+                    # Remove all other poster files (candidates) that are not the allowed core names
+                    for f in found_posters:
+                        if f not in core_poster_names:
+                            try:
+                                os.remove(os.path.join(dest_movie_dir_outbox, f))
+                                log_message(f"Bereinigt (Poster-Duplikat entfernt): {f}")
+                            except Exception:
+                                pass
+
+                # --- 2. Find all backdrop candidates ---
+                backdrop_candidates = ["fanart.jpg", "fanart.png", "backdrop.jpg", "backdrop.png", "background.jpg", "background.png", "backgrounds.jpg", "backgrounds.png", "art.jpg", "art.png"]
+                found_backdrops = []
+                for f in all_outbox_files:
+                    f_lower = f.lower()
+                    if f_lower in backdrop_candidates or f_lower.startswith(base_movie.lower() + "-fanart") or f_lower.startswith(base_movie.lower() + "-backdrop"):
+                        found_backdrops.append(f)
+
+                # Find the single best master backdrop
+                master_backdrop = None
+                backdrop_prio = ["fanart.jpg", "fanart.png", "backdrop.jpg", "backdrop.png", "background.jpg", "background.png", "backgrounds.jpg", "backgrounds.png", "art.jpg", "art.png"]
+                for b_name in backdrop_prio:
+                    for f in found_backdrops:
+                        if f.lower() == b_name:
+                            master_backdrop = f
+                            break
+                    if master_backdrop:
+                        break
+                if not master_backdrop and found_backdrops:
+                    master_backdrop = found_backdrops[0]
+
+                # Determine backdrop core targets (fanart.ext and backdrop.ext are two allowed core names)
+                target_backdrops = ["fanart", "backdrop"]
+
+                # If master backdrop exists, copy/rename it and delete others
+                if master_backdrop:
+                    master_path = os.path.join(dest_movie_dir_outbox, master_backdrop)
+                    _, ext = os.path.splitext(master_backdrop)
+                    ext = ext.lower()
+
+                    core_backdrop_names = [f"{t_base}{ext}" for t_base in target_backdrops]
+                    for core_name in core_backdrop_names:
+                        core_path = os.path.join(dest_movie_dir_outbox, core_name)
+                        if not os.path.exists(core_path):
+                            shutil.copy(master_path, core_path)
+                            log_message(f"Erstellt (Hintergrundbild-Kompatibilität): {core_name}")
+
+                    # Remove all other backdrop files (candidates) that are not the allowed core names
+                    for f in found_backdrops:
+                        if f not in core_backdrop_names:
+                            try:
+                                os.remove(os.path.join(dest_movie_dir_outbox, f))
+                                log_message(f"Bereinigt (Hintergrund-Duplikat entfernt): {f}")
+                            except Exception:
+                                pass
+
+                # --- 3. Clean up logo and banner title-specific duplicates ---
+                all_outbox_files_now = os.listdir(dest_movie_dir_outbox)
+                for f in all_outbox_files_now:
+                    f_lower = f.lower()
+                    if f_lower.startswith(base_movie.lower() + "-logo") or f_lower.startswith(base_movie.lower() + "-clearlogo"):
+                        _, ext = os.path.splitext(f)
+                        logo_target = f"logo{ext.lower()}"
+                        if not os.path.exists(os.path.join(dest_movie_dir_outbox, logo_target)):
+                            shutil.copy(os.path.join(dest_movie_dir_outbox, f), os.path.join(dest_movie_dir_outbox, logo_target))
                         try:
-                            os.remove(src_path)
+                            os.remove(os.path.join(dest_movie_dir_outbox, f))
                         except Exception:
                             pass
-
-                # Copy and clean backdrop
-                if found_backdrop_file:
-                    src_path = os.path.join(dest_movie_dir_outbox, found_backdrop_file)
-                    _, ext = os.path.splitext(found_backdrop_file)
-                    ext = ext.lower()
-
-                    for target_base in target_backdrops:
-                        b_dst_name = f"{target_base}{ext}"
-                        b_dst_path = os.path.join(dest_movie_dir_outbox, b_dst_name)
-                        if not os.path.exists(b_dst_path):
-                            shutil.copy(src_path, b_dst_path)
-                            log_message(f"Erstellt (Hintergrundbild-Kompatibilität): {b_dst_name}")
-
-                    # Clean up filmtitle-specific backdrop file to avoid duplicates
-                    if found_backdrop_file != f"fanart{ext}" and found_backdrop_file != f"backdrop{ext}":
+                    elif f_lower.startswith(base_movie.lower() + "-banner"):
+                        _, ext = os.path.splitext(f)
+                        banner_target = f"banner{ext.lower()}"
+                        if not os.path.exists(os.path.join(dest_movie_dir_outbox, banner_target)):
+                            shutil.copy(os.path.join(dest_movie_dir_outbox, f), os.path.join(dest_movie_dir_outbox, banner_target))
                         try:
-                            os.remove(src_path)
+                            os.remove(os.path.join(dest_movie_dir_outbox, f))
                         except Exception:
                             pass
 
