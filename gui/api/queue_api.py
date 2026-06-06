@@ -187,9 +187,11 @@ def handle_api_preview_process():
 
             # Check if this file belongs to a sample
             belongs_to_sample = False
-            if f in samples:
+            if f == main_video:
+                belongs_to_sample = False
+            elif f in samples:
                 belongs_to_sample = True
-            elif "sample" in basename.lower() or "sample" in f.lower().split(os.sep):
+            elif samples and ("sample" in basename.lower() or "sample" in f.lower().split(os.sep)):
                 belongs_to_sample = True
             else:
                 # Prüfen, ob die Datei zu einem der Sample-Videos gehört (Name match)
@@ -630,4 +632,3 @@ def handle_api_queue_retry():
     job_queue.put(updated_job)
 
     return jsonify({"status": "success"})
-

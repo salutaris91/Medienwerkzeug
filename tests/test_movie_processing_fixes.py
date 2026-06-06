@@ -203,6 +203,42 @@ class TestMovieProcessingFixes(unittest.TestCase):
         self.assertIn("some_sample.mkv", junk)
         self.assertIn("movie.mkv", renames)
 
+    def test_single_movie_with_sample_in_title_is_not_junk(self):
+        """Eine einzelne Hauptdatei mit 'sample' im Namen bleibt der Hauptfilm."""
+        proj_dir = os.path.join(self.inbox_dir, "SampleTitleMovie")
+        os.makedirs(proj_dir)
+
+        video = os.path.join(proj_dir, "The Sample Movie.mkv")
+        with open(video, "wb") as f:
+            f.truncate(20 * 1024 * 1024)
+
+        subtitle = os.path.join(proj_dir, "The Sample Movie.srt")
+        with open(subtitle, "w") as f:
+            f.write("subtitles")
+
+        params = {
+            "media_type": "movie",
+            "project_name": "SampleTitleMovie",
+            "movie_name": "The Sample Movie (2026)",
+            "destination_id": "1",
+            "copy_to_nas": True
+        }
+
+        res = self._post("/api/preview-process", json_data=params)
+        self.assertEqual(res.status_code, 200)
+
+        data = res.get_json()
+        self.assertIsNotNone(data)
+
+        renames = [r["old"] for r in data.get("renames", [])]
+        subs = [s["old"] for s in data.get("subs", [])]
+        junk = data.get("junk", [])
+
+        self.assertIn("The Sample Movie.mkv", renames)
+        self.assertIn("The Sample Movie.srt", subs)
+        self.assertNotIn("The Sample Movie.mkv", junk)
+        self.assertNotIn("The Sample Movie.srt", junk)
+
     def test_collision_protection_in_processor(self):
         """Test 3: Kollisionsschutz bricht ab, wenn Duplikate nicht in explicit_junk deklariert sind."""
         proj_dir = os.path.join(self.inbox_dir, "CollisionMovie")
