@@ -112,7 +112,7 @@ def preview_streamfab_import():
         for root, dirs, files in os.walk(sf_dir):
             for f in files:
                 if f.startswith('.'): continue
-                if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.srt', '.nfo', '.vtt', '.jpg', '.png')):
+                if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.srt', '.nfo', '.vtt', '.jpg', '.png', '.ass', '.ssa', '.sub', '.idx')):
                     src = os.path.join(root, f)
                     all_files_to_import.append((src, f))
 
@@ -900,7 +900,7 @@ def process_worker(params):
                 for f in os.listdir(current_dir):
                     if f.startswith(base_old) and f != filename:
                         sub_ext = os.path.splitext(f)[1].lower()
-                        if sub_ext in ['.srt', '.vtt', '.ass']:
+                        if sub_ext in ['.srt', '.vtt', '.ass', '.ssa', '.sub', '.idx']:
                             sub_old_path = os.path.join(current_dir, f)
                             sub_new_path = os.path.join(current_dir, f"{clean_title}{sub_ext}")
                             log_message(f"Benenne Untertitel um: {f} -> {clean_title}{sub_ext}")
