@@ -1,0 +1,137 @@
+import os
+import sys
+import unittest
+from unittest.mock import MagicMock, patch
+
+from flask import Flask
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from gui.core import transfers
+from gui.api.system_api import handle_api_nas_connect, handle_api_status, system_api
+
+NAS_SETTINGS_ENABLED = {
+    "storage_targets": [{
+        "id": "nas",
+        "root_path": "/Volumes/Kino",
+        "nas_ip": "192.168.2.208",
+        "nas_ip_backup": "100.74.187.125",
+        "nas_hostname": "ALEXNAS91",
+        "nas_share": "Kino",
+        "enabled": True,
+    }]
+}
+
+NAS_SETTINGS_DISABLED = {
+    "storage_targets": [{
+        "id": "nas",
+        "root_path": "/Volumes/Kino",
+        "nas_ip": "192.168.2.208",
+        "nas_ip_backup": "100.74.187.125",
+        "nas_hostname": "ALEXNAS91",
+        "nas_share": "Kino",
+        "enabled": False,
+    }]
+}
+
+NAS_SETTINGS_NO_ROOT = {
+    "storage_targets": [{
+        "id": "nas",
+        "root_path": "",
+        "nas_ip": "192.168.2.208",
+        "nas_ip_backup": "100.74.187.125",
+        "nas_hostname": "ALEXNAS91",
+        "nas_share": "Kino",
+        "enabled": True,
+    }]
+}
+
+
+class TestNasDetails(unittest.TestCase):
+    def setUp(self):
+        self.app = Flask(__name__)
+        self.app.register_blueprint(system_api, url_prefix="/api")
+        self.client = self.app.test_client()
+
+    def tearDown(self):
+        for attribute in ("last_nas_status", "last_nas_details", "last_nas_check"):
+            if hasattr(handle_api_status, attribute):
+                delattr(handle_api_status, attribute)
+        if hasattr(handle_api_nas_connect, "last_attempt"):
+            delattr(handle_api_nas_connect, "last_attempt")
+
+    def _socket_mock(self, mock_instance=None):
+        socket_instance = mock_instance or MagicMock()
+        return patch.object(transfers.socket, "socket", return_value=socket_instance)
+
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_DISABLED)
+    def test_details_when_disabled(self, mock_settings):
+        details = transfers.check_nas_connection_details()
+        self.assertEqual(details["status"], "offline")
+        self.assertFalse(details["enabled"])
+        self.assertTrue(details["has_root"])
+        self.assertEqual(details["checked_ips"], ["192.168.2.208", "100.74.187.125"])
+        self.assertIsNone(details["reachable_ip"])
+
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_NO_ROOT)
+    def test_details_when_no_root(self, mock_settings):
+        details = transfers.check_nas_connection_details()
+        self.assertEqual(details["status"], "offline")
+        self.assertTrue(details["enabled"])
+        self.assertFalse(details["has_root"])
+        self.assertIsNone(details["reachable_ip"])
+
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
+    @patch("gui.core.transfers._is_nas_root_mounted", return_value=True)
+    def test_details_when_connected(self, mock_mounted, mock_settings):
+        with self._socket_mock():
+            details = transfers.check_nas_connection_details()
+        self.assertEqual(details["status"], "connected")
+        self.assertTrue(details["enabled"])
+        self.assertTrue(details["has_root"])
+        self.assertIsNotNone(details["reachable_ip"])
+
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
+    @patch("gui.core.transfers._is_nas_root_mounted", return_value=False)
+    def test_details_when_available_not_mounted(self, mock_mounted, mock_settings):
+        # Socket mock connects successfully to first IP
+        socket_mock = MagicMock()
+        with self._socket_mock(socket_mock):
+            details = transfers.check_nas_connection_details()
+        self.assertEqual(details["status"], "available_not_mounted")
+        self.assertEqual(details["reachable_ip"], "192.168.2.208")
+
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
+    @patch("gui.core.transfers._is_nas_root_mounted", return_value=False)
+    def test_details_when_offline(self, mock_mounted, mock_settings):
+        # Socket mock fails to connect
+        socket_mock = MagicMock()
+        socket_mock.connect.side_effect = Exception("Connection timed out")
+        with self._socket_mock(socket_mock):
+            details = transfers.check_nas_connection_details()
+        self.assertEqual(details["status"], "offline")
+        self.assertIsNone(details["reachable_ip"])
+
+    @patch("gui.api.system_api.check_nas_connection_details")
+    def test_api_status_returns_details(self, mock_details):
+        mock_details.return_value = {
+            "status": "available_not_mounted",
+            "enabled": True,
+            "has_root": True,
+            "checked_ips": ["192.168.2.208", "100.74.187.125"],
+            "reachable_ip": "100.74.187.125"
+        }
+        
+        # Mocking check_streamfab to avoid background thread triggers
+        with patch("gui.api.system_api.check_streamfab", return_value=[]):
+            response = self.client.get("/api/status")
+            
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["nas_status"], "available_not_mounted")
+        self.assertIn("nas_details", data)
+        self.assertEqual(data["nas_details"]["reachable_ip"], "100.74.187.125")
+
+
+if __name__ == "__main__":
+    unittest.main()
