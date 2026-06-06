@@ -31,6 +31,7 @@ die aktive After-Release-Roadmap übernommen.
 | 22 | Update-Hinweise und Release Notes | geplant | klein–mittel |
 | 23 | Lizenz- und Drittanbieterhinweise | geplant | klein |
 | 24 | API-Key Maskierung UX (Fokus/Editierung-Verhalten) | geplant | klein |
+| 25 | TV-Pfad: Angleichung der Untertitel-Erkennung an den Movie-Pfad | geplant | klein |
 
 ---
 
@@ -622,3 +623,20 @@ Eine sauberere UX beim Editieren maskierter Werte.
 
 ### Aufwand (grob)
 Klein: Reine Frontend-UX-Anpassung in `app.js`.
+
+---
+
+## 25. TV-Pfad: Angleichung der Untertitel-Erkennung
+
+Aktuell unterscheidet sich die Erkennung von Untertiteln in der TV-Vorschau von der des Movie-Pfads.
+
+### Ausgangslage
+- Der TV-Pfad findet Untertitel in Unterordnern nur, wenn sie exakt mit dem Dateinamen der Episode beginnen (`sbasename.startswith(base_old)` in [`queue_api.py`](file:///Users/alex/Documents/Medienwerkzeug/gui/api/queue_api.py#L358-L376)).
+- Fremd benannte Untertitel (z. B. `ger_forced.sub` in einem Unterordner neben `S01E01.mkv`) werden dadurch im TV-Pfad nicht als solche erkannt und zugeordnet. Sie landen am Ende zwar über die Auffangregel im Serienordner, verlieren aber ihre Sprach-/Forced-Tags.
+- Im Movie-Pfad hingegen werden alle Untertitel über `sub_exts` global erfasst und whitelisted.
+
+### Ziel
+- Angleichung der TV-Untertitel-Erkennung, sodass auch im TV-Pfad unstrukturierte, aber klar zuzuordnende Untertiteldateien in Unterordnern (z. B. durch Nähe zur Episodendatei) als Untertitel erkannt und mitsamt ihren Suffixen whitelisted werden.
+
+### Aufwand (grob)
+Klein: Erweiterung des Suchmusters in der TV-Vorschau (`queue_api.py`).

@@ -765,9 +765,9 @@ class TestMovieProcessingFixes(unittest.TestCase):
                 sub_idx_bases[base].add(ext)
 
         # Für jedes gefundene Paar-Präfix müssen sowohl .sub als auch .idx vorhanden sein.
-        # danger.sub ist kein Paar und hat keinen Counter im Namen, daher überspringen wir "Fallback Movie (2026)".
+        # Einzeldateien ohne Partner (wie danger.sub) werden übersprungen.
         for base, exts in sub_idx_bases.items():
-            if base == "Fallback Movie (2026)" or "Fallback Movie (2026).de.forced" in base:
+            if "Fallback Movie (2026).de.forced" in base or len(exts) == 1:
                 continue
             self.assertEqual(exts, {'.sub', '.idx'})
 
