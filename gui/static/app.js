@@ -12083,13 +12083,24 @@ function openToolRunnerModal(toolType, title, desc, hasQualitySlider = false) {
             const targetsDiv = document.getElementById("tool-modal-sync-targets");
             if (currentSettings && currentSettings.storage_targets) {
                 currentSettings.storage_targets.forEach(t => {
+                    if (t.enabled === false) return;
+                    
                     const label = document.createElement("label");
                     label.className = "checkbox-container";
-                    const checked = t.enabled !== false ? "checked" : "";
-                    label.innerHTML = `
-                        <input type="checkbox" id="tool-sync-target-${t.id}" value="${t.id}" ${checked}>
-                        <span class="checkmark"></span> ${t.name || t.id}
-                    `;
+                    
+                    const input = document.createElement("input");
+                    input.type = "checkbox";
+                    input.id = `tool-sync-target-${t.id}`;
+                    input.value = t.id;
+                    input.checked = true;
+                    
+                    const span = document.createElement("span");
+                    span.className = "checkmark";
+                    
+                    label.appendChild(input);
+                    label.appendChild(span);
+                    label.appendChild(document.createTextNode(" " + (t.name || t.id)));
+                    
                     targetsDiv.appendChild(label);
                 });
             }

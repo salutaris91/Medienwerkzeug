@@ -2831,6 +2831,8 @@ def process_worker(params):
         
         for target in settings.get("storage_targets", []):
             t_id = target.get("id")
+            if target.get("enabled") is False:
+                continue
             if not params.get(f"copy_to_{t_id}", False):
                 continue
                 
@@ -2845,6 +2847,11 @@ def process_worker(params):
                 
                 # Resolve NAS path
                 rel_sub = category.get("targets", {}).get(t_id) or category.get("nas_sub", "")
+                if not rel_sub:
+                    log_message(f"❌ Kein Zielpfad-Mapping konfiguriert für Ziel {target.get('name')}.")
+                    all_success = False
+                    continue
+
                 root_path = target.get("root_path", "")
                 dest = os.path.join(root_path, rel_sub.lstrip('/')) if root_path and not rel_sub.startswith(root_path) else rel_sub
                 
@@ -2867,10 +2874,15 @@ def process_worker(params):
             else:
                 # Cloud target
                 t_sub = category.get("targets", {}).get(t_id) or category.get("pcloud_remote", "")
+                if not t_sub:
+                    log_message(f"❌ Kein Remote-Zielpfad-Mapping konfiguriert für Cloud-Ziel {target.get('name')}.")
+                    all_success = False
+                    continue
+
                 from gui.core.transfers import copy_to_cloud_target
                 success = copy_to_cloud_target(
                     current_dir, 
-                    "", # we don't need nas_target_dir anymore since explicit is provided
+                    "", 
                     t_id, 
                     task_id, 
                     explicit_remote_base=t_sub
