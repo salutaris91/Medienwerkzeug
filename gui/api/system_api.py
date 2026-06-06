@@ -169,7 +169,13 @@ def handle_api_system_restart():
         env = os.environ.copy()
         # Set PYTHONPATH to the parent directory of gui/
         project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".."))
-        env["PYTHONPATH"] = project_root
+        
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        pythonpath_parts = [project_root]
+        if existing_pythonpath:
+            pythonpath_parts.append(existing_pythonpath)
+            
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
 
         args = [sys.executable, main_py]
         if "--restarted" not in args:
@@ -177,9 +183,11 @@ def handle_api_system_restart():
 
         try:
             subprocess.Popen(args, env=env, close_fds=True, start_new_session=True)
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os._exit(0)
         except Exception as e:
-            print(f"Error spawning restart process: {e}")
-        os._exit(0)
+            print(f"Error spawning restart process: {e}", file=sys.stderr, flush=True)
 
     threading.Thread(target=do_restart, daemon=True).start()
     return jsonify({"status": "restarting"})
