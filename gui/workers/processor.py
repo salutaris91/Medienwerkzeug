@@ -1399,6 +1399,10 @@ def process_worker(params):
             filepath = os.path.join(current_dir, video_file)
             target_filepath = os.path.join(current_dir, target_filename)
             
+            if not os.path.exists(filepath) and not os.path.exists(target_filepath):
+                log_message(f"⚠️ Datei '{video_file}' existiert nicht (mehr). Überspringe.")
+                continue
+
             if video_file != target_filename:
                 log_message(f"Benenne um: {video_file} -> {target_filename}")
                 try:

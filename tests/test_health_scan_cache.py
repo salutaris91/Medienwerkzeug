@@ -340,8 +340,9 @@ class TestHealthScanCache(unittest.TestCase):
 
     def test_default_settings_show_console(self):
         # We need to temporarily delete settings.json to force default settings to load
-        settings_path = "settings.json"
-        backup_path = "settings.json.bak"
+        from gui.core.persistence import get_settings_file_path
+        settings_path = get_settings_file_path()
+        backup_path = settings_path + ".bak"
         has_settings = os.path.exists(settings_path)
         if has_settings:
             shutil.move(settings_path, backup_path)
