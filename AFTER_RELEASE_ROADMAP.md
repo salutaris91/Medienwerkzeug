@@ -19,6 +19,7 @@ angegangen werden.
 | 14 | Health-Status-Vertrag & Frontend-Testabdeckung | geplant | klein–mittel |
 | 15 | FAQ sprachlich und visuell überarbeiten | erledigt | klein |
 | 16 | System Metrics Worker: Thread-Akkumulation verhindern | geplant | klein |
+| 17 | NAS-Diagnose-Checkliste auf der Startseite | geplant | klein–mittel |
 
 ---
 
@@ -418,3 +419,38 @@ Verhindern, dass sich hängende Daemon-Threads ansammeln, wenn das NAS über vie
 
 ### Aufwand (grob)
 ~0,5 Tage (Klein). Vor allem Architektur-Tests nötig, um sicherzustellen, dass die Multiprocessing-Aufrufe nicht auf die bestehende Job-Queue oder Gunicorn durchschlagen.
+
+---
+
+## 17. NAS-Diagnose-Checkliste auf der Startseite
+
+Nach der kompakten NAS-Statusanzeige kann die Startseite um eine detaillierte,
+aufklappbare Diagnose erweitert werden. Ziel ist mehr Transparenz bei
+Netzwerk-, Tailscale-, Docker- und Mount-Problemen, ohne die normale
+Startseitenansicht dauerhaft zu überladen.
+
+### Ziel
+Der Nutzer soll direkt erkennen können, an welchem Schritt die NAS-Verbindung
+scheitert: Konfiguration, IP-Erreichbarkeit, Docker-/Desktop-Laufzeitmodus oder
+lokaler Mount.
+
+### Umsetzung
+- Die Kachel "Systemverbindungen" erhält ein Info-Symbol oder einen kleinen
+  "Details"-Schalter.
+- Aufgeklappt erscheint eine Diagnose-Checkliste, zum Beispiel:
+  - Einstellungen aktiviert.
+  - Einhängepfad konfiguriert.
+  - Haupt-IP auf Port 445 erreichbar.
+  - Backup-/Tailscale-IP auf Port 445 erreichbar.
+  - Netzlaufwerk lokal eingehängt.
+- Im Desktop-Modus kann ein "Jetzt mounten"-Button angeboten werden, wenn das
+  NAS erreichbar, aber noch nicht eingehängt ist.
+- Im Docker-Modus bleiben Mount-Aktionen deaktiviert; die UI erklärt stattdessen,
+  dass das NAS außerhalb des Containers als Volume bereitgestellt werden muss.
+- Die API muss dafür strukturierte Diagnosedaten liefern, etwa `nas_enabled`,
+  `nas_root_configured`, `checked_ips`, `reachable_ip`, `runtime_mode` und
+  einen optionalen Fehler- oder Hinweistext.
+
+### Aufwand (grob)
+Klein–mittel: Backend-Diagnosevertrag, Frontend-Aufklappbereich und Tests für
+Desktop-/Docker-Zustände.
