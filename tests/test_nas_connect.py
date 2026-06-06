@@ -40,7 +40,7 @@ class TestNasConnectApi(unittest.TestCase):
         self.assertTrue(response.get_json()["ok"])
         self.assertEqual(handle_api_status.last_nas_status, "connected")
         self.assertEqual(handle_api_status.last_nas_details["status"], "connected")
-        mock_mount.assert_called_once_with()
+        mock_mount.assert_called_once_with(allow_finder_fallback=True)
         mock_details.assert_called_once_with()
 
     @patch("gui.api.system_api.check_nas_connection_details")
@@ -97,7 +97,7 @@ class TestNasConnectApi(unittest.TestCase):
         self.assertFalse(data["ok"])
         self.assertIn("nas_details", data)
         self.assertEqual(data["nas_details"]["status"], "connected")
-        mock_mount.assert_called_once_with()
+        mock_mount.assert_called_once_with(allow_finder_fallback=True)
 
     @patch("gui.api.system_api.check_nas_connection_details")
     @patch("gui.api.system_api.get_runtime_capabilities")

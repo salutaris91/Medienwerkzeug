@@ -43,14 +43,28 @@ class TestNasMountFallback(unittest.TestCase):
     @patch("gui.core.transfers.check_nas_status", return_value="available_not_mounted")
     @patch("gui.core.transfers._wait_for_nas_mount", return_value=True)
     @patch("gui.core.transfers.subprocess.run")
-    def test_applescript_error_opens_finder_fallback(self, mock_run, mock_wait, mock_status, mock_settings):
+    @patch("gui.core.transfers.os.path.exists", return_value=False)
+    def test_applescript_error_skips_finder_fallback_by_default(self, mock_exists, mock_run, mock_wait, mock_status, mock_settings):
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="AppleScript mount failed")
+
+        with self._socket_mock():
+            self.assertFalse(transfers.ensure_nas_mounted())
+
+        self.assertEqual(mock_run.call_count, 1)
+        self.assertEqual(mock_run.call_args.args[0][0], "osascript")
+
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS)
+    @patch("gui.core.transfers.check_nas_status", return_value="available_not_mounted")
+    @patch("gui.core.transfers._wait_for_nas_mount", return_value=True)
+    @patch("gui.core.transfers.subprocess.run")
+    def test_applescript_error_opens_finder_fallback_when_allowed(self, mock_run, mock_wait, mock_status, mock_settings):
         mock_run.side_effect = [
             MagicMock(returncode=1, stdout="", stderr="AppleScript mount failed"),
             MagicMock(returncode=0, stdout="", stderr=""),
         ]
 
         with self._socket_mock():
-            self.assertTrue(transfers.ensure_nas_mounted())
+            self.assertTrue(transfers.ensure_nas_mounted(allow_finder_fallback=True))
 
         self.assertEqual(mock_run.call_args_list[1], call(
             ["open", "smb://ALEXNAS91/Kino"],
@@ -63,27 +77,41 @@ class TestNasMountFallback(unittest.TestCase):
     @patch("gui.core.transfers.check_nas_status", return_value="available_not_mounted")
     @patch("gui.core.transfers._wait_for_nas_mount", side_effect=[False, True])
     @patch("gui.core.transfers.subprocess.run")
-    def test_delayed_direct_mount_opens_finder_fallback(self, mock_run, mock_wait, mock_status, mock_settings):
+    @patch("gui.core.transfers.os.path.exists", return_value=False)
+    def test_delayed_direct_mount_skips_finder_fallback_by_default(self, mock_exists, mock_run, mock_wait, mock_status, mock_settings):
         mock_run.return_value = MagicMock(returncode=0, stdout="file Kino:", stderr="")
 
         with self._socket_mock():
-            self.assertTrue(transfers.ensure_nas_mounted())
+            self.assertFalse(transfers.ensure_nas_mounted())
+
+        self.assertEqual(mock_run.call_count, 1)
+
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS)
+    @patch("gui.core.transfers.check_nas_status", return_value="available_not_mounted")
+    @patch("gui.core.transfers._wait_for_nas_mount", side_effect=[False, True])
+    @patch("gui.core.transfers.subprocess.run")
+    def test_delayed_direct_mount_opens_finder_fallback_when_allowed(self, mock_run, mock_wait, mock_status, mock_settings):
+        mock_run.return_value = MagicMock(returncode=0, stdout="file Kino:", stderr="")
+
+        with self._socket_mock():
+            self.assertTrue(transfers.ensure_nas_mounted(allow_finder_fallback=True))
 
         self.assertEqual(mock_run.call_args_list[1].args[0], ["open", "smb://ALEXNAS91/Kino"])
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS)
     @patch("gui.core.transfers.check_nas_status", return_value="available_not_mounted")
     @patch("gui.core.transfers._wait_for_nas_mount", return_value=True)
+    @patch("gui.core.transfers.os.path.exists", return_value=False)
     @patch("gui.core.transfers.log_message")
     @patch("gui.core.transfers.subprocess.run")
-    def test_applescript_error_is_logged(self, mock_run, mock_log, mock_wait, mock_status, mock_settings):
+    def test_applescript_error_is_logged(self, mock_run, mock_log, mock_exists, mock_wait, mock_status, mock_settings):
         mock_run.side_effect = [
             MagicMock(returncode=1, stdout="", stderr="AppleScript mount failed"),
             MagicMock(returncode=0, stdout="", stderr=""),
         ]
 
         with self._socket_mock():
-            self.assertTrue(transfers.ensure_nas_mounted())
+            self.assertFalse(transfers.ensure_nas_mounted())
 
         mock_log.assert_any_call("⚠️ Automatisches SMB-Mounting fehlgeschlagen: AppleScript mount failed")
 

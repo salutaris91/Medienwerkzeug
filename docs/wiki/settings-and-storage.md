@@ -39,8 +39,9 @@ verfügbar, kann `rclone` als Fallback dienen.
 NAS-Ziele besitzen zusätzlich lokale IP, Backup-/Tailscale-IP,
 `nas_hostname` und SMB-Share. Beim Verbinden versucht das Tool zuerst den
 direkten SMB-Mount per AppleScript. Falls macOS dabei einen Fehler meldet oder
-das Volume nicht zeitnah erscheint, öffnet es als Fallback
-`smb://<nas_hostname>/<nas_share>` im Finder.
+das Volume nicht zeitnah erscheint, darf nur der manuelle Verbindungsversuch als
+Fallback `smb://<nas_hostname>/<nas_share>` im Finder öffnen. Automatische
+Verarbeitungsläufe überspringen diesen Finder-Fallback.
 
 `sync_categories` ordnet fachliche Kategorien Unterpfaden zu. Dadurch kann ein
 Job etwa eine Serie in einen anderen Zielordner als einen Film schreiben.
