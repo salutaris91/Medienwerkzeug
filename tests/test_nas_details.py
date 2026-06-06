@@ -140,6 +140,36 @@ class TestNasDetails(unittest.TestCase):
         self.assertIn("nas_details", data)
         self.assertEqual(data["nas_details"]["reachable_ip"], "100.74.187.125")
 
+    @patch("gui.api.system_api.check_nas_connection_details")
+    def test_api_status_force_check_bypasses_cache(self, mock_details):
+        mock_details.return_value = {
+            "status": "connected",
+            "enabled": True,
+            "has_root": True,
+            "checked_ips": [],
+            "reachable_ip": None
+        }
+        
+        # Reset cache on endpoint function
+        if hasattr(handle_api_status, "last_nas_details"):
+            delattr(handle_api_status, "last_nas_details")
+            
+        with patch("gui.api.system_api.check_streamfab", return_value=[]):
+            # First call - populates cache
+            response = self.client.get("/api/status")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(mock_details.call_count, 1)
+
+            # Second call without force_nas_check - uses cache
+            response = self.client.get("/api/status")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(mock_details.call_count, 1)
+
+            # Third call with force_nas_check=true - bypasses cache
+            response = self.client.get("/api/status?force_nas_check=true")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(mock_details.call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()
