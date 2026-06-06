@@ -7766,26 +7766,47 @@ async function loadSettings() {
             renderStorageTargets();
             updateDestinationDropdowns();
             
-            // Fetch API keys separately to populate settings fields without writing mask to value
+            // Fetch API keys separately to populate settings fields
             fetch('/api/keys')
-                .then(res => res.json())
+                .then(async res => {
+                    if (!res.ok) throw new Error("API keys fetch failed");
+                    return res.json();
+                })
                 .then(keys => {
-                    if (keys.TMDB_API_KEY) {
-                        const tmdbInput = document.getElementById("settings-tmdb-key");
-                        if (tmdbInput) {
-                            tmdbInput.value = "";
-                            tmdbInput.placeholder = `Hinterlegt (${keys.TMDB_API_KEY})`;
+                    const tmdbInput = document.getElementById("settings-tmdb-key");
+                    if (tmdbInput) {
+                        tmdbInput.value = keys.TMDB_API_KEY || "";
+                        tmdbInput.dataset.original = keys.TMDB_API_KEY || "";
+                        if (keys.TMDB_API_KEY) {
+                            tmdbInput.placeholder = "Hinterlegt";
+                        } else {
+                            tmdbInput.placeholder = "Nicht konfiguriert (Metadaten eingeschränkt)";
                         }
                     }
-                    if (keys.TVDB_API_KEY) {
-                        const tvdbInput = document.getElementById("settings-tvdb-key");
-                        if (tvdbInput) {
-                            tvdbInput.value = "";
-                            tvdbInput.placeholder = `Hinterlegt (${keys.TVDB_API_KEY})`;
+                    const tvdbInput = document.getElementById("settings-tvdb-key");
+                    if (tvdbInput) {
+                        tvdbInput.value = keys.TVDB_API_KEY || "";
+                        tvdbInput.dataset.original = keys.TVDB_API_KEY || "";
+                        if (keys.TVDB_API_KEY) {
+                            tvdbInput.placeholder = "Hinterlegt";
+                        } else {
+                            tvdbInput.placeholder = "Nicht konfiguriert (optional)";
                         }
                     }
                 })
-                .catch(e => console.error("Error loading API keys:", e));
+                .catch(e => {
+                    console.error("Error loading API keys:", e);
+                    const tmdbInput = document.getElementById("settings-tmdb-key");
+                    if (tmdbInput) {
+                        tmdbInput.value = "";
+                        tmdbInput.placeholder = "Nicht konfiguriert (Fehler beim Laden)";
+                    }
+                    const tvdbInput = document.getElementById("settings-tvdb-key");
+                    if (tvdbInput) {
+                        tvdbInput.value = "";
+                        tvdbInput.placeholder = "Nicht konfiguriert (Fehler beim Laden)";
+                    }
+                });
             
             checkDependencies(false);
         }
@@ -8526,11 +8547,24 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
                 
                 if (response.ok) {
-                    const tmdbKey = document.getElementById("settings-tmdb-key")?.value.trim() || "";
-                    const tvdbKey = document.getElementById("settings-tvdb-key")?.value.trim() || "";
+                    const tmdbInput = document.getElementById("settings-tmdb-key");
+                    const tvdbInput = document.getElementById("settings-tvdb-key");
                     const keyPayload = {};
-                    if (tmdbKey && !tmdbKey.includes("...")) keyPayload.TMDB_API_KEY = tmdbKey;
-                    if (tvdbKey && !tvdbKey.includes("...")) keyPayload.TVDB_API_KEY = tvdbKey;
+                    
+                    if (tmdbInput) {
+                        const val = tmdbInput.value.trim();
+                        const orig = tmdbInput.dataset.original || "";
+                        if (val !== orig) {
+                            keyPayload.TMDB_API_KEY = val;
+                        }
+                    }
+                    if (tvdbInput) {
+                        const val = tvdbInput.value.trim();
+                        const orig = tvdbInput.dataset.original || "";
+                        if (val !== orig) {
+                            keyPayload.TVDB_API_KEY = val;
+                        }
+                    }
                     
                     if (Object.keys(keyPayload).length > 0) {
                         try {
