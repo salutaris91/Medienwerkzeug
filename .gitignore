@@ -56,3 +56,4 @@ fix_*.py
 remove_fsk_tool.py
 rename_profiles.py
 gui/server_backup.py
+.env

@@ -30,6 +30,7 @@ die aktive After-Release-Roadmap übernommen.
 | 21 | Desktop-App Packaging (pywebview/PyInstaller) | geplant | groß |
 | 22 | Update-Hinweise und Release Notes | geplant | klein–mittel |
 | 23 | Lizenz- und Drittanbieterhinweise | geplant | klein |
+| 24 | API-Key Maskierung UX (Fokus/Editierung-Verhalten) | geplant | klein |
 
 ---
 
@@ -605,3 +606,19 @@ deren Lizenzen.
 
 ### Aufwand (grob)
 Klein: Recherche, Dokumentation und Pflege bei neuen gebündelten Abhängigkeiten.
+
+---
+
+## 24. API-Key Maskierung UX (Fokus/Editierung-Verhalten)
+
+Wenn ein maskierter API-Key (z. B. `****1234`) im Input-Feld vom Benutzer teil-editiert wird (ohne ihn ganz zu löschen oder komplett zu ersetzen), ignoriert das Backend den Wert stillschweigend aufgrund der `is_masked()`-Prüfung. Dies kann zu Verwirrung führen, da der Benutzer denkt, er hätte den Key geändert, dieser aber unverändert bleibt.
+
+### Ziel
+Eine sauberere UX beim Editieren maskierter Werte.
+
+### Umsetzung
+- Im Frontend beim Fokussieren (`focus`-Event) oder bei der ersten Tastatureingabe (`input`-Event) den maskierten Wert automatisch verwerfen/leeren, um dem Benutzer eine saubere Neueingabe zu ermöglichen.
+- Alternativ: Validierung im Frontend einbauen, die verhindert, dass teileditierte Werte, die mit `****` beginnen, abgesendet werden (mit entsprechendem Validierungshinweis).
+
+### Aufwand (grob)
+Klein: Reine Frontend-UX-Anpassung in `app.js`.
