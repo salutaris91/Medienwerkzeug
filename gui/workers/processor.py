@@ -37,6 +37,17 @@ def _get_movie_artwork_lists(settings, video_filename):
         validator.get_movie_backdrop_names(video_filename)
     )
 
+def path_endswith(full_path, suffix_path):
+    """Checks if full_path ends with the components of suffix_path, respecting path boundaries."""
+    full_parts = os.path.normpath(full_path).split(os.sep)
+    suffix_parts = os.path.normpath(suffix_path).split(os.sep)
+    # Filter out empty parts that might occur from trailing slashes or absolute paths
+    full_parts = [p for p in full_parts if p]
+    suffix_parts = [p for p in suffix_parts if p]
+    if len(full_parts) < len(suffix_parts):
+        return False
+    return full_parts[-len(suffix_parts):] == suffix_parts
+
 def move_with_fallback(src_path, dest_dir, fallback_basename, whitelist=None):
     """
     Moves a file at src_path to dest_dir.
@@ -55,10 +66,7 @@ def move_with_fallback(src_path, dest_dir, fallback_basename, whitelist=None):
         target_name = None
         if whitelist:
             for item in whitelist:
-                # normalize path separators to prevent mismatch
-                old_norm = os.path.normpath(item["old"])
-                src_norm = os.path.normpath(src_path)
-                if src_norm.endswith(old_norm) or os.path.basename(src_path) == item["new"]:
+                if path_endswith(src_path, item["old"]) or os.path.basename(src_path) == item["new"]:
                     target_name = item["new"]
                     break
 
@@ -80,6 +88,16 @@ def move_with_fallback(src_path, dest_dir, fallback_basename, whitelist=None):
             dst_path = os.path.join(dest_dir, target_name)
             log_message(f"[Fallback-Verschiebung] Verwende Whitelist-Name: {target_name} für {src_path}")
         else:
+            # Check for VobSub pairing (.sub / .idx) at the source
+            is_vobsub_pair = False
+            partner_src = None
+            partner_ext = None
+            if ext in ('.sub', '.idx'):
+                partner_ext = '.idx' if ext == '.sub' else '.sub'
+                partner_src = os.path.splitext(src_path)[0] + partner_ext
+                if os.path.exists(partner_src):
+                    is_vobsub_pair = True
+
             counter = 1
             while True:
                 if counter == 1:
@@ -87,13 +105,32 @@ def move_with_fallback(src_path, dest_dir, fallback_basename, whitelist=None):
                 else:
                     candidate = f"{fallback_basename}.{counter}{ext}"
                 dst_path = os.path.join(dest_dir, candidate)
-                if not os.path.exists(dst_path):
-                    break
+
+                if is_vobsub_pair:
+                    if counter == 1:
+                        partner_candidate = f"{fallback_basename}{partner_ext}"
+                    else:
+                        partner_candidate = f"{fallback_basename}.{counter}{partner_ext}"
+                    partner_dst_path = os.path.join(dest_dir, partner_candidate)
+                    if not os.path.exists(dst_path) and not os.path.exists(partner_dst_path):
+                         break
+                else:
+                    if not os.path.exists(dst_path):
+                        break
                 counter += 1
+
             log_message(f"[Fallback-Verschiebung] Auffangregel: {src_path} -> {os.path.basename(dst_path)}")
+
+            # If it's a VobSub pair, dynamically register the partner in the whitelist so it finds the same counter
+            if is_vobsub_pair and whitelist is not None:
+                whitelist.append({
+                    "old": partner_src,
+                    "new": os.path.basename(partner_dst_path)
+                })
 
         os.makedirs(os.path.dirname(dst_path), exist_ok=True)
         if os.path.exists(dst_path):
+            log_message(f"⚠️ [Fallback-Verschiebung] Ziel existiert bereits und wird überschrieben: {dst_path}")
             if os.path.isdir(dst_path):
                 shutil.rmtree(dst_path)
             else:
@@ -134,7 +171,7 @@ def safe_move_recursive(src_dir, dest_dir, prefix_filter=None, fallback_basename
         is_junk = False
         if junk_list:
             for j in junk_list:
-                if os.path.normpath(f_path).endswith(os.path.normpath(j)):
+                if path_endswith(f_path, j):
                     is_junk = True
                     break
         if is_junk:
@@ -149,7 +186,7 @@ def safe_move_recursive(src_dir, dest_dir, prefix_filter=None, fallback_basename
                 belongs = True
             elif whitelist:
                 for item in whitelist:
-                    if os.path.normpath(f_path).endswith(os.path.normpath(item["old"])) or os.path.basename(f_path) == item["new"]:
+                    if path_endswith(f_path, item["old"]) or os.path.basename(f_path) == item["new"]:
                         if item["new"].startswith(prefix_filter):
                             belongs = True
                             break

@@ -706,5 +706,70 @@ class TestMovieProcessingFixes(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "nested_folder")))
         self.assertFalse(os.path.exists(os.path.join(proj_dir, "nested_folder")))
 
+    def test_endswith_component_matching_and_vobsub_fallback_pairing(self):
+        """Test 9: Prüft komponentenweises Pfadmatching sowie VobSub-Kopplung bei der Auffangregel."""
+        proj_dir = os.path.join(self.inbox_dir, "FallbackPairingMovie")
+        os.makedirs(proj_dir)
+
+        # Hauptfilm
+        video = os.path.join(proj_dir, "movie.mkv")
+        with open(video, "wb") as f:
+            f.truncate(5 * 1024 * 1024)
+
+        # 1. Komponentenweiser Pfad-Matching-Test:
+        # danger.sub soll ger.sub in der Whitelist NICHT matchen (da keine os.sep-Grenze)
+        danger_sub = os.path.join(proj_dir, "danger.sub")
+        with open(danger_sub, "w") as f: f.write("danger")
+
+        # 2. VobSub-Kollisions-Kopplungstest (ohne Whitelist):
+        # Paar A (a.sub, a.idx) und Paar B (b.sub, b.idx)
+        os.makedirs(os.path.join(proj_dir, "PaarA"))
+        with open(os.path.join(proj_dir, "PaarA", "a.sub"), "w") as f: f.write("subA")
+        with open(os.path.join(proj_dir, "PaarA", "a.idx"), "w") as f: f.write("idxA")
+
+        os.makedirs(os.path.join(proj_dir, "PaarB"))
+        with open(os.path.join(proj_dir, "PaarB", "b.sub"), "w") as f: f.write("subB")
+        with open(os.path.join(proj_dir, "PaarB", "b.idx"), "w") as f: f.write("idxB")
+
+        params = {
+            "media_type": "movie",
+            "project_name": "FallbackPairingMovie",
+            "movie_name": "Fallback Movie (2026)",
+            "destination_id": "1",
+            "copy_to_nas": True,
+            "explicit_renames": [
+                {"old": "movie.mkv", "new": "Fallback Movie (2026).mkv"}
+            ],
+            # Wir fügen eine Whitelist-Zuweisung für "ger.sub" hinzu.
+            # "danger.sub" darf darauf nicht matchen!
+            "explicit_subs": [
+                {"old": "ger.sub", "new": "Fallback Movie (2026).de.forced.sub"}
+            ],
+            "explicit_junk": []
+        }
+
+        processor.process_worker(params)
+        dest_movie_dir = os.path.join(self.outbox_dir, "Filme", "Fallback Movie (2026)")
+
+        # danger.sub darf NICHT zu "Fallback Movie (2026).de.forced.sub" umbenannt worden sein!
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "Fallback Movie (2026).de.forced.sub")))
+
+        # Nun prüfen wir, ob die Paare A und B sauber zusammengehalten wurden.
+        dest_files = os.listdir(dest_movie_dir)
+        sub_idx_bases = {}
+        for f in dest_files:
+            if f.endswith(('.sub', '.idx')):
+                base, ext = os.path.splitext(f)
+                if base not in sub_idx_bases:
+                    sub_idx_bases[base] = set()
+                sub_idx_bases[base].add(ext)
+
+        # Für jedes gefundene Paar-Präfix müssen sowohl .sub als auch .idx vorhanden sein.
+        # danger.sub ist kein Paar und hat keinen Counter im Namen, daher überspringen wir "Fallback Movie (2026)".
+        for base, exts in sub_idx_bases.items():
+            if base == "Fallback Movie (2026)" or "Fallback Movie (2026).de.forced" in base:
+                continue
+            self.assertEqual(exts, {'.sub', '.idx'})
+
 if __name__ == "__main__":
     unittest.main()

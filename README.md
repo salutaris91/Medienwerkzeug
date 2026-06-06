@@ -38,6 +38,7 @@ Das Medienwerkzeug ist für performante, fehlerresiliente Arbeitsabläufe optimi
 3. **Einhaltung strenger Zielstrukturen:**
    * **Filme & Einzel-Dokus:** `[Kategorie-Unterpfad]/[Filmname (Jahr)]/` mit synchronisierten Covern (`poster.jpg` etc.).
    * **Serien & Doku-Serien:** `[Kategorie-Unterpfad]/[Serienname]/Staffel X/[Episode].mkv` sowie `tvshow.nfo` und Artworks.
+   * **Sicheres Verschiebe-Verfahren (Safe Move):** Dateien werden präzise und rekursiv anhand der Benutzerzuweisungen aus der Vorschau verschoben. Eine robuste Auffangregel verhindert das unkontrollierte Verschieben ganzer Unterordner und sichert verbleibende Dateien durch kontrollierte Namensgebung (inkl. Kollisionsschutz) am Zielort.
 4. **Zwei-Kanal-Synchronisation (Entkoppelt):**
    * **Lokale Outbox:** Verarbeitete Projekte landen strukturiert in `Medien Output`.
    * **NAS:** Robustes Übertragen durch lokale Container-Volumes (Docker) oder automatisches SMB-Mounten (macOS Desktop).
@@ -60,6 +61,7 @@ Das Medienwerkzeug ist für performante, fehlerresiliente Arbeitsabläufe optimi
 20. **Visuelles Statistik-Dashboard (📊):** Speicherplatzersparnis-Metriken, circular SVG-NAS-Speicherbelegungsdiagramm und ein interaktives, rein in SVG & CSS animiertes Balkendiagramm zur Visualisierung der Speicherersparnis der letzten 15 Konvertierungen.
 21. **Media Health Dashboard (🔍):** Vollständiger Bibliotheks-Hintergrund-Scan über alle konfigurierten NAS-Kategorien hinweg zur Erkennung von fehlenden NFOs, fehlendem Artwork, Episodenlücken, Codec-Inkonsistenzen (ffprobe-Stichprobe), leeren Ordnern, verdächtig kleinen Videodateien, doppelt verschachtelten Filmordnern, kryptischen 8.3-Kurznamen, fehlendem Jahr im Ordnernamen, fehlender oder ungültiger FSK-Altersfreigabe und Ordner-/Dateiname-Mismatches. Quick-Fix-Buttons ermöglichen das direkte Auflösen von Verschachtelungen, Umbenennen (Ordner an Datei angleichen, Datei an Ordner angleichen oder freien Namen wählen) sowie das Setzen von FSK-Werten direkt in der NFO-Datei.
 22. **NAS-weite Duplikat-Erkennung (🗑️):** Hintergrund-Erkennung und Gruppierung doppelter Serien-Episoden auf dem gesamten NAS mit smarter Bewertung (HEVC > Auflösung > Dateigröße) zur Bestimmung der optimal zu behaltenden Version und Berechnung des rückgewinnbaren Speicherplatzes inklusive sicherem Löschdialog.
+23. **Vollständiger Untertitel-Support (📥):** Nahtlose Erkennung und Verarbeitung der Formate `.srt`, `.vtt`, `.ass`, `.ssa`, `.sub` und `.idx` (VobSub) inklusive Sprach- und Forced-Tag-Parsing. VobSub-Untertitelpärchen (`.sub`/`.idx`) werden intelligent miteinander gekoppelt, um eine konsistente Benennung und das gemeinsame Verschieben zu garantieren (auch innerhalb der Auffangregel).
 
 ---
 
