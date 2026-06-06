@@ -551,5 +551,44 @@ class TestMovieProcessingFixes(unittest.TestCase):
         # BUT the pre-existing unrelated file is NOT deleted / stays intact!
         self.assertTrue(os.path.exists(unrelated_file))
 
+    def test_artwork_source_webp(self):
+        """Test: Quelle liefert .webp -> nur .webp Core-Dateien entstehen."""
+        proj_dir = os.path.join(self.inbox_dir, "WebpSourceMovie")
+        os.makedirs(proj_dir)
+
+        video = os.path.join(proj_dir, "movie.mkv")
+        with open(video, "wb") as f:
+            f.truncate(10 * 1024 * 1024)
+
+        with open(os.path.join(proj_dir, "poster.webp"), "w") as f:
+            f.write("webp poster")
+        with open(os.path.join(proj_dir, "fanart.webp"), "w") as f:
+            f.write("webp fanart")
+
+        params = {
+            "media_type": "movie",
+            "project_name": "WebpSourceMovie",
+            "movie_name": "Webp Movie (2026)",
+            "destination_id": "1",
+            "copy_to_nas": True,
+            "explicit_renames": [
+                {"old": "movie.mkv", "new": "Webp Movie (2026).mkv"}
+            ],
+            "explicit_subs": [],
+            "explicit_junk": []
+        }
+
+        processor.process_worker(params)
+        dest_movie_dir = os.path.join(self.outbox_dir, "Filme", "Webp Movie (2026)")
+
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "poster.webp")))
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "folder.webp")))
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "fanart.webp")))
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "backdrop.webp")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "poster.jpg")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "folder.jpg")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "fanart.jpg")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "backdrop.jpg")))
+
 if __name__ == "__main__":
     unittest.main()

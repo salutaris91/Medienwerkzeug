@@ -1559,7 +1559,12 @@ def process_worker(params):
                 base_movie, _ = os.path.splitext(final_filename)
 
                 # --- 1. Find all poster candidates ---
-                poster_candidates = ["poster.jpg", "poster.png", "folder.jpg", "folder.png", "cover.jpg", "cover.png", "default.jpg", "default.png"]
+                poster_candidates = [
+                    "poster.jpg", "poster.png", "poster.webp",
+                    "folder.jpg", "folder.png", "folder.webp",
+                    "cover.jpg", "cover.png", "cover.webp",
+                    "default.jpg", "default.png", "default.webp",
+                ]
                 found_posters = []
                 for f in all_outbox_files:
                     f_lower = f.lower()
@@ -1568,7 +1573,12 @@ def process_worker(params):
 
                 # Find the single best master poster
                 master_poster = None
-                poster_prio = ["poster.jpg", "poster.png", "folder.jpg", "folder.png", "cover.jpg", "cover.png", "default.jpg", "default.png"]
+                poster_prio = [
+                    "poster.jpg", "poster.png", "poster.webp",
+                    "folder.jpg", "folder.png", "folder.webp",
+                    "cover.jpg", "cover.png", "cover.webp",
+                    "default.jpg", "default.png", "default.webp",
+                ]
                 for p_name in poster_prio:
                     for f in found_posters:
                         if f.lower() == p_name:
@@ -1607,7 +1617,13 @@ def process_worker(params):
                                 pass
 
                 # --- 2. Find all backdrop candidates ---
-                backdrop_candidates = ["fanart.jpg", "fanart.png", "backdrop.jpg", "backdrop.png", "background.jpg", "background.png", "backgrounds.jpg", "backgrounds.png", "art.jpg", "art.png"]
+                backdrop_candidates = [
+                    "fanart.jpg", "fanart.png", "fanart.webp",
+                    "backdrop.jpg", "backdrop.png", "backdrop.webp",
+                    "background.jpg", "background.png", "background.webp",
+                    "backgrounds.jpg", "backgrounds.png", "backgrounds.webp",
+                    "art.jpg", "art.png", "art.webp",
+                ]
                 found_backdrops = []
                 for f in all_outbox_files:
                     f_lower = f.lower()
@@ -1616,7 +1632,13 @@ def process_worker(params):
 
                 # Find the single best master backdrop
                 master_backdrop = None
-                backdrop_prio = ["fanart.jpg", "fanart.png", "backdrop.jpg", "backdrop.png", "background.jpg", "background.png", "backgrounds.jpg", "backgrounds.png", "art.jpg", "art.png"]
+                backdrop_prio = [
+                    "fanart.jpg", "fanart.png", "fanart.webp",
+                    "backdrop.jpg", "backdrop.png", "backdrop.webp",
+                    "background.jpg", "background.png", "background.webp",
+                    "backgrounds.jpg", "backgrounds.png", "backgrounds.webp",
+                    "art.jpg", "art.png", "art.webp",
+                ]
                 for b_name in backdrop_prio:
                     for f in found_backdrops:
                         if f.lower() == b_name:
