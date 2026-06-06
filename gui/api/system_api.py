@@ -210,9 +210,10 @@ def handle_api_status():
             projects.append(d)
 
     import time
-    # Cache NAS status for 30 seconds to avoid P5 pinging constantly
-    if not hasattr(handle_api_status, "last_nas_status") or time.time() - getattr(handle_api_status, "last_nas_check", 0) > 30:
-        handle_api_status.last_nas_status = check_nas_status()
+    # Cache NAS status and details for 30 seconds to avoid P5 pinging constantly
+    if not hasattr(handle_api_status, "last_nas_details") or time.time() - getattr(handle_api_status, "last_nas_check", 0) > 30:
+        handle_api_status.last_nas_details = check_nas_connection_details()
+        handle_api_status.last_nas_status = handle_api_status.last_nas_details["status"]
         handle_api_status.last_nas_check = time.time()
 
     from gui.workers.processor import SYSTEM_METRICS, METRICS_LOCK
@@ -227,6 +228,7 @@ def handle_api_status():
 
     status = {
         "nas_status": handle_api_status.last_nas_status,
+        "nas_details": handle_api_status.last_nas_details,
         "inbox_path": inbox,
         "outbox_path": outbox,
         "streamfab_downloads": check_streamfab(),
@@ -262,7 +264,9 @@ def handle_api_nas_connect():
 
     try:
         ensure_nas_mounted()
-        nas_status = check_nas_status()
+        nas_details = check_nas_connection_details()
+        nas_status = nas_details["status"]
+        handle_api_status.last_nas_details = nas_details
         handle_api_status.last_nas_status = nas_status
         handle_api_status.last_nas_check = now
 
@@ -270,6 +274,7 @@ def handle_api_nas_connect():
             return jsonify({
                 "ok": True,
                 "nas_status": nas_status,
+                "nas_details": nas_details,
                 "message": "NAS wurde erfolgreich verbunden."
             })
 
@@ -284,14 +289,22 @@ def handle_api_nas_connect():
                 "Tailscale und die SMB-Einstellungen."
             )
 
-        return jsonify({"ok": False, "nas_status": nas_status, "message": message}), 503
+        return jsonify({"ok": False, "nas_status": nas_status, "nas_details": nas_details, "message": message}), 503
     except Exception as e:
         log_message(f"❌ Manueller NAS-Verbindungsversuch fehlgeschlagen: {e}")
+        handle_api_status.last_nas_details = {
+            "status": "offline",
+            "enabled": True,
+            "has_root": True,
+            "checked_ips": [],
+            "reachable_ip": None
+        }
         handle_api_status.last_nas_status = "offline"
         handle_api_status.last_nas_check = now
         return jsonify({
             "ok": False,
             "nas_status": "offline",
+            "nas_details": handle_api_status.last_nas_details,
             "message": f"NAS-Verbindung fehlgeschlagen: {e}"
         }), 500
 

@@ -85,6 +85,82 @@ def check_nas_status():
     else:
         return "offline"
 
+def check_nas_connection_details():
+    settings = load_settings()
+    nas_target = next((t for t in settings.get("storage_targets", []) if t.get("id") == "nas"), None)
+    
+    nas_enabled = True
+    nas_root = ""
+    nas_host = ""
+    nas_host_ts = ""
+    
+    if nas_target:
+        nas_root = nas_target.get("root_path", "")
+        nas_host = nas_target.get("nas_ip", "")
+        nas_host_ts = nas_target.get("nas_ip_backup", "")
+        nas_enabled = nas_target.get("enabled", True)
+    else:
+        nas_root = settings.get("nas_root", "")
+        
+    has_root = bool(nas_root)
+    
+    checked_ips = []
+    for ip in [nas_host, nas_host_ts]:
+        if ip:
+            checked_ips.append(ip)
+            
+    if not nas_enabled:
+        return {
+            "status": "offline",
+            "enabled": False,
+            "has_root": has_root,
+            "checked_ips": checked_ips,
+            "reachable_ip": None
+        }
+        
+    if not has_root:
+        return {
+            "status": "offline",
+            "enabled": True,
+            "has_root": False,
+            "checked_ips": checked_ips,
+            "reachable_ip": None
+        }
+
+    # 1. Check if mounted
+    mounted = _is_nas_root_mounted(nas_root)
+        
+    # 2. Check ping/nc
+    reachable_ip = None
+    for ip in checked_ips:
+        s = None
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.3)
+            s.connect((ip, 445))
+            reachable_ip = ip
+            break
+        except Exception:
+            pass
+        finally:
+            if s:
+                s.close()
+            
+    if mounted:
+        status = "connected"
+    elif reachable_ip:
+        status = "available_not_mounted"
+    else:
+        status = "offline"
+        
+    return {
+        "status": status,
+        "enabled": nas_enabled,
+        "has_root": has_root,
+        "checked_ips": checked_ips,
+        "reachable_ip": reachable_ip
+    }
+
 def ensure_nas_mounted():
     settings = load_settings()
     nas_target = next((t for t in settings.get("storage_targets", []) if t.get("id") == "nas"), None)

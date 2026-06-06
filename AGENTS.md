@@ -142,7 +142,7 @@ Den vollständigen Abschluss-Prozess (Abschlusszusammenfassung + Checkliste vor 
 Sobald ein Feature oder ein zusammenhängender Arbeitsschritt abgeschlossen ist, **müssen zwingend** folgende 4 Aktualisierungen vorgenommen werden:
 1. **Git:** Änderungen lokal committen (`git add -u && git commit -m "..."`).
 2. **STAND.md:** Den aktuellen Stand, erledigte Aufgaben und offene Punkte nachführen.
-3. **ROADMAP.md:** Falls ein Feature der Roadmap umgesetzt wurde, den Status auf "erledigt" setzen.
+3. **AFTER_RELEASE_ROADMAP.md:** Falls ein Feature der Roadmap umgesetzt wurde, den Status auf "erledigt" setzen.
 4. **Wissensgraph:** `scripts/refresh_graphify.sh` ausführen, um den Graphen (`graphify-out/`) zu synchronisieren und die Exporte mit sprechenden Community-Namen neu zu erzeugen.
 
 ---

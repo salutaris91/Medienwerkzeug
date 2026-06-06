@@ -4,6 +4,10 @@ Zentrale Sammelstelle für geplante, noch **nicht umgesetzte** Erweiterungen des
 Medienwerkzeugs. Jeder Abschnitt ist ein eigenständiger Plan und kann unabhängig
 angegangen werden.
 
+Der frühere Release- und Distributionsplan liegt nur noch als historisches
+Archiv unter `docs/archive/ROAD_TO_GLORY.md`. Offene Punkte daraus sind hier in
+die aktive After-Release-Roadmap übernommen.
+
 | # | Thema | Status | Aufwand (grob) |
 |---|-------|--------|----------------|
 | 1 | Echtes Multi-Cloud (mehrere Cloud-Ziele gleichzeitig) | geplant | mittel |
@@ -19,6 +23,13 @@ angegangen werden.
 | 14 | Health-Status-Vertrag & Frontend-Testabdeckung | geplant | klein–mittel |
 | 15 | FAQ sprachlich und visuell überarbeiten | erledigt | klein |
 | 16 | System Metrics Worker: Thread-Akkumulation verhindern | geplant | klein |
+| 17 | NAS-Diagnose-Checkliste auf der Startseite | geplant | klein–mittel |
+| 18 | Docker-Image veröffentlichen (GHCR/Docker Hub) | geplant | mittel |
+| 19 | Geführter rclone-Web-Flow | geplant | mittel |
+| 20 | Web-Upload mit Drag & Drop | geplant | groß |
+| 21 | Desktop-App Packaging (pywebview/PyInstaller) | geplant | groß |
+| 22 | Update-Hinweise und Release Notes | geplant | klein–mittel |
+| 23 | Lizenz- und Drittanbieterhinweise | geplant | klein |
 
 ---
 
@@ -418,3 +429,179 @@ Verhindern, dass sich hängende Daemon-Threads ansammeln, wenn das NAS über vie
 
 ### Aufwand (grob)
 ~0,5 Tage (Klein). Vor allem Architektur-Tests nötig, um sicherzustellen, dass die Multiprocessing-Aufrufe nicht auf die bestehende Job-Queue oder Gunicorn durchschlagen.
+
+---
+
+## 17. NAS-Diagnose-Checkliste auf der Startseite
+
+Nach der kompakten NAS-Statusanzeige kann die Startseite um eine detaillierte,
+aufklappbare Diagnose erweitert werden. Ziel ist mehr Transparenz bei
+Netzwerk-, Tailscale-, Docker- und Mount-Problemen, ohne die normale
+Startseitenansicht dauerhaft zu überladen.
+
+### Ziel
+Der Nutzer soll direkt erkennen können, an welchem Schritt die NAS-Verbindung
+scheitert: Konfiguration, IP-Erreichbarkeit, Docker-/Desktop-Laufzeitmodus oder
+lokaler Mount.
+
+### Umsetzung
+- Die Kachel "Systemverbindungen" erhält ein Info-Symbol oder einen kleinen
+  "Details"-Schalter.
+- Aufgeklappt erscheint eine Diagnose-Checkliste, zum Beispiel:
+  - Einstellungen aktiviert.
+  - Einhängepfad konfiguriert.
+  - Haupt-IP auf Port 445 erreichbar.
+  - Backup-/Tailscale-IP auf Port 445 erreichbar.
+  - Netzlaufwerk lokal eingehängt.
+- Im Desktop-Modus kann ein "Jetzt mounten"-Button angeboten werden, wenn das
+  NAS erreichbar, aber noch nicht eingehängt ist.
+- Im Docker-Modus bleiben Mount-Aktionen deaktiviert; die UI erklärt stattdessen,
+  dass das NAS außerhalb des Containers als Volume bereitgestellt werden muss.
+- Die API muss dafür strukturierte Diagnosedaten liefern, etwa `nas_enabled`,
+  `nas_root_configured`, `checked_ips`, `reachable_ip`, `runtime_mode` und
+  einen optionalen Fehler- oder Hinweistext.
+
+### Aufwand (grob)
+Klein–mittel: Backend-Diagnosevertrag, Frontend-Aufklappbereich und Tests für
+Desktop-/Docker-Zustände.
+
+---
+
+## 18. Docker-Image veröffentlichen (GHCR/Docker Hub)
+
+Das Docker-Profil ist der primäre Distributionskanal für NAS- und Server-Nutzer.
+Nach dem lokalen Docker-Produktcheck soll das Image öffentlich und versioniert
+bereitgestellt werden.
+
+### Ziel
+Nutzer können das Medienwerkzeug über ein fertiges Container-Image installieren
+und später per `docker compose pull` aktualisieren.
+
+### Umsetzung
+- Image unter einem stabilen Namen in GitHub Container Registry oder Docker Hub
+  veröffentlichen.
+- Tags für Versionen (`v1.0`, `v1.1`, `latest`) definieren.
+- `docker-compose.yml` mit klaren Volume-Beispielen und Portainer-/Synology-
+  kompatibler Anleitung dokumentieren.
+- Kompatibilität mit Portainer, Synology Docker-UI und Unraid testen.
+
+### Aufwand (grob)
+Mittel: Registry-Setup, Build-Pipeline, Release-Dokumentation und manuelle Tests
+auf einer echten NAS-/Server-Umgebung.
+
+---
+
+## 19. Geführter rclone-Web-Flow
+
+Cloud-Ziele funktionieren über `rclone`, aber der OAuth-Setup-Prozess ist aktuell
+terminalnah. Für weniger technische Nutzer braucht es eine geführte Einrichtung
+in der Weboberfläche.
+
+### Ziel
+Cloud-Remotes wie Google Drive oder pCloud können ohne direkten Terminalkontakt
+eingerichtet, getestet und in den Einstellungen ausgewählt werden.
+
+### Umsetzung
+- Bestehende rclone-Remotes listen und in der Settings-UI auswählbar machen.
+- Geführten Flow für `rclone config` bzw. OAuth-URL, Rückmeldung und
+  Verbindungstest entwerfen.
+- Fehlerfälle verständlich anzeigen: fehlendes rclone, abgebrochener Login,
+  ungültiges Remote, Backend unterstützt `rclone about` nicht.
+- Keine OAuth-Tokens im Code oder Repository speichern; Konfiguration bleibt
+  nutzer- und installationsspezifisch.
+
+### Aufwand (grob)
+Mittel: UI-Flow, sichere Prozesssteuerung, Fehlerbehandlung und Tests mit
+gemockten rclone-Antworten.
+
+---
+
+## 20. Web-Upload mit Drag & Drop
+
+Für Nutzer, die keinen NAS-Share am Client eingebunden haben, kann ein Upload
+direkt in die Weboberfläche sinnvoll sein. Für große Videodateien ist das ein
+eigenständiges Feature.
+
+### Ziel
+Dateien und Ordner können über die Weboberfläche in die Inbox hochgeladen werden,
+ohne dass der Nutzer vorher ein Netzlaufwerk verbinden muss.
+
+### Umsetzung
+- Upload-Dialog mit Drag & Drop, Fortschritt und Abbruchmöglichkeit.
+- Chunked Uploads für große Dateien, idealerweise mit Resume nach Abbruch.
+- Serverseitige Größenlimits, freie-Speicher-Prüfung und verständliche Fehler.
+- Sichere Zielpfad-Auflösung innerhalb der erlaubten Inbox-Roots.
+- Tests für unterbrochene Uploads, doppelte Dateinamen, unzulässige Pfade und
+  sehr große Dateien.
+
+### Aufwand (grob)
+Groß: Frontend-Upload-UX, Backend-Streaming/Chunking, Speicherprüfung und
+robuste Fehlerfälle.
+
+---
+
+## 21. Desktop-App Packaging (pywebview/PyInstaller)
+
+Neben Docker soll später eine native Desktop-App möglich sein. Das ist getrennt
+von der allgemeinen Tool-Bündelung zu betrachten, weil Fensterintegration,
+Signierung und Plattformunterschiede eigene Risiken haben.
+
+### Ziel
+Das Medienwerkzeug lässt sich als macOS-/Windows-Desktop-App starten, ohne dass
+Nutzer Python oder die Flask-App manuell bedienen müssen.
+
+### Umsetzung
+- `pywebview` als natives Fenster über dem bestehenden Flask-Backend prüfen.
+- PyInstaller-/py2app-Builds für macOS und Windows aufsetzen.
+- Tool-Pfad-Resolver mit gebündelten oder systemweiten Binaries abstimmen
+  (`ffmpeg`, `yt-dlp`, `rclone`).
+- Plattformhinweise dokumentieren: macOS Gatekeeper, Windows Defender False
+  Positives, fehlende Notarisierung ohne Apple Developer Account.
+
+### Aufwand (grob)
+Groß: Build-Pipeline, Plattformtests, Signierungs-/Sicherheitsfragen und
+Installationsdokumentation.
+
+---
+
+## 22. Update-Hinweise und Release Notes
+
+Updates sollen für Docker- und spätere Desktop-Nutzer klar sichtbar und
+nachvollziehbar sein.
+
+### Ziel
+Nutzer erkennen, welche Version sie verwenden, ob ein Update verfügbar ist und
+was sich zwischen Versionen geändert hat.
+
+### Umsetzung
+- Version in UI und API anzeigen.
+- Docker-Update-Hinweise dokumentieren (`docker compose pull` und
+  `docker compose up -d`).
+- Optional gegen GitHub Releases prüfen und "Update verfügbar" in der UI zeigen.
+- Release Notes bzw. Changelog pro Version pflegen: neu, geändert, gefixt,
+  bekannte Einschränkungen.
+
+### Aufwand (grob)
+Klein–mittel: Versionsquelle, UI-Hinweis, GitHub-Release-Abgleich und
+Dokumentationsroutine.
+
+---
+
+## 23. Lizenz- und Drittanbieterhinweise
+
+Bei gebündelten Tools oder veröffentlichten Docker-Images müssen Lizenzhinweise
+für mitgelieferte Komponenten sauber dokumentiert werden.
+
+### Ziel
+Release-Artefakte enthalten nachvollziehbare Hinweise zu Drittanbieter-Tools und
+deren Lizenzen.
+
+### Umsetzung
+- `LICENSES/` oder eine gebündelte Drittanbieter-Hinweisdatei anlegen.
+- Lizenzlage für `ffmpeg` (GPL/LGPL abhängig vom Build), `yt-dlp`, `rclone` und
+  relevante Python-/Frontend-Abhängigkeiten prüfen.
+- Docker-Image und spätere Desktop-Bundles auf mitgelieferte Binaries abstimmen.
+- README-/Release-Hinweise um die Lizenzinformationen ergänzen.
+
+### Aufwand (grob)
+Klein: Recherche, Dokumentation und Pflege bei neuen gebündelten Abhängigkeiten.

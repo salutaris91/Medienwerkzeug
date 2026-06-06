@@ -6455,6 +6455,52 @@ function initEventListeners() {
         });
     }
 
+    const heroConnectNasBtn = document.getElementById("btn-hero-connect-nas");
+    if (heroConnectNasBtn) {
+        heroConnectNasBtn.addEventListener("click", async () => {
+            const originalText = heroConnectNasBtn.textContent;
+            heroConnectNasBtn.disabled = true;
+            heroConnectNasBtn.textContent = "Verbinde...";
+            
+            if (connectNasBtn) {
+                connectNasBtn.disabled = true;
+                connectNasBtn.textContent = "Verbinde...";
+            }
+            
+            try {
+                const response = await fetch("/api/nas/connect", { method: "POST" });
+                const data = await response.json();
+                alert(data.message || (response.ok ? "NAS wurde verbunden." : "NAS-Verbindung fehlgeschlagen."));
+                await loadStatus();
+            } catch (error) {
+                console.error("NAS-Verbindung fehlgeschlagen:", error);
+                alert("NAS-Verbindung fehlgeschlagen. Bitte prüfe, ob der Server erreichbar ist.");
+            } finally {
+                heroConnectNasBtn.disabled = false;
+                heroConnectNasBtn.textContent = originalText;
+                if (connectNasBtn) {
+                    connectNasBtn.disabled = false;
+                    connectNasBtn.textContent = "Verbinden";
+                }
+            }
+        });
+    }
+
+    const heroRefreshNasBtn = document.getElementById("btn-hero-refresh-nas");
+    if (heroRefreshNasBtn) {
+        heroRefreshNasBtn.addEventListener("click", async () => {
+            heroRefreshNasBtn.disabled = true;
+            const originalText = heroRefreshNasBtn.textContent;
+            heroRefreshNasBtn.textContent = "Prüfe...";
+            try {
+                await loadStatus();
+            } finally {
+                heroRefreshNasBtn.disabled = false;
+                heroRefreshNasBtn.textContent = originalText;
+            }
+        });
+    }
+
     // Settings Sub-Tabs navigation click listeners
     const settingsTabButtons = document.querySelectorAll(".settings-tab-btn");
     const settingsTabDescriptions = {
@@ -10555,6 +10601,65 @@ async function updateHomepageData(statusData) {
         } else {
             nasBadge.textContent = "Offline";
             nasBadge.classList.add("offline");
+        }
+    }
+
+    // Detailed NAS connection info & buttons on startpage (Approach A)
+    const nasInfoContainer = document.getElementById("hero-nas-connection-info");
+    const nasInfoMsg = document.getElementById("hero-nas-info-message");
+    const heroConnectBtn = document.getElementById("btn-hero-connect-nas");
+    const heroRefreshBtn = document.getElementById("btn-hero-refresh-nas");
+    
+    if (nasInfoContainer && nasInfoMsg) {
+        const details = statusData.nas_details;
+        if (details) {
+            nasInfoContainer.style.display = "block";
+            heroConnectBtn.style.display = "none";
+            heroRefreshBtn.style.display = "none";
+            
+            const runtimeDocker = window.AppCapabilities && window.AppCapabilities.runtime === "docker";
+            const mountAllowed = !runtimeDocker;
+            
+            if (!details.enabled) {
+                nasInfoMsg.innerHTML = "❌ NAS-Verbindung in den Einstellungen deaktiviert.";
+                nasInfoMsg.style.color = "var(--text-muted)";
+            } else if (!details.has_root) {
+                nasInfoMsg.innerHTML = "⚠️ Kein Einhängepfad (nas_root) in den Einstellungen konfiguriert.";
+                nasInfoMsg.style.color = "var(--warning)";
+            } else if (details.status === "connected") {
+                nasInfoMsg.innerHTML = "✅ Netzlaufwerk ist eingehängt.";
+                nasInfoMsg.style.color = "var(--success)";
+                if (details.reachable_ip) {
+                    nasInfoMsg.innerHTML += `<br><span style="opacity: 0.7; font-size: 0.9em;">Letzte erreichbare IP: ${details.reachable_ip}</span>`;
+                }
+            } else if (details.status === "available_not_mounted") {
+                const ipType = (details.reachable_ip === details.checked_ips[1] && details.checked_ips[1]) ? "Backup-/Tailscale-IP" : "IP-Adresse";
+                nasInfoMsg.innerHTML = `⚠️ NAS erreichbar via ${ipType} (${details.reachable_ip || "unbekannt"}), aber nicht eingehängt.`;
+                nasInfoMsg.style.color = "var(--warning)";
+                
+                if (mountAllowed) {
+                    heroConnectBtn.style.display = "inline-block";
+                    nasInfoMsg.innerHTML += "<br><span style='opacity: 0.7; font-size: 0.9em;'>Der automatische Mount-Vorgang kann Zugangsdaten erfordern.</span>";
+                } else {
+                    nasInfoMsg.innerHTML += "<br><span style='opacity: 0.7; font-size: 0.9em;'>Im Docker-Modus muss das Volume vom Host gemountet sein.</span>";
+                }
+            } else {
+                // offline
+                const checkedStr = details.checked_ips && details.checked_ips.length > 0 ? details.checked_ips.join(" / ") : "";
+                if (checkedStr) {
+                    nasInfoMsg.innerHTML = `❌ NAS offline (keine Verbindung zu: ${checkedStr}).`;
+                } else {
+                    nasInfoMsg.innerHTML = "❌ NAS offline (keine IP konfiguriert).";
+                }
+                nasInfoMsg.style.color = "var(--danger)";
+                
+                if (details.checked_ips && details.checked_ips.length > 1) {
+                    nasInfoMsg.innerHTML += "<br><span style='opacity: 0.7; font-size: 0.9em;'>Tipp: VPN-Verbindung oder Tailscale prüfen.</span>";
+                }
+                heroRefreshBtn.style.display = "inline-block";
+            }
+        } else {
+            nasInfoContainer.style.display = "none";
         }
     }
 
