@@ -163,16 +163,25 @@ def get_all_jobs():
     return jobs_copy
 
 def clear_finished_jobs():
-    """Removes completed or failed jobs from the active state and disk."""
+    """Removes completed, failed, or queued jobs from the active state and disk."""
     global active_jobs
     with active_jobs_lock:
         active_ids = list(active_jobs.keys())
         for j_id in active_ids:
             job = active_jobs[j_id]
-            if job.get("status") in ("done", "error"):
+            if job.get("status") in ("done", "error", "queued"):
                 active_jobs.pop(j_id, None)
                 _last_saved_time.pop(j_id, None)
                 _last_saved_progress.pop(j_id, None)
+                
+    from gui.core.helpers import job_queue
+    with job_queue.mutex:
+        cleared_count = len(job_queue.queue)
+        job_queue.queue.clear()
+        job_queue.unfinished_tasks = max(0, job_queue.unfinished_tasks - cleared_count)
+        if job_queue.unfinished_tasks == 0:
+            job_queue.all_tasks_done.notify_all()
+            
     return save_jobs_to_disk()
 
 def recover_interrupted_jobs():

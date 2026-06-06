@@ -151,5 +151,41 @@ class TestJobs(unittest.TestCase):
         self.assertTrue(os.path.exists(regular_file))
         self.assertFalse(os.path.exists(os.path.join(quarantine_dir, "regular.mkv")))
 
+    def test_clear_finished_jobs_and_queue_drain(self):
+        """Verifies that clear_finished_jobs removes done, error, and queued jobs, and safely drains job_queue."""
+        # Create some jobs
+        self.jobs.create_job("job-done", "Job Done", "movie", {})
+        self.jobs.create_job("job-error", "Job Error", "movie", {})
+        self.jobs.create_job("job-queued", "Job Queued", "movie", {})
+        self.jobs.create_job("job-running", "Job Running", "movie", {})
+        
+        # Set statuses
+        self.jobs.update_job("job-done", status="done")
+        self.jobs.update_job("job-error", status="error")
+        self.jobs.update_job("job-queued", status="queued")
+        self.jobs.update_job("job-running", status="running")
+        
+        # Populate the actual queue module job_queue
+        from gui.core.helpers import job_queue
+        # Push 2 dummy items to the internal queue
+        job_queue.put({"id": "job-queued", "type": "test"})
+        job_queue.put({"id": "some-other-queued", "type": "test"})
+        
+        initial_unfinished = job_queue.unfinished_tasks
+        
+        # Act
+        self.jobs.clear_finished_jobs()
+        
+        # Verify active_jobs dictionary
+        active = self.jobs.active_jobs
+        self.assertNotIn("job-done", active)
+        self.assertNotIn("job-error", active)
+        self.assertNotIn("job-queued", active)
+        self.assertIn("job-running", active)  # running should remain!
+        
+        # Verify job_queue is drained and unfinished_tasks is adjusted correctly
+        self.assertEqual(len(job_queue.queue), 0)
+        self.assertEqual(job_queue.unfinished_tasks, initial_unfinished - 2)
+
 if __name__ == "__main__":
     unittest.main()

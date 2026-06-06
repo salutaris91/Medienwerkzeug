@@ -2815,39 +2815,73 @@ def process_worker(params):
 
 
     elif media_type == "tool_manual_sync":
-        dest = params.get("destination", "")
-        if not dest:
-            raise RuntimeError("Sync-Ziel (destination) ist nicht konfiguriert.")
-        do_pcloud = params.get("copy_to_pcloud", False)
+        cat_id = params.get("category_id")
         open_after = params.get("open_after", False)
         delete_original = params.get("delete_original", False)
         task_id = params.get("task_id")
-
-        log_message(f"=== STARTE MANUELLES SYNC NACH: {dest} ===")
-        if not ensure_nas_mounted():
-            raise RuntimeError("NAS konnte nicht gemountet werden. Kopiervorgang abgebrochen.")
-
-        folder_name = os.path.basename(current_dir.rstrip('/'))
-        nas_target = os.path.join(dest, folder_name)
-
-        log_message(f"Kopiere Ordner auf NAS: {nas_target}")
-        nas_success = False
-        try:
-            nas_success = run_rsync_with_progress(current_dir, nas_target, task_id)
-            if nas_success:
-                log_message(f"✅ Erfolgreich auf NAS synchronisiert.")
-                if open_after:
-                    open_folder_in_finder(nas_target)
+        
+        settings = load_settings()
+        category = next((c for c in settings.get("sync_categories", []) if str(c.get("id")) == str(cat_id)), None)
+        if not category:
+            raise RuntimeError("Keine gültige Kategorie ausgewählt oder gefunden.")
+            
+        log_message(f"=== STARTE MANUELLES SYNC FÜR KATEGORIE: {category.get('name')} ===")
+        all_success = True
+        any_attempted = False
+        
+        for target in settings.get("storage_targets", []):
+            t_id = target.get("id")
+            if not params.get(f"copy_to_{t_id}", False):
+                continue
+                
+            any_attempted = True
+            log_message(f"Bereite Sync für Ziel '{target.get('name')}' vor...")
+            
+            if target.get("type") == "nas" or t_id == "nas":
+                if not ensure_nas_mounted():
+                    log_message(f"❌ NAS konnte nicht gemountet werden. Kopiervorgang für {target.get('name')} abgebrochen.")
+                    all_success = False
+                    continue
+                
+                # Resolve NAS path
+                rel_sub = category.get("targets", {}).get(t_id) or category.get("nas_sub", "")
+                root_path = target.get("root_path", "")
+                dest = os.path.join(root_path, rel_sub.lstrip('/')) if root_path and not rel_sub.startswith(root_path) else rel_sub
+                
+                folder_name = os.path.basename(current_dir.rstrip('/'))
+                nas_target = os.path.join(dest, folder_name)
+                
+                log_message(f"Kopiere Ordner auf NAS: {nas_target}")
+                try:
+                    success = run_rsync_with_progress(current_dir, nas_target, task_id)
+                    if success:
+                        log_message(f"✅ Erfolgreich auf {target.get('name')} synchronisiert.")
+                        if open_after:
+                            open_folder_in_finder(nas_target)
+                    else:
+                        log_message(f"❌ Fehler bei Sync für {target.get('name')}.")
+                        all_success = False
+                except Exception as e:
+                    log_message(f"❌ Ausnahme bei Sync für {target.get('name')}: {e}")
+                    all_success = False
             else:
-                log_message(f"❌ Fehler bei NAS Sync.")
-        except Exception as e:
-            log_message(f"❌ Ausnahme bei NAS Sync: {e}")
+                # Cloud target
+                t_sub = category.get("targets", {}).get(t_id) or category.get("pcloud_remote", "")
+                from gui.core.transfers import copy_to_cloud_target
+                success = copy_to_cloud_target(
+                    current_dir, 
+                    "", # we don't need nas_target_dir anymore since explicit is provided
+                    t_id, 
+                    task_id, 
+                    explicit_remote_base=t_sub
+                )
+                if not success:
+                    all_success = False
 
-        pcloud_success = True
-        if do_pcloud:
-            pcloud_success = copy_to_pcloud(current_dir, dest, task_id)
+        if not any_attempted:
+            raise RuntimeError("Keine Speicherziele ausgewählt oder Mapping ungültig.")
 
-        if delete_original and nas_success and pcloud_success:
+        if delete_original and all_success:
             log_message(f"🗑️ Lösche Originalordner nach erfolgreichem Transfer: {current_dir}")
             try:
                 trash.send_to_trash(current_dir)
