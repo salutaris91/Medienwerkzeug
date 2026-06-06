@@ -16,6 +16,8 @@ from gui.core.persistence import (
 # Global memory state for active jobs
 active_jobs = {}
 active_jobs_lock = threading.Lock()
+_load_jobs_lock = threading.Lock()
+_jobs_loaded = False
 
 # Throttle tracking
 _last_saved_time = {}
@@ -23,12 +25,13 @@ _last_saved_progress = {}
 
 def load_jobs_from_disk():
     """Initializes the memory state with jobs loaded from disk."""
-    global active_jobs
+    global active_jobs, _jobs_loaded
     file_path = get_jobs_state_file_path()
     disk_jobs = read_json_file(file_path, jobs_state_lock, {})
     with active_jobs_lock:
         active_jobs.clear()
         active_jobs.update(copy.deepcopy(disk_jobs))
+        _jobs_loaded = True
     return disk_jobs
 
 def save_jobs_to_disk():
@@ -151,11 +154,23 @@ def get_job(job_id):
 
 def get_all_jobs():
     """Returns a list of all jobs, sorted by timestamp."""
-    global active_jobs
+    global active_jobs, _jobs_loaded
+    
+    # 1. Fast-Path check
     with active_jobs_lock:
-        if not active_jobs:
-            # Try to load once if empty
-            load_jobs_from_disk()
+        needs_loading = not _jobs_loaded
+        
+    if needs_loading:
+        # 2. Lock to prevent concurrent load operations
+        with _load_jobs_lock:
+            # Double-check under active_jobs_lock
+            with active_jobs_lock:
+                still_needs_loading = not _jobs_loaded
+            if still_needs_loading:
+                load_jobs_from_disk()
+                
+    # 3. Safely copy and sort
+    with active_jobs_lock:
         jobs_list = list(active_jobs.values())
     
     jobs_copy = copy.deepcopy(jobs_list)

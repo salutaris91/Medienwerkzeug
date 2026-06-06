@@ -44,6 +44,7 @@ class TestJobs(unittest.TestCase):
         self.jobs.active_jobs.clear()
         self.jobs._last_saved_time.clear()
         self.jobs._last_saved_progress.clear()
+        self.jobs._jobs_loaded = False
 
     def tearDown(self):
         os.environ.pop("MW_SETTINGS_FILE", None)
@@ -186,6 +187,47 @@ class TestJobs(unittest.TestCase):
         # Verify job_queue is drained and unfinished_tasks is adjusted correctly
         self.assertEqual(len(job_queue.queue), 0)
         self.assertEqual(job_queue.unfinished_tasks, initial_unfinished - 2)
+
+    def test_get_all_jobs_no_deadlock(self):
+        """Verifies that calling get_all_jobs() when active_jobs is empty does not deadlock."""
+        self.jobs.active_jobs.clear()
+        
+        # We start the call in a separate thread with a timeout to detect deadlocks.
+        import threading
+        
+        thread = threading.Thread(target=self.jobs.get_all_jobs)
+        thread.start()
+        thread.join(timeout=2.0)
+        
+        self.assertFalse(thread.is_alive(), "get_all_jobs() deadlocked when active_jobs was empty!")
+
+    def test_get_all_jobs_concurrent_no_double_load(self):
+        """Verifies that concurrent calls to get_all_jobs() when active_jobs is empty do not cause double disk-reads."""
+        self.jobs.active_jobs.clear()
+        
+        # Spy/Mock load_jobs_from_disk to count calls
+        original_load = self.jobs.load_jobs_from_disk
+        call_count = 0
+        def mocked_load():
+            nonlocal call_count
+            call_count += 1
+            # Simulate a small delay to widen the race window
+            time.sleep(0.1)
+            return original_load()
+            
+        self.jobs.load_jobs_from_disk = mocked_load
+        
+        try:
+            import threading
+            threads = [threading.Thread(target=self.jobs.get_all_jobs) for _ in range(5)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(timeout=2.0)
+                
+            self.assertEqual(call_count, 1, "load_jobs_from_disk was called more than once concurrently!")
+        finally:
+            self.jobs.load_jobs_from_disk = original_load
 
 if __name__ == "__main__":
     unittest.main()
