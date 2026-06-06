@@ -368,75 +368,84 @@ def handle_api_search():
     media_type = query.get("type", "tv")
     
     results = []
+    errors = []
+    
     try:
         if q.startswith("http://") or q.startswith("https://"):
-            if "fernsehserien.de" in q:
-                slug = q.rstrip("/").split("/")[-1]
-                results = [{
-                    "id": q,
-                    "name": f"{slug.replace('-', ' ').title()} (fernsehserien.de URL)",
-                    "provider": "fernsehserien",
-                    "media_type": "tv"
-                }]
-            else:
-                entries = mw_metadata.fetch_ytdlp_url_metadata(q)
-                if entries:
-                    if len(entries) > 1:
-                        show_name = entries[0].get("playlist_title") or entries[0].get("playlist") or "YouTube/Mediathek Playlist"
-                        results = [{
-                            "id": q,
-                            "name": f"{show_name} ({len(entries)} Videos via URL)",
-                            "provider": "ytdlp",
-                            "media_type": "tv"
-                        }]
-                    else:
-                        title = entries[0].get("title") or "Video via URL"
-                        # Determine media type based on search request and metadata
-                        has_series_info = any(entries[0].get(k) for k in ["series", "season_number", "episode_number", "season", "episode"])
-                        if media_type in ("tv", "doku") or has_series_info:
-                            res_type = media_type if media_type in ("tv", "doku") else "tv"
-                        else:
-                            res_type = "movie"
-                        results = [{
-                            "id": q,
-                            "name": f"{title} (Video via URL)",
-                            "provider": "ytdlp",
-                            "media_type": res_type
-                        }]
+            try:
+                if "fernsehserien.de" in q:
+                    slug = q.rstrip("/").split("/")[-1]
+                    results = [{
+                        "id": q,
+                        "name": f"{slug.replace('-', ' ').title()} (fernsehserien.de URL)",
+                        "provider": "fernsehserien",
+                        "media_type": "tv"
+                    }]
                 else:
-                    # Fallback for Mediathek/other URLs that yt-dlp fails to extract directly
-                    import urllib.request
-                    import re
-                    req = urllib.request.Request(q, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"})
-                    try:
-                        with urllib.request.urlopen(req, timeout=5) as response:
-                            html = response.read().decode('utf-8', errors='ignore')
-                        title_match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE)
-                        if title_match:
-                            title = title_match.group(1).strip()
-                            title = re.sub(r"^Vorschau:\s*", "", title, flags=re.IGNORECASE)
-                            title = title.split("|")[0].split(" - ARD")[0].split(" - ZDF")[0].strip()
-                            
-                            search_term = title
-                            if "•" in title:
-                                search_term = title.split("•")[0].strip()
-                            elif " - " in title:
-                                search_term = title.split(" - ")[0].strip()
-                            
-                            res_type = media_type if media_type in ("tv", "doku") else "movie"
-                            name_suffix = "Serie aus URL" if res_type != "movie" else "Film aus URL"
+                    entries = mw_metadata.fetch_ytdlp_url_metadata(q)
+                    if entries:
+                        if len(entries) > 1:
+                            show_name = entries[0].get("playlist_title") or entries[0].get("playlist") or "YouTube/Mediathek Playlist"
                             results = [{
-                                "id": f"url_mediathek:{search_term}",
-                                "name": f"{search_term} (Mediathek {name_suffix})",
-                                "provider": "mediathek",
+                                "id": q,
+                                "name": f"{show_name} ({len(entries)} Videos via URL)",
+                                "provider": "ytdlp",
+                                "media_type": "tv"
+                            }]
+                        else:
+                            title = entries[0].get("title") or "Video via URL"
+                            # Determine media type based on search request and metadata
+                            has_series_info = any(entries[0].get(k) for k in ["series", "season_number", "episode_number", "season", "episode"])
+                            if media_type in ("tv", "doku") or has_series_info:
+                                res_type = media_type if media_type in ("tv", "doku") else "tv"
+                            else:
+                                res_type = "movie"
+                            results = [{
+                                "id": q,
+                                "name": f"{title} (Video via URL)",
+                                "provider": "ytdlp",
                                 "media_type": res_type
                             }]
-                    except Exception as e:
-                        print(f"Error scraping fallback URL {q}: {e}")
+                    else:
+                        # Fallback for Mediathek/other URLs that yt-dlp fails to extract directly
+                        import urllib.request
+                        import re
+                        req = urllib.request.Request(q, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"})
+                        try:
+                            with urllib.request.urlopen(req, timeout=5) as response:
+                                html = response.read().decode('utf-8', errors='ignore')
+                            title_match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE)
+                            if title_match:
+                                title = title_match.group(1).strip()
+                                title = re.sub(r"^Vorschau:\s*", "", title, flags=re.IGNORECASE)
+                                title = title.split("|")[0].split(" - ARD")[0].split(" - ZDF")[0].strip()
+                                
+                                search_term = title
+                                if "•" in title:
+                                    search_term = title.split("•")[0].strip()
+                                elif " - " in title:
+                                    search_term = title.split(" - ")[0].strip()
+                                
+                                res_type = media_type if media_type in ("tv", "doku") else "movie"
+                                name_suffix = "Serie aus URL" if res_type != "movie" else "Film aus URL"
+                                results = [{
+                                    "id": f"url_mediathek:{search_term}",
+                                    "name": f"{search_term} (Mediathek {name_suffix})",
+                                    "provider": "mediathek",
+                                    "media_type": res_type
+                                }]
+                        except Exception as e:
+                            print(f"Error scraping fallback URL {q}: {e}")
+            except Exception as e:
+                errors.append(e)
         elif media_type == "tv":
-            results = mw_metadata.search_all_db(q)
-            for r in results:
-                r["media_type"] = "tv"
+            try:
+                tv_res = mw_metadata.search_all_db(q)
+                for r in tv_res:
+                    r["media_type"] = "tv"
+                results.extend(tv_res)
+            except Exception as e:
+                errors.append(e)
             # Add free-search option for Mediathek
             results.append({
                 "id": f"url_mediathek:{q}",
@@ -445,51 +454,82 @@ def handle_api_search():
                 "media_type": "tv"
             })
         elif media_type == "movie":
-            tmdb_res = mw_metadata.search_tmdb_movie(q)
-            for r in tmdb_res:
-                r['provider'] = 'tmdb'
-                r["media_type"] = "movie"
-            results.extend(tmdb_res)
+            try:
+                tmdb_res = mw_metadata.search_tmdb_movie(q)
+                for r in tmdb_res:
+                    r['provider'] = 'tmdb'
+                    r["media_type"] = "movie"
+                results.extend(tmdb_res)
+            except Exception as e:
+                errors.append(e)
             
-            ofdb_res = mw_metadata.search_ofdb(q)
-            for r in ofdb_res:
-                results.append({
-                    "id": r["id"],
-                    "name": f"{r['title']} ({r['year']})",
-                    "provider": "ofdb",
-                    "media_type": "movie"
-                })
-            results.sort(key=lambda r: mw_metadata.calculate_match_score(q, r['name']), reverse=True)
+            try:
+                ofdb_res = mw_metadata.search_ofdb(q)
+                for r in ofdb_res:
+                    results.append({
+                        "id": r["id"],
+                        "name": f"{r['title']} ({r['year']})",
+                        "provider": "ofdb",
+                        "media_type": "movie"
+                    })
+            except Exception as e:
+                errors.append(e)
+            if results:
+                results.sort(key=lambda r: mw_metadata.calculate_match_score(q, r['name']), reverse=True)
         elif media_type == "doku":
             # Parallel-ish search for Dokus (TV, Movies, Mediathek)
             # 1. TV Series
-            tv_res = mw_metadata.search_all_db(q)
-            for r in tv_res:
-                r["media_type"] = "tv"
-            results.extend(tv_res)
+            try:
+                tv_res = mw_metadata.search_all_db(q)
+                for r in tv_res:
+                    r["media_type"] = "tv"
+                results.extend(tv_res)
+            except Exception as e:
+                errors.append(e)
             
             # 2. Movie search
-            tmdb_res = mw_metadata.search_tmdb_movie(q)
-            for r in tmdb_res:
-                r['provider'] = 'tmdb'
-                r["media_type"] = "movie"
-            results.extend(tmdb_res)
+            try:
+                tmdb_res = mw_metadata.search_tmdb_movie(q)
+                for r in tmdb_res:
+                    r['provider'] = 'tmdb'
+                    r["media_type"] = "movie"
+                results.extend(tmdb_res)
+            except Exception as e:
+                errors.append(e)
             
             # 3. Mediathek search
-            mediathek_res = mw_metadata.search_mediathek(q)
-            for r in mediathek_res:
-                r["media_type"] = "tv"
-                r["provider"] = "mediathek"
-            results.extend(mediathek_res)
+            try:
+                mediathek_res = mw_metadata.search_mediathek(q)
+                for r in mediathek_res:
+                    r["media_type"] = "tv"
+                    r["provider"] = "mediathek"
+                results.extend(mediathek_res)
+            except Exception as e:
+                errors.append(e)
             
             # Sort combined results
-            results.sort(key=lambda r: mw_metadata.calculate_match_score(q, r['name']), reverse=True)
-    except mw_metadata.MetadataProviderUnavailable as e:
-        print(f"Provider Error: {e}")
-        return jsonify({"error": str(e), "status": "error"}), getattr(e, 'status_code', 503)
+            if results:
+                results.sort(key=lambda r: mw_metadata.calculate_match_score(q, r['name']), reverse=True)
     except Exception as e:
-        print(f"Search error: {e}")
+        errors.append(e)
         
+    # Check if we have "real" results (i.e. not only the static Mediathek free-search fallback)
+    has_real_results = False
+    if results:
+        if media_type == "tv":
+            has_real_results = len(results) > 1 or (len(results) == 1 and not results[0]["id"].startswith("url_mediathek:"))
+        else:
+            has_real_results = len(results) > 0
+            
+    if not has_real_results and errors:
+        first_error = errors[0]
+        if isinstance(first_error, mw_metadata.MetadataProviderUnavailable):
+            print(f"Provider Error: {first_error}")
+            return jsonify({"error": str(first_error), "status": "error"}), getattr(first_error, 'status_code', 503)
+        else:
+            print(f"Search error: {first_error}")
+            return jsonify({"error": str(first_error), "status": "error"}), 500
+            
     return jsonify(results)
 
 

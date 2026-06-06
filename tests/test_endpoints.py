@@ -150,6 +150,32 @@ class TestEndpoints(unittest.TestCase):
         self.assertIn("error", res.json)
         self.assertIn("API-Key ungueltig", res.json["error"])
 
+    @patch('gui.api.search_api.mw_metadata.search_tmdb_movie')
+    @patch('gui.api.search_api.mw_metadata.search_ofdb')
+    def test_search_resilience_partial_failure(self, mock_ofdb, mock_tmdb):
+        from gui.mw_metadata import MetadataProviderUnavailable
+        mock_tmdb.side_effect = MetadataProviderUnavailable("TMDB offline", status_code=503)
+        mock_ofdb.return_value = [{"id": "ofdb_123_abc", "title": "Test Movie", "year": "2026"}]
+        
+        res = self.client.get("/api/search?q=test&type=movie")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["provider"], "ofdb")
+        self.assertEqual(data[0]["name"], "Test Movie (2026)")
+
+    @patch('gui.api.search_api.mw_metadata.search_tmdb_movie')
+    @patch('gui.api.search_api.mw_metadata.search_ofdb')
+    def test_search_resilience_total_failure(self, mock_ofdb, mock_tmdb):
+        from gui.mw_metadata import MetadataProviderUnavailable
+        mock_tmdb.side_effect = MetadataProviderUnavailable("TMDB offline", status_code=503)
+        mock_ofdb.return_value = []
+        
+        res = self.client.get("/api/search?q=test&type=movie")
+        self.assertEqual(res.status_code, 503)
+        self.assertIn("error", res.json)
+        self.assertIn("TMDB offline", res.json["error"])
+
 
     @patch('gui.api.nas_api.ensure_nas_mounted')
     def test_nas_seasons_offline(self, mock_ensure_mounted):
