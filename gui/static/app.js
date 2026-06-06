@@ -2835,7 +2835,14 @@ async function searchSeries() {
         const response = await fetch(`/api/search?type=${searchType}&q=${encodeURIComponent(query)}`, {
             signal: currentSearchSeriesController.signal
         });
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP-Fehler ${response.status}`);
+        }
         const data = await response.json();
+        if (!Array.isArray(data)) {
+            throw new Error(data.error || "Unerwartetes Antwortformat vom Server");
+        }
         
         if (query !== lastSearchSeriesQuery) return;
         
@@ -2935,7 +2942,7 @@ async function searchSeries() {
     } catch (e) {
         if (e.name === 'AbortError') return; // Ignore aborted requests
         if (query !== lastSearchSeriesQuery) return;
-        resultsContainer.innerHTML = `<p class="text-center text-danger">Suchfehler: ${e}</p>`;
+        resultsContainer.innerHTML = `<p class="text-center text-danger">Suchfehler: ${e.message || e}</p>`;
     }
 }
 
@@ -3861,7 +3868,14 @@ async function searchMovie() {
         const response = await fetch(`/api/search?type=${searchType}&q=${encodeURIComponent(query)}`, {
             signal: currentSearchMovieController.signal
         });
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP-Fehler ${response.status}`);
+        }
         const data = await response.json();
+        if (!Array.isArray(data)) {
+            throw new Error(data.error || "Unerwartetes Antwortformat vom Server");
+        }
         
         if (query !== lastSearchMovieQuery) return;
         
@@ -3942,7 +3956,7 @@ async function searchMovie() {
     } catch (e) {
         if (e.name === 'AbortError') return; // Ignore aborted requests
         if (query !== lastSearchMovieQuery) return;
-        resultsContainer.innerHTML = `<p class="text-center text-danger">Suchfehler: ${e}</p>`;
+        resultsContainer.innerHTML = `<p class="text-center text-danger">Suchfehler: ${e.message || e}</p>`;
     }
 }
 
@@ -4510,7 +4524,14 @@ async function searchYtMovie() {
         const response = await fetch(`/api/search?type=movie&q=${encodeURIComponent(query)}`, {
             signal: currentSearchYtMovieController.signal
         });
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP-Fehler ${response.status}`);
+        }
         const data = await response.json();
+        if (!Array.isArray(data)) {
+            throw new Error(data.error || "Unerwartetes Antwortformat vom Server");
+        }
         
         if (query !== lastSearchYtMovieQuery) return;
         
@@ -4551,7 +4572,7 @@ async function searchYtMovie() {
     } catch (e) {
         if (e.name === 'AbortError') return; // Ignore aborted requests
         if (query !== lastSearchYtMovieQuery) return;
-        resultsContainer.innerHTML = `<p class="text-center text-danger">${e}</p>`;
+        resultsContainer.innerHTML = `<p class="text-center text-danger">Suchfehler: ${e.message || e}</p>`;
     }
 }
 
@@ -4572,7 +4593,14 @@ async function searchYtSeries() {
         const response = await fetch(`/api/search?type=tv&q=${encodeURIComponent(query)}`, {
             signal: currentSearchYtSeriesController.signal
         });
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP-Fehler ${response.status}`);
+        }
         const data = await response.json();
+        if (!Array.isArray(data)) {
+            throw new Error(data.error || "Unerwartetes Antwortformat vom Server");
+        }
         
         if (query !== lastSearchYtSeriesQuery) return;
         
@@ -4625,7 +4653,7 @@ async function searchYtSeries() {
     } catch (e) {
         if (e.name === 'AbortError') return; // Ignore aborted requests
         if (query !== lastSearchYtSeriesQuery) return;
-        resultsContainer.innerHTML = `<p class="text-center text-danger">${e}</p>`;
+        resultsContainer.innerHTML = `<p class="text-center text-danger">Suchfehler: ${e.message || e}</p>`;
     }
 }
 
