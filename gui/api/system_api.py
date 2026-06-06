@@ -211,7 +211,8 @@ def handle_api_status():
 
     import time
     # Cache NAS status and details for 30 seconds to avoid P5 pinging constantly
-    if not hasattr(handle_api_status, "last_nas_details") or time.time() - getattr(handle_api_status, "last_nas_check", 0) > 30:
+    force_check = request.args.get("force_nas_check", "false").lower() == "true"
+    if not hasattr(handle_api_status, "last_nas_details") or force_check or time.time() - getattr(handle_api_status, "last_nas_check", 0) > 30:
         handle_api_status.last_nas_details = check_nas_connection_details()
         handle_api_status.last_nas_status = handle_api_status.last_nas_details["status"]
         handle_api_status.last_nas_check = time.time()
@@ -246,18 +247,24 @@ def handle_api_nas_connect():
     """Try to mount the configured NAS immediately and refresh the cached status."""
     caps = get_runtime_capabilities()
     if not caps["capabilities"]["mount_nas"]:
+        nas_details = check_nas_connection_details()
         return jsonify({
             "ok": False,
-            "nas_status": "offline",
+            "nas_status": nas_details["status"],
+            "nas_details": nas_details,
             "message": "NAS muss im Docker-Betrieb als externes Volume gemountet sein."
         }), 403
 
     now = time.time()
     last_attempt = getattr(handle_api_nas_connect, "last_attempt", 0)
     if now - last_attempt < NAS_CONNECT_COOLDOWN_SECONDS:
+        cached_details = getattr(handle_api_status, "last_nas_details", None)
+        if not cached_details:
+            cached_details = check_nas_connection_details()
         return jsonify({
             "ok": False,
-            "nas_status": getattr(handle_api_status, "last_nas_status", "offline"),
+            "nas_status": cached_details["status"],
+            "nas_details": cached_details,
             "message": "Bitte warte kurz, bevor du erneut eine NAS-Verbindung startest."
         }), 429
     handle_api_nas_connect.last_attempt = now
@@ -292,19 +299,16 @@ def handle_api_nas_connect():
         return jsonify({"ok": False, "nas_status": nas_status, "nas_details": nas_details, "message": message}), 503
     except Exception as e:
         log_message(f"❌ Manueller NAS-Verbindungsversuch fehlgeschlagen: {e}")
-        handle_api_status.last_nas_details = {
-            "status": "offline",
-            "enabled": True,
-            "has_root": True,
-            "checked_ips": [],
-            "reachable_ip": None
-        }
-        handle_api_status.last_nas_status = "offline"
+        nas_details = check_nas_connection_details()
+        if nas_details.get("error_message") is None:
+            nas_details["error_message"] = f"Fehler beim Verbinden: {e}"
+        handle_api_status.last_nas_details = nas_details
+        handle_api_status.last_nas_status = nas_details["status"]
         handle_api_status.last_nas_check = now
         return jsonify({
             "ok": False,
-            "nas_status": "offline",
-            "nas_details": handle_api_status.last_nas_details,
+            "nas_status": nas_details["status"],
+            "nas_details": nas_details,
             "message": f"NAS-Verbindung fehlgeschlagen: {e}"
         }), 500
 

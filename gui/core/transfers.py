@@ -104,10 +104,13 @@ def check_nas_connection_details():
         
     has_root = bool(nas_root)
     
-    checked_ips = []
-    for ip in [nas_host, nas_host_ts]:
-        if ip:
-            checked_ips.append(ip)
+    ip_details = []
+    if nas_host:
+        ip_details.append({"address": nas_host, "role": "primary"})
+    if nas_host_ts:
+        ip_details.append({"address": nas_host_ts, "role": "backup"})
+        
+    checked_ips = [info["address"] for info in ip_details]
             
     if not nas_enabled:
         return {
@@ -115,7 +118,9 @@ def check_nas_connection_details():
             "enabled": False,
             "has_root": has_root,
             "checked_ips": checked_ips,
-            "reachable_ip": None
+            "reachable_ip": None,
+            "ip_details": ip_details,
+            "error_message": "NAS-Verbindung in den Einstellungen deaktiviert."
         }
         
     if not has_root:
@@ -124,7 +129,9 @@ def check_nas_connection_details():
             "enabled": True,
             "has_root": False,
             "checked_ips": checked_ips,
-            "reachable_ip": None
+            "reachable_ip": None,
+            "ip_details": ip_details,
+            "error_message": "Kein nas_root konfiguriert."
         }
 
     # 1. Check if mounted
@@ -132,33 +139,65 @@ def check_nas_connection_details():
         
     # 2. Check ping/nc
     reachable_ip = None
-    for ip in checked_ips:
+    errors = []
+    
+    for ip_info in ip_details:
+        ip = ip_info["address"]
+        if reachable_ip is not None:
+            ip_info["reachable"] = False
+            ip_info["error"] = None
+            continue
+            
         s = None
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(0.3)
             s.connect((ip, 445))
             reachable_ip = ip
-            break
-        except Exception:
-            pass
+            ip_info["reachable"] = True
+            ip_info["error"] = None
+        except socket.timeout:
+            ip_info["reachable"] = False
+            err_msg = "Timeout (Port 445 antwortet nicht)"
+            ip_info["error"] = err_msg
+            errors.append(f"{ip_info['role']} ({ip}): {err_msg}")
+        except ConnectionRefusedError:
+            ip_info["reachable"] = False
+            err_msg = "Verbindung abgelehnt (Port 445 geschlossen)"
+            ip_info["error"] = err_msg
+            errors.append(f"{ip_info['role']} ({ip}): {err_msg}")
+        except OSError as e:
+            ip_info["reachable"] = False
+            err_msg = f"Netzwerkfehler ({e})"
+            ip_info["error"] = err_msg
+            errors.append(f"{ip_info['role']} ({ip}): {err_msg}")
+        except Exception as e:
+            ip_info["reachable"] = False
+            err_msg = f"Netzwerkfehler ({e})"
+            ip_info["error"] = err_msg
+            errors.append(f"{ip_info['role']} ({ip}): {err_msg}")
         finally:
             if s:
                 s.close()
             
     if mounted:
         status = "connected"
+        error_message = None
     elif reachable_ip:
         status = "available_not_mounted"
+        error_message = "Laufwerk erreichbar, aber nicht eingehängt."
     else:
         status = "offline"
+        error_message = "; ".join(errors) if errors else "Keine IP-Adressen konfiguriert."
         
     return {
         "status": status,
         "enabled": nas_enabled,
         "has_root": has_root,
         "checked_ips": checked_ips,
-        "reachable_ip": reachable_ip
+        "reachable_ip": reachable_ip,
+        "ip_details": ip_details,
+        "error_message": error_message
     }
 
 def ensure_nas_mounted():

@@ -72,6 +72,9 @@ class TestNasDetails(unittest.TestCase):
         self.assertTrue(details["has_root"])
         self.assertEqual(details["checked_ips"], ["192.168.2.208", "100.74.187.125"])
         self.assertIsNone(details["reachable_ip"])
+        self.assertEqual(details["error_message"], "NAS-Verbindung in den Einstellungen deaktiviert.")
+        self.assertEqual(details["ip_details"][0]["role"], "primary")
+        self.assertEqual(details["ip_details"][1]["role"], "backup")
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_NO_ROOT)
     def test_details_when_no_root(self, mock_settings):
@@ -80,6 +83,7 @@ class TestNasDetails(unittest.TestCase):
         self.assertTrue(details["enabled"])
         self.assertFalse(details["has_root"])
         self.assertIsNone(details["reachable_ip"])
+        self.assertEqual(details["error_message"], "Kein nas_root konfiguriert.")
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
     @patch("gui.core.transfers._is_nas_root_mounted", return_value=True)
@@ -90,6 +94,7 @@ class TestNasDetails(unittest.TestCase):
         self.assertTrue(details["enabled"])
         self.assertTrue(details["has_root"])
         self.assertIsNotNone(details["reachable_ip"])
+        self.assertIsNone(details["error_message"])
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
     @patch("gui.core.transfers._is_nas_root_mounted", return_value=False)
@@ -100,6 +105,7 @@ class TestNasDetails(unittest.TestCase):
             details = transfers.check_nas_connection_details()
         self.assertEqual(details["status"], "available_not_mounted")
         self.assertEqual(details["reachable_ip"], "192.168.2.208")
+        self.assertEqual(details["error_message"], "Laufwerk erreichbar, aber nicht eingehängt.")
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
     @patch("gui.core.transfers._is_nas_root_mounted", return_value=False)
@@ -111,6 +117,8 @@ class TestNasDetails(unittest.TestCase):
             details = transfers.check_nas_connection_details()
         self.assertEqual(details["status"], "offline")
         self.assertIsNone(details["reachable_ip"])
+        self.assertIn("primary (192.168.2.208)", details["error_message"])
+        self.assertIn("backup (100.74.187.125)", details["error_message"])
 
     @patch("gui.api.system_api.check_nas_connection_details")
     def test_api_status_returns_details(self, mock_details):
