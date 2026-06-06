@@ -17,7 +17,7 @@ angegangen werden.
 | 12 | Performance-Optimierung für sehr große Serienbibliotheken | geplant | mittel |
 | 13 | Komfortablere Health-Quick-Fix-Oberfläche | geplant | klein–mittel |
 | 14 | Health-Status-Vertrag & Frontend-Testabdeckung | geplant | klein–mittel |
-| 15 | FAQ sprachlich und visuell überarbeiten | geplant | klein |
+| 15 | FAQ sprachlich und visuell überarbeiten | erledigt | klein |
 | 16 | System Metrics Worker: Thread-Akkumulation verhindern | geplant | klein |
 
 ---

@@ -2088,11 +2088,11 @@ function renderProjectList(projects) {
     // Save current active list name to keep it selected
     let html = `
         <button class="project-item ${currentProject === "" ? "active" : ""}" data-project="">
-            <span class="project-item-icon">📥</span>
+            <span class="nav-icon" aria-hidden="true">📥</span>
             <span class="project-item-name">Unsortierte Einzeldateien</span>
         </button>
         <button class="project-item ${currentProject === "__inbox_recursive__" ? "active" : ""}" data-project="__inbox_recursive__">
-            <span class="project-item-icon">📂</span>
+            <span class="nav-icon" aria-hidden="true">📂</span>
             <span class="project-item-name">Alle Dateien (inkl. Unterordner)</span>
         </button>
     `;
@@ -2101,7 +2101,7 @@ function renderProjectList(projects) {
         const escapedP = escapeHTML(p);
         html += `
             <button class="project-item ${currentProject === p ? "active" : ""}" data-project="${escapedP}" draggable="true">
-                <span class="project-item-icon">📁</span>
+                <span class="nav-icon" aria-hidden="true">📁</span>
                 <span class="project-item-name">${escapedP}</span>
                 <span class="project-item-delete" title="Ordner in Quarantäne verschieben" data-project="${escapedP}">🗑️</span>
             </button>
@@ -2142,7 +2142,7 @@ function updateSidebarProcessingStates(activeProjects) {
     const items = document.querySelectorAll("#project-list-container .project-item");
     items.forEach(item => {
         const p = item.getAttribute("data-project") || "";
-        const iconEl = item.querySelector(".project-item-icon");
+        const iconEl = item.querySelector(".nav-icon");
         const deleteEl = item.querySelector(".project-item-delete");
         const isProcessing = activeProjects.has(p);
         
