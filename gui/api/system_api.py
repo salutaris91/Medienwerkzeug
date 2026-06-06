@@ -24,6 +24,10 @@ from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
 def handle_api_capabilities():
     return jsonify(get_runtime_capabilities())
 
+@system_api.route('/healthz', methods=['GET'])
+def handle_api_healthz():
+    return jsonify({"ok": True})
+
 @system_api.route('/settings', methods=['GET', 'POST'])
 def handle_api_settings():
     from gui.core.persistence import update_settings, save_env_keys, load_env_keys, mask_credential, is_masked

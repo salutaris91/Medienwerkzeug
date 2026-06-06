@@ -3,6 +3,9 @@ import sys
 import threading
 import socket
 import webbrowser
+import signal
+import subprocess
+import urllib.request
 from flask import Flask, send_from_directory
 from gui.api.system_api import system_api
 from gui.api.youtube_api import youtube_api
@@ -55,15 +58,97 @@ def is_port_in_use(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('127.0.0.1', port)) == 0
 
+def is_server_healthy(port, timeout=1.5):
+    url = f"http://127.0.0.1:{port}/api/healthz"
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
+            return response.status == 200
+    except Exception as e:
+        print(f"Healthcheck failed for existing server on port {port}: {e}", flush=True)
+        return False
+
+def get_listener_pids(port):
+    try:
+        output = subprocess.check_output(
+            ["lsof", "-ti", f"tcp:{port}", "-sTCP:LISTEN"],
+            text=True,
+            timeout=2,
+            stderr=subprocess.DEVNULL,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+        print(f"Could not detect listener process on port {port}: {e}", flush=True)
+        return []
+
+    current_pid = os.getpid()
+    pids = []
+    for line in output.splitlines():
+        try:
+            pid = int(line.strip())
+        except ValueError:
+            continue
+        if pid != current_pid:
+            pids.append(pid)
+    return pids
+
+def stop_unhealthy_server(port):
+    pids = get_listener_pids(port)
+    if not pids:
+        return False
+
+    print(f"Stopping unhealthy server process(es) on port {port}: {pids}", flush=True)
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        except Exception as e:
+            print(f"Could not terminate process {pid}: {e}", flush=True)
+
+    import time
+    for _ in range(10):
+        if not is_port_in_use(port):
+            return True
+        time.sleep(0.3)
+
+    print(f"Port {port} still occupied after SIGTERM; forcing shutdown.", flush=True)
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except Exception as e:
+            print(f"Could not force-kill process {pid}: {e}", flush=True)
+
+    for _ in range(10):
+        if not is_port_in_use(port):
+            return True
+        time.sleep(0.3)
+
+    return not is_port_in_use(port)
+
 def main():
     import time
     port = int(os.environ.get("MW_PORT", 5001))
     print(f"Starting Medienwerkzeug Flask Server on port {port}...")
+
+    if is_port_in_use(port):
+        if is_server_healthy(port):
+            print(f"Healthy server is already running on port {port}. Opening browser.", flush=True)
+            if os.environ.get("MW_RUNTIME") != "docker":
+                webbrowser.open(f"http://127.0.0.1:{port}")
+            sys.exit(0)
+
+        print(f"Port {port} is occupied by an unhealthy server. Attempting self-healing restart.", flush=True)
+        if not stop_unhealthy_server(port):
+            print(f"Could not free port {port}; opening browser for the existing process.", flush=True)
+            if os.environ.get("MW_RUNTIME") != "docker":
+                webbrowser.open(f"http://127.0.0.1:{port}")
+            sys.exit(1)
     
     # Wait up to 5 times (total 7.5 seconds) if port is in use (e.g. from quick restart)
     for i in range(5):
         if is_port_in_use(port):
-            print(f"Port {port} belegt, warte auf Freigabe (Versuch {i+1}/5)...")
+            print(f"Port {port} belegt, warte auf Freigabe (Versuch {i+1}/5)...", flush=True)
             time.sleep(1.5)
         else:
             break

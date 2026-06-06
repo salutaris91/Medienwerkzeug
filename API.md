@@ -30,6 +30,13 @@ auf `http://127.0.0.1:5001`.
 
 ## system_api — Status & Konfiguration
 
+### `GET /api/healthz`
+Minimaler Healthcheck für Start- und Restart-Logik. Greift nicht auf Jobs,
+NAS, Settings oder Dateisystem-Scans zu und soll schnell antworten.
+```json
+{ "ok": true }
+```
+
 ### `GET|POST /api/status`
 Server- und Inbox-Status. Liefert u. a. NAS-Status, Projektliste sowie die
 Ordnergrößen für die Überwachung.
