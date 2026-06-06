@@ -590,5 +590,121 @@ class TestMovieProcessingFixes(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "fanart.jpg")))
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "backdrop.jpg")))
 
+    def test_subtitle_suffix_parsing_and_pairing(self):
+        """Test 7: VobSub Untertitel-Erkennung, Suffix-Parsing und Paarbindung."""
+        proj_dir = os.path.join(self.inbox_dir, "SubtitleMovie")
+        os.makedirs(proj_dir)
+
+        # Hauptfilm
+        video = os.path.join(proj_dir, "movie.mkv")
+        with open(video, "wb") as f:
+            f.truncate(10 * 1024 * 1024)
+
+        # Untertitel-Paar (forced de) in verschachteltem Ordner
+        nested_dir = os.path.join(proj_dir, "Funny Dude", "SUBS")
+        os.makedirs(nested_dir)
+        
+        sub_file = os.path.join(nested_dir, "1080p-ger_forced.sub")
+        idx_file = os.path.join(nested_dir, "1080p-ger_forced.idx")
+        with open(sub_file, "w") as f: f.write("sub content")
+        with open(idx_file, "w") as f: f.write("idx content")
+
+        params = {
+            "media_type": "movie",
+            "project_name": "SubtitleMovie",
+            "movie_name": "Cold Storage (2026)",
+            "destination_id": "1",
+            "copy_to_nas": True
+        }
+
+        # 1. Vorschau testen
+        res = self._post("/api/preview-process", json_data=params)
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        
+        subs = data.get("subs", [])
+        sub_olds = [s["old"] for s in subs]
+        sub_news = [s["new"] for s in subs]
+        
+        # Prüfen, ob .sub und .idx als Untertitel erkannt wurden
+        self.assertIn("Funny Dude/SUBS/1080p-ger_forced.sub", sub_olds)
+        self.assertIn("Funny Dude/SUBS/1080p-ger_forced.idx", sub_olds)
+        
+        # Prüfen, ob sie den korrekten Namen (inkl. .de.forced) tragen
+        self.assertIn("Cold Storage (2026).de.forced.sub", sub_news)
+        self.assertIn("Cold Storage (2026).de.forced.idx", sub_news)
+
+        # 2. Verarbeitung ausführen
+        # Mappings und explizite Zuweisungen simulieren
+        params["explicit_renames"] = [{"old": "movie.mkv", "new": "Cold Storage (2026).mkv"}]
+        params["explicit_subs"] = subs
+        params["explicit_junk"] = []
+        
+        processor.process_worker(params)
+        
+        dest_movie_dir = os.path.join(self.outbox_dir, "Filme", "Cold Storage (2026)")
+        
+        # Hauptfilm und umbenannte Untertitel auf oberster Ebene prüfen
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "Cold Storage (2026).mkv")))
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "Cold Storage (2026).de.forced.sub")))
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "Cold Storage (2026).de.forced.idx")))
+        
+        # Prüfen, dass der verschachtelte Quell-Ordner nicht aufs NAS gewandert ist
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "Funny Dude")))
+
+    def test_recursive_safe_move_and_fallback(self):
+        """Test 8: Rekursives Hochziehen, Quarantäne-Ausschluss, Auffangregel und Kollisionszähler."""
+        proj_dir = os.path.join(self.inbox_dir, "SafeMoveMovie")
+        os.makedirs(proj_dir)
+
+        # Hauptfilm
+        video = os.path.join(proj_dir, "movie.mkv")
+        with open(video, "wb") as f:
+            f.truncate(10 * 1024 * 1024)
+
+        # Unbekannte Datei (z. B. RARBG.txt) im Hauptverzeichnis
+        rarbg_file = os.path.join(proj_dir, "RARBG.txt")
+        with open(rarbg_file, "w") as f: f.write("rarbg info")
+
+        # Unbekannte Datei in verschachteltem Ordner (sollte hochgezogen werden)
+        nested_dir = os.path.join(proj_dir, "nested_folder")
+        os.makedirs(nested_dir)
+        nested_unknown = os.path.join(nested_dir, "extra.txt")
+        with open(nested_unknown, "w") as f: f.write("extra info")
+
+        # Junk-Datei (sollte im Trash landen)
+        junk_file = os.path.join(proj_dir, "junkfile.tmp")
+        with open(junk_file, "w") as f: f.write("trash me")
+
+        params = {
+            "media_type": "movie",
+            "project_name": "SafeMoveMovie",
+            "movie_name": "Safe Move Movie (2026)",
+            "destination_id": "1",
+            "copy_to_nas": True,
+            "explicit_renames": [
+                {"old": "movie.mkv", "new": "Safe Move Movie (2026).mkv"}
+            ],
+            "explicit_subs": [],
+            "explicit_junk": ["junkfile.tmp"]
+        }
+
+        processor.process_worker(params)
+        dest_movie_dir = os.path.join(self.outbox_dir, "Filme", "Safe Move Movie (2026)")
+
+        # 1. Prüfen, ob Junk-Datei gelöscht und NICHT im Ziel ist
+        self.assertTrue(os.path.exists(os.path.join(self.mock_trash_dir, "junkfile.tmp")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "junkfile.tmp")))
+
+        # 2. Prüfen, ob RARBG.txt nach der Auffangregel umbenannt wurde
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "Safe Move Movie (2026).txt")))
+
+        # 3. Prüfen, ob nested_folder/extra.txt hochgezogen und kollisionsfrei umbenannt wurde (Safe Move Movie (2026).2.txt)
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "Safe Move Movie (2026).2.txt")))
+
+        # 4. Prüfen, dass der verschachtelte Ordner nicht im Ziel ist und im Quellverzeichnis gelöscht wurde
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "nested_folder")))
+        self.assertFalse(os.path.exists(os.path.join(proj_dir, "nested_folder")))
+
 if __name__ == "__main__":
     unittest.main()
