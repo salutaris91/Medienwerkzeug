@@ -10688,13 +10688,15 @@ async function updateHomepageData(statusData) {
                     heroConnectBtn.style.display = "inline-block";
                     subSpan.textContent = "Der automatische Mount-Vorgang kann Zugangsdaten erfordern.";
                 } else {
-                    subSpan.textContent = "Im Docker-Modus muss das Volume vom Host gemountet sein.";
+                    subSpan.textContent = "Im Docker-Modus muss das Volume vom Host gemountet sein (Volume-Mapping in docker-compose.yml prüfen).";
                 }
                 nasInfoMsg.appendChild(subSpan);
             } else {
                 // offline
                 const checkedStr = details.checked_ips && details.checked_ips.length > 0 ? details.checked_ips.join(" / ") : "";
-                if (checkedStr) {
+                if (runtimeDocker) {
+                    nasInfoMsg.textContent = "❌ NAS offline (Volume nicht verfügbar).";
+                } else if (checkedStr) {
                     nasInfoMsg.textContent = `❌ NAS offline (keine Verbindung zu: ${checkedStr}).`;
                 } else {
                     nasInfoMsg.textContent = "❌ NAS offline (keine IP konfiguriert).";
@@ -10702,7 +10704,7 @@ async function updateHomepageData(statusData) {
                 nasInfoMsg.style.color = "var(--danger)";
                 
                 const errDetail = details.error_message;
-                if (errDetail || (details.checked_ips && details.checked_ips.length > 1)) {
+                if (errDetail || runtimeDocker || (details.checked_ips && details.checked_ips.length > 1)) {
                     const subSpan = document.createElement("span");
                     subSpan.style.opacity = "0.7";
                     subSpan.style.fontSize = "0.9em";
@@ -10713,9 +10715,17 @@ async function updateHomepageData(statusData) {
                     if (errDetail) {
                         tipText += `Fehler: ${errDetail}`;
                     }
-                    if (details.checked_ips && details.checked_ips.length > 1) {
+                    if (runtimeDocker) {
                         if (tipText) tipText += " • ";
-                        tipText += "Tipp: VPN-Verbindung oder Tailscale prüfen.";
+                        tipText += "Tipp: Docker-Volume-Mapping in docker-compose.yml prüfen.";
+                        if (details.checked_ips && details.checked_ips.length > 0) {
+                            tipText += " (oder VPN/Tailscale auf dem Host prüfen)";
+                        }
+                    } else {
+                        if (details.checked_ips && details.checked_ips.length > 1) {
+                            if (tipText) tipText += " • ";
+                            tipText += "Tipp: VPN-Verbindung oder Tailscale prüfen.";
+                        }
                     }
                     subSpan.textContent = tipText;
                     nasInfoMsg.appendChild(subSpan);

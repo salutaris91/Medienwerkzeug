@@ -170,6 +170,42 @@ class TestNasDetails(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(mock_details.call_count, 2)
 
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
+    @patch("gui.core.transfers.get_runtime_capabilities", return_value={"runtime": "docker", "capabilities": {}})
+    @patch("gui.core.transfers.os.path.isdir", return_value=True)
+    def test_details_docker_connected(self, mock_isdir, mock_caps, mock_settings):
+        details = transfers.check_nas_connection_details()
+        self.assertEqual(details["status"], "connected")
+        self.assertTrue(details["enabled"])
+        self.assertTrue(details["has_root"])
+        self.assertIsNone(details["reachable_ip"])
+        self.assertIsNone(details["error_message"])
+
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
+    @patch("gui.core.transfers.get_runtime_capabilities", return_value={"runtime": "docker", "capabilities": {}})
+    @patch("gui.core.transfers.os.path.isdir", return_value=False)
+    def test_details_docker_offline(self, mock_isdir, mock_caps, mock_settings):
+        details = transfers.check_nas_connection_details()
+        self.assertEqual(details["status"], "offline")
+        self.assertTrue(details["enabled"])
+        self.assertTrue(details["has_root"])
+        self.assertIsNone(details["reachable_ip"])
+        self.assertIn("Docker-Volume nicht im Container verfügbar", details["error_message"])
+
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
+    @patch("gui.core.transfers.get_runtime_capabilities", return_value={"runtime": "docker", "capabilities": {}})
+    @patch("gui.core.transfers.os.path.isdir", return_value=True)
+    def test_status_docker_connected(self, mock_isdir, mock_caps, mock_settings):
+        status = transfers.check_nas_status()
+        self.assertEqual(status, "connected")
+
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
+    @patch("gui.core.transfers.get_runtime_capabilities", return_value={"runtime": "docker", "capabilities": {}})
+    @patch("gui.core.transfers.os.path.isdir", return_value=False)
+    def test_status_docker_offline(self, mock_isdir, mock_caps, mock_settings):
+        status = transfers.check_nas_status()
+        self.assertEqual(status, "offline")
+
 
 if __name__ == "__main__":
     unittest.main()

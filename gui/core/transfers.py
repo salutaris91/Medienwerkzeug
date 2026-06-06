@@ -60,6 +60,10 @@ def check_nas_status():
     if not nas_root:
         return "offline"
     
+    is_docker = get_runtime_capabilities()["runtime"] == "docker"
+    if is_docker:
+        return "connected" if os.path.isdir(nas_root) else "offline"
+    
     # 1. Check if mounted
     mounted = _is_nas_root_mounted(nas_root)
         
@@ -133,6 +137,29 @@ def check_nas_connection_details():
             "ip_details": ip_details,
             "error_message": "Kein nas_root konfiguriert."
         }
+
+    is_docker = get_runtime_capabilities()["runtime"] == "docker"
+    if is_docker:
+        if os.path.isdir(nas_root):
+            return {
+                "status": "connected",
+                "enabled": nas_enabled,
+                "has_root": has_root,
+                "checked_ips": checked_ips,
+                "reachable_ip": None,
+                "ip_details": ip_details,
+                "error_message": None
+            }
+        else:
+            return {
+                "status": "offline",
+                "enabled": nas_enabled,
+                "has_root": has_root,
+                "checked_ips": checked_ips,
+                "reachable_ip": None,
+                "ip_details": ip_details,
+                "error_message": f"Docker-Volume nicht im Container verfügbar (nas_root Pfad '{nas_root}' existiert nicht). Bitte das Volume-Mapping in docker-compose.yml prüfen."
+            }
 
     # 1. Check if mounted
     mounted = _is_nas_root_mounted(nas_root)
