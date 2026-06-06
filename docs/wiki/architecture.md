@@ -51,4 +51,5 @@ an diesem Modul haben entsprechend einen großen Wirkungsbereich.
 
 - Nutzerfunktionen und Installation: [README](../../README.md)
 - REST-Endpunkte und Payloads: [API-Dokumentation](../../API.md)
-- Release-Planung: [ROAD_TO_GLORY](../../ROAD_TO_GLORY.md)
+- Release- und Feature-Planung: [AFTER_RELEASE_ROADMAP](../../AFTER_RELEASE_ROADMAP.md)
+- Historischer Release-Plan: [ROAD_TO_GLORY](../archive/ROAD_TO_GLORY.md)

@@ -1,5 +1,8 @@
 # Road to Glory – Release & Distribution Plan
 
+> Archiviert: Dieses Dokument ist historisch. Die aktive Planung liegt in
+> [`AFTER_RELEASE_ROADMAP.md`](../../AFTER_RELEASE_ROADMAP.md).
+
 Dieser Plan (die "Road to Glory") skizziert den Weg, um das Medienwerkzeug von einem für dich optimierten, lokalen Skript in eine weitergebbare, robuste App zu verwandeln, die auch bei Dritten (ohne technische Vorkenntnisse) einwandfrei läuft.
 
 ---
