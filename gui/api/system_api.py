@@ -270,7 +270,7 @@ def handle_api_nas_connect():
     handle_api_nas_connect.last_attempt = now
 
     try:
-        ensure_nas_mounted()
+        ensure_nas_mounted(allow_finder_fallback=True)
         nas_details = check_nas_connection_details()
         nas_status = nas_details["status"]
         handle_api_status.last_nas_details = nas_details

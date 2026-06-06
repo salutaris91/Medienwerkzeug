@@ -227,7 +227,7 @@ def check_nas_connection_details():
         "error_message": error_message
     }
 
-def ensure_nas_mounted():
+def ensure_nas_mounted(allow_finder_fallback=False):
     settings = load_settings()
     nas_target = next((t for t in settings.get("storage_targets", []) if t.get("id") == "nas"), None)
     if nas_target:
@@ -302,6 +302,10 @@ def ensure_nas_mounted():
                 return True
         except Exception as e:
             log_message(f"❌ Fehler beim Einhängen des NAS: {e}")
+
+        if not allow_finder_fallback:
+            log_message("ℹ️ Finder-Fallback für NAS-Mount übersprungen.")
+            return os.path.exists(nas_root)
 
         finder_host = nas_hostname or chosen_ip
         if _open_nas_in_finder(finder_host, nas_share):
