@@ -551,7 +551,7 @@ Das Medienwerkzeug lässt sich als macOS-/Windows-Desktop-App starten, ohne dass
 Nutzer Python oder die Flask-App manuell bedienen müssen.
 
 ### Umsetzung
-- `pywebview` als natives Fenster über dem bestehenden Flask-Backend prüfen.
+- `pywebview` as natives Fenster über dem bestehenden Flask-Backend prüfen.
 - PyInstaller-/py2app-Builds für macOS und Windows aufsetzen.
 - Tool-Pfad-Resolver mit gebündelten oder systemweiten Binaries abstimmen
   (`ffmpeg`, `yt-dlp`, `rclone`).

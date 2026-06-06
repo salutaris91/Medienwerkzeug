@@ -72,6 +72,9 @@ class TestNasDetails(unittest.TestCase):
         self.assertTrue(details["has_root"])
         self.assertEqual(details["checked_ips"], ["192.168.2.208", "100.74.187.125"])
         self.assertIsNone(details["reachable_ip"])
+        self.assertEqual(details["error_message"], "NAS-Verbindung in den Einstellungen deaktiviert.")
+        self.assertEqual(details["ip_details"][0]["role"], "primary")
+        self.assertEqual(details["ip_details"][1]["role"], "backup")
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_NO_ROOT)
     def test_details_when_no_root(self, mock_settings):
@@ -80,6 +83,7 @@ class TestNasDetails(unittest.TestCase):
         self.assertTrue(details["enabled"])
         self.assertFalse(details["has_root"])
         self.assertIsNone(details["reachable_ip"])
+        self.assertEqual(details["error_message"], "Kein nas_root konfiguriert.")
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
     @patch("gui.core.transfers._is_nas_root_mounted", return_value=True)
@@ -90,6 +94,7 @@ class TestNasDetails(unittest.TestCase):
         self.assertTrue(details["enabled"])
         self.assertTrue(details["has_root"])
         self.assertIsNotNone(details["reachable_ip"])
+        self.assertIsNone(details["error_message"])
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
     @patch("gui.core.transfers._is_nas_root_mounted", return_value=False)
@@ -100,6 +105,7 @@ class TestNasDetails(unittest.TestCase):
             details = transfers.check_nas_connection_details()
         self.assertEqual(details["status"], "available_not_mounted")
         self.assertEqual(details["reachable_ip"], "192.168.2.208")
+        self.assertEqual(details["error_message"], "Laufwerk erreichbar, aber nicht eingehängt.")
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
     @patch("gui.core.transfers._is_nas_root_mounted", return_value=False)
@@ -111,6 +117,8 @@ class TestNasDetails(unittest.TestCase):
             details = transfers.check_nas_connection_details()
         self.assertEqual(details["status"], "offline")
         self.assertIsNone(details["reachable_ip"])
+        self.assertIn("primary (192.168.2.208)", details["error_message"])
+        self.assertIn("backup (100.74.187.125)", details["error_message"])
 
     @patch("gui.api.system_api.check_nas_connection_details")
     def test_api_status_returns_details(self, mock_details):
@@ -131,6 +139,76 @@ class TestNasDetails(unittest.TestCase):
         self.assertEqual(data["nas_status"], "available_not_mounted")
         self.assertIn("nas_details", data)
         self.assertEqual(data["nas_details"]["reachable_ip"], "100.74.187.125")
+
+    @patch("gui.api.system_api.check_nas_connection_details")
+    def test_api_status_force_check_bypasses_cache(self, mock_details):
+        mock_details.return_value = {
+            "status": "connected",
+            "enabled": True,
+            "has_root": True,
+            "checked_ips": [],
+            "reachable_ip": None
+        }
+        
+        # Reset cache on endpoint function
+        if hasattr(handle_api_status, "last_nas_details"):
+            delattr(handle_api_status, "last_nas_details")
+            
+        with patch("gui.api.system_api.check_streamfab", return_value=[]):
+            # First call - populates cache
+            response = self.client.get("/api/status")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(mock_details.call_count, 1)
+
+            # Second call without force_nas_check - uses cache
+            response = self.client.get("/api/status")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(mock_details.call_count, 1)
+
+            # Third call with force_nas_check=true - bypasses cache
+            response = self.client.get("/api/status?force_nas_check=true")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(mock_details.call_count, 2)
+
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
+    @patch("gui.core.transfers.get_runtime_capabilities", return_value={"runtime": "docker", "capabilities": {}})
+    @patch("gui.core.transfers.os.path.isdir", return_value=True)
+    def test_details_docker_connected(self, mock_isdir, mock_caps, mock_settings):
+        details = transfers.check_nas_connection_details()
+        self.assertEqual(details["status"], "connected")
+        self.assertTrue(details["enabled"])
+        self.assertTrue(details["has_root"])
+        self.assertIsNone(details["reachable_ip"])
+        self.assertEqual(details["checked_ips"], [])
+        self.assertEqual(details["ip_details"], [])
+        self.assertIsNone(details["error_message"])
+
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
+    @patch("gui.core.transfers.get_runtime_capabilities", return_value={"runtime": "docker", "capabilities": {}})
+    @patch("gui.core.transfers.os.path.isdir", return_value=False)
+    def test_details_docker_offline(self, mock_isdir, mock_caps, mock_settings):
+        details = transfers.check_nas_connection_details()
+        self.assertEqual(details["status"], "offline")
+        self.assertTrue(details["enabled"])
+        self.assertTrue(details["has_root"])
+        self.assertIsNone(details["reachable_ip"])
+        self.assertEqual(details["checked_ips"], [])
+        self.assertEqual(details["ip_details"], [])
+        self.assertIn("Docker-Volume nicht im Container verfügbar", details["error_message"])
+
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
+    @patch("gui.core.transfers.get_runtime_capabilities", return_value={"runtime": "docker", "capabilities": {}})
+    @patch("gui.core.transfers.os.path.isdir", return_value=True)
+    def test_status_docker_connected(self, mock_isdir, mock_caps, mock_settings):
+        status = transfers.check_nas_status()
+        self.assertEqual(status, "connected")
+
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
+    @patch("gui.core.transfers.get_runtime_capabilities", return_value={"runtime": "docker", "capabilities": {}})
+    @patch("gui.core.transfers.os.path.isdir", return_value=False)
+    def test_status_docker_offline(self, mock_isdir, mock_caps, mock_settings):
+        status = transfers.check_nas_status()
+        self.assertEqual(status, "offline")
 
 
 if __name__ == "__main__":

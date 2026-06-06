@@ -93,8 +93,36 @@ class TestNasConnectApi(unittest.TestCase):
 
         self.assertEqual(first_response.status_code, 200)
         self.assertEqual(second_response.status_code, 429)
-        self.assertFalse(second_response.get_json()["ok"])
+        data = second_response.get_json()
+        self.assertFalse(data["ok"])
+        self.assertIn("nas_details", data)
+        self.assertEqual(data["nas_details"]["status"], "connected")
         mock_mount.assert_called_once_with()
+
+    @patch("gui.api.system_api.check_nas_connection_details")
+    @patch("gui.api.system_api.get_runtime_capabilities")
+    def test_connect_docker_mode_returns_403_with_details(self, mock_caps, mock_details):
+        mock_caps.return_value = {
+            "runtime": "docker",
+            "capabilities": {
+                "mount_nas": False
+            }
+        }
+        mock_details.return_value = {
+            "status": "offline",
+            "enabled": True,
+            "has_root": True,
+            "checked_ips": ["192.168.2.208"],
+            "reachable_ip": None,
+            "error_message": "Some error"
+        }
+        response = self.client.post("/api/nas/connect")
+        self.assertEqual(response.status_code, 403)
+        data = response.get_json()
+        self.assertFalse(data["ok"])
+        self.assertEqual(data["nas_status"], "offline")
+        self.assertIn("nas_details", data)
+        self.assertEqual(data["nas_details"]["error_message"], "Some error")
 
 
 if __name__ == "__main__":

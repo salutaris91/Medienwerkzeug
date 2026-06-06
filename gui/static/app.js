@@ -2011,11 +2011,12 @@ function connectLogStream() {
 // ==========================================================================
 // STATUS & BADGES
 // ==========================================================================
-async function loadStatus() {
+async function loadStatus(forceNasCheck = false) {
     if (document.hidden) return;
     if (document.visibilityState === "hidden") return;
     try {
-        const response = await fetch("/api/status");
+        const url = forceNasCheck ? "/api/status?force_nas_check=true" : "/api/status";
+        const response = await fetch(url);
         if (!response.ok) return;
         const data = await response.json();
         
@@ -6521,7 +6522,7 @@ function initEventListeners() {
             const originalText = heroRefreshNasBtn.textContent;
             heroRefreshNasBtn.textContent = "Prüfe...";
             try {
-                await loadStatus();
+                await loadStatus(true);
             } finally {
                 heroRefreshNasBtn.disabled = false;
                 heroRefreshNasBtn.textContent = originalText;
@@ -10649,40 +10650,85 @@ async function updateHomepageData(statusData) {
             const mountAllowed = !runtimeDocker;
             
             if (!details.enabled) {
-                nasInfoMsg.innerHTML = "❌ NAS-Verbindung in den Einstellungen deaktiviert.";
+                nasInfoMsg.textContent = "❌ NAS-Verbindung in den Einstellungen deaktiviert.";
                 nasInfoMsg.style.color = "var(--text-muted)";
             } else if (!details.has_root) {
-                nasInfoMsg.innerHTML = "⚠️ Kein Einhängepfad (nas_root) in den Einstellungen konfiguriert.";
+                nasInfoMsg.textContent = "⚠️ Kein Einhängepfad (nas_root) in den Einstellungen konfiguriert.";
                 nasInfoMsg.style.color = "var(--warning)";
             } else if (details.status === "connected") {
-                nasInfoMsg.innerHTML = "✅ Netzlaufwerk ist eingehängt.";
+                nasInfoMsg.textContent = "✅ Netzlaufwerk ist eingehängt.";
                 nasInfoMsg.style.color = "var(--success)";
                 if (details.reachable_ip) {
-                    nasInfoMsg.innerHTML += `<br><span style="opacity: 0.7; font-size: 0.9em;">Letzte erreichbare IP: ${details.reachable_ip}</span>`;
+                    const subSpan = document.createElement("span");
+                    subSpan.style.opacity = "0.7";
+                    subSpan.style.fontSize = "0.9em";
+                    subSpan.style.display = "block";
+                    subSpan.style.marginTop = "4px";
+                    subSpan.textContent = `Letzte erreichbare IP: ${details.reachable_ip}`;
+                    nasInfoMsg.appendChild(subSpan);
                 }
             } else if (details.status === "available_not_mounted") {
-                const ipType = (details.reachable_ip === details.checked_ips[1] && details.checked_ips[1]) ? "Backup-/Tailscale-IP" : "IP-Adresse";
-                nasInfoMsg.innerHTML = `⚠️ NAS erreichbar via ${ipType} (${details.reachable_ip || "unbekannt"}), aber nicht eingehängt.`;
+                let ipType = "IP-Adresse";
+                if (details.ip_details) {
+                    const reachedInfo = details.ip_details.find(info => info.address === details.reachable_ip);
+                    if (reachedInfo && reachedInfo.role === "backup") {
+                        ipType = "Backup-/Tailscale-IP";
+                    }
+                }
+                
+                nasInfoMsg.textContent = `⚠️ NAS erreichbar via ${ipType} (${details.reachable_ip || "unbekannt"}), aber nicht eingehängt.`;
                 nasInfoMsg.style.color = "var(--warning)";
                 
+                const subSpan = document.createElement("span");
+                subSpan.style.opacity = "0.7";
+                subSpan.style.fontSize = "0.9em";
+                subSpan.style.display = "block";
+                subSpan.style.marginTop = "4px";
                 if (mountAllowed) {
                     heroConnectBtn.style.display = "inline-block";
-                    nasInfoMsg.innerHTML += "<br><span style='opacity: 0.7; font-size: 0.9em;'>Der automatische Mount-Vorgang kann Zugangsdaten erfordern.</span>";
+                    subSpan.textContent = "Der automatische Mount-Vorgang kann Zugangsdaten erfordern.";
                 } else {
-                    nasInfoMsg.innerHTML += "<br><span style='opacity: 0.7; font-size: 0.9em;'>Im Docker-Modus muss das Volume vom Host gemountet sein.</span>";
+                    subSpan.textContent = "Im Docker-Modus muss das Volume vom Host gemountet sein (Volume-Mapping in docker-compose.yml prüfen).";
                 }
+                nasInfoMsg.appendChild(subSpan);
             } else {
                 // offline
                 const checkedStr = details.checked_ips && details.checked_ips.length > 0 ? details.checked_ips.join(" / ") : "";
-                if (checkedStr) {
-                    nasInfoMsg.innerHTML = `❌ NAS offline (keine Verbindung zu: ${checkedStr}).`;
+                if (runtimeDocker) {
+                    nasInfoMsg.textContent = "❌ NAS offline (Volume nicht verfügbar).";
+                } else if (checkedStr) {
+                    nasInfoMsg.textContent = `❌ NAS offline (keine Verbindung zu: ${checkedStr}).`;
                 } else {
-                    nasInfoMsg.innerHTML = "❌ NAS offline (keine IP konfiguriert).";
+                    nasInfoMsg.textContent = "❌ NAS offline (keine IP konfiguriert).";
                 }
                 nasInfoMsg.style.color = "var(--danger)";
                 
-                if (details.checked_ips && details.checked_ips.length > 1) {
-                    nasInfoMsg.innerHTML += "<br><span style='opacity: 0.7; font-size: 0.9em;'>Tipp: VPN-Verbindung oder Tailscale prüfen.</span>";
+                const errDetail = details.error_message;
+                if (errDetail || runtimeDocker || (details.checked_ips && details.checked_ips.length > 1)) {
+                    const subSpan = document.createElement("span");
+                    subSpan.style.opacity = "0.7";
+                    subSpan.style.fontSize = "0.9em";
+                    subSpan.style.display = "block";
+                    subSpan.style.marginTop = "4px";
+                    
+                    let tipText = "";
+                    if (errDetail) {
+                        tipText += `Fehler: ${errDetail}`;
+                    }
+                    if (runtimeDocker) {
+                        if (tipText) tipText += " • ";
+                        tipText += "Tipp: Docker-Volume-Mapping in docker-compose.yml prüfen.";
+                        if (details.checked_ips && details.checked_ips.length > 0) {
+                            tipText += " (oder VPN/Tailscale auf dem Host prüfen)";
+                        }
+                    } else {
+                        if (details.checked_ips && details.checked_ips.length > 1) {
+                            if (tipText) tipText += " • ";
+                            tipText += "Tipp: VPN-Verbindung oder Tailscale prüfen.";
+                        }
+                    }
+                    subSpan.textContent = tipText;
+                    nasInfoMsg.appendChild(subSpan);
                 }
                 heroRefreshBtn.style.display = "inline-block";
             }
