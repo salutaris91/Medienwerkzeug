@@ -91,9 +91,9 @@ def handle_api_preview_process():
         return jsonify({"error": "Ordner existiert nicht."})
         return
 
-    all_files = find_files_recursively(current_dir)
+    all_files = sorted(find_files_recursively(current_dir))
     video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
-    sub_exts = ('.srt', '.vtt', '.ass')
+    sub_exts = ('.srt', '.vtt', '.ass', '.ssa', '.sub', '.idx')
     good_meta = ('tvshow.nfo', 'poster.jpg', 'fanart.jpg', 'season.nfo', 'movie.nfo')
 
     preview = {
@@ -181,6 +181,8 @@ def handle_api_preview_process():
                 if f != main_video:
                     samples.add(f)
 
+        resolved_subs = {}
+        used_resolved_basenames = set()
         for f in all_files:
             basename = os.path.basename(f)
             ext = os.path.splitext(f)[1].lower()
@@ -212,7 +214,22 @@ def handle_api_preview_process():
                 else:
                     preview["junk"].append(f)
             elif ext in sub_exts:
-                target_filename = f"{clean_movie_name}{ext}"
+                rel_path_no_ext, _ = os.path.splitext(f)
+                if rel_path_no_ext in resolved_subs:
+                    target_basename = resolved_subs[rel_path_no_ext]
+                else:
+                    suffix = parse_subtitle_suffix(f)
+                    base_candidate = f"{clean_movie_name}{suffix}"
+                    candidate = base_candidate
+                    counter = 1
+                    while candidate in used_resolved_basenames:
+                        counter += 1
+                        candidate = f"{base_candidate}.{counter}"
+                    target_basename = candidate
+                    resolved_subs[rel_path_no_ext] = target_basename
+                    used_resolved_basenames.add(target_basename)
+                
+                target_filename = f"{target_basename}{ext}"
                 preview["subs"].append({"old": f, "new": target_filename})
             elif basename.lower() in ['poster.jpg', 'fanart.jpg', 'tvshow.nfo', 'season.nfo']:
                 preview["subs"].append({"old": f, "new": basename})
@@ -341,24 +358,49 @@ def handle_api_preview_process():
                     preview["renames"].append({"old": f, "new": target_filename})
 
                     base_old = os.path.splitext(basename)[0]
+                    matching_subs = []
+                    other_companion_files = []
                     for sf in all_files:
                         sbasename = os.path.basename(sf)
-                        sext = os.path.splitext(sf)[1].lower()
                         if sbasename.startswith(base_old) and sf != f:
+                            sext = os.path.splitext(sf)[1].lower()
                             if sext in sub_exts:
-                                # Subtitle: rename to match video name
+                                matching_subs.append(sf)
+                            elif sext in ('.nfo', '.jpg', '.png'):
+                                other_companion_files.append((sf, sbasename, sext))
+
+                    matching_subs.sort()
+                    local_resolved_subs = {}
+                    local_used = set()
+                    for sf in matching_subs:
+                        rel_path_no_ext, sext = os.path.splitext(sf)
+                        sext = sext.lower()
+                        if rel_path_no_ext in local_resolved_subs:
+                            target_basename = local_resolved_subs[rel_path_no_ext]
+                        else:
+                            suffix = parse_subtitle_suffix(sf)
+                            base_candidate = f"{clean_title}{suffix}"
+                            candidate = base_candidate
+                            counter = 1
+                            while candidate in local_used:
+                                counter += 1
+                                candidate = f"{base_candidate}.{counter}"
+                            target_basename = candidate
+                            local_resolved_subs[rel_path_no_ext] = target_basename
+                            local_used.add(target_basename)
+                        
+                        preview["subs"].append({"old": sf, "new": f"{target_basename}{sext}"})
+
+                    for sf, sbasename, sext in other_companion_files:
+                        if sext == '.nfo':
+                            preview["subs"].append({"old": sf, "new": f"{clean_title}.nfo"})
+                        elif sext in ('.jpg', '.png'):
+                            sbase_no_ext = os.path.splitext(sbasename)[0]
+                            suffix_after_base = sbase_no_ext[len(base_old):]
+                            if suffix_after_base:
+                                preview["subs"].append({"old": sf, "new": f"{clean_title}{suffix_after_base}{sext}"})
+                            else:
                                 preview["subs"].append({"old": sf, "new": f"{clean_title}{sext}"})
-                            elif sext in ('.nfo',):
-                                # NFO file: rename to match video name
-                                preview["subs"].append({"old": sf, "new": f"{clean_title}.nfo"})
-                            elif sext in ('.jpg', '.png'):
-                                # Image file: preserve suffix like -poster, -fanart, -thumb
-                                sbase_no_ext = os.path.splitext(sbasename)[0]
-                                suffix_after_base = sbase_no_ext[len(base_old):]  # e.g. "-poster", "-fanart"
-                                if suffix_after_base:
-                                    preview["subs"].append({"old": sf, "new": f"{clean_title}{suffix_after_base}{sext}"})
-                                else:
-                                    preview["subs"].append({"old": sf, "new": f"{clean_title}{sext}"})
                 else:
                     pass
             elif ext in sub_exts:
