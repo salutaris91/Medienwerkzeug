@@ -27,6 +27,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         self.orig_profiles_dir = utils.PROFILES_DIR
         self.orig_history_file = utils.HISTORY_FILE
         self.orig_expanduser = os.path.expanduser
+        self.orig_tmdb_key = mw_metadata.TMDB_API_KEY
+        mw_metadata.TMDB_API_KEY = "a" * 32
         
         # Override paths to use temp dir
         utils.DATA_DIR = os.path.join(self.test_dir, "gui_data")
@@ -61,9 +63,10 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         utils.PROFILES_DIR = self.orig_profiles_dir
         utils.HISTORY_FILE = self.orig_history_file
         os.path.expanduser = self.orig_expanduser
+        mw_metadata.TMDB_API_KEY = self.orig_tmdb_key
 
         # Modul-Cache des TVDb-Tokens zurücksetzen, damit ein in test_fetch_all_seasons
-        # gesetzter Mock-Token nicht in andere Tests leakt.
+        # gesetztter Mock-Token nicht in andere Tests leakt.
         mw_metadata.tvdb_token = None
         mw_metadata.tvdb_token_time = 0
 

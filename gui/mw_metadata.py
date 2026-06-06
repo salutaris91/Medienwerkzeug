@@ -57,6 +57,51 @@ class MetadataProviderUnavailable(Exception):
         super().__init__(message)
         self.status_code = status_code
 
+def check_tmdb_auth_method():
+    """
+    Checks the format of TMDB_API_KEY and returns ('v3', key) or ('v4', token)
+    or raises MetadataProviderUnavailable if invalid.
+    """
+    key = TMDB_API_KEY.strip()
+    if not key:
+        raise MetadataProviderUnavailable("TMDb API-Key ist nicht konfiguriert.", status_code=502)
+
+    import re
+    if len(key) == 32 and re.match(r'^[0-9a-fA-F]{32}$', key):
+        return 'v3', key
+
+    if len(key) > 50 and '.' in key:
+        return 'v4', key
+    raise MetadataProviderUnavailable(
+        "Ungueltiges Format fuer den TMDb API-Key. Erwartet wird ein 32-stelliger v3 API-Key oder ein v4 Read Access Token (JWT).",
+        status_code=502
+    )
+
+def make_tmdb_request(url, headers=None):
+    import urllib.request
+    import urllib.parse
+
+    if headers is None:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+    else:
+        headers = headers.copy()
+        if 'User-Agent' not in headers:
+            headers['User-Agent'] = 'Mozilla/5.0'
+
+    method, key = check_tmdb_auth_method()
+
+    if method == 'v4':
+        parsed = urllib.parse.urlparse(url)
+        params = urllib.parse.parse_qsl(parsed.query)
+        new_params = [(k, v) for k, v in params if k != 'api_key']
+        new_query = urllib.parse.urlencode(new_params)
+        parsed = parsed._replace(query=new_query)
+        url = urllib.parse.urlunparse(parsed)
+
+        headers['Authorization'] = f'Bearer {key}'
+
+    return urllib.request.Request(url, headers=headers)
+
 def _handle_metadata_error(e, context=""):
     import urllib.error
     import socket
@@ -316,7 +361,7 @@ def get_all_season_numbers(provider, show_id):
     try:
         if provider in ["tmdb_tv", "tmdb_tv_en"]:
             url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}"
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            req = make_tmdb_request(url)
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 seasons = [s['season_number'] for s in data.get('seasons', []) if s.get('season_number', 0) > 0]
@@ -457,7 +502,7 @@ def search_tmdb_movie(query):
     if query.startswith("tt"):
         url = f"https://api.themoviedb.org/3/find/{query}?api_key={TMDB_API_KEY}&external_source=imdb_id&language=de-DE"
         try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            req = make_tmdb_request(url)
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 results = []
@@ -480,7 +525,7 @@ def search_tmdb_movie(query):
         tmdb_id = query.replace("tmdb:", "")
         url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}&language=de-DE"
         try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            req = make_tmdb_request(url)
             with urllib.request.urlopen(req, timeout=10) as response:
                 item = json.loads(response.read().decode())
                 year = item.get('release_date', '')[:4] if item.get('release_date') else '????'
@@ -504,7 +549,7 @@ def search_tmdb_movie(query):
     def _do_tmdb_search(q_str):
         url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={urllib.parse.quote(q_str)}&language=de-DE"
         try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            req = make_tmdb_request(url)
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 results = []
@@ -545,7 +590,7 @@ def search_tmdb_tv(query, lang="de-DE"):
     if query.startswith("tt"):
         url = f"https://api.themoviedb.org/3/find/{query}?api_key={TMDB_API_KEY}&external_source=imdb_id&language={lang}"
         try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            req = make_tmdb_request(url)
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 results = []
@@ -569,7 +614,7 @@ def search_tmdb_tv(query, lang="de-DE"):
         tmdb_id = query.replace("tmdb:", "")
         url = f"https://api.themoviedb.org/3/tv/{tmdb_id}?api_key={TMDB_API_KEY}&language={lang}"
         try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            req = make_tmdb_request(url)
             with urllib.request.urlopen(req, timeout=10) as response:
                 item = json.loads(response.read().decode())
                 year = item.get('first_air_date', '')[:4] if item.get('first_air_date') else '????'
@@ -591,7 +636,7 @@ def search_tmdb_tv(query, lang="de-DE"):
     # Normale Textsuche
     url = f"https://api.themoviedb.org/3/search/tv?api_key={TMDB_API_KEY}&query={urllib.parse.quote(query)}&language={lang}"
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        req = make_tmdb_request(url)
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
             results = []
@@ -638,7 +683,7 @@ def fetch_tmdb_tv(show_id, season, lang="de-DE"):
 
     url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season}?api_key={TMDB_API_KEY}&language={lang}"
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        req = make_tmdb_request(url)
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
             result = {}
@@ -798,7 +843,7 @@ def fetch_tmdb_images(media_type, tmdb_id):
         return {}
     url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}/images?api_key={TMDB_API_KEY}&include_image_language=de,en,null"
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        req = make_tmdb_request(url)
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
             
@@ -961,8 +1006,8 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
         return {"nfo": False, "poster": False, "fanart": False, "msg": "existiert"}
         
     url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}&language=de-DE&append_to_response=credits,release_dates"
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     try:
+        req = make_tmdb_request(url)
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
     except Exception as e:
@@ -1134,7 +1179,7 @@ def fetch_show_nfo_data(provider, show_id):
         try:
             lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
             url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}&language={lang}"
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            req = make_tmdb_request(url)
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
             title = data.get('name', '')
@@ -1194,7 +1239,7 @@ def fetch_movie_nfo_data(provider, movie_id):
     else: # TMDB
         try:
             url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&language=de-DE"
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            req = make_tmdb_request(url)
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
             title = data.get('title', '')
@@ -1328,7 +1373,7 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
         try:
             lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
             url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season}/episode/{episode}?api_key={TMDB_API_KEY}&language={lang}"
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            req = make_tmdb_request(url)
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
             return {
@@ -1585,8 +1630,8 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
 
     lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
     url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}&language={lang}&append_to_response=credits,content_ratings"
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     try:
+        req = make_tmdb_request(url)
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
     except Exception as e:
@@ -1939,7 +1984,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
     lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
     url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season}/episode/{episode}?api_key={TMDB_API_KEY}&language={lang}"
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        req = make_tmdb_request(url)
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
     except Exception as e:
@@ -2055,7 +2100,7 @@ def guess_season(provider, show_id, filenames_json_or_list):
     try:
         if provider in ["tmdb_tv", "tmdb_tv_en", "tmdb"]:
             url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}"
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            req = make_tmdb_request(url)
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 seasons = [str(s['season_number']) for s in data.get('seasons', []) if s.get('season_number', 0) > 0]
