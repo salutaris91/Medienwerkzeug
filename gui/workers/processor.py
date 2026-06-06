@@ -35,6 +35,8 @@ def _get_movie_artwork_lists(settings, video_filename):
     return (
         validator.get_movie_poster_names(video_filename),
         validator.get_movie_backdrop_names(video_filename)
+    )
+
 def move_with_fallback(src_path, dest_dir, fallback_basename, whitelist=None):
     """
     Moves a file at src_path to dest_dir.
@@ -56,9 +58,23 @@ def move_with_fallback(src_path, dest_dir, fallback_basename, whitelist=None):
                 # normalize path separators to prevent mismatch
                 old_norm = os.path.normpath(item["old"])
                 src_norm = os.path.normpath(src_path)
-                if src_norm.endswith(old_norm):
+                if src_norm.endswith(old_norm) or os.path.basename(src_path) == item["new"]:
                     target_name = item["new"]
                     break
+
+        if not target_name:
+            lower_name = filename.lower()
+            is_metadata = False
+            if ext == '.nfo':
+                is_metadata = True
+            else:
+                metadata_keywords = ['poster', 'fanart', 'backdrop', 'folder', 'logo', 'banner', 'clearlogo', 'cover', 'background', 'art', 'default']
+                for kw in metadata_keywords:
+                    if kw in lower_name:
+                        is_metadata = True
+                        break
+            if is_metadata:
+                target_name = filename
 
         if target_name:
             dst_path = os.path.join(dest_dir, target_name)
@@ -133,7 +149,7 @@ def safe_move_recursive(src_dir, dest_dir, prefix_filter=None, fallback_basename
                 belongs = True
             elif whitelist:
                 for item in whitelist:
-                    if os.path.normpath(f_path).endswith(os.path.normpath(item["old"])):
+                    if os.path.normpath(f_path).endswith(os.path.normpath(item["old"])) or os.path.basename(f_path) == item["new"]:
                         if item["new"].startswith(prefix_filter):
                             belongs = True
                             break
