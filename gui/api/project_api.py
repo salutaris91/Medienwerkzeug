@@ -15,6 +15,25 @@ project_api = Blueprint('project_api', __name__)
 from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
 
 
+EFFICIENT_VIDEO_CODECS = {
+    'hevc',
+    'h265',
+    'hvc1',
+    'x265',
+    'vp9',
+    'vp09',
+    'av1',
+    'av01',
+}
+
+
+def is_efficient_video_codec(codec):
+    if not codec:
+        return False
+    normalized = str(codec).strip().lower()
+    return normalized in EFFICIENT_VIDEO_CODECS
+
+
 
 @project_api.route('/browse-folder', methods=['GET', 'POST'])
 def handle_api_browse_folder():
@@ -185,7 +204,7 @@ def handle_api_scan_project():
                 codecs = list(executor.map(media.get_video_codec, files_to_check))
             
             for codec in codecs:
-                if codec and codec not in ('hevc', 'h265', 'vp9', 'av1'):
+                if codec and not is_efficient_video_codec(codec):
                     has_inefficient_video = True
                     break
         except Exception as e:
@@ -828,7 +847,7 @@ def get_inbox_suggestions():
             with ThreadPoolExecutor(max_workers=min(len(files_to_check), 5)) as executor:
                 codecs = list(executor.map(media.get_video_codec, files_to_check))
             for codec in codecs:
-                if codec and codec not in ('hevc', 'h265', 'vp9', 'av1'):
+                if codec and not is_efficient_video_codec(codec):
                     has_inefficient = True
                     break
         except Exception as e:
@@ -981,4 +1000,3 @@ def api_inbox_analyze():
         import traceback
         print('Error in analyze_inbox:', traceback.format_exc())
         return jsonify({'suggestions': []})
-

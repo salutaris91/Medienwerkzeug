@@ -9125,11 +9125,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const saveAndEstMovie = () => {
         saveConversionSettings();
         updateSizeEstimation("movie");
+        triggerQualityHintUpdates();
     };
 
     const saveAndEstSeries = () => {
         saveConversionSettings();
         updateSizeEstimation("series");
+        triggerQualityHintUpdates();
     };
 
     document.getElementById("movie-option-convert")?.addEventListener("change", saveAndEstMovie);
@@ -11186,14 +11188,20 @@ function triggerQualityHintUpdates() {
     if (contextMovie && !contextMovie.classList.contains("hidden")) {
         const slider = document.getElementById("movie-quality-slider");
         const hintEl = document.getElementById("movie-quality-hint");
+        const convertCb = document.getElementById("movie-option-convert");
         const destSelect = document.getElementById("movie-nas-destination");
 
         if (slider && hintEl) {
-            const val = parseInt(slider.value);
-            const isDoku = destSelect && destSelect.value.toLowerCase().includes("doku");
-            const mediaType = isDoku ? "doku" : "movie";
+            if (!convertCb || !convertCb.checked) {
+                hintEl.textContent = "";
+                hintEl.classList.add("hidden");
+            } else {
+                const val = parseInt(slider.value);
+                const isDoku = destSelect && destSelect.value.toLowerCase().includes("doku");
+                const mediaType = isDoku ? "doku" : "movie";
 
-            updateHintElement(hintEl, val, recs[mediaType]);
+                updateHintElement(hintEl, val, recs[mediaType]);
+            }
         }
     }
 
@@ -11202,16 +11210,22 @@ function triggerQualityHintUpdates() {
     if (contextSeries && !contextSeries.classList.contains("hidden")) {
         const slider = document.getElementById("series-quality-slider");
         const hintEl = document.getElementById("series-quality-hint");
+        const convertCb = document.getElementById("series-option-convert");
         const isAnime = document.getElementById("series-is-anime")?.checked || false;
         const destSelect = document.getElementById("series-nas-destination");
 
         if (slider && hintEl) {
-            const val = parseInt(slider.value);
-            let mediaType = "live_action";
-            if (isAnime) mediaType = "anime";
-            else if (destSelect && destSelect.value.toLowerCase().includes("doku")) mediaType = "doku";
+            if (!convertCb || !convertCb.checked) {
+                hintEl.textContent = "";
+                hintEl.classList.add("hidden");
+            } else {
+                const val = parseInt(slider.value);
+                let mediaType = "live_action";
+                if (isAnime) mediaType = "anime";
+                else if (destSelect && destSelect.value.toLowerCase().includes("doku")) mediaType = "doku";
 
-            updateHintElement(hintEl, val, recs[mediaType]);
+                updateHintElement(hintEl, val, recs[mediaType]);
+            }
         }
     }
 }
