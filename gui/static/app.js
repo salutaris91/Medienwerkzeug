@@ -265,28 +265,28 @@ async function fetchNasSeasons(requestId = null) {
     const destSelect = document.getElementById("series-nas-destination");
     const infoContainer = document.getElementById("selected-show-nas-seasons-info");
     if (!infoContainer) return;
-    
+
     const folderName = folderInput ? folderInput.value.trim() : "";
     if (!folderName) {
         infoContainer.innerHTML = "";
         return;
     }
-    
+
     const destId = destSelect ? destSelect.value : "";
     infoContainer.innerHTML = '<span style="color:var(--text-muted); font-style:italic;">Lade Staffelinfo vom NAS...</span>';
-    
+
     let url = `/api/nas-seasons?folder=${encodeURIComponent(folderName)}&destination_id=${encodeURIComponent(destId)}`;
     if (window.disableNasFuzzyMatch) {
         url += "&exact=1";
     }
-    
+
     try {
         const res = await fetch(url);
         if (targetRequestId !== selectShowRequestId) return;
         if (!res.ok) throw new Error("Fehler beim Laden");
         const data = await res.json();
         if (targetRequestId !== selectShowRequestId) return;
-        
+
         if (data.connected === false) {
             infoContainer.innerHTML = '<span style="color:var(--text-warning); font-size: 0.9em;">⚠️ NAS offline (keine Staffelinfo verfügbar)</span>';
             return;
@@ -305,14 +305,14 @@ async function fetchNasSeasons(requestId = null) {
                 window.isProgrammaticCategoryChange = false;
             }
         }
-        
+
         if (data.seasons && data.seasons.length > 0) {
             const badges = data.seasons.map(s => {
                 const episodeText = s.episodes === 1 ? "1 Episode" : `${s.episodes} Episoden`;
                 const sourceText = s.source ? ` [${s.source}]` : "";
                 return `<span style="display:inline-block; padding:2px 8px; margin:2px 4px 2px 0; border-radius:var(--radius-sm); background:rgba(139,92,246,0.15); color:var(--accent); font-size:11px; font-weight:500;">${s.name} <span style='opacity:0.7'>(${episodeText})${sourceText}</span></span>`;
             }).join("");
-            
+
             infoContainer.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; background: rgba(255, 179, 0, 0.05); padding: 8px; border-radius: 6px; border: 1px solid rgba(255, 179, 0, 0.2);">
                     <div>
@@ -321,7 +321,7 @@ async function fetchNasSeasons(requestId = null) {
                     <button class="btn btn-xs" style="background:var(--error); color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; flex-shrink: 0;" onclick="clearNasOverride()" title="Falsche NAS-Zuordnung trennen und Serie als neu anlegen">❌ Falscher NAS-Ordner?</button>
                 </div>
             `;
-            
+
             // 2. Auto-check absolute numbering if only Staffel 1 exists
             if (data.seasons.length === 1) {
                 const sName = data.seasons[0].name.toLowerCase();
@@ -350,21 +350,21 @@ async function fetchYtNasSeasons() {
     const destSelect = document.getElementById("yt-nas-destination");
     const infoContainer = document.getElementById("yt-selected-series-nas-seasons-info");
     if (!infoContainer) return;
-    
+
     const folderName = folderInput ? folderInput.value.trim() : "";
     if (!folderName) {
         infoContainer.innerHTML = "";
         return;
     }
-    
+
     const destId = destSelect ? destSelect.value : "";
     infoContainer.innerHTML = '<span style="color:var(--text-muted); font-style:italic;">Lade Staffelinfo vom NAS...</span>';
-    
+
     try {
         const res = await fetch(`/api/nas-seasons?folder=${encodeURIComponent(folderName)}&destination_id=${encodeURIComponent(destId)}`);
         if (!res.ok) throw new Error("Fehler beim Laden");
         const data = await res.json();
-        
+
         if (data.seasons && data.seasons.length > 0) {
             const badges = data.seasons.map(s => {
                 const episodeText = s.episodes === 1 ? "1 Episode" : `${s.episodes} Episoden`;
@@ -414,19 +414,19 @@ document.addEventListener("DOMContentLoaded", () => {
     initConsole();
     initEventListeners();
     initQueue();
-    
+
     // Load settings and status immediately
     loadSettings().then(() => {
         triggerLaunchQuote();
         // initCardParallaxAndGlow();
     });
-    
+
     const themeSelect = document.getElementById("settings-app-theme");
     if (themeSelect) {
         themeSelect.addEventListener("change", async function() {
             const newTheme = this.value;
             applyTheme(newTheme);
-            
+
             // Auto-save setting to backend settings.json
             if (currentSettings) {
                 currentSettings.app_theme = newTheme;
@@ -449,7 +449,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
-    
+
     loadStatus();
     loadConversionRecommendations();
     initHealthDashboard();
@@ -460,7 +460,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Periodic status check (every 6 seconds)
     setInterval(loadStatus, 6000);
-    
+
     setupNasFolderAutocomplete("series-nas-folder-override", "series-nas-folder-dropdown", "btn-load-nas-series", "series-nas-destination");
     setupNasFolderAutocomplete("yt-series-nas-folder-override", "yt-series-nas-folder-dropdown", "btn-load-yt-nas-series", "yt-nas-destination");
 
@@ -479,7 +479,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (window.selectedShow) fetchEpisodes();
         });
     }
-    
+
     const ytNasDest = document.getElementById("yt-nas-destination");
     if (ytNasDest) {
         ytNasDest.addEventListener("change", fetchYtNasSeasons);
@@ -491,7 +491,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         ytOverrideInput.addEventListener("change", fetchYtNasSeasons);
     }
-    
+
     // Automatically match pCloud destination with NAS destination
     if (seriesNasDest) {
         seriesNasDest.addEventListener("change", (e) => {
@@ -580,7 +580,7 @@ async function initOnboardingWizard() {
 
         currentStep = stepNum;
         localStorage.setItem('mw_onboarding_step', stepNum.toString());
-        
+
         const resetBtn = document.getElementById("btn-onboarding-reset");
         if (resetBtn) {
             if (stepNum > 1) {
@@ -1142,25 +1142,25 @@ fetch('/api/system/capabilities')
             window.AppCapabilities = data;
             if (data.runtime === 'docker') {
                 document.body.classList.add('runtime-docker');
-                
+
                 const headerBadge = document.getElementById("header-version-badge");
                 if (headerBadge) headerBadge.textContent = "v1.0 Docker/Server Edition";
-                
+
                 const nasIpGroup = document.getElementById("onboarding-nas-ip-group");
                 if (nasIpGroup) nasIpGroup.classList.add("hidden");
                 const nasShareGroup = document.getElementById("onboarding-nas-share-group");
                 if (nasShareGroup) nasShareGroup.classList.add("hidden");
                 const nasHostnameGroup = document.getElementById("onboarding-nas-hostname-group");
                 if (nasHostnameGroup) nasHostnameGroup.classList.add("hidden");
-                
+
                 const nasRootLabel = document.getElementById("onboarding-nas-root-label");
                 if (nasRootLabel) nasRootLabel.textContent = "Medien-Root im Container:";
-                
+
                 const depDesc = document.getElementById("onboarding-dep-desc");
                 if (depDesc) depDesc.classList.add("hidden");
                 const dockerDepNote = document.getElementById("onboarding-docker-dep-note");
                 if (dockerDepNote) dockerDepNote.classList.remove("hidden");
-                
+
                 const rootInput = document.getElementById("onboarding-nas-root");
                 if (rootInput && !rootInput.value) rootInput.value = "/media";
                 const testNasBtn = document.getElementById("btn-onboarding-test-nas");
@@ -1172,7 +1172,7 @@ fetch('/api/system/capabilities')
 
                 const finderElements = [
                     "btn-open-nas-folder-series",
-                    "btn-settings-toggle-inbox", 
+                    "btn-settings-toggle-inbox",
                     "btn-settings-toggle-outbox",
                     "yt-open-losslesscut-container"
                 ];
@@ -1229,26 +1229,26 @@ let renamerPreviewPlan = [];
 
 function initNasRenamerTool() {
     setupNasFolderAutocomplete("renamer-nas-folder", "renamer-nas-folder-dropdown", "btn-load-renamer-series", "renamer-nas-destination");
-    
+
     const btnPreview = document.getElementById("btn-renamer-preview");
     if (btnPreview) btnPreview.addEventListener("click", loadNasRenamerPreview);
-    
+
     const btnApply = document.getElementById("btn-renamer-apply");
     if (btnApply) btnApply.addEventListener("click", applyNasRenamer);
-    
+
     const btnSelectAll = document.getElementById("btn-renamer-select-all");
     if (btnSelectAll) btnSelectAll.addEventListener("click", () => setNasRenamerSelection(true));
-    
+
     const btnDeselectAll = document.getElementById("btn-renamer-deselect-all");
     if (btnDeselectAll) btnDeselectAll.addEventListener("click", () => setNasRenamerSelection(false));
-    
+
     const btnRollback = document.getElementById("btn-renamer-rollback");
     if (btnRollback) btnRollback.addEventListener("click", rollbackNasRenamer);
-    
+
     // Automatically fill Destination Dropdown
     const destSelect = document.getElementById("renamer-nas-destination");
     if (destSelect && typeof currentSettings !== "undefined" && currentSettings.sync_categories) {
-        destSelect.innerHTML = currentSettings.sync_categories.map(c => 
+        destSelect.innerHTML = currentSettings.sync_categories.map(c =>
             `<option value="${c.id}">${c.name} (${c.nas_sub})</option>`
         ).join("");
     }
@@ -1258,19 +1258,19 @@ async function loadNasRenamerPreview() {
     const statusEl = document.getElementById("renamer-status");
     const container = document.getElementById("renamer-preview-container");
     const tbody = document.getElementById("renamer-preview-tbody");
-    
+
     const destId = document.getElementById("renamer-nas-destination").value;
     const folderName = document.getElementById("renamer-nas-folder").value.trim();
-    
+
     if (!folderName) {
         if (statusEl) statusEl.textContent = "Bitte einen Ordnernamen angeben.";
         return;
     }
-    
+
     if (statusEl) statusEl.textContent = "Scanne Ordner und lade Metadaten...";
     if (container) container.classList.add("hidden");
     if (tbody) tbody.innerHTML = "";
-    
+
     try {
         const res = await fetch("/api/nas-renamer/preview", {
             method: "POST",
@@ -1278,20 +1278,20 @@ async function loadNasRenamerPreview() {
             body: JSON.stringify({ destination_id: destId, folder_name: folderName })
         });
         const data = await res.json();
-        
+
         if (data.status === "error") {
             if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger);">${escapeHTML(data.message)}</span>`;
             return;
         }
-        
+
         renamerPreviewPlan = data.items || [];
         renderNasRenamerPreview();
-        
+
         if (statusEl) {
             statusEl.textContent = `Provider: ${data.provider} | ID: ${data.show_id} | ${renamerPreviewPlan.length} Video-Dateien gefunden.`;
         }
         if (container) container.classList.remove("hidden");
-        
+
     } catch (e) {
         console.error("Error generating preview", e);
         if (statusEl) statusEl.textContent = "Fehler bei der Vorschau.";
@@ -1301,10 +1301,10 @@ async function loadNasRenamerPreview() {
 function renderNasRenamerPreview() {
     const tbody = document.getElementById("renamer-preview-tbody");
     if (!tbody) return;
-    
+
     let html = "";
     let currentSeason = -1;
-    
+
     renamerPreviewPlan.forEach((item, index) => {
         // Render season group header if season changed
         if (item.season !== null && item.season !== currentSeason) {
@@ -1320,12 +1320,12 @@ function renderNasRenamerPreview() {
                 </tr>
             `;
         }
-        
+
         let statusBadge = "";
         let isChecked = false;
         let isRowDisabled = false;
         let ext = item.current_filename.substring(item.current_filename.lastIndexOf('.'));
-        
+
         if (item.status === "passt_bereits") {
             statusBadge = '<span style="color: var(--success); font-size: 0.85em;">✅ Passt</span>';
             isRowDisabled = true;
@@ -1337,7 +1337,7 @@ function renderNasRenamerPreview() {
             statusBadge = '<span style="color: var(--accent); font-size: 0.85em;">🔄 Anpassen</span>';
             isChecked = true;
         }
-        
+
         let proposedHtml = "";
         if (item.status === "kein_treffer") {
             proposedHtml = `
@@ -1351,9 +1351,9 @@ function renderNasRenamerPreview() {
         } else {
             proposedHtml = `<span style="word-break: break-all;">${escapeHTML(item.proposed_rel_path)}</span>`;
         }
-        
+
         const seBadge = (item.season !== null && item.episode !== null) ? `S${String(item.season).padStart(2,'0')}E${String(item.episode).padStart(2,'0')}` : "?";
-        
+
         html += `
             <tr style="${isRowDisabled ? 'opacity: 0.6;' : ''}">
                 <td style="text-align: center;">
@@ -1366,12 +1366,12 @@ function renderNasRenamerPreview() {
             </tr>
         `;
     });
-    
+
     tbody.innerHTML = html;
-    
+
     // Attach listeners
     tbody.querySelectorAll(".renamer-item-checkbox").forEach(cb => cb.addEventListener("change", updateNasRenamerApplyCount));
-    
+
     tbody.querySelectorAll(".renamer-season-toggle").forEach(toggle => {
         toggle.addEventListener("change", (e) => {
             const season = e.target.getAttribute("data-season");
@@ -1382,36 +1382,36 @@ function renderNasRenamerPreview() {
             updateNasRenamerApplyCount();
         });
     });
-    
+
     tbody.querySelectorAll(".renamer-manual-input").forEach(input => {
         input.addEventListener("input", (e) => {
             const idx = e.target.getAttribute("data-idx");
             const cb = tbody.querySelector(`.renamer-item-checkbox[data-idx="${idx}"]`);
             if (e.target.value.trim() !== "") {
                 cb.checked = true;
-                
+
                 // Update the plan data
                 let ext = renamerPreviewPlan[idx].current_filename.substring(renamerPreviewPlan[idx].current_filename.lastIndexOf('.'));
                 let targetDir = renamerPreviewPlan[idx].rel_path.substring(0, renamerPreviewPlan[idx].rel_path.lastIndexOf('/'));
                 if (targetDir === renamerPreviewPlan[idx].rel_path) targetDir = "";
-                
+
                 renamerPreviewPlan[idx].proposed_rel_path = (targetDir ? targetDir + '/' : '') + e.target.value.trim() + ext;
                 renamerPreviewPlan[idx].status = "manuell"; // Mark as manually edited
-                
+
             } else {
                 cb.checked = false;
             }
             updateNasRenamerApplyCount();
         });
     });
-    
+
     updateNasRenamerApplyCount();
 }
 
 function setNasRenamerSelection(checked) {
     const tbody = document.getElementById("renamer-preview-tbody");
     if (!tbody) return;
-    
+
     tbody.querySelectorAll(".renamer-item-checkbox:not([disabled])").forEach(cb => {
         cb.checked = checked;
     });
@@ -1426,7 +1426,7 @@ function updateNasRenamerApplyCount() {
     const applyBtn = document.getElementById("btn-renamer-apply");
     const countEl = document.getElementById("renamer-selected-count");
     if (!tbody || !applyBtn || !countEl) return;
-    
+
     const checkedBoxes = Array.from(tbody.querySelectorAll(".renamer-item-checkbox:checked"));
     countEl.textContent = `${checkedBoxes.length} Dateien ausgewählt`;
     applyBtn.disabled = checkedBoxes.length === 0;
@@ -1436,41 +1436,41 @@ async function applyNasRenamer() {
     const tbody = document.getElementById("renamer-preview-tbody");
     const applyBtn = document.getElementById("btn-renamer-apply");
     const statusEl = document.getElementById("renamer-status");
-    
+
     const destId = document.getElementById("renamer-nas-destination").value;
     const folderName = document.getElementById("renamer-nas-folder").value.trim();
-    
+
     const checkedBoxes = Array.from(tbody.querySelectorAll(".renamer-item-checkbox:checked"));
     const planToApply = checkedBoxes.map(cb => {
         const idx = parseInt(cb.getAttribute("data-idx"));
         return renamerPreviewPlan[idx];
     });
-    
+
     if (planToApply.length === 0) return;
-    
+
     if (!confirm(`Sollen ${planToApply.length} Dateien jetzt umbenannt werden?`)) return;
-    
+
     applyBtn.disabled = true;
     if (statusEl) statusEl.textContent = "Wende Umbenennungen an...";
-    
+
     try {
         const res = await fetch("/api/nas-renamer/apply", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-                destination_id: destId, 
+            body: JSON.stringify({
+                destination_id: destId,
                 folder_name: folderName,
                 rename_plan: planToApply
             })
         });
         const data = await res.json();
-        
+
         if (data.status === "error") {
             if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger);">Fehler: ${escapeHTML(data.message)}</span>`;
             applyBtn.disabled = false;
             return;
         }
-        
+
         if (statusEl) {
             statusEl.innerHTML = `<span style="color: var(--success);">✅ ${data.success_count} Dateien erfolgreich umbenannt.</span>`;
             if (data.errors && data.errors.length > 0) {
@@ -1478,7 +1478,7 @@ async function applyNasRenamer() {
                 console.warn("Renamer Errors:", data.errors);
             }
         }
-        
+
         // Show Rollback Container
         const rollbackContainer = document.getElementById("renamer-rollback-container");
         const rollbackInfo = document.getElementById("renamer-last-transaction-info");
@@ -1487,10 +1487,10 @@ async function applyNasRenamer() {
             rollbackInfo.textContent = `Transaktions-ID: ${data.transaction_id}`;
             rollbackContainer.style.display = "block";
         }
-        
+
         // Refresh preview
         setTimeout(loadNasRenamerPreview, 1000);
-        
+
     } catch (e) {
         console.error("Error applying renames", e);
         if (statusEl) statusEl.textContent = "Netzwerkfehler beim Anwenden.";
@@ -1502,13 +1502,13 @@ async function rollbackNasRenamer() {
     const rollbackContainer = document.getElementById("renamer-rollback-container");
     const transactionId = rollbackContainer.getAttribute("data-transaction-id");
     const statusEl = document.getElementById("renamer-status");
-    
+
     if (!transactionId) return;
-    
+
     if (!confirm("Sollen die letzten Umbenennungen wirklich rückgängig gemacht werden?")) return;
-    
+
     if (statusEl) statusEl.textContent = "Führe Rollback aus...";
-    
+
     try {
         const res = await fetch("/api/nas-renamer/rollback", {
             method: "POST",
@@ -1516,22 +1516,22 @@ async function rollbackNasRenamer() {
             body: JSON.stringify({ transaction_id: transactionId })
         });
         const data = await res.json();
-        
+
         if (data.status === "error") {
             if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger);">Fehler beim Rollback: ${escapeHTML(data.message)}</span>`;
             return;
         }
-        
+
         if (statusEl) {
             statusEl.innerHTML = `<span style="color: var(--success);">✅ Rollback erfolgreich (${data.success_count} Dateien wiederhergestellt).</span>`;
         }
-        
+
         rollbackContainer.style.display = "none";
         rollbackContainer.removeAttribute("data-transaction-id");
-        
+
         // Refresh preview
         setTimeout(loadNasRenamerPreview, 1000);
-        
+
     } catch (e) {
         console.error("Error during rollback", e);
         if (statusEl) statusEl.textContent = "Netzwerkfehler beim Rollback.";
@@ -1573,7 +1573,7 @@ function scrollToDetailTop() {
 function initViews() {
     const goHome = () => {
         document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
-        
+
         // Hide all views and show empty view (welcome homepage)
         document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
         const emptyView = document.getElementById("view-empty");
@@ -1581,13 +1581,13 @@ function initViews() {
             emptyView.classList.remove("hidden");
             emptyView.classList.add("active");
         }
-        
+
         // Clear active project
         currentProject = "";
-        
+
         // Refresh homepage data immediately
         loadStatus();
-        
+
         // Reset scroll position to top
         scrollToDetailTop();
     };
@@ -1597,7 +1597,7 @@ function initViews() {
     if(btnHome) {
         btnHome.addEventListener("click", goHome);
     }
-    
+
     const modes = ["movie", "series", "tools"];
     modes.forEach(mode => {
         const card = document.getElementById(`mode-${mode}`);
@@ -1619,32 +1619,32 @@ function initViews() {
                 });
                 card.classList.add("active");
                 card.setAttribute("aria-checked", "true");
-                
+
                 document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
-                
+
                 // Reset/close collapsible details
                 const movieDetails = document.getElementById("movie-nfo-details");
                 if (movieDetails) movieDetails.removeAttribute("open");
                 const seriesDetails = document.getElementById("series-nfo-details");
                 if (seriesDetails) seriesDetails.removeAttribute("open");
-                
+
                 let ctxTarget = `context-${mode}`;
                 const ctx = document.getElementById(ctxTarget);
                 if(ctx) {
                     ctx.classList.remove("hidden");
-                    
+
                     // Autofill logic based on current project
                     let cleanedQuery = currentProjectSuggestedQuery || currentProject;
                     if (cleanedQuery) {
                         cleanedQuery = cleanedQuery.replace(/[._\-]/g, " ").trim();
                         cleanedQuery = cleanedQuery.replace(/\([0-9]{4}\)/g, "").trim();
                     }
-                    
 
-                    
+
+
                     if (mode === "movie") {
                         const isDoku = currentProjectIsDoku || (cleanedQuery && (cleanedQuery.toLowerCase().includes("doku") || cleanedQuery.toLowerCase().includes("dokumentation")));
-                        
+
                         if (isDoku) {
                             document.getElementById("context-movie-header").innerText = "Doku verarbeiten";
                             document.getElementById("movie-nas-destination").value = getCatIdBySub("/Dokus/Einzelne Dokus", "3");
@@ -1654,7 +1654,7 @@ function initViews() {
                             document.getElementById("movie-nas-destination").value = getCatIdBySub("/Filme", "1");
                             document.getElementById("movie-pcloud-destination").value = getCatIdBySub("/Filme", "1");
                         }
-                        
+
                         document.getElementById("movie-search-query").value = cleanedQuery;
                         searchMovie();
                         updateSizeEstimation("movie");
@@ -1671,7 +1671,7 @@ function initViews() {
             });
         }
     });
-    
+
     // Dashboard Nav
     const navDashboard = document.getElementById("nav-dashboard");
 
@@ -1683,12 +1683,12 @@ function initViews() {
             document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
             navTools.classList.add("active");
             if(navDashboard) navDashboard.classList.remove("active");
-            
+
             // Show only tools view
             document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
             document.getElementById("view-tools").classList.remove("hidden");
             scrollToDetailTop();
-            
+
             // Auto-fill path if a project was selected
             const pathInput = document.getElementById("tools-target-path");
             if(currentProject && !pathInput.value) {
@@ -1703,7 +1703,7 @@ function initViews() {
         navYtDownloader.addEventListener("click", () => {
             document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
             navYtDownloader.classList.add("active");
-            
+
             document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
             const ytView = document.getElementById("view-youtube");
             if (ytView) {
@@ -1711,7 +1711,7 @@ function initViews() {
                 ytView.classList.add("active");
             }
             scrollToDetailTop();
-            
+
             // Clear active project
             currentProject = "";
         });
@@ -1732,14 +1732,14 @@ function initViews() {
         if(navTools) navTools.classList.remove("active");
         const navSettings = document.getElementById("nav-settings-dashboard");
         if(navSettings) navSettings.classList.remove("active");
-        
+
         document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
         const abosView = document.getElementById("view-youtube-abos");
         if (abosView) {
             abosView.classList.remove("hidden");
             abosView.classList.add("active");
         }
-        
+
         loadSubscriptions();
         scrollToDetailTop();
         currentProject = "";
@@ -1756,11 +1756,11 @@ function initViews() {
             navDashboard.classList.add("active");
             if(navTools) navTools.classList.remove("active");
             if(navSettings) navSettings.classList.remove("active");
-            
+
             document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
             document.getElementById("view-dashboard").classList.remove("hidden");
             document.getElementById("view-dashboard").classList.add("active");
-            
+
             loadDashboard();
             scrollToDetailTop();
         });
@@ -1793,10 +1793,10 @@ function initViews() {
             if(navDashboard) navDashboard.classList.remove("active");
             if(navTools) navTools.classList.remove("active");
             if(navFaq) navFaq.classList.remove("active");
-            
+
             document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
             document.getElementById("view-settings").classList.remove("hidden");
-            
+
             loadSettings();
             scrollToDetailTop();
         });
@@ -1832,9 +1832,9 @@ function setupCollapsibleSections() {
         const header = sec.querySelector(".section-header");
         const content = sec.querySelector(".section-content");
         if (!header || !content) return;
-        
+
         const secId = sec.id;
-        
+
         // Restore expanded state from localStorage (default to false - collapsed by default)
         // For project folders, we always start collapsed on page load
         const isExpanded = secId === "section-project-folders" ? false : (localStorage.getItem(`expanded_${secId}`) === "true");
@@ -1847,18 +1847,18 @@ function setupCollapsibleSections() {
             content.style.maxHeight = "0px";
             content.style.opacity = "0";
         }
-        
+
         // Toggle function using dynamic heights for a perfectly smooth transition
         const toggleSection = (forceState) => {
             const willExpand = forceState !== undefined ? forceState : !sec.classList.contains("expanded");
-            
+
             if (willExpand) {
                 sec.classList.add("expanded");
                 // Animate to scrollHeight
                 content.style.maxHeight = content.scrollHeight + "px";
                 content.style.opacity = "1";
                 localStorage.setItem(`expanded_${secId}`, "true");
-                
+
                 // Allow overflow-y visible once transition completes so content layout works properly
                 setTimeout(() => {
                     if (sec.classList.contains("expanded")) {
@@ -1870,16 +1870,16 @@ function setupCollapsibleSections() {
                 content.style.maxHeight = content.scrollHeight + "px";
                 // Force layout reflow
                 content.offsetHeight;
-                
+
                 sec.classList.remove("expanded");
                 content.style.maxHeight = "0px";
                 content.style.opacity = "0";
                 localStorage.setItem(`expanded_${secId}`, "false");
             }
         };
-        
+
         header.addEventListener("click", () => toggleSection());
-        
+
         // Expose toggle control for startpage interaction
         sec.toggleSection = toggleSection;
     });
@@ -1893,11 +1893,11 @@ function initConsole() {
     const appConsole = document.getElementById("app-console");
     const toggleIcon = document.getElementById("console-toggle-btn-icon");
     const clearBtn = document.getElementById("btn-clear-console");
-    
+
     consoleHeader.addEventListener("click", (e) => {
         // Prevent toggle if clicking on clear button
         if (e.target === clearBtn) return;
-        
+
         if (appConsole.classList.contains("collapsed")) {
             appConsole.classList.remove("collapsed");
             appConsole.classList.add("expanded");
@@ -1910,7 +1910,7 @@ function initConsole() {
             document.documentElement.style.setProperty('--console-height', '40px');
         }
     });
-    
+
     clearBtn.addEventListener("click", () => {
         const consoleBody = document.getElementById("console-body-text");
         consoleBody.innerHTML = '<div class="console-line system-line">[System]: Konsole geleert.</div>';
@@ -1927,7 +1927,7 @@ function initConsole() {
 function applyConsoleVisibility(show) {
     const appConsole = document.getElementById("app-console");
     if (!appConsole) return;
-    
+
     if (show) {
         appConsole.classList.remove("hidden-console");
         if (appConsole.classList.contains("expanded")) {
@@ -1960,7 +1960,7 @@ function appendConsoleLog(line) {
     const consoleBody = document.getElementById("console-body-text");
     const div = document.createElement("div");
     div.className = "console-line";
-    
+
     // Styling special logs
     if (line.startsWith("[System]") || line.startsWith("===")) {
         div.classList.add("system-line");
@@ -1971,7 +1971,7 @@ function appendConsoleLog(line) {
     } else if (line.includes("⏳") || line.includes("convert") || line.includes("konvertiere")) {
         div.style.color = "var(--warning)";
     }
-    
+
     div.textContent = line;
     consoleBody.appendChild(div);
     consoleBody.scrollTop = consoleBody.scrollHeight;
@@ -1981,14 +1981,14 @@ function connectLogStream() {
     if (eventSource) {
         eventSource.close();
     }
-    
+
     const pulse = document.getElementById("console-pulse");
     pulse.classList.remove("hidden");
-    
+
     eventSource = new EventSource("/api/logs");
     eventSource.onmessage = function(event) {
         appendConsoleLog(event.data);
-        
+
         if (event.data.includes("=== VORGANG BEENDET ===")) {
             pulse.classList.add("hidden");
             eventSource.close();
@@ -1999,7 +1999,7 @@ function connectLogStream() {
             }
         }
     };
-    
+
     eventSource.onerror = function() {
         pulse.classList.add("hidden");
         if (eventSource) {
@@ -2019,7 +2019,7 @@ async function loadStatus(forceNasCheck = false) {
         const response = await fetch(url);
         if (!response.ok) return;
         const data = await response.json();
-        
+
         // Update NAS Badge
         const nasBadge = document.getElementById("nas-badge");
         const connectNasBtn = document.getElementById("btn-connect-nas");
@@ -2037,7 +2037,7 @@ async function loadStatus(forceNasCheck = false) {
             nasBadge.classList.add("offline");
             connectNasBtn?.classList.remove("hidden");
         }
-        
+
         // Update StreamFab Badge
         const sfBadge = document.getElementById("streamfab-badge");
         const sfBtn = document.getElementById("btn-streamfab-import");
@@ -2050,15 +2050,15 @@ async function loadStatus(forceNasCheck = false) {
             sfBadge.className = "status-badge neutral";
             sfBtn.classList.add("hidden");
         }
-        
+
         // Render project lists (sidebar)
         renderProjectList(data.projects);
-        
+
         // Update Welcome Dashboard if elements exist (includes folder-size warnings)
         if (typeof updateHomepageData === "function") {
             updateHomepageData(data);
         }
-        
+
     } catch (e) {
         console.error("Error fetching status:", e);
     }
@@ -2085,7 +2085,7 @@ function renderProjectList(projects) {
         container.innerHTML = '<p class="text-muted text-center" style="padding: 20px;">Keine Ordner in der Inbox</p>';
         return;
     }
-    
+
     // Save current active list name to keep it selected
     let html = `
         <button class="project-item ${currentProject === "" ? "active" : ""}" data-project="">
@@ -2101,7 +2101,7 @@ function renderProjectList(projects) {
             </span>
         </button>
     `;
-    
+
     projects.forEach(p => {
         const escapedP = escapeHTML(p);
         html += `
@@ -2114,9 +2114,9 @@ function renderProjectList(projects) {
             </button>
         `;
     });
-    
+
     container.innerHTML = html;
-    
+
     // Bind click events
     container.querySelectorAll(".project-item").forEach(item => {
         item.addEventListener("click", (e) => {
@@ -2139,20 +2139,20 @@ function renderProjectList(projects) {
             }
         });
     });
-    
+
     updateSidebarProcessingStates(activeProjectsProcessing);
 }
 
 function updateSidebarProcessingStates(activeProjects) {
     if (!activeProjects) activeProjects = new Set();
-    
+
     const items = document.querySelectorAll("#project-list-container .project-item");
     items.forEach(item => {
         const p = item.getAttribute("data-project") || "";
         const iconEl = item.querySelector(".nav-icon");
         const deleteEl = item.querySelector(".project-item-delete");
         const isProcessing = activeProjects.has(p);
-        
+
         if (isProcessing) {
             item.classList.add("processing");
             if (iconEl) {
@@ -2179,12 +2179,12 @@ function updateSidebarProcessingStates(activeProjects) {
 
 function updateProjectProcessingStatus(activeProjects) {
     if (!activeProjects) activeProjects = new Set();
-    
+
     const isCurrentProcessing = activeProjects.has(currentProject || "");
     const warningEl = document.getElementById("project-processing-warning");
     const modeSelector = document.getElementById("folder-mode-selector");
     const cleanBtn = document.getElementById("btn-clean-project");
-    
+
     if (warningEl) {
         if (isCurrentProcessing) {
             warningEl.classList.remove("hidden");
@@ -2192,7 +2192,7 @@ function updateProjectProcessingStatus(activeProjects) {
             warningEl.classList.add("hidden");
         }
     }
-    
+
     if (modeSelector) {
         if (isCurrentProcessing) {
             modeSelector.style.opacity = "0.5";
@@ -2202,7 +2202,7 @@ function updateProjectProcessingStatus(activeProjects) {
             modeSelector.style.pointerEvents = "auto";
         }
     }
-    
+
     if (cleanBtn) {
         if (isCurrentProcessing) {
             cleanBtn.style.opacity = "0.5";
@@ -2279,7 +2279,7 @@ async function splitProjectFile(project, fileName) {
     if (!confirm(`Möchtest du die Datei "${fileName}" und alle zugehörigen Begleitdateien in ein separates Projekt abspalten?`)) {
         return;
     }
-    
+
     try {
         const response = await fetch("/api/split-project-file", {
             method: "POST",
@@ -2322,24 +2322,24 @@ async function updateSizeEstimation(mediaType) {
     const panelId = mediaType === "movie" ? "movie-size-estimate-panel" : "series-size-estimate-panel";
     const textId = mediaType === "movie" ? "movie-size-estimate-text" : "series-size-estimate-text";
     const convertId = mediaType === "movie" ? "movie-option-convert" : "series-option-convert";
-    
+
     const panel = document.getElementById(panelId);
     const textEl = document.getElementById(textId);
     const convertCb = document.getElementById(convertId);
-    
+
     if (!panel || !textEl || !convertCb) return;
-    
+
     const sliderContainerId = mediaType === "movie" ? "movie-quality-slider-container" : "series-quality-slider-container";
     const sliderContainer = document.getElementById(sliderContainerId);
-    
+
     if (!convertCb.checked) {
         panel.classList.add("hidden");
         if (sliderContainer) sliderContainer.classList.add("hidden");
         return;
     }
-    
+
     if (sliderContainer) sliderContainer.classList.remove("hidden");
-    
+
     // Check if we have video files
     const videoFiles = projectFiles.filter(f => {
         const isDir = f.endsWith("/");
@@ -2347,23 +2347,23 @@ async function updateSizeEstimation(mediaType) {
         const ext = f.split('.').pop().toLowerCase();
         return ['mp4', 'mkv', 'avi', 'webm', 'mov'].includes(ext);
     });
-    
+
     if (videoFiles.length === 0) {
         panel.classList.add("hidden");
         return;
     }
-    
+
     const sliderId = mediaType === "movie" ? "movie-quality-slider" : "series-quality-slider";
     const sliderInput = document.getElementById(sliderId);
     const qualityVal = sliderInput ? parseInt(sliderInput.value, 10) : 60;
-    
+
     panel.classList.remove("hidden");
     if (mediaType === "movie") {
         textEl.textContent = "Dateigrößen-Prognose: Test-Konvertierung läuft für präzise Schätzung (ca. 15 Sek.)...";
     } else {
         textEl.textContent = "Dateigrößen-Prognose: Test-Konvertierung der ersten Folge läuft (ca. 15 Sek.)...";
     }
-    
+
     try {
         const response = await fetch("/api/estimate-conversion", {
             method: "POST",
@@ -2374,19 +2374,19 @@ async function updateSizeEstimation(mediaType) {
                 quality: qualityVal
             })
         });
-        
+
         if (!response.ok) {
             textEl.textContent = "Dateigrößen-Prognose: Fehler bei der Berechnung";
             return;
         }
-        
+
         const data = await response.json();
         const estimates = data.estimates || {};
-        
+
         let totalSizeIn = 0;
         let totalSizeOut = 0;
         let successCount = 0;
-        
+
         for (const [file, est] of Object.entries(estimates)) {
             if (est.size_in !== undefined && est.size_out !== undefined) {
                 totalSizeIn += est.size_in;
@@ -2394,19 +2394,19 @@ async function updateSizeEstimation(mediaType) {
                 successCount++;
             }
         }
-        
+
         if (successCount > 0 && totalSizeIn > 0) {
             const savings = totalSizeIn - totalSizeOut;
             const pct = Math.round((savings / totalSizeIn) * 100);
-            
+
             const inStr = formatBytes(totalSizeIn);
             const outStr = formatBytes(totalSizeOut);
-            
+
             textEl.textContent = `Voraussichtliche Ersparnis: ${inStr} → ~${outStr} (-${pct}%)`;
         } else {
             textEl.textContent = "Dateigrößen-Prognose nicht verfügbar";
         }
-        
+
     } catch (e) {
         console.error("Error updating size estimation:", e);
         textEl.textContent = "Dateigrößen-Prognose: Verbindungsfehler";
@@ -2418,10 +2418,10 @@ async function updateSizeEstimation(mediaType) {
 // ==========================================================================
 function selectProject(projectName) {
     currentProject = projectName;
-    
+
     window.nasFolderSelected = null;
     window.ytNasFolderSelected = null;
-    
+
     // Reset local profile search
     const profileSearchInput = document.getElementById("series-local-profile-search");
     if (profileSearchInput) {
@@ -2430,16 +2430,16 @@ function selectProject(projectName) {
     if (typeof allLocalProfiles !== "undefined") {
         renderLocalProfilesDropdown(allLocalProfiles);
     }
-    
+
     // Reset manual mode variables
     isManualMovieMode = false;
     isManualSeriesMode = false;
-    
+
     const manualMovieContainer = document.getElementById("manual-movie-container");
     if (manualMovieContainer) manualMovieContainer.classList.add("hidden");
     const manualSeriesContainer = document.getElementById("manual-series-container");
     if (manualSeriesContainer) manualSeriesContainer.classList.add("hidden");
-    
+
     const btnManualMovie = document.getElementById("btn-manual-movie");
     if (btnManualMovie) {
         btnManualMovie.classList.remove("active");
@@ -2450,7 +2450,7 @@ function selectProject(projectName) {
         btnManualSeries.classList.remove("active");
         btnManualSeries.textContent = "Manuell eintragen";
     }
-    
+
     const mMovieTitle = document.getElementById("manual-movie-title");
     if (mMovieTitle) mMovieTitle.value = "";
     const mMovieYear = document.getElementById("manual-movie-year");
@@ -2461,7 +2461,7 @@ function selectProject(projectName) {
     if (mSeriesTitle) mSeriesTitle.value = "";
     const mSeriesPlot = document.getElementById("manual-series-plot");
     if (mSeriesPlot) mSeriesPlot.value = "";
-    
+
     selectedMovie = null;
     selectedShow = null;
     const moviePanel = document.getElementById("selected-movie-panel");
@@ -2476,7 +2476,7 @@ function selectProject(projectName) {
     if (matchContainer) matchContainer.innerHTML = "";
     const seriesExec = document.getElementById("series-execution-panel");
     if (seriesExec) seriesExec.classList.add("hidden");
-    
+
     // Update active state in UI list
     document.querySelectorAll(".project-item").forEach(item => {
         if (item.getAttribute("data-project") === projectName) {
@@ -2496,7 +2496,7 @@ function selectProject(projectName) {
     if(navYtAbos) navYtAbos.classList.remove("active");
     const navDashboard = document.getElementById("nav-dashboard");
     if(navDashboard) navDashboard.classList.remove("active");
-    
+
     // Hide context panels and reset mode cards on new project selection
     document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
     ["movie", "series", "doku", "tools"].forEach(m => {
@@ -2512,7 +2512,7 @@ function selectProject(projectName) {
     if (movieDetails) movieDetails.removeAttribute("open");
     const seriesDetails = document.getElementById("series-nfo-details");
     if (seriesDetails) seriesDetails.removeAttribute("open");
-    
+
     triggerQualityHintUpdates();
     scanProject(projectName);
 }
@@ -2520,10 +2520,10 @@ function selectProject(projectName) {
 function applySmartConversionDefault(hasInefficientVideo) {
     const isSmartDefault = currentSettings.smart_conversion_default !== false; // default to true
     const shouldConvert = isSmartDefault && hasInefficientVideo;
-    
+
     const movieConvertCb = document.getElementById("movie-option-convert");
     const seriesConvertCb = document.getElementById("series-option-convert");
-    
+
     if (movieConvertCb) {
         movieConvertCb.checked = shouldConvert;
         movieConvertCb.dispatchEvent(new Event('change'));
@@ -2541,19 +2541,19 @@ async function scanProject(project) {
     const statsContainer = document.getElementById("project-stats-container");
     const statsBadges = document.getElementById("stats-badges-container");
     const tbody = document.getElementById("files-table-body");
-    
+
     // UI View Switching
     document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
     document.getElementById("view-folder").classList.remove("hidden");
     document.getElementById("view-folder").classList.add("active");
     scrollToDetailTop();
-    
-    
+
+
     title.textContent = project === "" ? "Unsortierte Einzeldateien verarbeiten" : (project === "__inbox_recursive__" ? "Alle Dateien (inkl. Unterordner) verarbeiten" : `Projekt: ${project}`);
     path.textContent = "Scanne Ordner...";
     tbody.innerHTML = '<tr><td colspan="3" class="text-center"><div class="loading-spinner"></div></td></tr>';
     statsContainer.style.display = "none";
-    
+
     const modeSelector = document.getElementById("folder-mode-selector");
     const recursiveNotice = document.getElementById("recursive-mode-notice");
     if (project === "__inbox_recursive__") {
@@ -2563,7 +2563,7 @@ async function scanProject(project) {
         if (modeSelector) modeSelector.classList.remove("hidden");
         if (recursiveNotice) recursiveNotice.classList.add("hidden");
     }
-    
+
     try {
         const response = await fetch(`/api/scan-project?project=${encodeURIComponent(project)}`);
         if (!response.ok) {
@@ -2588,21 +2588,21 @@ async function scanProject(project) {
             tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger">Fehler beim Laden des Projektinhalts.</td></tr>';
             return;
         }
-        
+
         const data = await response.json();
         path.textContent = `Pfad: ${data.current_dir}`;
         projectFiles = data.files || [];
         currentProjectIsDoku = data.is_doku || false;
         currentProjectSuggestedQuery = data.suggested_query || "";
-        
+
         applySmartConversionDefault(data.has_inefficient_video || false);
-        
+
         if (projectFiles.length === 0) {
             const emptyMsg = project === "" ? "Keine unsortierten Einzeldateien in der Hauptinbox gefunden." : (project === "__inbox_recursive__" ? "Keine Dateien in der gesamten Inbox (inkl. Unterordnern) gefunden." : "Dieser Ordner ist leer.");
             tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">${emptyMsg}</td></tr>`;
             return;
         }
-        
+
         // Render files list
         let rowsHtml = "";
         projectFiles.forEach(f => {
@@ -2610,18 +2610,18 @@ async function scanProject(project) {
             const name = isDir ? f.slice(0, -1) : f;
             const ext = isDir ? "ordner" : f.split('.').pop().toLowerCase();
             const isVideo = ['mp4', 'mkv', 'avi', 'webm', 'mov'].includes(ext);
-            
+
             let badgeClass = "file-type-badge";
             if (isDir) badgeClass += " dir";
             else if (isVideo) badgeClass += " video";
             else if (['srt', 'vtt', 'ass'].includes(ext)) badgeClass += " subtitle";
             else if (ext === 'nfo') badgeClass += " nfo";
-            
+
             let actionHtml = "";
             if (!isDir && isVideo && project !== "__inbox_recursive__") {
                 actionHtml = `<button class="btn btn-sm btn-split-file" data-project="${escapeHTML(project)}" data-file="${escapeHTML(name)}" title="In ein separates Projekt abspalten" style="background: rgba(255, 255, 255, 0.1); border: 1px solid var(--border-glass); color: var(--text-normal); cursor: pointer; padding: 3px 8px; border-radius: var(--radius-sm); font-size: 0.7rem; transition: all 0.2s ease;">Trennen</button>`;
             }
-            
+
             rowsHtml += `
                 <tr>
                     <td>${escapeHTML(name)}</td>
@@ -2631,7 +2631,7 @@ async function scanProject(project) {
             `;
         });
         tbody.innerHTML = rowsHtml;
-        
+
         tbody.querySelectorAll(".btn-split-file").forEach(btn => {
             btn.addEventListener("click", () => {
                 const proj = btn.getAttribute("data-project");
@@ -2639,7 +2639,7 @@ async function scanProject(project) {
                 splitProjectFile(proj, fname);
             });
         });
-        
+
         // Render statistics
         if (data.ext_counts && Object.keys(data.ext_counts).length > 0) {
             statsContainer.style.display = "block";
@@ -2649,7 +2649,7 @@ async function scanProject(project) {
             }
             statsBadges.innerHTML = badgesHtml;
         }
-        
+
         // Trigger size estimations for the currently active context panel if any
         const movieContext = document.getElementById("context-movie");
         const seriesContext = document.getElementById("context-series");
@@ -2659,7 +2659,7 @@ async function scanProject(project) {
         if (seriesContext && !seriesContext.classList.contains("hidden")) {
             updateSizeEstimation("series");
         }
-        
+
     } catch (e) {
         tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">Verbindungsfehler: ${e}</td></tr>`;
     }
@@ -2681,19 +2681,19 @@ function cleanFilenameForManualTitle(filename) {
 
 function guessEpisodeNumber(filename) {
     const cleanName = filename.toLowerCase();
-    
+
     // Pattern: s01e05
     let match = cleanName.match(/s\d+e(\d+)/);
     if (match) return parseInt(match[1], 10);
-    
+
     // Pattern: 1x05
     match = cleanName.match(/\d+x(\d+)/);
     if (match) return parseInt(match[1], 10);
-    
+
     // Pattern: ep 05 / episode 05
     match = cleanName.match(/ep(?:isode)?[.\s-]?(\d+)/);
     if (match) return parseInt(match[1], 10);
-    
+
     // Pattern: isolated digits (excluding year range 1900-2100)
     const withoutExt = filename.substring(0, filename.lastIndexOf('.')) || filename;
     const digitMatches = withoutExt.match(/\b\d+\b/g);
@@ -2705,7 +2705,7 @@ function guessEpisodeNumber(filename) {
             }
         }
     }
-    
+
     return null;
 }
 
@@ -2757,7 +2757,7 @@ async function detectExistingSeries(projectName) {
 
 async function triggerSeriesMatchingFromFolder(folderName) {
     if (!folderName) return;
-    
+
     // Show a loading spinner in the matching panel
     const matchingContainer = document.getElementById("matching-panel-container");
     if (matchingContainer) {
@@ -2766,7 +2766,7 @@ async function triggerSeriesMatchingFromFolder(folderName) {
             <p class="text-center text-muted" style="margin-top:10px;">Lese tvshow.nfo...</p>
         `;
     }
-    
+
     const nasDestId = document.getElementById("series-nas-destination").value;
     try {
         const url = `/api/series/detect?project_name=${encodeURIComponent(folderName)}&nas_destination_id=${encodeURIComponent(nasDestId)}`;
@@ -2788,12 +2788,12 @@ async function triggerSeriesMatchingFromFolder(folderName) {
     } catch (err) {
         console.error("Error in triggerSeriesMatchingFromFolder detect:", err);
     }
-    
+
     // Clear the loading spinner since no existing tvshow.nfo was found
     if (matchingContainer) {
         matchingContainer.innerHTML = "";
     }
-    
+
     // If tvshow.nfo not found, trigger online search automatically
     appendConsoleLog(`[System]: Keine tvshow.nfo gefunden. Starte Online-Suche nach "${folderName}"...`);
     const searchQueryInput = document.getElementById("series-search-query");
@@ -2813,17 +2813,17 @@ let lastSearchSeriesQuery = "";
 async function searchSeries() {
     const query = document.getElementById("series-search-query").value.trim();
     const resultsContainer = document.getElementById("series-search-results");
-    
+
     if (!query) return;
-    
+
     if (currentSearchSeriesController) {
         currentSearchSeriesController.abort();
     }
     currentSearchSeriesController = new AbortController();
     lastSearchSeriesQuery = query;
-    
+
     resultsContainer.innerHTML = '<div class="loading-spinner"></div>';
-    
+
     try {
 
         const destId = getCatIdBySub("/Dokus/Doku-Serien", "4");
@@ -2832,7 +2832,7 @@ async function searchSeries() {
         const isDokuQuery = query.toLowerCase().includes("doku") || query.toLowerCase().includes("dokumentation");
         const isDokuMode = isDokuDest || isDokuQuery || currentProjectIsDoku;
         const searchType = isDokuMode ? "doku" : "tv";
-        
+
         const response = await fetch(`/api/search?type=${searchType}&q=${encodeURIComponent(query)}`, {
             signal: currentSearchSeriesController.signal
         });
@@ -2844,14 +2844,14 @@ async function searchSeries() {
         if (!Array.isArray(data)) {
             throw new Error(data.error || "Unerwartetes Antwortformat vom Server");
         }
-        
+
         if (query !== lastSearchSeriesQuery) return;
-        
+
         if (data.length === 0) {
             resultsContainer.innerHTML = '<p class="text-muted text-center" style="padding:15px;">Keine Serie gefunden.</p>';
             return;
         }
-        
+
         // Auto-select if URL query returns exactly one result
         const isUrlSearch = query.startsWith("http://") || query.startsWith("https://");
         if (isUrlSearch && data.length === 1) {
@@ -2862,7 +2862,7 @@ async function searchSeries() {
                 name: item.name,
                 provider: item.provider
             };
-            
+
             resultsContainer.innerHTML = "";
             if (targetMediaType === "movie") {
                 document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
@@ -2874,7 +2874,7 @@ async function searchSeries() {
             }
             return;
         }
-        
+
         let html = "";
         data.forEach(item => {
             let badge = "";
@@ -2887,7 +2887,7 @@ async function searchSeries() {
                     badge = `<span class="badge badge-series" style="background: #2ecc71; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 8px;">Serie</span>`;
                 }
             }
-            
+
             const escapedId = escapeHTML(item.id);
             const escapedName = escapeHTML(item.name);
             const escapedProvider = escapeHTML(item.provider);
@@ -2900,7 +2900,7 @@ async function searchSeries() {
             `;
         });
         resultsContainer.innerHTML = html;
-        
+
         // Bind selection clicks
         resultsContainer.querySelectorAll(".search-item").forEach(item => {
             item.addEventListener("click", () => {
@@ -2911,27 +2911,27 @@ async function searchSeries() {
                 });
                 item.style.background = "var(--primary-light)";
                 item.style.borderColor = "var(--primary)";
-                
+
                 const targetMediaType = item.getAttribute("data-media-type");
                 const showObj = {
                     id: item.getAttribute("data-id"),
                     name: item.getAttribute("data-name"),
                     provider: item.getAttribute("data-provider")
                 };
-                
+
                 if (targetMediaType === "movie") {
                     document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
                     document.getElementById("context-movie").classList.remove("hidden");
                     document.getElementById("movie-search-query").value = showObj.name;
                     selectMovie(showObj);
-                    
+
                     setTimeout(() => {
                         const panel = document.getElementById("selected-movie-panel");
                         if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }, 200);
                 } else {
                     selectShow(showObj);
-                    
+
                     setTimeout(() => {
                         const panel = document.getElementById("selected-show-panel");
                         if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2939,7 +2939,7 @@ async function searchSeries() {
                 }
             });
         });
-        
+
     } catch (e) {
         if (e.name === 'AbortError') return; // Ignore aborted requests
         if (query !== lastSearchSeriesQuery) return;
@@ -2977,7 +2977,7 @@ function renderProviderInfo(element, providerName, id, loadedFromNfo) {
     // Provider Badge
     const provBadge = document.createElement("span");
     let displayProvider = (providerName || "unbekannt").toLowerCase();
-    
+
     if (displayProvider === "tvdb") {
         provBadge.className = "provider-badge tvdb";
         provBadge.textContent = "Metadatendienst: TVDB";
@@ -3015,7 +3015,7 @@ async function selectShow(show) {
     selectShowRequestId++;
     const currentRequestId = selectShowRequestId;
     selectedShow = show;
-    
+
     // Update local profile dropdown selection to match this show if possible
     const localProfileSelect = document.getElementById("series-local-profile-select");
     if (localProfileSelect) {
@@ -3025,7 +3025,7 @@ async function selectShow(show) {
             return name.toLowerCase().replace(/[^a-z0-9]/g, "");
         };
         const normS = normalizeCompareName(show.name);
-        
+
         for (let i = 0; i < localProfileSelect.options.length; i++) {
             const opt = localProfileSelect.options[i];
             if (opt.value) {
@@ -3033,12 +3033,12 @@ async function selectShow(show) {
                     const pData = JSON.parse(opt.value);
                     const normP = normalizeCompareName(pData.show_name);
                     const normF = pData.filename ? normalizeCompareName(pData.filename.replace(".json", "")) : "";
-                    
+
                     const idMatch = (pData.show_id && show.id && String(pData.show_id) === String(show.id) && pData.provider === show.provider);
-                    
-                    if (idMatch || 
-                        pData.show_name === show.name || 
-                        (normP && normP === normS) || 
+
+                    if (idMatch ||
+                        pData.show_name === show.name ||
+                        (normP && normP === normS) ||
                         (normF && normF === normS)) {
                         localProfileSelect.selectedIndex = i;
                         found = true;
@@ -3051,27 +3051,27 @@ async function selectShow(show) {
             localProfileSelect.value = "";
         }
     }
-    
+
     const overrideInput = document.getElementById("series-nas-folder-override");
     const matchStatusLabel = document.getElementById("series-nas-folder-match-status");
     if (matchStatusLabel) {
         matchStatusLabel.classList.add("hidden");
         matchStatusLabel.textContent = "";
     }
-    
+
     const panel = document.getElementById("selected-show-panel");
     const title = document.getElementById("selected-show-title");
     const provider = document.getElementById("selected-show-provider-info");
     const seasonsInfo = document.getElementById("selected-show-seasons-info");
-    
+
     title.textContent = show.name;
     renderProviderInfo(provider, show.provider, show.id, show.loadedFromNfo);
     seasonsInfo.textContent = "Lade Staffel-Informationen...";
     panel.classList.remove("hidden");
-    
+
     const clearBtn = document.getElementById("btn-clear-profile-selection");
     if (clearBtn) clearBtn.classList.remove("hidden");
-    
+
     // Reset and close series details collapsible block
     const seriesDetails = document.getElementById("series-nfo-details");
     if (seriesDetails) {
@@ -3134,7 +3134,7 @@ async function selectShow(show) {
     autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", nasFolder);
 
     let hasLoadedAllSeasons = false;
-    
+
     // 2. Fetch and apply profile settings (AWAIT)
     try {
         const profRes = await fetch(`/api/profile?show_name=${encodeURIComponent(show.name)}`);
@@ -3148,7 +3148,7 @@ async function selectShow(show) {
                 if (convertCb) {
                     convertCb.checked = (profile.auto_h265 === "j");
                 }
-                
+
                 // Apply copy_to_nas
                 const nasCb = document.getElementById("series-option-copy-nas");
                 if (nasCb) {
@@ -3170,11 +3170,11 @@ async function selectShow(show) {
                     }
                     pcloudCb.dispatchEvent(new Event('change'));
                 }
-                
+
                 // Apply destination category (wrapped in programmatic change block to prevent override sync)
                 const nasSelect = document.getElementById("series-nas-destination");
                 const pcloudSelect = document.getElementById("series-pcloud-destination");
-                
+
                 window.isProgrammaticCategoryChange = true;
                 try {
                     if (nasSelect) {
@@ -3185,7 +3185,7 @@ async function selectShow(show) {
                         }
                         nasSelect.dispatchEvent(new Event('change', { bubbles: true }));
                     }
-                    
+
                     if (pcloudSelect) {
                         if (profile.pcloud_destination_id) {
                             pcloudSelect.value = profile.pcloud_destination_id;
@@ -3230,7 +3230,7 @@ async function selectShow(show) {
     } catch (err) {
         console.error("Error loading show profile:", err);
     }
-    
+
     // 3. Auto-routing destination for Dokus (default fallback before profile application)
     const nameLower = show.name.toLowerCase();
     const isDoku = nameLower.includes("doku") || nameLower.includes("dokumentation") || currentProjectIsDoku;
@@ -3251,9 +3251,9 @@ async function selectShow(show) {
     // 4. Fetch NAS seasons now that profile and correct folder/destination is loaded (AWAIT)
     await fetchNasSeasons(currentRequestId);
     if (currentRequestId !== selectShowRequestId) return;
-    
+
     updateSizeEstimation("series");
-    
+
     try {
         const response = await fetch(`/api/fetch-show-info?provider=${show.provider}&show_id=${show.id}`);
         if (currentRequestId !== selectShowRequestId) return;
@@ -3314,28 +3314,28 @@ async function fetchEpisodes(requestId = null) {
     }
     const targetRequestId = requestId !== null ? requestId : selectShowRequestId;
     if (!selectedShow) return;
-    
+
     const allSeasonsCb = document.getElementById("series-all-seasons");
     const isAllSeasons = allSeasonsCb && allSeasonsCb.checked;
     const season = isAllSeasons ? "all" : document.getElementById("series-season-num").value;
     const matchingContainer = document.getElementById("matching-panel-container");
     const execPanel = document.getElementById("series-execution-panel");
-    
+
     matchingContainer.innerHTML = '<div class="loading-spinner"></div>';
     execPanel.classList.add("hidden");
-    
+
     if (isManualSeriesMode) {
         renderMatchingMatrix();
         execPanel.classList.remove("hidden");
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/fetch-episodes?provider=${selectedShow.provider}&show_id=${selectedShow.id}&season=${season}`);
         if (targetRequestId !== selectShowRequestId) return;
         episodesData = await response.json();
         if (targetRequestId !== selectShowRequestId) return;
-        
+
         if (Object.keys(episodesData).length === 0) {
             matchingContainer.innerHTML = '<p class="text-center text-danger">Keine Episoden gefunden.</p>';
             return;
@@ -3379,11 +3379,11 @@ async function fetchEpisodes(requestId = null) {
                 console.error("Error matching episodes:", err);
             }
         }
-        
+
         if (targetRequestId !== selectShowRequestId) return;
         renderMatchingMatrix(matches, duplicates);
         execPanel.classList.remove("hidden");
-        
+
     } catch (e) {
         matchingContainer.innerHTML = `<p class="text-center text-danger">Fehler beim Episoden-Laden: ${e}</p>`;
     }
@@ -3391,7 +3391,7 @@ async function fetchEpisodes(requestId = null) {
 
 function renderMatchingMatrix(matches = {}, duplicates = {}) {
     const container = document.getElementById("matching-panel-container");
-    
+
     // Filter only local video files
     const videoFiles = projectFiles.filter(f => {
         const isDir = f.endsWith("/");
@@ -3399,20 +3399,20 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
         const ext = f.split('.').pop().toLowerCase();
         return ['mp4', 'mkv', 'avi', 'webm', 'mov'].includes(ext);
     });
-    
+
     if (videoFiles.length === 0) {
         container.innerHTML = '<p class="text-center text-warning">Keine Videodateien im Projektordner zum Zuordnen gefunden.</p>';
         return;
     }
-    
+
     if (isManualSeriesMode) {
         let html = "";
         const defaultSeason = document.getElementById("series-season-num")?.value || "1";
-        
+
         videoFiles.forEach((file, index) => {
             let seasonVal = defaultSeason;
             let episodeVal = (index + 1).toString();
-            
+
             // Try to parse season and episode from filename
             const guessedStr = guessSeasonAndEpisode(file);
             if (guessedStr) {
@@ -3427,13 +3427,13 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     episodeVal = guessedEp.toString();
                 }
             }
-            
+
             const cleanTitle = cleanFilenameForManualTitle(file);
-            
+
             html += `
                 <div class="matching-row manual-matching-row" data-file="${file}" style="display: flex; flex-direction: column; gap: 10px; padding: 15px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); margin-bottom: 15px; background: rgba(255,255,255,0.02);">
                     <div style="font-weight: bold; color: var(--text-main); word-break: break-all;">${file}</div>
-                    
+
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px;">
                         <div>
                             <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Staffel:</label>
@@ -3448,7 +3448,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                             <input type="text" class="manual-title" id="manual-title-${index}" value="${cleanTitle}" style="width:100%;">
                         </div>
                     </div>
-                    
+
                     <div style="display: flex; gap: 10px; align-items: flex-end;">
                         <div style="flex: 1;">
                             <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Episode URL (Scraping):</label>
@@ -3456,7 +3456,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                         </div>
                         <button type="button" class="btn btn-secondary btn-scrape-row" data-index="${index}" style="padding: 0 15px; height: 38px; display: flex; align-items: center; justify-content: center;">Scrapieren</button>
                     </div>
-                    
+
                     <div>
                         <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:5px;">Plot / Beschreibung:</label>
                         <textarea class="manual-plot" id="manual-plot-${index}" rows="2" placeholder="Beschreibung für diese Folge..." style="width:100%; resize:vertical;"></textarea>
@@ -3464,9 +3464,9 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                 </div>
             `;
         });
-        
+
         container.innerHTML = html;
-        
+
         // Bind scrape listeners for each row
         videoFiles.forEach((file, index) => {
             const btnScrape = container.querySelector(`.btn-scrape-row[data-index="${index}"]`);
@@ -3478,10 +3478,10 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                         alert("Bitte geben Sie zuerst eine URL ein!");
                         return;
                     }
-                    
+
                     btnScrape.disabled = true;
                     btnScrape.textContent = "...";
-                    
+
                     try {
                         const response = await fetch('/api/yt/fetch', {
                             method: 'POST',
@@ -3514,13 +3514,13 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                 });
             }
         });
-        
+
         return;
     }
-    
+
     const allSeasonsCb = document.getElementById("series-all-seasons");
     const isAllSeasons = allSeasonsCb && allSeasonsCb.checked;
-    
+
     let html = "";
     videoFiles.forEach((file, index) => {
         // Try backend match first, fallback to frontend guess
@@ -3532,7 +3532,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                 guessedEp = guessEpisodeNumber(file);
             }
         }
-        
+
         html += `
             <div class="matching-row" data-file="${file}">
                 <div class="match-file" title="${file}">
@@ -3558,7 +3558,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                                 } else {
                                     isSelected = (guessedEp === parseInt(num, 10) || String(guessedEp) === String(num));
                                 }
-                                
+
                                 let label = `Episode ${num}: ${title}`;
                                 if (isAllSeasons) {
                                     const s_e_match = num.match(/^S(\d+)E(\d+)$/i);
@@ -3574,7 +3574,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     </div>
                     <div class="selected-match-info" id="selected-match-info-${index}"></div>
                 </div>
-                
+
                 <!-- Episoden NFO Editier-Bereich (Spans both columns for full width) -->
                 <details class="episode-nfo-details" id="episode-nfo-details-${index}" data-index="${index}" style="grid-column: span 2; margin-top: 10px; border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-sm); padding: 8px; background: rgba(0,0,0,0.15); width: 100%; box-sizing: border-box;">
                     <summary style="cursor: pointer; font-size: 11px; color: var(--text-muted);">📝 NFO für diese Episode bearbeiten</summary>
@@ -3606,7 +3606,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
             </div>
         `;
     });
-    
+
     container.innerHTML = html;
 
     // Bind change listeners to update the selected match info and search inputs
@@ -3631,22 +3631,22 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     }
                 }
             };
-            
+
             const checkNasDuplicate = async () => {
                 const val = select.value;
                 const badgeContainer = document.getElementById(`dup-badge-${index}`);
                 if (!badgeContainer) return;
-                
+
                 if (val === 'skip') {
                     badgeContainer.innerHTML = '';
                     return;
                 }
-                
+
                 // Parse season/episode from the selected value, respecting overrides if set
                 let epSeason, epNum;
                 const sOverride = seasonOverrideInput ? parseInt(seasonOverrideInput.value, 10) : NaN;
                 const eOverride = episodeOverrideInput ? parseInt(episodeOverrideInput.value, 10) : NaN;
-                
+
                 if (!isNaN(sOverride)) {
                     epSeason = sOverride;
                 } else {
@@ -3657,7 +3657,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                         epSeason = parseInt(document.getElementById("series-season-num")?.value || "1", 10);
                     }
                 }
-                
+
                 if (!isNaN(eOverride)) {
                     epNum = eOverride;
                 } else {
@@ -3668,15 +3668,15 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                         epNum = parseInt(val, 10);
                     }
                 }
-                
+
                 if (isNaN(epSeason) || isNaN(epNum)) {
                     badgeContainer.innerHTML = '';
                     return;
                 }
-                
+
                 const nasDestEl = document.getElementById("series-nas-destination");
                 const nasFolderEl = document.getElementById("series-nas-folder-override");
-                
+
                 try {
                     badgeContainer.innerHTML = '<div style="margin-top: 5px; font-size: 10px; color: var(--text-muted);">🔍 Prüfe NAS...</div>';
                     const response = await fetch('/api/check-nas-duplicate', {
@@ -3690,7 +3690,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                             nas_destination_id: nasDestEl?.value || null
                         })
                     });
-                    
+
                     if (response.ok) {
                         const data = await response.json();
                         if (data.duplicate) {
@@ -3710,12 +3710,12 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     badgeContainer.innerHTML = '';
                 }
             };
-            
+
             select.addEventListener("change", () => {
                 updateInfo();
                 checkNasDuplicate();
             });
-            
+
             if (seasonOverrideInput) {
                 seasonOverrideInput.addEventListener("input", () => {
                     checkNasDuplicate();
@@ -3726,18 +3726,18 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     checkNasDuplicate();
                 });
             }
-            
+
             updateInfo();
 
             if (search) {
                 search.addEventListener("input", () => {
                     const query = search.value;
                     const currentVal = select.value;
-                    
+
                     const searchTerms = query.toLowerCase().split(/\s+/).filter(t => t);
-                    
+
                     let selectHtml = `<option value="skip" ${currentVal === 'skip' ? 'selected' : ''}>-- Überspringen --</option>`;
-                    
+
                     Object.entries(episodesData).forEach(([num, ep]) => {
                         const title = typeof ep === 'object' ? ep.title : ep;
                         let label = `Episode ${num}: ${title}`;
@@ -3749,29 +3749,29 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                                 label = `Staffel ${s} - Folge ${e}: ${title}`;
                             }
                         }
-                        
-                        const matchesQuery = searchTerms.every(term => 
+
+                        const matchesQuery = searchTerms.every(term =>
                             label.toLowerCase().includes(term) || num.toLowerCase().includes(term)
                         );
-                        
+
                         const isSelected = (currentVal === num);
-                        
+
                         if (matchesQuery || isSelected) {
                             selectHtml += `<option value="${num}" ${isSelected ? 'selected' : ''}>${label}</option>`;
                         }
                     });
-                    
+
                     select.innerHTML = selectHtml;
                     updateInfo();
                 });
             }
-            
+
             // Bind NFO collapsible events
             const details = document.getElementById(`episode-nfo-details-${index}`);
             const epTitleInput = document.getElementById(`episode-nfo-title-${index}`);
             const epAiredInput = document.getElementById(`episode-nfo-aired-${index}`);
             const epPlotTextarea = document.getElementById(`episode-nfo-plot-${index}`);
-            
+
             const loadEpisodeNfoData = async () => {
                 const val = select.value;
                 if (val === 'skip') {
@@ -3780,7 +3780,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     if (epPlotTextarea) epPlotTextarea.value = "Folge wird übersprungen";
                     return;
                 }
-                
+
                 let epNum = val;
                 let epSeason = document.getElementById("series-season-num")?.value || "1";
                 if (isAllSeasons) {
@@ -3790,7 +3790,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                         epNum = parseInt(s_e_match[2], 10).toString();
                     }
                 }
-                
+
                 const cacheKey = `${selectedShow.provider}_${selectedShow.id}_${epSeason}_${epNum}`;
                 if (fetchedEpisodeMetadataCache[cacheKey]) {
                     const cached = fetchedEpisodeMetadataCache[cacheKey];
@@ -3799,7 +3799,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     if (epPlotTextarea) epPlotTextarea.value = cached.plot || "";
                     return;
                 }
-                
+
                 if (epPlotTextarea) epPlotTextarea.value = "Lade Metadaten...";
                 try {
                     const response = await fetch(`/api/metadata/fetch?media_type=episode&provider=${selectedShow.provider}&show_id=${selectedShow.id}&season=${epSeason}&episode=${epNum}`);
@@ -3821,7 +3821,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     if (epPlotTextarea) epPlotTextarea.value = "";
                 }
             };
-            
+
             if (details) {
                 details.addEventListener("toggle", () => {
                     if (details.open) {
@@ -3829,7 +3829,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     }
                 });
             }
-            
+
             select.addEventListener("change", () => {
                 if (details && details.open) {
                     loadEpisodeNfoData();
@@ -3845,17 +3845,17 @@ let lastSearchMovieQuery = "";
 async function searchMovie() {
     const query = document.getElementById("movie-search-query").value.trim();
     const resultsContainer = document.getElementById("movie-search-results");
-    
+
     if (!query) return;
-    
+
     if (currentSearchMovieController) {
         currentSearchMovieController.abort();
     }
     currentSearchMovieController = new AbortController();
     lastSearchMovieQuery = query;
-    
+
     resultsContainer.innerHTML = '<div class="loading-spinner"></div>';
-    
+
     try {
 
         const destId = getCatIdBySub("/Dokus/Einzelne Dokus", "3");
@@ -3863,9 +3863,9 @@ async function searchMovie() {
         const isDokuDest = nasDestSelect && nasDestSelect.value === destId;
         const queryLower = query.toLowerCase();
         const isDokuQuery = queryLower.includes("doku") || queryLower.includes("dokumentation");
-        
+
         const searchType = (isDokuDest || isDokuQuery || currentProjectIsDoku) ? "doku" : "movie";
-        
+
         const response = await fetch(`/api/search?type=${searchType}&q=${encodeURIComponent(query)}`, {
             signal: currentSearchMovieController.signal
         });
@@ -3877,14 +3877,14 @@ async function searchMovie() {
         if (!Array.isArray(data)) {
             throw new Error(data.error || "Unerwartetes Antwortformat vom Server");
         }
-        
+
         if (query !== lastSearchMovieQuery) return;
-        
+
         if (data.length === 0) {
             resultsContainer.innerHTML = '<p class="text-muted text-center" style="padding:15px;">Keine Einträge gefunden.</p>';
             return;
         }
-        
+
         // Auto-select if URL query returns exactly one result
         const isUrlSearch = query.startsWith("http://") || query.startsWith("https://");
         if (isUrlSearch && data.length === 1) {
@@ -3895,7 +3895,7 @@ async function searchMovie() {
                 name: item.name,
                 provider: item.provider
             };
-            
+
             resultsContainer.innerHTML = "";
             if (targetMediaType === "tv") {
                 document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
@@ -3907,7 +3907,7 @@ async function searchMovie() {
             }
             return;
         }
-        
+
         let html = "";
         data.forEach(item => {
             let badge = "";
@@ -3920,7 +3920,7 @@ async function searchMovie() {
                     badge = `<span class="badge badge-series" style="background: #2ecc71; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 8px;">Serie</span>`;
                 }
             }
-            
+
             const escapedId = escapeHTML(item.id);
             const escapedName = escapeHTML(item.name);
             const escapedProvider = escapeHTML(item.provider);
@@ -3933,7 +3933,7 @@ async function searchMovie() {
             `;
         });
         resultsContainer.innerHTML = html;
-        
+
         resultsContainer.querySelectorAll(".search-item").forEach(item => {
             item.addEventListener("click", () => {
                 const targetMediaType = item.getAttribute("data-media-type");
@@ -3942,7 +3942,7 @@ async function searchMovie() {
                     name: item.getAttribute("data-name"),
                     provider: item.getAttribute("data-provider")
                 };
-                
+
                 if (targetMediaType === "tv") {
                     document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
                     document.getElementById("context-series").classList.remove("hidden");
@@ -3953,7 +3953,7 @@ async function searchMovie() {
                 }
             });
         });
-        
+
     } catch (e) {
         if (e.name === 'AbortError') return; // Ignore aborted requests
         if (query !== lastSearchMovieQuery) return;
@@ -3963,15 +3963,15 @@ async function searchMovie() {
 
 function selectMovie(movie) {
     selectedMovie = movie;
-    
+
     const panel = document.getElementById("selected-movie-panel");
     const title = document.getElementById("selected-movie-title");
     const provider = document.getElementById("selected-movie-provider-info");
-    
+
     title.textContent = movie.name;
     renderProviderInfo(provider, movie.provider, movie.id, movie.loadedFromNfo);
     panel.classList.remove("hidden");
-    
+
     // Reset and close movie details collapsible block
     const movieDetails = document.getElementById("movie-nfo-details");
     if (movieDetails) {
@@ -3996,14 +3996,14 @@ function selectMovie(movie) {
             console.error("Error fetching movie NFO preview:", err);
             if (movieNfoPlot) movieNfoPlot.value = "";
         });
-    
+
     // Auto-routing destination for Dokus
     const nameLower = movie.name.toLowerCase();
     const isDoku = nameLower.includes("doku") || nameLower.includes("dokumentation") || currentProjectIsDoku;
     if (isDoku) {
 
         const destId = getCatIdBySub("/Dokus/Einzelne Dokus", "3");
-        
+
         const nasSelect = document.getElementById("movie-nas-destination");
         const pcloudSelect = document.getElementById("movie-pcloud-destination");
         if (nasSelect) nasSelect.value = destId;
@@ -4020,14 +4020,14 @@ async function executeSeriesWorkflow() {
         return;
     }
     if (!selectedShow) return;
-    
+
     const allSeasonsCb = document.getElementById("series-all-seasons");
     const isAllSeasons = allSeasonsCb && allSeasonsCb.checked;
-    
+
     // Collect mappings
     const mappings = {};
     const rows = document.querySelectorAll(".matching-row");
-    
+
     if (isManualSeriesMode) {
         rows.forEach((row, index) => {
             const file = row.getAttribute("data-file");
@@ -4035,12 +4035,12 @@ async function executeSeriesWorkflow() {
             const episodeInput = document.getElementById(`manual-episode-${index}`);
             const titleInput = document.getElementById(`manual-title-${index}`);
             const plotTextarea = document.getElementById(`manual-plot-${index}`);
-            
+
             const seasonVal = seasonInput ? parseInt(seasonInput.value, 10) : 1;
             const episodeVal = episodeInput ? parseInt(episodeInput.value, 10) : 1;
             const titleVal = titleInput ? titleInput.value.trim() : "";
             const plotVal = plotTextarea ? plotTextarea.value.trim() : "";
-            
+
             mappings[file] = {
                 season: isNaN(seasonVal) ? 1 : seasonVal,
                 episode: isNaN(episodeVal) ? 1 : episodeVal,
@@ -4058,7 +4058,7 @@ async function executeSeriesWorkflow() {
                 const eOverrideEl = document.getElementById(`episode-nfo-episode-override-${index}`);
                 const sOverride = sOverrideEl ? parseInt(sOverrideEl.value, 10) : NaN;
                 const eOverride = eOverrideEl ? parseInt(eOverrideEl.value, 10) : NaN;
-                
+
                 if (!isNaN(sOverride) || !isNaN(eOverride)) {
                     let defaultSeason, defaultEpisode;
                     const seMatch = val.match(/^S(\d+)E(\d+)$/i);
@@ -4069,7 +4069,7 @@ async function executeSeriesWorkflow() {
                         defaultSeason = parseInt(document.getElementById("series-season-num")?.value || "1", 10);
                         defaultEpisode = parseInt(val, 10);
                     }
-                    
+
                     mappings[file] = {
                         season: !isNaN(sOverride) ? sOverride : defaultSeason,
                         episode: !isNaN(eOverride) ? eOverride : defaultEpisode,
@@ -4085,12 +4085,12 @@ async function executeSeriesWorkflow() {
             }
         });
     }
-    
+
     if (Object.keys(mappings).length === 0) {
         alert("Bitte mindestens eine Datei einer Episode zuordnen!");
         return;
     }
-    
+
     let season = "1";
     if (isManualSeriesMode) {
         const firstEp = Object.values(mappings)[0];
@@ -4098,7 +4098,7 @@ async function executeSeriesWorkflow() {
     } else {
         season = isAllSeasons ? "all" : document.getElementById("series-season-num").value;
     }
-    
+
     const convert = document.getElementById("series-option-convert").checked;
     const deleteOrig = document.getElementById("series-option-delete").checked;
     const copyNas = document.getElementById("series-option-copy-nas").checked;
@@ -4106,10 +4106,10 @@ async function executeSeriesWorkflow() {
     const nasDestId = document.getElementById("series-nas-destination").value;
     const pcloudDestId = document.getElementById("series-pcloud-destination").value;
     const quality = document.getElementById("series-quality-slider") ? parseInt(document.getElementById("series-quality-slider").value, 10) : 60;
-    
+
     const nasShowFolder = document.getElementById("series-nas-folder-override")?.value?.trim();
     const forceAbsoluteSeason1 = document.getElementById("series-option-absolute-numbering") ? document.getElementById("series-option-absolute-numbering").checked : false;
-    
+
     const payload = {
         media_type: "tv",
         project_name: currentProject,
@@ -4132,7 +4132,7 @@ async function executeSeriesWorkflow() {
     if (nasShowFolder) {
         payload.nas_show_folder = nasShowFolder;
     }
-    
+
     // Collect NFO overrides
     const nfoOverrides = {
         show: {
@@ -4159,7 +4159,7 @@ async function executeSeriesWorkflow() {
         });
     }
     payload.nfo_overrides = nfoOverrides;
-    
+
     openPreviewModal(payload);
 }
 
@@ -4172,7 +4172,7 @@ async function executeMovieWorkflow() {
         alert("Bitte zuerst einen Film suchen und auswählen!");
         return;
     }
-    
+
     const convert = document.getElementById("movie-option-convert").checked;
     const deleteOrig = document.getElementById("movie-option-delete").checked;
     const copyNas = document.getElementById("movie-option-copy-nas").checked;
@@ -4180,10 +4180,10 @@ async function executeMovieWorkflow() {
     const nasDestId = document.getElementById("movie-nas-destination").value;
     const pcloudDestId = document.getElementById("movie-pcloud-destination").value;
     const quality = document.getElementById("movie-quality-slider") ? parseInt(document.getElementById("movie-quality-slider").value, 10) : 60;
-    
+
     let titleVal = document.getElementById("movie-nfo-title")?.value?.trim() || selectedMovie.name;
     titleVal = titleVal.replace(/\s*\(Mediathek.*?\)/g, "").replace(/\s*\(Freie Mediathek.*?\)/g, "").trim();
-    
+
     const yearVal = document.getElementById("movie-nfo-year")?.value?.trim();
     let finalMovieName = titleVal;
     if (yearVal && /^\d{4}$/.test(yearVal)) {
@@ -4206,7 +4206,7 @@ async function executeMovieWorkflow() {
         nas_destination_id: nasDestId,
         pcloud_destination_id: pcloudDestId
     };
-    
+
     // Collect NFO overrides
     const nfoOverrides = {
         movie: {
@@ -4216,7 +4216,7 @@ async function executeMovieWorkflow() {
         }
     };
     payload.nfo_overrides = nfoOverrides;
-    
+
     openPreviewModal(payload);
 }
 
@@ -4235,13 +4235,13 @@ async function analyseYtLink(isHandoff = false) {
         alert("Bitte eine gültige YouTube-/Mediathek-URL eingeben!");
         return;
     }
-    
+
     const loading = document.getElementById("yt-loading-indicator");
     const detailsPanel = document.getElementById("yt-details-panel");
-    
+
     loading.classList.remove("hidden");
     detailsPanel.classList.add("hidden");
-    
+
     try {
         const response = await fetch('/api/yt/fetch', {
             method: 'POST',
@@ -4264,15 +4264,15 @@ async function analyseYtLink(isHandoff = false) {
             loading.classList.add("hidden");
             return;
         }
-        
+
         ytFetchedInfo = data;
-        
+
         // Render Preview Info
         const previewContainer = document.getElementById("yt-video-info-preview");
         const minutes = Math.floor(data.duration / 60);
         const seconds = Math.floor(data.duration % 60);
         const durationStr = `${minutes}:${seconds.toString().padStart(2, '0')} Min.`;
-        
+
         previewContainer.innerHTML = `
             <div class="yt-preview-box">
                 ${data.thumbnail ? `<div class="yt-preview-thumbnail" style="background-image: url('${data.thumbnail}')"></div>` : ''}
@@ -4283,18 +4283,18 @@ async function analyseYtLink(isHandoff = false) {
                 </div>
             </div>
         `;
-        
+
         // Populate Formats/Resolutions
         const formatSelect = document.getElementById("yt-format-select");
         formatSelect.innerHTML = "";
-        
+
         data.resolutions.forEach(optData => {
             const opt = document.createElement("option");
             opt.value = optData.id;
             opt.textContent = optData.label;
             formatSelect.appendChild(opt);
         });
-        
+
         // Populate Subtitles Checkboxes
         const subsContainer = document.getElementById("yt-subtitles-container");
         subsContainer.innerHTML = "";
@@ -4315,12 +4315,12 @@ async function analyseYtLink(isHandoff = false) {
                 subsContainer.appendChild(label);
             });
         }
-        
+
         // Handle Merge Mode VS Tagging/Trim sections visibility
         const taggingSection = document.getElementById("yt-tagging-section");
         const trimSection = document.getElementById("yt-trim-section");
         const mergeDetailsSection = document.getElementById("yt-merge-details-section");
-        
+
         if (ytDownloaderMergeMode) {
             if (taggingSection) taggingSection.classList.add("hidden");
             if (trimSection) trimSection.classList.add("hidden");
@@ -4332,15 +4332,15 @@ async function analyseYtLink(isHandoff = false) {
             if (taggingSection) taggingSection.classList.remove("hidden");
             if (trimSection) trimSection.classList.remove("hidden");
             if (mergeDetailsSection) mergeDetailsSection.classList.add("hidden");
-            
+
             // Reset Search Fields
             document.getElementById("yt-meta-mode").value = "youtube";
             toggleYtMetaSection();
         }
-        
+
         // Show Panel
         detailsPanel.classList.remove("hidden");
-        
+
     } catch (e) {
         alert("Fehler: " + e.message);
     } finally {
@@ -4351,9 +4351,9 @@ async function analyseYtLink(isHandoff = false) {
 function renderDownloaderMergeItems() {
     const listContainer = document.getElementById("yt-merge-details-list");
     if (!listContainer) return;
-    
+
     listContainer.innerHTML = "";
-    
+
     ytDownloaderMergeItems.forEach((item, index) => {
         const row = document.createElement("div");
         row.className = "merge-item-row";
@@ -4366,7 +4366,7 @@ function renderDownloaderMergeItems() {
         row.style.borderRadius = "var(--radius-sm)";
         row.style.padding = "8px 12px";
         row.style.transition = "all 0.2s ease";
-        
+
         // Left part: Checkbox + Thumbnail + Title
         const left = document.createElement("div");
         left.style.display = "flex";
@@ -4374,7 +4374,7 @@ function renderDownloaderMergeItems() {
         left.style.gap = "10px";
         left.style.flex = "1";
         left.style.minWidth = "0";
-        
+
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.checked = item.checked;
@@ -4388,7 +4388,7 @@ function renderDownloaderMergeItems() {
             renderDownloaderMergeItems();
         });
         left.appendChild(checkbox);
-        
+
         if (item.thumbnail) {
             const img = document.createElement("img");
             img.className = "poster-img";
@@ -4405,10 +4405,10 @@ function renderDownloaderMergeItems() {
             const fallback = createFallbackPoster(item.title || "Video", true, "54px", "30px");
             left.appendChild(fallback);
         }
-        
+
         const info = document.createElement("div");
         info.style.minWidth = "0";
-        
+
         const titleSpan = document.createElement("div");
         titleSpan.style.fontWeight = "500";
         titleSpan.style.fontSize = "12px";
@@ -4418,7 +4418,7 @@ function renderDownloaderMergeItems() {
         titleSpan.textContent = item.title;
         titleSpan.title = item.title;
         info.appendChild(titleSpan);
-        
+
         if (item.isInitial) {
             const badge = document.createElement("span");
             badge.style.fontSize = "9px";
@@ -4431,15 +4431,15 @@ function renderDownloaderMergeItems() {
             badge.textContent = "AUSGANGS-VIDEO";
             info.appendChild(badge);
         }
-        
+
         left.appendChild(info);
         row.appendChild(left);
-        
+
         // Right part: Re-order controls
         const right = document.createElement("div");
         right.style.display = "flex";
         right.style.gap = "4px";
-        
+
         const btnUp = document.createElement("button");
         btnUp.className = "btn btn-secondary btn-xs";
         btnUp.style.padding = "2px 6px";
@@ -4452,7 +4452,7 @@ function renderDownloaderMergeItems() {
             ytDownloaderMergeItems[index] = temp;
             renderDownloaderMergeItems();
         });
-        
+
         const btnDown = document.createElement("button");
         btnDown.className = "btn btn-secondary btn-xs";
         btnDown.style.padding = "2px 6px";
@@ -4465,11 +4465,11 @@ function renderDownloaderMergeItems() {
             ytDownloaderMergeItems[index] = temp;
             renderDownloaderMergeItems();
         });
-        
+
         right.appendChild(btnUp);
         right.appendChild(btnDown);
         row.appendChild(right);
-        
+
         listContainer.appendChild(row);
     });
 }
@@ -4478,10 +4478,10 @@ function toggleYtMetaSection() {
     const mode = document.getElementById("yt-meta-mode").value;
     const movieSec = document.getElementById("yt-movie-search-section");
     const tvSec = document.getElementById("yt-series-search-section");
-    
+
     movieSec.classList.add("hidden");
     tvSec.classList.add("hidden");
-    
+
     // Clear selections
     ytSelectedMovie = null;
     ytSelectedShow = null;
@@ -4491,7 +4491,7 @@ function toggleYtMetaSection() {
     document.getElementById("yt-series-search-results").innerHTML = "";
     document.getElementById("yt-movie-search-query").value = "";
     document.getElementById("yt-series-search-query").value = "";
-    
+
     if (mode === "movie") {
         movieSec.classList.remove("hidden");
         // Pre-fill query
@@ -4512,15 +4512,15 @@ async function searchYtMovie() {
     const query = document.getElementById("yt-movie-search-query").value.trim();
     const resultsContainer = document.getElementById("yt-movie-search-results");
     if (!query) return;
-    
+
     if (currentSearchYtMovieController) {
         currentSearchYtMovieController.abort();
     }
     currentSearchYtMovieController = new AbortController();
     lastSearchYtMovieQuery = query;
-    
+
     resultsContainer.innerHTML = '<div class="loading-spinner"></div>';
-    
+
     try {
         const response = await fetch(`/api/search?type=movie&q=${encodeURIComponent(query)}`, {
             signal: currentSearchYtMovieController.signal
@@ -4533,14 +4533,14 @@ async function searchYtMovie() {
         if (!Array.isArray(data)) {
             throw new Error(data.error || "Unerwartetes Antwortformat vom Server");
         }
-        
+
         if (query !== lastSearchYtMovieQuery) return;
-        
+
         if (data.length === 0) {
             resultsContainer.innerHTML = '<p class="text-muted text-center" style="padding:10px;">Keine Filme gefunden.</p>';
             return;
         }
-        
+
         let html = "";
         data.forEach(item => {
             const escapedId = escapeHTML(item.id);
@@ -4554,7 +4554,7 @@ async function searchYtMovie() {
             `;
         });
         resultsContainer.innerHTML = html;
-        
+
         resultsContainer.querySelectorAll(".yt-movie-search-item").forEach(item => {
             item.addEventListener("click", () => {
                 ytSelectedMovie = {
@@ -4562,14 +4562,14 @@ async function searchYtMovie() {
                     name: item.getAttribute("data-name"),
                     provider: item.getAttribute("data-provider")
                 };
-                
+
                 const card = document.getElementById("yt-selected-movie-card");
                 document.getElementById("yt-selected-movie-title").textContent = ytSelectedMovie.name;
                 document.getElementById("yt-selected-movie-info").textContent = `Provider: ${ytSelectedMovie.provider} (ID: ${ytSelectedMovie.id})`;
                 card.classList.remove("hidden");
             });
         });
-        
+
     } catch (e) {
         if (e.name === 'AbortError') return; // Ignore aborted requests
         if (query !== lastSearchYtMovieQuery) return;
@@ -4581,15 +4581,15 @@ async function searchYtSeries() {
     const query = document.getElementById("yt-series-search-query").value.trim();
     const resultsContainer = document.getElementById("yt-series-search-results");
     if (!query) return;
-    
+
     if (currentSearchYtSeriesController) {
         currentSearchYtSeriesController.abort();
     }
     currentSearchYtSeriesController = new AbortController();
     lastSearchYtSeriesQuery = query;
-    
+
     resultsContainer.innerHTML = '<div class="loading-spinner"></div>';
-    
+
     try {
         const response = await fetch(`/api/search?type=tv&q=${encodeURIComponent(query)}`, {
             signal: currentSearchYtSeriesController.signal
@@ -4602,14 +4602,14 @@ async function searchYtSeries() {
         if (!Array.isArray(data)) {
             throw new Error(data.error || "Unerwartetes Antwortformat vom Server");
         }
-        
+
         if (query !== lastSearchYtSeriesQuery) return;
-        
+
         if (data.length === 0) {
             resultsContainer.innerHTML = '<p class="text-muted text-center" style="padding:10px;">Keine Serie gefunden.</p>';
             return;
         }
-        
+
         let html = "";
         data.forEach(item => {
             const escapedId = escapeHTML(item.id);
@@ -4623,7 +4623,7 @@ async function searchYtSeries() {
             `;
         });
         resultsContainer.innerHTML = html;
-        
+
         resultsContainer.querySelectorAll(".yt-series-search-item").forEach(item => {
             item.addEventListener("click", () => {
                 ytSelectedShow = {
@@ -4631,12 +4631,12 @@ async function searchYtSeries() {
                     name: item.getAttribute("data-name"),
                     provider: item.getAttribute("data-provider")
                 };
-                
+
                 const card = document.getElementById("yt-selected-series-card");
                 document.getElementById("yt-selected-series-title").textContent = ytSelectedShow.name;
                 document.getElementById("yt-selected-series-info").textContent = `Provider: ${ytSelectedShow.provider} (ID: ${ytSelectedShow.id})`;
                 card.classList.remove("hidden");
-                
+
                 const ytOverrideInput = document.getElementById("yt-series-nas-folder-override");
                 if (ytOverrideInput) {
                     if (window.ytNasFolderSelected) {
@@ -4646,11 +4646,11 @@ async function searchYtSeries() {
                     }
                     autoMatchNasFolder("yt-series-nas-folder-override", "yt-nas-destination", ytOverrideInput.value);
                 }
-                
+
                 fetchYtNasSeasons();
             });
         });
-        
+
     } catch (e) {
         if (e.name === 'AbortError') return; // Ignore aborted requests
         if (query !== lastSearchYtSeriesQuery) return;
@@ -4680,7 +4680,7 @@ async function startYtPipeline() {
         alert("Bitte zuerst Video-Informationen abrufen ('Analysieren' klicken)!");
         return;
     }
-    
+
     if (ytDownloaderMergeMode) {
         const finalTitleInput = document.getElementById("yt-merge-details-title");
         const finalTitle = finalTitleInput ? finalTitleInput.value.trim() : "";
@@ -4688,29 +4688,29 @@ async function startYtPipeline() {
             alert("Bitte gib einen Dateinamen für das zusammengefügte Video an!");
             return;
         }
-        
+
         const selectedItems = ytDownloaderMergeItems.filter(item => item.checked);
         if (selectedItems.length === 0) {
             alert("Bitte wähle mindestens ein Video aus!");
             return;
         }
-        
+
         const urls = selectedItems.map(item => item.url);
         const videoIdsToRemove = selectedItems.map(item => item.id);
-        
+
         const copyToNas = document.getElementById("yt-option-copy-nas").checked;
         const copyToPcloud = document.getElementById("yt-option-copy-pcloud").checked;
         const copyToLocal = document.getElementById("yt-option-copy-local").checked;
-        
+
         const nasDest = document.getElementById("yt-nas-destination").value;
         const pcloudDest = document.getElementById("yt-pcloud-destination").value;
         const localDest = document.getElementById("yt-local-destination").value;
-        
+
         const ytFormat = document.getElementById("yt-format-select").value;
-        
+
         expandConsole();
         appendConsoleLog(`[System]: Starte Merge-Job für "${finalTitle}" mit ${urls.length} Teilen...`);
-        
+
         try {
             const res = await fetch("/api/youtube/merge", {
                 method: "POST",
@@ -4731,18 +4731,18 @@ async function startYtPipeline() {
                 })
             });
             const data = await res.json();
-            
+
             if (res.ok && data.task_id) {
                 appendConsoleLog(`[System]: Merge-Job im Hintergrund gestartet (Task ID: ${data.task_id}).`);
-                
+
                 // Clear the merge mode state
                 ytDownloaderMergeMode = false;
                 ytDownloaderMergeItems = [];
                 ytDownloaderMergeSubId = null;
-                
+
                 // Hide details panel
                 document.getElementById("yt-details-panel").classList.add("hidden");
-                
+
                 // Switch to Queue panel automatically
                 const navQueue = document.getElementById("nav-queue-dashboard");
                 if (navQueue) navQueue.click();
@@ -4755,7 +4755,7 @@ async function startYtPipeline() {
         }
         return;
     }
-    
+
     const mode = document.getElementById("yt-meta-mode").value;
     if (mode === "movie" && !ytSelectedMovie) {
         alert("Bitte wähle zuerst einen Film aus!");
@@ -4765,13 +4765,13 @@ async function startYtPipeline() {
         alert("Bitte wähle zuerst eine Serie aus!");
         return;
     }
-    
+
     // Subtitles
     const checkedSubs = [];
     document.querySelectorAll("input[name='yt-subs']:checked").forEach(cb => {
         checkedSubs.push(cb.value);
     });
-    
+
     // Payload building
     const payload = {
         media_type: "youtube",
@@ -4780,12 +4780,12 @@ async function startYtPipeline() {
         yt_subtitles: checkedSubs,
         yt_embed_thumbnail: true,
         yt_thumbnail: ytFetchedInfo ? ytFetchedInfo.thumbnail : "",
-        
+
         split_chapters: document.getElementById("yt-split-chapters").checked,
         open_losslesscut: document.getElementById("yt-open-losslesscut").checked,
         trim_start: document.getElementById("yt-trim-start").value.trim(),
         trim_end: document.getElementById("yt-trim-end").value.trim(),
-        
+
         metadata_mode: mode,
         copy_to_nas: document.getElementById("yt-option-copy-nas").checked,
         copy_to_pcloud: document.getElementById("yt-option-copy-pcloud").checked,
@@ -4795,7 +4795,7 @@ async function startYtPipeline() {
         pcloud_destination_id: document.getElementById("yt-pcloud-destination").value,
         local_destination_id: document.getElementById("yt-local-destination").value
     };
-    
+
     // Enrich details based on mode
     if (mode === "movie") {
         payload.movie_id = ytSelectedMovie.id;
@@ -4823,10 +4823,10 @@ async function startYtPipeline() {
         payload.yt_uploader = ytFetchedInfo.uploader;
         payload.yt_description = ytFetchedInfo.description;
     }
-    
+
     expandConsole();
     appendConsoleLog("[System]: Starte YouTube Download Pipeline...");
-    
+
     try {
         const response = await fetch("/api/process", {
             method: "POST",
@@ -4834,7 +4834,7 @@ async function startYtPipeline() {
             body: JSON.stringify(payload)
         });
         const data = await response.json();
-        
+
         if (response.ok && data.task_id) {
             connectLogStream();
             startYtTaskPolling(data.task_id);
@@ -4866,7 +4866,7 @@ async function markYtCutDone() {
 
 async function finalizeYtMapping() {
     if (!activeYtTaskId) return;
-    
+
     const mapping = {};
     document.querySelectorAll(".mapping-row").forEach((row, index) => {
         const seg = row.getAttribute("data-segment");
@@ -4875,7 +4875,7 @@ async function finalizeYtMapping() {
             mapping[seg] = parseInt(val, 10);
         }
     });
-    
+
     try {
         const response = await fetch("/api/yt/finalize", {
             method: "POST",
@@ -4956,9 +4956,9 @@ function renderYtMappingRows(segments) {
 function startYtTaskPolling(taskId) {
     activeYtTaskId = taskId;
     if (ytStatusInterval) clearInterval(ytStatusInterval);
-    
+
     let mappingRendered = false;
-    
+
     ytStatusInterval = setInterval(async () => {
         try {
             const response = await fetch(`/api/yt/segments?taskId=${taskId}`);
@@ -4971,18 +4971,18 @@ function startYtTaskPolling(taskId) {
                 stopYtTaskPolling();
                 return;
             }
-            
+
             const state = data.state;
             const losslessModal = document.getElementById("yt-losslesscut-modal");
             const mappingModal = document.getElementById("yt-mapping-modal");
-            
+
             if (state === "waiting_for_cut") {
                 losslessModal.classList.remove("hidden");
                 mappingModal.classList.add("hidden");
             } else if (state === "waiting_for_mapping") {
                 losslessModal.classList.add("hidden");
                 mappingModal.classList.remove("hidden");
-                
+
                 if (!mappingRendered) {
                     mappingRendered = true;
                     const mode = document.getElementById("yt-meta-mode").value;
@@ -5023,12 +5023,12 @@ async function loadSubscriptions() {
             fetch("/api/settings"),
             fetch("/api/youtube/subscriptions")
         ]);
-        
+
         if (settingsRes.ok) {
             currentSettings = await settingsRes.json();
             updateDestinationDropdowns();
         }
-        
+
         if (subsRes.ok) {
             const data = await subsRes.json();
             currentSubscriptions = data.subscriptions || [];
@@ -5046,25 +5046,25 @@ async function loadSubscriptions() {
 function renderSubscriptionsList() {
     const listContainer = document.getElementById("youtube-abos-list");
     if (!listContainer) return;
-    
+
     if (currentSubscriptions.length === 0) {
         listContainer.innerHTML = `<div style="text-align:center; padding:30px; color:var(--text-muted);">Keine aktiven Abonnements vorhanden. Füge oben ein neues hinzu.</div>`;
         return;
     }
-    
+
     listContainer.innerHTML = "";
-    
+
     // Sort subscriptions: enabled ones at the top, disabled ones at the bottom
     const sortedSubs = [...currentSubscriptions].sort((a, b) => {
         if (a.enabled === b.enabled) return 0;
         return a.enabled ? -1 : 1;
     });
-    
+
     sortedSubs.forEach((sub) => {
         const item = document.createElement("div");
         item.className = "subscription-item";
         item.dataset.id = sub.id;
-        
+
         // Inline premium styles with transitions
         item.style.background = "rgba(255, 255, 255, 0.02)";
         item.style.border = "1px solid var(--border-glass)";
@@ -5074,41 +5074,41 @@ function renderSubscriptionsList() {
         item.style.flexDirection = "column";
         item.style.gap = "0";
         item.style.transition = "all 0.3s ease";
-        
+
         const headerRow = document.createElement("div");
         headerRow.style.display = "flex";
         headerRow.style.justifyContent = "space-between";
         headerRow.style.alignItems = "center";
         headerRow.style.gap = "15px";
         headerRow.style.flexWrap = "wrap";
-        
+
         // Find category name
         const cats = currentSettings.sync_categories || [];
-        
+
         // Format last checked timestamp
         let lastCheckedStr = "Nie";
         if (sub.last_checked) {
             const date = new Date(sub.last_checked * 1000);
-            lastCheckedStr = date.toLocaleString('de-DE', { 
-                day: '2-digit', 
-                month: '2-digit', 
-                year: 'numeric', 
-                hour: '2-digit', 
-                minute: '2-digit' 
+            lastCheckedStr = date.toLocaleString('de-DE', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
             });
         }
-        
+
         // Info column
         const infoCol = document.createElement("div");
         infoCol.style.flex = "1";
         infoCol.style.minWidth = "250px";
-        
+
         const titleRow = document.createElement("div");
         titleRow.style.display = "flex";
         titleRow.style.alignItems = "center";
         titleRow.style.gap = "10px";
         titleRow.style.marginBottom = "5px";
-        
+
         // Collapse/Expand Caret
         const expandCaret = document.createElement("span");
         expandCaret.style.display = "inline-block";
@@ -5117,7 +5117,7 @@ function renderSubscriptionsList() {
         expandCaret.style.transition = "all 0.2s ease";
         expandCaret.innerHTML = "▶";
         titleRow.appendChild(expandCaret);
-        
+
         // Show YouTube channel avatar if available
         if (sub.avatar_url) {
             const avatarImg = document.createElement("img");
@@ -5131,14 +5131,14 @@ function renderSubscriptionsList() {
             avatarImg.style.marginRight = "8px";
             titleRow.appendChild(avatarImg);
         }
-        
+
         const titleSpan = document.createElement("span");
         titleSpan.style.fontWeight = "600";
         titleSpan.style.fontSize = "15px";
         titleSpan.style.color = "var(--text-main)";
         titleSpan.textContent = sub.name;
         titleRow.appendChild(titleSpan);
-        
+
         // Active indicator badge
         const activeBadge = document.createElement("span");
         activeBadge.style.fontSize = "10px";
@@ -5146,7 +5146,7 @@ function renderSubscriptionsList() {
         activeBadge.style.padding = "2px 6px";
         activeBadge.style.borderRadius = "4px";
         activeBadge.style.transition = "all 0.3s ease";
-        
+
         const updateBadge = (isEnabled) => {
             if (isEnabled) {
                 activeBadge.style.background = "rgba(16, 185, 129, 0.15)";
@@ -5164,7 +5164,7 @@ function renderSubscriptionsList() {
         };
         updateBadge(sub.enabled);
         titleRow.appendChild(activeBadge);
-        
+
         let pendingVideos = sub.pending_videos || [];
         if (pendingVideos.length > 0) {
             const pendingBadge = document.createElement("span");
@@ -5178,9 +5178,9 @@ function renderSubscriptionsList() {
             pendingBadge.textContent = `${pendingVideos.length} AUSSTEHEND`;
             titleRow.appendChild(pendingBadge);
         }
-        
+
         infoCol.appendChild(titleRow);
-        
+
         // Collapsible details container
         const detailsContainer = document.createElement("div");
         detailsContainer.style.display = "none";
@@ -5189,7 +5189,7 @@ function renderSubscriptionsList() {
         detailsContainer.style.marginTop = "15px";
         detailsContainer.style.paddingTop = "10px";
         detailsContainer.style.borderTop = "1px solid rgba(255, 255, 255, 0.05)";
-        
+
         // Details row
         const detailsRow = document.createElement("div");
         detailsRow.style.fontSize = "12.5px";
@@ -5197,19 +5197,19 @@ function renderSubscriptionsList() {
         detailsRow.style.display = "flex";
         detailsRow.style.flexWrap = "wrap";
         detailsRow.style.gap = "15px";
-        
+
         // URL link
         const urlItem = document.createElement("div");
         urlItem.innerHTML = `🔗 <a href="${sub.url.startsWith('http') ? sub.url : '#'}" target="_blank" style="color: var(--accent); text-decoration: none;">${sub.url.startsWith('http') ? 'Link öffnen' : 'Suchbegriff: "' + sub.url + '"'}</a>`;
         detailsRow.appendChild(urlItem);
-        
+
         // Filter badge
         if (sub.search_filter && sub.search_filter.trim() !== "") {
             const filterItem = document.createElement("div");
             filterItem.innerHTML = `🔍 Filter: <span style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; color: var(--text-main); font-weight: 500;">"${sub.search_filter}"</span>`;
             detailsRow.appendChild(filterItem);
         }
-        
+
         // Category/Transfer destination badges
         const copyToNas = sub.copy_to_nas !== false;
         if (copyToNas) {
@@ -5220,7 +5220,7 @@ function renderSubscriptionsList() {
             nasItem.innerHTML = `📁 NAS: <span style="color: var(--text-main); font-weight: 500;">${catName}</span>`;
             detailsRow.appendChild(nasItem);
         }
-        
+
         const copyToPcloud = !!sub.copy_to_pcloud;
         if (copyToPcloud) {
             const pcloudId = sub.pcloud_destination_id || sub.destination_id;
@@ -5230,7 +5230,7 @@ function renderSubscriptionsList() {
             pcloudItem.innerHTML = `☁️ pCloud: <span style="color: var(--text-main); font-weight: 500;">${catName}</span>`;
             detailsRow.appendChild(pcloudItem);
         }
-        
+
         const copyToLocal = !!sub.copy_to_local;
         if (copyToLocal) {
             const localId = sub.local_destination_id;
@@ -5255,26 +5255,26 @@ function renderSubscriptionsList() {
             localItem.innerHTML = `💻 Lokal: <span style="color: var(--text-main); font-weight: 500;">${localName}</span>`;
             detailsRow.appendChild(localItem);
         }
-        
+
         if (!copyToNas && !copyToPcloud && !copyToLocal) {
             const warningItem = document.createElement("div");
             warningItem.innerHTML = `⚠️ <span style="color: var(--danger); font-weight: 500;">Kein Transferziel aktiviert</span>`;
             detailsRow.appendChild(warningItem);
         }
-        
+
         // Mode badge
         const isAuto = sub.auto_download !== false;
         const modeItem = document.createElement("div");
         modeItem.innerHTML = `⚙️ Modus: <span style="color: var(--text-main); font-weight: 500;">${isAuto ? "Direkt laden" : "Freigabeliste"}</span>`;
         detailsRow.appendChild(modeItem);
-        
+
         // Schedule badge
         const schedule = sub.schedule || "hourly";
         let scheduleText = "Stündlich";
         if (schedule === "daily") scheduleText = "Täglich";
         else if (schedule === "on_startup") scheduleText = "Beim App-Start";
         else if (schedule === "manual") scheduleText = "Nur manuell";
-        
+
         const scheduleItem = document.createElement("div");
         scheduleItem.innerHTML = `🔄 Aktualisierung: <span style="color: var(--text-main); font-weight: 500;">${scheduleText}</span>`;
         detailsRow.appendChild(scheduleItem);
@@ -5285,28 +5285,28 @@ function renderSubscriptionsList() {
             deItem.innerHTML = `🇩🇪 Filter: <span style="background: rgba(16, 185, 129, 0.1); padding: 2px 6px; border-radius: 4px; color: var(--success); font-weight: 500; font-size: 11px;">Nur Deutsch</span>`;
             detailsRow.appendChild(deItem);
         }
-        
+
         // Exclude keywords badge
         if (sub.exclude_keywords && sub.exclude_keywords.trim() !== "") {
             const excludeItem = document.createElement("div");
             excludeItem.innerHTML = `🚫 Ausschluss: <span style="background: rgba(239, 68, 68, 0.08); padding: 2px 6px; border-radius: 4px; color: var(--danger); font-weight: 500; font-size: 11px;">"${sub.exclude_keywords}"</span>`;
             detailsRow.appendChild(excludeItem);
         }
-        
+
         // Last checked timestamp
         const timeItem = document.createElement("div");
         timeItem.innerHTML = `⏱️ Letzter Check: ${lastCheckedStr}`;
         detailsRow.appendChild(timeItem);
-        
+
         detailsContainer.appendChild(detailsRow);
         headerRow.appendChild(infoCol);
-        
+
         // Controls column (Toggle + Delete)
         const ctrlCol = document.createElement("div");
         ctrlCol.style.display = "flex";
         ctrlCol.style.alignItems = "center";
         ctrlCol.style.gap = "20px";
-        
+
         // Toggle Switch Container
         const switchLabel = document.createElement("label");
         switchLabel.className = "checkbox-container";
@@ -5314,34 +5314,34 @@ function renderSubscriptionsList() {
         switchLabel.style.paddingLeft = "28px";
         switchLabel.style.fontSize = "13px";
         switchLabel.style.fontWeight = "500";
-        
+
         const switchInput = document.createElement("input");
         switchInput.type = "checkbox";
         switchInput.checked = !!sub.enabled;
-        
+
         const switchCheckmark = document.createElement("span");
         switchCheckmark.className = "checkmark";
-        
+
         const statusText = document.createTextNode(sub.enabled ? "Aktiv" : "Aus");
-        
+
         switchInput.addEventListener("change", async (e) => {
             const isEnabled = e.target.checked;
             sub.enabled = isEnabled;
             statusText.textContent = isEnabled ? "Aktiv" : "Aus";
             updateBadge(isEnabled);
-            
+
             // Background save without full list refresh
             await saveAllSubscriptions();
             // Re-render list to sort disabled ones to the bottom
             renderSubscriptionsList();
         });
-        
+
         switchLabel.appendChild(switchInput);
         switchLabel.appendChild(switchCheckmark);
         switchLabel.appendChild(statusText);
-        
+
         ctrlCol.appendChild(switchLabel);
-        
+
         // Delete button
         const deleteBtn = document.createElement("button");
         deleteBtn.className = "btn btn-danger btn-sm";
@@ -5351,7 +5351,7 @@ function renderSubscriptionsList() {
                 // Visual fadeout effect
                 item.style.transform = "scale(0.9)";
                 item.style.opacity = "0";
-                
+
                 setTimeout(async () => {
                     currentSubscriptions = currentSubscriptions.filter(s => s.id !== sub.id);
                     item.remove();
@@ -5363,10 +5363,10 @@ function renderSubscriptionsList() {
             }
         });
         ctrlCol.appendChild(deleteBtn);
-        
+
         headerRow.appendChild(ctrlCol);
         item.appendChild(headerRow);
-        
+
         // Render Inbox (pending_videos) if mode is manual
         pendingVideos = sub.pending_videos || [];
         if (!isAuto) {
@@ -5377,7 +5377,7 @@ function renderSubscriptionsList() {
             inboxDiv.style.display = "flex";
             inboxDiv.style.flexDirection = "column";
             inboxDiv.style.gap = "10px";
-            
+
             const inboxHeader = document.createElement("div");
             inboxHeader.style.display = "flex";
             inboxHeader.style.justifyContent = "space-between";
@@ -5387,7 +5387,7 @@ function renderSubscriptionsList() {
             inboxHeader.style.color = "var(--text-muted)";
             inboxHeader.innerHTML = `📥 Freigabeliste (${pendingVideos.length} ausstehend)`;
             inboxDiv.appendChild(inboxHeader);
-            
+
             if (pendingVideos.length === 0) {
                 const emptyMsg = document.createElement("div");
                 emptyMsg.style.fontSize = "12.5px";
@@ -5401,7 +5401,7 @@ function renderSubscriptionsList() {
                 listDiv.style.display = "flex";
                 listDiv.style.flexDirection = "column";
                 listDiv.style.gap = "8px";
-                
+
                 pendingVideos.forEach(v => {
                     const vRow = document.createElement("div");
                     vRow.style.display = "flex";
@@ -5414,14 +5414,14 @@ function renderSubscriptionsList() {
                     vRow.style.padding = "8px 12px";
                     vRow.style.flexWrap = "wrap";
                     vRow.style.transition = "all 0.3s ease";
-                    
+
                     const vLeft = document.createElement("div");
                     vLeft.style.display = "flex";
                     vLeft.style.alignItems = "center";
                     vLeft.style.gap = "12px";
                     vLeft.style.flex = "1";
                     vLeft.style.minWidth = "200px";
-                    
+
                     if (v.thumbnail) {
                         const img = document.createElement("img");
                         img.className = "poster-img";
@@ -5439,60 +5439,60 @@ function renderSubscriptionsList() {
                         const fallback = createFallbackPoster(v.title || "Video", true, "72px", "40px");
                         vLeft.appendChild(fallback);
                     }
-                    
+
                     const vInfo = document.createElement("div");
                     vInfo.style.display = "flex";
                     vInfo.style.flexDirection = "column";
                     vInfo.style.gap = "2px";
-                    
+
                     const vTitle = document.createElement("div");
                     vTitle.style.fontWeight = "500";
                     vTitle.style.fontSize = "13px";
                     vTitle.style.color = "var(--text-main)";
                     vTitle.textContent = v.title;
                     vInfo.appendChild(vTitle);
-                    
+
                     const vMeta = document.createElement("div");
                     vMeta.style.fontSize = "11px";
                     vMeta.style.color = "var(--text-muted)";
                     vMeta.textContent = `${v.channel || "Unbekannter Kanal"}${v.published_at ? " • " + v.published_at : ""}`;
                     vInfo.appendChild(vMeta);
-                    
+
                     vLeft.appendChild(vInfo);
                     vRow.appendChild(vLeft);
-                    
+
                     const vRight = document.createElement("div");
                     vRight.style.display = "flex";
                     vRight.style.gap = "8px";
-                    
+
                     const btnApprove = document.createElement("button");
                     btnApprove.className = "btn btn-success btn-xs";
                     btnApprove.style.padding = "4px 8px";
                     btnApprove.style.fontSize = "11px";
                     btnApprove.style.fontWeight = "600";
                     btnApprove.innerHTML = "📥 Jetzt laden";
-                    
+
                     const btnProcessInDownloader = document.createElement("button");
                     btnProcessInDownloader.className = "btn btn-primary btn-xs";
                     btnProcessInDownloader.style.padding = "4px 8px";
                     btnProcessInDownloader.style.fontSize = "11px";
                     btnProcessInDownloader.style.fontWeight = "600";
                     btnProcessInDownloader.innerHTML = "🎬 Im Downloader verarbeiten";
-                    
+
                     const btnSearchParts = document.createElement("button");
                     btnSearchParts.className = "btn btn-accent btn-xs";
                     btnSearchParts.style.padding = "4px 8px";
                     btnSearchParts.style.fontSize = "11px";
                     btnSearchParts.style.fontWeight = "600";
                     btnSearchParts.innerHTML = "🔍 Teile suchen";
-                    
+
                     const btnIgnore = document.createElement("button");
                     btnIgnore.className = "btn btn-secondary btn-xs";
                     btnIgnore.style.padding = "4px 8px";
                     btnIgnore.style.fontSize = "11px";
                     btnIgnore.style.fontWeight = "600";
                     btnIgnore.innerHTML = "🗑️ Ignorieren";
-                    
+
                     const btnLink = document.createElement("a");
                     btnLink.href = v.url || `https://www.youtube.com/watch?v=${v.id}`;
                     btnLink.target = "_blank";
@@ -5502,7 +5502,7 @@ function renderSubscriptionsList() {
                     btnLink.style.fontWeight = "600";
                     btnLink.style.textDecoration = "none";
                     btnLink.innerHTML = "🔗 Link";
-                    
+
                     btnApprove.addEventListener("click", async () => {
                         btnApprove.disabled = true;
                         btnIgnore.disabled = true;
@@ -5541,11 +5541,11 @@ function renderSubscriptionsList() {
                             btnApprove.innerHTML = "📥 Jetzt laden";
                         }
                     });
-                    
+
                     btnProcessInDownloader.addEventListener("click", () => {
                         sendVideoToDownloader(sub, v);
                     });
-                    
+
                     btnIgnore.addEventListener("click", async () => {
                         btnApprove.disabled = true;
                         btnIgnore.disabled = true;
@@ -5584,11 +5584,11 @@ function renderSubscriptionsList() {
                             btnIgnore.innerHTML = "🗑️ Ignorieren";
                         }
                     });
-                    
+
                     btnSearchParts.addEventListener("click", () => {
                         handoffMergeToDownloader(sub, v);
                     });
-                    
+
                     vRight.appendChild(btnApprove);
                     vRight.appendChild(btnProcessInDownloader);
                     vRight.appendChild(btnSearchParts);
@@ -5601,10 +5601,10 @@ function renderSubscriptionsList() {
             }
             detailsContainer.appendChild(inboxDiv);
         }
-        
+
         // Collapsible states & Click handler
         let isExpanded = false;
-        
+
         const updateExpandState = () => {
             if (isExpanded) {
                 detailsContainer.style.display = "flex";
@@ -5617,13 +5617,13 @@ function renderSubscriptionsList() {
             }
         };
         updateExpandState();
-        
+
         infoCol.style.cursor = "pointer";
         infoCol.addEventListener("click", () => {
             isExpanded = !isExpanded;
             updateExpandState();
         });
-        
+
         item.appendChild(detailsContainer);
         listContainer.appendChild(item);
     });
@@ -5655,23 +5655,23 @@ async function sendVideoToDownloader(sub, v) {
         viewYt.classList.add("active");
     }
     document.querySelectorAll(".project-item").forEach(el => el.classList.remove("active"));
-    
+
     // Reset merge modes
     ytDownloaderMergeMode = false;
     ytDownloaderMergeItems = [];
     ytDownloaderMergeSubId = null;
-    
+
     // 2. Pre-fill URL
     const ytUrlInput = document.getElementById("yt-url");
     if (ytUrlInput) {
         ytUrlInput.value = v.url || `https://www.youtube.com/watch?v=${v.id}`;
     }
-    
+
     // 3. Pre-fill storage options
     const cbNas = document.getElementById("yt-option-copy-nas");
     const cbPcloud = document.getElementById("yt-option-copy-pcloud");
     const cbLocal = document.getElementById("yt-option-copy-local");
-    
+
     if (cbNas) {
         cbNas.checked = sub.copy_to_nas !== false;
         cbNas.dispatchEvent(new Event("change"));
@@ -5684,19 +5684,19 @@ async function sendVideoToDownloader(sub, v) {
         cbLocal.checked = !!sub.copy_to_local;
         cbLocal.dispatchEvent(new Event("change"));
     }
-    
+
     const selNas = document.getElementById("yt-nas-destination");
     const selPcloud = document.getElementById("yt-pcloud-destination");
     const selLocal = document.getElementById("yt-local-destination");
-    
+
     const nasDestId = sub.nas_destination_id || sub.destination_id || "";
     const pcloudDestId = sub.pcloud_destination_id || "";
     const localDestId = sub.local_destination_id || "";
-    
+
     if (selNas && nasDestId) selNas.value = nasDestId;
     if (selPcloud && pcloudDestId) selPcloud.value = pcloudDestId;
     if (selLocal && localDestId) selLocal.value = localDestId;
-    
+
     // 4. Remove from subscriptions list in background
     try {
         await fetch("/api/youtube/subscriptions/ignore", {
@@ -5710,7 +5710,7 @@ async function sendVideoToDownloader(sub, v) {
     } catch (e) {
         console.error("Error archiving video on handoff:", e);
     }
-    
+
     // 5. Start Link Analysis automatically
     analyseYtLink(true);
 }
@@ -5724,23 +5724,23 @@ async function handoffMergeToDownloader(sub, v) {
         viewYt.classList.add("active");
     }
     document.querySelectorAll(".project-item").forEach(el => el.classList.remove("active"));
-    
+
     // 2. Set merge mode states
     ytDownloaderMergeMode = true;
     ytDownloaderMergeSubId = sub.id;
     ytDownloaderMergeItems = [];
-    
+
     // Pre-fill URL in downloader tab
     const ytUrlInput = document.getElementById("yt-url");
     if (ytUrlInput) {
         ytUrlInput.value = v.url || `https://www.youtube.com/watch?v=${v.id}`;
     }
-    
+
     // Pre-fill storage targets
     const cbNas = document.getElementById("yt-option-copy-nas");
     const cbPcloud = document.getElementById("yt-option-copy-pcloud");
     const cbLocal = document.getElementById("yt-option-copy-local");
-    
+
     if (cbNas) {
         cbNas.checked = sub.copy_to_nas !== false;
         cbNas.dispatchEvent(new Event("change"));
@@ -5753,19 +5753,19 @@ async function handoffMergeToDownloader(sub, v) {
         cbLocal.checked = !!sub.copy_to_local;
         cbLocal.dispatchEvent(new Event("change"));
     }
-    
+
     const selNas = document.getElementById("yt-nas-destination");
     const selPcloud = document.getElementById("yt-pcloud-destination");
     const selLocal = document.getElementById("yt-local-destination");
-    
+
     const nasDestId = sub.nas_destination_id || sub.destination_id || "";
     const pcloudDestId = sub.pcloud_destination_id || "";
     const localDestId = sub.local_destination_id || "";
-    
+
     if (selNas && nasDestId) selNas.value = nasDestId;
     if (selPcloud && pcloudDestId) selPcloud.value = pcloudDestId;
     if (selLocal && localDestId) selLocal.value = localDestId;
-    
+
     // Clean up merge title override
     let cleanTitle = v.title;
     const patterns = [
@@ -5782,26 +5782,26 @@ async function handoffMergeToDownloader(sub, v) {
         cleanTitle = cleanTitle.replace(p, "");
     });
     cleanTitle = cleanTitle.replace(/\s*-\s*$/, "").replace(/\s+/g, " ").trim();
-    
+
     const mergeTitleInput = document.getElementById("yt-merge-details-title");
     if (mergeTitleInput) {
         mergeTitleInput.value = cleanTitle || v.title;
     }
-    
+
     const listContainer = document.getElementById("yt-merge-details-list");
     if (listContainer) {
         listContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">🔍 Suche nach Teilen auf YouTube...</div>`;
     }
-    
+
     // Search parts
     fetch(`/api/youtube/search-parts?title=${encodeURIComponent(v.title)}`)
         .then(res => res.json())
         .then(data => {
             const results = data.results || [];
-            
+
             // Build unique list of items
             const items = [];
-            
+
             // 1. Add our initial video
             items.push({
                 id: v.id,
@@ -5811,7 +5811,7 @@ async function handoffMergeToDownloader(sub, v) {
                 checked: true,
                 isInitial: true
             });
-            
+
             // 2. Add search results, avoiding duplicates of the initial video
             results.forEach(r => {
                 if (r.id !== v.id) {
@@ -5825,7 +5825,7 @@ async function handoffMergeToDownloader(sub, v) {
                     });
                 }
             });
-            
+
             ytDownloaderMergeItems = items;
             renderDownloaderMergeItems();
         })
@@ -5835,7 +5835,7 @@ async function handoffMergeToDownloader(sub, v) {
                 listContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--danger);">Fehler bei der Suche nach Teilen.</div>`;
             }
         });
-        
+
     // 3. Start Link Analysis automatically on the initial URL to populate formats
     analyseYtLink(true);
 }
@@ -5848,16 +5848,16 @@ async function addSubscription() {
     const scheduleSelect = document.getElementById("abo-schedule");
     const filterGermanCheck = document.getElementById("abo-filter-german");
     const excludeInput = document.getElementById("abo-exclude");
-    
+
     const copyNasCheck = document.getElementById("abo-copy-nas");
     const copyPcloudCheck = document.getElementById("abo-copy-pcloud");
     const copyLocalCheck = document.getElementById("abo-copy-local");
     const nasDestSelect = document.getElementById("abo-nas-destination");
     const pcloudDestSelect = document.getElementById("abo-pcloud-destination");
     const localDestSelect = document.getElementById("abo-local-destination");
-    
+
     if (!nameInput || !urlInput) return;
-    
+
     const name = nameInput.value.trim();
     const url = urlInput.value.trim();
     const filter = filterInput ? filterInput.value.trim() : "";
@@ -5865,22 +5865,22 @@ async function addSubscription() {
     const autoDownload = modeSelect ? (modeSelect.value !== "manual") : true;
     const schedule = scheduleSelect ? scheduleSelect.value : "hourly";
     const filterGerman = filterGermanCheck ? !!filterGermanCheck.checked : false;
-    
+
     const copyToNas = copyNasCheck ? !!copyNasCheck.checked : true;
     const copyToPcloud = copyPcloudCheck ? !!copyPcloudCheck.checked : false;
     const copyToLocal = copyLocalCheck ? !!copyLocalCheck.checked : false;
     const nasDestId = nasDestSelect ? nasDestSelect.value : "";
     const pcloudDestId = pcloudDestSelect ? pcloudDestSelect.value : "";
     const localDestId = localDestSelect ? localDestSelect.value : "";
-    
+
     if (!name || !url) {
         alert("Bitte geben Sie einen Namen und eine YouTube-URL oder einen Suchbegriff ein!");
         return;
     }
-    
+
     // Generate UUID
     const newId = crypto.randomUUID();
-    
+
     const newSub = {
         id: newId,
         name: name,
@@ -5903,9 +5903,9 @@ async function addSubscription() {
         filter_german: filterGerman,
         pending_videos: []
     };
-    
+
     currentSubscriptions.push(newSub);
-    
+
     // Reset form inputs
     nameInput.value = "";
     urlInput.value = "";
@@ -5914,7 +5914,7 @@ async function addSubscription() {
     if (modeSelect) modeSelect.value = "auto";
     if (scheduleSelect) scheduleSelect.value = "hourly";
     if (filterGermanCheck) filterGermanCheck.checked = false;
-    
+
     if (copyNasCheck) {
         copyNasCheck.checked = true;
         copyNasCheck.dispatchEvent(new Event("change"));
@@ -5927,7 +5927,7 @@ async function addSubscription() {
         copyLocalCheck.checked = false;
         copyLocalCheck.dispatchEvent(new Event("change"));
     }
-    
+
     // Optimistic render and background save
     renderSubscriptionsList();
     await saveAllSubscriptions();
@@ -5939,9 +5939,9 @@ async function checkAllSubscriptions() {
         btn.disabled = true;
         btn.textContent = "🔄 Prüfe...";
     }
-    
+
     appendConsoleLog("[System]: Starte manuelle Prüfung aller YouTube Abos...");
-    
+
     try {
         const response = await fetch("/api/youtube/subscriptions/check", {
             method: "POST"
@@ -5977,7 +5977,7 @@ function renderCleanFileList(files, isJunk) {
         const sizeBytes = fileObj.size_bytes || 0;
         const codec = fileObj.codec || "";
         const resolution = fileObj.resolution || "";
-        
+
         let sizeStr = "";
         if (sizeBytes > 0) {
             if (sizeBytes > 1024 * 1024 * 1024) {
@@ -5988,7 +5988,7 @@ function renderCleanFileList(files, isJunk) {
                 sizeStr = `(${(sizeBytes / 1024).toFixed(0)} KB)`;
             }
         }
-        
+
         let detailsStr = "";
         if (codec || resolution) {
             const parts = [];
@@ -5996,12 +5996,12 @@ function renderCleanFileList(files, isJunk) {
             if (resolution) parts.push(resolution);
             detailsStr = `<span style="background: rgba(var(--accent-rgb), 0.15); color: var(--accent); font-size: 9.5px; font-weight: 600; padding: 1.5px 5px; border-radius: 4px; margin-left: 6px; letter-spacing: 0.3px;">${parts.join(" • ")}</span>`;
         }
-        
+
         return `
             <label style="display:flex; align-items:center; gap:8px; cursor:pointer; padding: 2px 0;">
                 <input type="checkbox" class="clean-cb-item" data-file="${escapeHTML(f)}" ${isJunk ? 'checked' : ''} style="accent-color:#ff4757;">
                 <span style="font-size:11px; color:var(--text-main); word-break:break-all;">
-                    ${escapeHTML(f)} 
+                    ${escapeHTML(f)}
                     <span style="color:var(--text-muted); font-size: 10.5px; margin-left: 4px;">${sizeStr}</span>
                     ${detailsStr}
                 </span>
@@ -6013,52 +6013,52 @@ function renderCleanFileList(files, isJunk) {
 // Helper clean project
 async function cleanCurrentProject() {
     if (!currentProject) return;
-    
+
     // UI Loading state
     const overlay = document.getElementById("clean-modal-overlay");
     const modal = document.getElementById("clean-modal");
     const list = document.getElementById("clean-list");
-    
+
     list.innerHTML = `<div style="color:var(--text-muted); font-size:12px;">Scanne Ordner...</div>`;
-    
+
     overlay.classList.remove("hidden");
     setTimeout(() => {
         overlay.style.opacity = "1";
         overlay.style.pointerEvents = "auto";
         modal.style.transform = "translateY(0)";
     }, 10);
-    
+
     try {
         const response = await fetch("/api/preview_clean", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ project: currentProject })
         });
-        
+
         if (!response.ok) throw new Error("Fehler beim Scannen");
         const data = await response.json();
-        
+
         if (data.error) {
             alert(data.error);
             closeCleanModal();
             return;
         }
-        
+
         list.innerHTML = "";
-        
+
         const groups = data.groups || {};
         if (Object.keys(groups).length === 0) {
             list.innerHTML = `<div style="color:var(--text-muted); font-size:12px;">Ordner ist bereits komplett leer.</div>`;
             return;
         }
-        
+
         // Render groups sorted alphabetically by extension
         const sortedKeys = Object.keys(groups).sort();
         for (const ext of sortedKeys) {
             const files = groups[ext];
             // Check by default if it's typical junk
             const isJunk = ['txt', 'url', 'exe', 'ds_store', 'nfo', 'jpg', 'png'].includes(ext);
-            
+
             const groupDiv = document.createElement("div");
             groupDiv.className = "clean-group-container";
             groupDiv.style.marginBottom = "10px";
@@ -6073,10 +6073,10 @@ async function cleanCurrentProject() {
             `;
             list.appendChild(groupDiv);
         }
-        
+
         // Store target path for execution
         document.getElementById("btn-clean-execute").dataset.target = currentProject;
-        
+
     } catch (e) {
         alert("Fehler: " + e.message);
         closeCleanModal();
@@ -6092,7 +6092,7 @@ async function runToolPullFiles() {
     }
     expandConsole();
     appendConsoleLog("[System]: Verschiebe Dateien aus Unterordnern nach oben...");
-    
+
     try {
         const response = await fetch("/api/process", {
             method: "POST",
@@ -6118,52 +6118,52 @@ async function runToolClean(path) {
         alert("⚠️ Bitte wähle zuerst einen Zielordner-Pfad aus!");
         return;
     }
-    
+
     // UI Loading state
     const overlay = document.getElementById("clean-modal-overlay");
     const modal = document.getElementById("clean-modal");
     const list = document.getElementById("clean-list");
-    
+
     list.innerHTML = `<div style="color:var(--text-muted); font-size:12px;">Scanne Ordner...</div>`;
-    
+
     overlay.classList.remove("hidden");
     setTimeout(() => {
         overlay.style.opacity = "1";
         overlay.style.pointerEvents = "auto";
         modal.style.transform = "translateY(0)";
     }, 10);
-    
+
     try {
         const response = await fetch("/api/preview_clean", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ project: targetPath })
         });
-        
+
         if (!response.ok) throw new Error("Fehler beim Scannen");
         const data = await response.json();
-        
+
         if (data.error) {
             alert(data.error);
             closeCleanModal();
             return;
         }
-        
+
         list.innerHTML = "";
-        
+
         const groups = data.groups || {};
         if (Object.keys(groups).length === 0) {
             list.innerHTML = `<div style="color:var(--text-muted); font-size:12px;">Ordner ist bereits komplett leer.</div>`;
             return;
         }
-        
+
         // Render groups sorted alphabetically by extension
         const sortedKeys = Object.keys(groups).sort();
         for (const ext of sortedKeys) {
             const files = groups[ext];
             // Check by default if it's typical junk
             const isJunk = ['txt', 'url', 'exe', 'ds_store', 'nfo', 'jpg', 'png'].includes(ext);
-            
+
             const groupDiv = document.createElement("div");
             groupDiv.className = "clean-group-container";
             groupDiv.style.marginBottom = "10px";
@@ -6178,10 +6178,10 @@ async function runToolClean(path) {
             `;
             list.appendChild(groupDiv);
         }
-        
+
         // Store target path for execution
         document.getElementById("btn-clean-execute").dataset.target = targetPath;
-        
+
     } catch (e) {
         alert("Fehler: " + e.message);
         closeCleanModal();
@@ -6191,7 +6191,7 @@ async function runToolClean(path) {
 function closeCleanModal() {
     const overlay = document.getElementById("clean-modal-overlay");
     const modal = document.getElementById("clean-modal");
-    
+
     overlay.style.opacity = "0";
     overlay.style.pointerEvents = "none";
     modal.style.transform = "translateY(20px)";
@@ -6204,14 +6204,14 @@ function closeCleanModal() {
 function openPathsCleanModal() {
     const overlay = document.getElementById("paths-clean-modal-overlay");
     const modal = document.getElementById("paths-clean-modal");
-    
+
     // Standardmäßig Phase 1 anzeigen und Checkboxen aktivieren
     document.getElementById("paths-clean-opt-inbox").checked = true;
     document.getElementById("paths-clean-opt-output").checked = true;
     document.getElementById("paths-clean-phase-select").classList.remove("hidden");
     document.getElementById("paths-clean-phase-preview").classList.add("hidden");
     document.getElementById("paths-clean-list").innerHTML = "";
-    
+
     overlay.classList.remove("hidden");
     setTimeout(() => {
         overlay.style.opacity = "1";
@@ -6223,7 +6223,7 @@ function openPathsCleanModal() {
 function closePathsCleanModal() {
     const overlay = document.getElementById("paths-clean-modal-overlay");
     const modal = document.getElementById("paths-clean-modal");
-    
+
     overlay.style.opacity = "0";
     overlay.style.pointerEvents = "none";
     modal.style.transform = "translateY(20px)";
@@ -6240,50 +6240,50 @@ function backToPathsCleanSelect() {
 async function runPathsCleanScan() {
     const scanInbox = document.getElementById("paths-clean-opt-inbox").checked;
     const scanOutput = document.getElementById("paths-clean-opt-output").checked;
-    
+
     if (!scanInbox && !scanOutput) {
         alert("Bitte wähle mindestens einen Pfad aus (Inbox und/oder Output)!");
         return;
     }
-    
+
     const list = document.getElementById("paths-clean-list");
     list.innerHTML = `<div style="color:var(--text-muted); font-size:13px; text-align:center; padding:20px;">🔍 Scanne Medienpfade, bitte warten...</div>`;
-    
+
     // Zu Phase 2 wechseln
     document.getElementById("paths-clean-phase-select").classList.add("hidden");
     document.getElementById("paths-clean-phase-preview").classList.remove("hidden");
-    
+
     try {
         const response = await fetch("/api/paths/preview_clean", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ inbox: scanInbox, output: scanOutput })
         });
-        
+
         if (!response.ok) throw new Error("Fehler beim Scannen der Medienpfade.");
         const data = await response.json();
-        
+
         if (data.error) {
             alert(data.error);
             backToPathsCleanSelect();
             return;
         }
-        
+
         list.innerHTML = "";
-        
+
         const inboxFiles = data.inbox_files || [];
         const outputFiles = data.output_files || [];
-        
+
         if (inboxFiles.length === 0 && outputFiles.length === 0) {
             list.innerHTML = `<div style="color:var(--text-muted); font-size:13px; text-align:center; padding:20px;">Keine Dateien in den ausgewählten Pfaden gefunden.</div>`;
             return;
         }
-        
+
         const renderSection = (title, files, source) => {
             if (files.length === 0) return "";
-            
+
             const totalBytes = files.reduce((sum, f) => sum + (f.size_bytes || 0), 0);
-            
+
             return `
                 <div style="margin-bottom: 20px;">
                     <div style="font-size:13px; font-weight:bold; color:var(--accent); margin-bottom:8px; display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;">
@@ -6307,7 +6307,7 @@ async function runPathsCleanScan() {
                 </div>
             `;
         };
-        
+
         let htmlContent = "";
         if (scanInbox && inboxFiles.length > 0) {
             htmlContent += renderSection("Inbox (Medien Input)", inboxFiles, "inbox");
@@ -6315,9 +6315,9 @@ async function runPathsCleanScan() {
         if (scanOutput && outputFiles.length > 0) {
             htmlContent += renderSection("Output (Medien Output)", outputFiles, "output");
         }
-        
+
         list.innerHTML = htmlContent;
-        
+
     } catch (e) {
         alert("Fehler beim Scannen: " + e.message);
         backToPathsCleanSelect();
@@ -6330,13 +6330,13 @@ async function executePathsClean() {
         alert("Bitte wähle mindestens eine Datei zum Verschieben in Quarantäne aus!");
         return;
     }
-    
+
     const confirmDelete = confirm(`Bist du sicher, dass du die ${cbs.length} ausgewählten Dateien in Quarantäne verschieben möchtest?`);
     if (!confirmDelete) return;
-    
+
     const inboxFiles = [];
     const outputFiles = [];
-    
+
     cbs.forEach(cb => {
         const source = cb.dataset.source;
         const file = cb.dataset.file;
@@ -6346,11 +6346,11 @@ async function executePathsClean() {
             outputFiles.push(file);
         }
     });
-    
+
     closePathsCleanModal();
     expandConsole();
     appendConsoleLog("[System]: Quarantäne-Vorgang gestartet...");
-    
+
     try {
         const response = await fetch("/api/paths/clean", {
             method: "POST",
@@ -6360,12 +6360,12 @@ async function executePathsClean() {
                 output_files: outputFiles
             })
         });
-        
+
         const data = await response.json();
         if (!response.ok) {
             throw new Error(data.error || "Fehler bei der Übertragung an den Server.");
         }
-        
+
         if (data.status === "ok") {
             const filesDeletedCount = (data.deleted_files || []).length;
             const dirsDeletedCount = (data.deleted_dirs || []).length;
@@ -6418,7 +6418,7 @@ async function runToolConvert() {
 
 async function runToolGeneric(toolType, logMsg, extraParams = {}) {
     const targetPath = document.getElementById("tools-target-path").value.trim();
-    
+
     if (!targetPath) {
         alert("⚠️ Sicherheits-Stopp: Bitte wähle zuerst einen spezifischen Zielordner-Pfad aus oder klicke auf 'Durchsuchen'!");
         return;
@@ -6427,12 +6427,12 @@ async function runToolGeneric(toolType, logMsg, extraParams = {}) {
         alert("⚠️ Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!");
         return;
     }
-    
+
     // Check if a dangerous root directory is selected
     const nasRoot = currentSettings.nas_root || "";
     const inbox = currentSettings.inbox_dir || "";
     const outbox = currentSettings.outbox_dir || "";
-    
+
     if (targetPath === nasRoot || targetPath === inbox || targetPath === outbox || targetPath === "/") {
         const confirmRoot = confirm(`⚠️ WARNUNG: Du hast einen Hauptordner (${targetPath}) ausgewählt!\n\nDas Werkzeug wird auf ALLE Unterordner und Dateien darin angewendet, was sehr lange dauern kann.\n\nBist du dir ganz sicher, dass du keinen spezifischen Unterordner auswählen wolltest?`);
         if (!confirmRoot) return;
@@ -6440,10 +6440,10 @@ async function runToolGeneric(toolType, logMsg, extraParams = {}) {
 
     expandConsole();
     appendConsoleLog(`[System]: ${logMsg}`);
-    
+
     const openAfter = document.getElementById("opt-open-after")?.checked || false;
     const deleteOriginal = document.getElementById("opt-delete-original")?.checked || false;
-    
+
     const payload = {
         media_type: toolType,
         project_name: targetPath,
@@ -6451,7 +6451,7 @@ async function runToolGeneric(toolType, logMsg, extraParams = {}) {
         delete_original: deleteOriginal,
         ...extraParams
     };
-    
+
     const response = await fetch("/api/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -6490,12 +6490,12 @@ function initEventListeners() {
             const originalText = heroConnectNasBtn.textContent;
             heroConnectNasBtn.disabled = true;
             heroConnectNasBtn.textContent = "Verbinde...";
-            
+
             if (connectNasBtn) {
                 connectNasBtn.disabled = true;
                 connectNasBtn.textContent = "Verbinde...";
             }
-            
+
             try {
                 const response = await fetch("/api/nas/connect", { method: "POST" });
                 const data = await response.json();
@@ -6563,7 +6563,7 @@ function initEventListeners() {
     // Refresh & Clean
     document.getElementById("btn-scan-project").addEventListener("click", () => scanProject(currentProject));
     document.getElementById("btn-clean-project").addEventListener("click", cleanCurrentProject);
-    
+
     const cleanList = document.getElementById("clean-list");
     if (cleanList) {
         cleanList.addEventListener("click", (e) => {
@@ -6583,22 +6583,22 @@ function initEventListeners() {
                 }
             }
         });
-        
+
         cleanList.addEventListener("change", (e) => {
             const cb = e.target.closest(".clean-cb-item");
             if (cb) {
                 const filename = cb.dataset.file;
                 if (!filename) return;
-                
+
                 const dotIdx = filename.lastIndexOf(".");
                 if (dotIdx === -1) return;
                 const ext = filename.substring(dotIdx).toLowerCase();
                 const videoExtensions = ['.mp4', '.mkv', '.avi', '.webm', '.mov'];
-                
+
                 if (videoExtensions.includes(ext)) {
                     const baseName = filename.substring(0, dotIdx);
                     const isChecked = cb.checked;
-                    
+
                     const otherCbs = cleanList.querySelectorAll(".clean-cb-item");
                     otherCbs.forEach(otherCb => {
                         if (otherCb === cb) return;
@@ -6606,10 +6606,10 @@ function initEventListeners() {
                         if (!otherFile) return;
                         const otherDotIdx = otherFile.lastIndexOf(".");
                         if (otherDotIdx === -1) return;
-                        
+
                         const otherBaseName = otherFile.substring(0, otherDotIdx);
                         const otherExt = otherFile.substring(otherDotIdx).toLowerCase();
-                        
+
                         if (otherBaseName === baseName && !videoExtensions.includes(otherExt)) {
                             if (otherCb.checked !== isChecked) {
                                 otherCb.checked = isChecked;
@@ -6628,7 +6628,7 @@ function initEventListeners() {
             }
         });
     }
-    
+
     // Import StreamFab Preview & Execution
     let currentImportPreviewData = [];
 
@@ -6663,7 +6663,7 @@ function initEventListeners() {
             document.getElementById("docker-folder-view-path").textContent = params.path || "Lade...";
             document.getElementById("docker-folder-view-title").textContent = "Ordnerinhalt";
             document.getElementById("modal-docker-folder-view").classList.remove("hidden");
-            
+
             try {
                 const res = await fetch('/api/system-folder-contents', {
                     method: 'POST',
@@ -6671,22 +6671,22 @@ function initEventListeners() {
                     body: JSON.stringify(params)
                 });
                 const data = await res.json();
-                
+
                 document.getElementById("docker-folder-view-loading").classList.add("hidden");
-                
+
                 if (!res.ok || data.error) {
                     document.getElementById("docker-folder-view-error").textContent = data.error || "Unbekannter Fehler beim Laden des Ordners.";
                     document.getElementById("docker-folder-view-error").classList.remove("hidden");
                     return;
                 }
-                
+
                 if (data.path) {
                     document.getElementById("docker-folder-view-path").textContent = data.path;
                 }
                 if (data.folder_name) {
                     document.getElementById("docker-folder-view-title").textContent = data.folder_name;
                 }
-                
+
                 const listEl = document.getElementById("docker-folder-view-list");
                 if (!data.files || data.files.length === 0) {
                     document.getElementById("docker-folder-view-empty").classList.remove("hidden");
@@ -6694,18 +6694,18 @@ function initEventListeners() {
                     data.files.forEach(f => {
                         const tr = document.createElement("tr");
                         tr.style.borderBottom = "1px solid rgba(255,255,255,0.05)";
-                        
+
                         const tdIcon = document.createElement("td");
                         tdIcon.style.padding = "10px 15px";
                         tdIcon.style.color = f.is_error ? "#ef4444" : "inherit";
                         tdIcon.textContent = f.is_error ? "⚠️" : (f.is_dir ? "📁" : "📄");
-                        
+
                         const tdName = document.createElement("td");
                         tdName.style.padding = "10px 15px";
                         tdName.style.color = f.is_error ? "#ef4444" : "var(--text-main)";
                         tdName.style.wordBreak = "break-all";
                         tdName.textContent = f.name + (f.is_error ? " (Fehler: " + f.error + ")" : "");
-                        
+
                         const tdSize = document.createElement("td");
                         tdSize.style.padding = "10px 15px";
                         tdSize.style.textAlign = "right";
@@ -6715,7 +6715,7 @@ function initEventListeners() {
                         } else {
                             tdSize.textContent = "-";
                         }
-                        
+
                         const tdTime = document.createElement("td");
                         tdTime.style.padding = "10px 15px";
                         tdTime.style.textAlign = "right";
@@ -6726,7 +6726,7 @@ function initEventListeners() {
                         } else {
                             tdTime.textContent = "-";
                         }
-                        
+
                         tr.appendChild(tdIcon);
                         tr.appendChild(tdName);
                         tr.appendChild(tdSize);
@@ -6746,7 +6746,7 @@ function initEventListeners() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(params)
             }).then(res => res.json()).then(data => {
-                if (data.error && params.category_id) { 
+                if (data.error && params.category_id) {
                     alert(data.error);
                 } else if (data.msg && params.category_id) {
                     appendConsoleLog(`[System]: ${data.msg}`);
@@ -6763,7 +6763,7 @@ function initEventListeners() {
     function renderImportPreviewModal(previewData) {
         const listContainer = document.getElementById("import-preview-list");
         listContainer.innerHTML = "";
-        
+
         if (!previewData || previewData.length === 0) {
             listContainer.innerHTML = "<p class='text-muted'>Keine Dateien zum Importieren gefunden.</p>";
             return;
@@ -6779,7 +6779,7 @@ function initEventListeners() {
                 allExtensions.add("Ohne Endung");
             }
         }));
-        
+
         const bulkDiv = document.createElement("div");
         bulkDiv.className = "flex justify-between items-center mb-4 p-3 rounded";
         bulkDiv.style.background = "var(--bg-main)";
@@ -6845,11 +6845,11 @@ function initEventListeners() {
             const groupDiv = document.createElement("div");
             groupDiv.className = "mb-4 border border-gray-700 rounded p-3 inline-style-119 import-group";
             groupDiv.style.background = "var(--bg-card)";
-            
+
             // Assume all files in group come from roughly same dir
             const firstPath = group.files.length > 0 ? group.files[0].path : "";
             const dirPath = firstPath ? firstPath.substring(0, firstPath.lastIndexOf('/')) : "";
-            
+
             const header = document.createElement("div");
             header.className = "flex justify-between items-center mb-2 pb-2 border-b border-gray-700";
             header.innerHTML = `
@@ -6860,19 +6860,19 @@ function initEventListeners() {
                 <button class="btn btn-xs btn-secondary" onclick="openFolderInFinder('${dirPath.replace(/'/g, "\\'")}')" title="Im Finder öffnen">📂 Finder</button>
             `;
             groupDiv.appendChild(header);
-            
+
             group.files.forEach((file) => {
                 const fileRow = document.createElement("div");
                 fileRow.className = "flex justify-between items-center py-1 text-sm file-row";
                 fileRow.style.borderBottom = "1px solid var(--border-color)";
-                
+
                 let parts = file.filename.split('.');
                 let fExt = parts.length > 1 ? "." + parts[parts.length-1].toLowerCase() : "Ohne Endung";
                 fileRow.setAttribute("data-ext", fExt);
-                
+
                 const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
                 const defaultAction = "import";
-                
+
                 fileRow.innerHTML = `
                     <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 10px;" title="${file.path}">
                         ${file.filename} <span class="text-muted" style="font-size: 0.8em;">(${sizeMb} MB)</span>
@@ -6885,7 +6885,7 @@ function initEventListeners() {
                 `;
                 groupDiv.appendChild(fileRow);
             });
-            
+
             listContainer.appendChild(groupDiv);
         });
     }
@@ -6894,12 +6894,12 @@ function initEventListeners() {
         const selects = document.querySelectorAll("#import-preview-list .action-select");
         const importItems = {};
         const deleteItems = [];
-        
+
         selects.forEach(select => {
             const action = select.value;
             const group = select.getAttribute("data-group");
             const path = select.getAttribute("data-path");
-            
+
             if (action === "import") {
                 if (!importItems[group]) importItems[group] = [];
                 importItems[group].push(path);
@@ -6907,10 +6907,10 @@ function initEventListeners() {
                 deleteItems.push(path);
             }
         });
-        
+
         closeImportPreview();
         appendConsoleLog("[System]: Führe Import aus...");
-        
+
         try {
             const response = await fetch("/api/streamfab-import", {
                 method: "POST",
@@ -6931,7 +6931,7 @@ function initEventListeners() {
             appendConsoleLog(`❌ Fehler beim StreamFab Import: ${e}`);
         }
     };
-    
+
     // Browse Tools Path
     const btnBrowseTools = document.getElementById("btn-browse-tools-path");
     if(btnBrowseTools) {
@@ -6947,9 +6947,9 @@ function initEventListeners() {
             }
         });
     }
-    
+
     // Workflow routing relies entirely on the big cards now.
-    
+
     // Series searches & loads
     document.getElementById("btn-search-series").addEventListener("click", searchSeries);
     document.getElementById("series-search-query").addEventListener("keypress", (e) => {
@@ -6957,7 +6957,7 @@ function initEventListeners() {
     });
     document.getElementById("btn-fetch-episodes").addEventListener("click", fetchEpisodes);
     document.getElementById("btn-execute-series-process").addEventListener("click", executeSeriesWorkflow);
-    
+
     // Manual Movie setup
     const btnManualMovie = document.getElementById("btn-manual-movie");
     const manualMovieContainer = document.getElementById("manual-movie-container");
@@ -6972,7 +6972,7 @@ function initEventListeners() {
                 if (movieResults) movieResults.innerHTML = "";
                 const selectedMoviePanel = document.getElementById("selected-movie-panel");
                 if (selectedMoviePanel) selectedMoviePanel.classList.add("hidden");
-                
+
                 updateSelectedMovieFromInputs();
             } else {
                 btnManualMovie.classList.remove("active");
@@ -6982,19 +6982,19 @@ function initEventListeners() {
             }
         });
     }
-    
+
     const updateSelectedMovieFromInputs = () => {
         if (isManualMovieMode) {
             const titleVal = document.getElementById("manual-movie-title").value.trim() || currentProject || "Manueller Film";
             const yearVal = document.getElementById("manual-movie-year").value.trim() || "";
             const plotVal = document.getElementById("manual-movie-plot").value.trim() || "";
-            
+
             const movieMetaObj = {
                 title: titleVal,
                 year: yearVal,
                 plot: plotVal
             };
-            
+
             selectedMovie = {
                 id: JSON.stringify(movieMetaObj),
                 name: titleVal,
@@ -7020,7 +7020,7 @@ function initEventListeners() {
                 if (seriesResults) seriesResults.innerHTML = "";
                 const selectedShowPanel = document.getElementById("selected-show-panel");
                 if (selectedShowPanel) selectedShowPanel.classList.add("hidden");
-                
+
                 updateSelectedShowFromInputs();
                 renderMatchingMatrix();
                 const seriesExec = document.getElementById("series-execution-panel");
@@ -7037,17 +7037,17 @@ function initEventListeners() {
             }
         });
     }
-    
+
     const updateSelectedShowFromInputs = () => {
         if (isManualSeriesMode) {
             const titleVal = document.getElementById("manual-series-title").value.trim() || currentProject || "Manuelle Serie";
             const plotVal = document.getElementById("manual-series-plot").value.trim() || "";
-            
+
             const showMetaObj = {
                 title: titleVal,
                 plot: plotVal
             };
-            
+
             selectedShow = {
                 id: JSON.stringify(showMetaObj),
                 name: titleVal,
@@ -7075,32 +7075,32 @@ function initEventListeners() {
             fetchEpisodes();
         });
     }
-    
+
     // Movie searches & loads
     document.getElementById("btn-search-movie").addEventListener("click", searchMovie);
     document.getElementById("movie-search-query").addEventListener("keypress", (e) => {
         if (e.key === "Enter") searchMovie();
     });
     document.getElementById("btn-execute-movie-process").addEventListener("click", executeMovieWorkflow);
-    
+
     // YouTube Downloader
     document.getElementById("btn-analyse-yt-link").addEventListener("click", analyseYtLink);
     document.getElementById("yt-url").addEventListener("keypress", (e) => {
         if (e.key === "Enter") analyseYtLink();
     });
-    
+
     document.getElementById("yt-meta-mode").addEventListener("change", toggleYtMetaSection);
-    
+
     document.getElementById("btn-search-yt-movie").addEventListener("click", searchYtMovie);
     document.getElementById("yt-movie-search-query").addEventListener("keypress", (e) => {
         if (e.key === "Enter") searchYtMovie();
     });
-    
+
     document.getElementById("btn-search-yt-series").addEventListener("click", searchYtSeries);
     document.getElementById("yt-series-search-query").addEventListener("keypress", (e) => {
         if (e.key === "Enter") searchYtSeries();
     });
-    
+
     document.getElementById("yt-open-losslesscut").addEventListener("change", (e) => {
         const panel = document.getElementById("yt-custom-trim-panel");
         if (e.target.checked) {
@@ -7109,10 +7109,10 @@ function initEventListeners() {
             panel.classList.remove("hidden");
         }
     });
-    
+
     document.getElementById("btn-yt-reset").addEventListener("click", resetYtDownload);
     document.getElementById("btn-execute-yt-pipeline").addEventListener("click", startYtPipeline);
-    
+
     document.getElementById("btn-yt-cut-done").addEventListener("click", markYtCutDone);
     document.getElementById("btn-yt-finalize-mapping").addEventListener("click", finalizeYtMapping);
 
@@ -7132,7 +7132,7 @@ function initEventListeners() {
         });
     }
 
-    
+
     // Tools Tab
     document.getElementById("tool-btn-pull-files")?.addEventListener("click", () => {
         openToolRunnerModal("tool_pull_files", "Dateien hochziehen", "Löst alle Unterordner im gewählten Verzeichnis auf und zieht alle Mediendateien hoch.");
@@ -7141,7 +7141,7 @@ function initEventListeners() {
         openToolRunnerModal("tool_clean", "Ordner bereinigen", "Entfernt leere Ordner und unerwünschte Junk-Dateien (z.B. txt, url, exe, ds_store, nfo, jpg, png).");
     });
     document.getElementById("tool-btn-paths-clean")?.addEventListener("click", openPathsCleanModal);
-    
+
     // Modal-Steuerung für Medienpfade bereinigen
     document.getElementById("btn-paths-clean-close").addEventListener("click", closePathsCleanModal);
     document.getElementById("btn-paths-clean-select-cancel").addEventListener("click", closePathsCleanModal);
@@ -7149,7 +7149,7 @@ function initEventListeners() {
     document.getElementById("btn-paths-clean-back").addEventListener("click", backToPathsCleanSelect);
     document.getElementById("btn-paths-clean-scan").addEventListener("click", runPathsCleanScan);
     document.getElementById("btn-paths-clean-execute").addEventListener("click", executePathsClean);
-    
+
     // Schnellauswahl
     document.getElementById("btn-paths-clean-select-all").addEventListener("click", () => {
         document.querySelectorAll(".paths-clean-cb-item").forEach(cb => cb.checked = true);
@@ -7166,7 +7166,7 @@ function initEventListeners() {
     document.getElementById("tool-btn-convert")?.addEventListener("click", () => {
         openToolRunnerModal("tool_batch_convert", "H.265 Batch-Konvertierung", "Videos im gewählten Verzeichnis in das platzsparende H.265 (HEVC) Format konvertieren.", true);
     });
-    
+
     document.getElementById("tool-btn-nfo-agent")?.addEventListener("click", () => {
         openToolRunnerModal("tool_nfo_agent", "NFO Agent", "Generiert NFO-Metadaten für alle Episoden/Filme im gewählten Ordner anhand der TMDb/TVDb IDs.");
     });
@@ -7182,7 +7182,7 @@ function initEventListeners() {
     document.getElementById("tool-btn-pcloud-sync")?.addEventListener("click", () => {
         openToolRunnerModal("tool_pcloud_sync", "Reiner pCloud Sync", "Kopiert den gewählten Ordner in den Cloud-Ordner der pCloud.");
     });
-    
+
     document.getElementById("tool-btn-profiles")?.addEventListener("click", openProfilesModal);
     document.getElementById("close-modal-profiles")?.addEventListener("click", () => {
         document.getElementById("modal-profiles").classList.remove("active");
@@ -7200,25 +7200,25 @@ function initEventListeners() {
             console.error("Fehler beim Browsen im Modal:", e);
         }
     });
-    
+
     document.getElementById("btn-tool-modal-shortcut-inbox")?.addEventListener("click", () => {
         if (currentSettings && currentSettings.inbox_dir) {
             document.getElementById("tool-modal-target-path").value = currentSettings.inbox_dir;
         }
     });
-    
+
     document.getElementById("btn-tool-modal-shortcut-outbox")?.addEventListener("click", () => {
         if (currentSettings && currentSettings.outbox_dir) {
             document.getElementById("tool-modal-target-path").value = currentSettings.outbox_dir;
         }
     });
-    
+
     const closeToolRunnerModal = () => {
         document.getElementById("modal-tool-runner").classList.remove("active");
     };
     document.getElementById("btn-tool-modal-cancel")?.addEventListener("click", closeToolRunnerModal);
     document.getElementById("close-modal-tool-runner")?.addEventListener("click", closeToolRunnerModal);
-    
+
     document.getElementById("btn-tool-modal-execute")?.addEventListener("click", async () => {
         const path = document.getElementById("tool-modal-target-path").value.trim();
         if (!path) {
@@ -7230,7 +7230,7 @@ function initEventListeners() {
             return;
         }
         closeToolRunnerModal();
-        
+
         const toolType = window.currentActiveTool;
         if (toolType === "tool_pull_files") {
             expandConsole();
@@ -7282,17 +7282,17 @@ function initEventListeners() {
             if(!currentSettings.sync_categories || currentSettings.sync_categories.length === 0) {
                 alert("Bitte lege zuerst Sync-Kategorien in den Einstellungen an."); return;
             }
-            const promptText = "Wohin soll der Ordner auf dem NAS kopiert werden?\n\n" + 
-                               currentSettings.sync_categories.map(c => `${c.id} = ${c.name}`).join("\n") + 
+            const promptText = "Wohin soll der Ordner auf dem NAS kopiert werden?\n\n" +
+                               currentSettings.sync_categories.map(c => `${c.id} = ${c.name}`).join("\n") +
                                "\n\nZiel wählen:";
             const dest = prompt(promptText, currentSettings.sync_categories[0].id);
-            
+
             const category = currentSettings.sync_categories.find(c => String(c.id) === String(dest));
             if(!category) return;
-            
+
             const nasRoot = currentSettings.nas_root || "";
             const destPath = nasRoot ? `${nasRoot}${category.nas_sub}` : category.nas_sub;
-            
+
             const doPcloud = confirm("Soll das Projekt zusätzlich auch in die pCloud hochgeladen werden?");
             expandConsole();
             appendConsoleLog("[System]: Starte NAS Sync...");
@@ -7315,14 +7315,14 @@ function initEventListeners() {
             if(!currentSettings.sync_categories || currentSettings.sync_categories.length === 0) {
                 alert("Bitte lege zuerst Sync-Kategorien in den Einstellungen an."); return;
             }
-            const promptText = "In welchen Cloud-Ordner soll kopiert werden?\n\n" + 
-                               currentSettings.sync_categories.map(c => `${c.id} = ${c.name}`).join("\n") + 
+            const promptText = "In welchen Cloud-Ordner soll kopiert werden?\n\n" +
+                               currentSettings.sync_categories.map(c => `${c.id} = ${c.name}`).join("\n") +
                                "\n\nZiel wählen:";
             const dest = prompt(promptText, currentSettings.sync_categories[0].id);
-            
+
             const category = currentSettings.sync_categories.find(c => String(c.id) === String(dest));
             if(!category) return;
-            
+
             expandConsole();
             appendConsoleLog("[System]: Starte reinen pCloud Sync...");
             try {
@@ -7343,7 +7343,7 @@ function initEventListeners() {
     });
 
     setupDestinationToggles();
-    
+
     // Re-trigger auto-matching if destination is changed
     document.getElementById("series-nas-destination")?.addEventListener("change", () => {
         if (window.isProgrammaticCategoryChange) return;
@@ -7352,7 +7352,7 @@ function initEventListeners() {
             autoMatchNasFolder("series-nas-folder-override", "series-nas-destination", showName);
         }
     });
-    
+
     document.getElementById("yt-nas-destination")?.addEventListener("change", () => {
         if (window.isProgrammaticCategoryChange) return;
         if (ytSelectedShow && ytSelectedShow.name) {
@@ -7390,7 +7390,7 @@ function initEventListeners() {
             if (e.key === "Enter") handleHeroYtDownload();
         });
     }
-    
+
     // Conversion Intelligence Event Listeners
     const seriesIsAnime = document.getElementById("series-is-anime");
     if (seriesIsAnime) {
@@ -7445,7 +7445,7 @@ function renderDependencyStatus(deps) {
     if (!listContainer) return;
 
     listContainer.innerHTML = "";
-    
+
     const statusLabels = {
         "missing": "Nicht installiert",
         "installed": "Bereit",
@@ -7609,26 +7609,26 @@ async function loadDashboard() {
         if (barChartContainer) {
             barChartContainer.innerHTML = "";
             const historySlice = data.history.slice(0, 15).reverse(); // show chronological order (left to right)
-            
+
             if (historySlice.length === 0) {
                 barChartContainer.innerHTML = '<div style="width: 100%; display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-muted);">Keine Konvertierungsdaten für das Diagramm vorhanden.</div>';
             } else {
                 const maxVal = Math.max(...historySlice.map(h => h.size_in), 1);
-                
+
                 historySlice.forEach((item, index) => {
                     const dateObj = new Date(item.timestamp * 1000);
                     const labelStr = dateObj.toLocaleDateString("de-DE", {day: "2-digit", month: "2-digit"});
                     const timeStr = dateObj.toLocaleTimeString("de-DE", {hour: "2-digit", minute: "2-digit"});
-                    
+
                     const percentSaved = Math.max(0, ((item.size_in - item.size_out) / item.size_in) * 100);
                     const formattedSaved = formatBytes(item.size_in - item.size_out);
-                    
+
                     const heightBg = (item.size_in / maxVal) * 100;
                     const heightFill = (item.size_out / maxVal) * 100;
 
                     const col = document.createElement("div");
                     col.className = "bar-column";
-                    
+
                     col.innerHTML = `
                         <div class="bar-wrapper">
                             <div class="bar-bg-est" style="height: ${heightBg.toFixed(1)}%;"></div>
@@ -7643,7 +7643,7 @@ async function loadDashboard() {
                         </div>
                         <div class="bar-label" title="${labelStr}">${labelStr}</div>
                     `;
-                    
+
                     barChartContainer.appendChild(col);
                 });
             }
@@ -7657,16 +7657,16 @@ async function loadDashboard() {
             } else {
                 data.history.forEach(item => {
                     const tr = document.createElement("tr");
-                    
+
                     let dateStr = "-";
                     if (item.timestamp > 0) {
                         const d = new Date(item.timestamp * 1000);
                         dateStr = `${d.toLocaleDateString("de-DE")} ${d.toLocaleTimeString("de-DE", {hour: '2-digit', minute:'2-digit'})} Uhr`;
                     }
-                    
+
                     const savedBytes = Math.max(0, item.size_in - item.size_out);
                     const savedPct = item.size_in > 0 ? ((savedBytes / item.size_in) * 100) : 0;
-                    
+
                     tr.innerHTML = `
                         <td>${dateStr}</td>
                         <td><span class="badge" style="background:rgba(var(--primary-rgb), 0.15); color:var(--primary);">${item.codec.toUpperCase()} (Q:${item.quality})</span></td>
@@ -7701,12 +7701,12 @@ async function loadSettings() {
             if (nasRootEl) nasRootEl.value = currentSettings.nas_root || "";
             const pcloudDirEl = document.getElementById("settings-pcloud-dir");
             if (pcloudDirEl) pcloudDirEl.value = currentSettings.pcloud_dir || "";
-            
+
             const checkDepUpdatesEl = document.getElementById("settings-check-dependency-updates");
             if (checkDepUpdatesEl) {
                 checkDepUpdatesEl.checked = !!currentSettings.check_dependency_updates;
             }
-            
+
             const setCheckbox = (id, val) => {
                 const el = document.getElementById(id);
                 if (el) el.checked = !!val;
@@ -7719,7 +7719,7 @@ async function loadSettings() {
             setCheckbox("settings-open-outbox-finder", currentSettings.open_outbox_finder);
             setCheckbox("settings-open-nas-finder", currentSettings.open_nas_finder);
             setCheckbox("settings-open-pcloud-finder", currentSettings.open_pcloud_finder);
-            
+
             setCheckbox("settings-notify-macos", currentSettings.notify_macos);
             setCheckbox("settings-notify-telegram", currentSettings.notify_telegram);
             setInputVal("settings-telegram-token", currentSettings.telegram_token);
@@ -7731,13 +7731,13 @@ async function loadSettings() {
             setInputVal("settings-notify-min-size-telegram", currentSettings.notify_min_size_telegram !== undefined ? currentSettings.notify_min_size_telegram : 10);
             setInputVal("settings-notify-min-size-whatsapp", currentSettings.notify_min_size_whatsapp !== undefined ? currentSettings.notify_min_size_whatsapp : 10);
             setCheckbox("settings-notify-only-end", currentSettings.notify_only_end !== false); // default to true
-            
+
             // Folder Monitor Settings
             setCheckbox("set-monitor-enabled", currentSettings.folder_monitor_enabled !== false); // default true
             setInputVal("set-monitor-inbox-gb", currentSettings.folder_monitor_inbox_threshold_gb !== undefined ? currentSettings.folder_monitor_inbox_threshold_gb : 50);
             setInputVal("set-monitor-outbox-gb", currentSettings.folder_monitor_outbox_threshold_gb !== undefined ? currentSettings.folder_monitor_outbox_threshold_gb : 50);
             setInputVal("set-monitor-interval", currentSettings.folder_monitor_interval_minutes !== undefined ? currentSettings.folder_monitor_interval_minutes : 30);
-            
+
             setCheckbox("set-monitor-notify-macos", currentSettings.folder_monitor_notify_macos !== false); // default true
             setCheckbox("set-monitor-notify-telegram", !!currentSettings.folder_monitor_notify_telegram);
             setCheckbox("set-monitor-notify-whatsapp", !!currentSettings.folder_monitor_notify_whatsapp);
@@ -7748,14 +7748,14 @@ async function loadSettings() {
             setCheckbox("settings-show-console", currentSettings.show_console || false);
             setCheckbox("settings-telemetry-enabled", !!currentSettings.telemetry_enabled);
             applyConsoleVisibility(currentSettings.show_console || false);
-            
+
             let themeVal = currentSettings.app_theme || "deep-space";
             if (themeVal === "apple-silver") themeVal = "apple-black";
             setInputVal("settings-app-theme", themeVal);
             applyTheme(themeVal);
 
             setInputVal("settings-media-server", currentSettings.media_server || "");
-            
+
             if (!currentSettings.import_sources) currentSettings.import_sources = [];
             if (!currentSettings.sync_categories) currentSettings.sync_categories = [];
             if (!currentSettings.local_download_folders) currentSettings.local_download_folders = [];
@@ -7765,7 +7765,7 @@ async function loadSettings() {
             renderSyncCategories();
             renderStorageTargets();
             updateDestinationDropdowns();
-            
+
             // Fetch API keys separately to populate settings fields
             fetch('/api/keys')
                 .then(async res => {
@@ -7809,7 +7809,7 @@ async function loadSettings() {
                         tvdbInput.placeholder = "Nicht konfiguriert (Fehler beim Laden)";
                     }
                 });
-            
+
             checkDependencies(false);
         }
     } catch (e) {
@@ -7821,21 +7821,21 @@ function updateDestinationDropdowns() {
     const nasSelects = ["movie-nas-destination", "series-nas-destination", "yt-nas-destination", "abo-nas-destination", "yt-merge-nas-destination"];
     const pcloudSelects = ["movie-pcloud-destination", "series-pcloud-destination", "yt-pcloud-destination", "abo-pcloud-destination", "yt-merge-pcloud-destination"];
     const localSelects = ["yt-local-destination", "abo-local-destination", "yt-merge-local-destination"];
-    
+
     nasSelects.forEach(selId => {
         const select = document.getElementById(selId);
         if (!select) return;
-        
+
         const currentVal = select.value;
         select.innerHTML = "";
-        
+
         currentSettings.sync_categories.forEach(cat => {
             const opt = document.createElement("option");
             opt.value = cat.id;
             opt.textContent = `${cat.name} (NAS: ${cat.nas_sub})`;
             select.appendChild(opt);
         });
-        
+
         if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
             select.value = currentVal;
         } else {
@@ -7846,21 +7846,21 @@ function updateDestinationDropdowns() {
             }
         }
     });
-    
+
     pcloudSelects.forEach(selId => {
         const select = document.getElementById(selId);
         if (!select) return;
-        
+
         const currentVal = select.value;
         select.innerHTML = "";
-        
+
         currentSettings.sync_categories.forEach(cat => {
             const opt = document.createElement("option");
             opt.value = cat.id;
             opt.textContent = `${cat.name} (pCloud: ${cat.pcloud_remote})`;
             select.appendChild(opt);
         });
-        
+
         if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
             select.value = currentVal;
         } else {
@@ -7871,28 +7871,28 @@ function updateDestinationDropdowns() {
             }
         }
     });
-    
+
     localSelects.forEach(selId => {
         const select = document.getElementById(selId);
         if (!select) return;
-        
+
         const currentVal = select.value;
         select.innerHTML = "";
-        
+
         // Built-in: Input-Ordner
         const inboxDir = currentSettings.inbox_dir || "~/Downloads/Medien Input";
         const optInbox = document.createElement("option");
         optInbox.value = "__inbox__";
         optInbox.textContent = `📥 Input-Ordner (${inboxDir})`;
         select.appendChild(optInbox);
-        
+
         // Built-in: Output-Ordner (root)
         const outboxDir = currentSettings.outbox_dir || "~/Downloads/Medien Output";
         const optOutbox = document.createElement("option");
         optOutbox.value = "__outbox__";
         optOutbox.textContent = `📤 Output-Ordner (${outboxDir})`;
         select.appendChild(optOutbox);
-        
+
         // Sync categories as local outbox subdirectories
         if (currentSettings.sync_categories && currentSettings.sync_categories.length > 0) {
             const optGroup = document.createElement("optgroup");
@@ -7905,7 +7905,7 @@ function updateDestinationDropdowns() {
             });
             select.appendChild(optGroup);
         }
-        
+
         // Custom local folders from settings
         if (currentSettings.local_download_folders && currentSettings.local_download_folders.length > 0) {
             const optGroup = document.createElement("optgroup");
@@ -7919,7 +7919,7 @@ function updateDestinationDropdowns() {
             });
             select.appendChild(optGroup);
         }
-        
+
         if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
             select.value = currentVal;
         }
@@ -7942,7 +7942,7 @@ function setupDestinationToggles() {
         { cb: "yt-merge-option-copy-pcloud", container: "yt-merge-pcloud-destination-container" },
         { cb: "yt-merge-option-copy-local", container: "yt-merge-local-destination-container" }
     ];
-    
+
     pairs.forEach(({ cb, container }) => {
         const checkbox = document.getElementById(cb);
         const cont = document.getElementById(container);
@@ -7967,9 +7967,9 @@ function renderStorageTargets() {
     container.style.display = "grid";
     container.style.gridTemplateColumns = "repeat(auto-fit, minmax(320px, 1fr))";
     container.style.gap = "15px";
-    
+
     if (!currentSettings.storage_targets) currentSettings.storage_targets = [];
-    
+
     currentSettings.storage_targets.forEach((target, index) => {
         const card = document.createElement("div");
         card.className = "clean-group-container";
@@ -7979,21 +7979,21 @@ function renderStorageTargets() {
         card.style.border = "1px solid var(--border-glass)";
         card.style.borderRadius = "var(--radius-md)";
         card.style.position = "relative";
-        
+
         // Title row with ID/Type and delete button
         const titleRow = document.createElement("div");
         titleRow.style.display = "flex";
         titleRow.style.justifyContent = "space-between";
         titleRow.style.alignItems = "center";
         titleRow.style.marginBottom = "12px";
-        
+
         const titleText = document.createElement("h4");
         titleText.style.margin = "0";
         titleText.style.fontSize = "13px";
         titleText.style.color = "var(--accent)";
         titleText.style.textTransform = "uppercase";
         titleText.textContent = `Ziel: ${target.name || target.id}`;
-        
+
         const deleteBtn = document.createElement("button");
         deleteBtn.className = "btn btn-danger btn-xs";
         deleteBtn.textContent = "❌ Ziel entfernen";
@@ -8004,33 +8004,33 @@ function renderStorageTargets() {
                 renderStorageTargets();
             }
         };
-        
+
         titleRow.appendChild(titleText);
         // Only allow deletion for custom targets (keep nas and pcloud)
         if (target.id !== "nas" && target.id !== "pcloud") {
             titleRow.appendChild(deleteBtn);
         }
         card.appendChild(titleRow);
-        
+
         // Form layout grid
         const grid = document.createElement("div");
         grid.style.display = "grid";
         grid.style.gridTemplateColumns = "repeat(auto-fit, minmax(200px, 1fr))";
         grid.style.gap = "12px";
         grid.style.marginBottom = "10px";
-        
+
         // Helper to create form controls
         const createField = (labelText, value, placeholder, onchange) => {
             const wrap = document.createElement("div");
             wrap.style.display = "flex";
             wrap.style.flexDirection = "column";
             wrap.style.gap = "4px";
-            
+
             const label = document.createElement("label");
             label.style.fontSize = "11px";
             label.style.color = "var(--text-muted)";
             label.textContent = labelText;
-            
+
             const input = document.createElement("input");
             input.type = "text";
             input.className = "form-select";
@@ -8042,19 +8042,19 @@ function renderStorageTargets() {
             input.placeholder = placeholder;
             input.value = value || "";
             input.addEventListener("input", (e) => onchange(e.target.value));
-            
+
             wrap.appendChild(label);
             wrap.appendChild(input);
             return { wrap, input };
         };
-        
+
         // Name field
         const nameField = createField("Name des Speicherziels:", target.name, "z.B. NAS Filme", (val) => {
             target.name = val;
             titleText.textContent = `Ziel: ${val || target.id}`;
         });
         grid.appendChild(nameField.wrap);
-        
+
         // ID field (locked for default ones, editable for custom ones)
         const idField = createField("Eindeutige ID (Schlüssel):", target.id, "z.B. nas_dokus", (val) => {
             target.id = val.toLowerCase().replace(/[^a-z0-9_]/g, "");
@@ -8066,7 +8066,7 @@ function renderStorageTargets() {
             idField.input.title = "Standard-IDs können nicht umbenannt werden.";
         }
         grid.appendChild(idField.wrap);
-        
+
         // Type select
         const typeWrap = document.createElement("div");
         typeWrap.style.display = "flex";
@@ -8099,14 +8099,14 @@ function renderStorageTargets() {
         typeWrap.appendChild(typeLabel);
         typeWrap.appendChild(typeSelect);
         grid.appendChild(typeWrap);
-        
+
         // Enabled checkbox
         const enabledWrap = document.createElement("div");
         enabledWrap.style.display = "flex";
         enabledWrap.style.alignItems = "center";
         enabledWrap.style.gap = "8px";
         enabledWrap.style.marginTop = "15px";
-        
+
         const enabledCheckbox = document.createElement("input");
         enabledCheckbox.type = "checkbox";
         enabledCheckbox.id = `target-enabled-${index}`;
@@ -8118,19 +8118,19 @@ function renderStorageTargets() {
             target.enabled = e.target.checked;
             renderSyncCategories();
         });
-        
+
         const enabledLabel = document.createElement("label");
         enabledLabel.htmlFor = `target-enabled-${index}`;
         enabledLabel.style.fontSize = "12px";
         enabledLabel.style.cursor = "pointer";
         enabledLabel.textContent = "Aktiviert (für Synchronisierung nutzen)";
-        
+
         enabledWrap.appendChild(enabledCheckbox);
         enabledWrap.appendChild(enabledLabel);
         grid.appendChild(enabledWrap);
-        
+
         card.appendChild(grid);
-        
+
         // Local path field with Browse button
         const pathLabel = document.createElement("label");
         pathLabel.style.fontSize = "11px";
@@ -8139,12 +8139,12 @@ function renderStorageTargets() {
         pathLabel.style.marginBottom = "4px";
         pathLabel.textContent = "Lokal-Pfad (Wurzelverzeichnis auf dem Mac):";
         card.appendChild(pathLabel);
-        
+
         const pathRow = document.createElement("div");
         pathRow.style.display = "flex";
         pathRow.style.gap = "8px";
         pathRow.style.marginBottom = "12px";
-        
+
         const pathInput = document.createElement("input");
         pathInput.type = "text";
         pathInput.className = "form-select";
@@ -8159,7 +8159,7 @@ function renderStorageTargets() {
         pathInput.addEventListener("input", (e) => {
             target.root_path = e.target.value;
         });
-        
+
         const browseBtn = document.createElement("button");
         browseBtn.className = "btn btn-secondary btn-sm";
         browseBtn.textContent = "🔍";
@@ -8176,18 +8176,18 @@ function renderStorageTargets() {
                 console.error("Browse error:", err);
             }
         };
-        
+
         pathRow.appendChild(pathInput);
         pathRow.appendChild(browseBtn);
         card.appendChild(pathRow);
-        
+
         // rclone remote field
         const rcloneField = createField("rclone Remote Name (Optional für Cloud-Fallbacks):", target.rclone_remote, "z.B. pcloud: oder gdrive:", (val) => {
             target.rclone_remote = val;
         });
         rcloneField.wrap.style.marginBottom = "12px";
         card.appendChild(rcloneField.wrap);
-        
+
         // If type is NAS, show SMB settings
         if (target.type === "nas") {
             const smbTitle = document.createElement("div");
@@ -8200,12 +8200,12 @@ function renderStorageTargets() {
             smbTitle.style.paddingBottom = "4px";
             smbTitle.textContent = "🌐 SMB-Netzwerk-Mounting Details (nur NAS)";
             card.appendChild(smbTitle);
-            
+
             const smbGrid = document.createElement("div");
             smbGrid.style.display = "grid";
             smbGrid.style.gridTemplateColumns = "repeat(auto-fit, minmax(150px, 1fr))";
             smbGrid.style.gap = "10px";
-            
+
             const ipField = createField("Lokale NAS-IP:", target.nas_ip, "z.B. 192.168.2.208", (val) => {
                 target.nas_ip = val;
             });
@@ -8218,14 +8218,14 @@ function renderStorageTargets() {
             const shareField = createField("SMB Share-Name:", target.nas_share, "z.B. share", (val) => {
                 target.nas_share = val;
             });
-            
+
             smbGrid.appendChild(ipField.wrap);
             smbGrid.appendChild(backupIpField.wrap);
             smbGrid.appendChild(hostnameField.wrap);
             smbGrid.appendChild(shareField.wrap);
             card.appendChild(smbGrid);
         }
-        
+
         container.appendChild(card);
     });
 }
@@ -8233,12 +8233,12 @@ function renderStorageTargets() {
 function renderImportSources() {
     const container = document.getElementById("settings-import-sources-container");
     container.innerHTML = "";
-    
+
     currentSettings.import_sources.forEach((source, index) => {
         const row = document.createElement("div");
         row.style.display = "flex";
         row.style.gap = "10px";
-        
+
         const input = document.createElement("input");
         input.type = "text";
         input.className = "form-select";
@@ -8250,7 +8250,7 @@ function renderImportSources() {
         input.style.color = "var(--text-main)";
         input.value = source;
         input.onchange = (e) => { currentSettings.import_sources[index] = e.target.value; };
-        
+
         const browseBtn = document.createElement("button");
         browseBtn.className = "btn btn-secondary";
         browseBtn.textContent = "🔍";
@@ -8264,7 +8264,7 @@ function renderImportSources() {
                 }
             } catch (e) { console.error("Browse error:", e); }
         };
-        
+
         const removeBtn = document.createElement("button");
         removeBtn.className = "btn btn-danger";
         removeBtn.textContent = "❌";
@@ -8272,7 +8272,7 @@ function renderImportSources() {
             currentSettings.import_sources.splice(index, 1);
             renderImportSources();
         };
-        
+
         row.appendChild(input);
         row.appendChild(browseBtn);
         row.appendChild(removeBtn);
@@ -8284,14 +8284,14 @@ function renderLocalFolders() {
     const container = document.getElementById("settings-local-folders-container");
     if (!container) return;
     container.innerHTML = "";
-    
+
     if (!currentSettings.local_download_folders) currentSettings.local_download_folders = [];
-    
+
     currentSettings.local_download_folders.forEach((folder, index) => {
         const row = document.createElement("div");
         row.style.display = "flex";
         row.style.gap = "10px";
-        
+
         const nameInput = document.createElement("input");
         nameInput.type = "text";
         nameInput.className = "form-select";
@@ -8304,7 +8304,7 @@ function renderLocalFolders() {
         nameInput.placeholder = "Name";
         nameInput.value = folder.name || "";
         nameInput.onchange = (e) => { currentSettings.local_download_folders[index].name = e.target.value; };
-        
+
         const pathInput = document.createElement("input");
         pathInput.type = "text";
         pathInput.className = "form-select";
@@ -8317,7 +8317,7 @@ function renderLocalFolders() {
         pathInput.placeholder = "Pfad (z.B. /Users/alex/Videos)";
         pathInput.value = folder.path || "";
         pathInput.onchange = (e) => { currentSettings.local_download_folders[index].path = e.target.value; };
-        
+
         const browseBtn = document.createElement("button");
         browseBtn.className = "btn btn-secondary";
         browseBtn.textContent = "🔍";
@@ -8336,7 +8336,7 @@ function renderLocalFolders() {
                 }
             } catch (e) { console.error("Browse error:", e); }
         };
-        
+
         const removeBtn = document.createElement("button");
         removeBtn.className = "btn btn-danger";
         removeBtn.textContent = "❌";
@@ -8344,7 +8344,7 @@ function renderLocalFolders() {
             currentSettings.local_download_folders.splice(index, 1);
             renderLocalFolders();
         };
-        
+
         row.appendChild(nameInput);
         row.appendChild(pathInput);
         row.appendChild(browseBtn);
@@ -8357,16 +8357,16 @@ function renderSyncCategories() {
     const container = document.getElementById("settings-sync-categories-container");
     if(!container) return;
     container.innerHTML = "";
-    
+
     // Get enabled storage targets
     const activeTargets = (currentSettings.storage_targets || []).filter(t => t.enabled !== false);
-    
+
     currentSettings.sync_categories.forEach((cat, index) => {
         const row = document.createElement("div");
         row.style.display = "flex";
         row.style.gap = "8px";
         row.style.marginBottom = "8px";
-        
+
         const createInput = (val, placeholder, width, onchangeCallback) => {
             const input = document.createElement("input");
             input.type = "text";
@@ -8382,17 +8382,17 @@ function renderSyncCategories() {
             input.onchange = onchangeCallback;
             return input;
         };
-        
+
         row.appendChild(createInput(cat.id, "ID (z.B. 1)", "0.5", (e) => { currentSettings.sync_categories[index].id = e.target.value; }));
         row.appendChild(createInput(cat.name, "Name", "1", (e) => { currentSettings.sync_categories[index].name = e.target.value; }));
-        
+
         // Dynamically add columns for active storage targets
         activeTargets.forEach(target => {
             const targetWrapper = document.createElement("div");
             targetWrapper.style.flex = target.id === "pcloud" ? "1.5" : "1";
             targetWrapper.style.display = "flex";
             targetWrapper.style.gap = "5px";
-            
+
             let val = "";
             if (cat.targets && cat.targets[target.id] !== undefined) {
                 val = cat.targets[target.id];
@@ -8401,18 +8401,18 @@ function renderSyncCategories() {
             } else if (target.id === "pcloud") {
                 val = cat.pcloud_remote || "";
             }
-            
+
             let placeholder = `${target.name || target.id}`;
             if (target.id === "nas") placeholder += " (/Filme)";
             else if (target.id === "pcloud") placeholder += " (pcloud:03_Filme)";
-            
+
             const input = createInput(val, placeholder, "1", (e) => {
                 const newVal = e.target.value;
                 if (!currentSettings.sync_categories[index].targets) {
                     currentSettings.sync_categories[index].targets = {};
                 }
                 currentSettings.sync_categories[index].targets[target.id] = newVal;
-                
+
                 // Backwards compatibility spiegeln
                 if (target.id === "nas") {
                     currentSettings.sync_categories[index].nas_sub = newVal;
@@ -8421,13 +8421,13 @@ function renderSyncCategories() {
                 }
             });
             targetWrapper.appendChild(input);
-            
+
             const browseBtn = document.createElement("button");
             browseBtn.className = "btn btn-secondary";
             browseBtn.textContent = "🔍";
             browseBtn.title = `${target.name || target.id}-Ordner auswählen`;
             browseBtn.style.padding = "5px 10px";
-            
+
             // Check capability for opening local folder (disable browse under Docker runtime)
             const caps = window.AppCapabilities;
             const openLocalEnabled = caps && caps.capabilities && caps.capabilities.open_local_folder;
@@ -8436,7 +8436,7 @@ function renderSyncCategories() {
                 browseBtn.style.opacity = "0.5";
                 browseBtn.title = "Ordnerauswahl unter Docker deaktiviert";
             }
-            
+
             browseBtn.onclick = async () => {
                 if (browseBtn.disabled) return;
                 try {
@@ -8471,11 +8471,11 @@ function renderSyncCategories() {
                     }
                 } catch (e) { console.error("Browse error:", e); }
             };
-            
+
             targetWrapper.appendChild(browseBtn);
             row.appendChild(targetWrapper);
         });
-        
+
         const removeBtn = document.createElement("button");
         removeBtn.className = "btn btn-danger";
         removeBtn.textContent = "❌";
@@ -8483,7 +8483,7 @@ function renderSyncCategories() {
             currentSettings.sync_categories.splice(index, 1);
             renderSyncCategories();
         };
-        
+
         row.appendChild(removeBtn);
         container.appendChild(row);
     });
@@ -8501,11 +8501,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 nas_root: document.getElementById("settings-nas-root")?.value || "",
                 pcloud_dir: document.getElementById("settings-pcloud-dir")?.value || "",
                 check_dependency_updates: checkDepUpdatesEl ? checkDepUpdatesEl.checked : false,
-                
+
                 open_outbox_finder: document.getElementById("settings-open-outbox-finder")?.checked || false,
                 open_nas_finder: document.getElementById("settings-open-nas-finder")?.checked || false,
                 open_pcloud_finder: document.getElementById("settings-open-pcloud-finder")?.checked || false,
-                
+
                 notify_macos: document.getElementById("settings-notify-macos")?.checked || false,
                 notify_telegram: document.getElementById("settings-notify-telegram")?.checked || false,
                 telegram_token: document.getElementById("settings-telegram-token")?.value || "",
@@ -8525,29 +8525,29 @@ document.addEventListener("DOMContentLoaded", () => {
                 telemetry_enabled: document.getElementById("settings-telemetry-enabled")?.checked || false,
                 app_theme: document.getElementById("settings-app-theme")?.value || "deep-space",
                 media_server: document.getElementById("settings-media-server")?.value || "",
-                
+
                 folder_monitor_enabled: document.getElementById("set-monitor-enabled")?.checked || false,
                 folder_monitor_inbox_threshold_gb: parseFloat(document.getElementById("set-monitor-inbox-gb")?.value) || 50.0,
                 folder_monitor_outbox_threshold_gb: parseFloat(document.getElementById("set-monitor-outbox-gb")?.value) || 50.0,
                 folder_monitor_interval_minutes: parseInt(document.getElementById("set-monitor-interval")?.value, 10) || 30,
-                
+
                 folder_monitor_notify_macos: document.getElementById("set-monitor-notify-macos")?.checked || false,
                 folder_monitor_notify_telegram: document.getElementById("set-monitor-notify-telegram")?.checked || false,
                 folder_monitor_notify_whatsapp: document.getElementById("set-monitor-notify-whatsapp")?.checked || false,
-                
+
                 import_sources: currentSettings.import_sources.filter(s => s.trim() !== ""),
                 sync_categories: currentSettings.sync_categories.filter(c => c.id.trim() !== "" && c.name.trim() !== ""),
                 local_download_folders: (currentSettings.local_download_folders || []).filter(f => f.path && f.path.trim() !== ""),
                 storage_targets: (currentSettings.storage_targets || []).filter(t => t.id && t.id.trim() !== "")
             };
-            
+
             try {
                 const response = await fetch("/api/settings", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload)
                 });
-                
+
                 if (response.ok) {
                     const tmdbInput = document.getElementById("settings-tmdb-key");
                     const tvdbInput = document.getElementById("settings-tvdb-key");
@@ -8606,15 +8606,15 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!confirm("Bist du sicher, dass du den Server neu starten möchtest?")) {
                 return;
             }
-            
+
             btnRestartServer.disabled = true;
             btnRestartServer.textContent = "⌛ Starte neu...";
-            
+
             try {
                 const response = await fetch("/api/system/restart", {
                     method: "POST"
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
                     if (data.status === "busy") {
@@ -8624,7 +8624,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     } else if (data.status === "restarting") {
                         appendConsoleLog("[System]: Server startet neu... Warte auf Neustart.");
                         expandConsole();
-                        
+
                         const pollInterval = setInterval(async () => {
                             try {
                                 const res = await fetch("/api/status");
@@ -8678,7 +8678,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const storageHelpModal = document.getElementById("storage-help-modal");
     const btnCloseStorageHelp = document.getElementById("btn-close-storage-help");
     const btnCloseStorageHelpOk = document.getElementById("btn-close-storage-help-ok");
-    
+
     const openStorageHelp = () => {
         if (storageHelpModal) {
             storageHelpModal.classList.remove("hidden");
@@ -8688,7 +8688,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }, 10);
         }
     };
-    
+
     const closeStorageHelp = () => {
         if (storageHelpModal) {
             storageHelpModal.style.opacity = "0";
@@ -8698,7 +8698,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }, 300);
         }
     };
-    
+
     if (btnStorageHelp) btnStorageHelp.addEventListener("click", openStorageHelp);
     if (linkRcloneSetup) linkRcloneSetup.addEventListener("click", openStorageHelp);
     if (btnCloseStorageHelp) btnCloseStorageHelp.addEventListener("click", closeStorageHelp);
@@ -8734,13 +8734,13 @@ document.addEventListener("DOMContentLoaded", () => {
         btnGenerateDefaults.addEventListener("click", () => {
             if (confirm("Dies fügt 'Filme', 'Serien' und 'Dokus' als Standard-Kategorien hinzu. Fortfahren?")) {
                 if (!currentSettings.sync_categories) currentSettings.sync_categories = [];
-                
+
                 const defaults = [
                     { id: "movies", name: "Filme", nas_sub: "/Filme" },
                     { id: "series", name: "Serien", nas_sub: "/Serien" },
                     { id: "docs", name: "Dokus", nas_sub: "/Dokus" }
                 ];
-                
+
                 defaults.forEach(def => {
                     const existing = currentSettings.sync_categories.find(c => c.id === def.id || c.name === def.name);
                     if (existing) {
@@ -8828,7 +8828,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const inputEl = document.getElementById(inputId);
                 const path = inputEl ? inputEl.value : "";
                 if (!path) return;
-                
+
                 const hide = confirm(`Möchtest du den Ordner '${path}' im Finder VERSTECKEN?\n(Abbrechen für WIEDER SICHTBAR MACHEN)`);
                 try {
                     const response = await fetch("/api/toggle-visibility", {
@@ -8857,7 +8857,7 @@ let currentPreviewPayload = null;
 async function openPreviewModal(basePayload) {
     expandConsole();
     appendConsoleLog("[System]: Erstelle Trockenlauf-Vorschau...");
-    
+
     // Set loading state in UI
     const overlay = document.getElementById("preview-modal-overlay");
     const modal = document.getElementById("preview-modal");
@@ -8867,16 +8867,16 @@ async function openPreviewModal(basePayload) {
     const dest = document.getElementById("preview-destination");
     const warningBox = document.getElementById("preview-season-warning");
     const warningText = document.getElementById("preview-season-warning-text");
-    
+
     if (warningBox) {
         warningBox.classList.add("hidden");
     }
-    
+
     const mismatchBox = document.getElementById("preview-show-name-mismatch");
     if (mismatchBox) {
         mismatchBox.classList.add("hidden");
     }
-    
+
     // Check if any mapped season is >= 1000 (possible year warning)
     let hasHighSeason = false;
     let highSeasonNum = null;
@@ -8917,12 +8917,12 @@ async function openPreviewModal(basePayload) {
         warningText.textContent = `Staffel-Nummer ist eine Jahreszahl (${highSeasonNum})! Bitte prüfen, ob das korrekt ist (z.B. Staffel 56 statt 2026).`;
         warningBox.classList.remove("hidden");
     }
-    
+
     listRenames.innerHTML = `<div style="color:var(--text-muted); font-size:12px;">Analysiere Ordner und Metadaten...</div>`;
     listSubs.innerHTML = "";
     listJunk.innerHTML = "";
     dest.textContent = "Wird berechnet...";
-    
+
     // Show modal
     overlay.classList.remove("hidden");
     setTimeout(() => {
@@ -8930,37 +8930,37 @@ async function openPreviewModal(basePayload) {
         overlay.style.pointerEvents = "auto";
         modal.style.transform = "translateY(0)";
     }, 10);
-    
+
     try {
         const response = await fetch("/api/preview_process", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(basePayload)
         });
-        
+
         if (!response.ok) throw new Error("Fehler beim Abrufen der Vorschau");
         const data = await response.json();
-        
+
         if (data.error) {
             alert(data.error);
             closePreviewModal();
             return;
         }
-        
+
         if (data.warning && warningBox && warningText && !basePayload.force_absolute_season_1) {
             warningText.textContent = data.warning;
             warningBox.classList.remove("hidden");
         }
-        
+
         if (data.show_name_mismatch && mismatchBox) {
             const mText = document.getElementById("preview-show-name-mismatch-text");
             if (mText) {
                 mText.innerHTML = `Der Zielordner auf dem NAS heißt <strong>"${data.show_name_mismatch.nas_name}"</strong>, aber die Vorschau verwendet den Namen <strong>"${data.show_name_mismatch.metadata_name}"</strong>.`;
             }
-            
+
             const btnAdoptNas = document.getElementById("btn-preview-adopt-nas-name");
             const btnAdoptMeta = document.getElementById("btn-preview-adopt-metadata-name");
-            
+
             if (btnAdoptNas) {
                 const newBtn = btnAdoptNas.cloneNode(true);
                 btnAdoptNas.parentNode.replaceChild(newBtn, btnAdoptNas);
@@ -8974,7 +8974,7 @@ async function openPreviewModal(basePayload) {
                     openPreviewModal(basePayload);
                 });
             }
-            
+
             if (btnAdoptMeta) {
                 const newBtn = btnAdoptMeta.cloneNode(true);
                 btnAdoptMeta.parentNode.replaceChild(newBtn, btnAdoptMeta);
@@ -8988,14 +8988,14 @@ async function openPreviewModal(basePayload) {
                     openPreviewModal(basePayload);
                 });
             }
-            
+
             mismatchBox.classList.remove("hidden");
         }
-        
+
         currentPreviewPayload = basePayload;
-        
+
         dest.innerHTML = data.destination.replace(/\n/g, '<br>');
-        
+
         const createCheckbox = (item, checked, groupName) => {
             return `
                 <label style="display:flex; align-items:center; gap:10px; background:rgba(0,0,0,0.2); padding:8px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.05); cursor:pointer;">
@@ -9007,21 +9007,21 @@ async function openPreviewModal(basePayload) {
                 </label>
             `;
         };
-        
-        listRenames.innerHTML = data.renames.length > 0 
+
+        listRenames.innerHTML = data.renames.length > 0
             ? data.renames.map(r => createCheckbox(r, true, "renames")).join("")
             : `<div style="color:var(--text-muted); font-size:12px;">Keine Videos gefunden.</div>`;
-            
+
         listSubs.innerHTML = data.subs.length > 0
             ? data.subs.map(s => createCheckbox(s, true, "subs")).join("")
             : `<div style="color:var(--text-muted); font-size:12px;">Keine Untertitel/Extras gefunden.</div>`;
-            
+
         listJunk.innerHTML = data.junk.length > 0
             ? data.junk.map(j => createCheckbox(j, true, "junk")).join("")
             : `<div style="color:var(--text-muted); font-size:12px;">Keine Müll-Dateien gefunden! Ordner ist sauber.</div>`;
-            
+
         appendConsoleLog("[System]: Vorschau erfolgreich generiert.");
-            
+
     } catch (e) {
         alert("Fehler: " + e.message);
         closePreviewModal();
@@ -9031,7 +9031,7 @@ async function openPreviewModal(basePayload) {
 function closePreviewModal() {
     const overlay = document.getElementById("preview-modal-overlay");
     const modal = document.getElementById("preview-modal");
-    
+
     overlay.style.opacity = "0";
     overlay.style.pointerEvents = "none";
     modal.style.transform = "translateY(20px)";
@@ -9071,7 +9071,7 @@ function loadConversionSettings() {
         const stored = localStorage.getItem("conversionSettings");
         if (!stored) return;
         const settings = JSON.parse(stored);
-        
+
         const setCheckbox = (id, val) => {
             const cb = document.getElementById(id);
             if (cb && val !== undefined) {
@@ -9126,7 +9126,7 @@ document.addEventListener("DOMContentLoaded", () => {
         saveConversionSettings();
         updateSizeEstimation("movie");
     };
-    
+
     const saveAndEstSeries = () => {
         saveConversionSettings();
         updateSizeEstimation("series");
@@ -9199,7 +9199,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!catSelect) return;
         const catId = catSelect.value;
         const folderName = folderInput ? folderInput.value.trim() : "";
-        
+
         try {
             await window.openFolder({ category_id: catId, folder_name: folderName });
         } catch (err) {
@@ -9209,26 +9209,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("btn-preview-close")?.addEventListener("click", closePreviewModal);
     document.getElementById("btn-preview-cancel")?.addEventListener("click", closePreviewModal);
-    
+
     document.getElementById("btn-preview-execute")?.addEventListener("click", async () => {
         if (!currentPreviewPayload) return;
-        
+
         // Collect checked items
         const explicitRenames = Array.from(document.querySelectorAll(".preview-cb-renames:checked")).map(cb => ({ old: cb.dataset.old, new: cb.dataset.new }));
         const explicitSubs = Array.from(document.querySelectorAll(".preview-cb-subs:checked")).map(cb => ({ old: cb.dataset.old, new: cb.dataset.new }));
         const explicitJunk = Array.from(document.querySelectorAll(".preview-cb-junk:checked")).map(cb => cb.dataset.old);
-        
+
         const finalPayload = {
             ...currentPreviewPayload,
             explicit_renames: explicitRenames,
             explicit_subs: explicitSubs,
             explicit_junk: explicitJunk
         };
-        
+
         // Save profile if media_type is TV and "no-profile" is not checked
         const noProfileCb = document.getElementById("series-option-no-profile");
         const skipProfileSave = noProfileCb ? noProfileCb.checked : false;
-        
+
         if (finalPayload.media_type === "tv" && !skipProfileSave) {
             try {
                 const auto_h265 = document.getElementById("series-option-convert").checked ? "j" : "n";
@@ -9238,7 +9238,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const nas_destination_id = document.getElementById("series-nas-destination").value;
                 const pcloud_destination_id = document.getElementById("series-pcloud-destination").value;
                 const force_absolute_season_1 = document.getElementById("series-option-absolute-numbering")?.checked || false;
-                
+
                 await fetch("/api/profile", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -9263,19 +9263,19 @@ document.addEventListener("DOMContentLoaded", () => {
                 console.error("Error saving show profile on execution:", err);
             }
         }
-        
 
-        
+
+
         closePreviewModal();
         appendConsoleLog("[System]: Starte finalen Verarbeitungsprozess...");
-        
+
         try {
             const response = await fetch("/api/process", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(finalPayload)
             });
-            
+
             if (response.ok) {
                 connectLogStream();
             } else {
@@ -9289,22 +9289,22 @@ document.addEventListener("DOMContentLoaded", () => {
     // Clean Modal Listeners
     document.getElementById("btn-clean-close")?.addEventListener("click", closeCleanModal);
     document.getElementById("btn-clean-cancel")?.addEventListener("click", closeCleanModal);
-    
+
     document.getElementById("btn-clean-execute")?.addEventListener("click", async (e) => {
         const targetPath = e.currentTarget.dataset.target;
         if (!targetPath) return;
-        
+
         const explicitFiles = Array.from(document.querySelectorAll(".clean-cb-item:checked")).map(cb => cb.dataset.file);
-        
+
         if (explicitFiles.length === 0) {
             alert("Es wurden keine Dateien zum Löschen ausgewählt.");
             closeCleanModal();
             return;
         }
-        
+
         closeCleanModal();
         appendConsoleLog("[System]: Lösche ausgewählte Dateien...");
-        
+
         try {
             const response = await fetch("/api/clean-project", {
                 method: "POST",
@@ -9312,7 +9312,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 body: JSON.stringify({ project: targetPath, explicit_files: explicitFiles })
             });
             const data = await response.json();
-            
+
             if (data.status === "ok") {
                 appendConsoleLog(`✅ Bereinigung fertig! (${data.deleted_files.length} Dateien, ${data.deleted_dirs.length} Ordner gelöscht)`);
                 scanProject(targetPath);
@@ -9407,7 +9407,7 @@ function renderQueue(jobs) {
     updateSidebarProcessingStates(activeProjectsProcessing);
 
     const activeJobs = jobs.filter(j => j.status === "queued" || j.status === "running");
-    
+
     if (activeJobs.length > 0) {
         if (badge) {
             badge.textContent = activeJobs.length;
@@ -9428,16 +9428,16 @@ function renderQueue(jobs) {
     }
 
     list.innerHTML = "";
-    
+
     // Sort so newest is at the top
     [...jobs].reverse().forEach(job => {
         let statusColor = "var(--text-muted)";
         let icon = "⏳";
-        
+
         if (job.status === "running") { statusColor = "var(--accent)"; icon = "🔄"; }
         else if (job.status === "done") { statusColor = "#4caf50"; icon = "✅"; }
         else if (job.status === "error") { statusColor = "#ff6b6b"; icon = "❌"; }
-        
+
         let progressHtml = "";
         if (job.status === "running" || job.status === "queued" || job.status === "done") {
             const displayProgress = job.progress || 0;
@@ -9455,40 +9455,45 @@ function renderQueue(jobs) {
                 { key: "metadata", label: "Metadaten" },
                 { key: "convert", label: "Konvertierung" }
             ];
-            
+
             // Dynamically add storage targets from settings or fallback to pipeline keys
             if (currentSettings && currentSettings.storage_targets) {
                 currentSettings.storage_targets.forEach(target => {
                     const t_id = target.id;
                     if (job.pipeline[t_id]) {
-                        steps.push({ key: t_id, label: target.name || t_id });
+                        let label = target.name || t_id;
+                        if (t_id === "nas") label = "Auf NAS speichern";
+                        else if (t_id === "pcloud") label = "Auf pCloud speichern";
+                        steps.push({ key: t_id, label: label });
                     }
                 });
             }
-            
+
             // Fallback for targets in pipeline not present in storage_targets
             Object.keys(job.pipeline).forEach(key => {
                 if (key !== "metadata" && key !== "convert" && key !== "local" && !steps.some(s => s.key === key)) {
-                    const fallbackLabel = key === "nas" ? "NAS-Kopieren" : (key === "pcloud" ? "pCloud" : key);
+                    let fallbackLabel = key;
+                    if (key === "nas") fallbackLabel = "Auf NAS speichern";
+                    else if (key === "pcloud") fallbackLabel = "Auf pCloud speichern";
                     steps.push({ key: key, label: fallbackLabel });
                 }
             });
-            
+
             if (job.pipeline.local) {
-                steps.push({ key: "local", label: "Lokal-Kopieren" });
+                steps.push({ key: "local", label: "In lokalen Ordner speichern" });
             }
-            
+
             pipelineHtml = `<div class="pipeline-container" style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; gap: 4px; background: rgba(0,0,0,0.25); padding: 8px; border-radius: var(--radius-md); box-sizing: border-box; width: 100%;">`;
-            
+
             steps.forEach((step, idx) => {
                 const sData = job.pipeline[step.key];
                 if (!sData) return;
-                
+
                 let stepColor = "rgba(255, 255, 255, 0.05)";
                 let stepIcon = "⚪";
                 let textColor = "var(--text-muted)";
                 let borderStyle = "1px solid rgba(255,255,255,0.05)";
-                
+
                 if (sData.status === "running") {
                     stepColor = "rgba(0, 229, 255, 0.1)";
                     stepIcon = "🔄 animate-spin";
@@ -9510,26 +9515,26 @@ function renderQueue(jobs) {
                     textColor = "rgba(255,255,255,0.15)";
                     borderStyle = "1px solid rgba(255,255,255,0.02)";
                 }
-                
+
                 // Add spinning animation inline style for animate-spin
                 const isSpinning = stepIcon.includes("animate-spin") ? "animation: spin 2s linear infinite;" : "";
                 const cleanIcon = stepIcon.replace(" animate-spin", "");
-                
+
                 pipelineHtml += `
                     <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px; border-radius: var(--radius-sm); background: ${stepColor}; border: ${borderStyle}; text-align: center; box-sizing: border-box;">
                         <span style="font-size: 13px; line-height: 1; display: inline-block; ${isSpinning}">${cleanIcon}</span>
-                        <span style="font-size: 9px; font-weight: 500; color: ${textColor}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; display: block;" title="${step.label}">${step.label}</span>
+                        <span style="font-size: 9px; font-weight: 500; color: ${textColor}; white-space: normal; line-height: 1.1; word-break: break-word; max-width: 100%; display: block;" title="${step.label}">${step.label}</span>
                         ${sData.status === "running" ? `<span style="font-size: 9px; color: ${textColor}; font-weight: bold; display: block;">${sData.progress}%</span>` : ""}
                     </div>
                 `;
-                
+
                 if (idx < steps.length - 1) {
                     pipelineHtml += `
                         <div style="font-size: 9px; color: rgba(255,255,255,0.15); font-weight: bold; flex: 0 0 auto;">➔</div>
                     `;
                 }
             });
-            
+
             pipelineHtml += `</div>`;
         }
 
@@ -9546,7 +9551,7 @@ function renderQueue(jobs) {
 
         const card = document.createElement("div");
         card.style.cssText = "background: rgba(20,20,30,0.5); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); padding: 15px;";
-        
+
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
                 <strong style="font-size:14px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:10px;">${icon} ${job.name}</strong>
@@ -9565,18 +9570,18 @@ function renderQueue(jobs) {
         btn.addEventListener("click", async (e) => {
             const taskId = e.currentTarget.getAttribute("data-task-id");
             if (!taskId) return;
-            
+
             // Button deaktivieren und Lade-Status anzeigen
             e.currentTarget.disabled = true;
             e.currentTarget.innerHTML = "🔄 Einreihen...";
-            
+
             try {
                 const res = await fetch("/api/queue/retry", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ task_id: taskId })
                 });
-                
+
                 if (res.ok) {
                     pollQueue();
                 } else {
@@ -9618,7 +9623,7 @@ function renderQueue(jobs) {
             }
         }
     });
-    
+
     if (isFirstQueuePoll) {
         isFirstQueuePoll = false;
     }
@@ -9629,13 +9634,13 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
     const dropdown = document.getElementById(dropdownId);
     const loadBtn = document.getElementById(loadBtnId);
     const destSelect = document.getElementById(destSelectId);
-    
+
     if (!input || !dropdown || !loadBtn || !destSelect) return;
-    
+
     let allFolders = [];
     let folderDestinations = {};
     const originalBtnText = loadBtn.textContent || "NAS laden";
-    
+
     const loadFolders = async (shouldFocusInnerSearch = false) => {
         let destVal = destSelect.value;
         if (inputId === "series-nas-folder-override" || inputId === "yt-series-nas-folder-override") {
@@ -9666,17 +9671,17 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
             loadBtn.textContent = originalBtnText;
         }
     };
-    
+
     const showDropdown = (list, shouldFocusInnerSearch = false) => {
         dropdown.innerHTML = "";
-        
+
         // Add a search/filter input container at the top of the dropdown
         const searchWrapper = document.createElement("div");
         searchWrapper.className = "autocomplete-search-wrapper";
         searchWrapper.addEventListener("click", (e) => {
             e.stopPropagation();
         });
-        
+
         // Premium magnifying glass SVG
         searchWrapper.innerHTML = `
             <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -9684,20 +9689,20 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
         `;
-        
+
         const searchInput = document.createElement("input");
         searchInput.type = "text";
         searchInput.className = "autocomplete-search-input";
         searchInput.placeholder = "Serienname suchen...";
         searchInput.autocomplete = "off";
-        
+
         searchWrapper.appendChild(searchInput);
         dropdown.appendChild(searchWrapper);
-        
+
         const itemsContainer = document.createElement("div");
         itemsContainer.className = "autocomplete-items-container";
         dropdown.appendChild(itemsContainer);
-        
+
         const renderItems = (filteredList) => {
             itemsContainer.innerHTML = "";
             if (filteredList.length === 0) {
@@ -9716,7 +9721,7 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
                             window.ytNasFolderSelected = folder;
                         }
                         closeDropdown();
-                        
+
                         // Automatically switch category if category mapping exists
                         if (destSelect && folderDestinations && folderDestinations[folder.toLowerCase()]) {
                             const matchedDestPath = folderDestinations[folder.toLowerCase()];
@@ -9725,7 +9730,7 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
                                 const fullPath = nasRoot + (cat.nas_sub || "");
                                 return fullPath.toLowerCase() === matchedDestPath.toLowerCase();
                             });
-                            
+
                             if (foundCat) {
                                 const matchedDest = foundCat.id;
                                 let hasOption = false;
@@ -9743,11 +9748,11 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
                                 }
                             }
                         }
-                        
+
                         // Trigger listeners
                         input.dispatchEvent(new Event("input", { bubbles: true }));
                         input.dispatchEvent(new Event("change", { bubbles: true }));
-                        
+
                         // Custom action: If this is the series tab autocomplete, trigger show matching!
                         if (inputId === "series-nas-folder-override") {
                             triggerSeriesMatchingFromFolder(folder);
@@ -9759,7 +9764,7 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
                 });
             }
         };
-        
+
         // Inner search input event listener
         searchInput.addEventListener("input", () => {
             const query = searchInput.value.toLowerCase().trim();
@@ -9770,29 +9775,29 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
                 renderItems(filtered);
             }
         });
-        
+
         // Initial render
         renderItems(list);
-        
+
         dropdown.classList.remove("hidden");
-        
+
         if (shouldFocusInnerSearch) {
             setTimeout(() => {
                 searchInput.focus();
             }, 50);
         }
     };
-    
+
     const closeDropdown = () => {
         dropdown.classList.add("hidden");
     };
-    
+
     loadBtn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
         loadFolders(true);
     });
-    
+
     input.addEventListener("focus", async () => {
         if (allFolders.length === 0) {
             await loadFolders(false);
@@ -9800,7 +9805,7 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
             filterFolders(false);
         }
     });
-    
+
     const filterFolders = (shouldFocusInnerSearch = false) => {
         const query = input.value.toLowerCase().trim();
         if (allFolders.length === 0) return;
@@ -9812,16 +9817,16 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
         const filtered = allFolders.filter(folder => folder.toLowerCase().includes(query));
         showDropdown(filtered, shouldFocusInnerSearch);
     };
-    
+
     const debouncedFilter = debounce(() => filterFolders(false), 250);
     input.addEventListener("input", debouncedFilter);
-    
+
     // Clear folder cache when destination select changes
     destSelect.addEventListener("change", () => {
         allFolders = [];
         folderDestinations = {};
     });
-    
+
     // Close dropdown on click outside
     document.addEventListener("click", (e) => {
         if (!input.contains(e.target) && !dropdown.contains(e.target) && !loadBtn.contains(e.target)) {
@@ -9832,17 +9837,17 @@ function setupNasFolderAutocomplete(inputId, dropdownId, loadBtnId, destSelectId
 
 function findBestNasFolderMatch(cleanedTitle, folders) {
     if (!cleanedTitle || !folders || folders.length === 0) return null;
-    
+
     const cleanStr = cleanSeriesName(cleanedTitle).trim();
     if (!cleanStr) return null;
-    
+
     // 1. Exact case-insensitive match
     for (const f of folders) {
         if (f.toLowerCase().trim() === cleanStr.toLowerCase()) {
             return f;
         }
     }
-    
+
     // 2. Normalized alphanumeric match
     const normProj = cleanStr.toLowerCase().replace(/[^a-z0-9]/g, '');
     if (normProj) {
@@ -9853,7 +9858,7 @@ function findBestNasFolderMatch(cleanedTitle, folders) {
             }
         }
     }
-    
+
     // 3. Substring match
     if (normProj.length >= 4) {
         const hasYear = (str) => /\d{4}/.test(str);
@@ -9867,7 +9872,7 @@ function findBestNasFolderMatch(cleanedTitle, folders) {
             }
         }
     }
-    
+
     return null;
 }
 
@@ -9876,7 +9881,7 @@ async function autoMatchNasFolder(inputId, destSelectId, originalCleanedName) {
     const input = document.getElementById(inputId);
     const destSelect = document.getElementById(destSelectId);
     if (!input || !destSelect) return;
-    
+
     const destVal = destSelect.value;
     try {
         const res = await fetch(`/api/nas-series?destination_id=${encodeURIComponent(destVal)}`);
@@ -9886,7 +9891,7 @@ async function autoMatchNasFolder(inputId, destSelectId, originalCleanedName) {
                 const bestMatch = findBestNasFolderMatch(originalCleanedName, data.folders);
                 if (bestMatch) {
                     input.value = bestMatch;
-                    
+
                     // Trigger visual flash
                     input.classList.remove("highlight-match-flash");
                     void input.offsetWidth; // trigger reflow
@@ -9894,7 +9899,7 @@ async function autoMatchNasFolder(inputId, destSelectId, originalCleanedName) {
                     setTimeout(() => {
                         input.classList.remove("highlight-match-flash");
                     }, 1500);
-                    
+
                     appendConsoleLog(`[System]: Automatisch passenden NAS-Ordner "${bestMatch}" zugeordnet.`);
                 }
             }
@@ -10042,29 +10047,29 @@ function showQuoteModal(quoteData) {
 
     const cleanQuote = quoteData.quote.trim();
     const cleanAuthor = (quoteData.authorName || "Unbekannt").trim();
-    const authorHtml = quoteData.authorLink 
+    const authorHtml = quoteData.authorLink
         ? `<a href="${quoteData.authorLink}" target="_blank" style="color: #c084fc; text-decoration: none; border-bottom: 1px dotted #c084fc; font-weight: 500;">— ${cleanAuthor}</a>`
         : `<span style="color: #94a3b8; font-weight: 500;">— ${cleanAuthor}</span>`;
 
     content.innerHTML = `
         <div style="font-size: 44px; margin-bottom: 15px; filter: drop-shadow(0 2px 5px rgba(0,0,0,0.3));">✍️</div>
         <h3 style="margin-top: 0; color: #94a3b8; font-size: 13px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 20px;">Zitat des Tages</h3>
-        
+
         <p style="
-            font-size: 16px; 
+            font-size: 16px;
             color: #e2e8f0;
-            line-height: 1.7; 
-            margin: 0 0 20px 0; 
+            line-height: 1.7;
+            margin: 0 0 20px 0;
             font-style: italic;
             font-weight: 400;
         ">
             "${cleanQuote}"
         </p>
-        
+
         <div style="font-size: 14px; margin-bottom: 30px;">
             ${authorHtml}
         </div>
-        
+
         <button id="btn-close-quote" class="btn btn-primary" style="min-width: 145px; padding: 10px 24px; font-size: 14px; font-weight: 600;">Inspirierend! 🌟</button>
     `;
 
@@ -10092,9 +10097,9 @@ function applyTheme(themeName) {
     if (themeName === "apple-silver") themeName = "apple-black";
     if (!themeName) themeName = "deep-space";
     localStorage.setItem("app_theme", themeName);
-    
+
     const themes = ["theme-deep-space", "theme-nordic-slate", "theme-amber-warmth", "theme-apple-black", "theme-superfood-light"];
-    
+
     // Prüfe View-Transition Support für flüssige Farbübergänge
     if (document.startViewTransition) {
         document.startViewTransition(() => {
@@ -10112,35 +10117,35 @@ function initCardParallaxAndGlow() {
     const cards = document.querySelectorAll(".card");
     cards.forEach(card => {
         let rect = null;
-        
+
         card.addEventListener("mouseenter", () => {
             rect = card.getBoundingClientRect();
         });
-        
+
         card.addEventListener("mousemove", (e) => {
             if (!rect) {
                 rect = card.getBoundingClientRect();
             }
-            
+
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
-            
+
             // Setze CSS Variablen für den radialen Glow
             card.style.setProperty("--mouse-x", `${x}px`);
             card.style.setProperty("--mouse-y", `${y}px`);
-            
+
             // 3D-Kipp-Effekt
             const cardWidth = rect.width;
             const cardHeight = rect.height;
             const relativeX = (x / cardWidth) - 0.5;
             const relativeY = (y / cardHeight) - 0.5;
-            
+
             const rotateY = relativeX * 6; // Max 3 Grad Rotation
             const rotateX = -relativeY * 6;
-            
+
             card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-2px)`;
         });
-        
+
         card.addEventListener("mouseleave", () => {
             rect = null;
             card.style.transform = "none";
@@ -10159,12 +10164,12 @@ let mergeInitialVideoId = null;
 function openYtMergeModal(initialTitle, initialUrl, initialThumbnail, subId, videoId) {
     mergeSubId = subId;
     mergeInitialVideoId = videoId;
-    
+
     const modal = document.getElementById("yt-merge-modal");
     if (!modal) return;
-    
+
     modal.classList.remove("hidden");
-    
+
     // Load subscription settings if available
     let copyToNas = true;
     let copyToPcloud = false;
@@ -10172,7 +10177,7 @@ function openYtMergeModal(initialTitle, initialUrl, initialThumbnail, subId, vid
     let nasDest = "";
     let pcloudDest = "";
     let localDest = "";
-    
+
     if (subId && currentSettings && currentSettings.youtube_subscriptions) {
         const sub = currentSettings.youtube_subscriptions.find(s => s.id === subId);
         if (sub) {
@@ -10184,28 +10189,28 @@ function openYtMergeModal(initialTitle, initialUrl, initialThumbnail, subId, vid
             localDest = sub.local_destination_id || "";
         }
     }
-    
+
     const cbNas = document.getElementById("yt-merge-option-copy-nas");
     const cbPcloud = document.getElementById("yt-merge-option-copy-pcloud");
     const cbLocal = document.getElementById("yt-merge-option-copy-local");
-    
+
     if (cbNas) cbNas.checked = copyToNas;
     if (cbPcloud) cbPcloud.checked = copyToPcloud;
     if (cbLocal) cbLocal.checked = copyToLocal;
-    
+
     // Trigger change event to sync visibility
     if (cbNas) cbNas.dispatchEvent(new Event("change"));
     if (cbPcloud) cbPcloud.dispatchEvent(new Event("change"));
     if (cbLocal) cbLocal.dispatchEvent(new Event("change"));
-    
+
     const selNas = document.getElementById("yt-merge-nas-destination");
     const selPcloud = document.getElementById("yt-merge-pcloud-destination");
     const selLocal = document.getElementById("yt-merge-local-destination");
-    
+
     if (selNas && nasDest) selNas.value = nasDest;
     if (selPcloud && pcloudDest) selPcloud.value = pcloudDest;
     if (selLocal && localDest) selLocal.value = localDest;
-    
+
     // Set default final title (clean up part/episode indicators)
     let cleanTitle = initialTitle;
     const patterns = [
@@ -10222,21 +10227,21 @@ function openYtMergeModal(initialTitle, initialUrl, initialThumbnail, subId, vid
         cleanTitle = cleanTitle.replace(p, "");
     });
     cleanTitle = cleanTitle.replace(/\s*-\s*$/, "").replace(/\s+/g, " ").trim();
-    
+
     document.getElementById("yt-merge-title").value = cleanTitle || initialTitle;
     document.getElementById("yt-merge-query").textContent = initialTitle;
-    
+
     const listContainer = document.getElementById("yt-merge-list");
     listContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">🔍 Suche nach Teilen auf YouTube...</div>`;
-    
+
     fetch(`/api/youtube/search-parts?title=${encodeURIComponent(initialTitle)}`)
         .then(res => res.json())
         .then(data => {
             const results = data.results || [];
-            
+
             // Build unique list of items
             const items = [];
-            
+
             // 1. Add our initial video
             items.push({
                 id: videoId,
@@ -10246,7 +10251,7 @@ function openYtMergeModal(initialTitle, initialUrl, initialThumbnail, subId, vid
                 checked: true,
                 isInitial: true
             });
-            
+
             // 2. Add search results, avoiding duplicates of the initial video
             results.forEach(r => {
                 if (r.id !== videoId) {
@@ -10260,7 +10265,7 @@ function openYtMergeModal(initialTitle, initialUrl, initialThumbnail, subId, vid
                     });
                 }
             });
-            
+
             currentMergeItems = items;
             renderMergeItems();
         })
@@ -10273,9 +10278,9 @@ function openYtMergeModal(initialTitle, initialUrl, initialThumbnail, subId, vid
 function renderMergeItems() {
     const listContainer = document.getElementById("yt-merge-list");
     if (!listContainer) return;
-    
+
     listContainer.innerHTML = "";
-    
+
     currentMergeItems.forEach((item, index) => {
         const row = document.createElement("div");
         row.className = "merge-item-row";
@@ -10288,7 +10293,7 @@ function renderMergeItems() {
         row.style.borderRadius = "var(--radius-sm)";
         row.style.padding = "8px 12px";
         row.style.transition = "all 0.2s ease";
-        
+
         // Left part: Checkbox + Thumbnail + Title
         const left = document.createElement("div");
         left.style.display = "flex";
@@ -10296,7 +10301,7 @@ function renderMergeItems() {
         left.style.gap = "10px";
         left.style.flex = "1";
         left.style.minWidth = "0";
-        
+
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.checked = item.checked;
@@ -10310,7 +10315,7 @@ function renderMergeItems() {
             renderMergeItems();
         });
         left.appendChild(checkbox);
-        
+
         if (item.thumbnail) {
             const img = document.createElement("img");
             img.className = "poster-img";
@@ -10327,10 +10332,10 @@ function renderMergeItems() {
             const fallback = createFallbackPoster(item.title || "Video", true, "54px", "30px");
             left.appendChild(fallback);
         }
-        
+
         const info = document.createElement("div");
         info.style.minWidth = "0";
-        
+
         const titleSpan = document.createElement("div");
         titleSpan.style.fontWeight = "500";
         titleSpan.style.fontSize = "12px";
@@ -10340,7 +10345,7 @@ function renderMergeItems() {
         titleSpan.textContent = item.title;
         titleSpan.title = item.title;
         info.appendChild(titleSpan);
-        
+
         if (item.isInitial) {
             const badge = document.createElement("span");
             badge.style.fontSize = "9px";
@@ -10353,15 +10358,15 @@ function renderMergeItems() {
             badge.textContent = "AUSGANGS-VIDEO";
             info.appendChild(badge);
         }
-        
+
         left.appendChild(info);
         row.appendChild(left);
-        
+
         // Right part: Re-order controls
         const right = document.createElement("div");
         right.style.display = "flex";
         right.style.gap = "4px";
-        
+
         const btnUp = document.createElement("button");
         btnUp.className = "btn btn-secondary btn-xs";
         btnUp.style.padding = "2px 6px";
@@ -10374,7 +10379,7 @@ function renderMergeItems() {
             currentMergeItems[index] = temp;
             renderMergeItems();
         });
-        
+
         const btnDown = document.createElement("button");
         btnDown.className = "btn btn-secondary btn-xs";
         btnDown.style.padding = "2px 6px";
@@ -10387,11 +10392,11 @@ function renderMergeItems() {
             currentMergeItems[index] = temp;
             renderMergeItems();
         });
-        
+
         right.appendChild(btnUp);
         right.appendChild(btnDown);
         row.appendChild(right);
-        
+
         listContainer.appendChild(row);
     });
 }
@@ -10408,40 +10413,40 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnClose = document.getElementById("btn-close-yt-merge");
     const btnCancel = document.getElementById("btn-cancel-yt-merge");
     const btnStart = document.getElementById("btn-start-yt-merge");
-    
+
     if (btnClose) btnClose.addEventListener("click", closeYtMergeModal);
     if (btnCancel) btnCancel.addEventListener("click", closeYtMergeModal);
-    
+
     if (btnStart) {
         btnStart.addEventListener("click", async () => {
             const finalTitleInput = document.getElementById("yt-merge-title");
             const finalTitle = finalTitleInput ? finalTitleInput.value.trim() : "";
-            
+
             if (!finalTitle) {
                 alert("Bitte gib einen Dateinamen an!");
                 return;
             }
-            
+
             const selectedItems = currentMergeItems.filter(item => item.checked);
             if (selectedItems.length === 0) {
                 alert("Bitte wähle mindestens ein Video aus!");
                 return;
             }
-            
+
             const urls = selectedItems.map(item => item.url);
             const videoIdsToRemove = selectedItems.map(item => item.id);
-            
+
             btnStart.disabled = true;
             btnStart.textContent = "⌛ Starte Merge...";
-            
+
             const copyToNas = document.getElementById("yt-merge-option-copy-nas")?.checked ?? false;
             const copyToPcloud = document.getElementById("yt-merge-option-copy-pcloud")?.checked ?? false;
             const copyToLocal = document.getElementById("yt-merge-option-copy-local")?.checked ?? false;
-            
+
             const nasDest = document.getElementById("yt-merge-nas-destination")?.value || "";
             const pcloudDest = document.getElementById("yt-merge-pcloud-destination")?.value || "";
             const localDest = document.getElementById("yt-merge-local-destination")?.value || "";
-            
+
             try {
                 const res = await fetch("/api/youtube/merge", {
                     method: "POST",
@@ -10460,12 +10465,12 @@ document.addEventListener("DOMContentLoaded", () => {
                         local_destination_id: localDest
                     })
                 });
-                
+
                 if (res.ok) {
                     appendConsoleLog(`[System]: Merge-Job für "${finalTitle}" mit ${urls.length} Teilen gestartet.`);
                     alert("Merge-Job im Hintergrund gestartet!");
                     closeYtMergeModal();
-                    
+
                     // Remove processed videos from UI
                     loadSubscriptions();
                 } else {
@@ -10489,9 +10494,9 @@ let activeDuplicateInfo = null;
 function openDuplicateCompareModal(existingPath, existingFilename, newFilename, badgeId) {
     const modal = document.getElementById("duplicate-compare-modal");
     if (!modal) return;
-    
+
     modal.classList.remove("hidden");
-    
+
     // Reset fields to loading state
     document.getElementById("dup-new-name").textContent = newFilename;
     document.getElementById("dup-new-res").textContent = "Lade...";
@@ -10500,7 +10505,7 @@ function openDuplicateCompareModal(existingPath, existingFilename, newFilename, 
     document.getElementById("dup-new-acodec").textContent = "Lade...";
     document.getElementById("dup-new-bitrate").textContent = "Lade...";
     document.getElementById("dup-new-duration").textContent = "Lade...";
-    
+
     document.getElementById("dup-exist-name").textContent = existingFilename;
     document.getElementById("dup-exist-res").textContent = "Lade...";
     document.getElementById("dup-exist-size").textContent = "Lade...";
@@ -10508,16 +10513,16 @@ function openDuplicateCompareModal(existingPath, existingFilename, newFilename, 
     document.getElementById("dup-exist-acodec").textContent = "Lade...";
     document.getElementById("dup-exist-bitrate").textContent = "Lade...";
     document.getElementById("dup-exist-duration").textContent = "Lade...";
-    
+
     const projName = typeof activeProject === "string" ? activeProject : "";
     const newPath = currentSettings.inbox_dir + "/" + (projName ? projName + "/" : "") + newFilename;
-    
+
     activeDuplicateInfo = {
         new_path: newPath,
         existing_path: existingPath,
         badge_id: badgeId
     };
-    
+
     fetch(`/api/media/compare-files?new_path=${encodeURIComponent(newPath)}&existing_path=${encodeURIComponent(existingPath)}`)
         .then(res => {
             if (!res.ok) throw new Error("HTTP Fehler");
@@ -10526,14 +10531,14 @@ function openDuplicateCompareModal(existingPath, existingFilename, newFilename, 
         .then(data => {
             const n = data.new_file;
             const e = data.existing_file;
-            
+
             document.getElementById("dup-new-res").textContent = n.resolution;
             document.getElementById("dup-new-size").textContent = n.size_readable;
             document.getElementById("dup-new-vcodec").textContent = n.video_codec;
             document.getElementById("dup-new-acodec").textContent = n.audio_codec;
             document.getElementById("dup-new-bitrate").textContent = n.bitrate_kbps;
             document.getElementById("dup-new-duration").textContent = n.duration_str;
-            
+
             document.getElementById("dup-exist-res").textContent = e.resolution;
             document.getElementById("dup-exist-size").textContent = e.size_readable;
             document.getElementById("dup-exist-vcodec").textContent = e.video_codec;
@@ -10563,7 +10568,7 @@ document.addEventListener("click", (e) => {
         const existingFilename = badge.getAttribute("data-existing-filename");
         const newFile = badge.getAttribute("data-new-file");
         const badgeId = badge.getAttribute("data-badge-id");
-        
+
         if (existingPath && newFile) {
             openDuplicateCompareModal(existingPath, existingFilename, newFile, badgeId);
         }
@@ -10575,18 +10580,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnClose = document.getElementById("btn-close-dup-compare");
     const btnKeep = document.getElementById("btn-dup-keep-both");
     const btnUpgrade = document.getElementById("btn-dup-upgrade");
-    
+
     if (btnClose) btnClose.addEventListener("click", closeDuplicateCompareModal);
     if (btnKeep) btnKeep.addEventListener("click", closeDuplicateCompareModal);
-    
+
     if (btnUpgrade) {
         btnUpgrade.addEventListener("click", async () => {
             if (!activeDuplicateInfo) return;
-            
+
             if (confirm("Möchtest du die existierende Datei auf dem NAS wirklich in Quarantäne verschieben?")) {
                 btnUpgrade.disabled = true;
                 btnUpgrade.textContent = "⌛ Führe Upgrade aus...";
-                
+
                 try {
                     const res = await fetch("/api/media/resolve-duplicate", {
                         method: "POST",
@@ -10597,16 +10602,16 @@ document.addEventListener("DOMContentLoaded", () => {
                             existing_path: activeDuplicateInfo.existing_path
                         })
                     });
-                    
+
                     if (res.ok) {
                         appendConsoleLog(`[System]: Vorhandene Datei auf NAS gelöscht: ${activeDuplicateInfo.existing_path}`);
                         alert("Upgrade erfolgreich vorbereitet! Die alte Datei auf dem NAS wurde gelöscht. Klicke jetzt auf 'Zuweisung starten', um das neue Video dorthin zu kopieren.");
-                        
+
                         const badgeContainer = document.getElementById(activeDuplicateInfo.badge_id);
                         if (badgeContainer) {
                             badgeContainer.innerHTML = "";
                         }
-                        
+
                         closeDuplicateCompareModal();
                     } else {
                         const data = await res.json();
@@ -10639,7 +10644,7 @@ async function updateHomepageData(statusData) {
         const outboxSize = statusData.outbox_size_gb || 0;
         const threshInbox = parseFloat(document.getElementById("set-monitor-inbox-gb")?.value) || 50.0;
         const threshOutbox = parseFloat(document.getElementById("set-monitor-outbox-gb")?.value) || 50.0;
-        
+
         if (statusData.metrics_loading) {
             warningText.innerHTML = "Speichergrößen werden im Hintergrund berechnet...";
             warningBanner.classList.remove("hidden");
@@ -10650,7 +10655,7 @@ async function updateHomepageData(statusData) {
             if (outboxSize > threshOutbox) {
                 warnings.push(`Der Outbox-Ordner belegt ${outboxSize.toFixed(1)} GB (Schwelle: ${threshOutbox} GB). Denke daran, verarbeitete Projekte zu löschen.`);
             }
-        
+
             if (warnings.length > 0) {
                 warningText.innerHTML = warnings.join("<br>");
                 warningBanner.classList.remove("hidden");
@@ -10683,17 +10688,17 @@ async function updateHomepageData(statusData) {
     const nasInfoMsg = document.getElementById("hero-nas-info-message");
     const heroConnectBtn = document.getElementById("btn-hero-connect-nas");
     const heroRefreshBtn = document.getElementById("btn-hero-refresh-nas");
-    
+
     if (nasInfoContainer && nasInfoMsg) {
         const details = statusData.nas_details;
         if (details) {
             nasInfoContainer.style.display = "block";
             heroConnectBtn.style.display = "none";
             heroRefreshBtn.style.display = "none";
-            
+
             const runtimeDocker = window.AppCapabilities && window.AppCapabilities.runtime === "docker";
             const mountAllowed = !runtimeDocker;
-            
+
             if (!details.enabled) {
                 nasInfoMsg.textContent = "❌ NAS-Verbindung in den Einstellungen deaktiviert.";
                 nasInfoMsg.style.color = "var(--text-muted)";
@@ -10720,10 +10725,10 @@ async function updateHomepageData(statusData) {
                         ipType = "Backup-/Tailscale-IP";
                     }
                 }
-                
+
                 nasInfoMsg.textContent = `⚠️ NAS erreichbar via ${ipType} (${details.reachable_ip || "unbekannt"}), aber nicht eingehängt.`;
                 nasInfoMsg.style.color = "var(--warning)";
-                
+
                 const subSpan = document.createElement("span");
                 subSpan.style.opacity = "0.7";
                 subSpan.style.fontSize = "0.9em";
@@ -10747,7 +10752,7 @@ async function updateHomepageData(statusData) {
                     nasInfoMsg.textContent = "❌ NAS offline (keine IP konfiguriert).";
                 }
                 nasInfoMsg.style.color = "var(--danger)";
-                
+
                 const errDetail = details.error_message;
                 if (errDetail || runtimeDocker || (details.checked_ips && details.checked_ips.length > 1)) {
                     const subSpan = document.createElement("span");
@@ -10755,7 +10760,7 @@ async function updateHomepageData(statusData) {
                     subSpan.style.fontSize = "0.9em";
                     subSpan.style.display = "block";
                     subSpan.style.marginTop = "4px";
-                    
+
                     let tipText = "";
                     if (errDetail) {
                         tipText += `Fehler: ${errDetail}`;
@@ -10956,11 +10961,11 @@ async function updateHomepageData(statusData) {
 
 function handleSmartInboxClick(projectName, mediaType, suggestionTitle) {
     selectProject(projectName);
-    
+
     setTimeout(() => {
         currentProjectSuggestedQuery = suggestionTitle;
         currentProjectIsDoku = (mediaType === 'doku');
-        
+
         if (mediaType === 'movie' || mediaType === 'doku') {
             const card = document.getElementById("mode-movie");
             if (card) card.click();
@@ -10968,7 +10973,7 @@ function handleSmartInboxClick(projectName, mediaType, suggestionTitle) {
             const card = document.getElementById("mode-series");
             if (card) {
                 card.click();
-                
+
                 setTimeout(() => {
                     const animeCheck = document.getElementById("series-is-anime");
                     if (animeCheck) {
@@ -10989,16 +10994,16 @@ function handleHeroYtDownload() {
         alert("Bitte eine gültige YouTube-/Mediathek-URL eingeben!");
         return;
     }
-    
+
     // Copy to downloader input
     const ytInput = document.getElementById("yt-url");
     if (ytInput) {
         ytInput.value = url;
     }
-    
+
     // Clear hero input
     heroInput.value = "";
-    
+
     // Navigate to YouTube view
     document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
     const ytView = document.getElementById("view-youtube");
@@ -11008,9 +11013,9 @@ function handleHeroYtDownload() {
     }
     // Remove active sidebar project selections
     document.querySelectorAll(".project-item").forEach(el => el.classList.remove("active"));
-    
+
     scrollToDetailTop();
-    
+
     // Call analyseYtLink()
     analyseYtLink();
 }
@@ -11021,11 +11026,11 @@ function handleHeroYtDownload() {
 async function populateLocalProfilesDropdown() {
     const select = document.getElementById("series-local-profile-select");
     if (!select) return;
-    
+
     try {
         const res = await fetch("/api/profiles");
         const data = await res.json();
-        
+
         allLocalProfiles = [];
         if (data.profiles && data.profiles.length > 0) {
             // Sort by show name
@@ -11034,7 +11039,7 @@ async function populateLocalProfilesDropdown() {
                 const nameB = b.data.show_name || b.filename;
                 return nameA.localeCompare(nameB);
             });
-            
+
             data.profiles.forEach(p => {
                 const displayName = p.data.show_name || p.filename.replace(".json", "");
                 p.data.show_name = displayName;
@@ -11042,7 +11047,7 @@ async function populateLocalProfilesDropdown() {
                 allLocalProfiles.push(p.data);
             });
         }
-        
+
         renderLocalProfilesDropdown(allLocalProfiles);
     } catch (e) {
         console.error("Fehler beim Laden lokaler Profile:", e);
@@ -11052,7 +11057,7 @@ async function populateLocalProfilesDropdown() {
 function renderLocalProfilesDropdown(profiles) {
     const select = document.getElementById("series-local-profile-select");
     if (!select) return;
-    
+
     let html = "<option value=\"\">-- Lokales Profil wählen --</option>";
     profiles.forEach(p => {
         html += `<option value='${JSON.stringify(p).replace(/'/g, "&#39;")}' data-name="${p.show_name.toLowerCase()}">${p.show_name}</option>`;
@@ -11062,7 +11067,7 @@ function renderLocalProfilesDropdown(profiles) {
 
 document.addEventListener("DOMContentLoaded", () => {
     populateLocalProfilesDropdown();
-    
+
     const select = document.getElementById("series-local-profile-select");
     if (select) {
         select.addEventListener("change", (e) => {
@@ -11077,17 +11082,17 @@ document.addEventListener("DOMContentLoaded", () => {
                     plot: profileData.plot || "",
                     poster: profileData.poster || ""
                 };
-                
+
                 const resultsContainer = document.getElementById("series-search-results");
                 if (resultsContainer) resultsContainer.innerHTML = "";
-                
+
                 selectShow(showObj);
             } catch(err) {
                 console.error("Fehler beim Profil-Auswählen", err);
             }
         });
     }
-    
+
     // Fuzzy-Suche für Profile
     const searchInput = document.getElementById("series-local-profile-search");
     if (searchInput) {
@@ -11097,7 +11102,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 renderLocalProfilesDropdown(allLocalProfiles);
                 return;
             }
-            
+
             // Fuzzy match helper: true if all query characters appear in string in relative order
             const fuzzyMatch = (str, q) => {
                 str = str.toLowerCase();
@@ -11111,12 +11116,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
                 return false;
             };
-            
+
             const filtered = allLocalProfiles.filter(p => {
                 const displayName = p.show_name || "";
                 return fuzzyMatch(displayName, query);
             });
-            
+
             renderLocalProfilesDropdown(filtered);
         });
     }
@@ -11141,13 +11146,13 @@ async function loadConversionRecommendations() {
 function renderIntelligenceDashboard(data) {
     const grid = document.getElementById("intelligence-grid");
     if (!grid) return;
-    
+
     const recs = data.recommendations || {};
     if (Object.keys(recs).length === 0) {
         grid.innerHTML = `<p class="text-muted text-center" style="grid-column: 1/-1; margin: 0; padding: 10px;">Noch keine Empfehlungen verfügbar. Führe erst Konvertierungen durch.</p>`;
         return;
     }
-    
+
     let html = "";
     for (const [ct, info] of Object.entries(recs)) {
         let label = ct;
@@ -11156,7 +11161,7 @@ function renderIntelligenceDashboard(data) {
         else if (ct === "live_action") { label = "Serien"; icon = "📺"; }
         else if (ct === "doku") { label = "Dokus"; icon = "🌿"; }
         else if (ct === "anime") { label = "Animes"; icon = "🌸"; }
-        
+
         html += `
             <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-light); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
                 <span style="font-size: 0.95em; display: flex; align-items: center; gap: 6px;">
@@ -11173,25 +11178,25 @@ function renderIntelligenceDashboard(data) {
 
 function triggerQualityHintUpdates() {
     if (!globalRecommendations) return;
-    
+
     const recs = globalRecommendations.recommendations || {};
-    
+
     // Movie context check
     const contextMovie = document.getElementById("context-movie");
     if (contextMovie && !contextMovie.classList.contains("hidden")) {
         const slider = document.getElementById("movie-quality-slider");
         const hintEl = document.getElementById("movie-quality-hint");
         const destSelect = document.getElementById("movie-nas-destination");
-        
+
         if (slider && hintEl) {
             const val = parseInt(slider.value);
             const isDoku = destSelect && destSelect.value.toLowerCase().includes("doku");
             const mediaType = isDoku ? "doku" : "movie";
-            
+
             updateHintElement(hintEl, val, recs[mediaType]);
         }
     }
-    
+
     // Series context check
     const contextSeries = document.getElementById("context-series");
     if (contextSeries && !contextSeries.classList.contains("hidden")) {
@@ -11199,13 +11204,13 @@ function triggerQualityHintUpdates() {
         const hintEl = document.getElementById("series-quality-hint");
         const isAnime = document.getElementById("series-is-anime")?.checked || false;
         const destSelect = document.getElementById("series-nas-destination");
-        
+
         if (slider && hintEl) {
             const val = parseInt(slider.value);
             let mediaType = "live_action";
             if (isAnime) mediaType = "anime";
             else if (destSelect && destSelect.value.toLowerCase().includes("doku")) mediaType = "doku";
-            
+
             updateHintElement(hintEl, val, recs[mediaType]);
         }
     }
@@ -11217,7 +11222,7 @@ function updateHintElement(el, currentVal, recInfo) {
         el.classList.remove("hidden");
         return;
     }
-    
+
     const optimal = recInfo.optimal_quality;
     if (currentVal === optimal) {
         el.textContent = `✅ Optimaler Wert für diesen Inhaltstyp basierend auf deiner Historie (CRF ${optimal}).`;
@@ -11270,7 +11275,7 @@ async function loadHealthCategories() {
             container.innerHTML = `<span style="font-size:0.85em; color:var(--text-muted); font-style:italic;">Keine Kategorien konfiguriert.</span>`;
             return;
         }
-        
+
         container.innerHTML = categories.map(cat => {
             const id = cat.id || "";
             const name = cat.name || "Unbenannt";
@@ -11370,7 +11375,7 @@ async function pollHealthStatus(keepPolling) {
         const btn = document.getElementById("btn-health-scan");
         const cancelBtn = document.getElementById("btn-health-cancel");
         if (btn) btn.disabled = running;
-        
+
         if (cancelBtn) {
             cancelBtn.style.display = running ? "inline-block" : "none";
             if (!running) {
@@ -11429,13 +11434,13 @@ function renderHealthStatus(data) {
         } else if (data.status === "done" || (data.issues && data.issues.length >= 0 && data.finished_at)) {
             const when = data.finished_at ? new Date(data.finished_at * 1000).toLocaleString("de-DE") : "";
             statusEl.textContent = data.message + (when ? ` (zuletzt: ${when})` : "");
-            
+
             if (statsEl && data.stats) {
                 const s = data.stats;
-                statsEl.innerHTML = `⚡ Cache-Statistik: 
-                    <span style="color:var(--accent); font-weight:500;">${s.cache_hits || 0}</span> Treffer, 
-                    <span style="color:#f59e0b; font-weight:500;">${s.cache_miss_modified || 0}</span> wegen Änderungen neu geprüft, 
-                    <span style="color:#ef4444; font-weight:500;">${s.cache_miss_known_issues || 0}</span> wegen bekannter Fehler neu geprüft, 
+                statsEl.innerHTML = `⚡ Cache-Statistik:
+                    <span style="color:var(--accent); font-weight:500;">${s.cache_hits || 0}</span> Treffer,
+                    <span style="color:#f59e0b; font-weight:500;">${s.cache_miss_modified || 0}</span> wegen Änderungen neu geprüft,
+                    <span style="color:#ef4444; font-weight:500;">${s.cache_miss_known_issues || 0}</span> wegen bekannter Fehler neu geprüft,
                     <span style="color:#3b82f6; font-weight:500;">${s.cache_miss_new || 0}</span> neu erfasst.`;
                 statsEl.style.display = "block";
             } else if (statsEl) {
@@ -11479,7 +11484,7 @@ function renderHealthStatus(data) {
             html += `<details data-sev="${sev}" ${sev === "critical" ? "open" : ""} style="border:1px solid var(--border-light); border-radius:8px; padding:8px 12px;">
                         <summary style="cursor:pointer; color:${m.color}; font-weight:500;">${m.icon} ${m.label} (${list.length})</summary>
                         <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">`;
-            
+
             for (let i = 0; i < list.length; i++) {
                 if (totalRendered >= DOM_LIMIT) {
                     if (!limitReached) {
@@ -11988,19 +11993,19 @@ async function applyNormalize() {
 
 function openToolRunnerModal(toolType, title, desc, hasQualitySlider = false) {
     window.currentActiveTool = toolType;
-    
+
     const titleEl = document.getElementById("tool-modal-title");
     const descEl = document.getElementById("tool-modal-desc");
     const pathInput = document.getElementById("tool-modal-target-path");
     const extraOpt = document.getElementById("tool-modal-extra-options");
     const modal = document.getElementById("modal-tool-runner");
-    
+
     if (titleEl) titleEl.textContent = title;
     if (descEl) descEl.textContent = desc;
     if (pathInput) {
         pathInput.value = currentProject || (currentSettings ? currentSettings.inbox_dir : "");
     }
-    
+
     if (extraOpt) {
         if (hasQualitySlider) {
             extraOpt.innerHTML = `
@@ -12029,7 +12034,7 @@ function openToolRunnerModal(toolType, title, desc, hasQualitySlider = false) {
             extraOpt.style.display = "none";
         }
     }
-    
+
     if (modal) modal.classList.add("active");
 }
 
@@ -12044,25 +12049,25 @@ function openProfilesModal() {
 async function loadProfilesInModal() {
     const container = document.getElementById("profiles-list-container");
     if (!container) return;
-    
+
     container.innerHTML = `<div style="color:var(--text-muted); font-size:13px; padding:10px; text-align:center;">Lade Profile...</div>`;
-    
+
     try {
         const res = await fetch("/api/profiles");
         const data = await res.json();
-        
+
         if (!data.profiles || data.profiles.length === 0) {
             container.innerHTML = `<div style="color:var(--text-muted); font-size:13px; padding:20px; text-align:center;">Keine gespeicherten Profile gefunden.</div>`;
             return;
         }
-        
+
         // Sortieren
         data.profiles.sort((a, b) => {
             const nameA = a.data.show_name || a.filename;
             const nameB = b.data.show_name || b.filename;
             return nameA.localeCompare(nameB);
         });
-        
+
         let html = "";
         data.profiles.forEach(p => {
             const displayName = p.data.show_name || p.filename.replace(".json", "");
@@ -12093,7 +12098,7 @@ async function loadProfilesInModal() {
 
 async function deleteProfileFromModal(filename, displayName) {
     if (!confirm(`Möchtest du das Profil für "${displayName}" wirklich löschen?`)) return;
-    
+
     try {
         const response = await fetch("/api/profiles", {
             method: "POST",
@@ -12119,11 +12124,11 @@ function loadProfileFromModal(filename, displayName, showId, provider) {
     // Schließe Modal
     const modal = document.getElementById("modal-profiles");
     if (modal) modal.classList.remove("active");
-    
+
     // Wechsle zum Home-Tab / Sendezentrale
     const homeBtn = document.getElementById("master-btn-home");
     if (homeBtn) homeBtn.click();
-    
+
     // Lade Show mit selectShow
     const showObj = {
         id: showId || "",
@@ -12199,7 +12204,7 @@ function initSidebarDragAndDrop() {
                 if (!confirmed) {
                     confirmed = await showMergeConfirmModal(sourceProject, targetProject);
                 }
-                
+
                 if (confirmed) {
                     await mergeProjects(sourceProject, targetProject);
                 }
@@ -12216,38 +12221,38 @@ function showMergeConfirmModal(source, target) {
         const btnClose = document.getElementById("close-modal-confirm-merge");
         const btnConfirm = document.getElementById("btn-confirm-merge-execute");
         const skipCb = document.getElementById("confirm-merge-skip-cb");
-        
+
         if (!modal || !textEl || !btnCancel || !btnConfirm) {
             resolve(confirm(`Möchtest du den Ordner "${source}" in den Ordner "${target}" verschieben und mit ihm zusammenführen?`));
             return;
         }
-        
+
         textEl.textContent = `Möchtest du den Ordner "${source}" in den Ordner "${target}" verschieben und mit ihm zusammenführen?`;
         if (skipCb) skipCb.checked = false;
-        
+
         modal.classList.add("active");
-        
+
         const cleanup = (result) => {
             modal.classList.remove("active");
             btnCancel.removeEventListener("click", onCancel);
             if (btnClose) btnClose.removeEventListener("click", onCancel);
             btnConfirm.removeEventListener("click", onConfirm);
-            
+
             if (result && skipCb && skipCb.checked) {
                 localStorage.setItem("skipMergeConfirm", "true");
             }
-            
+
             resolve(result);
         };
-        
+
         function onCancel() {
             cleanup(false);
         }
-        
+
         function onConfirm() {
             cleanup(true);
         }
-        
+
         btnCancel.addEventListener("click", onCancel);
         if (btnClose) btnClose.addEventListener("click", onCancel);
         btnConfirm.addEventListener("click", onConfirm);
@@ -12287,7 +12292,7 @@ async function mergeProjects(source, target) {
 // Initialize Drag & Drop and Reset Button
 document.addEventListener("DOMContentLoaded", () => {
     initSidebarDragAndDrop();
-    
+
     const btnResetMerge = document.getElementById("btn-reset-merge-confirm");
     if (btnResetMerge) {
         btnResetMerge.addEventListener("click", () => {
@@ -12302,32 +12307,32 @@ window.clearSelectedShow = function() {
     window.selectedShow = null;
     const panel = document.getElementById("selected-show-panel");
     if (panel) panel.classList.add("hidden");
-    
+
     const clearBtn = document.getElementById("btn-clear-profile-selection");
     if (clearBtn) clearBtn.classList.add("hidden");
-    
+
     const localProfileSelect = document.getElementById("series-local-profile-select");
     if (localProfileSelect) localProfileSelect.value = "";
-    
+
     const overrideInput = document.getElementById("series-nas-folder-override");
     if (overrideInput) {
         overrideInput.value = "";
         window.nasFolderSelected = "";
     }
-    
+
     const matchingContainer = document.getElementById("matching-panel-container");
     if (matchingContainer) matchingContainer.innerHTML = "";
-    
+
     const execPanel = document.getElementById("series-execution-panel");
     if (execPanel) execPanel.classList.add("hidden");
-    
+
     const seriesNfoTitle = document.getElementById("series-nfo-title");
     const seriesNfoYear = document.getElementById("series-nfo-year");
     const seriesNfoPlot = document.getElementById("series-nfo-plot");
     if (seriesNfoTitle) seriesNfoTitle.value = "";
     if (seriesNfoYear) seriesNfoYear.value = "";
     if (seriesNfoPlot) seriesNfoPlot.value = "";
-    
+
     fetchNasSeasons();
 };
 
@@ -12337,7 +12342,7 @@ window.clearNasOverride = function() {
         overrideInput.value = cleanSeriesName(selectedShow.name);
         window.nasFolderSelected = ""; // Clear polluted saved state
         window.disableNasFuzzyMatch = true; // Prevent backend from re-matching the wrong folder
-        
+
         // Visual flash to indicate reset
         overrideInput.classList.remove("highlight-match-flash");
         void overrideInput.offsetWidth;
@@ -12345,10 +12350,10 @@ window.clearNasOverride = function() {
         setTimeout(() => {
             overrideInput.classList.remove("highlight-match-flash");
         }, 1500);
-        
+
         // Re-fetch NAS info and reset duplicates
         fetchNasSeasons();
-        
+
         // If we are currently showing episodes, we must re-trigger match to clear duplicate warnings
         const execPanel = document.getElementById("series-execution-panel");
         if (execPanel && !execPanel.classList.contains("hidden")) {

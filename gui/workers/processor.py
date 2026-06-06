@@ -12,7 +12,7 @@ def _get_series_meta_files(settings):
     """Returns 'tvshow.nfo' and all server-specific series artwork names."""
     server_type = settings.get("media_server", "emby") or "emby"
     validator = artwork_validators.get_validator(server_type)
-    
+
     show_artworks = []
     show_artworks.extend(validator.get_series_poster_names())
     show_artworks.extend(validator.get_series_backdrop_names())
@@ -20,12 +20,12 @@ def _get_series_meta_files(settings):
         show_artworks.extend(validator.get_series_logo_names())
     if validator.supports_banners:
         show_artworks.extend(validator.get_series_banner_names())
-    
+
     unique_artworks = []
     for art in show_artworks:
         if art not in unique_artworks:
             unique_artworks.append(art)
-            
+
     return ["tvshow.nfo"] + unique_artworks
 
 def _get_movie_artwork_lists(settings, video_filename):
@@ -58,7 +58,7 @@ def build_job_pipeline(params, has_metadata, convert):
     for target in settings.get("storage_targets", []):
         t_id = target.get("id")
         t_type = target.get("type")
-        
+
         should_copy = False
         if params.get(f"copy_to_{t_id}") is not None:
             should_copy = params.get(f"copy_to_{t_id}")
@@ -66,9 +66,9 @@ def build_job_pipeline(params, has_metadata, convert):
             should_copy = params.get("copy_to_nas")
         elif t_type != "nas" and params.get("copy_to_pcloud") is not None:
             should_copy = params.get("copy_to_pcloud")
-            
+
         pipeline[t_id] = {"status": "pending" if (should_copy and target.get("enabled", True)) else "skipped", "progress": 0}
-        
+
     if params.get("copy_to_local"):
         pipeline["local"] = {"status": "pending", "progress": 0}
     return pipeline
@@ -104,7 +104,7 @@ def _extract_show_name(filename):
 def preview_streamfab_import():
     settings = load_settings()
     sources = settings.get("import_sources", [])
-    
+
     all_files_to_import = []
     for sf_dir in sources:
         if not os.path.exists(sf_dir):
@@ -115,8 +115,8 @@ def preview_streamfab_import():
                 if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.srt', '.nfo', '.vtt', '.jpg', '.png')):
                     src = os.path.join(root, f)
                     all_files_to_import.append((src, f))
-                    
-    groups = {} 
+
+    groups = {}
     for src, f in all_files_to_import:
         show_name = _extract_show_name(f)
         key = show_name.lower()
@@ -137,17 +137,17 @@ def preview_streamfab_import():
             "size": size,
             "is_video": f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm'))
         })
-        
+
     return list(groups.values())
 
 def execute_streamfab_import(import_items, delete_items):
     settings = load_settings()
     sources = settings.get("import_sources", [])
     inbox = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
-    
+
     os.makedirs(inbox, exist_ok=True)
     count = 0
-    
+
     # import_items: dict {"safe_folder_name": ["/path/to/file1", ...]}
     for safe_folder, file_paths in import_items.items():
         project_dir = os.path.join(inbox, safe_folder)
@@ -161,7 +161,7 @@ def execute_streamfab_import(import_items, delete_items):
                 count += 1
             except Exception as e:
                 print(f"Error moving {f} to project dir {safe_folder}: {e}")
-                
+
     for src in delete_items:
         if os.path.exists(src):
             try:
@@ -203,23 +203,23 @@ def run_subscription_check_job(task_id):
             from gui.core.jobs import update_job
             update_job(task_id, progress=100, message="Keine aktiven Abonnements", status="done")
             return
-            
+
         total = len(active_subs)
         log_message(f"[YouTube Abo-Überwachung]: Starte manuell getriggerten Check für {total} Abos (via Warteschlange)...")
-        
+
         for idx, sub in enumerate(active_subs):
             current_progress = int((idx / total) * 100)
             sub_name = sub.get("name", "Unbekannt")
-            
+
             from gui.core.jobs import update_job
             update_job(task_id, progress=current_progress, message=f"Prüfe '{sub_name}' ({idx + 1}/{total})...")
-                    
+
             log_message(f"[YouTube Abo-Überwachung] Überprüfe '{sub_name}' ({idx + 1}/{total})...")
             try:
                 check_single_subscription(sub)
             except Exception as sub_err:
                 log_message(f"[YouTube Abo-Überwachung] Fehler bei '{sub_name}': {sub_err}")
-            
+
         from gui.core.jobs import update_job
         update_job(task_id, progress=100, message=f"{total} Abonnements erfolgreich überprüft.", status="done")
     except Exception as e:
@@ -269,10 +269,10 @@ def process_worker(params):
     inbox_root = settings.get("inbox_dir", "")
     nas_root = settings.get("nas_root", "")
     outbox_root = settings.get("outbox_dir", "")
-    
+
     if not inbox_root or not outbox_root:
         raise RuntimeError("Inbox- oder Output-Verzeichnis ist nicht konfiguriert.")
-    
+
     destination = None
     # Resolve NAS destination path
     if nas_destination_id:
@@ -338,7 +338,7 @@ def process_worker(params):
         current_dir = os.path.join(inbox_root, project_name)
     else:
         current_dir = inbox_root
-        
+
     job_size_gb = 0.0
     try:
         if project_name:
@@ -367,13 +367,13 @@ def process_worker(params):
                 job_size_gb = get_dir_size_gb(current_dir)
     except Exception as e:
         print(f"Fehler bei der Berechnung der Jobgröße: {e}")
-        
+
     log_message(f"=== STARTE VERARBEITUNG IN: {current_dir} (Groesse: {job_size_gb:.2f} GB) ===")
-    
+
     explicit_renames = params.get("explicit_renames")
     explicit_subs = params.get("explicit_subs")
     explicit_junk = params.get("explicit_junk")
-    
+
     # 0. Apply explicit user choices from preview if provided
     if explicit_renames is not None:
         log_message("Wende exakte Benutzer-Zuweisungen aus Vorschau an...")
@@ -386,15 +386,60 @@ def process_worker(params):
                         log_message(f"In Quarantäne (Junk): {j}")
                     except Exception as e:
                         log_message(f"Fehler beim Löschen von Junk {j}: {e}")
-                    
+
         if explicit_renames:
+            # Check for duplicate target names (collisions)
+            new_to_olds = {}
             for r in explicit_renames:
+                new_f = r["new"]
+                if new_f not in new_to_olds:
+                    new_to_olds[new_f] = []
+                new_to_olds[new_f].append(r["old"])
+
+            filtered_renames = []
+            for new_f, old_files in new_to_olds.items():
+                if len(old_files) > 1:
+                    # Determine sizes of colliding files
+                    file_sizes = []
+                    for old_f in old_files:
+                        fp = os.path.join(current_dir, old_f)
+                        try:
+                            sz = os.path.getsize(fp) if os.path.exists(fp) else 0
+                        except Exception:
+                            sz = 0
+                        file_sizes.append((old_f, sz))
+
+                    # Sort absteigend nach Dateigröße
+                    file_sizes.sort(key=lambda x: x[1], reverse=True)
+                    largest_old = file_sizes[0][0]
+
+                    # Verify that all other colliding files are marked as junk
+                    junk_set = set(explicit_junk or [])
+                    smaller_files_in_junk = True
+                    for old_f, sz in file_sizes[1:]:
+                        if old_f not in junk_set:
+                            smaller_files_in_junk = False
+                            break
+
+                    if not smaller_files_in_junk:
+                        raise RuntimeError(
+                            f"Kollision im Namensschema erkannt: Mehrere Dateien verweisen auf dasselbe Ziel '{new_f}' "
+                            f"({', '.join(old_files)}), aber die Duplikate sind nicht explizit als Junk markiert. "
+                            f"Abbruch zur Vermeidung von Datenverlust."
+                        )
+
+                    # Only process the largest one, the others are sent to trash in the junk block
+                    filtered_renames.append({"old": largest_old, "new": new_f})
+                else:
+                    filtered_renames.append({"old": old_files[0], "new": new_f})
+
+            for r in filtered_renames:
                 old_path = os.path.join(current_dir, r["old"])
                 new_path = os.path.join(current_dir, r["new"])
                 if os.path.exists(old_path) and old_path != new_path:
                     os.rename(old_path, new_path)
                     log_message(f"Umbenannt/Hochgezogen: {r['old']} -> {r['new']}")
-                    
+
         if explicit_subs:
             for s in explicit_subs:
                 old_path = os.path.join(current_dir, s["old"])
@@ -402,7 +447,7 @@ def process_worker(params):
                 if os.path.exists(old_path) and old_path != new_path:
                     os.rename(old_path, new_path)
                     log_message(f"Umbenannt/Hochgezogen (Extra): {s['old']} -> {s['new']}")
-                    
+
         # Cleanup empty subdirectories
         for root, dirs, files in os.walk(current_dir, topdown=False):
             if root == current_dir: continue
@@ -411,7 +456,7 @@ def process_worker(params):
                     trash.send_to_trash(root)
                     log_message(f"Leeren Unterordner entfernt: {os.path.basename(root)}")
                 except Exception as e: print(f"Warning: Ignored exception {e}")
-    
+
     if media_type == "tv":
         rel_sub = ""
         if destination:
@@ -421,7 +466,7 @@ def process_worker(params):
                 rel_sub = os.path.basename(destination)
         else:
             rel_sub = "/Serien"
-            
+
         show_name = clean_series_name_for_fs(params.get("show_name", "Unknown Show"))
         nas_show_folder = params.get("nas_show_folder")
         if nas_show_folder:
@@ -431,9 +476,9 @@ def process_worker(params):
             rel_dest = os.path.relpath(nas_serien, nas_root)
             outbox_serien = os.path.join(outbox_root, rel_dest)
             clean_show_name = get_matched_series_name(nas_serien, outbox_serien, limit_filename_length(sanitize_filename(show_name)))
-            
+
         log_message(f"Typ: Serie | Name: {show_name} (Bereinigt: {clean_show_name}) | Staffel: {season}")
-        
+
         # 1. Generate tvshow.nfo and download show artwork (poster.jpg, fanart.jpg)
         from gui.core.jobs import update_job
         update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=50)
@@ -445,7 +490,7 @@ def process_worker(params):
                 log_message(f"tvshow.nfo Status: {res}")
             except Exception as e:
                 log_message(f"Fehler bei tvshow.nfo: {e}")
-                
+
         # 2. Fetch episodes metadata
         log_message("Rufe Episoden-Metadaten ab...")
         try:
@@ -486,20 +531,20 @@ def process_worker(params):
         if N == 0:
             log_message("Keine Mappings zur Verarbeitung vorhanden.")
             return
-            
+
         conv_pct = [0] * N
         file_titles = [""] * N
 
         # Determine active targets
         settings = load_settings()
         storage_targets = settings.get("storage_targets", [])
-        
+
         active_nas_targets = []
         active_cloud_targets = []
         for target in storage_targets:
             t_id = target.get("id")
             t_type = target.get("type")
-            
+
             should_copy = False
             if params.get(f"copy_to_{t_id}") is not None:
                 should_copy = params.get(f"copy_to_{t_id}")
@@ -507,16 +552,16 @@ def process_worker(params):
                 should_copy = params.get("copy_to_nas")
             elif t_type != "nas" and params.get("copy_to_pcloud") is not None:
                 should_copy = params.get("copy_to_pcloud")
-                
+
             if should_copy and target.get("enabled", True):
                 if t_type == "nas" or t_id == "nas":
                     active_nas_targets.append(t_id)
                 else:
                     active_cloud_targets.append(t_id)
-                    
+
         has_conv = convert
         w_conv = 0.5 if has_conv else 0
-        
+
         target_weights = {}
         if active_nas_targets:
             nas_weight = 0.3 / len(active_nas_targets)
@@ -526,7 +571,7 @@ def process_worker(params):
             cloud_weight = 0.2 / len(active_cloud_targets)
             for t_id in active_cloud_targets:
                 target_weights[t_id] = cloud_weight
-                
+
         # Normalize weights
         total_w = w_conv + sum(target_weights.values())
         if total_w > 0:
@@ -536,9 +581,9 @@ def process_worker(params):
         else:
             w_conv = 0.5
             target_weights = {}
-            
+
         progress_lock = threading.RLock()
-        
+
         # Track progresses for each target
         target_progresses = {}
         target_speeds = {}
@@ -553,12 +598,12 @@ def process_worker(params):
                 for i in range(N):
                     nas_prog = sum(target_progresses[t_id][i] * target_weights.get(t_id, 0) for t_id in target_weights if isinstance(target_progresses[t_id], list))
                     total_file_progress += (conv_pct[i] * w_conv) + nas_prog
-                
+
                 avg_files = total_file_progress / N if N > 0 else 0
                 cloud_prog = sum(target_progresses[t_id] * target_weights.get(t_id, 0) for t_id in target_weights if not isinstance(target_progresses[t_id], list))
                 total_val = avg_files + cloud_prog
                 percent = min(100, max(0, int(total_val)))
-                
+
                 active_conv = []
                 active_trans = []
                 for i in range(N):
@@ -572,16 +617,16 @@ def process_worker(params):
                         if t_id in target_weights and isinstance(t_pct, list) and t_pct[i] > 0 and t_pct[i] < 100:
                             speed_info = f" bei {t_speeds[i]}" if t_speeds[i] else ""
                             active_trans.append(f"{file_titles[i]} ({t_name} {t_pct[i]}%{speed_info})")
-                            
+
                 status_parts = []
                 if active_conv:
                     status_parts.append(f"Konvertierung: {', '.join(active_conv)}")
                 elif has_conv and sum(conv_pct) < N * 100:
                     status_parts.append("Konvertierung wartet...")
-                    
+
                 if active_trans:
                     status_parts.append(f"Kopieren: {', '.join(active_trans)}")
-                
+
                 # Check active cloud uploads
                 for target in storage_targets:
                     t_id = target.get("id")
@@ -591,12 +636,12 @@ def process_worker(params):
                     if t_id in target_weights and not isinstance(t_pct, list) and t_pct > 0 and t_pct < 100:
                         speed_info = f" ({t_speed})" if t_speed else ""
                         status_parts.append(f"{t_name} Upload: {t_pct}%{speed_info}")
-                        
+
                 if not status_parts:
                     status_parts.append("Verarbeitung läuft...")
-                    
+
                 message = " | ".join(status_parts)
-                
+
                 if task_id:
                     from gui.core.jobs import update_job
                     update_job(task_id, progress=percent, message=message)
@@ -613,16 +658,16 @@ def process_worker(params):
                 try:
                     task_type = task["type"]
                     file_idx = task.get("file_idx")
-                    
+
                     if task_type == "nas_transfer":
                         target_id = task.get("target_id", "nas")
                         dest_dir_outbox = task["dest_dir_outbox"]
                         dest_dir_nas = task["dest_dir_nas"]
                         final_filename = task["final_filename"]
                         clean_title = task["clean_title"]
-                        
+
                         log_message(f"[Transfer Thread]: Starte NAS-Kopieren für {final_filename} auf {target_id}...")
-                        
+
                         def nas_progress_cb(percent, msg):
                             target_progresses[target_id][file_idx] = percent
                             speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
@@ -639,7 +684,7 @@ def process_worker(params):
                                         active_jobs[task_id]["pipeline"][target_id]["status"] = "running"
                                         avg_nas = sum(target_progresses[target_id]) / N
                                         active_jobs[task_id]["pipeline"][target_id]["progress"] = int(avg_nas)
-                            
+
                         os.makedirs(dest_dir_nas, exist_ok=True)
                         success = run_rsync_with_progress(
                             os.path.join(dest_dir_outbox, final_filename),
@@ -655,19 +700,19 @@ def process_worker(params):
                                         active_jobs[task_id]["pipeline"][target_id]["message"] = "Fehlgeschlagen"
                         else:
                             target_progresses[target_id][file_idx] = 100
-                            
+
                         # Copy accompanying files
                         for f in os.listdir(dest_dir_outbox):
                             if f.startswith(clean_title) and f != final_filename:
                                 shutil.copy(os.path.join(dest_dir_outbox, f), os.path.join(dest_dir_nas, f))
-                        
+
                         log_message(f"[Transfer Thread]: Kopieren auf {target_id} fertig für {final_filename}.")
                         update_global_job_progress()
-                        
+
                     elif task_type == "show_metadata_nas_transfer":
                         dest_show_dir_outbox = task["dest_show_dir_outbox"]
                         dest_show_dir_nas = task["dest_show_dir_nas"]
-                        
+
                         log_message(f"[Transfer Thread]: Kopiere Serien-Metadaten auf {dest_show_dir_nas}...")
                         os.makedirs(dest_show_dir_nas, exist_ok=True)
                         settings = load_settings()
@@ -684,19 +729,19 @@ def process_worker(params):
                         # settings = load_settings()
                         # if settings.get("open_nas_finder") and "/Volumes/Kino" in dest_show_dir_nas:
                         #     open_folder_in_finder(dest_show_dir_nas)
-                        
+
                     elif task_type in ["pcloud_transfer", "cloud_transfer"]:
                         target_id = task.get("target_id", "pcloud")
                         dest_show_dir_outbox = task["dest_show_dir_outbox"]
                         nas_serien = task["nas_serien"]
                         explicit_remote_base = task.get("explicit_remote_base") or task.get("explicit_pcloud_base")
-                        
+
                         settings = load_settings()
                         target = next((t for t in settings.get("storage_targets", []) if t.get("id") == target_id), None)
                         target_name = target.get("name", target_id) if target else target_id
-                        
+
                         log_message(f"[Transfer Thread]: Starte Upload für {target_name}...")
-                        
+
                         def cloud_progress_cb(percent, msg):
                             with progress_lock:
                                 target_progresses[target_id] = percent
@@ -713,7 +758,7 @@ def process_worker(params):
                                     if target_id in active_jobs[task_id]["pipeline"]:
                                         active_jobs[task_id]["pipeline"][target_id]["status"] = "running"
                                         active_jobs[task_id]["pipeline"][target_id]["progress"] = percent
-                            
+
                         success = copy_to_cloud_target(
                             dest_show_dir_outbox,
                             nas_serien,
@@ -738,7 +783,7 @@ def process_worker(params):
                                     if target_id in active_jobs[task_id]["pipeline"]:
                                         active_jobs[task_id]["pipeline"][target_id]["status"] = "error"
                                         active_jobs[task_id]["pipeline"][target_id]["message"] = "Fehlgeschlagen"
-                        
+
                 except Exception as e:
                     log_message(f"❌ [Transfer Thread] Fehler: {e}")
                     transfer_errors.append(e)
@@ -753,7 +798,7 @@ def process_worker(params):
         for file_idx, (filename, ep_num_val) in enumerate(mapping_items):
             # If explicit_renames was used, the file is ALREADY renamed to the target_filename
             # We just need to generate the NFO!
-            
+
             # Get episode title and original season/episode values
             if isinstance(ep_num_val, dict):
                 ep_num = ep_num_val.get("episode", 1)
@@ -768,7 +813,7 @@ def process_worker(params):
                         ep_title = ep_data.get("title", ep_title)
                     else:
                         ep_title = str(ep_data) or ep_title
-                        
+
                     match = re.match(r"^S(\d+)E(\d+)$", str(meta_ep), re.IGNORECASE)
                     if match:
                         orig_season = int(match.group(1))
@@ -791,7 +836,7 @@ def process_worker(params):
                     ep_title = ep_data.get("title", "")
                 else:
                     ep_title = str(ep_data)
-                
+
                 match = re.match(r"^S(\d+)E(\d+)$", str(ep_num_val), re.IGNORECASE)
                 if match:
                     ep_season = int(match.group(1))
@@ -801,7 +846,7 @@ def process_worker(params):
                     ep_season = season
                 orig_season = ep_season
                 orig_episode = ep_num
-                
+
             force_abs = params.get("force_absolute_season_1", False)
             if force_abs:
                 if isinstance(ep_num_val, dict):
@@ -813,9 +858,9 @@ def process_worker(params):
                 abs_num = extract_absolute_episode_number(ep_num_val, ep_data, filename)
                 ep_season = 1
                 ep_num = abs_num
-                
+
             ep_title = sanitize_filename(ep_title)
-            
+
             # Format: Show Name - SxxExx - Title.ext
             ext = os.path.splitext(filename)[1].lower()
             try:
@@ -826,18 +871,18 @@ def process_worker(params):
                 ep_str = f"E{int(ep_num):02d}"
             except (ValueError, TypeError):
                 ep_str = f"E{ep_num}"
-            
+
             # Save file title for display
             file_titles[file_idx] = f"{season_str}{ep_str}"
-            
+
             clean_title = f"{clean_show_name} - {season_str}{ep_str}"
             if ep_title:
                 clean_title += f" - {ep_title}"
             clean_title = limit_filename_length(clean_title)
-                
+
             target_filename = f"{clean_title}{ext}"
             target_filepath = os.path.join(current_dir, target_filename)
-            
+
             if explicit_renames is None:
                 # Old backwards compatible fallback
                 filepath = os.path.join(current_dir, filename)
@@ -849,7 +894,7 @@ def process_worker(params):
                 except Exception as e:
                     log_message(f"Fehler beim Umbenennen: {e}")
                     continue
-                    
+
                 # Rename subtitles
                 base_old = os.path.splitext(filename)[0]
                 for f in os.listdir(current_dir):
@@ -863,7 +908,7 @@ def process_worker(params):
                                 os.rename(sub_old_path, sub_new_path)
                             except Exception as e:
                                 log_message(f"Fehler: {e}")
-                                
+
             # Generate Episode NFO
             if show_id and provider:
                 log_message(f"Generiere Episoden-NFO für {ep_str}...")
@@ -939,21 +984,21 @@ def process_worker(params):
             else:
                 conv_pct[file_idx] = 100
             update_global_job_progress()
-            
+
             # Move to local Output folder
             nas_serien = destination if destination else f"{nas_root}/Serien"
             rel_dest = os.path.relpath(nas_serien, nas_root)
             outbox_serien = os.path.join(outbox_root, rel_dest)
             dest_dir_outbox = os.path.join(outbox_serien, clean_show_name, f"Staffel {int(ep_season)}", clean_title)
-            
+
             log_message(f"Verschiebe in Output-Pfad: {dest_dir_outbox}")
             try:
                 os.makedirs(dest_dir_outbox, exist_ok=True)
-                
+
                 # Move video file
                 shutil.move(final_filepath, os.path.join(dest_dir_outbox, final_filename))
                 log_message(f"Erfolgreich in Output-Ordner verschoben: {final_filename}")
-                
+
                 # Move accompanying files (excluding original unconverted videos)
                 video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
                 for f in os.listdir(current_dir):
@@ -964,7 +1009,7 @@ def process_worker(params):
                         log_message(f"Begleitdatei in Output-Ordner verschoben: {f}")
             except Exception as e:
                 log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
- 
+
             # Queue NAS transfer task
             settings = load_settings()
             storage_targets = settings.get("storage_targets", [])
@@ -973,18 +1018,18 @@ def process_worker(params):
                 t_type = target.get("type")
                 if t_type != "nas" and t_id != "nas":
                     continue
-                    
+
                 should_copy = False
                 if params.get(f"copy_to_{t_id}") is not None:
                     should_copy = params.get(f"copy_to_{t_id}")
                 elif params.get("copy_to_nas") is not None:
                     should_copy = params.get("copy_to_nas")
-                    
+
                 if should_copy and target.get("enabled", True):
                     if t_id == "nas":
                         if not ensure_nas_mounted():
                             raise RuntimeError("NAS konnte nicht gemountet werden. Kopiervorgang abgebrochen.")
-                    
+
                     target_base = resolve_target_destination(target, rel_sub, "tv")
                     dest_dir_target = os.path.join(target_base, clean_show_name, f"Staffel {int(ep_season)}", clean_title)
                     transfer_queue.put({
@@ -999,15 +1044,15 @@ def process_worker(params):
                 else:
                     if t_id in target_progresses:
                         target_progresses[t_id][file_idx] = 100
-                        
+
             update_global_job_progress()
-                
+
         with active_jobs_lock:
             if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
                 if active_jobs[task_id]["pipeline"]["convert"]["status"] == "running":
                     active_jobs[task_id]["pipeline"]["convert"]["status"] = "done"
                     active_jobs[task_id]["pipeline"]["convert"]["progress"] = 100
-                    
+
         # Move show-level files to local Output
         nas_serien = destination if destination else f"{nas_root}/Serien"
         rel_dest = os.path.relpath(nas_serien, nas_root)
@@ -1037,13 +1082,13 @@ def process_worker(params):
             t_type = target.get("type")
             if t_type != "nas" and t_id != "nas":
                 continue
-                
+
             should_copy = False
             if params.get(f"copy_to_{t_id}") is not None:
                 should_copy = params.get(f"copy_to_{t_id}")
             elif params.get("copy_to_nas") is not None:
                 should_copy = params.get("copy_to_nas")
-                
+
             if should_copy and target.get("enabled", True):
                 target_base = resolve_target_destination(target, rel_sub, "tv")
                 dest_show_dir_target = os.path.join(target_base, clean_show_name)
@@ -1052,20 +1097,20 @@ def process_worker(params):
                     "dest_show_dir_outbox": dest_show_dir_outbox,
                     "dest_show_dir_nas": dest_show_dir_target
                 })
-                
+
         # Queue all Cloud/third-party targets copies
         for target in settings.get("storage_targets", []):
             t_id = target.get("id")
             t_type = target.get("type")
             if t_type == "nas" or t_id == "nas":
                 continue
-                
+
             should_copy = False
             if params.get(f"copy_to_{t_id}") is not None:
                 should_copy = params.get(f"copy_to_{t_id}")
             elif params.get("copy_to_pcloud") is not None:
                 should_copy = params.get("copy_to_pcloud")
-                
+
             if should_copy and target.get("enabled", True):
                 target_base = resolve_target_destination(target, rel_sub, "tv")
                 transfer_queue.put({
@@ -1080,24 +1125,24 @@ def process_worker(params):
                     if t_id in target_progresses:
                         target_progresses[t_id] = 100
                 update_global_job_progress()
-                
+
         # Send Sentinel and join
         transfer_queue.put(None)
         transfer_thread.join()
-        
+
         with active_jobs_lock:
             if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
                 for step_key, step_info in active_jobs[task_id]["pipeline"].items():
                     if step_key not in ["metadata", "convert"] and step_info["status"] == "running":
                         step_info["status"] = "done"
                         step_info["progress"] = 100
-        
+
         try:
             trigger_job_notifications(params, job_size_gb, is_end_of_job=True)
             open_folders_post_processing(params)
         except Exception as e:
             log_message(f"Fehler bei Benachrichtigungen/Finder-Öffnung: {e}")
-        
+
         if transfer_errors:
             raise transfer_errors[0]
 
@@ -1110,7 +1155,7 @@ def process_worker(params):
                     for f in files:
                         if f.lower().endswith(video_exts) and not f.startswith("."):
                             remaining_videos.append(os.path.join(root, f))
-                
+
                 if not remaining_videos:
                     trash.send_to_trash(current_dir)
                     log_message(f"Projekt-Ordner im Input bereinigt (keine Videos mehr vorhanden): {os.path.basename(current_dir)}")
@@ -1131,7 +1176,7 @@ def process_worker(params):
                 rel_sub = os.path.basename(destination)
         else:
             rel_sub = "/Filme"
-            
+
         movie_name = params.get("movie_name")
         if movie_name:
             movie_name = re.sub(r"\s*\(Mediathek.*?\)", "", movie_name)
@@ -1145,9 +1190,9 @@ def process_worker(params):
         movie_id = params.get("movie_id")
         provider = params.get("provider")
         dest_movies = destination if destination else f"{nas_root}/Filme"
-        
+
         log_message(f"Typ: Film | Name: {movie_name} | Ziel: {dest_movies}")
-        
+
         # Scan video files
         if explicit_renames is not None:
             video_files = [r["new"] for r in explicit_renames]
@@ -1156,28 +1201,28 @@ def process_worker(params):
         if not video_files:
             log_message("Keine Video-Dateien im Ordner gefunden.")
             return
-            
+
         clean_movie_name = limit_filename_length(sanitize_filename(movie_name))
         with active_jobs_lock:
             if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
                 active_jobs[task_id]["pipeline"]["metadata"]["status"] = "running"
                 active_jobs[task_id]["pipeline"]["metadata"]["progress"] = 50
-        
+
         # Setup progress tracking
         N = len(video_files)
         conv_pct = [0] * N
         file_titles = [clean_movie_name] * N
-        
+
         # Determine active targets
         settings = load_settings()
         storage_targets = settings.get("storage_targets", [])
-        
+
         active_nas_targets = []
         active_cloud_targets = []
         for target in storage_targets:
             t_id = target.get("id")
             t_type = target.get("type")
-            
+
             should_copy = False
             if params.get(f"copy_to_{t_id}") is not None:
                 should_copy = params.get(f"copy_to_{t_id}")
@@ -1185,16 +1230,16 @@ def process_worker(params):
                 should_copy = params.get("copy_to_nas")
             elif t_type != "nas" and params.get("copy_to_pcloud") is not None:
                 should_copy = params.get("copy_to_pcloud")
-                
+
             if should_copy and target.get("enabled", True):
                 if t_type == "nas" or t_id == "nas":
                     active_nas_targets.append(t_id)
                 else:
                     active_cloud_targets.append(t_id)
-                    
+
         has_conv = convert
         w_conv = 0.5 if has_conv else 0
-        
+
         target_weights = {}
         if active_nas_targets:
             nas_weight = 0.3 / len(active_nas_targets)
@@ -1204,7 +1249,7 @@ def process_worker(params):
             cloud_weight = 0.2 / len(active_cloud_targets)
             for t_id in active_cloud_targets:
                 target_weights[t_id] = cloud_weight
-                
+
         # Normalize weights
         total_w = w_conv + sum(target_weights.values())
         if total_w > 0:
@@ -1214,9 +1259,9 @@ def process_worker(params):
         else:
             w_conv = 0.5
             target_weights = {}
-            
+
         progress_lock = threading.Lock()
-        
+
         target_progresses = {}
         target_speeds = {}
         for target in storage_targets:
@@ -1230,10 +1275,10 @@ def process_worker(params):
                 for i in range(N):
                     target_prog = sum(target_progresses[t_id][i] * target_weights.get(t_id, 0) for t_id in target_weights)
                     total_file_progress += (conv_pct[i] * w_conv) + target_prog
-                
+
                 avg_files = total_file_progress / N if N > 0 else 0
                 percent = min(100, max(0, int(avg_files)))
-                
+
                 active_conv = []
                 active_trans = []
                 for i in range(N):
@@ -1247,21 +1292,21 @@ def process_worker(params):
                         if t_id in target_weights and t_pct[i] > 0 and t_pct[i] < 100:
                             speed_info = f" bei {t_speeds[i]}" if t_speeds[i] else ""
                             active_trans.append(f"{t_name} ({t_pct[i]}%{speed_info})")
-                            
+
                 status_parts = []
                 if active_conv:
                     status_parts.append(f"Konvertierung: {', '.join(active_conv)}")
                 elif has_conv and sum(conv_pct) < N * 100:
                     status_parts.append("Konvertierung wartet...")
-                    
+
                 if active_trans:
                     status_parts.append(f"Übertragung: {', '.join(active_trans)}")
-                    
+
                 if not status_parts:
                     status_parts.append("Verarbeitung läuft...")
-                    
+
                 message = " | ".join(status_parts)
-                
+
                 if task_id:
                     with active_jobs_lock:
                         if task_id in active_jobs:
@@ -1281,15 +1326,15 @@ def process_worker(params):
                 try:
                     task_type = task["type"]
                     file_idx = task.get("file_idx")
-                    
+
                     if task_type == "movie_nas_transfer":
                         target_id = task.get("target_id", "nas")
                         dest_movie_dir_outbox = task["dest_movie_dir_outbox"]
                         dest_movie_dir_nas = task["dest_movie_dir_nas"]
                         final_filename = task["final_filename"]
-                        
+
                         log_message(f"[Transfer Thread]: Starte NAS-Kopieren für {final_filename} auf {target_id}...")
-                        
+
                         def nas_progress_cb(percent, msg):
                             target_progresses[target_id][file_idx] = percent
                             speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
@@ -1306,7 +1351,7 @@ def process_worker(params):
                                         active_jobs[task_id]["pipeline"][target_id]["status"] = "running"
                                         avg_nas = sum(target_progresses[target_id]) / N
                                         active_jobs[task_id]["pipeline"][target_id]["progress"] = int(avg_nas)
-                            
+
                         os.makedirs(dest_movie_dir_nas, exist_ok=True)
                         success = run_rsync_with_progress(
                             dest_movie_dir_outbox,
@@ -1326,19 +1371,19 @@ def process_worker(params):
                                     if target_id in active_jobs[task_id]["pipeline"]:
                                         active_jobs[task_id]["pipeline"][target_id]["status"] = "error"
                         update_global_job_progress()
-                        
+
                     elif task_type in ["movie_pcloud_transfer", "movie_cloud_transfer"]:
                         target_id = task.get("target_id", "pcloud")
                         dest_movie_dir_outbox = task["dest_movie_dir_outbox"]
                         dest_movies = task["dest_movies"]
                         explicit_remote_base = task.get("explicit_remote_base") or task.get("explicit_pcloud_base")
-                        
+
                         settings = load_settings()
                         target = next((t for t in settings.get("storage_targets", []) if t.get("id") == target_id), None)
                         target_name = target.get("name", target_id) if target else target_id
-                        
+
                         log_message(f"[Transfer Thread]: Starte Upload nach {target_name} für {clean_movie_name}...")
-                        
+
                         def cloud_progress_cb(percent, msg):
                             with progress_lock:
                                 target_progresses[target_id][file_idx] = percent
@@ -1356,7 +1401,7 @@ def process_worker(params):
                                         active_jobs[task_id]["pipeline"][target_id]["status"] = "running"
                                         avg_pcloud = sum(target_progresses[target_id]) / N
                                         active_jobs[task_id]["pipeline"][target_id]["progress"] = int(avg_pcloud)
-                            
+
                         success = copy_to_cloud_target(
                             dest_movie_dir_outbox,
                             dest_movies,
@@ -1381,7 +1426,7 @@ def process_worker(params):
                                     if target_id in active_jobs[task_id]["pipeline"]:
                                         active_jobs[task_id]["pipeline"][target_id]["status"] = "error"
                                         active_jobs[task_id]["pipeline"][target_id]["message"] = "Fehlgeschlagen"
-                        
+
                 except Exception as e:
                     log_message(f"❌ [Transfer Thread] Fehler: {e}")
                     transfer_errors.append(e)
@@ -1391,14 +1436,14 @@ def process_worker(params):
         # Start the Transfer Thread
         transfer_thread = threading.Thread(target=transfer_worker, daemon=True)
         transfer_thread.start()
-        
+
         # Process video files sequentially
         for file_idx, video_file in enumerate(video_files):
             ext = os.path.splitext(video_file)[1].lower()
             target_filename = f"{clean_movie_name}{ext}"
             filepath = os.path.join(current_dir, video_file)
             target_filepath = os.path.join(current_dir, target_filename)
-            
+
             if not os.path.exists(filepath) and not os.path.exists(target_filepath):
                 log_message(f"⚠️ Datei '{video_file}' existiert nicht (mehr). Überspringe.")
                 continue
@@ -1410,7 +1455,7 @@ def process_worker(params):
                 except Exception as e:
                     log_message(f"Fehler beim Umbenennen: {e}")
                     continue
-            
+
             # Generate movie NFO
             if movie_id and provider:
                 log_message("Generiere NFO und lade Poster/Fanart...")
@@ -1429,7 +1474,7 @@ def process_worker(params):
                     active_jobs[task_id]["pipeline"]["metadata"]["progress"] = min(100, current_prog)
                     if file_idx == N - 1:
                         active_jobs[task_id]["pipeline"]["metadata"]["status"] = "done"
-            
+
             # H.265 Conversion
             final_filename = target_filename
             final_filepath = target_filepath
@@ -1484,21 +1529,21 @@ def process_worker(params):
             else:
                 conv_pct[file_idx] = 100
             update_global_job_progress()
- 
+
             # Move to local Output folder
             dest_movies = destination if destination else f"{nas_root}/Filme"
             rel_dest = os.path.relpath(dest_movies, nas_root)
             outbox_movies = os.path.join(outbox_root, rel_dest)
             dest_movie_dir_outbox = os.path.join(outbox_movies, clean_movie_name)
-            
+
             log_message(f"Verschiebe in Output-Pfad: {dest_movie_dir_outbox}")
             try:
                 os.makedirs(dest_movie_dir_outbox, exist_ok=True)
-                
+
                 # Move movie video file
                 shutil.move(final_filepath, os.path.join(dest_movie_dir_outbox, final_filename))
                 log_message(f"Erfolgreich in Output-Ordner verschoben: {final_filename}")
-                
+
                 # Move accompanying files (excluding unconverted video files)
                 video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
                 for f in os.listdir(current_dir):
@@ -1507,48 +1552,100 @@ def process_worker(params):
                             continue
                         shutil.move(os.path.join(current_dir, f), os.path.join(dest_movie_dir_outbox, f))
                         log_message(f"Begleitdatei in Output-Ordner verschoben: {f}")
-                        
-                # Ensure all server-specific poster/backdrop variants exist
-                poster_names, backdrop_names = _get_movie_artwork_lists(settings, final_filename)
-                
-                existing_poster_src = None
-                for p_name in poster_names:
-                    p_path = os.path.join(dest_movie_dir_outbox, p_name)
-                    if os.path.exists(p_path):
-                        existing_poster_src = p_path
+
+                # Ensure only server-specific core poster/backdrop variants exist
+                server_type = settings.get("media_server", "emby") or "emby"
+                all_outbox_files = os.listdir(dest_movie_dir_outbox)
+                found_poster_file = None
+                found_backdrop_file = None
+
+                poster_candidates = ["poster.jpg", "poster.png", "folder.jpg", "folder.png", "cover.jpg", "cover.png"]
+                backdrop_candidates = ["fanart.jpg", "fanart.png", "backdrop.jpg", "backdrop.png", "background.jpg", "background.png"]
+
+                base_movie, _ = os.path.splitext(final_filename)
+
+                # Find existing poster
+                for f in all_outbox_files:
+                    f_lower = f.lower()
+                    if f_lower in poster_candidates:
+                        found_poster_file = f
                         break
-                if existing_poster_src:
-                    for p_name in poster_names:
-                        p_dst = os.path.join(dest_movie_dir_outbox, p_name)
-                        if not os.path.exists(p_dst):
-                            shutil.copy(existing_poster_src, p_dst)
-                            log_message(f"Erstellt (Filmplakat-Kompatibilität): {p_name}")
-                            
-                existing_backdrop_src = None
-                for b_name in backdrop_names:
-                    b_path = os.path.join(dest_movie_dir_outbox, b_name)
-                    if os.path.exists(b_path):
-                        existing_backdrop_src = b_path
+                    elif f_lower.startswith(base_movie.lower() + "-poster"):
+                        found_poster_file = f
                         break
-                if existing_backdrop_src:
-                    for b_name in backdrop_names:
-                        b_dst = os.path.join(dest_movie_dir_outbox, b_name)
-                        if not os.path.exists(b_dst):
-                            shutil.copy(existing_backdrop_src, b_dst)
-                            log_message(f"Erstellt (Hintergrundbild-Kompatibilität): {b_name}")
-                        
+
+                # Find existing backdrop
+                for f in all_outbox_files:
+                    f_lower = f.lower()
+                    if f_lower in backdrop_candidates:
+                        found_backdrop_file = f
+                        break
+                    elif f_lower.startswith(base_movie.lower() + "-fanart") or f_lower.startswith(base_movie.lower() + "-backdrop"):
+                        found_backdrop_file = f
+                        break
+
+                # Determine core target names
+                target_posters = ["poster"]
+                if server_type in ("emby", "jellyfin"):
+                    target_posters.append("folder")
+
+                if server_type == "jellyfin":
+                    target_backdrops = ["backdrop"]
+                else:
+                    target_backdrops = ["fanart"]
+
+                # Copy and clean poster
+                if found_poster_file:
+                    src_path = os.path.join(dest_movie_dir_outbox, found_poster_file)
+                    _, ext = os.path.splitext(found_poster_file)
+                    ext = ext.lower()
+
+                    for target_base in target_posters:
+                        p_dst_name = f"{target_base}{ext}"
+                        p_dst_path = os.path.join(dest_movie_dir_outbox, p_dst_name)
+                        if not os.path.exists(p_dst_path):
+                            shutil.copy(src_path, p_dst_path)
+                            log_message(f"Erstellt (Filmplakat-Kompatibilität): {p_dst_name}")
+
+                    # Clean up filmtitle-specific poster file to avoid duplicates
+                    if found_poster_file != f"poster{ext}" and found_poster_file != f"folder{ext}":
+                        try:
+                            os.remove(src_path)
+                        except Exception:
+                            pass
+
+                # Copy and clean backdrop
+                if found_backdrop_file:
+                    src_path = os.path.join(dest_movie_dir_outbox, found_backdrop_file)
+                    _, ext = os.path.splitext(found_backdrop_file)
+                    ext = ext.lower()
+
+                    for target_base in target_backdrops:
+                        b_dst_name = f"{target_base}{ext}"
+                        b_dst_path = os.path.join(dest_movie_dir_outbox, b_dst_name)
+                        if not os.path.exists(b_dst_path):
+                            shutil.copy(src_path, b_dst_path)
+                            log_message(f"Erstellt (Hintergrundbild-Kompatibilität): {b_dst_name}")
+
+                    # Clean up filmtitle-specific backdrop file to avoid duplicates
+                    if found_backdrop_file != f"fanart{ext}" and found_backdrop_file != f"backdrop{ext}":
+                        try:
+                            os.remove(src_path)
+                        except Exception:
+                            pass
+
                 # Open output directory in Finder
                 if settings.get("open_outbox_finder"):
                     open_folder_in_finder(dest_movie_dir_outbox)
             except Exception as e:
                 log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
- 
+
             # Queue copies for each enabled target
             settings = load_settings()
             for target in settings.get("storage_targets", []):
                 t_id = target.get("id")
                 t_type = target.get("type")
-                
+
                 should_copy = False
                 if params.get(f"copy_to_{t_id}") is not None:
                     should_copy = params.get(f"copy_to_{t_id}")
@@ -1556,16 +1653,16 @@ def process_worker(params):
                     should_copy = params.get("copy_to_nas")
                 elif t_type != "nas" and params.get("copy_to_pcloud") is not None:
                     should_copy = params.get("copy_to_pcloud")
-                    
+
                 if should_copy and target.get("enabled", True):
                     if t_type == "nas" or t_id == "nas":
                         if t_id == "nas":
                             if not ensure_nas_mounted():
                                 raise RuntimeError("NAS konnte nicht gemountet werden. Kopiervorgang abgebrochen.")
-                        
+
                         target_base = resolve_target_destination(target, rel_sub, "movie")
                         dest_movie_dir_target = os.path.join(target_base, clean_movie_name)
-                        
+
                         transfer_queue.put({
                             "type": "movie_nas_transfer",
                             "target_id": t_id,
@@ -1587,35 +1684,35 @@ def process_worker(params):
                 else:
                     if t_id in target_progresses:
                         target_progresses[t_id][file_idx] = 100
-                        
+
             update_global_job_progress()
-            
+
         with active_jobs_lock:
             if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
                 if active_jobs[task_id]["pipeline"]["convert"]["status"] == "running":
                     active_jobs[task_id]["pipeline"]["convert"]["status"] = "done"
                     active_jobs[task_id]["pipeline"]["convert"]["progress"] = 100
-                    
+
         # Send Sentinel and join
         transfer_queue.put(None)
         transfer_thread.join()
-        
+
         with active_jobs_lock:
             if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
                 for step_key, step_info in active_jobs[task_id]["pipeline"].items():
                     if step_key not in ["metadata", "convert"] and step_info["status"] == "running":
                         step_info["status"] = "done"
                         step_info["progress"] = 100
-        
+
         try:
             trigger_job_notifications(params, job_size_gb, is_end_of_job=True)
             open_folders_post_processing(params)
         except Exception as e:
             log_message(f"Fehler bei Benachrichtigungen/Finder-Öffnung: {e}")
-        
+
         if transfer_errors:
             raise transfer_errors[0]
- 
+
         # Cleanup input folder if it was a project directory under inbox_root
         if current_dir != inbox_root and os.path.exists(current_dir):
             try:
@@ -1625,7 +1722,7 @@ def process_worker(params):
                     for f in files:
                         if f.lower().endswith(video_exts) and not f.startswith("."):
                             remaining_videos.append(os.path.join(root, f))
-                
+
                 if not remaining_videos:
                     trash.send_to_trash(current_dir)
                     log_message(f"Projekt-Ordner im Input bereinigt (keine Videos mehr vorhanden): {os.path.basename(current_dir)}")
@@ -1636,25 +1733,25 @@ def process_worker(params):
                         log_message(f"Leeren Projekt-Ordner im Input bereinigt: {os.path.basename(current_dir)}")
             except Exception as e:
                 log_message(f"Fehler beim Bereinigen des Projekt-Ordners: {e}")
-                    
+
     elif media_type in ["youtube", "youtube_merge"]:
         task_id = params.get("task_id")
         url = params.get("yt_url")
         format_opt = params.get("yt_format", "best")
         embed_thumb = params.get("yt_embed_thumbnail", False)
         subs = params.get("yt_subtitles", [])
-        
+
         split_chapters = params.get("split_chapters", False)
         open_losslesscut = params.get("open_losslesscut", False)
         trim_start = params.get("trim_start", "")
         trim_end = params.get("trim_end", "")
-        
+
         metadata_mode = params.get("metadata_mode", "youtube")
         movie_id = params.get("movie_id")
         movie_name = params.get("movie_name")
         show_id = params.get("show_id")
         show_name = clean_series_name_for_fs(params.get("show_name")) if params.get("show_name") else ""
-        
+
         nas_show_folder = params.get("nas_show_folder")
         if nas_show_folder:
             clean_show_name = clean_series_name_for_fs(nas_show_folder)
@@ -1663,22 +1760,22 @@ def process_worker(params):
             rel_dest = os.path.relpath(nas_serien, nas_root)
             outbox_serien = os.path.join(outbox_root, rel_dest)
             clean_show_name = get_matched_series_name(nas_serien, outbox_serien, limit_filename_length(sanitize_filename(show_name))) if show_name else ""
-            
+
         season = params.get("season")
         provider = params.get("provider")
-        
+
         copy_to_nas = params.get("copy_to_nas", False)
-        
+
         settings = load_settings()
         inbox_root = settings.get("inbox_dir", "")
         nas_root = settings.get("nas_root", "")
         if not inbox_root:
             raise RuntimeError("Inbox-Verzeichnis ist nicht konfiguriert.")
-        
+
         # Temp dir inside Downloads/Medien Input/.temp_yt_<task_id>
         temp_dir = os.path.join(inbox_root, f".temp_yt_{task_id}")
         os.makedirs(temp_dir, exist_ok=True)
-        
+
         # Setup task state
         task_info = {
             "state": "downloading",
@@ -1690,17 +1787,17 @@ def process_worker(params):
         }
         with active_yt_tasks_lock:
             active_yt_tasks[task_id] = task_info
-            
+
         update_task_pipeline_status(task_id, "metadata", "running", 0)
-        
+
         log_message(f"=== STARTE YOUTUBE DOWNLOAD PIPELINE FUER TASK {task_id} ===")
         log_message(f"Ziel-Temp-Ordner: {temp_dir}")
-        
+
         try:
             if media_type == "youtube":
                 # Build yt-dlp command
                 cmd = ["yt-dlp", "--newline", "-P", temp_dir]
-                
+
                 # Format selection
                 if format_opt == "audio":
                     cmd.extend(["-f", "ba", "-x", "--audio-format", "mp3"])
@@ -1720,17 +1817,17 @@ def process_worker(params):
                     cmd.extend(["-f", f"bestvideo[height<={h_val}]+bestaudio/best"])
                 else:
                     cmd.extend(["-f", "bv*+ba/b"])
-                    
+
                 # Thumbnail embedding (native yt-dlp, if not splitting chapters or doing LosslessCut where it might strip metadata)
                 if embed_thumb and not (split_chapters or open_losslesscut):
                     cmd.append("--embed-thumbnail")
-                    
+
                 # Subtitles
                 if subs:
                     cmd.extend(["--write-subs", "--embed-subs"])
                     lang_str = ",".join(subs)
                     cmd.extend(["--sub-langs", lang_str])
-                    
+
                 # Trimming / Chapter splitting
                 if split_chapters:
                     cmd.extend(["--split-chapters", "--force-keyframes-at-cuts"])
@@ -1738,52 +1835,52 @@ def process_worker(params):
                     t_start = trim_start if trim_start else "00:00:00"
                     t_end = trim_end if trim_end else "*inf"
                     cmd.extend(["--download-sections", f"*{t_start}-{t_end}"])
-                    
+
                 if get_runtime_capabilities().get("runtime") != "docker":
                     cmd.extend(["--cookies-from-browser", "chrome"])
                 cmd.append(url)
-                
+
                 log_message(f"Fuehre aus: {' '.join(cmd)}")
                 success = run_ytdlp_with_progress(cmd, task_id=task_id, log_queue=log_queue)
-                
+
                 # If fail, retry without cookies
                 if not success:
                     log_message("Download mit Cookies fehlgeschlagen. Versuche ohne Cookies...")
                     cmd_fallback = [x for x in cmd if x != "chrome" and x != "--cookies-from-browser"]
                     success = run_ytdlp_with_progress(cmd_fallback, task_id=task_id, log_queue=log_queue)
-                    
+
                 if not success:
                     raise RuntimeError("Download vollständig fehlgeschlagen.")
-                    
+
                 log_message("Download erfolgreich beendet.")
                 downloaded_files = [f for f in os.listdir(temp_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov', '.mp3', '.m4a')) and not f.startswith(".")]
-                
+
                 update_task_pipeline_status(task_id, "metadata", "done", 100)
-                
+
                 # Mark convert as skipped if we don't do any post-processing split/cut
                 if not (split_chapters or trim_start or trim_end or open_losslesscut):
                     update_task_pipeline_status(task_id, "convert", "skipped")
-            
+
             else: # youtube_merge
                 urls = params.get("yt_urls", [])
                 final_title = params.get("title", "Merged Video")
                 subscription_id = params.get("subscription_id")
                 video_ids_to_remove = params.get("video_ids_to_remove", [])
                 num_urls = len(urls)
-                
+
                 log_message(f"=== STARTE YOUTUBE MERGE PIPELINE FUER TASK {task_id} ===")
-                
+
                 # Download parts sequentially
                 for idx, part_url in enumerate(urls, 1):
                     with active_jobs_lock:
                         if task_id in active_jobs:
                             active_jobs[task_id]["progress"] = int(((idx - 1) / num_urls) * 90)
                             active_jobs[task_id]["message"] = f"Lade Teil {idx} von {num_urls}..."
-                    
+
                     format_opt = params.get("yt_format", "best")
                     part_output = f"part_{idx:02d}.%(ext)s"
                     cmd = ["yt-dlp", "-P", temp_dir, "--output", part_output, "--merge-output-format", "mkv", "--remux-video", "mkv"]
-                    
+
                     if format_opt == "audio":
                         cmd.extend(["-f", "ba", "-x", "--audio-format", "mp3"])
                     elif format_opt == "best":
@@ -1802,12 +1899,12 @@ def process_worker(params):
                         cmd.extend(["-f", f"bestvideo[height<={h_val}]+bestaudio/best"])
                     else:
                         cmd.extend(["-f", "bv*+ba/b"])
-                        
+
                     if get_runtime_capabilities().get("runtime") != "docker":
                         cmd.extend(["--cookies-from-browser", "chrome", part_url])
                     else:
                         cmd.extend([part_url])
-                    
+
                     log_message(f"Lade Teil {idx}/{num_urls}: {' '.join(cmd)}")
                     success = run_ytdlp_with_progress(cmd, task_id=None, log_queue=log_queue)
                     if not success:
@@ -1815,14 +1912,14 @@ def process_worker(params):
                         success = run_ytdlp_with_progress(cmd_fallback, task_id=None, log_queue=log_queue)
                     if not success:
                         raise RuntimeError(f"Download von Teil {idx} ({part_url}) fehlgeschlagen.")
-                
+
                 files = sorted([f for f in os.listdir(temp_dir) if f.startswith("part_") and f.lower().endswith(".mkv")])
                 if not files:
                     raise RuntimeError("Keine heruntergeladenen Teile gefunden.")
-                
+
                 final_name = f"{sanitize_filename(final_title)}.mkv"
                 final_path = os.path.join(temp_dir, final_name)
-                
+
                 if len(files) < 2:
                     log_message("Nur ein Teil heruntergeladen. Überspringe FFmpeg-Concat.")
                     os.rename(os.path.join(temp_dir, files[0]), final_path)
@@ -1831,24 +1928,24 @@ def process_worker(params):
                         if task_id in active_jobs:
                             active_jobs[task_id]["progress"] = 90
                             active_jobs[task_id]["message"] = "Füge Teile zusammen (FFmpeg)..."
-                    
+
                     update_task_pipeline_status(task_id, "metadata", "done", 100)
                     update_task_pipeline_status(task_id, "convert", "running", 0)
-                    
+
                     inputs_txt_path = os.path.join(temp_dir, "inputs.txt")
                     with open(inputs_txt_path, "w", encoding="utf-8") as f_inputs:
                         for f in files:
                             f_inputs.write(f"file '{f}'\n")
-                    
+
                     ffmpeg_cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", inputs_txt_path, "-c", "copy", final_path]
                     log_message(f"Führe FFmpeg aus: {' '.join(ffmpeg_cmd)}")
                     ffmpeg_res = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
                     if ffmpeg_res.returncode != 0:
                         raise RuntimeError(f"FFmpeg-Zusammenfügen fehlgeschlagen: {ffmpeg_res.stderr}")
-                    
+
                     log_message("FFmpeg-Zusammenfügen erfolgreich.")
                     update_task_pipeline_status(task_id, "convert", "done", 100)
-                    
+
                     # Cleanup downloaded parts
                     for f in files:
                         try:
@@ -1859,7 +1956,7 @@ def process_worker(params):
                         os.remove(inputs_txt_path)
                     except Exception as e:
                         log_message(f"  ❌ Fehler beim Löschen von inputs.txt: {e}")
-                
+
                 # Clear pending videos in subscription if needed
                 if subscription_id and video_ids_to_remove:
                     try:
@@ -1877,31 +1974,31 @@ def process_worker(params):
                                 break
                     except Exception as sub_clean_err:
                         log_message(f"Fehler beim Bereinigen der Freigabeliste nach Merge: {sub_clean_err}")
-                
+
                 downloaded_files = [final_name]
-            
+
             # If LosslessCut is checked and we have video files
             if open_losslesscut and downloaded_files:
                 primary_file = downloaded_files[0]
                 primary_filepath = os.path.join(temp_dir, primary_file)
-                
+
                 lossless_path = "/Applications/LosslessCut.app"
                 if os.path.exists(lossless_path):
                     log_message(f"🎬 Oeffne {primary_file} in LosslessCut...")
                     update_task_pipeline_status(task_id, "convert", "running", 50)
                     subprocess.run(["open", "-a", "LosslessCut", primary_filepath])
-                    
+
                     # Update state and wait for GUI event
                     task_info["state"] = "waiting_for_cut"
                     log_message("⏳ Warte darauf, dass der Nutzer den Schnitt in LosslessCut fertigstellt...")
                     task_info["event"].wait()
-                    
+
                     log_message("Schnitt als abgeschlossen markiert. Scanne nach exportierten Dateien...")
                     time.sleep(1)
-                    
+
                     all_videos = [f for f in os.listdir(temp_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov')) and not f.startswith(".")]
                     cut_files = [f for f in all_videos if f != primary_file]
-                    
+
                     if cut_files:
                         log_message(f"Schnittdateien gefunden: {', '.join(cut_files)}")
                         try:
@@ -1916,13 +2013,13 @@ def process_worker(params):
                     update_task_pipeline_status(task_id, "convert", "done", 100)
                 else:
                     log_message("⚠️ LosslessCut.app nicht unter /Applications gefunden. Ueberspringe...")
-            
+
             # Refresh downloaded files list
             downloaded_files = sorted([f for f in os.listdir(temp_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov', '.mp3', '.m4a')) and not f.startswith(".")])
-            
+
             if not downloaded_files:
                 raise RuntimeError("Keine verarbeitbaren Videodateien gefunden.")
-                
+
             # TMDB/TVDB Season/Episodes Mapping for Series Mode
             mapping = {}
             if metadata_mode == "tv" and show_id and len(downloaded_files) > 1:
@@ -1930,10 +2027,10 @@ def process_worker(params):
                 log_message("⏳ Warte auf Zuweisung der Video-Kapitel/Segmente im Web-Interface...")
                 update_task_pipeline_status(task_id, "metadata", "running", 90)
                 task_info["mapping_event"].wait()
-                
+
                 mapping = task_info.get("mapping", {})
                 log_message(f"Zuweisungen erhalten: {mapping}")
-                
+
             # If embed_thumbnail was requested and we had splits/cuts, embed thumbnail now
             if embed_thumb:
                 log_message("🖼️ Thumbnail wird heruntergeladen und eingebettet...")
@@ -1941,10 +2038,10 @@ def process_worker(params):
                 thumb_jpg = os.path.join(temp_dir, ".thumbnail_tmp.jpg")
                 if os.path.exists(thumb_jpg):
                     os.remove(thumb_jpg)
-                
+
                 thumb_dl_cmd = ["yt-dlp", "--write-thumbnail", "--skip-download", "--convert-thumbnails", "jpg", "-o", thumb_tmp, url]
                 subprocess.run(thumb_dl_cmd, capture_output=True)
-                
+
                 if os.path.exists(thumb_jpg):
                     for f in downloaded_files:
                         if f.lower().endswith(('.mp4', '.mkv')):
@@ -1966,7 +2063,7 @@ def process_worker(params):
                     os.remove(thumb_jpg)
                 else:
                     log_message("  ❌ Thumbnail konnte nicht geladen werden.")
-            
+
             # NFO & Renaming
             # Generate tvshow.nfo in Series mode
             if metadata_mode == "tv" and show_id and provider:
@@ -1974,32 +2071,32 @@ def process_worker(params):
                     mw_metadata.generate_tvshow_nfo(provider, show_id, temp_dir)
                 except Exception as e:
                     log_message(f"Fehler bei tvshow.nfo: {e}")
-                    
+
             all_transfers_successful = True
             for idx, filename in enumerate(downloaded_files):
                 filepath = os.path.join(temp_dir, filename)
                 ext = os.path.splitext(filename)[1].lower()
                 target_filename = filename
                 clean_base = os.path.splitext(filename)[0]
-                
+
                 if metadata_mode == "movie" and movie_id:
                     clean_movie_name = limit_filename_length(sanitize_filename(movie_name))
                     target_filename = f"{clean_movie_name}{ext}"
                     os.rename(filepath, os.path.join(temp_dir, target_filename))
                     filepath = os.path.join(temp_dir, target_filename)
                     clean_base = clean_movie_name
-                    
+
                     log_message(f"Generiere Film-NFO für {target_filename}...")
                     if provider == "ofdb":
                         mw_metadata.generate_ofdb_nfo(movie_id, temp_dir, clean_base)
                     else:
                         mw_metadata.generate_movie_nfo(movie_id, temp_dir, clean_base)
-                        
+
                 elif metadata_mode == "tv" and show_id:
                     ep_num = mapping.get(filename)
                     if not ep_num and len(downloaded_files) == 1:
                         ep_num = params.get("episode")
-                        
+
                     if ep_num:
                         ep_title = ""
                         try:
@@ -2015,24 +2112,24 @@ def process_worker(params):
                                 ep_title = str(ep_data)
                         except Exception:
                             pass
-                            
+
                         ep_title = sanitize_filename(ep_title)
                         season_str = f"S{int(season):02d}"
                         ep_str = f"E{int(ep_num):02d}"
-                        
+
                         clean_show_title = f"{clean_show_name} - {season_str}{ep_str}"
                         if ep_title:
                             clean_show_title += f" - {ep_title}"
                         clean_show_title = limit_filename_length(clean_show_title)
-                            
+
                         target_filename = f"{clean_show_title}{ext}"
                         os.rename(filepath, os.path.join(temp_dir, target_filename))
                         filepath = os.path.join(temp_dir, target_filename)
                         clean_base = clean_show_title
-                        
+
                         log_message(f"Generiere Episoden-NFO für {ep_str} ({target_filename})...")
                         mw_metadata.generate_episode_nfo(provider, show_id, season, ep_num, temp_dir, clean_base)
-                        
+
                 else:
                     # YouTube Mode (Allgemein)
                     log_message(f"Generiere standardmäßige YouTube-NFO für {filename}...")
@@ -2040,21 +2137,21 @@ def process_worker(params):
                     yt_title = params.get("yt_title", clean_base)
                     yt_uploader = params.get("yt_uploader", "YouTube")
                     yt_description = params.get("yt_description", "")
-                    
+
                     xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                     xml += '<movie>\n  <lockdata>true</lockdata>\n'
                     xml += f"  <title>{yt_title.replace('&', '&amp;')}</title>\n"
                     xml += f"  <plot>{yt_description.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
                     xml += f"  <studio>{yt_uploader.replace('&', '&amp;')}</studio>\n"
                     xml += '</movie>\n'
-                    
+
                     try:
                         with open(nfo_path, "w", encoding="utf-8") as nf:
                             nf.write(xml)
                         log_message(f"  ✅ NFO erstellt: {clean_base}.nfo")
                     except Exception as e:
                         log_message(f"  ❌ Fehler bei NFO-Erstellung: {e}")
-                        
+
                     # Download YouTube thumbnail as poster.jpg and fanart.jpg
                     yt_thumb_url = params.get("yt_thumbnail")
                     if yt_thumb_url:
@@ -2064,11 +2161,11 @@ def process_worker(params):
                             req = urllib.request.Request(yt_thumb_url, headers={'User-Agent': 'Mozilla/5.0'})
                             with urllib.request.urlopen(req) as response:
                                 thumb_data = response.read()
-                            
+
                             poster_names, backdrop_names = _get_movie_artwork_lists(settings, target_filename)
                             pref_poster = poster_names[0] if poster_names else "poster.jpg"
                             pref_backdrop = backdrop_names[0] if backdrop_names else "fanart.jpg"
-                            
+
                             for filename_artwork in [pref_poster, pref_backdrop]:
                                 art_path = os.path.join(temp_dir, filename_artwork)
                                 with open(art_path, "wb") as f_art:
@@ -2076,7 +2173,7 @@ def process_worker(params):
                             log_message("  ✅ Poster und Fanart heruntergeladen.")
                         except Exception as e:
                             log_message(f"  ❌ Fehler beim Herunterladen des YouTube-Thumbnails: {e}")
-                        
+
                 # Determine local outbox equivalent
                 if destination:
                     if destination.startswith(nas_root):
@@ -2092,22 +2189,22 @@ def process_worker(params):
                     dest_dir_outbox = os.path.join(outbox_dest, clean_show_name, f"Staffel {int(season)}", clean_base)
                 elif metadata_mode == "movie" and movie_id:
                     dest_dir_outbox = os.path.join(outbox_dest, clean_base)
-                
+
                 log_message(f"Verschiebe {target_filename} nach {dest_dir_outbox}...")
                 transfer_successful = False
                 try:
                     os.makedirs(dest_dir_outbox, exist_ok=True)
-                    
+
                     # Move file
                     shutil.move(filepath, os.path.join(dest_dir_outbox, target_filename))
                     # Move accompanying files
                     for f in os.listdir(temp_dir):
                         if f.startswith(clean_base) and f != target_filename:
                             shutil.move(os.path.join(temp_dir, f), os.path.join(dest_dir_outbox, f))
-                            
+
                     # Ensure all server-specific poster/backdrop variants exist in outbox
                     poster_names, backdrop_names = _get_movie_artwork_lists(settings, target_filename)
-                    
+
                     existing_poster_src = None
                     for p_name in poster_names:
                         p_path = os.path.join(temp_dir, p_name)
@@ -2118,7 +2215,7 @@ def process_worker(params):
                         for p_name in poster_names:
                             shutil.copy(existing_poster_src, os.path.join(dest_dir_outbox, p_name))
                             log_message(f"  ✅ Filmplakat kopiert: {p_name}")
-                            
+
                     existing_backdrop_src = None
                     for b_name in backdrop_names:
                         b_path = os.path.join(temp_dir, b_name)
@@ -2129,10 +2226,10 @@ def process_worker(params):
                         for b_name in backdrop_names:
                             shutil.copy(existing_backdrop_src, os.path.join(dest_dir_outbox, b_name))
                             log_message(f"  ✅ Hintergrundbild kopiert: {b_name}")
-                            
+
                     log_message(f"  ✅ Erfolgreich in Output-Ordner übertragen: {target_filename}")
                     transfer_successful = True
-                    
+
                     if settings.get("open_outbox_finder"):
                         open_folder_in_finder(dest_dir_outbox)
                 except Exception as e:
@@ -2144,17 +2241,17 @@ def process_worker(params):
                     settings = load_settings()
                     nas_target = next((t for t in settings.get("storage_targets", []) if t.get("id") == "nas"), None)
                     nas_root = nas_target.get("root_path", "") if nas_target else settings.get("nas_root", "")
-                    
+
                     rel_sub = ""
                     if nas_root and destination.startswith(nas_root):
                         rel_sub = destination[len(nas_root):]
                     else:
                         rel_sub = os.path.basename(destination)
-                        
+
                     for target in settings.get("storage_targets", []):
                         t_id = target.get("id")
                         t_type = target.get("type")
-                        
+
                         should_copy = False
                         if params.get(f"copy_to_{t_id}") is not None:
                             should_copy = params.get(f"copy_to_{t_id}")
@@ -2162,7 +2259,7 @@ def process_worker(params):
                             should_copy = params.get("copy_to_nas")
                         elif t_type != "nas" and params.get("copy_to_pcloud") is not None:
                             should_copy = params.get("copy_to_pcloud")
-                            
+
                         if should_copy and target.get("enabled", True):
                             if t_type == "nas" or t_id == "nas":
                                 # NAS copy
@@ -2171,14 +2268,14 @@ def process_worker(params):
                                     if not ensure_nas_mounted():
                                         update_task_pipeline_status(task_id, t_id, "error", 0)
                                         raise RuntimeError("NAS konnte nicht gemountet werden. Kopiervorgang abgebrochen.")
-                                
+
                                 target_base = resolve_target_destination(target, rel_sub, metadata_mode)
                                 dest_dir_target = target_base
                                 if metadata_mode == "tv" and show_id:
                                     dest_dir_target = os.path.join(target_base, clean_show_name, f"Staffel {int(season)}", clean_base)
                                 elif metadata_mode == "movie" and movie_id:
                                     dest_dir_target = os.path.join(target_base, clean_base)
-                                    
+
                                 log_message(f"Kopiere von Output auf {target.get('name', t_id)}: {dest_dir_target}...")
                                 try:
                                     os.makedirs(dest_dir_target, exist_ok=True)
@@ -2214,7 +2311,7 @@ def process_worker(params):
                                     dest_dir_cloud_outbox = os.path.join(outbox_dest, clean_show_name)
                                 elif metadata_mode == "movie" and movie_id:
                                     dest_dir_cloud_outbox = os.path.join(outbox_dest, clean_base)
-                                
+
                                 target_base = resolve_target_destination(target, rel_sub, metadata_mode)
                                 cloud_success = copy_to_cloud_target(
                                     dest_dir_cloud_outbox,
@@ -2228,7 +2325,7 @@ def process_worker(params):
                                     all_transfers_successful = False
                                 else:
                                     update_task_pipeline_status(task_id, t_id, "done", 100)
-                                    
+
             # Move show-level files in series mode to outbox
             dest_show_dir_outbox = None
             if metadata_mode == "tv" and show_id and destination:
@@ -2248,7 +2345,7 @@ def process_worker(params):
                 except Exception as e:
                     log_message(f"Fehler beim Verschieben der Serien-Metadaten in Output: {e}")
                     all_transfers_successful = False
- 
+
                 # Copy show-level files to NAS targets if requested
                 settings = load_settings()
                 for target in settings.get("storage_targets", []):
@@ -2256,13 +2353,13 @@ def process_worker(params):
                     t_type = target.get("type")
                     if t_type != "nas" and t_id != "nas":
                         continue
-                        
+
                     should_copy = False
                     if params.get(f"copy_to_{t_id}") is not None:
                         should_copy = params.get(f"copy_to_{t_id}")
                     elif params.get("copy_to_nas") is not None:
                         should_copy = params.get("copy_to_nas")
-                        
+
                     if should_copy and target.get("enabled", True):
                         target_base = resolve_target_destination(target, rel_sub, "tv")
                         dest_show_dir_target = os.path.join(target_base, clean_show_name)
@@ -2296,14 +2393,14 @@ def process_worker(params):
                         # General YouTube: use video title as folder name
                         yt_title = sanitize_filename(params.get("yt_title", "YouTube Download"))
                         local_dest_dir = os.path.join(local_destination_path, limit_filename_length(yt_title))
-                    
+
                     os.makedirs(local_dest_dir, exist_ok=True)
                     log_message(f"Kopiere in lokalen Ordner: {local_dest_dir}...")
-                    
+
                     # Copy video file
                     src_video = os.path.join(dest_dir_outbox, target_filename) if transfer_successful else filepath
                     shutil.copy2(src_video, os.path.join(local_dest_dir, target_filename))
-                    
+
                     # Copy accompanying files (NFOs, subtitles)
                     source_dir = dest_dir_outbox if transfer_successful else temp_dir
                     for f in os.listdir(source_dir):
@@ -2312,7 +2409,7 @@ def process_worker(params):
                             poster_names, backdrop_names = _get_movie_artwork_lists(settings, target_filename)
                             if f.startswith(clean_base) or f in poster_names or f in backdrop_names:
                                 shutil.copy2(f_path, os.path.join(local_dest_dir, f))
-                    
+
                     # Copy show-level files for series
                     if metadata_mode == "tv" and show_id and dest_show_dir_outbox and os.path.isdir(dest_show_dir_outbox):
                         local_show_dir = os.path.join(local_destination_path, clean_show_name)
@@ -2326,10 +2423,10 @@ def process_worker(params):
                                     log_message(f"Serien-Metadatei existiert bereits im lokalen Zielordner und wird nicht überschrieben: {f}")
                                 else:
                                     shutil.copy2(src, dest_f)
-                    
+
                     log_message(f"  ✅ Erfolgreich in lokalen Ordner kopiert: {local_dest_dir}")
                     update_task_pipeline_status(task_id, "local", "done", 100)
-                    
+
                     # Open local folder if setting is enabled
                     if settings.get("open_outbox_finder"):
                         open_folder_in_finder(local_dest_dir)
@@ -2337,7 +2434,7 @@ def process_worker(params):
                     log_message(f"  ❌ Fehler beim Kopieren in lokalen Ordner: {e}")
                     update_task_pipeline_status(task_id, "local", "error", 0)
                     all_transfers_successful = False
-                    
+
             # Clean up temp folder OR open it on failure
             if not copy_to_nas or all_transfers_successful:
                 try:
@@ -2349,13 +2446,13 @@ def process_worker(params):
                 log_message(f"⚠️  Übertragung fehlgeschlagen. Der temporäre Ordner '{temp_dir}' wurde NICHT gelöscht.")
                 # Open temp folder in Finder so the user can access files manually
                 open_folder_in_finder(temp_dir)
-                
+
             from gui.core.jobs import update_job
             if not all_transfers_successful:
                 update_job(task_id, status="error", message="Übertragung unvollständig oder fehlgeschlagen")
             else:
                 update_job(task_id, status="done", progress=100, message="Erfolgreich beendet")
-                    
+
         except Exception as e:
             log_message(f"❌ Fehler in YouTube-Pipeline: {e}")
             from gui.core.jobs import update_job
@@ -2383,7 +2480,7 @@ def process_worker(params):
                         log_message(f"Fehler bei {f}: {e}")
                 else:
                     log_message(f"Übersprungen (existiert bereits im Hauptordner): {f}")
-        
+
         deleted_dirs = 0
         for root, dirs, files in os.walk(current_dir, topdown=False):
             if root == current_dir:
@@ -2414,7 +2511,7 @@ def process_worker(params):
                         is_hevc = True
                 except Exception:
                     pass
-                    
+
                 if not is_hevc:
                     log_message(f"Konvertiere {f} nach H.265 (Qualität {quality})...")
                     base = os.path.splitext(f)[0]
@@ -2452,8 +2549,8 @@ def process_worker(params):
         log_message(f"=== STARTE NFO AGENT IN: {current_dir} ===")
         log_message("💡 Tipp: Nutze den Inbox-Workflow, suche den Film/Serie, und deaktiviere 'Konvertieren' und 'Auf das NAS verschieben'.")
         log_message("Dies generiert NFO und Bilder direkt im aktuellen Ordner, ohne Dateien zu verschieben.")
-        
-                    
+
+
     elif media_type == "tool_manual_sync":
         dest = params.get("destination", "")
         if not dest:
@@ -2462,14 +2559,14 @@ def process_worker(params):
         open_after = params.get("open_after", False)
         delete_original = params.get("delete_original", False)
         task_id = params.get("task_id")
-        
+
         log_message(f"=== STARTE MANUELLES SYNC NACH: {dest} ===")
         if not ensure_nas_mounted():
             raise RuntimeError("NAS konnte nicht gemountet werden. Kopiervorgang abgebrochen.")
-        
+
         folder_name = os.path.basename(current_dir.rstrip('/'))
         nas_target = os.path.join(dest, folder_name)
-        
+
         log_message(f"Kopiere Ordner auf NAS: {nas_target}")
         nas_success = False
         try:
@@ -2482,11 +2579,11 @@ def process_worker(params):
                 log_message(f"❌ Fehler bei NAS Sync.")
         except Exception as e:
             log_message(f"❌ Ausnahme bei NAS Sync: {e}")
-            
+
         pcloud_success = True
         if do_pcloud:
             pcloud_success = copy_to_pcloud(current_dir, dest, task_id)
-            
+
         if delete_original and nas_success and pcloud_success:
             log_message(f"🗑️ Lösche Originalordner nach erfolgreichem Transfer: {current_dir}")
             try:
@@ -2501,19 +2598,19 @@ def process_worker(params):
         open_after = params.get("open_after", False)
         delete_original = params.get("delete_original", False)
         task_id = params.get("task_id")
-        
+
         log_message(f"=== STARTE REINEN PCLOUD SYNC FÜR: {dest} ===")
         success = copy_to_pcloud(current_dir, dest, task_id)
-        
+
         if success and delete_original:
             log_message(f"🗑️ Lösche Originalordner nach erfolgreichem Transfer: {current_dir}")
             try:
                 trash.send_to_trash(current_dir)
             except Exception as e:
                 log_message(f"⚠️ Konnte Originalordner nicht in Quarantäne verschieben: {e}")
-                
+
         if success and open_after:
-            # We don't exactly know the local fuse path here easily without reproducing it, 
+            # We don't exactly know the local fuse path here easily without reproducing it,
             # but we can try to open the source dir if it wasn't deleted.
             pass
 
@@ -2527,12 +2624,12 @@ def job_queue_worker():
         task_id = job["id"]
         from gui.core.jobs import update_job, get_job
         update_job(task_id, status="running", message="Verarbeitung gestartet...")
-        
+
         try:
             params = job["params"]
             params["task_id"] = task_id
             process_worker(params)
-            
+
             job_state = get_job(task_id)
             if job_state and job_state.get("status") != "error":
                 update_job(task_id, status="done", progress=100, message="Erfolgreich beendet")
@@ -2612,7 +2709,7 @@ def system_metrics_worker():
     import time
     from gui.core.helpers import get_folder_size_bytes
     from gui.core.utils import load_settings
-    
+
     def run_with_timeout(func, arg, timeout_sec=20):
         result = [None]
         def _worker():
@@ -2630,14 +2727,14 @@ def system_metrics_worker():
             settings = load_settings()
             inbox = settings.get("inbox_dir", os.path.expanduser("~/Downloads/Medien Input"))
             outbox = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
-            
+
             # 1. Berechne Ordnergrößen (mit 20s Timeout)
             inbox_bytes = run_with_timeout(get_folder_size_bytes, inbox, 20) if inbox else 0
             outbox_bytes = run_with_timeout(get_folder_size_bytes, outbox, 20) if outbox else 0
             with METRICS_LOCK:
                 SYSTEM_METRICS['inbox_size_gb'] = round(inbox_bytes / (1024**3), 2) if inbox_bytes is not None else None
                 SYSTEM_METRICS['outbox_size_gb'] = round(outbox_bytes / (1024**3), 2) if outbox_bytes is not None else None
-            
+
             # 2. Berechne Speicherplatz (NAS/Cloud) mit 20s Timeout
             targets = [t for t in settings.get("storage_targets", []) if t.get("enabled", True)]
             nas_info = None
@@ -2646,7 +2743,7 @@ def system_metrics_worker():
                 if candidate and candidate.get("available"):
                     nas_info = candidate
                     break
-                    
+
             if nas_info is None:
                 nas_info = {
                     "name": targets[0]["name"] if targets else "",
@@ -2656,12 +2753,12 @@ def system_metrics_worker():
                     "path": targets[0].get("root_path", "") if targets else "",
                     "error": "Kein Speicherziel verbunden.",
                 }
-                
+
             with METRICS_LOCK:
                 SYSTEM_METRICS['nas_info'] = nas_info
                 SYSTEM_METRICS['last_updated'] = time.time()
-            
+
         except Exception as e:
             print(f"[System Metrics Worker] Fehler: {e}")
-            
+
         time.sleep(60)
