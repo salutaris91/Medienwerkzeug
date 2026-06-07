@@ -14,4 +14,12 @@ services:
     volumes:
       - ./config:/config
       - /path/to/nas/media:/media # Passe diesen Pfad an deinen NAS-Mount an
+    # Optional: Hardware-Encoding auf Intel/VAAPI-fähigen NAS-Systemen.
+    # Nur aktivieren, wenn auf dem Host /dev/dri existiert.
+    # Danach prüfen mit: docker exec -it medienwerkzeug ls -l /dev/dri
+    # devices:
+    #   - /dev/dri:/dev/dri
+    # group_add:
+    #   - video
+    #   - render
     restart: unless-stopped
