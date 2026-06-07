@@ -70,9 +70,7 @@
   "Claude Hook Configuration": [
     "claude_settings_json"
   ],
-  "Claude Local Permissions": [
-    "claude_settings_local_json"
-  ],
+  "Claude Local Permissions": [],
   "API Package Marker": [
     "gui_api_init_py"
   ],
