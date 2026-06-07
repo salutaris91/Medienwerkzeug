@@ -771,5 +771,101 @@ class TestMovieProcessingFixes(unittest.TestCase):
                 continue
             self.assertEqual(exts, {'.sub', '.idx'})
 
+    @patch("gui.workers.processor.copy_to_cloud_target", return_value=True)
+    def test_closure_cloud_transfer_integration(self, mock_copy_to_cloud):
+        """Integrationstest für den Closure-Fehler: copy_to_cloud_target muss im Transfer-Thread aufrufbar sein."""
+        proj_dir = os.path.join(self.inbox_dir, "CloudMovie")
+        os.makedirs(proj_dir)
+
+        # Create movie video file
+        video = os.path.join(proj_dir, "movie.mkv")
+        with open(video, "wb") as f:
+            f.truncate(5 * 1024 * 1024)
+
+        # Configure settings to have a cloud target
+        settings = self.settings.copy()
+        settings["storage_targets"].append({
+            "id": "pcloud",
+            "type": "pcloud",
+            "name": "pCloud Target",
+            "enabled": True,
+            "root_path": "/pcloud_mock"
+        })
+        persistence.save_settings(settings)
+
+        params = {
+            "media_type": "movie",
+            "project_name": "CloudMovie",
+            "movie_name": "Cloud Movie (2026)",
+            "destination_id": "1",
+            "copy_to_nas": False,
+            "copy_to_pcloud": True, # Triggers cloud transfer
+            "explicit_renames": [
+                {"old": "movie.mkv", "new": "Cloud Movie (2026).mkv"}
+            ],
+            "explicit_subs": [],
+            "explicit_junk": []
+        }
+
+        # Run process_worker
+        # This will spin up the transfer_worker thread which calls copy_to_cloud_target.
+        # If there's a closure bug, it raises cannot access free variable, which is caught
+        # in transfer_errors and raised at the end.
+        processor.process_worker(params)
+
+        # Verify copy_to_cloud_target was called successfully
+        mock_copy_to_cloud.assert_called_once()
+
+    @patch("gui.workers.processor.copy_to_cloud_target", return_value=True)
+    @patch("gui.workers.processor.mw_metadata.generate_tvshow_nfo")
+    @patch("gui.workers.processor.mw_metadata.generate_episode_nfo")
+    def test_closure_cloud_transfer_tv_integration(self, mock_gen_ep, mock_gen_tv, mock_copy_to_cloud):
+        """Integrationstest für den Closure-Fehler im TV-Pfad."""
+        proj_dir = os.path.join(self.inbox_dir, "CloudTVShow")
+        os.makedirs(proj_dir)
+
+        # Create tv episode file
+        video = os.path.join(proj_dir, "episode1.mkv")
+        with open(video, "wb") as f:
+            f.truncate(5 * 1024 * 1024)
+
+        # Configure settings to have a cloud target
+        settings = self.settings.copy()
+        settings["storage_targets"].append({
+            "id": "pcloud",
+            "type": "pcloud",
+            "name": "pCloud Target",
+            "enabled": True,
+            "root_path": "/pcloud_mock"
+        })
+        persistence.save_settings(settings)
+
+        params = {
+            "media_type": "tv",
+            "project_name": "CloudTVShow",
+            "show_name": "Cloud TV Show",
+            "show_id": "12345",
+            "provider": "tmdb_tv",
+            "season": "1",
+            "episode": "1",
+            "destination_id": "1",
+            "copy_to_nas": False,
+            "copy_to_pcloud": True, # Triggers cloud transfer
+            "mappings": {"episode1.mkv": 1},
+            "explicit_renames": [
+                {"old": "episode1.mkv", "new": "Cloud TV Show - S01E01.mkv"}
+            ],
+            "explicit_subs": [],
+            "explicit_junk": []
+        }
+
+        # Run process_worker
+        # This will spin up the transfer_worker thread inside series processing block which calls copy_to_cloud_target.
+        # If there's a closure bug, it raises cannot access free variable.
+        processor.process_worker(params)
+
+        # Verify copy_to_cloud_target was called successfully
+        mock_copy_to_cloud.assert_called_once()
+
 if __name__ == "__main__":
     unittest.main()
