@@ -34,6 +34,9 @@ die aktive After-Release-Roadmap übernommen.
 | 26 | FAQ/Dokumentation: Docker-Importquellen und Volume-Mapping beschreiben | geplant | klein |
 | 27 | Web-Folder-Picker: Dynamische Titel je nach ausgewählter Kategorie | geplant | klein |
 | 28 | Web-Folder-Picker: Layout-Verbreiterung & responsive Anpassungen | geplant | klein |
+| 29 | Speicherziel Syncing: Separater Zielordner pro Speicherziel | geplant | klein–mittel |
+| 30 | Cloud-Upload (rclone): Status- und Fortschritts-Feedback in der Warteschlange | geplant | klein–mittel |
+| 31 | NAS-Downloader-Integration (JDownloader/Download-Backend) | geplant | mittel |
 
 ---
 
@@ -686,5 +689,87 @@ Das Modal für den Web-Folder-Picker soll auf Bildschirmen mit ausreichendem Pla
 
 ### Aufwand (grob)
 Klein: CSS-Stylesheets anpassen.
+
+---
+
+## 29. Speicherziel Syncing: Separater Zielordner pro Speicherziel
+
+### Ziel
+Beim Einrichten des Speicherziel-Syncings soll der Benutzer für jedes konfigurierte Speicherziel (z. B. NAS und pCloud) einen individuellen Zielordner festlegen können, anstatt dass ein globaler Ordner oder ein hartkodierter Standardpfad für alle genutzt wird.
+
+### Umsetzung
+- Erweiterung des Einstellungs-Modells, sodass Ordner-Pfade pro Speicherziel und Kategorie (Filme/Serien) separat abgespeichert und editiert werden können.
+- Anpassung der UI in den Einstellungen, um für jede aktivierte Speicherziel-Spalte ein eigenes Pfad-Eingabefeld (mit Picker) zu rendern.
+
+### Aufwand (grob)
+Klein–mittel: UI-Raster-Anpassung und Einstellungs-Struktur-Erweiterung.
+
+---
+
+## 30. Cloud-Upload (rclone): Status- und Fortschritts-Feedback in der Warteschlange
+
+### Ziel
+Während der rclone-Übertragung (z. B. zu pCloud) soll der Benutzer in der Warteschlange (Queue-UI) ein klares Feedback und idealerweise einen Fortschritt erhalten. Aktuell ist der Status in der Warteschlange während des Uploads nicht transparent genug oder zeigt den Fortschritt nicht an.
+
+### Umsetzung
+- Parsen des stdout von `rclone` (z. B. über `--use-json-log` oder Regex-Matching des normalen Fortschritts-Outputs von rclone).
+- Übermittlung des aktuellen Upload-Zustands/Prozentsatzes über den Job-Status in den API-Antworten von `/api/queue`.
+- Visuelle Darstellung des Ladefortschritts oder einer aktiven Upload-Animation in der Frontend-Warteschlange.
+
+### Aufwand (grob)
+Klein–mittel: Stream-Parsing von rclone und Übertragung an das Frontend.
+
+---
+
+## 31. NAS-Downloader-Integration (JDownloader/Download-Backend)
+
+### Ziel
+Für große Downloads soll der Datenweg optional direkt über den NAS-/Docker-Host
+laufen, statt über einen am Mac gemounteten Tailscale-/SMB-Ordner:
+
+```text
+Internet -> Downloader auf dem NAS -> NAS-Download-Ordner -> Medienwerkzeug
+```
+
+Dadurch muss der Mac nicht als Durchleitungsstation dienen
+(`Internet -> Mac -> Tailscale/SMB -> NAS`), und lange Downloads bleiben auch
+dann stabiler, wenn der Mac schläft, getrennt wird oder die Verbindung schwankt.
+
+### Grundsatz
+Medienwerkzeug soll **nicht selbst zum vollwertigen Downloader werden**. Der
+Download-Teil bleibt bei einem spezialisierten Dienst wie JDownloader, aria2,
+qBittorrent oder SABnzbd. Medienwerkzeug übernimmt die Integration:
+
+- Download-Jobs/Links an das konfigurierte Download-Backend übergeben.
+- Status und Zielordner sichtbar machen.
+- Fertige Downloads aus einem gemeinsamen NAS-Ordner importieren und in den
+  bestehenden Verarbeitungsfluss übernehmen.
+
+### Bevorzugter Ansatz: JDownloader als separater Docker-Service
+- Optionalen JDownloader-Container in `docker-compose.yml` beschreiben, nicht in
+  denselben Container wie Medienwerkzeug packen.
+- Gemeinsames Volume definieren, z. B.
+  `/volume1/Kino/Downloads:/downloads`.
+- Medienwerkzeug-Einstellungen ergänzen:
+  - Downloader aktiviert/deaktiviert.
+  - Typ: JDownloader oder generisches Download-Backend.
+  - Download-Ordner im Container.
+  - Verbindungsdaten/API-Konfiguration, falls erforderlich.
+- Fertige Downloads über eine Importquelle oder einen speziellen
+  Downloader-Import in die Inbox bzw. Verarbeitung übernehmen.
+
+### Risiken & Hinweise
+- JDownloader/MyJDownloader-Authentifizierung und API-Zugriff müssen sauber
+  behandelt werden; Zugangsdaten gehören in `.env` bzw. sichere Settings.
+- Captchas, Hoster-Änderungen, Login-Cookies und Archive bleiben Aufgabe des
+  Downloaders, nicht des Medienwerkzeugs.
+- Der gemeinsame Download-Ordner muss als Docker-Volume korrekt gemappt sein,
+  damit beide Container dieselben Dateien sehen.
+- Für andere Backends sollte die Schnittstelle generisch genug bleiben, damit
+  später aria2, qBittorrent oder SABnzbd möglich sind.
+
+### Aufwand (grob)
+Mittel: Docker-Compose-Erweiterung, Settings-UI, API-Anbindung an ein
+Downloader-Backend, Import-/Statuslogik und Dokumentation.
 
 

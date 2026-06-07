@@ -1106,11 +1106,7 @@ def process_worker(params):
             if convert:
                 log_message(f"Konvertiere {target_filename} nach H.265 (Qualität {quality})...")
                 temp_output = os.path.join(current_dir, f"{clean_title}_neu.mkv")
-                ffmpeg_cmd = [
-                    "caffeinate", "-i", "-s", "ffmpeg", "-nostdin", "-i", target_filepath,
-                    "-c:v", "hevc_videotoolbox", "-tag:v", "hvc1", "-q:v", str(quality),
-                    "-c:a", "copy", temp_output
-                ]
+                ffmpeg_cmd = media.build_hevc_ffmpeg_cmd(target_filepath, temp_output, quality)
                 try:
                     def ffmpeg_progress_cb(percent, msg):
                         conv_pct[file_idx] = percent
@@ -1675,11 +1671,7 @@ def process_worker(params):
             if convert:
                 log_message(f"Konvertiere {target_filename} nach H.265 (Qualität {quality})...")
                 temp_output = os.path.join(current_dir, f"{clean_movie_name}_neu.mkv")
-                ffmpeg_cmd = [
-                    "caffeinate", "-i", "-s", "ffmpeg", "-nostdin", "-i", target_filepath,
-                    "-c:v", "hevc_videotoolbox", "-tag:v", "hvc1", "-q:v", str(quality),
-                    "-c:a", "copy", temp_output
-                ]
+                ffmpeg_cmd = media.build_hevc_ffmpeg_cmd(target_filepath, temp_output, quality)
                 try:
                     def ffmpeg_progress_cb(percent, msg):
                         conv_pct[file_idx] = percent
@@ -2779,11 +2771,7 @@ def process_worker(params):
                     log_message(f"Konvertiere {f} nach H.265 (Qualität {quality})...")
                     base = os.path.splitext(f)[0]
                     temp_output = os.path.join(current_dir, f"{base}_neu.mkv")
-                    ffmpeg_cmd = [
-                        "caffeinate", "-i", "-s", "ffmpeg", "-nostdin", "-i", filepath,
-                        "-c:v", "hevc_videotoolbox", "-tag:v", "hvc1", "-q:v", str(quality),
-                        "-c:a", "copy", temp_output
-                    ]
+                    ffmpeg_cmd = media.build_hevc_ffmpeg_cmd(filepath, temp_output, quality)
                     try:
                         success = run_ffmpeg_with_progress(ffmpeg_cmd, filepath, task_id=task_id, log_queue=log_queue)
                         if success and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
