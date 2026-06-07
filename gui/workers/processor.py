@@ -1106,17 +1106,29 @@ def process_worker(params):
             if convert:
                 log_message(f"Konvertiere {target_filename} nach H.265 (Qualität {quality})...")
                 temp_output = os.path.join(current_dir, f"{clean_title}_neu.mkv")
+                def ffmpeg_progress_cb(percent, msg):
+                    conv_pct[file_idx] = percent
+                    update_global_job_progress()
+                    with active_jobs_lock:
+                        if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                            active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
+                            avg_conv = sum(conv_pct) / N
+                            active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
+                            
                 ffmpeg_cmd = media.build_hevc_ffmpeg_cmd(target_filepath, temp_output, quality)
+                used_codec = "hevc_vaapi" if "-vaapi_device" in ffmpeg_cmd else ("hevc_videotoolbox" if "-c:v" in ffmpeg_cmd and "hevc_videotoolbox" in ffmpeg_cmd else "hevc_libx265")
                 try:
-                    def ffmpeg_progress_cb(percent, msg):
-                        conv_pct[file_idx] = percent
-                        update_global_job_progress()
-                        with active_jobs_lock:
-                            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
-                                avg_conv = sum(conv_pct) / N
-                                active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
                     success = run_ffmpeg_with_progress(ffmpeg_cmd, target_filepath, task_id=ffmpeg_progress_cb, log_queue=log_queue)
+                    
+                    if not success and "-vaapi_device" in ffmpeg_cmd:
+                        log_message("⚠️ Hardware-Encoding fehlgeschlagen. Versuche Fallback auf Software-Encoding (libx265)...")
+                        if os.path.exists(temp_output):
+                            try: os.remove(temp_output)
+                            except Exception: pass
+                        ffmpeg_cmd = media.build_hevc_ffmpeg_cmd(target_filepath, temp_output, quality, force_software=True)
+                        used_codec = "hevc_libx265"
+                        success = run_ffmpeg_with_progress(ffmpeg_cmd, target_filepath, task_id=ffmpeg_progress_cb, log_queue=log_queue)
+
                     if success and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
                         log_message("Konvertierung erfolgreich beendet.")
                         try:
@@ -1124,7 +1136,7 @@ def process_worker(params):
                             size_out = os.path.getsize(temp_output)
                             if size_in > 0:
                                 ratio = size_out / size_in
-                                media.add_conversion_to_history(quality, "hevc", ratio, size_in, size_out, content_type=content_type, filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath), resolution=None)
+                                media.add_conversion_to_history(quality, used_codec, ratio, size_in, size_out, content_type=content_type, filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath), resolution=None)
                                 log_message(f"Konvertierungs-Verhältnis erfasst: {ratio:.4f}")
                         except Exception as e:
                             log_message(f"Fehler beim Erfassen des Konvertierungs-Verhältnisses: {e}")
@@ -1671,17 +1683,29 @@ def process_worker(params):
             if convert:
                 log_message(f"Konvertiere {target_filename} nach H.265 (Qualität {quality})...")
                 temp_output = os.path.join(current_dir, f"{clean_movie_name}_neu.mkv")
+                def ffmpeg_progress_cb(percent, msg):
+                    conv_pct[file_idx] = percent
+                    update_global_job_progress()
+                    with active_jobs_lock:
+                        if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                            active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
+                            avg_conv = sum(conv_pct) / N
+                            active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
+
                 ffmpeg_cmd = media.build_hevc_ffmpeg_cmd(target_filepath, temp_output, quality)
+                used_codec = "hevc_vaapi" if "-vaapi_device" in ffmpeg_cmd else ("hevc_videotoolbox" if "-c:v" in ffmpeg_cmd and "hevc_videotoolbox" in ffmpeg_cmd else "hevc_libx265")
                 try:
-                    def ffmpeg_progress_cb(percent, msg):
-                        conv_pct[file_idx] = percent
-                        update_global_job_progress()
-                        with active_jobs_lock:
-                            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
-                                avg_conv = sum(conv_pct) / N
-                                active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
                     success = run_ffmpeg_with_progress(ffmpeg_cmd, target_filepath, task_id=ffmpeg_progress_cb, log_queue=log_queue)
+                    
+                    if not success and "-vaapi_device" in ffmpeg_cmd:
+                        log_message("⚠️ Hardware-Encoding fehlgeschlagen. Versuche Fallback auf Software-Encoding (libx265)...")
+                        if os.path.exists(temp_output):
+                            try: os.remove(temp_output)
+                            except Exception: pass
+                        ffmpeg_cmd = media.build_hevc_ffmpeg_cmd(target_filepath, temp_output, quality, force_software=True)
+                        used_codec = "hevc_libx265"
+                        success = run_ffmpeg_with_progress(ffmpeg_cmd, target_filepath, task_id=ffmpeg_progress_cb, log_queue=log_queue)
+
                     if success and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
                         log_message("Konvertierung erfolgreich.")
                         try:
@@ -1689,7 +1713,7 @@ def process_worker(params):
                             size_out = os.path.getsize(temp_output)
                             if size_in > 0:
                                 ratio = size_out / size_in
-                                media.add_conversion_to_history(quality, "hevc", ratio, size_in, size_out, content_type=content_type, filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath), resolution=None)
+                                media.add_conversion_to_history(quality, used_codec, ratio, size_in, size_out, content_type=content_type, filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath), resolution=None)
                                 log_message(f"Konvertierungs-Verhältnis erfasst: {ratio:.4f}")
                         except Exception as e:
                             log_message(f"Fehler beim Erfassen des Konvertierungs-Verhältnisses: {e}")
@@ -2772,8 +2796,19 @@ def process_worker(params):
                     base = os.path.splitext(f)[0]
                     temp_output = os.path.join(current_dir, f"{base}_neu.mkv")
                     ffmpeg_cmd = media.build_hevc_ffmpeg_cmd(filepath, temp_output, quality)
+                    used_codec = "hevc_vaapi" if "-vaapi_device" in ffmpeg_cmd else ("hevc_videotoolbox" if "-c:v" in ffmpeg_cmd and "hevc_videotoolbox" in ffmpeg_cmd else "hevc_libx265")
                     try:
                         success = run_ffmpeg_with_progress(ffmpeg_cmd, filepath, task_id=task_id, log_queue=log_queue)
+                        
+                        if not success and "-vaapi_device" in ffmpeg_cmd:
+                            log_message("⚠️ Hardware-Encoding fehlgeschlagen. Versuche Fallback auf Software-Encoding (libx265)...")
+                            if os.path.exists(temp_output):
+                                try: os.remove(temp_output)
+                                except Exception: pass
+                            ffmpeg_cmd = media.build_hevc_ffmpeg_cmd(filepath, temp_output, quality, force_software=True)
+                            used_codec = "hevc_libx265"
+                            success = run_ffmpeg_with_progress(ffmpeg_cmd, filepath, task_id=task_id, log_queue=log_queue)
+
                         if success and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
                             log_message(f"Erfolgreich konvertiert: {f}")
                             try:
@@ -2781,7 +2816,7 @@ def process_worker(params):
                                 size_out = os.path.getsize(temp_output)
                                 if size_in > 0:
                                     ratio = size_out / size_in
-                                    media.add_conversion_to_history(quality, "hevc", ratio, size_in, size_out, content_type=content_type, filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath), resolution=None)
+                                    media.add_conversion_to_history(quality, used_codec, ratio, size_in, size_out, content_type=content_type, filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath), resolution=None)
                                     log_message(f"Konvertierungs-Verhältnis erfasst: {ratio:.4f}")
                             except Exception as e:
                                 log_message(f"Fehler beim Erfassen des Konvertierungs-Verhältnisses: {e}")

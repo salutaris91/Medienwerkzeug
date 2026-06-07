@@ -1201,6 +1201,60 @@ fetch('/api/system/capabilities')
                     if (label) label.style.display = 'none';
                 }
             }
+            
+            // Hardware Encoding Diagnostics
+            if (data.hardware_encoding_diagnostics) {
+                const diag = data.hardware_encoding_diagnostics;
+                const diagList = document.getElementById("hardware-diagnostics-list");
+                if (diagList) {
+                    let html = '';
+                    
+                    if (diag.dri_exists) {
+                        html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator active" style="background-color: var(--success);"></span><span>Render-Geräte (/dev/dri/renderD*) gefunden.</span></div>';
+                    } else {
+                        html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator error" style="background-color: var(--danger);"></span><span>Keine Render-Geräte (/dev/dri/renderD*) gefunden.</span></div>';
+                    }
+                    
+                    if (diag.dri_exists) {
+                        if (diag.dri_writable && diag.device_path) {
+                            html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator active" style="background-color: var(--success);"></span><span>Lese-/Schreibzugriff auf ' + diag.device_path + ' erfolgreich.</span></div>';
+                        } else {
+                            html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator error" style="background-color: var(--danger);"></span><span>Fehlende Rechte auf /dev/dri. Bitte "devices" und "group_add" im Docker-Compose prüfen!</span></div>';
+                        }
+                    }
+                    
+                    if (diag.dri_writable) {
+                        if (diag.vaapi_probe_success) {
+                            html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator active" style="background-color: var(--success);"></span><span>VAAPI Hardware-Encoding Probe erfolgreich. HEVC-Beschleunigung ist einsatzbereit. 🚀</span></div>';
+                        } else {
+                            html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator error" style="background-color: var(--danger);"></span><span>VAAPI Probe fehlgeschlagen. Möglicherweise falsche Treiber (i915 vs xe) oder nicht unterstützte Hardware.</span></div>';
+                        }
+                    }
+                    
+                    diagList.innerHTML = html;
+                }
+                
+                const hwWarning = document.getElementById("hero-hw-warning");
+                if (hwWarning && data.runtime === 'docker' && (!diag.dri_writable || !diag.vaapi_probe_success)) {
+                    const updateHwWarning = () => {
+                        const movieConv = document.getElementById("movie-option-convert");
+                        const seriesConv = document.getElementById("series-option-convert");
+                        if ((movieConv && movieConv.checked) || (seriesConv && seriesConv.checked)) {
+                            hwWarning.style.display = 'block';
+                        } else {
+                            hwWarning.style.display = 'none';
+                        }
+                    };
+                    
+                    const movieConv = document.getElementById("movie-option-convert");
+                    const seriesConv = document.getElementById("series-option-convert");
+                    if (movieConv) movieConv.addEventListener("change", updateHwWarning);
+                    if (seriesConv) seriesConv.addEventListener("change", updateHwWarning);
+                    
+                    // Initial check
+                    updateHwWarning();
+                }
+            }
         }
     })
     .catch(err => console.error("Failed to load capabilities", err));

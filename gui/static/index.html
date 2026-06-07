@@ -459,6 +459,11 @@
                                 <button class="btn btn-xs btn-secondary" id="btn-hero-refresh-nas" style="display: none;" type="button">🔄 Erneut prüfen</button>
                             </div>
                         </div>
+                        
+                        <div id="hero-hw-warning" style="margin-top: 15px; font-size: 0.85em; color: var(--warning); border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 10px; display: none;">
+                            ⚠️ NAS-Konvertierung ist ohne Hardware-Encoding sehr langsam; für Geschwindigkeit Hardware-Encoding einrichten.
+                        </div>
+
                         <div class="nas-capacity-widget inline-style-12" >
                             <span class="form-label-style" id="hero-storage-label">NAS Speicherbelegung:</span>
                             <div class="progress-bar-container inline-style-13" >
@@ -1175,6 +1180,7 @@
                     <div class="settings-tabs-nav">
                         <button class="settings-tab-btn active" data-settings-tab="tab-paths">📁 Lokale Arbeitsordner</button>
                         <button class="settings-tab-btn" data-settings-tab="tab-sync">🔄 Speicher & Sync</button>
+                        <button class="settings-tab-btn" data-settings-tab="tab-docker-hardware">🐳 Docker & Hardware</button>
                         <button class="settings-tab-btn" data-settings-tab="tab-notifications">🔔 Benachrichtigungen</button>
                         <button class="settings-tab-btn" data-settings-tab="tab-appearance">🎨 Darstellung & Tools</button>
                         <button class="settings-tab-btn" data-settings-tab="tab-security">🔒 Sicherheit</button>
@@ -1287,6 +1293,23 @@
                                 <option value="jellyfin">Jellyfin</option>
                                 <option value="plex">Plex</option>
                             </select>
+                        </div>
+                    </div>
+
+                    <!-- TAB: DOCKER & HARDWARE -->
+                    <div id="settings-tab-docker-hardware" class="settings-tab-panel hidden">
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <span class="form-label-style">Hardware-Encoding Diagnose:</span>
+                            <p style="font-size: 0.9em; color: var(--text-muted); margin-bottom: 10px;">Überprüft die Verfügbarkeit von VAAPI Hardware-Beschleunigung im aktuellen System.</p>
+                            
+                            <div id="hardware-diagnostics-container" style="background: var(--bg-surface-2); border: 1px solid var(--border-light); border-radius: 6px; padding: 15px; margin-top: 10px;">
+                                <div style="display: flex; flex-direction: column; gap: 8px;" id="hardware-diagnostics-list">
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <span class="status-indicator loading"></span>
+                                        <span>Lade Diagnose-Daten...</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -2085,6 +2108,23 @@
                         <h3>📂 Welche Pfade sind im Desktop- und Docker-Modus wichtig?</h3>
                         <p><strong>Desktop-Modus (macOS):</strong> Hier nutzt die App deine lokalen Pfade. Einstellungen liegen standardmäßig unter <code>~/data</code> (bzw. <code>data/</code> im Projektordner) und deine Medienpfade können z.B. auf <code>/Volumes/Schnitt/inbox</code> oder deinen pCloud-Mount zeigen.<br><br>
                         <strong>Docker-Modus:</strong> Die App läuft isoliert im Container und kennt deine Mac-Pfade nicht. Stattdessen nutzt sie standardisierte Container-Volumes: Einstellungen und Protokolle liegen in <code>/config</code>. Alle Medien- und NAS-Verzeichnisse müssen als Unterverzeichnis von <code>/media</code> eingebunden werden (z. B. Inbox unter <code>/media/inbox</code> und Archiv unter <code>/media/kino</code>). Konfiguriere diese Pfade entsprechend in den App-Einstellungen.</p>
+                    </div>
+
+                    <div class="card mb-15">
+                        <h3>🖥️ Wie richte ich Hardware-Encoding (VAAPI) im Docker-Modus ein?</h3>
+                        <p>Um schnelle H.265-Konvertierungen zu ermöglichen, muss das Medienwerkzeug auf die GPU-Hardware des NAS zugreifen können. Folge diesen Schritten:</p>
+                        <ol style="margin-left: 20px; margin-top: 10px; color: var(--text-muted); font-size: 0.95em;">
+                            <li style="margin-bottom: 8px;">Prüfe den Host-Status der Render-Geräte via SSH: <code style="color: var(--accent);">stat -c '%n %g %G' /dev/dri/card0 /dev/dri/renderD128</code></li>
+                            <li style="margin-bottom: 8px;">Notiere dir die numerische GID der Gruppen (z.B. <code>44</code> für video und <code>105</code> für render).</li>
+                            <li style="margin-bottom: 8px;">Füge in deiner <code>docker-compose.yml</code> unter dem Service <code>medienwerkzeug</code> folgendes hinzu:
+                                <pre style="background: var(--bg-surface-2); padding: 8px; border-radius: 4px; margin-top: 5px; color: var(--text-color); font-family: monospace;">devices:
+  - /dev/dri:/dev/dri
+group_add:
+  - "44"
+  - "105"</pre>
+                            </li>
+                            <li>Wende die Änderungen an mit <code style="color: var(--accent);">docker compose up -d</code>. Danach sollte das Diagnose-Panel in den Einstellungen einen erfolgreichen Test anzeigen.</li>
+                        </ol>
                     </div>
                 </div>
             </div>

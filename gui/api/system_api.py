@@ -22,7 +22,46 @@ from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
 
 @system_api.route('/system/capabilities', methods=['GET'])
 def handle_api_capabilities():
-    return jsonify(get_runtime_capabilities())
+    caps = get_runtime_capabilities()
+    
+    import glob
+    import os
+    import time
+    import subprocess
+    
+    # Cache hardware diagnostics for 60 seconds
+    if not hasattr(handle_api_capabilities, "last_hw_diag") or time.time() - getattr(handle_api_capabilities, "last_hw_check", 0) > 60:
+        devices = glob.glob('/dev/dri/renderD*')
+        dri_exists = len(devices) > 0
+        device_path = None
+        dri_writable = False
+        vaapi_probe_success = False
+        
+        for dev in sorted(devices):
+            if os.access(dev, os.R_OK | os.W_OK):
+                dri_writable = True
+                device_path = dev
+                break
+                
+        if dri_writable and device_path:
+            # Short FFmpeg probe (software decode of black frame -> VAAPI encode)
+            try:
+                cmd = ["ffmpeg", "-nostdin", "-vaapi_device", device_path, "-f", "lavfi", "-i", "color=c=black:s=16x16:r=1:d=0.1", "-vf", "format=nv12,hwupload", "-c:v", "hevc_vaapi", "-f", "null", "-"]
+                res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+                vaapi_probe_success = (res.returncode == 0)
+            except Exception:
+                pass
+                
+        handle_api_capabilities.last_hw_diag = {
+            "dri_exists": dri_exists,
+            "dri_writable": dri_writable,
+            "device_path": device_path,
+            "vaapi_probe_success": vaapi_probe_success
+        }
+        handle_api_capabilities.last_hw_check = time.time()
+        
+    caps["hardware_encoding_diagnostics"] = handle_api_capabilities.last_hw_diag
+    return jsonify(caps)
 
 @system_api.route('/healthz', methods=['GET'])
 def handle_api_healthz():
