@@ -7321,19 +7321,66 @@ function initEventListeners() {
 
     // Modal-Tool-Runner Events
     document.getElementById("btn-browse-tool-modal-path")?.addEventListener("click", async () => {
-        try {
-            const inputEl = document.getElementById("tool-modal-target-path");
-            let qs = "";
-            if (inputEl && inputEl.value) {
-                qs = "?default_path=" + encodeURIComponent(inputEl.value);
+        const caps = window.AppCapabilities;
+        const openLocalEnabled = caps && caps.capabilities && caps.capabilities.open_local_folder;
+        const inputEl = document.getElementById("tool-modal-target-path");
+        if (!inputEl) return;
+
+        if (!openLocalEnabled) {
+            const allowedRoots = [];
+            if (currentSettings.inbox_dir) allowedRoots.push(currentSettings.inbox_dir);
+            if (currentSettings.outbox_dir) allowedRoots.push(currentSettings.outbox_dir);
+            if (currentSettings.import_sources) {
+                currentSettings.import_sources.forEach(src => { if (src) allowedRoots.push(src); });
             }
-            const response = await fetch("/api/browse-folder" + qs);
-            const data = await response.json();
-            if (data.status === "ok" && data.path) {
-                inputEl.value = data.path;
+            if (currentSettings.local_download_folders) {
+                currentSettings.local_download_folders.forEach(f => { if (f && f.path) allowedRoots.push(f.path); });
             }
-        } catch (e) {
-            console.error("Fehler beim Browsen im Modal:", e);
+            if (currentSettings.storage_targets) {
+                currentSettings.storage_targets.forEach(t => { if (t && t.root_path) allowedRoots.push(t.root_path); });
+            }
+
+            let dockerRoot = "/media";
+            const val = inputEl.value;
+            if (val && val.startsWith("/")) {
+                let longestMatch = "";
+                allowedRoots.forEach(root => {
+                    if (root) {
+                        const normalizedRoot = root.replace(/\/$/, "");
+                        const isMatch = val === normalizedRoot || val.startsWith(normalizedRoot + "/");
+                        if (isMatch && root.length > longestMatch.length) {
+                            longestMatch = root;
+                        }
+                    }
+                });
+                if (longestMatch) {
+                    dockerRoot = longestMatch;
+                } else {
+                    const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
+                    dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
+                }
+            } else {
+                const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
+                dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
+            }
+
+            window.openFolderPicker(val || dockerRoot, dockerRoot, null, (selectedPath) => {
+                inputEl.value = selectedPath;
+            });
+        } else {
+            try {
+                let qs = "";
+                if (inputEl.value) {
+                    qs = "?default_path=" + encodeURIComponent(inputEl.value);
+                }
+                const response = await fetch("/api/browse-folder" + qs);
+                const data = await response.json();
+                if (data.status === "ok" && data.path) {
+                    inputEl.value = data.path;
+                }
+            } catch (e) {
+                console.error("Fehler beim Browsen im Modal:", e);
+            }
         }
     });
 
