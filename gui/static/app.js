@@ -6835,7 +6835,13 @@ function initEventListeners() {
                     li.style.display = "flex";
                     li.style.alignItems = "center";
                     li.style.gap = "8px";
-                    li.innerHTML = `<span>📁</span> <span class="folder-name">${sub}</span>`;
+                    const iconSpan = document.createElement("span");
+                    iconSpan.textContent = "📁";
+                    const nameSpan = document.createElement("span");
+                    nameSpan.className = "folder-name";
+                    nameSpan.textContent = sub;
+                    li.appendChild(iconSpan);
+                    li.appendChild(nameSpan);
                     
                     li.addEventListener("mouseenter", () => {
                         li.style.background = "rgba(255, 255, 255, 0.03)";
@@ -8402,7 +8408,9 @@ function renderImportSources() {
             browseBtn.title = "Ordner auf dem NAS auswählen";
             browseBtn.onclick = (e) => {
                 e.preventDefault();
-                window.openFolderPicker(input.value || "/media", "/", null, (selectedPath) => {
+                const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
+                const dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
+                window.openFolderPicker(input.value || dockerRoot, dockerRoot, null, (selectedPath) => {
                     input.value = selectedPath;
                     currentSettings.import_sources[index] = selectedPath;
                 });
@@ -8483,7 +8491,9 @@ function renderLocalFolders() {
             browseBtn.title = "Ordner auf dem NAS auswählen";
             browseBtn.onclick = (e) => {
                 e.preventDefault();
-                window.openFolderPicker(pathInput.value || "/media", "/", null, (selectedPath) => {
+                const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
+                const dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
+                window.openFolderPicker(pathInput.value || dockerRoot, dockerRoot, null, (selectedPath) => {
                     pathInput.value = selectedPath;
                     currentSettings.local_download_folders[index].path = selectedPath;
                     if (!nameInput.value) {
@@ -8561,27 +8571,29 @@ function renderSyncCategories() {
         row.appendChild(createInput(cat.id, "ID (z.B. 1)", "0.5", (e) => { currentSettings.sync_categories[index].id = e.target.value; }));
         row.appendChild(createInput(cat.name, "Name", "1", (e) => { currentSettings.sync_categories[index].name = e.target.value; }));
 
-        // Dynamically add columns for active storage targets
         activeTargets.forEach(target => {
             const targetWrapper = document.createElement("div");
-            targetWrapper.style.flex = target.id === "pcloud" ? "1.5" : "1";
+            const isCloud = target.id === "pcloud" || target.type === "pcloud" || target.type === "cloud";
+            const isNas = target.id === "nas" || target.type === "nas";
+            
+            targetWrapper.style.flex = isCloud ? "1.5" : "1";
             targetWrapper.style.display = "flex";
             targetWrapper.style.gap = "5px";
 
             let val = "";
             if (cat.targets && cat.targets[target.id] !== undefined) {
                 val = cat.targets[target.id];
-            } else if (target.id === "nas") {
+            } else if (isNas) {
                 val = cat.nas_sub || "";
-            } else if (target.id === "pcloud") {
+            } else if (isCloud) {
                 val = cat.pcloud_remote || "";
             }
 
             let placeholder = `${target.name || target.id}`;
-            if (target.id === "nas") {
+            if (isNas) {
                 placeholder += ` (z.B. /${cat.name || "Filme"})`;
-            } else if (target.id === "pcloud") {
-                placeholder += ` (z.B. pcloud:04_${cat.name || "Filme"})`;
+            } else if (isCloud) {
+                placeholder += ` (z.B. ${target.rclone_remote || "pcloud"}:04_${cat.name || "Filme"})`;
             } else {
                 placeholder += ` (z.B. /${cat.name || "Filme"})`;
             }
@@ -8594,9 +8606,9 @@ function renderSyncCategories() {
                 currentSettings.sync_categories[index].targets[target.id] = newVal;
 
                 // Backwards compatibility spiegeln
-                if (target.id === "nas") {
+                if (isNas) {
                     currentSettings.sync_categories[index].nas_sub = newVal;
-                } else if (target.id === "pcloud") {
+                } else if (isCloud) {
                     currentSettings.sync_categories[index].pcloud_remote = newVal;
                 }
             });
@@ -8612,7 +8624,7 @@ function renderSyncCategories() {
             const caps = window.AppCapabilities;
             const openLocalEnabled = caps && caps.capabilities && caps.capabilities.open_local_folder;
             if (!openLocalEnabled) {
-                if (target.id === "nas") {
+                if (isNas) {
                     browseBtn.textContent = "🔍";
                     browseBtn.title = "Ordner auf dem NAS auswählen";
                     browseBtn.onclick = (e) => {
@@ -8640,12 +8652,13 @@ function renderSyncCategories() {
                             currentSettings.sync_categories[index].nas_sub = subPath;
                         });
                     };
-                } else if (target.id === "pcloud") {
+                } else if (isCloud) {
                     browseBtn.textContent = "ℹ️";
-                    browseBtn.title = "Hinweis zur pCloud-Pfadeingabe";
+                    browseBtn.title = "Hinweis zur Cloud-Pfadeingabe";
                     browseBtn.onclick = (e) => {
                         e.preventDefault();
-                        alert("pCloud ist im Docker-Container nicht als Ordner durchsuchbar. Trage hier einen rclone-Zielpfad ein, z. B. pcloud:04_Serien. rclone legt fehlende Zielordner beim ersten Upload normalerweise automatisch an. Prüfe den Pfad trotzdem sorgfältig, weil Tippfehler sonst neue, falsch benannte Ordner in pCloud erzeugen können.");
+                        const remoteName = target.rclone_remote || "pcloud";
+                        alert(`${target.name || "Cloud"} ist im Docker-Container nicht als Ordner durchsuchbar. Trage hier einen rclone-Zielpfad ein, z. B. ${remoteName}:04_${cat.name || "Serien"}. rclone legt fehlende Zielordner beim ersten Upload normalerweise automatisch an. Prüfe den Pfad trotzdem sorgfältig, weil Tippfehler sonst neue, falsch benannte Ordner erzeugen können.`);
                     };
                 } else {
                     browseBtn.disabled = true;
@@ -8659,18 +8672,18 @@ function renderSyncCategories() {
                         const data = await response.json();
                         if (data.path) {
                             let subPath = data.path;
-                            if (target.id === "nas") {
+                            if (isNas) {
                                 const nasRoot = target.root_path || currentSettings.nas_root || "";
                                 if (nasRoot && subPath.startsWith(nasRoot)) {
                                     subPath = subPath.substring(nasRoot.length);
                                     if (!subPath.startsWith("/")) subPath = "/" + subPath;
                                 }
-                            } else if (target.id === "pcloud") {
+                            } else if (isCloud) {
                                 const pcloudRoot = currentSettings.pcloud_dir || "";
                                 if (pcloudRoot && subPath.startsWith(pcloudRoot)) {
                                     subPath = subPath.substring(pcloudRoot.length);
                                     if (subPath.startsWith("/")) subPath = subPath.substring(1);
-                                    subPath = "pcloud:" + subPath;
+                                    subPath = (target.rclone_remote || "pcloud") + ":" + subPath;
                                 }
                             }
                             input.value = subPath;
@@ -8678,9 +8691,9 @@ function renderSyncCategories() {
                                 currentSettings.sync_categories[index].targets = {};
                             }
                             currentSettings.sync_categories[index].targets[target.id] = subPath;
-                            if (target.id === "nas") {
+                            if (isNas) {
                                 currentSettings.sync_categories[index].nas_sub = subPath;
-                            } else if (target.id === "pcloud") {
+                            } else if (isCloud) {
                                 currentSettings.sync_categories[index].pcloud_remote = subPath;
                             }
                         }
