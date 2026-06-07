@@ -7345,8 +7345,12 @@ function initEventListeners() {
             if (val && val.startsWith("/")) {
                 let longestMatch = "";
                 allowedRoots.forEach(root => {
-                    if (root && val.startsWith(root) && root.length > longestMatch.length) {
-                        longestMatch = root;
+                    if (root) {
+                        const normalizedRoot = root.replace(/\/$/, "");
+                        const isMatch = val === normalizedRoot || val.startsWith(normalizedRoot + "/");
+                        if (isMatch && root.length > longestMatch.length) {
+                            longestMatch = root;
+                        }
                     }
                 });
                 if (longestMatch) {
