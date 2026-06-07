@@ -421,8 +421,8 @@ def folder_size_monitor():
             
             from gui.workers.processor import SYSTEM_METRICS
             
-            inbox_gb = SYSTEM_METRICS.get('inbox_size_gb', 0.0)
-            outbox_gb = SYSTEM_METRICS.get('outbox_size_gb', 0.0)
+            inbox_gb = SYSTEM_METRICS.get('inbox_size_gb') or 0.0
+            outbox_gb = SYSTEM_METRICS.get('outbox_size_gb') or 0.0
             
             now = time.time()
             
