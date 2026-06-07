@@ -343,24 +343,61 @@ def run_copy_fallback(src, dst, task_id=None):
     log_message(f"rsync nicht verfügbar. Verwende Python-Fallback zum Kopieren von {src} nach {dst}...")
     
     try:
+        # 1. Check if src itself is a symlink
+        if os.path.islink(src):
+            if os.path.lexists(dst):
+                if os.path.isdir(dst) and not os.path.islink(dst):
+                    shutil.rmtree(dst)
+                else:
+                    os.remove(dst)
+            os.symlink(os.readlink(src), dst)
+            if task_id:
+                if callable(task_id):
+                    task_id(100, "Übertragung: 100%")
+                else:
+                    from gui.core.jobs import update_job
+                    update_job(task_id, progress=100, message="Übertragung: 100%")
+            return True
+
         # Determine if we are copying a directory or a file
         if os.path.isdir(src):
             # Target should be the destination directory (mirroring contents of src)
             os.makedirs(dst, exist_ok=True)
             
-            # Find all files to copy recursively to calculate total size
+            # Find all files/symlinks to copy recursively to calculate total size
             files_to_copy = []
             total_size = 0
-            for root, _, files in os.walk(src):
+            
+            for root, dirs, files in os.walk(src):
+                # Handle directory symlinks and modify dirs in-place to prevent recursing
+                for d in list(dirs):
+                    dir_path = os.path.join(root, d)
+                    dest_dir = os.path.join(dst, os.path.relpath(dir_path, src))
+                    if os.path.islink(dir_path):
+                        # Recreate directory symlink
+                        if os.path.lexists(dest_dir):
+                            if os.path.isdir(dest_dir) and not os.path.islink(dest_dir):
+                                shutil.rmtree(dest_dir)
+                            else:
+                                os.remove(dest_dir)
+                        os.symlink(os.readlink(dir_path), dest_dir)
+                        dirs.remove(d) # Prevent os.walk from entering this directory
+                    else:
+                        os.makedirs(dest_dir, exist_ok=True)
+                        
                 for f in files:
                     filepath = os.path.join(root, f)
                     relpath = os.path.relpath(filepath, src)
-                    size = os.path.getsize(filepath)
-                    files_to_copy.append((filepath, relpath, size))
-                    total_size += size
+                    if os.path.islink(filepath):
+                        # It's a symlink, size is 0 for copy progress, flag as symlink
+                        files_to_copy.append((filepath, relpath, 0, True))
+                    else:
+                        size = os.path.getsize(filepath)
+                        files_to_copy.append((filepath, relpath, size, False))
+                        total_size += size
             
             copied_size = 0
-            # If directory is empty, we still succeed
+            # If directory has no files or symlinks, we still succeed (empty dirs are already created in walk)
             if not files_to_copy:
                 if task_id:
                     if callable(task_id):
@@ -371,38 +408,47 @@ def run_copy_fallback(src, dst, task_id=None):
                 return True
                 
             last_logged_pct = -1
-            for filepath, relpath, size in files_to_copy:
+            for filepath, relpath, size, is_symlink in files_to_copy:
                 dest_filepath = os.path.join(dst, relpath)
                 os.makedirs(os.path.dirname(dest_filepath), exist_ok=True)
                 
-                # Copy with chunked progress
-                with open(filepath, 'rb') as fsrc:
-                    with open(dest_filepath, 'wb') as fdst:
-                        while True:
-                            buf = fsrc.read(1024 * 1024) # 1MB chunk
-                            if not buf:
-                                break
-                            fdst.write(buf)
-                            copied_size += len(buf)
-                            if total_size > 0:
-                                percent = int((copied_size / total_size) * 100)
-                                percent = min(99, percent)
-                                msg = f"Übertragung: {percent}%"
-                                if task_id:
-                                    if callable(task_id):
-                                        task_id(percent, msg)
-                                    else:
-                                        from gui.core.jobs import update_job
-                                        update_job(task_id, progress=percent, message=msg)
-                                # Throttle logging
-                                if percent % 10 == 0 and percent != last_logged_pct:
-                                    log_message(msg)
-                                    last_logged_pct = percent
-                
-                try:
-                    shutil.copystat(filepath, dest_filepath)
-                except Exception:
-                    pass
+                if is_symlink:
+                    # Recreate symlink
+                    if os.path.lexists(dest_filepath):
+                        if os.path.isdir(dest_filepath) and not os.path.islink(dest_filepath):
+                            shutil.rmtree(dest_filepath)
+                        else:
+                            os.remove(dest_filepath)
+                    os.symlink(os.readlink(filepath), dest_filepath)
+                else:
+                    # Copy with chunked progress
+                    with open(filepath, 'rb') as fsrc:
+                        with open(dest_filepath, 'wb') as fdst:
+                            while True:
+                                buf = fsrc.read(1024 * 1024) # 1MB chunk
+                                if not buf:
+                                    break
+                                fdst.write(buf)
+                                copied_size += len(buf)
+                                if total_size > 0:
+                                    percent = int((copied_size / total_size) * 100)
+                                    percent = min(99, percent)
+                                    msg = f"Übertragung: {percent}%"
+                                    if task_id:
+                                        if callable(task_id):
+                                            task_id(percent, msg)
+                                        else:
+                                            from gui.core.jobs import update_job
+                                            update_job(task_id, progress=percent, message=msg)
+                                    # Throttle logging
+                                    if percent % 10 == 0 and percent != last_logged_pct:
+                                        log_message(msg)
+                                        last_logged_pct = percent
+                    
+                    try:
+                        shutil.copystat(filepath, dest_filepath)
+                    except Exception:
+                        pass
             
             if task_id:
                 if callable(task_id):

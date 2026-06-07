@@ -79,5 +79,59 @@ class TestTransfersFallback(unittest.TestCase):
         # Popen wurde versucht aufzurufen
         self.assertTrue(mock_popen.call_count >= 1)
 
+    def test_run_copy_fallback_empty_directory(self):
+        """Kopieren eines leeren Unterverzeichnisses mit run_copy_fallback."""
+        empty_sub = os.path.join(self.src_dir, "empty_dir")
+        os.makedirs(empty_sub, exist_ok=True)
+        
+        target_sub = os.path.join(self.dst_dir, "target_empty_dir_test")
+        
+        success = run_copy_fallback(self.src_dir, target_sub)
+        self.assertTrue(success)
+        
+        # Verifizieren, dass das leere Unterverzeichnis im Ziel existiert
+        expected_empty_dir = os.path.join(target_sub, "empty_dir")
+        self.assertTrue(os.path.isdir(expected_empty_dir))
+        self.assertFalse(os.path.islink(expected_empty_dir))
+        self.assertEqual(len(os.listdir(expected_empty_dir)), 0)
+
+    def test_run_copy_fallback_symlinks(self):
+        """Kopieren von Datei- und Verzeichnis-Symlinks mit run_copy_fallback."""
+        # Erstelle Symlink zu Datei
+        file_link = os.path.join(self.src_dir, "link_to_file1.txt")
+        os.symlink("file1.txt", file_link)
+        
+        # Erstelle Symlink zu Ordner
+        dir_link = os.path.join(self.src_dir, "link_to_subdir")
+        os.symlink("subdir", dir_link)
+        
+        target_sub = os.path.join(self.dst_dir, "target_symlinks_test")
+        
+        success = run_copy_fallback(self.src_dir, target_sub)
+        self.assertTrue(success)
+        
+        # Prüfen, ob der Datei-Symlink korrekt kopiert wurde (als Symlink)
+        dest_file_link = os.path.join(target_sub, "link_to_file1.txt")
+        self.assertTrue(os.path.islink(dest_file_link))
+        self.assertEqual(os.readlink(dest_file_link), "file1.txt")
+        
+        # Prüfen, ob der Verzeichnis-Symlink korrekt kopiert wurde (als Symlink, nicht recursed)
+        dest_dir_link = os.path.join(target_sub, "link_to_subdir")
+        self.assertTrue(os.path.islink(dest_dir_link))
+        self.assertEqual(os.readlink(dest_dir_link), "subdir")
+
+    def test_run_copy_fallback_src_symlink(self):
+        """Kopieren eines Pfades, der selbst ein Symlink ist."""
+        src_link = os.path.join(self.temp_dir.name, "src_link")
+        os.symlink("src", src_link)
+        
+        dst_link = os.path.join(self.temp_dir.name, "dst_link")
+        
+        success = run_copy_fallback(src_link, dst_link)
+        self.assertTrue(success)
+        
+        self.assertTrue(os.path.islink(dst_link))
+        self.assertEqual(os.readlink(dst_link), "src")
+
 if __name__ == "__main__":
     unittest.main()
