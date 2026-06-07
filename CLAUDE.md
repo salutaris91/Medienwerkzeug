@@ -147,6 +147,31 @@ Sobald ein Feature oder ein zusammenhängender Arbeitsschritt abgeschlossen ist,
 
 ---
 
+## Bekannte Deployment-Pfade
+
+### Alex NAS — Docker
+
+- SSH-Kontext aus Alex' Terminal: `Alex@AlexNas91`
+- Compose-Verzeichnis: `/home/Alex/medienwerkzeug`
+- Compose-Datei: `/home/Alex/medienwerkzeug/docker-compose.yml`
+- Containername: `medienwerkzeug`
+- Image: `ghcr.io/salutaris91/mediawerkzeug:latest`
+- Port-Mapping: Host `5811` → Container `5001`
+- Config-Volume: `/home/Alex/medienwerkzeug/config:/config`
+- Medien-Volume: `/volume1/Kino:/media`
+- Healthcheck lokal auf dem NAS: `curl http://127.0.0.1:5811/api/healthz`
+- Standard-Update:
+  ```bash
+  cd /home/Alex/medienwerkzeug
+  docker compose pull
+  docker compose up -d
+  docker compose ps
+  docker logs --tail=80 medienwerkzeug
+  ```
+- Sicheres Image-Aufräumen nach erfolgreichem Update: `docker image prune`
+
+---
+
 *Lebende Vorlage — ergänze wenn du neue Regeln lernst.*
 
 ## graphify
