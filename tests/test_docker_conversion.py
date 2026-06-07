@@ -1,6 +1,5 @@
 import os
-import sys
-from unittest.mock import patch, dict as mock_dict
+from unittest.mock import patch
 from gui.core.media import build_hevc_ffmpeg_cmd
 
 
@@ -17,8 +16,9 @@ def test_build_ffmpeg_cmd_mac_desktop():
             assert cmd[4] == "-nostdin"
             
             # Check input and output paths
-            assert "-i" in cmd
-            input_idx = cmd.index("-i")
+            ffmpeg_idx = cmd.index("ffmpeg")
+            assert "-i" in cmd[ffmpeg_idx:]
+            input_idx = cmd.index("-i", ffmpeg_idx)
             assert cmd[input_idx + 1] == "/path/to/in.mp4"
             assert cmd[-1] == "/path/to/out.mkv"
             
