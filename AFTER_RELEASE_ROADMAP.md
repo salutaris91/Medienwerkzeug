@@ -38,6 +38,7 @@ die aktive After-Release-Roadmap übernommen.
 | 30 | Cloud-Upload (rclone): Status- und Fortschritts-Feedback in der Warteschlange | geplant | klein–mittel |
 | 31 | NAS-Downloader-Integration (JDownloader/Download-Backend) | geplant | mittel |
 | 32 | Automatische Papierkorb-Leerung unter Docker | geplant | klein–mittel |
+| 33 | Automatischer TVDB-Fallback für fehlende TMDB-Plots | geplant | klein |
 
 ---
 
@@ -824,3 +825,18 @@ oder ein eigener Wert.
 Klein–mittel: Settings-Erweiterung, Cleanup-Worker, Rechte-/Pfadprüfung,
 UI-Vorschau und Tests für Sicherheitsgrenzen.
 
+---
+
+## 33. Automatischer TVDB-Fallback für fehlende TMDB-Plots
+
+### Ziel
+Wenn für eine Serie (wie z. B. "H2O - Abenteuer Meerjungfrau") als Metadaten-Anbieter TMDB ausgewählt wird, kann es vorkommen, dass TMDB zwar Episodeninformationen wie Titel und Ausstrahlungsdatum liefert, aber keine Handlungsbeschreibungen (`overview`) gepflegt sind. In solchen Fällen soll das Backend automatisch versuchen, den fehlenden Plot über TVDB nachzuladen.
+
+### Umsetzung
+- Innerhalb der Funktionen in `mw_metadata.py` (insbesondere `fetch_episode_nfo_data`) prüfen, ob die von TMDB gelieferte Beschreibung leer ist.
+- Ist sie leer, über die TMDB API (z. B. via `/tv/{id}/external_ids`) die verknüpfte `tvdb_id` abrufen.
+- Einen Lookup bei TVDB für die entsprechende Serie bzw. Staffel und Episode durchführen.
+- Den dort gefundenen Plot nahtlos in das Rückgabe-Ergebnis integrieren.
+
+### Aufwand (grob)
+Klein: Erweiterung in `mw_metadata.py` um eine kleine Abfrage der `external_ids` und Aufruf der bereits existierenden TVDB-Methoden als Fallback.
