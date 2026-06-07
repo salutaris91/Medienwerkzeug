@@ -32,6 +32,7 @@ die aktive After-Release-Roadmap übernommen.
 | 23 | Lizenz- und Drittanbieterhinweise | geplant | klein |
 | 24 | API-Key Maskierung UX (Fokus/Editierung-Verhalten) | geplant | klein |
 | 25 | TV-Pfad: Angleichung der Untertitel-Erkennung an den Movie-Pfad | geplant | klein |
+| 26 | FAQ/Dokumentation: Docker-Importquellen und Volume-Mapping beschreiben | geplant | klein |
 
 ---
 
@@ -640,3 +641,20 @@ Aktuell unterscheidet sich die Erkennung von Untertiteln in der TV-Vorschau von 
 
 ### Aufwand (grob)
 Klein: Erweiterung des Suchmusters in der TV-Vorschau (`queue_api.py`).
+
+---
+
+## 26. FAQ/Dokumentation: Docker-Importquellen und Volume-Mapping beschreiben
+
+Für Benutzer, die das Medienwerkzeug in Docker (z. B. auf einem Synology NAS) betreiben, ist die Anbindung von lokalen Import-Quellen (wie StreamFab auf dem Mac) oft eine Stolperfalle. Es soll eine detaillierte FAQ bzw. Anleitung hinzugefügt werden.
+
+### Ziel
+Verständliche Erklärung der Ordner-Pfade (Host vs. Container) und wie externe Download-Quellen (z. B. StreamFab auf dem Mac) so konfiguriert werden, dass sie über das NAS in den Docker-Container fließen.
+
+### Umsetzung
+- Ergänzung der FAQ in der Web-UI (`index.html`) um einen Eintrag zum Thema "Wie binde ich Import-Quellen in Docker ein?".
+- Dokumentation der beiden Lösungswege (A: Download direkt auf das gemountete NAS, B: Zusätzliches Volume-Mapping in `docker-compose.yml`).
+
+### Aufwand (grob)
+Klein: Reine Textarbeit in `index.html` und Dokumentations-Update.
+
