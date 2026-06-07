@@ -1047,11 +1047,11 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertEqual(dummy.sent_json, {"status": "success"})
             
             with server.active_jobs_lock:
-                self.assertEqual(len(server.active_jobs), 2)
+                self.assertEqual(len(server.active_jobs), 1)
                 self.assertIn("job3", server.active_jobs)
-                self.assertIn("job4", server.active_jobs)
                 self.assertNotIn("job1", server.active_jobs)
                 self.assertNotIn("job2", server.active_jobs)
+                self.assertNotIn("job4", server.active_jobs)
                 
         finally:
             with server.active_jobs_lock:
