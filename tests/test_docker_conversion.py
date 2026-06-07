@@ -107,7 +107,7 @@ def test_build_ffmpeg_cmd_docker_linux_vaapi():
             # For quality 60, qp should be mapped
             assert "-qp" in cmd
             qp_idx = cmd.index("-qp")
-            assert cmd[qp_idx + 1] == "26"
+            assert cmd[qp_idx + 1] == "28"
 
 
 def test_build_ffmpeg_cmd_docker_linux_force_software():
@@ -175,11 +175,11 @@ def test_quality_mapping_crf_ranges():
             
             # Test clipping boundaries
             # q=200 -> CRF clipped to min 10
-            cmd_high = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 200)
+            cmd_high = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 200, force_software=True)
             assert cmd_high[cmd_high.index("-crf") + 1] == "10"
             
             # q=-50 -> CRF clipped to max 45
-            cmd_low = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", -50)
+            cmd_low = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", -50, force_software=True)
             assert cmd_low[cmd_low.index("-crf") + 1] == "45"
             
             # Test invalid/string quality values fallback to q=60 -> CRF 26
@@ -192,13 +192,13 @@ def test_quality_mapping_qp_ranges():
          patch.dict(os.environ, {"MW_RUNTIME": "docker"}), \
          patch("glob.glob", return_value=["/dev/dri/renderD128"]), \
          patch("os.access", return_value=True):
-            # q=100 -> QP 18
+            # q=100 -> QP 22
             cmd_100 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 100)
-            assert cmd_100[cmd_100.index("-qp") + 1] == "18"
+            assert cmd_100[cmd_100.index("-qp") + 1] == "22"
             
-            # q=60 -> QP 26
+            # q=60 -> QP 28
             cmd_60 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 60)
-            assert cmd_60[cmd_60.index("-qp") + 1] == "26"
+            assert cmd_60[cmd_60.index("-qp") + 1] == "28"
             
             # q=0 -> QP 38
             cmd_0 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 0)
