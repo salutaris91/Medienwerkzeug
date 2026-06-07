@@ -338,7 +338,14 @@ def resolve_folder_request_path(params):
         folder_name = params.get("folder_name") or ""
 
         settings = load_settings()
-        nas_root = settings.get("nas_root", "")
+        nas_root = ""
+        for target in settings.get("storage_targets", []):
+            if target.get("id") == "nas" and target.get("enabled", True):
+                nas_root = target.get("root_path", "")
+                break
+        if not nas_root:
+            nas_root = settings.get("nas_root", "")
+
         if not nas_root:
             return None, "NAS-Root ist nicht konfiguriert."
         sync_categories = settings.get("sync_categories", [])
