@@ -89,6 +89,14 @@ class TestAuth(unittest.TestCase):
         res = self.client.get("/")
         self.assertEqual(res.status_code, 200)
 
+    def test_healthz_bypasses_auth_when_password_is_set(self):
+        """Test 2c: Health checks must stay public so startup can detect healthy servers."""
+        self.persistence.set_password("my-test-password")
+
+        res = self.client.get("/api/healthz")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json(), {"ok": True})
+
     def test_login_success(self):
         """Test 3: Correct credentials log in successfully, set session, and set CSRF cookie."""
         self.persistence.set_password("my-test-password")

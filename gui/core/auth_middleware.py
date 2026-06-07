@@ -13,6 +13,7 @@ def auth_before_request():
         request.path == '/' or
         request.path == '/favicon.ico' or
         request.path.startswith('/api/onboarding/') or
+        request.path == '/api/healthz' or
         request.path == '/api/keys' or
         request.path == '/api/system/capabilities' or
         request.path == '/api/check-dependencies' or
@@ -33,6 +34,7 @@ def auth_before_request():
             request.path in (
                 '/',
                 '/favicon.ico',
+                '/api/healthz',
                 '/api/auth/login',
                 '/api/onboarding/set-password',
                 '/api/auth/status',
