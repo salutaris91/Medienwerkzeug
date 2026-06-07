@@ -1,13 +1,17 @@
 FROM python:3.12-slim
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     rclone \
     curl \
     wget \
     unzip \
     rsync \
+    intel-media-va-driver \
+    i965-va-driver \
+    mesa-va-drivers \
+    vainfo \
     && rm -rf /var/lib/apt/lists/*
 
 # Install deno
