@@ -341,24 +341,7 @@ def run_copy_fallback(src, dst, task_id=None):
     import os
     
     log_message(f"rsync nicht verfügbar. Verwende Python-Fallback zum Kopieren von {src} nach {dst}...")
-    
     try:
-        # 1. Check if src itself is a symlink
-        if os.path.islink(src):
-            if os.path.lexists(dst):
-                if os.path.isdir(dst) and not os.path.islink(dst):
-                    shutil.rmtree(dst)
-                else:
-                    os.remove(dst)
-            os.symlink(os.readlink(src), dst)
-            if task_id:
-                if callable(task_id):
-                    task_id(100, "Übertragung: 100%")
-                else:
-                    from gui.core.jobs import update_job
-                    update_job(task_id, progress=100, message="Übertragung: 100%")
-            return True
-
         # Determine if we are copying a directory or a file
         if os.path.isdir(src):
             # Target should be the destination directory (mirroring contents of src)
@@ -469,6 +452,23 @@ def run_copy_fallback(src, dst, task_id=None):
                 if dest_dir:
                     os.makedirs(dest_dir, exist_ok=True)
                     
+            if os.path.islink(src):
+                # Recreate symlink at dest_file
+                if os.path.lexists(dest_file):
+                    if os.path.isdir(dest_file) and not os.path.islink(dest_file):
+                        shutil.rmtree(dest_file)
+                    else:
+                        os.remove(dest_file)
+                os.symlink(os.readlink(src), dest_file)
+                if task_id:
+                    if callable(task_id):
+                        task_id(100, "Übertragung: 100%")
+                    else:
+                        from gui.core.jobs import update_job
+                        update_job(task_id, progress=100, message="Übertragung: 100%")
+                log_message("Übertragung: 100%")
+                return True
+                
             total_size = os.path.getsize(src)
             copied_size = 0
             last_logged_pct = -1
