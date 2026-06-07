@@ -37,6 +37,7 @@ die aktive After-Release-Roadmap übernommen.
 | 29 | Speicherziel Syncing: Separater Zielordner pro Speicherziel | geplant | klein–mittel |
 | 30 | Cloud-Upload (rclone): Status- und Fortschritts-Feedback in der Warteschlange | geplant | klein–mittel |
 | 31 | NAS-Downloader-Integration (JDownloader/Download-Backend) | geplant | mittel |
+| 32 | Automatische Papierkorb-Leerung unter Docker | geplant | klein–mittel |
 
 ---
 
@@ -772,4 +773,54 @@ qBittorrent oder SABnzbd. Medienwerkzeug übernimmt die Integration:
 Mittel: Docker-Compose-Erweiterung, Settings-UI, API-Anbindung an ein
 Downloader-Backend, Import-/Statuslogik und Dokumentation.
 
+---
+
+## 32. Automatische Papierkorb-Leerung unter Docker
+
+### Ziel
+Der Docker-/NAS-Papierkorb (`.medienwerkzeug-trash`) soll optional automatisch
+geleert werden, damit Dateien nicht dauerhaft nur in die Quarantäne verschoben
+werden. Die Aufbewahrungszeit soll konfigurierbar sein, z. B. 2 Tage, 7 Tage
+oder ein eigener Wert.
+
+### Ausgangslage
+- Aktuell werden unerwünschte Dateien und gelöschte Medien im Docker-Modus nicht
+  endgültig entfernt, sondern in den sicheren Medienwerkzeug-Papierkorb auf dem
+  gemappten Volume verschoben.
+- Das schützt vor versehentlichem Datenverlust, führt aber dazu, dass alter Müll
+  Speicherplatz belegt, bis der Papierkorb manuell geleert wird.
+
+### Umsetzung
+- Neue Einstellung für automatische Papierkorb-Leerung:
+  - aktiviert/deaktiviert,
+  - Aufbewahrungsdauer in Tagen,
+  - optionaler Button "Papierkorb jetzt prüfen/leeren".
+- Hintergrund-Job oder geplanter Cleanup beim Start, der nur Dateien löscht, die
+  älter als die konfigurierte Aufbewahrungsdauer sind.
+- Sicherheitsprüfung vor endgültigem Löschen:
+  - Der Cleanup darf ausschließlich innerhalb des bekannten
+    `.medienwerkzeug-trash`-Ordners arbeiten.
+  - Pfade müssen per `realpath`/`commonpath` gegen Symlink- oder
+    Pfad-Ausbrüche abgesichert werden.
+  - Vor dem Aktivieren sollte ein Schreib- und Löschtest mit einer temporären
+    Testdatei prüfen, ob der Container die Dateien wirklich löschen darf.
+  - Wenn Rechte fehlen oder der Trash-Pfad nicht eindeutig bestimmbar ist, wird
+    nicht gelöscht, sondern sichtbar geloggt/gewarnt.
+- Transparenz:
+  - Vor einem manuellen Leeren anzeigen, wie viele Dateien und wie viel Speicher
+    betroffen wären.
+  - Nach jedem Cleanup Anzahl der gelöschten Dateien und Fehler protokollieren.
+  - Optional: Dry-Run-Endpunkt für Diagnose und UI-Vorschau.
+
+### Risiken & Hinweise
+- Endgültiges Löschen ist irreversibel. Deshalb nur nach explizit aktivierter
+  Einstellung und nie außerhalb des Medienwerkzeug-Papierkorbs.
+- Docker-PUID/PGID und NAS-Dateirechte können das Löschen verhindern. Das muss
+  als eigener Diagnosefall behandelt werden, nicht als stilles Scheitern.
+- Bei sehr großen Papierkörben sollte der Cleanup in Batches laufen, damit die
+  Web-App nicht blockiert.
+
+### Aufwand (grob)
+Klein–mittel: Settings-Erweiterung, Cleanup-Worker, Rechte-/Pfadprüfung,
+UI-Vorschau und Tests für Sicherheitsgrenzen.
 
