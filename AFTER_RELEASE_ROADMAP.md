@@ -31,8 +31,9 @@ die aktive After-Release-Roadmap übernommen.
 | 22 | Update-Hinweise und Release Notes | geplant | klein–mittel |
 | 23 | Lizenz- und Drittanbieterhinweise | geplant | klein |
 | 24 | API-Key Maskierung UX (Fokus/Editierung-Verhalten) | geplant | klein |
-| 25 | TV-Pfad: Angleichung der Untertitel-Erkennung an den Movie-Pfad | geplant | klein |
 | 26 | FAQ/Dokumentation: Docker-Importquellen und Volume-Mapping beschreiben | geplant | klein |
+| 27 | Web-Folder-Picker: Dynamische Titel je nach ausgewählter Kategorie | geplant | klein |
+| 28 | Web-Folder-Picker: Layout-Verbreiterung & responsive Anpassungen | geplant | klein |
 
 ---
 
@@ -657,4 +658,33 @@ Verständliche Erklärung der Ordner-Pfade (Host vs. Container) und wie externe 
 
 ### Aufwand (grob)
 Klein: Reine Textarbeit in `index.html` und Dokumentations-Update.
+
+---
+
+## 27. Web-Folder-Picker: Dynamische Titel je nach ausgewählter Kategorie
+
+### Ziel
+Beim Klick auf die Lupe zur Ordnerauswahl in den Einstellungen soll der Titel des Web-Folder-Picker-Modals kontextsensitiv angepasst werden. Statt des allgemeinen Titels "Ordner auswählen" soll z. B. angezeigt werden: "Ordner für Filme auswählen" oder "Ordner für Serien auswählen" (je nach Kategorie).
+
+### Umsetzung
+- Übergabe des Kategorie-Namens oder Typs an `openFolderPicker()`.
+- Dynamische Anpassung der Überschrift im HTML-Modal via Javascript beim Öffnen.
+
+### Aufwand (grob)
+Klein: Minimale Änderung im Javascript und Modal-DOM.
+
+---
+
+## 28. Web-Folder-Picker: Layout-Verbreiterung & responsive Anpassungen
+
+### Ziel
+Das Modal für den Web-Folder-Picker soll auf Bildschirmen mit ausreichendem Platz breiter dargestellt werden, um tiefe Pfadstrukturen und lange Ordnernamen ohne Umbrüche lesbar anzuzeigen.
+
+### Umsetzung
+- Anpassung der CSS-Klassen bzw. Inline-Styles für das Modal (`#modal-folder-picker .mw-modal`) in `index.html`.
+- Nutzung von flexiblen Breiten (z. B. `max-width: 700px` statt `500px`) und Media Queries für mobile Geräte.
+
+### Aufwand (grob)
+Klein: CSS-Stylesheets anpassen.
+
 
