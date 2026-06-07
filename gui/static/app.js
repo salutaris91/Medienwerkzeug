@@ -7328,8 +7328,15 @@ function initEventListeners() {
 
         if (!openLocalEnabled) {
             const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
-            const dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
-            window.openFolderPicker(inputEl.value || dockerRoot, dockerRoot, null, (selectedPath) => {
+            let dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
+            const val = inputEl.value;
+            if (val && val.startsWith("/")) {
+                const parts = val.split("/");
+                if (parts.length > 1 && parts[1]) {
+                    dockerRoot = "/" + parts[1];
+                }
+            }
+            window.openFolderPicker(val || dockerRoot, dockerRoot, null, (selectedPath) => {
                 inputEl.value = selectedPath;
             });
         } else {
