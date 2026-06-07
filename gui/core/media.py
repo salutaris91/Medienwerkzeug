@@ -15,11 +15,16 @@ def get_video_duration(filepath):
         print(f"Error getting video duration: {e}")
         return None
 
-def get_historical_ratio(quality, codec="hevc"):
+def get_historical_ratio(quality, codec="hevc_libx265"):
     history = utils.load_konv_history()
     ratios = []
     for entry in history:
-        if str(entry.get("quality")) == str(quality) and entry.get("codec") == codec:
+        # Legacy entries often had "hevc", treat them as "hevc_libx265" for backwards compatibility
+        entry_codec = entry.get("codec")
+        if entry_codec == "hevc":
+            entry_codec = "hevc_libx265"
+            
+        if str(entry.get("quality")) == str(quality) and entry_codec == codec:
             try:
                 ratios.append(float(entry.get("ratio")))
             except (ValueError, TypeError):
@@ -50,18 +55,30 @@ def get_historical_ratio(quality, codec="hevc"):
     else:
         return 0.80
 
-def build_hevc_ffmpeg_cmd(input_path, output_path, quality, start_sec=None, duration=None):
+def build_hevc_ffmpeg_cmd(input_path, output_path, quality, start_sec=None, duration=None, force_software=False):
     """
     Erstellt das passende FFmpeg-Kommando zur H.265 (HEVC)-Konvertierung basierend auf der Plattform.
     
     - Unter macOS Desktop (darwin & kein Docker): caffeinate + hevc_videotoolbox (Hardware-Beschleunigung)
-    - Andere Plattformen (Docker, Linux, Windows): direktes ffmpeg + libx265 (Software-Encoding) mit Qualitäts-Mapping
+    - Andere Plattformen (Docker, Linux):
+      - Falls Hardware (/dev/dri/renderD*) vorhanden und force_software=False: VAAPI Hardware-Encoding
+      - Sonst: libx265 (Software-Encoding) mit Qualitäts-Mapping
     """
     import sys
+    import glob
+    import os
     
     is_docker = utils.get_runtime_capabilities()["runtime"] == "docker"
-    use_mac_hw = (sys.platform == "darwin" and not is_docker)
+    use_mac_hw = (sys.platform == "darwin" and not is_docker and not force_software)
     
+    vaapi_device = None
+    if is_docker and not force_software:
+        devices = glob.glob('/dev/dri/renderD*')
+        for dev in sorted(devices):
+            if os.access(dev, os.R_OK | os.W_OK):
+                vaapi_device = dev
+                break
+                
     cmd = []
     if use_mac_hw:
         cmd.extend(["caffeinate", "-i", "-s"])
@@ -69,6 +86,9 @@ def build_hevc_ffmpeg_cmd(input_path, output_path, quality, start_sec=None, dura
     cmd.append("ffmpeg")
     cmd.append("-nostdin")
     
+    if vaapi_device:
+        cmd.extend(["-vaapi_device", vaapi_device])
+        
     if start_sec is not None:
         cmd.extend(["-ss", str(round(start_sec, 2))])
         
@@ -82,6 +102,28 @@ def build_hevc_ffmpeg_cmd(input_path, output_path, quality, start_sec=None, dura
             "-c:v", "hevc_videotoolbox",
             "-tag:v", "hvc1",
             "-q:v", str(quality)
+        ])
+    elif vaapi_device:
+        try:
+            q_val = float(quality)
+        except (ValueError, TypeError):
+            q_val = 60.0
+            
+        if q_val >= 100:
+            qp = 22
+        elif q_val >= 60:
+            qp = 28 - int((q_val - 60) * (6 / 40))
+        elif q_val >= 50:
+            qp = 30 - int((q_val - 50) * (2 / 10))
+        elif q_val >= 30:
+            qp = 34 - int((q_val - 30) * (4 / 20))
+        else:
+            qp = 34 + int((30 - q_val) * (4 / 30))
+            
+        cmd.extend([
+            "-vf", "format=nv12,hwupload",
+            "-c:v", "hevc_vaapi",
+            "-qp", str(int(qp))
         ])
     else:
         try:
@@ -102,7 +144,12 @@ def build_hevc_ffmpeg_cmd(input_path, output_path, quality, start_sec=None, dura
     cmd.append(output_path)
     return cmd
 
-def konvertierung_schaetzen(filepath, quality, codec="hevc"):
+def konvertierung_schaetzen(filepath, quality, codec=None):
+    # Determine the codec that will likely be used
+    if not codec:
+        test_cmd = build_hevc_ffmpeg_cmd(filepath, "dummy.mkv", quality)
+        codec = "hevc_vaapi" if "-vaapi_device" in test_cmd else ("hevc_videotoolbox" if "-c:v" in test_cmd and "hevc_videotoolbox" in test_cmd else "hevc_libx265")
+
     if not os.path.exists(filepath):
         return get_historical_ratio(quality, codec)
         
@@ -120,14 +167,24 @@ def konvertierung_schaetzen(filepath, quality, codec="hevc"):
     os.makedirs(temp_dir, exist_ok=True)
     temp_out_path = os.path.join(temp_dir, f"test_encode_{uuid.uuid4().hex}.mkv")
     
-    # Run test encode
     test_dur = 15.0
-    ffmpeg_cmd = build_hevc_ffmpeg_cmd(filepath, temp_out_path, quality, start_sec=start_sec, duration=test_dur)
     
-    success = False
+    def run_test(force_soft):
+        cmd = build_hevc_ffmpeg_cmd(filepath, temp_out_path, quality, start_sec=start_sec, duration=test_dur, force_software=force_soft)
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
+        return res, cmd
+
     try:
-        # Run with a timeout to avoid hangs
-        res = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
+        res, used_cmd = run_test(force_soft=False)
+        
+        # Fallback if VAAPI failed
+        if res.returncode != 0 and "-vaapi_device" in used_cmd:
+            if os.path.exists(temp_out_path):
+                try: os.remove(temp_out_path)
+                except Exception: pass
+            res, used_cmd = run_test(force_soft=True)
+            codec = "hevc_libx265"
+            
         if res.returncode == 0 and os.path.exists(temp_out_path):
             size_out = os.path.getsize(temp_out_path)
             if size_out > 0:
@@ -137,7 +194,6 @@ def konvertierung_schaetzen(filepath, quality, codec="hevc"):
                 
                 # Keep within sane boundaries
                 estimated_ratio = max(0.05, min(1.5, estimated_ratio))
-                success = True
                 return round(estimated_ratio, 4)
     except Exception as e:
         print(f"Error during test encode estimation: {e}")

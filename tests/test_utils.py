@@ -281,12 +281,15 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         ]
         utils.save_konv_history(history)
         
-        # Median of [0.40, 0.50, 0.60] is 0.50
-        self.assertEqual(media.konvertierung_schaetzen("nonexistent_file.mkv", 60), 0.50)
-        
-        # Add another to make it even: [0.40, 0.45, 0.50, 0.60] -> median is (0.45 + 0.50) / 2 = 0.475
-        media.add_conversion_to_history(60, "hevc", 0.45)
-        self.assertEqual(media.konvertierung_schaetzen("nonexistent_file.mkv", 60), 0.475)
+        with unittest.mock.patch("sys.platform", "linux"):
+            with unittest.mock.patch.dict(os.environ, {"MW_RUNTIME": "docker"}):
+                # Median of [0.40, 0.50, 0.60] is 0.50
+                self.assertEqual(media.konvertierung_schaetzen("nonexistent_file.mkv", 60), 0.50)
+                
+                # Add another to make it even: [0.40, 0.45, 0.50, 0.60] -> median is (0.45 + 0.50) / 2 = 0.475
+                # The legacy entries ("hevc") map to "hevc_libx265"
+                media.add_conversion_to_history(60, "hevc_libx265", 0.45)
+                self.assertEqual(media.konvertierung_schaetzen("nonexistent_file.mkv", 60), 0.475)
 
     def test_conversion_estimation_test_encode(self):
         import subprocess

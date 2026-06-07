@@ -56,10 +56,11 @@ def test_build_ffmpeg_cmd_mac_but_docker():
             assert cmd[crf_idx + 1] == "26"
 
 
-def test_build_ffmpeg_cmd_docker_linux():
-    """Test standard Docker container behavior (Linux host, docker runtime): should use libx265 and no caffeinate."""
-    with patch("sys.platform", "linux"):
-        with patch.dict(os.environ, {"MW_RUNTIME": "docker"}):
+def test_build_ffmpeg_cmd_docker_linux_software():
+    """Test standard Docker container behavior (Linux host, docker runtime) without GPU: should use libx265 and no caffeinate."""
+    with patch("sys.platform", "linux"), \
+         patch.dict(os.environ, {"MW_RUNTIME": "docker"}), \
+         patch("glob.glob", return_value=[]):
             cmd = build_hevc_ffmpeg_cmd("/path/to/in.mp4", "/path/to/out.mkv", 60)
             
             assert cmd[0] == "ffmpeg"
@@ -77,6 +78,50 @@ def test_build_ffmpeg_cmd_docker_linux():
             assert "-tag:v" in cmd
             tag_idx = cmd.index("-tag:v")
             assert cmd[tag_idx + 1] == "hvc1"
+
+
+def test_build_ffmpeg_cmd_docker_linux_vaapi():
+    """Test Docker container behavior with GPU: should use hevc_vaapi."""
+    with patch("sys.platform", "linux"), \
+         patch.dict(os.environ, {"MW_RUNTIME": "docker"}), \
+         patch("glob.glob", return_value=["/dev/dri/renderD128"]), \
+         patch("os.access", return_value=True):
+            cmd = build_hevc_ffmpeg_cmd("/path/to/in.mp4", "/path/to/out.mkv", 60)
+            
+            assert cmd[0] == "ffmpeg"
+            assert cmd[1] == "-nostdin"
+            
+            # Check VAAPI specific parameters
+            assert "-vaapi_device" in cmd
+            dev_idx = cmd.index("-vaapi_device")
+            assert cmd[dev_idx + 1] == "/dev/dri/renderD128"
+            
+            assert "-vf" in cmd
+            vf_idx = cmd.index("-vf")
+            assert cmd[vf_idx + 1] == "format=nv12,hwupload"
+            
+            assert "-c:v" in cmd
+            codec_idx = cmd.index("-c:v")
+            assert cmd[codec_idx + 1] == "hevc_vaapi"
+            
+            # For quality 60, qp should be mapped
+            assert "-qp" in cmd
+            qp_idx = cmd.index("-qp")
+            assert cmd[qp_idx + 1] == "28"
+
+
+def test_build_ffmpeg_cmd_docker_linux_force_software():
+    """Test Docker container behavior with GPU but force_software=True: should fallback to libx265."""
+    with patch("sys.platform", "linux"), \
+         patch.dict(os.environ, {"MW_RUNTIME": "docker"}), \
+         patch("glob.glob", return_value=["/dev/dri/renderD128"]), \
+         patch("os.access", return_value=True):
+            cmd = build_hevc_ffmpeg_cmd("/path/to/in.mp4", "/path/to/out.mkv", 60, force_software=True)
+            
+            assert "-c:v" in cmd
+            codec_idx = cmd.index("-c:v")
+            assert cmd[codec_idx + 1] == "libx265"
+            assert "-vaapi_device" not in cmd
 
 
 def test_build_ffmpeg_cmd_linux_desktop():
@@ -111,32 +156,50 @@ def test_quality_mapping_crf_ranges():
     """Test CRF mapping formula under Docker/Linux for various quality levels."""
     with patch("sys.platform", "linux"):
         with patch.dict(os.environ, {"MW_RUNTIME": "docker"}):
-            # Test key values
+            # Test key values for libx265 (CRF)
             # q=100 -> CRF 18
-            cmd_100 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 100)
+            cmd_100 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 100, force_software=True)
             assert cmd_100[cmd_100.index("-crf") + 1] == "18"
             
             # q=60 -> CRF 26
-            cmd_60 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 60)
+            cmd_60 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 60, force_software=True)
             assert cmd_60[cmd_60.index("-crf") + 1] == "26"
             
             # q=50 -> CRF 28
-            cmd_50 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 50)
+            cmd_50 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 50, force_software=True)
             assert cmd_50[cmd_50.index("-crf") + 1] == "28"
             
             # q=0 -> CRF 38
-            cmd_0 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 0)
+            cmd_0 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 0, force_software=True)
             assert cmd_0[cmd_0.index("-crf") + 1] == "38"
             
             # Test clipping boundaries
             # q=200 -> CRF clipped to min 10
-            cmd_high = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 200)
+            cmd_high = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 200, force_software=True)
             assert cmd_high[cmd_high.index("-crf") + 1] == "10"
             
             # q=-50 -> CRF clipped to max 45
-            cmd_low = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", -50)
+            cmd_low = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", -50, force_software=True)
             assert cmd_low[cmd_low.index("-crf") + 1] == "45"
             
             # Test invalid/string quality values fallback to q=60 -> CRF 26
-            cmd_invalid = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", "invalid_quality")
+            cmd_invalid = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", "invalid_quality", force_software=True)
             assert cmd_invalid[cmd_invalid.index("-crf") + 1] == "26"
+
+def test_quality_mapping_qp_ranges():
+    """Test QP mapping formula under Docker/Linux for various quality levels with VAAPI."""
+    with patch("sys.platform", "linux"), \
+         patch.dict(os.environ, {"MW_RUNTIME": "docker"}), \
+         patch("glob.glob", return_value=["/dev/dri/renderD128"]), \
+         patch("os.access", return_value=True):
+            # q=100 -> QP 22
+            cmd_100 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 100)
+            assert cmd_100[cmd_100.index("-qp") + 1] == "22"
+            
+            # q=60 -> QP 28
+            cmd_60 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 60)
+            assert cmd_60[cmd_60.index("-qp") + 1] == "28"
+            
+            # q=0 -> QP 38
+            cmd_0 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 0)
+            assert cmd_0[cmd_0.index("-qp") + 1] == "38"
