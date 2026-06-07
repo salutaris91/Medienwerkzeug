@@ -7321,19 +7321,31 @@ function initEventListeners() {
 
     // Modal-Tool-Runner Events
     document.getElementById("btn-browse-tool-modal-path")?.addEventListener("click", async () => {
-        try {
-            const inputEl = document.getElementById("tool-modal-target-path");
-            let qs = "";
-            if (inputEl && inputEl.value) {
-                qs = "?default_path=" + encodeURIComponent(inputEl.value);
+        const caps = window.AppCapabilities;
+        const openLocalEnabled = caps && caps.capabilities && caps.capabilities.open_local_folder;
+        const inputEl = document.getElementById("tool-modal-target-path");
+        if (!inputEl) return;
+
+        if (!openLocalEnabled) {
+            const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
+            const dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
+            window.openFolderPicker(inputEl.value || dockerRoot, dockerRoot, null, (selectedPath) => {
+                inputEl.value = selectedPath;
+            });
+        } else {
+            try {
+                let qs = "";
+                if (inputEl.value) {
+                    qs = "?default_path=" + encodeURIComponent(inputEl.value);
+                }
+                const response = await fetch("/api/browse-folder" + qs);
+                const data = await response.json();
+                if (data.status === "ok" && data.path) {
+                    inputEl.value = data.path;
+                }
+            } catch (e) {
+                console.error("Fehler beim Browsen im Modal:", e);
             }
-            const response = await fetch("/api/browse-folder" + qs);
-            const data = await response.json();
-            if (data.status === "ok" && data.path) {
-                inputEl.value = data.path;
-            }
-        } catch (e) {
-            console.error("Fehler beim Browsen im Modal:", e);
         }
     });
 
