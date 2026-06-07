@@ -6760,6 +6760,137 @@ function initEventListeners() {
         return window.openFolder({ path: path });
     };
 
+    let folderPickerCallback = null;
+    let folderPickerCurrentPath = "";
+    let folderPickerRootLimit = "";
+    let folderPickerTarget = null;
+
+    window.closeFolderPicker = function() {
+        document.getElementById("modal-folder-picker").classList.remove("active");
+        folderPickerCallback = null;
+    };
+
+    window.openFolderPicker = function(startPath, rootLimit, target, onSelect) {
+        folderPickerCallback = onSelect;
+        folderPickerRootLimit = rootLimit || "";
+        folderPickerTarget = target;
+        
+        let path = startPath || rootLimit || "/media";
+        if (rootLimit && !path.startsWith(rootLimit)) {
+            path = rootLimit;
+        }
+        
+        document.getElementById("modal-folder-picker").classList.add("active");
+        loadFolderPickerDir(path);
+    };
+
+    async function loadFolderPickerDir(path) {
+        folderPickerCurrentPath = path;
+        document.getElementById("folder-picker-current-path").textContent = path;
+        
+        const upBtn = document.getElementById("folder-picker-up-btn");
+        if (upBtn) {
+            if (path === folderPickerRootLimit || path === "/" || path === "") {
+                upBtn.disabled = true;
+                upBtn.style.opacity = "0.5";
+            } else {
+                upBtn.disabled = false;
+                upBtn.style.opacity = "1";
+            }
+        }
+
+        const listEl = document.getElementById("folder-picker-list");
+        const loadingEl = document.getElementById("folder-picker-loading");
+        const errorEl = document.getElementById("folder-picker-error");
+
+        listEl.innerHTML = "";
+        loadingEl.style.display = "block";
+        errorEl.classList.add("hidden");
+
+        try {
+            const response = await fetch(`/api/list-subfolders?path=${encodeURIComponent(path)}`);
+            const data = await response.json();
+            loadingEl.style.display = "none";
+
+            if (data.error) {
+                errorEl.textContent = data.error;
+                errorEl.classList.remove("hidden");
+                return;
+            }
+
+            const subfolders = data.subfolders || [];
+            if (subfolders.length === 0) {
+                const li = document.createElement("li");
+                li.style.padding = "10px 15px";
+                li.style.color = "var(--text-muted)";
+                li.style.fontStyle = "italic";
+                li.textContent = "Keine Unterordner vorhanden.";
+                listEl.appendChild(li);
+            } else {
+                subfolders.forEach(sub => {
+                    const li = document.createElement("li");
+                    li.style.padding = "10px 15px";
+                    li.style.borderBottom = "1px solid rgba(255, 255, 255, 0.05)";
+                    li.style.cursor = "pointer";
+                    li.style.display = "flex";
+                    li.style.alignItems = "center";
+                    li.style.gap = "8px";
+                    const iconSpan = document.createElement("span");
+                    iconSpan.textContent = "📁";
+                    const nameSpan = document.createElement("span");
+                    nameSpan.className = "folder-name";
+                    nameSpan.textContent = sub;
+                    li.appendChild(iconSpan);
+                    li.appendChild(nameSpan);
+                    
+                    li.addEventListener("mouseenter", () => {
+                        li.style.background = "rgba(255, 255, 255, 0.03)";
+                    });
+                    li.addEventListener("mouseleave", () => {
+                        li.style.background = "transparent";
+                    });
+                    li.addEventListener("click", () => {
+                        let newPath = path;
+                        if (!newPath.endsWith("/")) newPath += "/";
+                        newPath += sub;
+                        loadFolderPickerDir(newPath);
+                    });
+                    listEl.appendChild(li);
+                });
+            }
+        } catch (e) {
+            loadingEl.style.display = "none";
+            errorEl.textContent = "Netzwerkfehler beim Laden: " + e.message;
+            errorEl.classList.remove("hidden");
+        }
+    }
+
+    const upBtn = document.getElementById("folder-picker-up-btn");
+    if (upBtn) {
+        upBtn.onclick = (e) => {
+            e.preventDefault();
+            if (folderPickerCurrentPath === folderPickerRootLimit || folderPickerCurrentPath === "/" || folderPickerCurrentPath === "") {
+                return;
+            }
+            const parts = folderPickerCurrentPath.split("/");
+            parts.pop();
+            let newPath = parts.join("/");
+            if (newPath === "") newPath = "/";
+            loadFolderPickerDir(newPath);
+        };
+    }
+
+    const selectBtn = document.getElementById("folder-picker-select-btn");
+    if (selectBtn) {
+        selectBtn.onclick = (e) => {
+            e.preventDefault();
+            if (folderPickerCallback) {
+                folderPickerCallback(folderPickerCurrentPath);
+            }
+            closeFolderPicker();
+        };
+    }
+
     function renderImportPreviewModal(previewData) {
         const listContainer = document.getElementById("import-preview-list");
         listContainer.innerHTML = "";
@@ -8168,20 +8299,31 @@ function renderStorageTargets() {
 
         const browseBtn = document.createElement("button");
         browseBtn.className = "btn btn-secondary btn-sm";
-        browseBtn.textContent = "🔍";
-        browseBtn.onclick = async (e) => {
-            e.preventDefault();
-            try {
-                const response = await fetch("/api/browse-folder");
-                const data = await response.json();
-                if (data.path) {
-                    pathInput.value = data.path;
-                    target.root_path = data.path;
+        const caps = window.AppCapabilities;
+        const openLocalEnabled = caps && caps.capabilities && caps.capabilities.open_local_folder;
+        if (!openLocalEnabled) {
+            browseBtn.textContent = "ℹ️";
+            browseBtn.title = "Lokales Browsen unter Docker deaktiviert";
+            browseBtn.onclick = (e) => {
+                e.preventDefault();
+                alert("Lokales Browsen unter Docker deaktiviert.\n\nBitte gib den Pfad manuell an:\n- Für den NAS-Server: Der Pfad im Container ist standardmäßig '/media'.\n- Für andere Speicherziele: Nutze das entsprechende Pfad-Mapping des Docker-Containers.");
+            };
+        } else {
+            browseBtn.textContent = "🔍";
+            browseBtn.onclick = async (e) => {
+                e.preventDefault();
+                try {
+                    const response = await fetch("/api/browse-folder");
+                    const data = await response.json();
+                    if (data.path) {
+                        pathInput.value = data.path;
+                        target.root_path = data.path;
+                    }
+                } catch (err) {
+                    console.error("Browse error:", err);
                 }
-            } catch (err) {
-                console.error("Browse error:", err);
-            }
-        };
+            };
+        }
 
         pathRow.appendChild(pathInput);
         pathRow.appendChild(browseBtn);
@@ -8259,17 +8401,33 @@ function renderImportSources() {
 
         const browseBtn = document.createElement("button");
         browseBtn.className = "btn btn-secondary";
-        browseBtn.textContent = "🔍";
-        browseBtn.onclick = async () => {
-            try {
-                const response = await fetch("/api/browse-folder");
-                const data = await response.json();
-                if (data.path) {
-                    input.value = data.path;
-                    currentSettings.import_sources[index] = data.path;
-                }
-            } catch (e) { console.error("Browse error:", e); }
-        };
+        const caps = window.AppCapabilities;
+        const openLocalEnabled = caps && caps.capabilities && caps.capabilities.open_local_folder;
+        if (!openLocalEnabled) {
+            browseBtn.textContent = "🔍";
+            browseBtn.title = "Ordner auf dem NAS auswählen";
+            browseBtn.onclick = (e) => {
+                e.preventDefault();
+                const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
+                const dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
+                window.openFolderPicker(input.value || dockerRoot, dockerRoot, null, (selectedPath) => {
+                    input.value = selectedPath;
+                    currentSettings.import_sources[index] = selectedPath;
+                });
+            };
+        } else {
+            browseBtn.textContent = "🔍";
+            browseBtn.onclick = async () => {
+                try {
+                    const response = await fetch("/api/browse-folder");
+                    const data = await response.json();
+                    if (data.path) {
+                        input.value = data.path;
+                        currentSettings.import_sources[index] = data.path;
+                    }
+                } catch (e) { console.error("Browse error:", e); }
+            };
+        }
 
         const removeBtn = document.createElement("button");
         removeBtn.className = "btn btn-danger";
@@ -8326,22 +8484,43 @@ function renderLocalFolders() {
 
         const browseBtn = document.createElement("button");
         browseBtn.className = "btn btn-secondary";
-        browseBtn.textContent = "🔍";
-        browseBtn.onclick = async () => {
-            try {
-                const response = await fetch("/api/browse-folder");
-                const data = await response.json();
-                if (data.path) {
-                    pathInput.value = data.path;
-                    currentSettings.local_download_folders[index].path = data.path;
+        const caps = window.AppCapabilities;
+        const openLocalEnabled = caps && caps.capabilities && caps.capabilities.open_local_folder;
+        if (!openLocalEnabled) {
+            browseBtn.textContent = "🔍";
+            browseBtn.title = "Ordner auf dem NAS auswählen";
+            browseBtn.onclick = (e) => {
+                e.preventDefault();
+                const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
+                const dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
+                window.openFolderPicker(pathInput.value || dockerRoot, dockerRoot, null, (selectedPath) => {
+                    pathInput.value = selectedPath;
+                    currentSettings.local_download_folders[index].path = selectedPath;
                     if (!nameInput.value) {
-                        const parts = data.path.split("/");
+                        const parts = selectedPath.split("/");
                         nameInput.value = parts[parts.length - 1] || parts[parts.length - 2] || "Ordner";
                         currentSettings.local_download_folders[index].name = nameInput.value;
                     }
-                }
-            } catch (e) { console.error("Browse error:", e); }
-        };
+                });
+            };
+        } else {
+            browseBtn.textContent = "🔍";
+            browseBtn.onclick = async () => {
+                try {
+                    const response = await fetch("/api/browse-folder");
+                    const data = await response.json();
+                    if (data.path) {
+                        pathInput.value = data.path;
+                        currentSettings.local_download_folders[index].path = data.path;
+                        if (!nameInput.value) {
+                            const parts = data.path.split("/");
+                            nameInput.value = parts[parts.length - 1] || parts[parts.length - 2] || "Ordner";
+                            currentSettings.local_download_folders[index].name = nameInput.value;
+                        }
+                    }
+                } catch (e) { console.error("Browse error:", e); }
+            };
+        }
 
         const removeBtn = document.createElement("button");
         removeBtn.className = "btn btn-danger";
@@ -8392,25 +8571,39 @@ function renderSyncCategories() {
         row.appendChild(createInput(cat.id, "ID (z.B. 1)", "0.5", (e) => { currentSettings.sync_categories[index].id = e.target.value; }));
         row.appendChild(createInput(cat.name, "Name", "1", (e) => { currentSettings.sync_categories[index].name = e.target.value; }));
 
-        // Dynamically add columns for active storage targets
         activeTargets.forEach(target => {
             const targetWrapper = document.createElement("div");
-            targetWrapper.style.flex = target.id === "pcloud" ? "1.5" : "1";
+            const isCloud = target.id === "pcloud" || target.type === "pcloud" || target.type === "cloud";
+            const isNas = target.id === "nas" || target.type === "nas";
+            
+            // Normalize rclone remote to avoid double colons
+            let remotePrefix = "";
+            if (isCloud) {
+                const rawRemote = target.rclone_remote || "pcloud";
+                remotePrefix = rawRemote.endsWith(":") ? rawRemote : rawRemote + ":";
+            }
+            
+            targetWrapper.style.flex = isCloud ? "1.5" : "1";
             targetWrapper.style.display = "flex";
             targetWrapper.style.gap = "5px";
 
             let val = "";
             if (cat.targets && cat.targets[target.id] !== undefined) {
                 val = cat.targets[target.id];
-            } else if (target.id === "nas") {
+            } else if (isNas) {
                 val = cat.nas_sub || "";
-            } else if (target.id === "pcloud") {
+            } else if (isCloud) {
                 val = cat.pcloud_remote || "";
             }
 
             let placeholder = `${target.name || target.id}`;
-            if (target.id === "nas") placeholder += " (/Filme)";
-            else if (target.id === "pcloud") placeholder += " (pcloud:03_Filme)";
+            if (isNas) {
+                placeholder += ` (z.B. /${cat.name || "Filme"})`;
+            } else if (isCloud) {
+                placeholder += ` (z.B. ${remotePrefix}04_${cat.name || "Filme"})`;
+            } else {
+                placeholder += ` (z.B. /${cat.name || "Filme"})`;
+            }
 
             const input = createInput(val, placeholder, "1", (e) => {
                 const newVal = e.target.value;
@@ -8420,9 +8613,9 @@ function renderSyncCategories() {
                 currentSettings.sync_categories[index].targets[target.id] = newVal;
 
                 // Backwards compatibility spiegeln
-                if (target.id === "nas") {
+                if (isNas) {
                     currentSettings.sync_categories[index].nas_sub = newVal;
-                } else if (target.id === "pcloud") {
+                } else if (isCloud) {
                     currentSettings.sync_categories[index].pcloud_remote = newVal;
                 }
             });
@@ -8438,45 +8631,81 @@ function renderSyncCategories() {
             const caps = window.AppCapabilities;
             const openLocalEnabled = caps && caps.capabilities && caps.capabilities.open_local_folder;
             if (!openLocalEnabled) {
-                browseBtn.disabled = true;
-                browseBtn.style.opacity = "0.5";
-                browseBtn.title = "Ordnerauswahl unter Docker deaktiviert";
-            }
-
-            browseBtn.onclick = async () => {
-                if (browseBtn.disabled) return;
-                try {
-                    const response = await fetch("/api/browse-folder");
-                    const data = await response.json();
-                    if (data.path) {
-                        let subPath = data.path;
-                        if (target.id === "nas") {
-                            const nasRoot = currentSettings.nas_root || "";
-                            if (nasRoot && subPath.startsWith(nasRoot)) {
-                                subPath = subPath.substring(nasRoot.length);
-                                if (!subPath.startsWith("/")) subPath = "/" + subPath;
-                            }
-                        } else if (target.id === "pcloud") {
-                            const pcloudRoot = currentSettings.pcloud_dir || "";
-                            if (pcloudRoot && subPath.startsWith(pcloudRoot)) {
-                                subPath = subPath.substring(pcloudRoot.length);
-                                if (subPath.startsWith("/")) subPath = subPath.substring(1);
-                                subPath = "pcloud:" + subPath;
-                            }
+                if (isNas) {
+                    browseBtn.textContent = "🔍";
+                    browseBtn.title = "Ordner auf dem NAS auswählen";
+                    browseBtn.onclick = (e) => {
+                        e.preventDefault();
+                        const rootPath = target.root_path || "/media";
+                        let startPath = rootPath;
+                        if (val && val.startsWith("/")) {
+                            startPath = rootPath + val;
+                        } else if (val) {
+                            startPath = rootPath + "/" + val;
                         }
-                        input.value = subPath;
-                        if (!currentSettings.sync_categories[index].targets) {
-                            currentSettings.sync_categories[index].targets = {};
-                        }
-                        currentSettings.sync_categories[index].targets[target.id] = subPath;
-                        if (target.id === "nas") {
+                        window.openFolderPicker(startPath, rootPath, target, (selectedPath) => {
+                            let subPath = selectedPath;
+                            if (subPath.startsWith(rootPath)) {
+                                subPath = subPath.substring(rootPath.length);
+                            }
+                            if (!subPath.startsWith("/")) {
+                                subPath = "/" + subPath;
+                            }
+                            input.value = subPath;
+                            if (!currentSettings.sync_categories[index].targets) {
+                                currentSettings.sync_categories[index].targets = {};
+                            }
+                            currentSettings.sync_categories[index].targets[target.id] = subPath;
                             currentSettings.sync_categories[index].nas_sub = subPath;
-                        } else if (target.id === "pcloud") {
-                            currentSettings.sync_categories[index].pcloud_remote = subPath;
+                        });
+                    };
+                } else if (isCloud) {
+                    browseBtn.textContent = "ℹ️";
+                    browseBtn.title = "Hinweis zur Cloud-Pfadeingabe";
+                    browseBtn.onclick = (e) => {
+                        e.preventDefault();
+                        alert(`${target.name || "Cloud"} ist im Docker-Container nicht als Ordner durchsuchbar. Trage hier einen rclone-Zielpfad ein, z. B. ${remotePrefix}04_${cat.name || "Serien"}. rclone legt fehlende Zielordner beim ersten Upload normalerweise automatisch an. Prüfe den Pfad trotzdem sorgfältig, weil Tippfehler sonst neue, falsch benannte Ordner erzeugen können.`);
+                    };
+                } else {
+                    browseBtn.disabled = true;
+                    browseBtn.style.opacity = "0.5";
+                    browseBtn.title = "Ordnerauswahl unter Docker deaktiviert";
+                }
+            } else {
+                browseBtn.onclick = async () => {
+                    try {
+                        const response = await fetch("/api/browse-folder");
+                        const data = await response.json();
+                        if (data.path) {
+                            let subPath = data.path;
+                            if (isNas) {
+                                const nasRoot = target.root_path || currentSettings.nas_root || "";
+                                if (nasRoot && subPath.startsWith(nasRoot)) {
+                                    subPath = subPath.substring(nasRoot.length);
+                                    if (!subPath.startsWith("/")) subPath = "/" + subPath;
+                                }
+                            } else if (isCloud) {
+                                const pcloudRoot = currentSettings.pcloud_dir || "";
+                                if (pcloudRoot && subPath.startsWith(pcloudRoot)) {
+                                    subPath = subPath.substring(pcloudRoot.length);
+                                    if (subPath.startsWith("/")) subPath = subPath.substring(1);
+                                    subPath = remotePrefix + subPath;
+                                }
+                            }
+                            input.value = subPath;
+                            if (!currentSettings.sync_categories[index].targets) {
+                                currentSettings.sync_categories[index].targets = {};
+                            }
+                            currentSettings.sync_categories[index].targets[target.id] = subPath;
+                            if (isNas) {
+                                currentSettings.sync_categories[index].nas_sub = subPath;
+                            } else if (isCloud) {
+                                currentSettings.sync_categories[index].pcloud_remote = subPath;
+                            }
                         }
-                    }
-                } catch (e) { console.error("Browse error:", e); }
-            };
+                    } catch (e) { console.error("Browse error:", e); }
+                };
+            }
 
             targetWrapper.appendChild(browseBtn);
             row.appendChild(targetWrapper);

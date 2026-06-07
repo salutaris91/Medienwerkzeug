@@ -2437,6 +2437,38 @@
         </div>
     </div>
 
+    <!-- Modal: Web-Folder-Picker -->
+    <div id="modal-folder-picker" class="mw-modal-overlay">
+        <div class="mw-modal" style="max-width: 500px; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="margin: 0; color: var(--text-main);">📂 Ordner auswählen</h3>
+                <span class="close-modal" style="cursor: pointer; font-size: 1.5em;" onclick="closeFolderPicker()">&times;</span>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <button id="folder-picker-up-btn" class="btn btn-secondary btn-sm" style="padding: 4px 8px; display: flex; align-items: center; gap: 4px;">⬆️ Nach oben</button>
+                <span id="folder-picker-current-path" style="font-family: monospace; font-size: 0.85em; word-break: break-all; color: var(--text-muted); flex: 1;">/media</span>
+            </div>
+            
+            <div id="folder-picker-loading" class="text-center py-4" style="padding: 20px; display: none;">
+                <span class="loading-spinner"></span> Lade Ordner...
+            </div>
+            
+            <div id="folder-picker-error" class="alert alert-danger hidden" style="color: #ef4444; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); padding: 8px; border-radius: 4px; margin-bottom: 12px; font-size: 0.9em;"></div>
+            
+            <div id="folder-picker-list-wrapper" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 6px; background: var(--bg-dark); margin-bottom: 16px;">
+                <ul id="folder-picker-list" style="list-style: none; padding: 0; margin: 0;">
+                    <!-- Dynamically populated -->
+                </ul>
+            </div>
+            
+            <div class="form-actions" style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                <button class="btn btn-secondary" onclick="closeFolderPicker()">Abbrechen</button>
+                <button class="btn btn-accent" id="folder-picker-select-btn">Auswählen</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Login Overlay Screen -->
     <div id="login-screen" class="hidden" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--bg-main); display: flex; justify-content: center; align-items: center; z-index: 9999999;">
         <div class="card" style="width: 100%; max-width: 400px; padding: 32px; border: 1px solid var(--border-light); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); text-align: center;">

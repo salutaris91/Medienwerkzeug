@@ -8,6 +8,9 @@ gui/jobs_state.json
 /.env
 /data/
 
+# Persönliche Claude-Code-Konfiguration (maschinenspezifisch, nicht teilen)
+.claude/settings.local.json
+
 # Backup files
 *.bak
 *.backup
