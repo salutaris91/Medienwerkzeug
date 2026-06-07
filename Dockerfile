@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     wget \
     unzip \
+    rsync \
     && rm -rf /var/lib/apt/lists/*
 
 # Install deno

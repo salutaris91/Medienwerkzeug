@@ -2885,7 +2885,6 @@ def process_worker(params):
                     all_success = False
                     continue
 
-                from gui.core.transfers import copy_to_cloud_target
                 success = copy_to_cloud_target(
                     current_dir, 
                     "", 

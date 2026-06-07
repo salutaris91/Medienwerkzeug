@@ -336,6 +336,138 @@ def get_rsync_progress_flag():
         log_message(f"rsync: Fehler bei Erkennung der rsync-Hilfe ({e}). Verwende --progress")
     return _rsync_progress_flag
 
+def run_copy_fallback(src, dst, task_id=None):
+    import shutil
+    import os
+    
+    log_message(f"rsync nicht verfügbar. Verwende Python-Fallback zum Kopieren von {src} nach {dst}...")
+    
+    try:
+        # Determine if we are copying a directory or a file
+        if os.path.isdir(src):
+            # Target should be the destination directory (mirroring contents of src)
+            os.makedirs(dst, exist_ok=True)
+            
+            # Find all files to copy recursively to calculate total size
+            files_to_copy = []
+            total_size = 0
+            for root, _, files in os.walk(src):
+                for f in files:
+                    filepath = os.path.join(root, f)
+                    relpath = os.path.relpath(filepath, src)
+                    size = os.path.getsize(filepath)
+                    files_to_copy.append((filepath, relpath, size))
+                    total_size += size
+            
+            copied_size = 0
+            # If directory is empty, we still succeed
+            if not files_to_copy:
+                if task_id:
+                    if callable(task_id):
+                        task_id(100, "Übertragung: 100%")
+                    else:
+                        from gui.core.jobs import update_job
+                        update_job(task_id, progress=100, message="Übertragung: 100%")
+                return True
+                
+            last_logged_pct = -1
+            for filepath, relpath, size in files_to_copy:
+                dest_filepath = os.path.join(dst, relpath)
+                os.makedirs(os.path.dirname(dest_filepath), exist_ok=True)
+                
+                # Copy with chunked progress
+                with open(filepath, 'rb') as fsrc:
+                    with open(dest_filepath, 'wb') as fdst:
+                        while True:
+                            buf = fsrc.read(1024 * 1024) # 1MB chunk
+                            if not buf:
+                                break
+                            fdst.write(buf)
+                            copied_size += len(buf)
+                            if total_size > 0:
+                                percent = int((copied_size / total_size) * 100)
+                                percent = min(99, percent)
+                                msg = f"Übertragung: {percent}%"
+                                if task_id:
+                                    if callable(task_id):
+                                        task_id(percent, msg)
+                                    else:
+                                        from gui.core.jobs import update_job
+                                        update_job(task_id, progress=percent, message=msg)
+                                # Throttle logging
+                                if percent % 10 == 0 and percent != last_logged_pct:
+                                    log_message(msg)
+                                    last_logged_pct = percent
+                
+                try:
+                    shutil.copystat(filepath, dest_filepath)
+                except Exception:
+                    pass
+            
+            if task_id:
+                if callable(task_id):
+                    task_id(100, "Übertragung: 100%")
+                else:
+                    from gui.core.jobs import update_job
+                    update_job(task_id, progress=100, message="Übertragung: 100%")
+            log_message("Übertragung: 100%")
+            return True
+            
+        else:
+            # src is a file
+            dest_file = dst
+            if os.path.isdir(dst):
+                dest_file = os.path.join(dst, os.path.basename(src))
+            else:
+                dest_dir = os.path.dirname(dst)
+                if dest_dir:
+                    os.makedirs(dest_dir, exist_ok=True)
+                    
+            total_size = os.path.getsize(src)
+            copied_size = 0
+            last_logged_pct = -1
+            
+            with open(src, 'rb') as fsrc:
+                with open(dest_file, 'wb') as fdst:
+                    while True:
+                        buf = fsrc.read(1024 * 1024)
+                        if not buf:
+                            break
+                        fdst.write(buf)
+                        copied_size += len(buf)
+                        if total_size > 0:
+                            percent = int((copied_size / total_size) * 100)
+                            percent = min(99, percent)
+                            msg = f"Übertragung: {percent}%"
+                            if task_id:
+                                if callable(task_id):
+                                    task_id(percent, msg)
+                                else:
+                                    from gui.core.jobs import update_job
+                                    update_job(task_id, progress=percent, message=msg)
+                            # Throttle logging
+                            if percent % 10 == 0 and percent != last_logged_pct:
+                                log_message(msg)
+                                last_logged_pct = percent
+            
+            try:
+                shutil.copystat(src, dest_file)
+            except Exception:
+                pass
+                
+            if task_id:
+                if callable(task_id):
+                    task_id(100, "Übertragung: 100%")
+                else:
+                    from gui.core.jobs import update_job
+                    update_job(task_id, progress=100, message="Übertragung: 100%")
+            log_message("Übertragung: 100%")
+            return True
+            
+    except Exception as e:
+        log_message(f"❌ Fehler bei Python-Kopier-Fallback von {src} nach {dst}: {e}")
+        return False
+
 def run_rsync_with_progress(src, dst, task_id=None, move=False):
     import subprocess
     import re
@@ -350,7 +482,19 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False):
         
     cmd.extend([src_path, dst])
     
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
+    try:
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
+    except (FileNotFoundError, OSError) as e:
+        log_message(f"rsync konnte nicht gestartet werden ({e}). Verwende Python-Kopier-Fallback...")
+        success = run_copy_fallback(src, dst, task_id)
+        if success and move:
+            import gui.core.trash as trash
+            try:
+                trash.send_to_trash(src)
+            except Exception as tr_err:
+                log_message(f"⚠️ Konnte Quellpfad {src} nach Fallback-Move nicht in Quarantäne verschieben: {tr_err}")
+        return success
+        
     progress_pattern = re.compile(r'(\d+)%')
     speed_pattern = re.compile(r'(\d+\.?\d*\s*[kKMG]i?B/s)')
     
