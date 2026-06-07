@@ -8576,6 +8576,13 @@ function renderSyncCategories() {
             const isCloud = target.id === "pcloud" || target.type === "pcloud" || target.type === "cloud";
             const isNas = target.id === "nas" || target.type === "nas";
             
+            // Normalize rclone remote to avoid double colons
+            let remotePrefix = "";
+            if (isCloud) {
+                const rawRemote = target.rclone_remote || "pcloud";
+                remotePrefix = rawRemote.endsWith(":") ? rawRemote : rawRemote + ":";
+            }
+            
             targetWrapper.style.flex = isCloud ? "1.5" : "1";
             targetWrapper.style.display = "flex";
             targetWrapper.style.gap = "5px";
@@ -8593,7 +8600,7 @@ function renderSyncCategories() {
             if (isNas) {
                 placeholder += ` (z.B. /${cat.name || "Filme"})`;
             } else if (isCloud) {
-                placeholder += ` (z.B. ${target.rclone_remote || "pcloud"}:04_${cat.name || "Filme"})`;
+                placeholder += ` (z.B. ${remotePrefix}04_${cat.name || "Filme"})`;
             } else {
                 placeholder += ` (z.B. /${cat.name || "Filme"})`;
             }
@@ -8657,8 +8664,7 @@ function renderSyncCategories() {
                     browseBtn.title = "Hinweis zur Cloud-Pfadeingabe";
                     browseBtn.onclick = (e) => {
                         e.preventDefault();
-                        const remoteName = target.rclone_remote || "pcloud";
-                        alert(`${target.name || "Cloud"} ist im Docker-Container nicht als Ordner durchsuchbar. Trage hier einen rclone-Zielpfad ein, z. B. ${remoteName}:04_${cat.name || "Serien"}. rclone legt fehlende Zielordner beim ersten Upload normalerweise automatisch an. Prüfe den Pfad trotzdem sorgfältig, weil Tippfehler sonst neue, falsch benannte Ordner erzeugen können.`);
+                        alert(`${target.name || "Cloud"} ist im Docker-Container nicht als Ordner durchsuchbar. Trage hier einen rclone-Zielpfad ein, z. B. ${remotePrefix}04_${cat.name || "Serien"}. rclone legt fehlende Zielordner beim ersten Upload normalerweise automatisch an. Prüfe den Pfad trotzdem sorgfältig, weil Tippfehler sonst neue, falsch benannte Ordner erzeugen können.`);
                     };
                 } else {
                     browseBtn.disabled = true;
@@ -8683,7 +8689,7 @@ function renderSyncCategories() {
                                 if (pcloudRoot && subPath.startsWith(pcloudRoot)) {
                                     subPath = subPath.substring(pcloudRoot.length);
                                     if (subPath.startsWith("/")) subPath = subPath.substring(1);
-                                    subPath = (target.rclone_remote || "pcloud") + ":" + subPath;
+                                    subPath = remotePrefix + subPath;
                                 }
                             }
                             input.value = subPath;
