@@ -50,6 +50,58 @@ def get_historical_ratio(quality, codec="hevc"):
     else:
         return 0.80
 
+def build_hevc_ffmpeg_cmd(input_path, output_path, quality, start_sec=None, duration=None):
+    """
+    Erstellt das passende FFmpeg-Kommando zur H.265 (HEVC)-Konvertierung basierend auf der Plattform.
+    
+    - Unter macOS Desktop (darwin & kein Docker): caffeinate + hevc_videotoolbox (Hardware-Beschleunigung)
+    - Andere Plattformen (Docker, Linux, Windows): direktes ffmpeg + libx265 (Software-Encoding) mit Qualitäts-Mapping
+    """
+    import sys
+    
+    is_docker = utils.get_runtime_capabilities()["runtime"] == "docker"
+    use_mac_hw = (sys.platform == "darwin" and not is_docker)
+    
+    cmd = []
+    if use_mac_hw:
+        cmd.extend(["caffeinate", "-i", "-s"])
+        
+    cmd.append("ffmpeg")
+    cmd.append("-nostdin")
+    
+    if start_sec is not None:
+        cmd.extend(["-ss", str(round(start_sec, 2))])
+        
+    cmd.extend(["-i", input_path])
+    
+    if duration is not None:
+        cmd.extend(["-t", str(duration)])
+        
+    if use_mac_hw:
+        cmd.extend([
+            "-c:v", "hevc_videotoolbox",
+            "-tag:v", "hvc1",
+            "-q:v", str(quality)
+        ])
+    else:
+        try:
+            q_val = float(quality)
+        except (ValueError, TypeError):
+            q_val = 60.0
+            
+        crf = round(38.0 - (q_val * 0.2))
+        crf = max(10, min(45, crf))
+        
+        cmd.extend([
+            "-c:v", "libx265",
+            "-tag:v", "hvc1",
+            "-crf", str(crf)
+        ])
+        
+    cmd.extend(["-c:a", "copy"])
+    cmd.append(output_path)
+    return cmd
+
 def konvertierung_schaetzen(filepath, quality, codec="hevc"):
     if not os.path.exists(filepath):
         return get_historical_ratio(quality, codec)
@@ -70,15 +122,7 @@ def konvertierung_schaetzen(filepath, quality, codec="hevc"):
     
     # Run test encode
     test_dur = 15.0
-    ffmpeg_cmd = [
-        "caffeinate", "-i", "-s", "ffmpeg", "-nostdin",
-        "-ss", str(round(start_sec, 2)),
-        "-i", filepath,
-        "-t", str(test_dur),
-        "-c:v", "hevc_videotoolbox", "-tag:v", "hvc1", "-q:v", str(quality),
-        "-c:a", "copy",
-        temp_out_path
-    ]
+    ffmpeg_cmd = build_hevc_ffmpeg_cmd(filepath, temp_out_path, quality, start_sec=start_sec, duration=test_dur)
     
     success = False
     try:
