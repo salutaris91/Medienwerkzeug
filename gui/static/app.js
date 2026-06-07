@@ -7327,15 +7327,39 @@ function initEventListeners() {
         if (!inputEl) return;
 
         if (!openLocalEnabled) {
-            const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
-            let dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
+            const allowedRoots = [];
+            if (currentSettings.inbox_dir) allowedRoots.push(currentSettings.inbox_dir);
+            if (currentSettings.outbox_dir) allowedRoots.push(currentSettings.outbox_dir);
+            if (currentSettings.import_sources) {
+                currentSettings.import_sources.forEach(src => { if (src) allowedRoots.push(src); });
+            }
+            if (currentSettings.local_download_folders) {
+                currentSettings.local_download_folders.forEach(f => { if (f && f.path) allowedRoots.push(f.path); });
+            }
+            if (currentSettings.storage_targets) {
+                currentSettings.storage_targets.forEach(t => { if (t && t.root_path) allowedRoots.push(t.root_path); });
+            }
+
+            let dockerRoot = "/media";
             const val = inputEl.value;
             if (val && val.startsWith("/")) {
-                const parts = val.split("/");
-                if (parts.length > 1 && parts[1]) {
-                    dockerRoot = "/" + parts[1];
+                let longestMatch = "";
+                allowedRoots.forEach(root => {
+                    if (root && val.startsWith(root) && root.length > longestMatch.length) {
+                        longestMatch = root;
+                    }
+                });
+                if (longestMatch) {
+                    dockerRoot = longestMatch;
+                } else {
+                    const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
+                    dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
                 }
+            } else {
+                const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
+                dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
             }
+
             window.openFolderPicker(val || dockerRoot, dockerRoot, null, (selectedPath) => {
                 inputEl.value = selectedPath;
             });
