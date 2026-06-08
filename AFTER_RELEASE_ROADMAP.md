@@ -40,6 +40,9 @@ die aktive After-Release-Roadmap übernommen.
 | 31 | NAS-Downloader-Integration (JDownloader/Download-Backend) | geplant | mittel |
 | 32 | Automatische Papierkorb-Leerung unter Docker | geplant | klein–mittel |
 | 33 | Automatischer TVDB-Fallback für fehlende TMDB-Plots | geplant | klein |
+| 34 | Altersfreigabe-Checks im UI deutlicher erklären | geplant | klein |
+| 35 | Premium-Umbenennungsdialog für Health-Fixes mit Metadaten-Lookup | geplant | klein–mittel |
+| 36 | Health-Dashboard: Gruppierung, Massen-Fixes (Batch) & Auto-Korrektur | geplant | mittel |
 
 ---
 
@@ -927,3 +930,51 @@ Wenn für eine Serie (wie z. B. "H2O - Abenteuer Meerjungfrau") als Metadaten-An
 
 ### Aufwand (grob)
 Klein: Erweiterung in `mw_metadata.py` um eine kleine Abfrage der `external_ids` und Aufruf der bereits existierenden TVDB-Methoden als Fallback.
+
+---
+
+## 34. Altersfreigabe-Checks im UI deutlicher erklären
+
+### Ziel
+Wenn beim Bibliothekscheck abweichende Altersfreigaben (z. B. Schreibweisen wie `FSK-18` statt `FSK 18`) gemeldet werden, soll für den Benutzer in der UI deutlicher hervorgehoben werden, warum dies geschieht (Formatvereinheitlichung für Filter und Badges, auch wenn Medienserver wie Emby beide Formate lesen können).
+
+### Umsetzung
+- Im Frontend bei der Anzeige von `invalid_age_rating`-Hinweisen einen Tooltip oder Info-Text einblenden, der den Hintergrund (Formatvereinheitlichung) erklärt.
+- Die Detail-Beschreibung in der Issue-Liste entsprechend verständlich formulieren.
+
+### Aufwand (grob)
+Klein: UI-Textänderungen.
+
+---
+
+## 35. Premium-Umbenennungsdialog für Health-Fixes mit Metadaten-Lookup
+
+### Ziel
+Der aktuelle Umbenennungs-Quick-Fix im Health-Dashboard nutzt ein einfaches Browser-Eingabefenster (`prompt()`). Dieses soll durch ein stilvolles Medienwerkzeug-eigenes Modal ersetzt werden, das Fehleingaben verhindert, Sicherheits-Bestätigungen verlangt und intelligente Metadaten-Suchen direkt integriert.
+
+### Umsetzung
+- **Echtes UI-Modal:** Das standardmäßige JavaScript-Prompt durch ein passendes HTML-Modal ersetzen, welches sich gestalterisch nahtlos in das Medienwerkzeug-Design (Glasmorphismus) einfügt.
+- **Sicherheits-Bestätigungsdialog:** Vor dem physischen Umbenennen auf dem NAS wird dem Benutzer eine Vorschau angezeigt ("Sicher? Folgende Dateien werden umbenannt: ..."), um unbeabsichtigte Tippfehler abzufangen.
+- **Bereinigter Namensvorschlag:** Vorbefüllung des Eingabefeldes mit einem bereinigten Namensvorschlag (z. B. Punkte durch Leerzeichen ersetzen, Jahr in Klammern setzen), analog zur Logik bei der normalen Metadatensuche.
+- **Metadaten-Lookup:** Integration einer Live-Suchmaske für TMDb/TVDB im Modal. Findet der Benutzer den korrekten Titel online, kann er diesen mit einem Klick als Zielnamen für den Umbenennungs-Prozess übernehmen.
+
+### Aufwand (grob)
+Klein–mittel: UI-Modal entwerfen, API um eine Bestätigungsvorschau erweitern und Suche im Modal anbinden.
+
+---
+
+## 36. Health-Dashboard: Gruppierung, Massen-Fixes (Batch) & Auto-Korrektur
+
+### Ziel
+Bei großen Medienbibliotheken können Hunderte von Health-Warnungen auftreten. Die manuelle Behebung jedes einzelnen Befunds ist extrem zeitaufwendig. Das Dashboard soll durch Gruppierungsfunktionen, Massen-Bearbeitung (Batch-Actions) und eine intelligente Auto-Korrektur erweitert werden, um das Beheben von Massen-Issues drastisch zu beschleunigen.
+
+### Umsetzung
+- **Fehler-Gruppierung im UI:** Optionale Umschaltung der Befund-Liste von der pfadbasierten Sortierung hin zu einer Gruppierung nach Fehlertyp (z. B. alle "Ungültige Altersfreigabe" zusammen anzeigen).
+- **Massen-Aktionen (Batch-Fixes):** Einführung von Sammel-Aktionen über Checkboxen oder direkt für ganze Fehler-Gruppen (z. B. "Alle FSK-Schreibweisen der Gruppe auf einmal korrigieren").
+- **Intelligente Auto-Korrektur (Heuristik):**
+  - Automatisches Ersetzen offensichtlicher Schreibfehler (z. B. das Entfernen von Bindestrichen bei `FSK-18` -> `FSK 18` oder Angleichungen von Kleinschreibung).
+  - Nur bei nicht eindeutig behebbaren Fehlern (z. B. völlig fehlenden Werten oder unbekannten Ratings) wird der Benutzer zur manuellen Auswahl/Bestätigung aufgefordert.
+- **Hintergrund-Batch-Job:** Die Massenänderungen werden asynchron im Hintergrund durchgeführt, um Timeouts bei Hunderten von Dateiänderungen zu verhindern.
+
+### Aufwand (grob)
+Mittel: Anpassung der Health-UI (Gruppierungs-Logik, Checkboxen), Backend-Batch-API und Implementierung von Auto-Fix-Heuristiken.

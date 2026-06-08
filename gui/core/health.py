@@ -223,7 +223,7 @@ def _check_fsk(issues, category, folder_path, nfo_path):
         # Gültige Werte prüfen
         valid_values = {"FSK 0", "FSK 6", "FSK 12", "FSK 16", "FSK 18"}
         if val not in valid_values:
-            _add_issue(issues, "warning", "invalid_age_rating", category, folder_path,
+            _add_issue(issues, "info", "invalid_age_rating", category, folder_path,
                        f"{os.path.basename(folder_path)}: Ungültige Altersfreigabe in NFO ({val})")
 
     except Exception:
