@@ -331,10 +331,10 @@
             <div class="sidebar-section inline-style-7" >
                 <h2>System</h2>
                 <div class="nav-list mt-10" >
-                    <button class="project-item" id="nav-youtube-downloader" aria-label="YouTube Downloader öffnen">
+                    <button class="project-item" id="nav-youtube-downloader" aria-label="Online-Medien öffnen">
                         <span class="project-item-name">
                             <span class="nav-icon" aria-hidden="true">🎥</span>
-                            <span class="nav-label">YouTube Downloader</span>
+                            <span class="nav-label">Online-Medien</span>
                         </span>
                     </button>
                     <button class="project-item" id="nav-tools-dashboard" aria-label="Werkzeuge öffnen">
@@ -406,13 +406,13 @@
                 <!-- Hero Section -->
                 <div class="homepage-hero">
                     <h2 class="hero-title">Willkommen in deiner Sendezentrale</h2>
-                    <p class="hero-desc">Verwalte deine Projektordner, scrape Metadaten und importiere YouTube-Medien.</p>
+                    <p class="hero-desc">Verwalte deine Projektordner, scrape Metadaten und synchronisiere deine Medienbibliothek.</p>
                     
-                    <!-- Quick YT Input & Actions -->
+                    <!-- Optional online media input -->
                     <div class="hero-action-box">
-                        <input type="text" id="hero-yt-url" aria-label="YouTube URL für Vorschau eingeben" placeholder="YouTube- oder Mediathek-Link eingeben...">
+                        <input type="text" id="hero-yt-url" aria-label="Link für berechtigte Online-Medien eingeben" placeholder="Optionalen Medien-Link eingeben...">
                         <button class="btn btn-accent" id="btn-hero-yt-go" style="white-space: nowrap;">🔍 Vorschau generieren</button>
-                        <button class="btn btn-primary fw-600" id="btn-hero-yt-abos" style="white-space: nowrap;">📺 Abos verwalten</button>
+                        <button class="btn btn-primary fw-600" id="btn-hero-yt-abos" style="white-space: nowrap;">📺 Quellen verwalten</button>
                     </div>
                 </div>
                 
@@ -576,7 +576,7 @@
                     <span style="font-size: 2rem; display: block; margin-bottom: 10px;">🔍</span>
                     <h3 style="margin-top: 0; color: var(--text-main);">Rekursive Inbox-Ansicht</h3>
                     <p class="text-muted" style="max-width: 600px; margin: 0 auto; line-height: 1.5; font-size: 0.9rem;">
-                        Diese Ansicht listet alle Dateien der Inbox und sämtlicher Unterordner flach auf. Sie ist ideal, um unerwünschte Begleitdateien (wie z. B. Bilder, Logos oder NFOs aus StreamFab-Downloads) über den <strong>🗑️ Aufräumen</strong>-Button oben rechts aufzuspüren und gesammelt zu löschen.
+                        Diese Ansicht listet alle Dateien der Inbox und sämtlicher Unterordner flach auf. Sie ist ideal, um unerwünschte Begleitdateien (wie z. B. Bilder, Logos oder NFOs aus lokalen Importordnern) über den <strong>🗑️ Aufräumen</strong>-Button oben rechts aufzuspüren und gesammelt zu löschen.
                     </p>
                     <p style="color: var(--accent); margin-top: 15px; font-weight: 500; font-size: 0.9rem; margin-bottom: 0;">
                         Um einen Film oder eine Serie zu verarbeiten, wähle bitte einen spezifischen Projektordner aus der Seitenleiste.
@@ -1195,7 +1195,7 @@
                                 <button id="btn-settings-browse-inbox" class="btn btn-secondary" aria-label="Inbox-Pfad durchsuchen">🔍</button>
                                 <button id="btn-settings-toggle-inbox" class="btn btn-secondary" title="Im Finder sichtbar/unsichtbar machen" aria-label="Inbox Sichtbarkeit im Finder umschalten">👁️</button>
                             </div>
-                            <p class="inline-style-116">Ordner, in dem du neue Film- und Serien-Downloads ablegst, die gescannt und verarbeitet werden sollen.</p>
+                            <p class="inline-style-116">Ordner, in dem du neue Film- und Seriendateien ablegst, die gescannt und verarbeitet werden sollen.</p>
                         </div>
 
                         <div class="form-group inline-style-114" >
@@ -1219,8 +1219,8 @@
 
 
                         <div class="form-group inline-style-117" >
-                            <span class="form-label-style">Eigene lokale Download-Ordner (YouTube Downloader):</span>
-                            <p class="inline-style-118">Diese Ordner erscheinen als Ziel im YouTube-Downloader unter „In lokalen Ordner speichern". Der Input- und Output-Ordner sind automatisch verfügbar.</p>
+                            <span class="form-label-style">Eigene lokale Zielordner (Online-Medien):</span>
+                            <p class="inline-style-118">Diese Ordner erscheinen als Ziel in der Online-Medien-Ansicht unter „In lokalen Ordner speichern". Der Input- und Output-Ordner sind automatisch verfügbar.</p>
                             <div id="settings-local-folders-container" class="inline-style-119">
                                 <!-- Dynamically populated -->
                             </div>
@@ -1262,7 +1262,7 @@
                         </div>
 
                         <div class="form-group inline-style-126" >
-                            <span class="form-label-style">Globale Import-Quellen (z.B. StreamFab):</span>
+                            <span class="form-label-style">Globale Import-Quellen:</span>
                             <div class="docker-only-info" style="display: none; background: rgba(255,165,0,0.1); border: 1px solid orange; color: orange; padding: 10px; margin-top: 5px; margin-bottom: 10px; border-radius: 4px; font-size: 12px;">
                                 ⚠️ <strong>Docker-Hinweis:</strong> Import-Quellen müssen als Volumes im Docker-Container gemountet sein, damit das Medienwerkzeug darauf zugreifen kann.
                             </div>
@@ -1592,8 +1592,8 @@
             <!-- STATE: YOUTUBE -->
             <div id="view-youtube" class="view-panel hidden">
                 <div class="card" id="yt-input-card">
-                    <h2>YouTube & Mediatheken Downloader</h2>
-                    <p class="section-desc">Videos von YouTube oder Mediatheken herunterladen, schneiden und automatisch taggen.</p>
+                    <h2>Online-Medien</h2>
+                    <p class="section-desc">Berechtigte YouTube- oder Mediathek-Inhalte verarbeiten, schneiden und automatisch taggen.</p>
                     
                     <div class="form-group inline-style-47" >
                         <label for="yt-url">Video- oder Playlist-URL:</label>
@@ -1679,7 +1679,7 @@
 
                     <!-- Right: Options -->
                     <div class="card">
-                        <h3>Download-Optionen</h3>
+                        <h3>Verarbeitungsoptionen</h3>
                         <div class="form-group">
                             <label for="yt-format-select">Qualität:</label>
                             <select id="yt-format-select" class="form-select inline-style-40" ></select>
@@ -1777,7 +1777,7 @@
                         <button id="btn-close-yt-merge" class="inline-style-167">&times;</button>
                     </div>
                     <p class="inline-style-168">
-                        Wähle die Teile aus, die du herunterladen und zusammenfügen möchtest. Du kannst die Reihenfolge anpassen. Die Videos werden verlustfrei über den FFmpeg <code>concat</code>-Demuxer verschmolzen.
+                        Wähle die berechtigten Teile aus, die du verarbeiten und zusammenfügen möchtest. Du kannst die Reihenfolge anpassen. Die Videos werden verlustfrei über den FFmpeg <code>concat</code>-Demuxer verschmolzen.
                     </p>
                     
                     <div class="inline-style-169">
@@ -1967,8 +1967,8 @@
                     <div class="inline-style-61">📺</div>
                     <div class="inline-style-193">
                         <div>
-                            <h2 class="inline-style-194">YouTube Abos & Überwachung</h2>
-                            <p class="section-desc inline-style-195" >Kanäle oder Playlists abonnieren und neue Videos automatisch im Hintergrund herunterladen und einsortieren.</p>
+                            <h2 class="inline-style-194">YouTube Quellen & Freigaben</h2>
+                            <p class="section-desc inline-style-195" >Kanäle oder Playlists beobachten und neue berechtigte Videos in einer Freigabeliste sammeln oder gezielt verarbeiten.</p>
                         </div>
                         <button class="btn btn-accent" id="btn-check-all-abos">🔄 Jetzt alle prüfen</button>
                     </div>
@@ -1996,7 +1996,7 @@
                             <div>
                                 <label class="inline-style-173">Modus:</label>
                                 <select id="abo-mode" class="form-select inline-style-199" >
-                                    <option value="auto">Direkt laden</option>
+                                    <option value="auto">Direkt verarbeiten</option>
                                     <option value="manual">In Freigabeliste ablegen</option>
                                 </select>
                             </div>
@@ -2083,7 +2083,7 @@
 
                     <div class="card mb-15">
                         <h3>📁 Was bedeuten Inbox und Outbox?</h3>
-                        <p><strong>Inbox (Medien Input):</strong> Der Ordner, in den neue, unbearbeitete Downloads (z.B. von StreamFab) abgelegt werden. Das Medienwerkzeug scannt dieses Verzeichnis, um neue Projekte zu erkennen.<br><br>
+                        <p><strong>Inbox (Medien Input):</strong> Der Ordner, in den neue, unbearbeitete lokale Medien abgelegt werden. Das Medienwerkzeug scannt dieses Verzeichnis, um neue Projekte zu erkennen.<br><br>
                         <strong>Outbox (Medien Output):</strong> Das temporäre Verzeichnis, in dem die Videos transkodiert und mit Metadaten versehen werden, bevor sie final auf dein NAS kopiert werden.</p>
                     </div>
 

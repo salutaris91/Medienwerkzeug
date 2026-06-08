@@ -1,6 +1,6 @@
 # Medienwerkzeug 🎬🎥
 
-**Medienwerkzeug** ist eine intuitive Web-basierte Steuerungszentrale zur Verwaltung, Benennung, Strukturierung und Synchronisation von Filmen, TV-Serien, Doku-Serien, Einzel-Dokus und YouTube-Videos. Das Tool automatisiert den gesamten Prozess vom Import bis zur Archivierung auf dem NAS und in der Cloud.
+**Medienwerkzeug** ist eine intuitive Web-basierte Steuerungszentrale zur Verwaltung, Benennung, Strukturierung und Synchronisation deiner privaten Medienbibliothek. Das Tool automatisiert den Prozess von lokalen Importordnern bis zur geordneten Archivierung auf NAS- und Cloud-Speicherzielen.
 
 ---
 
@@ -44,20 +44,20 @@ Das Medienwerkzeug ist für performante, fehlerresiliente Arbeitsabläufe optimi
    * **Lokale Outbox:** Verarbeitete Projekte landen strukturiert in `Medien Output`.
    * **NAS:** Robustes Übertragen durch lokale Container-Volumes (Docker) oder automatisches SMB-Mounten (macOS Desktop).
    * **pCloud:** Paralleler, performanter Upload via `rclone` (mit Echtzeit-Fortschritt).
-5. **Integriertes Einstellungs-Dashboard (⚙️):** Bequeme Verwaltung von globalen Pfaden, flexiblen Importquellen (z.B. StreamFab, JDownloader) und dynamischen Sync-Kategorien über die Weboberfläche.
+5. **Integriertes Einstellungs-Dashboard (⚙️):** Bequeme Verwaltung von globalen Pfaden, lokalen Importquellen und dynamischen Sync-Kategorien über die Weboberfläche.
 6. **Warteschlange & Persistenz:** Thread-sicheres Queue-System mit Speicherung des aktuellen Zustands. Abgebrochene Jobs können nach Server-Neustarts per Knopfdruck fortgesetzt werden.
 7. **Multi-Staffel-Verarbeitung:** Unterstützung für die gleichzeitige Zuordnung und Einsortierung von Episoden über mehrere Staffeln hinweg.
 8. **Native macOS Papierkorb-Integration:** Gelöschte Projektordner und Junk-Dateien werden sicher in den macOS-Papierkorb verschoben statt unwiderruflich gelöscht zu werden.
 9. **Wartungs-Werkzeug (Medienpfade bereinigen):** Komfortabler Scan und Bereinigung von Müll- und Junkdateien in den Arbeitsordnern mit automatischer Entfernung leerer Unterordner.
-10. **YouTube-Download:** Download einzelner Videos oder Playlists über `yt-dlp` mit Fortschrittsanzeige und automatischer Metadaten-Zuordnung.
+10. **Optionale Online-Medien-Verarbeitung:** Einzelne YouTube- oder Mediathek-Links können über `yt-dlp` verarbeitet werden, sofern du die notwendigen Rechte an den Inhalten hast und die jeweiligen Plattformbedingungen einhältst.
 11. **Ordner-Zugriff & Autostart (📂):** Direktes Öffnen der Medienordner über native macOS Finder-Buttons (nur Desktop-Modus) oder eine sichere, integrierte Web-Ordneransicht (Docker-Modus).
 12. **Doubletten-Erkennung:** Automatischer Scan des NAS-Zielverzeichnisses nach bereits existierenden Episoden (Muster `SxxExx`) inklusive Anzeige von Auflösung und Dateigröße (via `ffprobe`) vor dem Starten.
 13. **Visualisierte Fortschritts-Pipeline:** Vierstufige Fortschrittsanzeige in Echtzeit (`[Metadaten] ➔ [Konvertierung] ➔ [NAS-Kopieren] ➔ [pCloud-Sync]`) mit Statussymbolen und Prozentsätzen pro Job.
 14. **Multi-Kanal-Benachrichtigungen:** Statusbenachrichtigungen über macOS (AppleScript), Telegram (Bot-API) und WhatsApp (CallMeBot) bei Abschluss von Jobs ab einer konfigurierbaren GB-Größenschwelle.
 15. **Witz des Tages (Flachwitze):** Glassmorphe Modal-Einblendung beim App-Start und Jobabschluss (synchronisiert sich asynchron mit GitHub und bietet lokales Offline-Fallback).
-16. **YouTube-Abo-Überwachung:** Dashboard zur automatischen stündlichen Hintergrundprüfung von YouTube-Kanälen/Playlists mit Suchfiltern, Zielkategorie-Zuweisung und automatisiertem Download.
+16. **Optionale YouTube-Beobachtung:** Dashboard zur Hintergrundprüfung von Kanälen/Playlists mit Suchfiltern, Zielkategorie-Zuweisung und optionaler manueller Freigabeliste.
 17. **Premium-Design & Themes:** Umschaltbare Design-Themes (🌌 Deep Space, 🏔️ Nordic Slate, 🍂 Amber Warmth, 🍎 Apple Silver) mit butterweichen View-Transitions, 3D-Card-Parallax (Neigungs-Effekt) und mausfolgenden Lichtkegel-Glows.
-18. **YouTube-Videomerge & Kanallogos:** Automatischer Abruf von Kanal-Profilbildern, zeitstempelbasierte Filterung (`last_checked_timestamp`) und Ausschluss-Keywords. Mehrteilige Videos können über den FFmpeg-`concat`-Demuxer verlustfrei zusammengefügt werden.
+18. **Online-Medien-Merge & Kanallogos:** Automatischer Abruf von Kanal-Profilbildern, zeitstempelbasierte Filterung (`last_checked_timestamp`) und Ausschluss-Keywords. Mehrteilige berechtigte Videos können über den FFmpeg-`concat`-Demuxer verlustfrei zusammengefügt werden.
 19. **Interaktiver Dubletten-Vergleicher (Upgrade-Löser):** Deep-Compare von Video-Auflösung, Bitrate, Codec und Größe bei bereits auf dem NAS vorhandenen Dateien inklusive direkter "Upgrade"-Aktion.
 20. **Visuelles Statistik-Dashboard (📊):** Speicherplatzersparnis-Metriken, circular SVG-NAS-Speicherbelegungsdiagramm und ein interaktives, rein in SVG & CSS animiertes Balkendiagramm zur Visualisierung der Speicherersparnis der letzten 15 Konvertierungen.
 21. **Media Health Dashboard (🔍):** Vollständiger Bibliotheks-Hintergrund-Scan über alle konfigurierten NAS-Kategorien hinweg zur Erkennung von fehlenden NFOs, fehlendem Artwork, Episodenlücken, Codec-Inkonsistenzen (ffprobe-Stichprobe), leeren Ordnern, verdächtig kleinen Videodateien, doppelt verschachtelten Filmordnern, kryptischen 8.3-Kurznamen, fehlendem Jahr im Ordnernamen, fehlender oder ungültiger FSK-Altersfreigabe und Ordner-/Dateiname-Mismatches. Quick-Fix-Buttons ermöglichen das direkte Auflösen von Verschachtelungen, Umbenennen (Ordner an Datei angleichen, Datei an Ordner angleichen oder freien Namen wählen) sowie das Setzen von FSK-Werten direkt in der NFO-Datei.
@@ -128,7 +128,7 @@ graph TD
 ### 1. Voraussetzungen
 * **Python 3.9+** (Die erforderlichen Abhängigkeiten können über `pip install -r requirements.txt` installiert werden)
 * **macOS** (für NAS SMB-Mounting und AppleScript-Wrapper)
-* **yt-dlp** (muss im PATH erreichbar sein für YouTube-Downloads)
+* **yt-dlp** (optional; nur erforderlich, wenn du die Online-Medien-Verarbeitung für berechtigte Inhalte nutzt)
 * **rclone** (für den pCloud-Upload über ein eingerichtetes Remote namens `pcloud:`)
 
 ### 2. Konfiguration
@@ -144,7 +144,7 @@ Pfade und Synchronisationseinstellungen werden in `data/settings.json` verwaltet
 * **inbox_dir:** Pfad zum Ordner `Medien Input`.
 * **outbox_dir:** Pfad zum Ordner `Medien Output`.
 * **nas_root:** Mount-Pfad des NAS (z. B. `/Volumes/Kino`).
-* **import_sources:** Liste von Pfaden, aus denen fertige Medien automatisch gesammelt in die Inbox importiert werden (z. B. StreamFab, JDownloader).
+* **import_sources:** Liste lokaler Pfade, aus denen bereits vorhandene, berechtigte Mediendateien gesammelt in die Inbox importiert werden.
 * **storage_targets:** Dynamisch verwaltete Speicherziele für NAS und Cloud-Dienste.
 * **sync_categories:** Zuordnungen von Metadaten-Kategorien zu Unterpfaden auf deinen Speicherzielen.
 
@@ -211,7 +211,7 @@ Die Anwendung ist danach unter [http://127.0.0.1:5001](http://127.0.0.1:5001) er
 
 ### Variante C: Docker (Empfohlen für NAS / Server)
 
-Das Medienwerkzeug kann als Docker-Container auf einem NAS oder Server betrieben werden. Das Image enthält alle Abhängigkeiten (`ffmpeg`, `yt-dlp`, `rclone`) — auf dem NAS muss nichts installiert werden.
+Das Medienwerkzeug kann als Docker-Container auf einem NAS oder Server betrieben werden. Das Image enthält die benötigten Werkzeuge (`ffmpeg`, optional `yt-dlp`, `rclone`) — auf dem NAS muss nichts zusätzlich installiert werden.
 
 #### 1. Voraussetzungen
 
@@ -258,9 +258,9 @@ services:
     restart: unless-stopped
 ```
 
-> **Zum Volume `/media`:** Trage den übergeordneten Ordner deiner Mediathek ein. Liegen deine Medien z. B. unter `/volume1/Kino` mit Unterordnern `Filme`, `Serien`, `Doku` usw., reicht ein einziger Eintrag:
+> **Zum Volume `/media`:** Trage den übergeordneten Ordner deiner Mediathek ein. Liegen deine Medien z. B. unter `/volume1/Media` mit Unterordnern `Filme`, `Serien`, `Doku` usw., reicht ein einziger Eintrag:
 > ```yaml
-> - /volume1/Kino:/media
+> - /volume1/Media:/media
 > ```
 > Die App sieht dann intern `/media/Filme`, `/media/Serien` usw. — alle Unterordner automatisch.
 
@@ -295,7 +295,7 @@ docker ps                         # Prüfen ob Container läuft
 
 #### 7. Daten & Profile (Data Profiles)
 
-Das Medienwerkzeug speichert Zustandsdaten, Konvertierungshistorien und spezifische Metadaten (wie YouTube-Kanal-Logos und Abo-Informationen) im Ordner `/config/data/profiles`. Diese Profile ermöglichen eine schnelle Erkennung bei wiederkehrenden Downloads und sorgen dafür, dass z.B. bei YouTube-Abonnements nur neue Videos geladen werden. Durch das `/config` Volume bleiben diese Daten auch bei Container-Updates sicher erhalten.
+Das Medienwerkzeug speichert Zustandsdaten, Konvertierungshistorien und spezifische Metadaten im Ordner `/config/data/profiles`. Diese Profile ermöglichen eine schnelle Wiedererkennung wiederkehrender Serien, Quellen und Verarbeitungsläufe. Durch das `/config` Volume bleiben diese Daten auch bei Container-Updates sicher erhalten.
 
 ---
 
@@ -328,13 +328,15 @@ Wer fremde Software bei sich laufen lässt, sollte wissen, was sie tut. Dieser A
 
 **Nur bei aktiver Nutzung der jeweiligen Funktion:**
 
-* `youtube.com` / `www.youtube.com` – nur beim YouTube-Download (`yt-dlp`)
+* `youtube.com` / `www.youtube.com` – nur bei optionaler Online-Medien-Verarbeitung über `yt-dlp`
 * `api.telegram.org`, `api.callmebot.com` – Benachrichtigungen, **nur** wenn du Telegram bzw. WhatsApp selbst in den Einstellungen einrichtest
 * deine konfigurierte **rclone-Remote** (z. B. pCloud) – nur beim Cloud-Sync, mit deinen eigenen Zugangsdaten
 * `api.github.com`, `raw.githubusercontent.com` – Update- und „Witz des Tages“-Abruf
 * `api.zitat-service.de` – „Zitat des Tages“ beim App-Start
 
 **Was das Tool ausdrücklich NICHT tut:** Es überträgt **keine** Inhalte deiner Mediathek, keine Dateinamen, keine Pfade und keine Zugangsdaten an den Entwickler.
+
+**Nutzungsgrenze:** Das Medienwerkzeug ist für die Organisation und Verarbeitung eigener oder rechtmäßig bezogener Mediendateien gedacht. Die optionalen Online-Medien-Funktionen dürfen nur für Inhalte verwendet werden, für die du die notwendigen Rechte besitzt oder bei denen die jeweilige Plattform die Nutzung erlaubt. Das Tool ist nicht dazu gedacht, Urheberrechte, DRM, Paywalls oder Nutzungsbedingungen zu umgehen.
 
 ### Optionale Telemetrie (standardmäßig AUS)
 
