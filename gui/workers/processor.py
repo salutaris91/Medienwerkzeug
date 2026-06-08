@@ -20,13 +20,207 @@ def _get_series_meta_files(settings):
         show_artworks.extend(validator.get_series_logo_names())
     if validator.supports_banners:
         show_artworks.extend(validator.get_series_banner_names())
-
     unique_artworks = []
     for art in show_artworks:
         if art not in unique_artworks:
             unique_artworks.append(art)
 
     return ["tvshow.nfo"] + unique_artworks
+
+def _update_transfer_progress(target_id, file_idx, percent, msg, target_progresses, target_speeds, progress_lock, N, task_id, update_global_job_progress):
+    import re
+    
+    with progress_lock:
+        try:
+            target_progresses[target_id][file_idx] = percent
+            is_list = True
+        except TypeError:
+            target_progresses[target_id] = percent
+            is_list = False
+
+        speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
+        if not speed_match:
+            speed_match = re.search(r'([\d.]+\s*[kKMG]i?B/s)', msg)
+        
+        speed_str = speed_match.group(1) if speed_match else None
+        if speed_str:
+            try:
+                target_speeds[target_id][file_idx] = speed_str
+            except TypeError:
+                target_speeds[target_id] = speed_str
+
+    update_global_job_progress()
+
+    with active_jobs_lock:
+        if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+            if target_id in active_jobs[task_id]["pipeline"]:
+                active_jobs[task_id]["pipeline"][target_id]["status"] = "running"
+                if is_list:
+                    avg_val = sum(target_progresses[target_id]) / N if N > 0 else percent
+                    active_jobs[task_id]["pipeline"][target_id]["progress"] = int(avg_val)
+                else:
+                    active_jobs[task_id]["pipeline"][target_id]["progress"] = percent
+
+def _handle_transfer_task(
+    task,
+    task_id,
+    target_progresses,
+    target_speeds,
+    progress_lock,
+    N,
+    log_message,
+    update_global_job_progress
+):
+    import os
+    import shutil
+
+    task_type = task["type"]
+    file_idx = task.get("file_idx")
+    
+    if task_type in ["nas_transfer", "movie_nas_transfer"]:
+        target_id = task.get("target_id", "nas")
+        final_filename = task["final_filename"]
+        
+        def nas_progress_cb(percent, msg):
+            _update_transfer_progress(
+                target_id, file_idx, percent, msg,
+                target_progresses, target_speeds, progress_lock,
+                N, task_id, update_global_job_progress
+            )
+            
+        if task_type == "nas_transfer":
+            dest_dir_outbox = task["dest_dir_outbox"]
+            dest_dir_nas = task["dest_dir_nas"]
+            clean_title = task["clean_title"]
+            
+            log_message(f"[Transfer Thread]: Starte NAS-Kopieren für {final_filename} auf {target_id}...")
+            os.makedirs(dest_dir_nas, exist_ok=True)
+            success = run_rsync_with_progress(
+                os.path.join(dest_dir_outbox, final_filename),
+                os.path.join(dest_dir_nas, final_filename),
+                task_id=nas_progress_cb
+            )
+            if not success:
+                log_message(f"⚠️ [Transfer Thread]: Fehler beim Kopieren von {final_filename} auf {target_id}.")
+                with active_jobs_lock:
+                    if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                        if target_id in active_jobs[task_id]["pipeline"]:
+                            active_jobs[task_id]["pipeline"][target_id]["status"] = "error"
+                            active_jobs[task_id]["pipeline"][target_id]["message"] = "Fehlgeschlagen"
+            else:
+                with progress_lock:
+                    target_progresses[target_id][file_idx] = 100
+                # Copy accompanying files
+                for f in os.listdir(dest_dir_outbox):
+                    if f.startswith(clean_title) and f != final_filename:
+                        shutil.copy(os.path.join(dest_dir_outbox, f), os.path.join(dest_dir_nas, f))
+                log_message(f"[Transfer Thread]: Kopieren auf {target_id} fertig für {final_filename}.")
+                
+        else:  # movie_nas_transfer
+            dest_movie_dir_outbox = task["dest_movie_dir_outbox"]
+            dest_movie_dir_nas = task["dest_movie_dir_nas"]
+            
+            log_message(f"[Transfer Thread]: Starte NAS-Kopieren für {final_filename} auf {target_id}...")
+            os.makedirs(dest_movie_dir_nas, exist_ok=True)
+            success = run_rsync_with_progress(
+                dest_movie_dir_outbox,
+                dest_movie_dir_nas,
+                task_id=nas_progress_cb
+            )
+            if success:
+                log_message(f"[Transfer Thread]: Kopieren auf {target_id} fertig für {final_filename}.")
+                with progress_lock:
+                    target_progresses[target_id][file_idx] = 100
+            else:
+                log_message(f"⚠️ [Transfer Thread]: Fehler beim Kopieren von {final_filename} auf {target_id}.")
+                with active_jobs_lock:
+                    if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                        if target_id in active_jobs[task_id]["pipeline"]:
+                            active_jobs[task_id]["pipeline"][target_id]["status"] = "error"
+                            
+        update_global_job_progress()
+        
+    elif task_type == "show_metadata_nas_transfer":
+        dest_show_dir_outbox = task["dest_show_dir_outbox"]
+        dest_show_dir_nas = task["dest_show_dir_nas"]
+
+        log_message(f"[Transfer Thread]: Kopiere Serien-Metadaten auf {dest_show_dir_nas}...")
+        os.makedirs(dest_show_dir_nas, exist_ok=True)
+        settings = load_settings()
+        meta_files = _get_series_meta_files(settings)
+        for f in meta_files:
+            p_src = os.path.join(dest_show_dir_outbox, f)
+            if os.path.exists(p_src):
+                p_dest = os.path.join(dest_show_dir_nas, f)
+                if os.path.exists(p_dest):
+                    log_message(f"[Transfer Thread]: {f} existiert bereits. Wird nicht überschrieben.")
+                else:
+                    shutil.copy(p_src, p_dest)
+        log_message("[Transfer Thread]: Serien-Metadaten kopiert.")
+        
+    elif task_type in ["pcloud_transfer", "cloud_transfer", "movie_pcloud_transfer", "movie_cloud_transfer"]:
+        target_id = task.get("target_id", "pcloud")
+        explicit_remote_base = task.get("explicit_remote_base") or task.get("explicit_pcloud_base")
+        
+        settings = load_settings()
+        target = next((t for t in settings.get("storage_targets", []) if t.get("id") == target_id), None)
+        target_name = target.get("name", target_id) if target else target_id
+        
+        def cloud_progress_cb(percent, msg):
+            _update_transfer_progress(
+                target_id, file_idx, percent, msg,
+                target_progresses, target_speeds, progress_lock,
+                N, task_id, update_global_job_progress
+            )
+            
+        if task_type in ["pcloud_transfer", "cloud_transfer"]:
+            dest_show_dir_outbox = task["dest_show_dir_outbox"]
+            nas_serien = task["nas_serien"]
+            
+            log_message(f"[Transfer Thread]: Starte Upload für {target_name}...")
+            success = copy_to_cloud_target(
+                dest_show_dir_outbox,
+                nas_serien,
+                target_id=target_id,
+                task_id=cloud_progress_cb,
+                explicit_remote_base=explicit_remote_base
+            )
+            name_log = target_name
+        else:  # movie_pcloud_transfer / movie_cloud_transfer
+            dest_movie_dir_outbox = task["dest_movie_dir_outbox"]
+            dest_movies = task["dest_movies"]
+            clean_movie_name = task.get("clean_movie_name", "")
+            
+            log_message(f"[Transfer Thread]: Starte Upload nach {target_name} für {clean_movie_name}...")
+            success = copy_to_cloud_target(
+                dest_movie_dir_outbox,
+                dest_movies,
+                target_id=target_id,
+                task_id=cloud_progress_cb,
+                explicit_remote_base=explicit_remote_base
+            )
+            name_log = f"{target_name} für {clean_movie_name}"
+            
+        if success:
+            with progress_lock:
+                try:
+                    target_progresses[target_id][file_idx] = 100
+                except TypeError:
+                    target_progresses[target_id] = 100
+            log_message(f"[Transfer Thread]: Upload nach {name_log} fertig.")
+            update_global_job_progress()
+            with active_jobs_lock:
+                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                    if target_id in active_jobs[task_id]["pipeline"]:
+                        active_jobs[task_id]["pipeline"][target_id]["status"] = "done"
+                        active_jobs[task_id]["pipeline"][target_id]["progress"] = 100
+        else:
+            log_message(f"[Transfer Thread]: ❌ Upload nach {name_log} fehlgeschlagen.")
+            with active_jobs_lock:
+                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                    if target_id in active_jobs[task_id]["pipeline"]:
+                        active_jobs[task_id]["pipeline"][target_id]["status"] = "error"
+                        active_jobs[task_id]["pipeline"][target_id]["message"] = "Fehlgeschlagen"
 
 def _get_movie_artwork_lists(settings, video_filename):
     """Returns (poster_names, backdrop_names) for the configured media server and film."""
@@ -826,134 +1020,16 @@ def process_worker(params):
                     transfer_queue.task_done()
                     break
                 try:
-                    task_type = task["type"]
-                    file_idx = task.get("file_idx")
-
-                    if task_type == "nas_transfer":
-                        target_id = task.get("target_id", "nas")
-                        dest_dir_outbox = task["dest_dir_outbox"]
-                        dest_dir_nas = task["dest_dir_nas"]
-                        final_filename = task["final_filename"]
-                        clean_title = task["clean_title"]
-
-                        log_message(f"[Transfer Thread]: Starte NAS-Kopieren für {final_filename} auf {target_id}...")
-
-                        def nas_progress_cb(percent, msg):
-                            target_progresses[target_id][file_idx] = percent
-                            speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
-                            if speed_match:
-                                target_speeds[target_id][file_idx] = speed_match.group(1)
-                            else:
-                                speed_match_raw = re.search(r'([\d.]+\s*[kKMG]i?B/s)', msg)
-                                if speed_match_raw:
-                                    target_speeds[target_id][file_idx] = speed_match_raw.group(1)
-                            update_global_job_progress()
-                            with active_jobs_lock:
-                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                    if target_id in active_jobs[task_id]["pipeline"]:
-                                        active_jobs[task_id]["pipeline"][target_id]["status"] = "running"
-                                        avg_nas = sum(target_progresses[target_id]) / N
-                                        active_jobs[task_id]["pipeline"][target_id]["progress"] = int(avg_nas)
-
-                        os.makedirs(dest_dir_nas, exist_ok=True)
-                        success = run_rsync_with_progress(
-                            os.path.join(dest_dir_outbox, final_filename),
-                            os.path.join(dest_dir_nas, final_filename),
-                            task_id=nas_progress_cb
-                        )
-                        if not success:
-                            log_message(f"⚠️ [Transfer Thread]: Fehler beim Kopieren von {final_filename} auf {target_id}.")
-                            with active_jobs_lock:
-                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                    if target_id in active_jobs[task_id]["pipeline"]:
-                                        active_jobs[task_id]["pipeline"][target_id]["status"] = "error"
-                                        active_jobs[task_id]["pipeline"][target_id]["message"] = "Fehlgeschlagen"
-                        else:
-                            target_progresses[target_id][file_idx] = 100
-
-                        # Copy accompanying files
-                        for f in os.listdir(dest_dir_outbox):
-                            if f.startswith(clean_title) and f != final_filename:
-                                shutil.copy(os.path.join(dest_dir_outbox, f), os.path.join(dest_dir_nas, f))
-
-                        log_message(f"[Transfer Thread]: Kopieren auf {target_id} fertig für {final_filename}.")
-                        update_global_job_progress()
-
-                    elif task_type == "show_metadata_nas_transfer":
-                        dest_show_dir_outbox = task["dest_show_dir_outbox"]
-                        dest_show_dir_nas = task["dest_show_dir_nas"]
-
-                        log_message(f"[Transfer Thread]: Kopiere Serien-Metadaten auf {dest_show_dir_nas}...")
-                        os.makedirs(dest_show_dir_nas, exist_ok=True)
-                        settings = load_settings()
-                        meta_files = _get_series_meta_files(settings)
-                        for f in meta_files:
-                            p_src = os.path.join(dest_show_dir_outbox, f)
-                            if os.path.exists(p_src):
-                                p_dest = os.path.join(dest_show_dir_nas, f)
-                                if os.path.exists(p_dest):
-                                    log_message(f"[Transfer Thread]: {f} existiert bereits. Wird nicht überschrieben.")
-                                else:
-                                    shutil.copy(p_src, p_dest)
-                        log_message("[Transfer Thread]: Serien-Metadaten kopiert.")
-                        # settings = load_settings()
-                        # if settings.get("open_nas_finder") and "/Volumes/Kino" in dest_show_dir_nas:
-                        #     open_folder_in_finder(dest_show_dir_nas)
-
-                    elif task_type in ["pcloud_transfer", "cloud_transfer"]:
-                        target_id = task.get("target_id", "pcloud")
-                        dest_show_dir_outbox = task["dest_show_dir_outbox"]
-                        nas_serien = task["nas_serien"]
-                        explicit_remote_base = task.get("explicit_remote_base") or task.get("explicit_pcloud_base")
-
-                        settings = load_settings()
-                        target = next((t for t in settings.get("storage_targets", []) if t.get("id") == target_id), None)
-                        target_name = target.get("name", target_id) if target else target_id
-
-                        log_message(f"[Transfer Thread]: Starte Upload für {target_name}...")
-
-                        def cloud_progress_cb(percent, msg):
-                            with progress_lock:
-                                target_progresses[target_id] = percent
-                                speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
-                                if speed_match:
-                                    target_speeds[target_id] = speed_match.group(1)
-                                else:
-                                    speed_match_raw = re.search(r'([\d.]+\s*[kKMG]i?B/s)', msg)
-                                    if speed_match_raw:
-                                        target_speeds[target_id] = speed_match_raw.group(1)
-                            update_global_job_progress()
-                            with active_jobs_lock:
-                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                    if target_id in active_jobs[task_id]["pipeline"]:
-                                        active_jobs[task_id]["pipeline"][target_id]["status"] = "running"
-                                        active_jobs[task_id]["pipeline"][target_id]["progress"] = percent
-
-                        success = copy_to_cloud_target(
-                            dest_show_dir_outbox,
-                            nas_serien,
-                            target_id=target_id,
-                            task_id=cloud_progress_cb,
-                            explicit_remote_base=explicit_remote_base
-                        )
-                        if success:
-                            with progress_lock:
-                                target_progresses[target_id] = 100
-                            log_message(f"[Transfer Thread]: Upload für {target_name} fertig.")
-                            update_global_job_progress()
-                            with active_jobs_lock:
-                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                    if target_id in active_jobs[task_id]["pipeline"]:
-                                        active_jobs[task_id]["pipeline"][target_id]["status"] = "done"
-                                        active_jobs[task_id]["pipeline"][target_id]["progress"] = 100
-                        else:
-                            log_message(f"[Transfer Thread]: ❌ Upload für {target_name} fehlgeschlagen.")
-                            with active_jobs_lock:
-                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                    if target_id in active_jobs[task_id]["pipeline"]:
-                                        active_jobs[task_id]["pipeline"][target_id]["status"] = "error"
-                                        active_jobs[task_id]["pipeline"][target_id]["message"] = "Fehlgeschlagen"
-
+                    _handle_transfer_task(
+                        task,
+                        task_id,
+                        target_progresses,
+                        target_speeds,
+                        progress_lock,
+                        N,
+                        log_message,
+                        update_global_job_progress
+                    )
                 except Exception as e:
                     log_message(f"❌ [Transfer Thread] Fehler: {e}")
                     transfer_errors.append(e)
@@ -1499,109 +1575,16 @@ def process_worker(params):
                     transfer_queue.task_done()
                     break
                 try:
-                    task_type = task["type"]
-                    file_idx = task.get("file_idx")
-
-                    if task_type == "movie_nas_transfer":
-                        target_id = task.get("target_id", "nas")
-                        dest_movie_dir_outbox = task["dest_movie_dir_outbox"]
-                        dest_movie_dir_nas = task["dest_movie_dir_nas"]
-                        final_filename = task["final_filename"]
-
-                        log_message(f"[Transfer Thread]: Starte NAS-Kopieren für {final_filename} auf {target_id}...")
-
-                        def nas_progress_cb(percent, msg):
-                            target_progresses[target_id][file_idx] = percent
-                            speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
-                            if speed_match:
-                                target_speeds[target_id][file_idx] = speed_match.group(1)
-                            else:
-                                speed_match_raw = re.search(r'([\d.]+\s*[kKMG]i?B/s)', msg)
-                                if speed_match_raw:
-                                    target_speeds[target_id][file_idx] = speed_match_raw.group(1)
-                            update_global_job_progress()
-                            with active_jobs_lock:
-                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                    if target_id in active_jobs[task_id]["pipeline"]:
-                                        active_jobs[task_id]["pipeline"][target_id]["status"] = "running"
-                                        avg_nas = sum(target_progresses[target_id]) / N
-                                        active_jobs[task_id]["pipeline"][target_id]["progress"] = int(avg_nas)
-
-                        os.makedirs(dest_movie_dir_nas, exist_ok=True)
-                        success = run_rsync_with_progress(
-                            dest_movie_dir_outbox,
-                            dest_movie_dir_nas,
-                            task_id=nas_progress_cb
-                        )
-                        if success:
-                            log_message(f"[Transfer Thread]: Kopieren auf {target_id} fertig für {final_filename}.")
-                            target_progresses[target_id][file_idx] = 100
-                            # settings = load_settings()
-                            # if settings.get("open_nas_finder") and "/Volumes/Kino" in dest_movie_dir_nas:
-                            #     open_folder_in_finder(dest_movie_dir_nas)
-                        else:
-                            log_message(f"⚠️ [Transfer Thread]: Fehler beim Kopieren von {final_filename} auf {target_id}.")
-                            with active_jobs_lock:
-                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                    if target_id in active_jobs[task_id]["pipeline"]:
-                                        active_jobs[task_id]["pipeline"][target_id]["status"] = "error"
-                        update_global_job_progress()
-
-                    elif task_type in ["movie_pcloud_transfer", "movie_cloud_transfer"]:
-                        target_id = task.get("target_id", "pcloud")
-                        dest_movie_dir_outbox = task["dest_movie_dir_outbox"]
-                        dest_movies = task["dest_movies"]
-                        explicit_remote_base = task.get("explicit_remote_base") or task.get("explicit_pcloud_base")
-
-                        settings = load_settings()
-                        target = next((t for t in settings.get("storage_targets", []) if t.get("id") == target_id), None)
-                        target_name = target.get("name", target_id) if target else target_id
-
-                        log_message(f"[Transfer Thread]: Starte Upload nach {target_name} für {clean_movie_name}...")
-
-                        def cloud_progress_cb(percent, msg):
-                            with progress_lock:
-                                target_progresses[target_id][file_idx] = percent
-                                speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
-                                if speed_match:
-                                    target_speeds[target_id][file_idx] = speed_match.group(1)
-                                else:
-                                    speed_match_raw = re.search(r'([\d.]+\s*[kKMG]i?B/s)', msg)
-                                    if speed_match_raw:
-                                        target_speeds[target_id][file_idx] = speed_match_raw.group(1)
-                            update_global_job_progress()
-                            with active_jobs_lock:
-                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                    if target_id in active_jobs[task_id]["pipeline"]:
-                                        active_jobs[task_id]["pipeline"][target_id]["status"] = "running"
-                                        avg_pcloud = sum(target_progresses[target_id]) / N
-                                        active_jobs[task_id]["pipeline"][target_id]["progress"] = int(avg_pcloud)
-
-                        success = copy_to_cloud_target(
-                            dest_movie_dir_outbox,
-                            dest_movies,
-                            target_id=target_id,
-                            task_id=cloud_progress_cb,
-                            explicit_remote_base=explicit_remote_base
-                        )
-                        if success:
-                            with progress_lock:
-                                target_progresses[target_id][file_idx] = 100
-                            log_message(f"[Transfer Thread]: Upload nach {target_name} fertig für {clean_movie_name}.")
-                            update_global_job_progress()
-                            with active_jobs_lock:
-                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                    if target_id in active_jobs[task_id]["pipeline"]:
-                                        active_jobs[task_id]["pipeline"][target_id]["status"] = "done"
-                                        active_jobs[task_id]["pipeline"][target_id]["progress"] = 100
-                        else:
-                            log_message(f"[Transfer Thread]: ❌ Upload nach {target_name} fehlgeschlagen für {clean_movie_name}.")
-                            with active_jobs_lock:
-                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                    if target_id in active_jobs[task_id]["pipeline"]:
-                                        active_jobs[task_id]["pipeline"][target_id]["status"] = "error"
-                                        active_jobs[task_id]["pipeline"][target_id]["message"] = "Fehlgeschlagen"
-
+                    _handle_transfer_task(
+                        task,
+                        task_id,
+                        target_progresses,
+                        target_speeds,
+                        progress_lock,
+                        N,
+                        log_message,
+                        update_global_job_progress
+                    )
                 except Exception as e:
                     log_message(f"❌ [Transfer Thread] Fehler: {e}")
                     transfer_errors.append(e)
@@ -1904,7 +1887,8 @@ def process_worker(params):
                             "file_idx": file_idx,
                             "dest_movie_dir_outbox": dest_movie_dir_outbox,
                             "dest_movies": target_base,
-                            "explicit_remote_base": explicit_pcloud_base if t_id == "pcloud" else None
+                            "explicit_remote_base": explicit_pcloud_base if t_id == "pcloud" else None,
+                            "clean_movie_name": clean_movie_name
                         })
                 else:
                     if t_id in target_progresses:
