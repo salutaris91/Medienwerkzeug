@@ -47,7 +47,7 @@ def handle_api_capabilities():
             # Short FFmpeg probe (software decode of black frame -> VAAPI encode)
             try:
                 cmd = ["ffmpeg", "-nostdin", "-vaapi_device", device_path, "-f", "lavfi", "-i", "color=c=black:s=128x128:r=1:d=0.1", "-vf", "format=nv12,hwupload", "-c:v", "hevc_vaapi", "-f", "null", "-"]
-                res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+                res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
                 vaapi_probe_success = (res.returncode == 0)
             except Exception:
                 pass
