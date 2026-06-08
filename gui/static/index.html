@@ -167,7 +167,7 @@
 
                 <div class="form-group" id="onboarding-nas-ip-group">
                     <label for="onboarding-nas-ip">NAS IP-Adresse:</label>
-                    <input type="text" id="onboarding-nas-ip" placeholder="z.B. 192.168.2.208" class="form-input">
+                    <input type="text" id="onboarding-nas-ip" placeholder="z.B. 192.168.1.100" class="form-input">
                 </div>
                 <div class="form-group mt-10" id="onboarding-nas-share-group">
                     <label for="onboarding-nas-share">NAS Share-Name:</label>
@@ -2089,7 +2089,7 @@
 
                     <div class="card mb-15">
                         <h3>🌐 Wie funktioniert das NAS-Mounting?</h3>
-                        <p><strong>Desktop-Modus (macOS):</strong> Das Medienwerkzeug versucht beim Starten eines Scans oder Kopiervorgangs automatisch, das konfigurierte NAS-Laufwerk via AppleScript/SMB einzubinden. Dafür wird der konfigurierte SMB-Pfad (z.B. <code>smb://192.168.2.208/Kino</code>) verwendet. Bitte stelle sicher, dass das NAS erreichbar ist (z.B. via Tailscale) und die Zugangsdaten im macOS-Schlüsselbund hinterlegt sind.<br><br><strong>Docker-Modus (NAS):</strong> Der Dateizugriff erfolgt direkt und performant über die konfigurierten Container-Volumes (z.B. <code>/media</code>). Ein SMB-Mounting ist hierbei nicht erforderlich.</p>
+                        <p><strong>Desktop-Modus (macOS):</strong> Das Medienwerkzeug versucht beim Starten eines Scans oder Kopiervorgangs automatisch, das konfigurierte NAS-Laufwerk via AppleScript/SMB einzubinden. Dafür wird der konfigurierte SMB-Pfad (z.B. <code>smb://192.168.1.100/Kino</code>) verwendet. Bitte stelle sicher, dass das NAS erreichbar ist (z.B. via Tailscale) und die Zugangsdaten im macOS-Schlüsselbund hinterlegt sind.<br><br><strong>Docker-Modus (NAS):</strong> Der Dateizugriff erfolgt direkt und performant über die konfigurierten Container-Volumes (z.B. <code>/media</code>). Ein SMB-Mounting ist hierbei nicht erforderlich.</p>
                     </div>
 
                     <div class="card mb-15">

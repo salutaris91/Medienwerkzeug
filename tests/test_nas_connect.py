@@ -31,8 +31,8 @@ class TestNasConnectApi(unittest.TestCase):
             "status": "connected",
             "enabled": True,
             "has_root": True,
-            "checked_ips": ["192.168.2.208"],
-            "reachable_ip": "192.168.2.208"
+            "checked_ips": ["192.168.1.100"],
+            "reachable_ip": "192.168.1.100"
         }
         response = self.client.post("/api/nas/connect")
 
@@ -51,7 +51,7 @@ class TestNasConnectApi(unittest.TestCase):
             "status": "offline",
             "enabled": True,
             "has_root": True,
-            "checked_ips": ["192.168.2.208", "100.74.187.125"],
+            "checked_ips": ["192.168.1.100", "100.64.0.1"],
             "reachable_ip": None
         }
         response = self.client.post("/api/nas/connect")
@@ -68,8 +68,8 @@ class TestNasConnectApi(unittest.TestCase):
             "status": "available_not_mounted",
             "enabled": True,
             "has_root": True,
-            "checked_ips": ["192.168.2.208", "100.74.187.125"],
-            "reachable_ip": "192.168.2.208"
+            "checked_ips": ["192.168.1.100", "100.64.0.1"],
+            "reachable_ip": "192.168.1.100"
         }
         response = self.client.post("/api/nas/connect")
 
@@ -85,8 +85,8 @@ class TestNasConnectApi(unittest.TestCase):
             "status": "connected",
             "enabled": True,
             "has_root": True,
-            "checked_ips": ["192.168.2.208"],
-            "reachable_ip": "192.168.2.208"
+            "checked_ips": ["192.168.1.100"],
+            "reachable_ip": "192.168.1.100"
         }
         first_response = self.client.post("/api/nas/connect")
         second_response = self.client.post("/api/nas/connect")
@@ -112,7 +112,7 @@ class TestNasConnectApi(unittest.TestCase):
             "status": "offline",
             "enabled": True,
             "has_root": True,
-            "checked_ips": ["192.168.2.208"],
+            "checked_ips": ["192.168.1.100"],
             "reachable_ip": None,
             "error_message": "Some error"
         }

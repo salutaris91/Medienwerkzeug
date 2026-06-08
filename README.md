@@ -17,6 +17,7 @@
   - [Variante B: Kommandozeile](#variante-b-kommandozeile)
   - [Variante C: Docker (NAS / Server)](#variante-c-docker-empfohlen-für-nas--server)
 - [Sicherheit & Zugriffskontrolle](#-sicherheit--zugriffskontrolle)
+- [Transparenz: Datenschutz & ausgehende Verbindungen](#-transparenz-datenschutz--ausgehende-verbindungen)
 - [Best Practices](#-best-practices-serien-universen--sendeplätze-zb-arte-entdeckung-der-welt)
 - [Unit-Tests ausführen](#-unit-tests-ausführen)
 
@@ -310,6 +311,50 @@ Da das Medienwerkzeug als Flask-Server im lokalen Netzwerk (LAN) erreichbar ist,
   "password_hash": ""
   ```
   Nach dem Neuladen der App ist der Zugriffsschutz sofort wieder deaktiviert.
+
+---
+
+## 🔍 Transparenz: Datenschutz & ausgehende Verbindungen
+
+Wer fremde Software bei sich laufen lässt, sollte wissen, was sie tut. Dieser Abschnitt listet vollständig auf, womit das Medienwerkzeug nach außen spricht. Der gesamte Quellcode ist einsehbar – jede hier genannte Verbindung lässt sich im Code nachvollziehen.
+
+### Mit welchen Diensten das Tool spricht
+
+**Immer (Kernfunktion Metadaten-Abgleich):**
+
+* `api.themoviedb.org`, `image.tmdb.org` – Film-/Serien-Metadaten und Artwork (TMDB)
+* `api4.thetvdb.com` – Serien-Metadaten (TVDB)
+* `api.tvmaze.com`, `www.ofdb.de`, `www.fernsehserien.de`, `www.arte.tv`, `mediathekviewweb.de` – ergänzende Metadaten-Quellen
+
+**Nur bei aktiver Nutzung der jeweiligen Funktion:**
+
+* `youtube.com` / `www.youtube.com` – nur beim YouTube-Download (`yt-dlp`)
+* `api.telegram.org`, `api.callmebot.com` – Benachrichtigungen, **nur** wenn du Telegram bzw. WhatsApp selbst in den Einstellungen einrichtest
+* deine konfigurierte **rclone-Remote** (z. B. pCloud) – nur beim Cloud-Sync, mit deinen eigenen Zugangsdaten
+* `api.github.com`, `raw.githubusercontent.com` – Update- und „Witz des Tages“-Abruf
+* `api.zitat-service.de` – „Zitat des Tages“ beim App-Start
+
+**Was das Tool ausdrücklich NICHT tut:** Es überträgt **keine** Inhalte deiner Mediathek, keine Dateinamen, keine Pfade und keine Zugangsdaten an den Entwickler.
+
+### Optionale Telemetrie (standardmäßig AUS)
+
+Es gibt eine optionale, anonyme Nutzungs-Telemetrie. Sie ist **per Voreinstellung deaktiviert** (`telemetry_enabled: false`) und wird nur aktiv, wenn du im Einrichtungsassistenten ausdrücklich zustimmst.
+
+* **Zielendpunkt:** `telemetry.mediawerkzeug.xyz/log`
+* **Gesendete Daten (vollständig):** Event-Name (z. B. „Job abgeschlossen“), App-Version, Betriebssystem-Plattform (`linux`/`darwin`), UTC-Zeitstempel sowie optional ein Feature-Name oder eine Fehlerklasse.
+* **NICHT gesendet:** IP-Adressen (über die Nutzdaten), Dateinamen, Mediathek-Inhalte, Pfade, persönliche Daten.
+* **Umlenkbar/abschaltbar:** Über die Umgebungsvariable `MW_TELEMETRY_ENDPOINT` lässt sich der Zielserver ändern; die Domain kann zusätzlich per Firewall/DNS blockiert werden, ohne dass das Tool die Funktion verliert (Fehler werden still ignoriert).
+
+Die optionale Newsletter-Anmeldung (`newsletter.mediawerkzeug.xyz/register`) sendet ausschließlich die E-Mail-Adresse, die du selbst dafür einträgst – sie ist eine bewusste Nutzeraktion und ist andernfalls inaktiv.
+
+### Empfehlung: minimal-privilegiert betreiben
+
+Das mitgelieferte `docker-compose.yml` ist bereits auf geringe Rechte ausgelegt – so solltest du es betreiben:
+
+* **Kein `privileged`-Modus**, kein `cap_add`.
+* **Als Nicht-Root** über `user: "${PUID}:${PGID}"` (Standard `1000:1000`).
+* **GPU-Zugriff (`/dev/dri`) ist optional** und im Compose-File auskommentiert – nur einkommentieren, wenn du Hardware-Transcoding (VAAPI) tatsächlich nutzt.
+* **Tipp für den ersten Test:** Probiere das Tool zunächst an einem **Kopier- oder Testordner** unkritischer Mediendateien aus. Vor jedem Umbenennen oder Verschieben zeigt das Tool eine Vorschau – es passiert nichts automatisch –, aber für das erste Kennenlernen ist ein Wegwerf-Datensatz die sicherste Wahl.
 
 ---
 

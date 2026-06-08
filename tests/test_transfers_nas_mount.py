@@ -12,8 +12,8 @@ NAS_SETTINGS = {
     "storage_targets": [{
         "id": "nas",
         "root_path": "/Volumes/Kino",
-        "nas_ip": "192.168.2.208",
-        "nas_ip_backup": "100.74.187.125",
+        "nas_ip": "192.168.1.100",
+        "nas_ip_backup": "100.64.0.1",
         "nas_hostname": "ALEXNAS91",
         "nas_share": "Kino",
         "enabled": True,
