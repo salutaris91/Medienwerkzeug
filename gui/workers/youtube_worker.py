@@ -1,5 +1,5 @@
 from gui.core.utils import load_settings, save_settings, DATA_DIR
-import os, urllib.request, json, time, asyncio, subprocess, threading
+import os, urllib.request, json, time, subprocess, threading
 from gui.core.helpers import *
 def fetch_online_jokes_async():
     def target():

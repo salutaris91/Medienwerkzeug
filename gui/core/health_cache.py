@@ -3,7 +3,7 @@ import json
 import hashlib
 import time
 import tempfile
-from typing import Dict, List, Optional
+from typing import Optional
 
 SCAN_VERSION = 2
 

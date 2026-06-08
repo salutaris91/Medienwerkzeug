@@ -1,5 +1,5 @@
 from gui.core.utils import load_settings, save_settings, get_runtime_capabilities
-import os, socket, subprocess, time, shlex, shutil
+import os, socket, subprocess, time, shutil
 from urllib.parse import quote
 from gui.core.helpers import *
 from gui.core.resilience import run_with_retries_and_timeout

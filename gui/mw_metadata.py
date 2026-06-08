@@ -580,8 +580,6 @@ def search_tmdb_movie(query):
         except Exception as e:
             _handle_metadata_error(e, context="[TMDb Movie Error]")
             raise MetadataProviderUnavailable(f"Unerwarteter Provider-Fehler: {e}", status_code=503)
-            print(f"[TMDb Movie Error] Fehler bei Suche '{q_str}': {e}", file=sys.stderr)
-            return []
 
     results = _do_tmdb_search(clean_query)
 

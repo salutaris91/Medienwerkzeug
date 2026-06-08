@@ -1,5 +1,5 @@
-import os, sys, json, time, shutil, subprocess, urllib, threading, math
-from flask import Blueprint, request, jsonify, Response, send_file, send_from_directory
+import os, sys, json, time, shutil, subprocess, urllib, threading
+from flask import Blueprint, request, jsonify, Response, send_from_directory
 from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history, get_runtime_capabilities
 from gui.core.helpers import *
 from gui.core.helpers import log_queue
@@ -12,7 +12,7 @@ import gui.mw_metadata as mw_metadata
 youtube_api = Blueprint('youtube_api', __name__)
 
 # Global variables imported from processor
-from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
+from gui.workers.processor import SYSTEM_STATUS
 
 
 
@@ -76,7 +76,6 @@ def handle_api_subscriptions_approve():
     video_id = params.get("video_id")
     if not subscription_id or not video_id:
         return jsonify({"error": "Missing subscription_id or video_id"}), 400
-        return
         
     settings = load_settings()
     subs = settings.get("youtube_subscriptions", [])
@@ -88,7 +87,6 @@ def handle_api_subscriptions_approve():
             
     if not target_sub:
         return jsonify({"error": "Subscription not found"}), 404
-        return
         
     pending = target_sub.get("pending_videos", [])
     video = None
@@ -173,7 +171,6 @@ def handle_api_subscriptions_ignore():
     video_id = params.get("video_id")
     if not subscription_id or not video_id:
         return jsonify({"error": "Missing subscription_id or video_id"}), 400
-        return
         
     settings = load_settings()
     subs = settings.get("youtube_subscriptions", [])
@@ -185,7 +182,6 @@ def handle_api_subscriptions_ignore():
             
     if not target_sub:
         return jsonify({"error": "Subscription not found"}), 404
-        return
         
     pending = target_sub.get("pending_videos", [])
     video = None
@@ -220,7 +216,6 @@ def handle_api_youtube_search_parts():
     title = titles[0] if titles else ""
     if not title:
         return jsonify({"error": "Missing title"}), 400
-        return
         
     import re
     patterns = [
@@ -288,7 +283,6 @@ def handle_api_youtube_merge():
     
     if not urls:
         return jsonify({"error": "Missing urls"}), 400
-        return
         
     settings = load_settings()
     
@@ -385,7 +379,6 @@ def handle_api_yt_fetch():
     url = params.get("url", "")
     if not url:
         return jsonify({"error": "Keine URL angegeben."})
-        return
         
     is_docker = get_runtime_capabilities().get("runtime") == "docker"
     base_cmd = ["yt-dlp", "--dump-json", "--skip-download"]
@@ -398,12 +391,10 @@ def handle_api_yt_fetch():
             
         if proc.returncode != 0:
             return jsonify({"error": f"yt-dlp Fehler: {proc.stderr}"})
-            return
             
         stdout_lines = proc.stdout.strip().split("\n")
         if not stdout_lines or not stdout_lines[0]:
             return jsonify({"error": "Keine Daten von yt-dlp erhalten."})
-            return
             
         data = json.loads(stdout_lines[0])
         
@@ -558,14 +549,12 @@ def handle_api_yt_segments():
     task_id = query.get("taskId", "")
     if not task_id:
         return jsonify({"error": "Keine taskId angegeben."})
-        return
         
     with active_yt_tasks_lock:
         task = active_yt_tasks.get(task_id)
         
     if not task:
         return jsonify({"error": "Task nicht gefunden."})
-        return
         
     temp_dir = task.get("temp_dir")
     segments = []
@@ -592,14 +581,12 @@ def handle_api_yt_cut_done():
     task_id = params.get("task_id")
     if not task_id:
         return jsonify({"error": "Keine task_id angegeben."})
-        return
         
     with active_yt_tasks_lock:
         task = active_yt_tasks.get(task_id)
         
     if not task:
         return jsonify({"error": "Task nicht gefunden."})
-        return
         
     task["state"] = "scanning_after_cut"
     task["event"].set()
@@ -619,14 +606,12 @@ def handle_api_yt_finalize():
     
     if not task_id:
         return jsonify({"error": "Keine task_id angegeben."})
-        return
         
     with active_yt_tasks_lock:
         task = active_yt_tasks.get(task_id)
         
     if not task:
         return jsonify({"error": "Task nicht gefunden."})
-        return
         
     task["mapping"] = mapping
     task["state"] = "finalizing"

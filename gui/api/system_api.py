@@ -1,6 +1,6 @@
 from gui.core.helpers import get_folder_size_bytes
-import os, sys, json, time, shutil, subprocess, urllib, threading, math
-from flask import Blueprint, request, jsonify, Response, send_file, send_from_directory
+import os, sys, json, time, shutil, subprocess, urllib, threading
+from flask import Blueprint, request, jsonify, Response, send_from_directory
 from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history, get_runtime_capabilities
 from gui.core.helpers import *
 from gui.core.helpers import log_queue
@@ -16,7 +16,7 @@ failed_attempts = {}
 failed_attempts_lock = threading.Lock()
 
 # Global variables imported from processor
-from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
+from gui.workers.processor import SYSTEM_STATUS
 
 
 
@@ -200,7 +200,6 @@ def handle_api_system_restart():
             "status": "busy",
             "message": "Der Server kann nicht neu gestartet werden, da aktuell noch Konvertierungen oder Dateiübertragungen laufen!"
         })
-        return
 
     # Schedule restart in a separate thread to allow response to send
     def do_restart():

@@ -1,5 +1,5 @@
-import os, sys, json, time, shutil, subprocess, urllib, threading, math
-from flask import Blueprint, request, jsonify, Response, send_file, send_from_directory
+import os, sys, json, time, shutil, subprocess, urllib, threading
+from flask import Blueprint, request, jsonify, Response, send_from_directory
 from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history
 from gui.core.helpers import *
 from gui.core.helpers import log_queue
@@ -12,7 +12,7 @@ import gui.mw_metadata as mw_metadata
 search_api = Blueprint('search_api', __name__)
 
 # Global variables imported from processor
-from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
+from gui.workers.processor import SYSTEM_STATUS
 
 
 
@@ -29,7 +29,6 @@ def handle_api_guess_season():
     
     if not provider or not show_id:
         return jsonify({"error": "provider or show_id is missing"}), 400
-        return
         
     try:
         season = mw_metadata.guess_season(provider, show_id, filenames)
@@ -54,7 +53,6 @@ def handle_api_match_episodes():
     
     if not provider or not show_id or not season:
         return jsonify({"error": "provider, show_id or season is missing"}), 400
-        return
         
     episodes = {}
     try:
@@ -341,12 +339,10 @@ def handle_api_toggle_visibility():
     hide = params.get("hide", True)
     if not target_path or not os.path.exists(target_path):
         return jsonify({"error": "Invalid path"}), 400
-        return
     # Security: only allow toggling visibility within known media directories
     abs_target = os.path.abspath(target_path)
     if not is_path_allowed(abs_target):
         return jsonify({"error": "Path not in allowed directories"}), 403
-        return
         
     try:
         flag = "hidden" if hide else "nohidden"
@@ -691,7 +687,6 @@ def handle_api_series_detect():
         
     if not project_name:
         return jsonify({"found": False})
-        return
         
     settings = load_settings()
     nas_root = settings.get("nas_root", "")
@@ -866,7 +861,6 @@ def handle_api_series_detect():
                 "folder_found": folder_found,
                 "existing_seasons": existing_seasons
             })
-            return
         else:
             return jsonify({
                 "found": False,
@@ -874,7 +868,6 @@ def handle_api_series_detect():
                 "folder_found": folder_found,
                 "existing_seasons": existing_seasons
             })
-            return
             
     return jsonify({"found": False})
 
@@ -943,7 +936,6 @@ def handle_api_quote():
             data = json.loads(response.read().decode('utf-8'))
             if data.get("quote"):
                 return jsonify(data)
-                return
     except Exception as e:
         log_message(f"[Zitat API] Fehler beim Abrufen des Online-Zitats: {e}")
         

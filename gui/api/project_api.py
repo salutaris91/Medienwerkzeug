@@ -1,5 +1,5 @@
-import os, sys, json, time, shutil, subprocess, urllib, threading, math
-from flask import Blueprint, request, jsonify, Response, send_file, send_from_directory
+import os, sys, json, time, shutil, subprocess, urllib, threading
+from flask import Blueprint, request, jsonify, Response, send_from_directory
 from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history, get_runtime_capabilities
 from gui.core.helpers import *
 from gui.core.helpers import log_queue
@@ -12,7 +12,7 @@ import gui.mw_metadata as mw_metadata
 project_api = Blueprint('project_api', __name__)
 
 # Global variables imported from processor
-from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
+from gui.workers.processor import SYSTEM_STATUS
 
 
 EFFICIENT_VIDEO_CODECS = {
@@ -146,11 +146,9 @@ def handle_api_scan_project():
         
     if not is_path_allowed(target_dir):
         return jsonify({"error": "Access Denied"}), 403
-        return
         
     if not os.path.exists(target_dir):
         return jsonify({"error": "Directory not found"}), 404
-        return
     file_list = []
     ext_counts = {}
     
@@ -299,7 +297,6 @@ def handle_api_preview_clean():
         
     if not os.path.exists(target_dir):
         return jsonify({"error": "Verzeichnis nicht gefunden"})
-        return
         
     if not project:
         all_files = [f for f in os.listdir(target_dir) if os.path.isfile(os.path.join(target_dir, f)) and not f.startswith('.')]
@@ -494,7 +491,6 @@ def handle_api_clean_project():
         
     if not is_path_allowed(target_dir):
         return jsonify({"error": "Access Denied"})
-        return
     deleted_files = []
     deleted_dirs = []
     
@@ -582,11 +578,9 @@ def handle_api_delete_project():
     # Security check: Ensure target is inside inbox_root and not the root itself
     if not target_dir_abs.startswith(inbox_root_abs + os.sep) or target_dir_abs == inbox_root_abs:
         return jsonify({"status": "error", "error": "Ungültiger oder unzulässiger Pfad."})
-        return
         
     if not os.path.exists(target_dir_abs):
         return jsonify({"status": "error", "error": "Ordner existiert nicht."})
-        return
         
     try:
         trash.send_to_trash(target_dir_abs)
@@ -691,7 +685,6 @@ def handle_api_split_project_file():
     file_name = params.get("file_name")
     if not file_name:
         return jsonify({"status": "error", "error": "Kein Dateiname angegeben."})
-        return
         
     settings = load_settings()
     inbox_root = settings.get("inbox_dir", "")
@@ -710,18 +703,15 @@ def handle_api_split_project_file():
     # Security check: Ensure source_dir is inside inbox_root
     if not source_dir_abs.startswith(inbox_root_abs):
         return jsonify({"status": "error", "error": "Ungültiger oder unzulässiger Quell-Pfad."})
-        return
         
     # Security check: Prevent path traversal in file_name
     safe_file_name = os.path.basename(file_name)
     if safe_file_name != file_name:
         return jsonify({"status": "error", "error": "Ungültiger Dateiname."})
-        return
         
     source_file_path = os.path.join(source_dir_abs, safe_file_name)
     if not os.path.exists(source_file_path):
         return jsonify({"status": "error", "error": f"Datei {safe_file_name} existiert nicht im Projekt."})
-        return
         
     # Determine base name without extension
     base_name, _ = os.path.splitext(safe_file_name)
@@ -750,7 +740,6 @@ def handle_api_split_project_file():
                     
         if not files_to_move:
             return jsonify({"status": "error", "error": "Keine Dateien zum Verschieben gefunden."})
-            return
             
         # Create new project directory
         os.makedirs(new_project_dir, exist_ok=True)
