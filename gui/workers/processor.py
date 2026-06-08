@@ -247,6 +247,40 @@ def _mark_remaining_steps_done(task_id):
                     step_info["status"] = "done"
                     step_info["progress"] = 100
 
+def _finalize_job(params, job_size_gb, transfer_errors, current_dir, inbox_root, log_message):
+    import os
+    import gui.core.trash as trash
+
+    try:
+        trigger_job_notifications(params, job_size_gb, is_end_of_job=True)
+        open_folders_post_processing(params)
+    except Exception as e:
+        log_message(f"Fehler bei Benachrichtigungen/Finder-Öffnung: {e}")
+
+    if transfer_errors:
+        raise transfer_errors[0]
+
+    # Cleanup input folder if it was a project directory under inbox_root
+    if current_dir != inbox_root and os.path.exists(current_dir):
+        try:
+            video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
+            remaining_videos = []
+            for root, dirs, files in os.walk(current_dir):
+                for f in files:
+                    if f.lower().endswith(video_exts) and not f.startswith("."):
+                        remaining_videos.append(os.path.join(root, f))
+
+            if not remaining_videos:
+                trash.send_to_trash(current_dir)
+                log_message(f"Projekt-Ordner im Input bereinigt (keine Videos mehr vorhanden): {os.path.basename(current_dir)}")
+            else:
+                non_dot_files = [f for f in os.listdir(current_dir) if not f.startswith(".")]
+                if not non_dot_files:
+                    trash.send_to_trash(current_dir)
+                    log_message(f"Leeren Projekt-Ordner im Input bereinigt: {os.path.basename(current_dir)}")
+        except Exception as e:
+            log_message(f"Fehler beim Bereinigen des Projekt-Ordners: {e}")
+
 def _get_movie_artwork_lists(settings, video_filename):
     """Returns (poster_names, backdrop_names) for the configured media server and film."""
     server_type = settings.get("media_server", "emby") or "emby"
@@ -1400,35 +1434,7 @@ def process_worker(params):
 
         _mark_remaining_steps_done(task_id)
 
-        try:
-            trigger_job_notifications(params, job_size_gb, is_end_of_job=True)
-            open_folders_post_processing(params)
-        except Exception as e:
-            log_message(f"Fehler bei Benachrichtigungen/Finder-Öffnung: {e}")
-
-        if transfer_errors:
-            raise transfer_errors[0]
-
-        # Cleanup input folder if it was a project directory under inbox_root
-        if current_dir != inbox_root and os.path.exists(current_dir):
-            try:
-                video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
-                remaining_videos = []
-                for root, dirs, files in os.walk(current_dir):
-                    for f in files:
-                        if f.lower().endswith(video_exts) and not f.startswith("."):
-                            remaining_videos.append(os.path.join(root, f))
-
-                if not remaining_videos:
-                    trash.send_to_trash(current_dir)
-                    log_message(f"Projekt-Ordner im Input bereinigt (keine Videos mehr vorhanden): {os.path.basename(current_dir)}")
-                else:
-                    non_dot_files = [f for f in os.listdir(current_dir) if not f.startswith(".")]
-                    if not non_dot_files:
-                        trash.send_to_trash(current_dir)
-                        log_message(f"Leeren Projekt-Ordner im Input bereinigt: {os.path.basename(current_dir)}")
-            except Exception as e:
-                log_message(f"Fehler beim Bereinigen des Projekt-Ordners: {e}")
+        _finalize_job(params, job_size_gb, transfer_errors, current_dir, inbox_root, log_message)
 
     elif media_type == "movie":
         rel_sub = ""
@@ -1912,35 +1918,7 @@ def process_worker(params):
 
         _mark_remaining_steps_done(task_id)
 
-        try:
-            trigger_job_notifications(params, job_size_gb, is_end_of_job=True)
-            open_folders_post_processing(params)
-        except Exception as e:
-            log_message(f"Fehler bei Benachrichtigungen/Finder-Öffnung: {e}")
-
-        if transfer_errors:
-            raise transfer_errors[0]
-
-        # Cleanup input folder if it was a project directory under inbox_root
-        if current_dir != inbox_root and os.path.exists(current_dir):
-            try:
-                video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
-                remaining_videos = []
-                for root, dirs, files in os.walk(current_dir):
-                    for f in files:
-                        if f.lower().endswith(video_exts) and not f.startswith("."):
-                            remaining_videos.append(os.path.join(root, f))
-
-                if not remaining_videos:
-                    trash.send_to_trash(current_dir)
-                    log_message(f"Projekt-Ordner im Input bereinigt (keine Videos mehr vorhanden): {os.path.basename(current_dir)}")
-                else:
-                    non_dot_files = [f for f in os.listdir(current_dir) if not f.startswith(".")]
-                    if not non_dot_files:
-                        trash.send_to_trash(current_dir)
-                        log_message(f"Leeren Projekt-Ordner im Input bereinigt: {os.path.basename(current_dir)}")
-            except Exception as e:
-                log_message(f"Fehler beim Bereinigen des Projekt-Ordners: {e}")
+        _finalize_job(params, job_size_gb, transfer_errors, current_dir, inbox_root, log_message)
 
     elif media_type in ["youtube", "youtube_merge"]:
         task_id = params.get("task_id")
