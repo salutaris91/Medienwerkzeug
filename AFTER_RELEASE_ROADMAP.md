@@ -42,6 +42,7 @@ die aktive After-Release-Roadmap übernommen.
 | 33 | Automatischer TVDB-Fallback für fehlende TMDB-Plots | geplant | klein |
 | 34 | Altersfreigabe-Checks im UI deutlicher erklären | geplant | klein |
 | 35 | Premium-Umbenennungsdialog für Health-Fixes mit Metadaten-Lookup | geplant | klein–mittel |
+| 36 | Health-Dashboard: Gruppierung, Massen-Fixes (Batch) & Auto-Korrektur | geplant | mittel |
 
 ---
 
@@ -959,3 +960,21 @@ Der aktuelle Umbenennungs-Quick-Fix im Health-Dashboard nutzt ein einfaches Brow
 
 ### Aufwand (grob)
 Klein–mittel: UI-Modal entwerfen, API um eine Bestätigungsvorschau erweitern und Suche im Modal anbinden.
+
+---
+
+## 36. Health-Dashboard: Gruppierung, Massen-Fixes (Batch) & Auto-Korrektur
+
+### Ziel
+Bei großen Medienbibliotheken können Hunderte von Health-Warnungen auftreten. Die manuelle Behebung jedes einzelnen Befunds ist extrem zeitaufwendig. Das Dashboard soll durch Gruppierungsfunktionen, Massen-Bearbeitung (Batch-Actions) und eine intelligente Auto-Korrektur erweitert werden, um das Beheben von Massen-Issues drastisch zu beschleunigen.
+
+### Umsetzung
+- **Fehler-Gruppierung im UI:** Optionale Umschaltung der Befund-Liste von der pfadbasierten Sortierung hin zu einer Gruppierung nach Fehlertyp (z. B. alle "Ungültige Altersfreigabe" zusammen anzeigen).
+- **Massen-Aktionen (Batch-Fixes):** Einführung von Sammel-Aktionen über Checkboxen oder direkt für ganze Fehler-Gruppen (z. B. "Alle FSK-Schreibweisen der Gruppe auf einmal korrigieren").
+- **Intelligente Auto-Korrektur (Heuristik):**
+  - Automatisches Ersetzen offensichtlicher Schreibfehler (z. B. das Entfernen von Bindestrichen bei `FSK-18` -> `FSK 18` oder Angleichungen von Kleinschreibung).
+  - Nur bei nicht eindeutig behebbaren Fehlern (z. B. völlig fehlenden Werten oder unbekannten Ratings) wird der Benutzer zur manuellen Auswahl/Bestätigung aufgefordert.
+- **Hintergrund-Batch-Job:** Die Massenänderungen werden asynchron im Hintergrund durchgeführt, um Timeouts bei Hunderten von Dateiänderungen zu verhindern.
+
+### Aufwand (grob)
+Mittel: Anpassung der Health-UI (Gruppierungs-Logik, Checkboxen), Backend-Batch-API und Implementierung von Auto-Fix-Heuristiken.
