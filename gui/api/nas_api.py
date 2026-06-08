@@ -1,5 +1,5 @@
-import os, sys, json, time, shutil, subprocess, urllib, threading, math
-from flask import Blueprint, request, jsonify, Response, send_file, send_from_directory
+import os, sys, json, time, shutil, subprocess, urllib, threading
+from flask import Blueprint, request, jsonify, Response, send_from_directory
 from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history
 from gui.core.helpers import *
 from gui.core.helpers import log_queue
@@ -13,7 +13,7 @@ import gui.core.trash as trash
 nas_api = Blueprint('nas_api', __name__)
 
 # Global variables imported from processor
-from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
+from gui.workers.processor import SYSTEM_STATUS
 
 
 
@@ -33,14 +33,12 @@ def handle_api_check_nas_duplicate():
     
     if ep_num is None or ep_season is None:
         return jsonify({"duplicate": None})
-        return
     
     try:
         ep_num = int(ep_num)
         ep_season = int(ep_season)
     except (ValueError, TypeError):
         return jsonify({"duplicate": None})
-        return
     
     settings = load_settings()
     nas_root = settings.get("nas_root", "")
@@ -60,7 +58,6 @@ def handle_api_check_nas_duplicate():
     clean_show_name = clean_series_name_for_fs(nas_show_folder or show_name or "")
     if not clean_show_name:
         return jsonify({"duplicate": None})
-        return
     
     # Also check outbox for matched series name
     outbox_root = settings.get("outbox_dir", "")
@@ -74,7 +71,6 @@ def handle_api_check_nas_duplicate():
     
     if not os.path.exists(show_dir):
         return jsonify({"duplicate": None})
-        return
     
     # Search for matching episode files
     pats = [
@@ -121,7 +117,6 @@ def handle_api_check_nas_duplicate():
                 except Exception:
                     pass
                 return jsonify({"duplicate": details})
-                return
     
     return jsonify({"duplicate": None})
 
@@ -416,7 +411,6 @@ def handle_api_media_compare():
     
     if not new_path or not existing_path:
         return jsonify({"error": "Missing new_path or existing_path"}), 400
-        return
         
     # Security validation for paths
     settings = load_settings()
@@ -431,11 +425,9 @@ def handle_api_media_compare():
     
     if not (abs_new.startswith(os.path.abspath(inbox_root) + os.sep) or abs_new == os.path.abspath(inbox_root)):
         return jsonify({"error": "Forbidden new_path"}), 403
-        return
         
     if not (abs_existing.startswith(os.path.abspath(nas_root) + os.sep) or abs_existing == os.path.abspath(nas_root)):
         return jsonify({"error": "Forbidden existing_path"}), 403
-        return
         
     def get_media_compare_details(filepath):
         details = {
@@ -529,7 +521,6 @@ def handle_api_resolve_duplicate():
     
     if not existing_path or not os.path.exists(existing_path):
         return jsonify({"error": "Invalid existing_path"}), 400
-        return
         
     # Security validation for paths
     settings = load_settings()
@@ -540,7 +531,6 @@ def handle_api_resolve_duplicate():
     
     if not (abs_existing.startswith(os.path.abspath(nas_root) + os.sep) or abs_existing == os.path.abspath(nas_root)):
         return jsonify({"error": "Forbidden existing_path"}), 403
-        return
         
     if action == "upgrade":
         try:

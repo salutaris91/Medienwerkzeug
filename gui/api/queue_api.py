@@ -1,5 +1,5 @@
-import os, sys, json, time, shutil, subprocess, urllib, threading, math, uuid
-from flask import Blueprint, request, jsonify, Response, send_file, send_from_directory
+import os, sys, json, time, shutil, subprocess, urllib, threading, uuid
+from flask import Blueprint, request, jsonify, Response, send_from_directory
 from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history
 from gui.core.helpers import *
 from gui.core.helpers import log_queue
@@ -12,7 +12,7 @@ import gui.mw_metadata as mw_metadata
 queue_api = Blueprint('queue_api', __name__)
 
 # Global variables imported from processor
-from gui.workers.processor import JOB_QUEUE, SYSTEM_STATUS, STATUS_LOCK
+from gui.workers.processor import SYSTEM_STATUS
 
 
 
@@ -89,7 +89,6 @@ def handle_api_preview_process():
 
     if not os.path.exists(current_dir):
         return jsonify({"error": "Ordner existiert nicht."})
-        return
 
     all_files = sorted(find_files_recursively(current_dir))
     video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
