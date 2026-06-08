@@ -16,7 +16,7 @@ Modul unter `gui/api/`:
 | `nas_api` | `gui/api/nas_api.py` | NAS-Serien/-Staffeln, Duplikate, Health-Scan |
 | `search_api` | `gui/api/search_api.py` | Metadaten-Suche, Episoden-Matching, Schätzung |
 | `queue_api` | `gui/api/queue_api.py` | Job-Queue, Verarbeitung |
-| `youtube_api` | `gui/api/youtube_api.py` | YouTube-Download, Schnitt, Abonnements |
+| `youtube_api` | `gui/api/youtube_api.py` | Optionale Online-Medien-Verarbeitung, Schnitt, Freigabelisten |
 | `nas_renamer_api` | `gui/api/nas_renamer_api.py` | NAS-Renaming mit Vorschau, Ausführung und Rollback |
 
 Server-Start und Browser-Öffnung laufen über `gui/main.py`. Lokal läuft die App
@@ -162,10 +162,10 @@ Vorhandene Staffeln + Episodenzahlen einer Show.
 Einzel-Duplikat-Prüfung beim Verarbeiten, ffprobe-Vergleich, Auflösung (POST).
 
 ### `GET /api/streamfab-import/preview`
-Scannt die konfigurierten globalen Import-Quellen und liefert eine Vorschau der importierbaren Download-Elemente.
+Scannt die konfigurierten lokalen Import-Quellen und liefert eine Vorschau der importierbaren Medienordner und Dateien.
 
 ### `POST /api/streamfab-import`
-Importiert ausgewählte StreamFab-Downloads in die Inbox und löscht abgewiesene Elemente. Payload (JSON): `import_items`, `delete_items`.
+Importiert ausgewählte lokale Medien aus konfigurierten Quellen in die Inbox und löscht abgewiesene Elemente. Payload (JSON): `import_items`, `delete_items`.
 
 ### Feature 3 — Media Health Dashboard
 * `POST /api/nas/health-scan` — startet den Bibliotheks-Scan im Hintergrund.
@@ -231,10 +231,13 @@ Job-Status abrufen (GET), abgeschlossene Jobs aus der Liste leeren (POST), fehlg
 
 ---
 
-## youtube_api — YouTube
+## youtube_api — optionale Online-Medien
+
+Diese Endpunkte sind fuer berechtigte Inhalte gedacht. Nutzer muessen selbst
+sicherstellen, dass sie Rechte und Plattformbedingungen einhalten.
 
 ### `POST /api/yt/fetch`
-Ruft Metadaten und verfügbare Videoauflösungen/-formate eines YouTube-Links (oder einer Mediatheks-URL) ab. Payload (JSON): `{"url": "<video-url>"}`.
+Ruft Metadaten und verfügbare Videoauflösungen/-formate eines YouTube-Links oder einer Mediatheks-URL ab. Payload (JSON): `{"url": "<video-url>"}`.
 
 ### `GET|POST /api/yt/segments` · `POST /api/yt/cut-done` · `POST /api/yt/finalize`
 Segmente ermitteln/schneiden (GET/POST), Schnitt abschließen (POST) oder Finalisieren des Download-Jobs (POST).
@@ -246,4 +249,4 @@ Teile zusammenführen (POST), mehrteilige Videos suchen (GET/POST).
 Abonnements lesen (GET) oder speichern (POST).
 
 ### `POST /api/youtube/subscriptions/approve` · `/ignore` · `/check`
-Pending-Video freigeben (reiht Download-Job ein), ignorieren, alle Abos prüfen.
+Pending-Video freigeben (reiht den Verarbeitungslauf ein), ignorieren, alle beobachteten Quellen prüfen.
