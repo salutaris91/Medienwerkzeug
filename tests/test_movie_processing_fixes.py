@@ -23,6 +23,38 @@ class TestMovieProcessingFixes(unittest.TestCase):
         os.environ["MW_ENV_FILE"] = self.env_file
         os.environ["MW_DATA_DIR"] = self.temp_dir.name
 
+        import sys
+        utils_modules = set()
+        import gui.core.utils as core_utils
+        utils_modules.add(core_utils)
+
+        for m in list(sys.modules.values()):
+            if m is not None:
+                if getattr(m, "__name__", None) == "gui.core.utils":
+                    utils_modules.add(m)
+                for attr_name in dir(m):
+                    try:
+                        attr = getattr(m, attr_name)
+                        if getattr(attr, "__name__", None) == "gui.core.utils":
+                            utils_modules.add(attr)
+                    except Exception:
+                        pass
+
+        self.patched_utils = utils_modules
+        self.orig_utils_paths = {}
+
+        for u in self.patched_utils:
+            self.orig_utils_paths[u] = {
+                "DATA_DIR": getattr(u, "DATA_DIR", None),
+                "PROFILES_DIR": getattr(u, "PROFILES_DIR", None),
+                "HISTORY_FILE": getattr(u, "HISTORY_FILE", None)
+            }
+            u.DATA_DIR = self.temp_dir.name
+            u.PROFILES_DIR = os.path.join(self.temp_dir.name, "profiles")
+            u.HISTORY_FILE = os.path.join(self.temp_dir.name, "konv_history.json")
+
+        os.makedirs(os.path.join(self.temp_dir.name, "profiles"), exist_ok=True)
+
         persistence._cached_settings = None
         persistence._cached_env = None
 
@@ -100,6 +132,11 @@ class TestMovieProcessingFixes(unittest.TestCase):
         self.patcher_trash.stop()
         self.patcher_nas.stop()
         self.patcher_rsync.stop()
+
+        for u, paths in self.orig_utils_paths.items():
+            u.DATA_DIR = paths["DATA_DIR"]
+            u.PROFILES_DIR = paths["PROFILES_DIR"]
+            u.HISTORY_FILE = paths["HISTORY_FILE"]
 
         os.environ.pop("MW_SETTINGS_FILE", None)
         os.environ.pop("MW_JOBS_STATE_FILE", None)
@@ -866,6 +903,66 @@ class TestMovieProcessingFixes(unittest.TestCase):
 
         # Verify copy_to_cloud_target was called successfully
         mock_copy_to_cloud.assert_called_once()
+
+    @patch("gui.workers.processor.run_ffmpeg_with_progress", return_value=True)
+    def test_movie_processing_with_convert(self, mock_run_ffmpeg):
+        """Test: Film-Verarbeitung mit Konvertierungsoption convert=True und Mocks."""
+        proj_dir = os.path.join(self.inbox_dir, "ConvertMovie")
+        os.makedirs(proj_dir)
+
+        # Create movie video file
+        video = os.path.join(proj_dir, "movie_to_convert.mp4")
+        with open(video, "wb") as f:
+            f.truncate(10 * 1024 * 1024)
+
+        params = {
+            "media_type": "movie",
+            "project_name": "ConvertMovie",
+            "movie_name": "Converted Movie (2026)",
+            "destination_id": "1",
+            "copy_to_nas": True,
+            "convert": True,
+            "quality": 60,
+            "delete_original": True,
+            "explicit_renames": [
+                {"old": "movie_to_convert.mp4", "new": "Converted Movie (2026).mp4"}
+            ],
+            "explicit_subs": [],
+            "explicit_junk": []
+        }
+
+        # Mock run_ffmpeg_with_progress to actually write a dummy .mkv file so os.rename and checks pass
+        def mock_ffmpeg(cmd, filepath, task_id=None, log_queue=None):
+            # The output filename is the last element of the command
+            temp_out = cmd[-1]
+            with open(temp_out, "w") as f_out:
+                f_out.write("converted video data")
+            return True
+        mock_run_ffmpeg.side_effect = mock_ffmpeg
+
+        # Clear history to check added ratio
+        import gui.core.utils as core_utils
+        core_utils.save_konv_history([])
+
+        # Run process_worker
+        processor.process_worker(params)
+
+        # Output folder check
+        dest_movie_dir = os.path.join(self.outbox_dir, "Filme", "Converted Movie (2026)")
+        self.assertTrue(os.path.exists(dest_movie_dir))
+        
+        # Converted .mkv file should exist
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "Converted Movie (2026).mkv")))
+        # Original .mp4 file should NOT exist in outbox
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "Converted Movie (2026).mp4")))
+        # Original file should be sent to trash (mock_trash_dir) since delete_original=True
+        self.assertTrue(os.path.exists(os.path.join(self.mock_trash_dir, "Converted Movie (2026).mp4")))
+
+        history = core_utils.load_konv_history()
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0]["quality"], 60)
+        self.assertEqual(history[0]["content_type"], "movie")
+        self.assertEqual(history[0]["filename"], "Converted Movie (2026).mp4")
 
 if __name__ == "__main__":
     unittest.main()

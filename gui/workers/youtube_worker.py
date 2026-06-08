@@ -50,6 +50,60 @@ def get_random_joke():
         
     return "Was ist gelb und kann nicht schwimmen? Ein Bagger!"
 
+_GERMAN_OVERRIDE = {
+    'deutsch', 'deutsche', 'deutscher', 'deutsches', 'hörbuch', 
+    'schauspieler', 'kinderserie', 'kindheit', 'erinnerungen',
+    'karmesin', 'purpur', 'schwert', 'schild', 'feuerrot', 'blattgrün',
+    'spieletipps', 'komplettlösung', 'spielvorstellung', 'letsplay',
+    'gelb', 'blau', 'rot', 'grün', 'silber', 'gold', 'kristall', 
+    'smaragd', 'rubin', 'saphir', 'perl', 'diamant', 'platin', 
+    'schwarz', 'weiss', 'weiß', 'sonne', 'mond', 'arceus', 'karten', 
+    'karte', 'päckchen', 'sammlung', 'sammeln', 'öffnen', 'geöffnet'
+}
+
+_GERMAN_STRICT = {
+    'und', 'ich', 'mit', 'nicht', 'von', 'auf', 'dem', 'aus', 'sich', 'aber', 
+    'oder', 'bei', 'nur', 'auch', 'nach', 'vor', 'über', 'mehr', 'durch', 
+    'unter', 'wir', 'ihr', 'wer', 'wo', 'wenn', 'dann', 'alle', 'doch',
+    'folge', 'staffel', 'freunde', 'welt', 'neue', 'neuen', 'suchen', 'suche', 'zieht', 
+    'einen', 'einem', 'einer', 'eines', 'heute', 'damals', 'ganzer', 'ausflug', 
+    'rummelplatz', 'spiel', 'spielen', 'abenteuer', 'lustig', 'kostenlos', 
+    'herunterladen', 'anschauen', 'sehen', 'jetzt', 'immer', 'hier', 'uns',
+    'euch', 'mich', 'dich', 'mein', 'meine', 'meinen', 'meinem', 'meiner', 'meines',
+    'erste', 'erster', 'erstes', 'ersten', 'teil', 'neues', 'gibt', 'viele', 'alles',
+    'gute', 'gutes', 'guten', 'guter'
+}
+
+_GERMAN_AMBIGUOUS = {
+    'der', 'die', 'das', 'ist', 'zu', 'den', 'ein', 'eine', 'im', 'des', 'als', 'was', 'an'
+}
+
+_ENGLISH_STOP = {
+    'the', 'and', 'to', 'of', 'a', 'in', 'is', 'that', 'it', 'he', 'was', 'for', 
+    'on', 'are', 'as', 'with', 'his', 'they', 'i', 'at', 'be', 'this', 'have', 
+    'from', 'or', 'one', 'had', 'by', 'but', 'not', 'what', 'all', 'were', 'we', 
+    'when', 'your', 'can', 'there', 'use', 'an', 'each', 'which', 'she', 'how', 
+    'their', 'if', 'will', 'up', 'other', 'about', 'out', 'many', 'then', 'them', 
+    'these', 'so', 'some', 'her', 'would', 'make', 'like', 'him', 'into', 'has', 
+    'look', 'two', 'more', 'write', 'go', 'see', 'no', 'way', 'could', 'people', 
+    'my', 'than', 'first', 'been', 'who', 'its', 'now', 'find', 'long', 'down', 
+    'day', 'did', 'get', 'come', 'made', 'may', 'part', 'you', 'your', 'yours',
+    'about', 'subscription', 'channel', 'videos', 'twitter', 'instagram', 'patreon',
+    'discord', 'playlist', 'subscribe', 'video', 'kids', 'tv', 'fun', 'episode',
+    'episodes', 'official', 'series', 'full', 'game', 'games', 'play', 'playing',
+    'toy', 'toys', 'show', 'shows', 'song', 'songs', 'music', 'cartoon', 'cartoons',
+    'animation', 'animated', 'anime', 'only', 'before', 'worth', 'buying', 'price',
+    'prices', 'box', 'boxes', 'card', 'cards', 'pack', 'packs', 'deck', 'decks',
+    'opening', 'openings', 'rare', 'rarest', 'spent', 'days', 'trainer', 'minecraft',
+    'mythical', 'shiny', 'leak', 'leaks', 'news', 'waves', 'winds', 'starters', 'into',
+    'sword', 'shield', 'mystery', 'silver', 'tempest', 'keep', 'deals', 'cardshop',
+    'shop', 'until', 'pull', 'charizard', 'challenge', 'meet', 'kanto', 'partner',
+    'lonely', 'reality', 'store', 'stores', 'summer', 'collection', 'cheap', 'expensive',
+    'pets', 'chased', 'chaos', 'rising', 'opened', 'tins', 'newest', 'meta', 'additions',
+    'made', 'raid', 'attempted', 'nuzlocke', 'scarlet', 'violet', 'drop', 'random',
+    'anniversary', 'evolution', 'life', 'stopping', 'league', 'tournament'
+}
+
 def is_text_german(text, is_description=False, context_keywords=None):
     import re
     if not text:
@@ -61,75 +115,17 @@ def is_text_german(text, is_description=False, context_keywords=None):
     if any(c in text_lower for c in ['ä', 'ö', 'ü', 'ß']):
         return True
         
-    # 2. Words that are 100% German and immediately override any English stop words
-    GERMAN_OVERRIDE = {
-        'deutsch', 'deutsche', 'deutscher', 'deutsches', 'hörbuch', 
-        'schauspieler', 'kinderserie', 'kindheit', 'erinnerungen',
-        'karmesin', 'purpur', 'schwert', 'schild', 'feuerrot', 'blattgrün',
-        'spieletipps', 'komplettlösung', 'spielvorstellung', 'letsplay',
-        'gelb', 'blau', 'rot', 'grün', 'silber', 'gold', 'kristall', 
-        'smaragd', 'rubin', 'saphir', 'perl', 'diamant', 'platin', 
-        'schwarz', 'weiss', 'weiß', 'sonne', 'mond', 'arceus', 'karten', 
-        'karte', 'päckchen', 'sammlung', 'sammeln', 'öffnen', 'geöffnet'
-    }
-    
     words = re.findall(r'\b[a-z]+\b', text_lower)
     if not words:
         return False
         
     # If any override word is present, it's German!
-    if any(w in GERMAN_OVERRIDE for w in words):
+    if any(w in _GERMAN_OVERRIDE for w in words):
         return True
         
-    # 3. Strict German stop words (never/extremely rarely appear in English)
-    GERMAN_STRICT = {
-        'und', 'ich', 'mit', 'nicht', 'von', 'auf', 'dem', 'aus', 'sich', 'aber', 
-        'oder', 'bei', 'nur', 'auch', 'nach', 'vor', 'über', 'mehr', 'durch', 
-        'unter', 'wir', 'ihr', 'wer', 'wo', 'wenn', 'dann', 'alle', 'doch',
-        'folge', 'staffel', 'freunde', 'welt', 'neue', 'neuen', 'suchen', 'suche', 'zieht', 
-        'einen', 'einem', 'einer', 'eines', 'heute', 'damals', 'ganzer', 'ausflug', 
-        'rummelplatz', 'spiel', 'spielen', 'abenteuer', 'lustig', 'kostenlos', 
-        'herunterladen', 'anschauen', 'sehen', 'jetzt', 'immer', 'hier', 'uns',
-        'euch', 'mich', 'dich', 'mein', 'meine', 'meinen', 'meinem', 'meiner', 'meines',
-        'erste', 'erster', 'erstes', 'ersten', 'teil', 'neues', 'gibt', 'viele', 'alles',
-        'gute', 'gutes', 'guten', 'guter'
-    }
-    
-    # 4. Ambiguous words (very common in German, but also exist/common in English)
-    GERMAN_AMBIGUOUS = {
-        'der', 'die', 'das', 'ist', 'zu', 'den', 'ein', 'eine', 'im', 'des', 'als', 'was', 'an'
-    }
-    
-    # 5. English stop words to detect English texts
-    ENGLISH_STOP = {
-        'the', 'and', 'to', 'of', 'a', 'in', 'is', 'that', 'it', 'he', 'was', 'for', 
-        'on', 'are', 'as', 'with', 'his', 'they', 'i', 'at', 'be', 'this', 'have', 
-        'from', 'or', 'one', 'had', 'by', 'but', 'not', 'what', 'all', 'were', 'we', 
-        'when', 'your', 'can', 'there', 'use', 'an', 'each', 'which', 'she', 'how', 
-        'their', 'if', 'will', 'up', 'other', 'about', 'out', 'many', 'then', 'them', 
-        'these', 'so', 'some', 'her', 'would', 'make', 'like', 'him', 'into', 'has', 
-        'look', 'two', 'more', 'write', 'go', 'see', 'no', 'way', 'could', 'people', 
-        'my', 'than', 'first', 'been', 'who', 'its', 'now', 'find', 'long', 'down', 
-        'day', 'did', 'get', 'come', 'made', 'may', 'part', 'you', 'your', 'yours',
-        'about', 'subscription', 'channel', 'videos', 'twitter', 'instagram', 'patreon',
-        'discord', 'playlist', 'subscribe', 'video', 'kids', 'tv', 'fun', 'episode',
-        'episodes', 'official', 'series', 'full', 'game', 'games', 'play', 'playing',
-        'toy', 'toys', 'show', 'shows', 'song', 'songs', 'music', 'cartoon', 'cartoons',
-        'animation', 'animated', 'anime', 'only', 'before', 'worth', 'buying', 'price',
-        'prices', 'box', 'boxes', 'card', 'cards', 'pack', 'packs', 'deck', 'decks',
-        'opening', 'openings', 'rare', 'rarest', 'spent', 'days', 'trainer', 'minecraft',
-        'mythical', 'shiny', 'leak', 'leaks', 'news', 'waves', 'winds', 'starters', 'into',
-        'sword', 'shield', 'mystery', 'silver', 'tempest', 'keep', 'deals', 'cardshop',
-        'shop', 'until', 'pull', 'charizard', 'challenge', 'meet', 'kanto', 'partner',
-        'lonely', 'reality', 'store', 'stores', 'summer', 'collection', 'cheap', 'expensive',
-        'pets', 'chased', 'chaos', 'rising', 'opened', 'tins', 'newest', 'meta', 'additions',
-        'made', 'raid', 'attempted', 'nuzlocke', 'scarlet', 'violet', 'drop', 'random',
-        'anniversary', 'evolution', 'life', 'stopping', 'league', 'tournament'
-    }
-    
-    strict_matches = [w for w in words if w in GERMAN_STRICT]
-    ambig_matches = [w for w in words if w in GERMAN_AMBIGUOUS]
-    english_matches = [w for w in words if w in ENGLISH_STOP]
+    strict_matches = [w for w in words if w in _GERMAN_STRICT]
+    ambig_matches = [w for w in words if w in _GERMAN_AMBIGUOUS]
+    english_matches = [w for w in words if w in _ENGLISH_STOP]
     
     # Count unique matches to avoid single word repetition throwing off the count
     unique_strict = set(strict_matches)
