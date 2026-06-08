@@ -40,6 +40,7 @@ die aktive After-Release-Roadmap übernommen.
 | 31 | NAS-Downloader-Integration (JDownloader/Download-Backend) | geplant | mittel |
 | 32 | Automatische Papierkorb-Leerung unter Docker | geplant | klein–mittel |
 | 33 | Automatischer TVDB-Fallback für fehlende TMDB-Plots | geplant | klein |
+| 34 | Altersfreigabe-Checks im UI deutlicher erklären | geplant | klein |
 
 ---
 
@@ -927,3 +928,17 @@ Wenn für eine Serie (wie z. B. "H2O - Abenteuer Meerjungfrau") als Metadaten-An
 
 ### Aufwand (grob)
 Klein: Erweiterung in `mw_metadata.py` um eine kleine Abfrage der `external_ids` und Aufruf der bereits existierenden TVDB-Methoden als Fallback.
+
+---
+
+## 34. Altersfreigabe-Checks im UI deutlicher erklären
+
+### Ziel
+Wenn beim Bibliothekscheck abweichende Altersfreigaben (z. B. Schreibweisen wie `FSK-18` statt `FSK 18`) gemeldet werden, soll für den Benutzer in der UI deutlicher hervorgehoben werden, warum dies geschieht (Formatvereinheitlichung für Filter und Badges, auch wenn Medienserver wie Emby beide Formate lesen können).
+
+### Umsetzung
+- Im Frontend bei der Anzeige von `invalid_age_rating`-Hinweisen einen Tooltip oder Info-Text einblenden, der den Hintergrund (Formatvereinheitlichung) erklärt.
+- Die Detail-Beschreibung in der Issue-Liste entsprechend verständlich formulieren.
+
+### Aufwand (grob)
+Klein: UI-Textänderungen.
