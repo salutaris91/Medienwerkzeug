@@ -14,10 +14,9 @@ def get_cache_key(media_server: str) -> str:
 class HealthCacheManager:
     def __init__(self, cache_path: Optional[str] = None):
         if cache_path is None:
-            # Standardpfad: gui/data/health_folder_cache.json
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            data_dir = os.path.join(base_dir, "data")
-            self.cache_path = os.path.join(data_dir, "health_folder_cache.json")
+            # Standardpfad: <utils.DATA_DIR>/health_folder_cache.json
+            from gui.core import utils
+            self.cache_path = os.path.join(utils.DATA_DIR, "health_folder_cache.json")
         else:
             self.cache_path = cache_path
         self._cache = self._load_cache()
