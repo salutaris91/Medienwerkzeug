@@ -222,6 +222,31 @@ def _handle_transfer_task(
                         active_jobs[task_id]["pipeline"][target_id]["status"] = "error"
                         active_jobs[task_id]["pipeline"][target_id]["message"] = "Fehlgeschlagen"
 
+def _update_pipeline_metadata_progress(task_id, current_prog):
+    from gui.core.jobs import active_jobs, active_jobs_lock
+    with active_jobs_lock:
+        if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+            active_jobs[task_id]["pipeline"]["metadata"]["progress"] = min(100, current_prog)
+            if current_prog >= 100:
+                active_jobs[task_id]["pipeline"]["metadata"]["status"] = "done"
+
+def _mark_convert_step_done(task_id):
+    from gui.core.jobs import active_jobs, active_jobs_lock
+    with active_jobs_lock:
+        if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+            if active_jobs[task_id]["pipeline"]["convert"]["status"] == "running":
+                active_jobs[task_id]["pipeline"]["convert"]["status"] = "done"
+                active_jobs[task_id]["pipeline"]["convert"]["progress"] = 100
+
+def _mark_remaining_steps_done(task_id):
+    from gui.core.jobs import active_jobs, active_jobs_lock
+    with active_jobs_lock:
+        if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+            for step_key, step_info in active_jobs[task_id]["pipeline"].items():
+                if step_key not in ["metadata", "convert"] and step_info["status"] == "running":
+                    step_info["status"] = "done"
+                    step_info["progress"] = 100
+
 def _get_movie_artwork_lists(settings, video_filename):
     """Returns (poster_names, backdrop_names) for the configured media server and film."""
     server_type = settings.get("media_server", "emby") or "emby"
@@ -1169,12 +1194,8 @@ def process_worker(params):
                     log_message(f"Episode NFO Status: {res}")
                 except Exception as e:
                     log_message(f"Fehler bei Episode NFO: {e}")
-            with active_jobs_lock:
-                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                    current_prog = 50 + int(50 * (file_idx + 1) / N)
-                    active_jobs[task_id]["pipeline"]["metadata"]["progress"] = min(100, current_prog)
-                    if file_idx == N - 1:
-                        active_jobs[task_id]["pipeline"]["metadata"]["status"] = "done"
+            current_prog = 50 + int(50 * (file_idx + 1) / N)
+            _update_pipeline_metadata_progress(task_id, current_prog)
 
             # H.265 Conversion
             final_filename = target_filename
@@ -1280,11 +1301,7 @@ def process_worker(params):
 
             update_global_job_progress()
 
-        with active_jobs_lock:
-            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                if active_jobs[task_id]["pipeline"]["convert"]["status"] == "running":
-                    active_jobs[task_id]["pipeline"]["convert"]["status"] = "done"
-                    active_jobs[task_id]["pipeline"]["convert"]["progress"] = 100
+        _mark_convert_step_done(task_id)
 
         # Move show-level files to local Output
         nas_serien = destination if destination else f"{nas_root}/Serien"
@@ -1381,12 +1398,7 @@ def process_worker(params):
         transfer_queue.put(None)
         transfer_thread.join()
 
-        with active_jobs_lock:
-            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                for step_key, step_info in active_jobs[task_id]["pipeline"].items():
-                    if step_key not in ["metadata", "convert"] and step_info["status"] == "running":
-                        step_info["status"] = "done"
-                        step_info["progress"] = 100
+        _mark_remaining_steps_done(task_id)
 
         try:
             trigger_job_notifications(params, job_size_gb, is_end_of_job=True)
@@ -1626,12 +1638,8 @@ def process_worker(params):
                     log_message(f"Movie NFO Status: {res}")
                 except Exception as e:
                     log_message(f"Fehler bei NFO-Erstellung: {e}")
-            with active_jobs_lock:
-                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                    current_prog = 50 + int(50 * (file_idx + 1) / N)
-                    active_jobs[task_id]["pipeline"]["metadata"]["progress"] = min(100, current_prog)
-                    if file_idx == N - 1:
-                        active_jobs[task_id]["pipeline"]["metadata"]["status"] = "done"
+            current_prog = 50 + int(50 * (file_idx + 1) / N)
+            _update_pipeline_metadata_progress(task_id, current_prog)
 
             # H.265 Conversion
             final_filename = target_filename
@@ -1896,22 +1904,13 @@ def process_worker(params):
 
             update_global_job_progress()
 
-        with active_jobs_lock:
-            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                if active_jobs[task_id]["pipeline"]["convert"]["status"] == "running":
-                    active_jobs[task_id]["pipeline"]["convert"]["status"] = "done"
-                    active_jobs[task_id]["pipeline"]["convert"]["progress"] = 100
+        _mark_convert_step_done(task_id)
 
         # Send Sentinel and join
         transfer_queue.put(None)
         transfer_thread.join()
 
-        with active_jobs_lock:
-            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                for step_key, step_info in active_jobs[task_id]["pipeline"].items():
-                    if step_key not in ["metadata", "convert"] and step_info["status"] == "running":
-                        step_info["status"] = "done"
-                        step_info["progress"] = 100
+        _mark_remaining_steps_done(task_id)
 
         try:
             trigger_job_notifications(params, job_size_gb, is_end_of_job=True)
