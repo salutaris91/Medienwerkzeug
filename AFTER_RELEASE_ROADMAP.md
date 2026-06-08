@@ -41,6 +41,7 @@ die aktive After-Release-Roadmap übernommen.
 | 32 | Automatische Papierkorb-Leerung unter Docker | geplant | klein–mittel |
 | 33 | Automatischer TVDB-Fallback für fehlende TMDB-Plots | geplant | klein |
 | 34 | Altersfreigabe-Checks im UI deutlicher erklären | geplant | klein |
+| 35 | Premium-Umbenennungsdialog für Health-Fixes mit Metadaten-Lookup | geplant | klein–mittel |
 
 ---
 
@@ -942,3 +943,19 @@ Wenn beim Bibliothekscheck abweichende Altersfreigaben (z. B. Schreibweisen wie 
 
 ### Aufwand (grob)
 Klein: UI-Textänderungen.
+
+---
+
+## 35. Premium-Umbenennungsdialog für Health-Fixes mit Metadaten-Lookup
+
+### Ziel
+Der aktuelle Umbenennungs-Quick-Fix im Health-Dashboard nutzt ein einfaches Browser-Eingabefenster (`prompt()`). Dieses soll durch ein stilvolles Medienwerkzeug-eigenes Modal ersetzt werden, das Fehleingaben verhindert, Sicherheits-Bestätigungen verlangt und intelligente Metadaten-Suchen direkt integriert.
+
+### Umsetzung
+- **Echtes UI-Modal:** Das standardmäßige JavaScript-Prompt durch ein passendes HTML-Modal ersetzen, welches sich gestalterisch nahtlos in das Medienwerkzeug-Design (Glasmorphismus) einfügt.
+- **Sicherheits-Bestätigungsdialog:** Vor dem physischen Umbenennen auf dem NAS wird dem Benutzer eine Vorschau angezeigt ("Sicher? Folgende Dateien werden umbenannt: ..."), um unbeabsichtigte Tippfehler abzufangen.
+- **Bereinigter Namensvorschlag:** Vorbefüllung des Eingabefeldes mit einem bereinigten Namensvorschlag (z. B. Punkte durch Leerzeichen ersetzen, Jahr in Klammern setzen), analog zur Logik bei der normalen Metadatensuche.
+- **Metadaten-Lookup:** Integration einer Live-Suchmaske für TMDb/TVDB im Modal. Findet der Benutzer den korrekten Titel online, kann er diesen mit einem Klick als Zielnamen für den Umbenennungs-Prozess übernehmen.
+
+### Aufwand (grob)
+Klein–mittel: UI-Modal entwerfen, API um eine Bestätigungsvorschau erweitern und Suche im Modal anbinden.
