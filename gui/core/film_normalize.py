@@ -109,13 +109,32 @@ def build_plan(settings=None):
                 if sd.startswith('.') or not os.path.isdir(src):
                     continue
                 dst = os.path.join(cat_path, sd)
+
+                is_nested = (os.path.dirname(src) == dst)
+                conflict = False
+                if is_nested:
+                    try:
+                        inner_files = {f for f in os.listdir(src) if not f.startswith('.')}
+                        parent_files = {f for f in os.listdir(dst) if not f.startswith('.')}
+                        parent_files.discard(sd)
+                        if inner_files.intersection(parent_files):
+                            conflict = True
+                    except OSError:
+                        conflict = True
+                else:
+                    conflict = os.path.exists(dst)
+
+                label = f"{cat_name}/{e}/{sd}  →  {cat_name}/{sd}"
+                if is_nested:
+                    label = f"Verschachtelung auflösen: {cat_name}/{e}/{sd}  →  {cat_name}/{sd}/"
+
                 plan.append({
                     "kind": "genre",
                     "src": src,
                     "dst": dst,
                     "genre_dir": p,
-                    "conflict": os.path.exists(dst),
-                    "label": f"{cat_name}/{e}/{sd}  →  {cat_name}/{sd}",
+                    "conflict": conflict,
+                    "label": label,
                 })
     return plan
 
@@ -156,13 +175,34 @@ def apply_moves(items, on_progress=None):
                 if not src or not dst or not _within(src, nas_root) or not _within(os.path.dirname(dst), nas_root):
                     results["errors"].append(f"Außerhalb NAS-Root: {label}")
                     continue
-                if os.path.exists(dst) or not os.path.isdir(src):
-                    results["skipped"] += 1
-                    continue
-                shutil.move(src, dst)
-                results["moved"] += 1
-                if it.get("genre_dir"):
-                    genre_dirs.add(it["genre_dir"])
+
+                is_nested = (os.path.dirname(src) == dst)
+                if is_nested:
+                    if not os.path.isdir(src) or not os.path.isdir(dst):
+                        results["skipped"] += 1
+                        continue
+                    try:
+                        for item in os.listdir(src):
+                            if item.startswith('.'):
+                                continue
+                            item_src = os.path.join(src, item)
+                            item_dst = os.path.join(dst, item)
+                            if os.path.exists(item_dst):
+                                raise Exception(f"Datei im Elternordner existiert bereits: {item}")
+                            shutil.move(item_src, item_dst)
+                        # Den nun leeren inneren Ordner löschen
+                        trash.send_to_trash(src)
+                        results["moved"] += 1
+                    except Exception as e:
+                        results["errors"].append(f"{label}: {e}")
+                else:
+                    if os.path.exists(dst) or not os.path.isdir(src):
+                        results["skipped"] += 1
+                        continue
+                    shutil.move(src, dst)
+                    results["moved"] += 1
+                    if it.get("genre_dir"):
+                        genre_dirs.add(it["genre_dir"])
 
             elif kind == "loose":
                 dst = it.get("dst")
