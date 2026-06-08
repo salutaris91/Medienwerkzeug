@@ -1104,7 +1104,6 @@ def process_worker(params):
             final_filename = target_filename
             final_filepath = target_filepath
             if convert:
-                log_message(f"Konvertiere {target_filename} nach H.265 (Qualität {quality})...")
                 temp_output = os.path.join(current_dir, f"{clean_title}_neu.mkv")
                 def ffmpeg_progress_cb(percent, msg):
                     conv_pct[file_idx] = percent
@@ -1114,51 +1113,25 @@ def process_worker(params):
                             active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
                             avg_conv = sum(conv_pct) / N
                             active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
-                            
-                ffmpeg_cmd = media.build_hevc_ffmpeg_cmd(target_filepath, temp_output, quality)
-                used_codec = "hevc_vaapi" if "-vaapi_device" in ffmpeg_cmd else ("hevc_videotoolbox" if "-c:v" in ffmpeg_cmd and "hevc_videotoolbox" in ffmpeg_cmd else "hevc_libx265")
-                try:
-                    success = run_ffmpeg_with_progress(ffmpeg_cmd, target_filepath, task_id=ffmpeg_progress_cb, log_queue=log_queue)
-                    
-                    if not success and "-vaapi_device" in ffmpeg_cmd:
-                        log_message("⚠️ Hardware-Encoding fehlgeschlagen. Versuche Fallback auf Software-Encoding (libx265)...")
-                        if os.path.exists(temp_output):
-                            try: os.remove(temp_output)
-                            except Exception: pass
-                        ffmpeg_cmd = media.build_hevc_ffmpeg_cmd(target_filepath, temp_output, quality, force_software=True)
-                        used_codec = "hevc_libx265"
-                        success = run_ffmpeg_with_progress(ffmpeg_cmd, target_filepath, task_id=ffmpeg_progress_cb, log_queue=log_queue)
 
-                    if success and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
-                        log_message("Konvertierung erfolgreich beendet.")
-                        try:
-                            size_in = os.path.getsize(target_filepath)
-                            size_out = os.path.getsize(temp_output)
-                            if size_in > 0:
-                                ratio = size_out / size_in
-                                media.add_conversion_to_history(quality, used_codec, ratio, size_in, size_out, content_type=content_type, filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath), resolution=None)
-                                log_message(f"Konvertierungs-Verhältnis erfasst: {ratio:.4f}")
-                        except Exception as e:
-                            log_message(f"Fehler beim Erfassen des Konvertierungs-Verhältnisses: {e}")
-                        if delete_original:
-                            trash.send_to_trash(target_filepath)
-                            log_message("Originaldatei in Quarantäne verschoben.")
-                        final_filepath = os.path.join(current_dir, f"{clean_title}.mkv")
-                        if os.path.exists(final_filepath):
-                            trash.send_to_trash(final_filepath)
-                        os.rename(temp_output, final_filepath)
-                        final_filename = f"{clean_title}.mkv"
-                        conv_pct[file_idx] = 100
-                    else:
-                        log_message(f"❌ Fehler bei der Konvertierung von {target_filename}.")
-                        if os.path.exists(temp_output):
-                            os.remove(temp_output)
-                        conv_pct[file_idx] = 100
-                except Exception as e:
-                    log_message(f"Konvertierungsfehler: {e}")
-                    if os.path.exists(temp_output):
-                        os.remove(temp_output)
-                    conv_pct[file_idx] = 100
+                conv_success, conv_file = media.execute_video_conversion(
+                    target_filepath=target_filepath,
+                    temp_output=temp_output,
+                    final_filepath=os.path.join(current_dir, f"{clean_title}.mkv"),
+                    quality=quality,
+                    content_type=content_type,
+                    original_filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath),
+                    delete_original=delete_original,
+                    progress_callback=ffmpeg_progress_cb,
+                    log_message_fn=log_message,
+                    run_ffmpeg_fn=run_ffmpeg_with_progress,
+                    send_to_trash_fn=trash.send_to_trash,
+                    log_queue=log_queue
+                )
+                if conv_success:
+                    final_filepath = os.path.join(current_dir, conv_file)
+                    final_filename = conv_file
+                conv_pct[file_idx] = 100
             else:
                 conv_pct[file_idx] = 100
             update_global_job_progress()
@@ -1681,7 +1654,6 @@ def process_worker(params):
             final_filename = target_filename
             final_filepath = target_filepath
             if convert:
-                log_message(f"Konvertiere {target_filename} nach H.265 (Qualität {quality})...")
                 temp_output = os.path.join(current_dir, f"{clean_movie_name}_neu.mkv")
                 def ffmpeg_progress_cb(percent, msg):
                     conv_pct[file_idx] = percent
@@ -1692,50 +1664,24 @@ def process_worker(params):
                             avg_conv = sum(conv_pct) / N
                             active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
 
-                ffmpeg_cmd = media.build_hevc_ffmpeg_cmd(target_filepath, temp_output, quality)
-                used_codec = "hevc_vaapi" if "-vaapi_device" in ffmpeg_cmd else ("hevc_videotoolbox" if "-c:v" in ffmpeg_cmd and "hevc_videotoolbox" in ffmpeg_cmd else "hevc_libx265")
-                try:
-                    success = run_ffmpeg_with_progress(ffmpeg_cmd, target_filepath, task_id=ffmpeg_progress_cb, log_queue=log_queue)
-                    
-                    if not success and "-vaapi_device" in ffmpeg_cmd:
-                        log_message("⚠️ Hardware-Encoding fehlgeschlagen. Versuche Fallback auf Software-Encoding (libx265)...")
-                        if os.path.exists(temp_output):
-                            try: os.remove(temp_output)
-                            except Exception: pass
-                        ffmpeg_cmd = media.build_hevc_ffmpeg_cmd(target_filepath, temp_output, quality, force_software=True)
-                        used_codec = "hevc_libx265"
-                        success = run_ffmpeg_with_progress(ffmpeg_cmd, target_filepath, task_id=ffmpeg_progress_cb, log_queue=log_queue)
-
-                    if success and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
-                        log_message("Konvertierung erfolgreich.")
-                        try:
-                            size_in = os.path.getsize(target_filepath)
-                            size_out = os.path.getsize(temp_output)
-                            if size_in > 0:
-                                ratio = size_out / size_in
-                                media.add_conversion_to_history(quality, used_codec, ratio, size_in, size_out, content_type=content_type, filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath), resolution=None)
-                                log_message(f"Konvertierungs-Verhältnis erfasst: {ratio:.4f}")
-                        except Exception as e:
-                            log_message(f"Fehler beim Erfassen des Konvertierungs-Verhältnisses: {e}")
-                        if delete_original:
-                            trash.send_to_trash(target_filepath)
-                            log_message("Originaldatei in Quarantäne verschoben.")
-                        final_filepath = os.path.join(current_dir, f"{clean_movie_name}.mkv")
-                        if os.path.exists(final_filepath):
-                            trash.send_to_trash(final_filepath)
-                        os.rename(temp_output, final_filepath)
-                        final_filename = f"{clean_movie_name}.mkv"
-                        conv_pct[file_idx] = 100
-                    else:
-                        log_message(f"❌ Fehler bei der Konvertierung.")
-                        if os.path.exists(temp_output):
-                            os.remove(temp_output)
-                        conv_pct[file_idx] = 100
-                except Exception as e:
-                    log_message(f"Konvertierungsfehler: {e}")
-                    if os.path.exists(temp_output):
-                        os.remove(temp_output)
-                    conv_pct[file_idx] = 100
+                conv_success, conv_file = media.execute_video_conversion(
+                    target_filepath=target_filepath,
+                    temp_output=temp_output,
+                    final_filepath=os.path.join(current_dir, f"{clean_movie_name}.mkv"),
+                    quality=quality,
+                    content_type=content_type,
+                    original_filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath),
+                    delete_original=delete_original,
+                    progress_callback=ffmpeg_progress_cb,
+                    log_message_fn=log_message,
+                    run_ffmpeg_fn=run_ffmpeg_with_progress,
+                    send_to_trash_fn=trash.send_to_trash,
+                    log_queue=log_queue
+                )
+                if conv_success:
+                    final_filepath = os.path.join(current_dir, conv_file)
+                    final_filename = conv_file
+                conv_pct[file_idx] = 100
             else:
                 conv_pct[file_idx] = 100
             update_global_job_progress()
@@ -2792,44 +2738,24 @@ def process_worker(params):
                     pass
 
                 if not is_hevc:
-                    log_message(f"Konvertiere {f} nach H.265 (Qualität {quality})...")
                     base = os.path.splitext(f)[0]
                     temp_output = os.path.join(current_dir, f"{base}_neu.mkv")
-                    ffmpeg_cmd = media.build_hevc_ffmpeg_cmd(filepath, temp_output, quality)
-                    used_codec = "hevc_vaapi" if "-vaapi_device" in ffmpeg_cmd else ("hevc_videotoolbox" if "-c:v" in ffmpeg_cmd and "hevc_videotoolbox" in ffmpeg_cmd else "hevc_libx265")
-                    try:
-                        success = run_ffmpeg_with_progress(ffmpeg_cmd, filepath, task_id=task_id, log_queue=log_queue)
-                        
-                        if not success and "-vaapi_device" in ffmpeg_cmd:
-                            log_message("⚠️ Hardware-Encoding fehlgeschlagen. Versuche Fallback auf Software-Encoding (libx265)...")
-                            if os.path.exists(temp_output):
-                                try: os.remove(temp_output)
-                                except Exception: pass
-                            ffmpeg_cmd = media.build_hevc_ffmpeg_cmd(filepath, temp_output, quality, force_software=True)
-                            used_codec = "hevc_libx265"
-                            success = run_ffmpeg_with_progress(ffmpeg_cmd, filepath, task_id=task_id, log_queue=log_queue)
-
-                        if success and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
-                            log_message(f"Erfolgreich konvertiert: {f}")
-                            try:
-                                size_in = os.path.getsize(filepath)
-                                size_out = os.path.getsize(temp_output)
-                                if size_in > 0:
-                                    ratio = size_out / size_in
-                                    media.add_conversion_to_history(quality, used_codec, ratio, size_in, size_out, content_type=content_type, filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath), resolution=None)
-                                    log_message(f"Konvertierungs-Verhältnis erfasst: {ratio:.4f}")
-                            except Exception as e:
-                                log_message(f"Fehler beim Erfassen des Konvertierungs-Verhältnisses: {e}")
-                            trash.send_to_trash(filepath)
-                            os.rename(temp_output, os.path.join(current_dir, f"{base}.mkv"))
-                        else:
-                            log_message(f"❌ Fehler bei der Konvertierung von {f}.")
-                            if os.path.exists(temp_output):
-                                os.remove(temp_output)
-                    except Exception as e:
-                        log_message(f"Konvertierungsfehler bei {f}: {e}")
-                        if os.path.exists(temp_output):
-                            os.remove(temp_output)
+                    conv_success, conv_file = media.execute_video_conversion(
+                        target_filepath=filepath,
+                        temp_output=temp_output,
+                        final_filepath=os.path.join(current_dir, f"{base}.mkv"),
+                        quality=quality,
+                        content_type=content_type,
+                        original_filename=f,
+                        delete_original=True,
+                        progress_callback=task_id,
+                        log_message_fn=log_message,
+                        run_ffmpeg_fn=run_ffmpeg_with_progress,
+                        send_to_trash_fn=trash.send_to_trash,
+                        log_queue=log_queue
+                    )
+                    if conv_success:
+                        log_message(f"Erfolgreich konvertiert: {f}")
 
     elif media_type == "tool_nfo_agent":
         log_message(f"=== STARTE NFO AGENT IN: {current_dir} ===")

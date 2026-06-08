@@ -340,3 +340,62 @@ def get_conversion_recommendations():
             "total_saved_bytes": total_saved
         }
     }
+
+
+def execute_video_conversion(
+    target_filepath,
+    temp_output,
+    final_filepath,
+    quality,
+    content_type,
+    original_filename,
+    delete_original,
+    progress_callback,
+    log_message_fn,
+    run_ffmpeg_fn,
+    send_to_trash_fn,
+    log_queue=None
+):
+    log_message_fn(f"Konvertiere {os.path.basename(target_filepath)} nach H.265 (Qualität {quality})...")
+    ffmpeg_cmd = build_hevc_ffmpeg_cmd(target_filepath, temp_output, quality)
+    used_codec = "hevc_vaapi" if "-vaapi_device" in ffmpeg_cmd else ("hevc_videotoolbox" if "-c:v" in ffmpeg_cmd and "hevc_videotoolbox" in ffmpeg_cmd else "hevc_libx265")
+    try:
+        success = run_ffmpeg_fn(ffmpeg_cmd, target_filepath, task_id=progress_callback, log_queue=log_queue)
+        
+        if not success and "-vaapi_device" in ffmpeg_cmd:
+            log_message_fn("⚠️ Hardware-Encoding fehlgeschlagen. Versuche Fallback auf Software-Encoding (libx265)...")
+            if os.path.exists(temp_output):
+                try: os.remove(temp_output)
+                except Exception: pass
+            ffmpeg_cmd = build_hevc_ffmpeg_cmd(target_filepath, temp_output, quality, force_software=True)
+            used_codec = "hevc_libx265"
+            success = run_ffmpeg_fn(ffmpeg_cmd, target_filepath, task_id=progress_callback, log_queue=log_queue)
+
+        if success and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
+            log_message_fn("Konvertierung erfolgreich beendet.")
+            try:
+                size_in = os.path.getsize(target_filepath)
+                size_out = os.path.getsize(temp_output)
+                if size_in > 0:
+                    ratio = size_out / size_in
+                    add_conversion_to_history(quality, used_codec, ratio, size_in, size_out, content_type=content_type, filename=original_filename, resolution=None)
+                    log_message_fn(f"Konvertierungs-Verhältnis erfasst: {ratio:.4f}")
+            except Exception as e:
+                log_message_fn(f"Fehler beim Erfassen des Konvertierungs-Verhältnisses: {e}")
+            if delete_original:
+                send_to_trash_fn(target_filepath)
+                log_message_fn("Originaldatei in Quarantäne verschoben.")
+            if os.path.exists(final_filepath):
+                send_to_trash_fn(final_filepath)
+            os.rename(temp_output, final_filepath)
+            return True, os.path.basename(final_filepath)
+        else:
+            log_message_fn(f"❌ Fehler bei der Konvertierung von {os.path.basename(target_filepath)}.")
+            if os.path.exists(temp_output):
+                os.remove(temp_output)
+            return False, None
+    except Exception as e:
+        log_message_fn(f"Konvertierungsfehler: {e}")
+        if os.path.exists(temp_output):
+            os.remove(temp_output)
+        return False, None

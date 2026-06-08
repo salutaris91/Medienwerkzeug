@@ -23,6 +23,38 @@ class TestMovieProcessingFixes(unittest.TestCase):
         os.environ["MW_ENV_FILE"] = self.env_file
         os.environ["MW_DATA_DIR"] = self.temp_dir.name
 
+        import sys
+        utils_modules = set()
+        import gui.core.utils as core_utils
+        utils_modules.add(core_utils)
+
+        for m in list(sys.modules.values()):
+            if m is not None:
+                if getattr(m, "__name__", None) == "gui.core.utils":
+                    utils_modules.add(m)
+                for attr_name in dir(m):
+                    try:
+                        attr = getattr(m, attr_name)
+                        if getattr(attr, "__name__", None) == "gui.core.utils":
+                            utils_modules.add(attr)
+                    except Exception:
+                        pass
+
+        self.patched_utils = utils_modules
+        self.orig_utils_paths = {}
+
+        for u in self.patched_utils:
+            self.orig_utils_paths[u] = {
+                "DATA_DIR": getattr(u, "DATA_DIR", None),
+                "PROFILES_DIR": getattr(u, "PROFILES_DIR", None),
+                "HISTORY_FILE": getattr(u, "HISTORY_FILE", None)
+            }
+            u.DATA_DIR = self.temp_dir.name
+            u.PROFILES_DIR = os.path.join(self.temp_dir.name, "profiles")
+            u.HISTORY_FILE = os.path.join(self.temp_dir.name, "konv_history.json")
+
+        os.makedirs(os.path.join(self.temp_dir.name, "profiles"), exist_ok=True)
+
         persistence._cached_settings = None
         persistence._cached_env = None
 
@@ -100,6 +132,11 @@ class TestMovieProcessingFixes(unittest.TestCase):
         self.patcher_trash.stop()
         self.patcher_nas.stop()
         self.patcher_rsync.stop()
+
+        for u, paths in self.orig_utils_paths.items():
+            u.DATA_DIR = paths["DATA_DIR"]
+            u.PROFILES_DIR = paths["PROFILES_DIR"]
+            u.HISTORY_FILE = paths["HISTORY_FILE"]
 
         os.environ.pop("MW_SETTINGS_FILE", None)
         os.environ.pop("MW_JOBS_STATE_FILE", None)
@@ -921,7 +958,6 @@ class TestMovieProcessingFixes(unittest.TestCase):
         # Original file should be sent to trash (mock_trash_dir) since delete_original=True
         self.assertTrue(os.path.exists(os.path.join(self.mock_trash_dir, "Converted Movie (2026).mp4")))
 
-        # Check conversion history has been populated
         history = core_utils.load_konv_history()
         self.assertEqual(len(history), 1)
         self.assertEqual(history[0]["quality"], 60)
