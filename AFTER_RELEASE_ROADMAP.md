@@ -31,6 +31,7 @@ die aktive After-Release-Roadmap übernommen.
 | 22 | Update-Hinweise und Release Notes | geplant | klein–mittel |
 | 23 | Lizenz- und Drittanbieterhinweise | geplant | klein |
 | 24 | API-Key Maskierung UX (Fokus/Editierung-Verhalten) | geplant | klein |
+| 25 | TV-Pfad: Angleichung der Untertitel-Erkennung | geplant | klein |
 | 26 | FAQ/Dokumentation: Docker-Importquellen und Volume-Mapping beschreiben | geplant | klein |
 | 27 | Web-Folder-Picker: Dynamische Titel je nach ausgewählter Kategorie | geplant | klein |
 | 28 | Web-Folder-Picker: Layout-Verbreiterung & responsive Anpassungen | geplant | klein |
@@ -39,6 +40,87 @@ die aktive After-Release-Roadmap übernommen.
 | 31 | NAS-Downloader-Integration (JDownloader/Download-Backend) | geplant | mittel |
 | 32 | Automatische Papierkorb-Leerung unter Docker | geplant | klein–mittel |
 | 33 | Automatischer TVDB-Fallback für fehlende TMDB-Plots | geplant | klein |
+
+---
+
+## Empfohlene Reihenfolge & Abhängigkeiten (Review vom 07.06.2026)
+
+Grundsatzentscheidungen, die die Reihenfolge prägen:
+- **Distributionsweg:** Docker hat Priorität (ist bereits der primäre Kanal,
+  siehe #18). Eigenständiges Bundle (#2) und Desktop-App (#21) sind nachgelagert.
+- **Downloader-Backend für #31:** JDownloader (verbreitet, gut unterstützt) ist
+  die bevorzugte Wahl für die Integration.
+
+### Cluster mit Abhängigkeiten
+
+**Cloud/Speicherziel-Cluster** — #1 zuerst, da es das generische Job- und
+Settings-Modell für Speicherziele schafft:
+1. **#1** (Echtes Multi-Cloud) — schafft das generische Modell.
+2. **#29** (Separater Zielordner pro Speicherziel) überschneidet sich stark mit
+   #1, Punkt 3 des Umsetzungsplans dort ("Zielordner-Dropdown pro Ziel",
+   "Kategorie-Matrix mit Spalte pro Ziel"). Nach #1 erneut bewerten, ob #29
+   noch eigenständige Restarbeit ist oder darin aufgeht — sonst droht doppelte
+   Arbeit am selben Settings-Modell.
+3. **#19** (Geführter rclone-Web-Flow) und **#30** (Cloud-Upload Status-/
+   Fortschritts-Feedback) bauen auf demselben Transfer-Code auf, den #1 umbaut
+   (`copy_to_cloud_target`). Beide erst nach #1 angehen, um den Code nicht
+   zweimal anzufassen.
+
+**Distributions-Cluster** — Docker zuerst (siehe Grundsatzentscheidung):
+1. **#18** (Docker-Image veröffentlichen) — bereits Hauptkanal, moderater
+   Aufwand und geringeres Risiko als ein eigenständiges Bundle.
+2. **#2** (Distribution & Bündelung) — liefert u. a. den Tool-Pfad-Resolver.
+3. **#21** (Desktop-App-Packaging) setzt den Tool-Pfad-Resolver aus #2 voraus
+   ("Tool-Pfad-Resolver mit gebündelten oder systemweiten Binaries abstimmen")
+   — frühestens nach #2 sinnvoll planbar.
+4. **#23** (Lizenz-/Drittanbieterhinweise) hängt davon ab, was am Ende
+   tatsächlich gebündelt wird (#2/#18/#21) — vorher recherchiert, droht doppelte
+   Arbeit bei Strategiewechseln.
+5. **#22** (Update-Hinweise & Release Notes) profitiert von den Versionstags
+   und GitHub-Releases, die erst durch #18 entstehen.
+
+**Health/Performance-Cluster** — Vertrag vor UI-Ausbau:
+1. **#14** (Health-Status-Vertrag & Frontend-Testabdeckung) zuerst, damit #13
+   nicht auf einem noch unstabilen/undokumentierten Status-Vertrag aufbaut und
+   später nachgezogen werden muss.
+2. **#13** (Komfortablere Health-Quick-Fix-Oberfläche) danach.
+3. **#12** (Performance-Optimierung große Serienbibliotheken) — Analyse zuerst,
+   wie im Abschnitt selbst beschrieben.
+4. **#16** (System Metrics Worker: Thread-Akkumulation) ist ein eigenständiger
+   Bugfix mit kleinem Aufwand und kann unabhängig davon jederzeit, auch früher,
+   eingeschoben werden.
+
+**Duplikat-Cluster** — Reihenfolge in der Tabelle ist bereits korrekt:
+1. **#10** (Duplikat-Erkennung für Filme) zuerst.
+2. **#11** (Inkrementeller Cache für den Duplikat-Scan) danach, damit der Cache
+   gleich Filme und Serien abdeckt und nicht nachträglich erweitert werden muss.
+
+### Kleine, unabhängige Quick-Wins
+
+Folgende Punkte sind klein, eigenständig und ohne Abhängigkeiten zu größeren
+Vorhaben — sie lassen sich jederzeit zwischen den Clustern einschieben, um
+früh sichtbaren Fortschritt zu erzielen:
+- **#16** (Thread-Akkumulation, s. o.)
+- **#24** (API-Key Maskierung UX)
+- **#25** (TV-Pfad Untertitel-Erkennung)
+- **#26** (FAQ/Doku Docker-Importquellen)
+- **#27** und **#28** (Web-Folder-Picker: Titel + Layout) — betreffen dieselbe
+  Komponente, sinnvollerweise zusammen umsetzen
+- **#33** (TVDB-Fallback)
+
+### Offene Klärungspunkte vor Start
+
+- **#1/#29:** Soll #29 vollständig in #1 aufgehen, oder bleibt ein eigenständiger
+  Rest übrig? Erst nach Abschluss von #1 final entscheidbar.
+- **#3, #17, #20, #32:** größere, eigenständige Features ohne harte Abhängigkeiten
+  zu anderen Punkten — Reihenfolge untereinander richtet sich nach Priorität/
+  Nutzen, nicht nach technischen Voraussetzungen.
+
+### Vollständigkeits-Hinweis
+
+Punkt **#25** (TV-Pfad: Angleichung der Untertitel-Erkennung) fehlte bislang in
+der Übersichtstabelle, obwohl der zugehörige Abschnitt existierte — wurde
+ergänzt.
 
 ---
 
@@ -747,7 +829,12 @@ qBittorrent oder SABnzbd. Medienwerkzeug übernimmt die Integration:
 - Fertige Downloads aus einem gemeinsamen NAS-Ordner importieren und in den
   bestehenden Verarbeitungsfluss übernehmen.
 
-### Bevorzugter Ansatz: JDownloader als separater Docker-Service
+### Gewählter Ansatz: JDownloader als separater Docker-Service
+
+JDownloader wurde als bevorzugtes Downloader-Backend festgelegt (verbreitet,
+gut unterstützt). Die Schnittstelle bleibt trotzdem generisch genug, um später
+weitere Backends zu ermöglichen.
+
 - Optionalen JDownloader-Container in `docker-compose.yml` beschreiben, nicht in
   denselben Container wie Medienwerkzeug packen.
 - Gemeinsames Volume definieren, z. B.
