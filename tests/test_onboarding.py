@@ -215,7 +215,7 @@ class TestOnboarding(unittest.TestCase):
         mock_run.return_value.returncode = 0
 
         res = self.client.post("/api/onboarding/test-nas-connection", json={
-            "nas_ip": "192.168.2.208",
+            "nas_ip": "192.168.1.100",
             "nas_share": "Kino",
             "root_path": self.temp_dir.name # existiert real, da temp_dir
         })

@@ -8455,10 +8455,10 @@ function renderStorageTargets() {
             smbGrid.style.gridTemplateColumns = "repeat(auto-fit, minmax(150px, 1fr))";
             smbGrid.style.gap = "10px";
 
-            const ipField = createField("Lokale NAS-IP:", target.nas_ip, "z.B. 192.168.2.208", (val) => {
+            const ipField = createField("Lokale NAS-IP:", target.nas_ip, "z.B. 192.168.1.100", (val) => {
                 target.nas_ip = val;
             });
-            const backupIpField = createField("Backup-/Tailscale-IP:", target.nas_ip_backup, "z.B. 100.74.187.125", (val) => {
+            const backupIpField = createField("Backup-/Tailscale-IP:", target.nas_ip_backup, "z.B. 100.64.0.1", (val) => {
                 target.nas_ip_backup = val;
             });
             const hostnameField = createField("Finder-Servername:", target.nas_hostname, "z.B. ALEXNAS91", (val) => {

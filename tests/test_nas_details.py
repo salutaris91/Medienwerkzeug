@@ -14,8 +14,8 @@ NAS_SETTINGS_ENABLED = {
     "storage_targets": [{
         "id": "nas",
         "root_path": "/Volumes/Kino",
-        "nas_ip": "192.168.2.208",
-        "nas_ip_backup": "100.74.187.125",
+        "nas_ip": "192.168.1.100",
+        "nas_ip_backup": "100.64.0.1",
         "nas_hostname": "ALEXNAS91",
         "nas_share": "Kino",
         "enabled": True,
@@ -26,8 +26,8 @@ NAS_SETTINGS_DISABLED = {
     "storage_targets": [{
         "id": "nas",
         "root_path": "/Volumes/Kino",
-        "nas_ip": "192.168.2.208",
-        "nas_ip_backup": "100.74.187.125",
+        "nas_ip": "192.168.1.100",
+        "nas_ip_backup": "100.64.0.1",
         "nas_hostname": "ALEXNAS91",
         "nas_share": "Kino",
         "enabled": False,
@@ -38,8 +38,8 @@ NAS_SETTINGS_NO_ROOT = {
     "storage_targets": [{
         "id": "nas",
         "root_path": "",
-        "nas_ip": "192.168.2.208",
-        "nas_ip_backup": "100.74.187.125",
+        "nas_ip": "192.168.1.100",
+        "nas_ip_backup": "100.64.0.1",
         "nas_hostname": "ALEXNAS91",
         "nas_share": "Kino",
         "enabled": True,
@@ -70,7 +70,7 @@ class TestNasDetails(unittest.TestCase):
         self.assertEqual(details["status"], "offline")
         self.assertFalse(details["enabled"])
         self.assertTrue(details["has_root"])
-        self.assertEqual(details["checked_ips"], ["192.168.2.208", "100.74.187.125"])
+        self.assertEqual(details["checked_ips"], ["192.168.1.100", "100.64.0.1"])
         self.assertIsNone(details["reachable_ip"])
         self.assertEqual(details["error_message"], "NAS-Verbindung in den Einstellungen deaktiviert.")
         self.assertEqual(details["ip_details"][0]["role"], "primary")
@@ -104,7 +104,7 @@ class TestNasDetails(unittest.TestCase):
         with self._socket_mock(socket_mock):
             details = transfers.check_nas_connection_details()
         self.assertEqual(details["status"], "available_not_mounted")
-        self.assertEqual(details["reachable_ip"], "192.168.2.208")
+        self.assertEqual(details["reachable_ip"], "192.168.1.100")
         self.assertEqual(details["error_message"], "Laufwerk erreichbar, aber nicht eingehängt.")
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
@@ -117,8 +117,8 @@ class TestNasDetails(unittest.TestCase):
             details = transfers.check_nas_connection_details()
         self.assertEqual(details["status"], "offline")
         self.assertIsNone(details["reachable_ip"])
-        self.assertIn("primary (192.168.2.208)", details["error_message"])
-        self.assertIn("backup (100.74.187.125)", details["error_message"])
+        self.assertIn("primary (192.168.1.100)", details["error_message"])
+        self.assertIn("backup (100.64.0.1)", details["error_message"])
 
     @patch("gui.api.system_api.check_nas_connection_details")
     def test_api_status_returns_details(self, mock_details):
@@ -126,8 +126,8 @@ class TestNasDetails(unittest.TestCase):
             "status": "available_not_mounted",
             "enabled": True,
             "has_root": True,
-            "checked_ips": ["192.168.2.208", "100.74.187.125"],
-            "reachable_ip": "100.74.187.125"
+            "checked_ips": ["192.168.1.100", "100.64.0.1"],
+            "reachable_ip": "100.64.0.1"
         }
         
         # Mocking check_streamfab to avoid background thread triggers
@@ -138,7 +138,7 @@ class TestNasDetails(unittest.TestCase):
         data = response.get_json()
         self.assertEqual(data["nas_status"], "available_not_mounted")
         self.assertIn("nas_details", data)
-        self.assertEqual(data["nas_details"]["reachable_ip"], "100.74.187.125")
+        self.assertEqual(data["nas_details"]["reachable_ip"], "100.64.0.1")
 
     @patch("gui.api.system_api.check_nas_connection_details")
     def test_api_status_force_check_bypasses_cache(self, mock_details):
