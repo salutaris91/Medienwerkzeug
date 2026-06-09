@@ -15,6 +15,7 @@ from gui.api.search_api import search_api
 from gui.api.queue_api import queue_api
 from gui.api.nas_renamer_api import nas_renamer_api
 from gui.api.onboarding_api import onboarding_api
+from gui.api.distribute_api import distribute_api
 from gui.workers.processor import job_queue_worker, SYSTEM_STATUS
 from gui.core.utils import load_settings
 
@@ -49,6 +50,11 @@ app.register_blueprint(search_api, url_prefix='/api')
 app.register_blueprint(queue_api, url_prefix='/api')
 app.register_blueprint(nas_renamer_api, url_prefix='/api')
 app.register_blueprint(onboarding_api, url_prefix='/api')
+app.register_blueprint(distribute_api, url_prefix='/api')
+
+@app.route('/widget')
+def widget():
+    return send_from_directory('static/widget', 'index.html')
 
 @app.route('/')
 def index():

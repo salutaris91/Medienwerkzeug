@@ -1,0 +1,111 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-06-09",
+  "note": "Alle Social-Media-Handles muessen regelmaessig verifiziert werden. Stand: 21. Bundesregierung (CDU/CSU+SPD, gebildet 2025).",
+  "politicians": [
+    {
+      "id": "merz-friedrich",
+      "name": "Friedrich Merz",
+      "party": "CDU",
+      "position": "Bundeskanzler",
+      "position_category": "bundesregierung",
+      "platforms": {
+        "x": {"handle": "_FriedrichMerz", "url": "https://x.com/_FriedrichMerz", "verified": true},
+        "mastodon": null,
+        "bluesky": null,
+        "email": {"address": null, "contact_form": "https://www.bundeskanzler.de/bk-de/kontakt", "verified": true}
+      }
+    },
+    {
+      "id": "wadephul-johann",
+      "name": "Johann Wadephul",
+      "party": "CDU",
+      "position": "Bundesminister des Auswärtigen",
+      "position_category": "bundesregierung",
+      "platforms": {
+        "x": {"handle": "JohannWadephul", "url": "https://x.com/JohannWadephul", "verified": false},
+        "mastodon": null,
+        "bluesky": null,
+        "email": {"address": null, "contact_form": "https://www.auswaertiges-amt.de/de/kontakt", "verified": true}
+      }
+    },
+    {
+      "id": "dobrindt-alexander",
+      "name": "Alexander Dobrindt",
+      "party": "CSU",
+      "position": "Bundesminister des Innern",
+      "position_category": "bundesregierung",
+      "platforms": {
+        "x": {"handle": "dobrindt", "url": "https://x.com/dobrindt", "verified": false},
+        "mastodon": null,
+        "bluesky": null,
+        "email": {"address": null, "contact_form": "https://www.bmi.bund.de/DE/service/kontakt/kontakt-node.html", "verified": true}
+      }
+    },
+    {
+      "id": "klingbeil-lars",
+      "name": "Lars Klingbeil",
+      "party": "SPD",
+      "position": "Bundesminister der Finanzen / Vizekanzler",
+      "position_category": "bundesregierung",
+      "platforms": {
+        "x": {"handle": "larsklingbeil", "url": "https://x.com/larsklingbeil", "verified": true},
+        "mastodon": null,
+        "bluesky": null,
+        "email": {"address": null, "contact_form": "https://www.bundesfinanzministerium.de/Web/DE/Service/Kontakt/kontakt.html", "verified": true}
+      }
+    },
+    {
+      "id": "pistorius-boris",
+      "name": "Boris Pistorius",
+      "party": "SPD",
+      "position": "Bundesminister der Verteidigung",
+      "position_category": "bundesregierung",
+      "platforms": {
+        "x": {"handle": "BorisPistorius", "url": "https://x.com/BorisPistorius", "verified": true},
+        "mastodon": null,
+        "bluesky": null,
+        "email": {"address": null, "contact_form": "https://www.bmvg.de/de/service/kontakt", "verified": true}
+      }
+    },
+    {
+      "id": "heil-hubertus",
+      "name": "Hubertus Heil",
+      "party": "SPD",
+      "position": "Bundesminister für Arbeit und Soziales",
+      "position_category": "bundesregierung",
+      "platforms": {
+        "x": {"handle": "hubertus_heil", "url": "https://x.com/hubertus_heil", "verified": true},
+        "mastodon": null,
+        "bluesky": null,
+        "email": {"address": null, "contact_form": "https://www.bmas.de/DE/Service/Kontakt/kontakt.html", "verified": true}
+      }
+    },
+    {
+      "id": "linnemann-carsten",
+      "name": "Carsten Linnemann",
+      "party": "CDU",
+      "position": "Bundesminister für Wirtschaft und Klimaschutz",
+      "position_category": "bundesregierung",
+      "platforms": {
+        "x": {"handle": "c_linnemann", "url": "https://x.com/c_linnemann", "verified": false},
+        "mastodon": null,
+        "bluesky": null,
+        "email": {"address": null, "contact_form": "https://www.bmwk.de/Redaktion/DE/Kontakt/kontakt.html", "verified": true}
+      }
+    },
+    {
+      "id": "lauterbach-karl",
+      "name": "Karl Lauterbach",
+      "party": "SPD",
+      "position": "Bundesminister für Gesundheit",
+      "position_category": "bundesregierung",
+      "platforms": {
+        "x": {"handle": "Karl_Lauterbach", "url": "https://x.com/Karl_Lauterbach", "verified": true},
+        "mastodon": null,
+        "bluesky": null,
+        "email": {"address": null, "contact_form": "https://www.bundesgesundheitsministerium.de/service/kontakt.html", "verified": true}
+      }
+    }
+  ]
+}

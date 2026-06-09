@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kritik senden</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f9fafb;
+      color: #111;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; }
+
+    label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.3rem; color: #374151; }
+
+    select, textarea, input[type="email"], input[type="password"] {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: #111;
+      background: #fff;
+      margin-bottom: 1rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    select:focus, textarea:focus, input:focus { border-color: #6366f1; }
+
+    textarea { resize: vertical; min-height: 100px; }
+
+    .char-count { text-align: right; font-size: 0.78rem; color: #6b7280; margin-top: -0.75rem; margin-bottom: 0.75rem; }
+    .char-count.warn { color: #ef4444; }
+
+    .platforms { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .platform-btn {
+      display: flex; align-items: center; gap: 0.4rem;
+      padding: 0.35rem 0.75rem;
+      border: 1px solid #d1d5db;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      background: #fff;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .platform-btn.selected { background: #ede9fe; border-color: #6366f1; color: #4f46e5; font-weight: 500; }
+    .platform-btn.disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn {
+      display: block; width: 100%;
+      padding: 0.65rem;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #4f46e5; }
+    .btn:disabled { background: #a5b4fc; cursor: not-allowed; }
+    .btn.secondary { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+    .btn.secondary:hover { background: #e5e7eb; }
+
+    .alert { padding: 0.7rem 1rem; border-radius: 8px; font-size: 0.85rem; margin-bottom: 1rem; }
+    .alert.error { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; }
+    .alert.warning { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; }
+    .alert.success { background: #f0fdf4; border: 1px solid #86efac; color: #166534; }
+    .alert.info { background: #eff6ff; border: 1px solid #93c5fd; color: #1e40af; }
+
+    .result-list { list-style: none; }
+    .result-list li { padding: 0.5rem 0; border-bottom: 1px solid #f3f4f6; font-size: 0.85rem; }
+    .result-list li:last-child { border-bottom: none; }
+    .result-list .ok::before { content: "✓ "; color: #16a34a; font-weight: bold; }
+    .result-list .fail::before { content: "✗ "; color: #dc2626; font-weight: bold; }
+
+    .section { margin-bottom: 1.2rem; }
+    .divider { border: none; border-top: 1px solid #f3f4f6; margin: 1rem 0; }
+    .link-btn { background: none; border: none; color: #6366f1; cursor: pointer; font-size: 0.85rem; text-decoration: underline; padding: 0; }
+
+    #login-view, #app-view, #results-view { display: none; }
+    #login-view.active, #app-view.active, #results-view.active { display: block; }
+  </style>
+</head>
+<body>
+<div class="card">
+
+  <!-- Login view -->
+  <div id="login-view">
+    <h2>Anmelden</h2>
+    <div id="login-error" class="alert error" style="display:none"></div>
+    <div class="section">
+      <label for="login-email">E-Mail</label>
+      <input type="email" id="login-email" placeholder="deine@email.de" />
+      <label for="login-password">Passwort</label>
+      <input type="password" id="login-password" placeholder="••••••••" />
+      <button class="btn" id="login-btn">Anmelden</button>
+    </div>
+    <hr class="divider" />
+    <p style="font-size:0.83rem; text-align:center; color:#6b7280;">
+      Noch kein Konto? <button class="link-btn" id="show-register">Registrieren</button>
+    </p>
+    <div id="register-form" style="display:none; margin-top:1rem;">
+      <label for="reg-email">E-Mail</label>
+      <input type="email" id="reg-email" placeholder="deine@email.de" />
+      <label for="reg-password">Passwort (min. 8 Zeichen)</label>
+      <input type="password" id="reg-password" placeholder="••••••••" />
+      <button class="btn" id="register-btn">Konto erstellen</button>
+    </div>
+  </div>
+
+  <!-- Main app view -->
+  <div id="app-view">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+      <h2>Kritik senden</h2>
+      <button class="link-btn" id="logout-btn">Abmelden</button>
+    </div>
+
+    <div id="mod-alert" class="alert warning" style="display:none"></div>
+    <div id="send-error" class="alert error" style="display:none"></div>
+
+    <div class="section">
+      <label for="politician-select">Empfänger</label>
+      <select id="politician-select">
+        <option value="">-- Politiker/in auswählen --</option>
+      </select>
+    </div>
+
+    <div class="section">
+      <label for="message-text">Deine sachliche Kritik</label>
+      <textarea id="message-text" placeholder="Formuliere dein Anliegen sachlich und konkret…" maxlength="2000"></textarea>
+      <div class="char-count"><span id="char-count">0</span> / 2000</div>
+    </div>
+
+    <div class="section">
+      <label>Senden über</label>
+      <div class="platforms" id="platform-buttons"></div>
+    </div>
+
+    <button class="btn" id="send-btn" disabled>Senden</button>
+    <p style="font-size:0.75rem; color:#9ca3af; margin-top:0.6rem; text-align:center;">
+      Nachrichten werden vor dem Senden auf Sachlichkeit geprüft.
+    </p>
+  </div>
+
+  <!-- Results view -->
+  <div id="results-view">
+    <h2 style="margin-bottom:1rem;">Ergebnis</h2>
+    <ul class="result-list" id="results-list"></ul>
+    <hr class="divider" />
+    <button class="btn secondary" id="back-btn">Neue Nachricht</button>
+  </div>
+
+</div>
+
+<script>
+const API = '';
+let currentUser = null;
+let selectedPlatforms = new Set();
+let availablePlatforms = [];
+let connectedPlatforms = [];
+
+function show(viewId) {
+  ['login-view', 'app-view', 'results-view'].forEach(id => {
+    document.getElementById(id).classList.toggle('active', id === viewId);
+  });
+}
+
+function showAlert(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+}
+
+async function apiFetch(path, options = {}) {
+  const res = await fetch(API + '/api' + path, {
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    ...options
+  });
+  const json = await res.json();
+  return { ok: res.ok, status: res.status, data: json };
+}
+
+async function init() {
+  const { ok, data } = await apiFetch('/distribute/auth/me');
+  if (ok) {
+    currentUser = data.user;
+    connectedPlatforms = data.connected_platforms || [];
+    await loadPoliticians();
+    show('app-view');
+  } else {
+    show('login-view');
+  }
+}
+
+async function loadPoliticians() {
+  const { ok, data } = await apiFetch('/distribute/politicians');
+  if (!ok) return;
+  const select = document.getElementById('politician-select');
+  data.politicians.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.dataset.platforms = JSON.stringify(p.platforms || {});
+    opt.textContent = `${p.name} (${p.party}) — ${p.position}`;
+    select.appendChild(opt);
+  });
+}
+
+function updatePlatformButtons(politicianPlatforms) {
+  const container = document.getElementById('platform-buttons');
+  container.innerHTML = '';
+  selectedPlatforms.clear();
+
+  const ALL_PLATFORMS = { x: 'X', mastodon: 'Mastodon', bluesky: 'Bluesky', email: 'E-Mail' };
+
+  availablePlatforms = [];
+  for (const [pid, label] of Object.entries(ALL_PLATFORMS)) {
+    const targetData = politicianPlatforms[pid];
+    if (!targetData) continue;
+
+    const isConnected = connectedPlatforms.includes(pid);
+    const btn = document.createElement('button');
+    btn.className = 'platform-btn' + (isConnected ? '' : ' disabled');
+    btn.dataset.platform = pid;
+    btn.title = isConnected ? '' : `${label}-Account nicht verknüpft`;
+    btn.textContent = label;
+
+    if (isConnected) {
+      availablePlatforms.push(pid);
+      btn.addEventListener('click', () => {
+        if (selectedPlatforms.has(pid)) {
+          selectedPlatforms.delete(pid);
+          btn.classList.remove('selected');
+        } else {
+          selectedPlatforms.add(pid);
+          btn.classList.add('selected');
+        }
+        updateSendButton();
+      });
+    }
+    container.appendChild(btn);
+  }
+
+  if (availablePlatforms.length === 0) {
+    container.innerHTML = '<span style="font-size:0.82rem;color:#9ca3af;">Für diesen Politiker sind keine verknüpften Plattformen verfügbar.</span>';
+  }
+}
+
+function updateSendButton() {
+  const text = document.getElementById('message-text').value.trim();
+  const politicianId = document.getElementById('politician-select').value;
+  document.getElementById('send-btn').disabled = !(text && politicianId && selectedPlatforms.size > 0);
+}
+
+document.getElementById('politician-select').addEventListener('change', function() {
+  const opt = this.options[this.selectedIndex];
+  if (opt.value && opt.dataset.platforms) {
+    updatePlatformButtons(JSON.parse(opt.dataset.platforms));
+  } else {
+    document.getElementById('platform-buttons').innerHTML = '';
+    selectedPlatforms.clear();
+  }
+  updateSendButton();
+});
+
+document.getElementById('message-text').addEventListener('input', function() {
+  const len = this.value.length;
+  const counter = document.getElementById('char-count');
+  counter.textContent = len;
+  counter.parentElement.classList.toggle('warn', len > 1800);
+  updateSendButton();
+});
+
+document.getElementById('send-btn').addEventListener('click', async () => {
+  const text = document.getElementById('message-text').value.trim();
+  const politicianId = document.getElementById('politician-select').value;
+  showAlert('send-error', '');
+  showAlert('mod-alert', '');
+
+  // moderation check first
+  const modRes = await apiFetch('/distribute/moderate', {
+    method: 'POST',
+    body: JSON.stringify({ text })
+  });
+  if (!modRes.ok) {
+    showAlert('send-error', modRes.data.error || 'Moderationsfehler.');
+    return;
+  }
+  const mod = modRes.data;
+  if (!mod.approved) {
+    showAlert('send-error', mod.reason);
+    return;
+  }
+  if (mod.severity === 'warning') {
+    showAlert('mod-alert', mod.reason);
+  }
+
+  const { ok, data } = await apiFetch('/distribute/send', {
+    method: 'POST',
+    body: JSON.stringify({
+      text,
+      politician_id: politicianId,
+      platforms: [...selectedPlatforms]
+    })
+  });
+
+  const list = document.getElementById('results-list');
+  list.innerHTML = '';
+  const results = ok ? data.results : [{ success: false, platform: 'Fehler', message: data.error }];
+  results.forEach(r => {
+    const li = document.createElement('li');
+    li.className = r.success ? 'ok' : 'fail';
+    li.textContent = `${r.platform}: ${r.message}`;
+    if (r.url) {
+      const a = document.createElement('a');
+      a.href = r.url;
+      a.target = '_blank';
+      a.textContent = ' → Ansehen';
+      a.style.color = '#6366f1';
+      li.appendChild(a);
+    }
+    list.appendChild(li);
+  });
+  show('results-view');
+});
+
+document.getElementById('back-btn').addEventListener('click', () => {
+  document.getElementById('message-text').value = '';
+  document.getElementById('politician-select').value = '';
+  document.getElementById('platform-buttons').innerHTML = '';
+  selectedPlatforms.clear();
+  showAlert('mod-alert', '');
+  showAlert('send-error', '');
+  updateSendButton();
+  show('app-view');
+});
+
+document.getElementById('login-btn').addEventListener('click', async () => {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  showAlert('login-error', '');
+  const { ok, data } = await apiFetch('/distribute/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password })
+  });
+  if (ok) {
+    currentUser = data.user;
+    const meRes = await apiFetch('/distribute/auth/me');
+    connectedPlatforms = meRes.data.connected_platforms || [];
+    await loadPoliticians();
+    show('app-view');
+  } else {
+    showAlert('login-error', data.error || 'Anmeldung fehlgeschlagen.');
+  }
+});
+
+document.getElementById('show-register').addEventListener('click', () => {
+  document.getElementById('register-form').style.display = 'block';
+});
+
+document.getElementById('register-btn').addEventListener('click', async () => {
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  showAlert('login-error', '');
+  const { ok, data } = await apiFetch('/distribute/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, password })
+  });
+  if (ok) {
+    currentUser = data.user;
+    connectedPlatforms = [];
+    await loadPoliticians();
+    show('app-view');
+  } else {
+    showAlert('login-error', data.error || 'Registrierung fehlgeschlagen.');
+  }
+});
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await apiFetch('/distribute/auth/logout', { method: 'POST' });
+  currentUser = null;
+  show('login-view');
+});
+
+init();
+</script>
+</body>
+</html>
