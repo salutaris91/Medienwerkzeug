@@ -5,6 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 DB_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'distribute.db')
+# distribute.db is gitignored (contains user data). politicians.json lives in gui/core/distribute/
 
 
 def get_connection() -> sqlite3.Connection:

@@ -5,7 +5,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'politicians.json')
+DB_PATH = os.path.join(os.path.dirname(__file__), 'politicians.json')
 
 
 def load_politicians() -> list[dict]:
