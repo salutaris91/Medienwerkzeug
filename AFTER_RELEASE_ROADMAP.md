@@ -44,6 +44,7 @@ die aktive After-Release-Roadmap übernommen.
 | 35 | Premium-Umbenennungsdialog für Health-Fixes mit Metadaten-Lookup | geplant | klein–mittel |
 | 36 | Health-Dashboard: Gruppierung, Massen-Fixes (Batch) & Auto-Korrektur | geplant | mittel |
 | 37 | Docker-Schonmodus bei UI-Aktivität (Transfers drosseln) | geplant | klein–mittel |
+| 38 | Intelligente Pipeline-Parallelisierung bei langen Uploads | geplant | mittel |
 
 ---
 
@@ -92,7 +93,10 @@ Settings-Modell für Speicherziele schafft:
    wie im Abschnitt selbst beschrieben.
 4. **#37** (Docker-Schonmodus bei UI-Aktivität) ergänzt die Performance-Arbeit,
    ist aber als eigenständiger Transfer-/Queue-Mechanismus planbar.
-5. **#16** (System Metrics Worker: Thread-Akkumulation) ist ein eigenständiger
+5. **#38** (Pipeline-Parallelisierung bei langen Uploads) sollte nach oder
+   zusammen mit #37 betrachtet werden, damit zusätzliche Parallelität direkt mit
+   Ressourcenbudgets und Drosselung gekoppelt wird.
+6. **#16** (System Metrics Worker: Thread-Akkumulation) ist ein eigenständiger
    Bugfix mit kleinem Aufwand und kann unabhängig davon jederzeit, auch früher,
    eingeschoben werden.
 
@@ -118,7 +122,7 @@ früh sichtbaren Fortschritt zu erzielen:
 
 - **#1/#29:** Soll #29 vollständig in #1 aufgehen, oder bleibt ein eigenständiger
   Rest übrig? Erst nach Abschluss von #1 final entscheidbar.
-- **#3, #17, #20, #32, #37:** größere, eigenständige Features ohne harte Abhängigkeiten
+- **#3, #17, #20, #32, #37, #38:** größere, eigenständige Features ohne harte Abhängigkeiten
   zu anderen Punkten — Reihenfolge untereinander richtet sich nach Priorität/
   Nutzen, nicht nach technischen Voraussetzungen.
 
@@ -1041,3 +1045,79 @@ Benutzer aktiv mit der App arbeitet, und danach wieder normal weiterlaufen.
 Klein–mittel: Settings-Erweiterung, Aktivitätsstatus im Backend, `bwlimit` für
 `rsync`/`rclone`, gedrosselter Python-Copy-Fallback, UI-/Queue-Hinweis und Tests
 für die Limit-Auswahl.
+
+---
+
+## 38. Intelligente Pipeline-Parallelisierung bei langen Uploads
+
+### Ziel
+Lange pCloud-/rclone-Uploads sollen die komplette Verarbeitungskette nicht
+blockieren. Wenn ein Projekt lokal fertig vorbereitet ist und nur noch in die
+Cloud hochlädt, soll Medienwerkzeug bereits mit geeigneten Schritten des nächsten
+Jobs beginnen können, ohne das NAS durch unkontrollierte Parallelität zu
+überlasten.
+
+### Ausgangslage
+- Die aktuelle Verarbeitung ist stark job-orientiert: Ein Job durchläuft
+  Metadaten, Konvertierung, NAS-Kopie und Cloud-Upload weitgehend als eine
+  zusammenhängende Sequenz.
+- Gerade Cloud-Uploads können im Vergleich zu lokaler Konvertierung oder NAS-Kopie
+  sehr lange dauern.
+- Während eines langen Uploads wären manche Schritte des nächsten Jobs sinnvoll
+  möglich, z. B. Metadaten/Vorschau vorbereiten, eine einzelne Konvertierung
+  starten oder lokal/NAS-seitig kopieren.
+
+### Grundsatzentscheidung
+Parallelisierung ist sinnvoll, aber nur **phasen- und ressourcenbewusst**:
+- **Gut parallelisierbar:** Ein laufender Cloud-Upload plus Vorbereitung oder
+  Konvertierung des nächsten Jobs.
+- **Vorsichtig parallelisieren:** Cloud-Upload plus NAS-Kopie, da beide Netzwerk
+  und Datenträger belasten können.
+- **Eher vermeiden:** mehrere große `ffmpeg`-Konvertierungen gleichzeitig auf
+  schwachen NAS-CPUs oder mehrere gleichzeitige große Uploads ohne Limit.
+
+### Umsetzung
+1. **Pipeline-Phasen trennen:**
+   - Jobs intern in Phasen modellieren: `metadata`, `convert`, `local_move`,
+     `nas_transfer`, `cloud_upload`, `cleanup`.
+   - Eine Phase kann abgeschlossen sein, obwohl spätere Transfer-Phasen noch
+     laufen.
+2. **Ressourcenklassen einführen:**
+   - CPU-lastig: `ffmpeg`, Medienscan mit `ffprobe`.
+   - I/O-lastig: lokale Moves, Python-Copy-Fallback, NAS-Kopie.
+   - Netzwerk-lastig: `rclone`/Cloud-Upload, ggf. `rsync` auf NAS.
+   - Pro Klasse ein konfigurierbares Parallelitätslimit.
+3. **Scheduler statt rein sequenzieller Queue:**
+   - Die Queue startet die nächste zulässige Phase, wenn genug Ressourcenbudget
+     frei ist.
+   - Beispiel: Ein Cloud-Upload belegt `network_cloud=1`, blockiert aber nicht
+     zwingend `cpu_convert=1`.
+   - Standard unter Docker konservativ halten: ein CPU-Job, ein Cloud-Upload,
+     maximal ein weiterer leichter Vorbereitungs-/NAS-Schritt.
+4. **Status und Bedienbarkeit:**
+   - Warteschlange zeigt Phasen separat an, z. B. "Job A lädt in pCloud hoch,
+     Job B konvertiert bereits".
+   - Abbrechen/Wiederholen muss phasenbewusst bleiben: Ein fehlgeschlagener
+     Upload darf nicht den bereits erfolgreich vorbereiteten lokalen Jobzustand
+     verlieren.
+5. **Zusammenspiel mit #37:**
+   - Wenn UI-Aktivität erkannt wird, werden laufende Transfer-Phasen gedrosselt.
+   - Der Scheduler darf bei aktivem Schonmodus keine neuen schweren Transferphasen
+     starten, sondern bevorzugt leichte Vorbereitung oder wartet.
+
+### Risiken & Hinweise
+- Mehr Parallelität kann die gefühlte Geschwindigkeit verbessern, aber bei
+  schwacher NAS-Hardware auch das Gegenteil bewirken. Deshalb konservative
+  Defaults und klare Settings.
+- Fehlerbehandlung wird anspruchsvoller: Phasen müssen idempotent sein, damit ein
+  Upload wiederholt werden kann, ohne lokale Dateien erneut falsch zu verschieben.
+- Cleanup darf erst laufen, wenn alle benötigten Zielphasen abgeschlossen sind.
+  Sonst könnten Quelldaten entfernt werden, während ein späterer Upload noch
+  darauf angewiesen ist.
+- Dieses Feature sollte nicht vor der bestehenden Queue-/Transfer-Stabilität
+  umgesetzt werden; es greift tief in Job-Lifecycle und Statusanzeige ein.
+
+### Aufwand (grob)
+Mittel: Scheduler-/Queue-Erweiterung, Phasenmodell, Ressourcenlimits,
+phasenbewusste Statusanzeige, Wiederaufnahme-/Fehlerlogik und Tests für
+Parallelitätsgrenzen.
