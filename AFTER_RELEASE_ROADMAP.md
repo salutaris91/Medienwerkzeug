@@ -43,6 +43,7 @@ die aktive After-Release-Roadmap übernommen.
 | 34 | Altersfreigabe-Checks im UI deutlicher erklären | geplant | klein |
 | 35 | Premium-Umbenennungsdialog für Health-Fixes mit Metadaten-Lookup | geplant | klein–mittel |
 | 36 | Health-Dashboard: Gruppierung, Massen-Fixes (Batch) & Auto-Korrektur | geplant | mittel |
+| 37 | Docker-Schonmodus bei UI-Aktivität (Transfers drosseln) | geplant | klein–mittel |
 
 ---
 
@@ -89,7 +90,9 @@ Settings-Modell für Speicherziele schafft:
 2. **#13** (Komfortablere Health-Quick-Fix-Oberfläche) danach.
 3. **#12** (Performance-Optimierung große Serienbibliotheken) — Analyse zuerst,
    wie im Abschnitt selbst beschrieben.
-4. **#16** (System Metrics Worker: Thread-Akkumulation) ist ein eigenständiger
+4. **#37** (Docker-Schonmodus bei UI-Aktivität) ergänzt die Performance-Arbeit,
+   ist aber als eigenständiger Transfer-/Queue-Mechanismus planbar.
+5. **#16** (System Metrics Worker: Thread-Akkumulation) ist ein eigenständiger
    Bugfix mit kleinem Aufwand und kann unabhängig davon jederzeit, auch früher,
    eingeschoben werden.
 
@@ -115,7 +118,7 @@ früh sichtbaren Fortschritt zu erzielen:
 
 - **#1/#29:** Soll #29 vollständig in #1 aufgehen, oder bleibt ein eigenständiger
   Rest übrig? Erst nach Abschluss von #1 final entscheidbar.
-- **#3, #17, #20, #32:** größere, eigenständige Features ohne harte Abhängigkeiten
+- **#3, #17, #20, #32, #37:** größere, eigenständige Features ohne harte Abhängigkeiten
   zu anderen Punkten — Reihenfolge untereinander richtet sich nach Priorität/
   Nutzen, nicht nach technischen Voraussetzungen.
 
@@ -978,3 +981,63 @@ Bei großen Medienbibliotheken können Hunderte von Health-Warnungen auftreten. 
 
 ### Aufwand (grob)
 Mittel: Anpassung der Health-UI (Gruppierungs-Logik, Checkboxen), Backend-Batch-API und Implementierung von Auto-Fix-Heuristiken.
+
+---
+
+## 37. Docker-Schonmodus bei UI-Aktivität (Transfers drosseln)
+
+### Ziel
+Wenn Medienwerkzeug auf einem NAS per Docker läuft, sollen lange Hintergrundjobs
+die Bedienung der Weboberfläche nicht spürbar ausbremsen. Kopier-,
+Verschiebe- und Upload-Vorgänge sollen automatisch gedrosselt werden, sobald der
+Benutzer aktiv mit der App arbeitet, und danach wieder normal weiterlaufen.
+
+### Ausgangslage
+- Große Transfers über `rsync`, `rclone` oder den Python-Copy-Fallback belasten
+  NAS-I/O, Netzwerk und CPU.
+- Währenddessen können andere UI-Aktionen, Vorschauen oder Bibliotheksabfragen
+  träge wirken, obwohl die App grundsätzlich weiterläuft.
+- Docker-/Container-Limits wären möglich, sind aber nur grobe Systemgrenzen und
+  reagieren nicht darauf, ob gerade jemand die Oberfläche nutzt.
+
+### Umsetzung
+1. **Aktivitäts-Signal erfassen:**
+   - Frontend sendet bei relevanter Nutzung (Navigation, Vorschau, Settings,
+     Bibliotheksabfragen) ein leichtgewichtiges Aktivitäts-Signal oder nutzt einen
+     bestehenden Status-Endpunkt zur Aktualisierung eines `last_interaction_at`.
+   - Backend hält daraus einen kurzen "interaktiven Zeitraum" (z. B. 30-60
+     Sekunden) abgeleitet.
+2. **Transfer-Drosselung:**
+   - `run_rsync_with_progress()` nutzt bei aktiver UI einen reduzierten
+     `--bwlimit`-Wert.
+   - `copy_to_cloud_target()` nutzt bei aktiver UI einen reduzierten
+     `rclone --bwlimit`-Wert.
+   - `run_copy_fallback()` kopiert in Chunks und legt bei aktiver UI kleine
+     Pausen ein, damit lokale NAS-I/O nicht dauerhaft saturiert.
+3. **Settings:**
+   - Konfigurierbare Werte für Idle- und Aktiv-Bandbreite, z. B.
+     `background_transfer_limit_idle_mbps`,
+     `background_transfer_limit_active_mbps` und
+     `interactive_throttle_seconds`.
+   - Gute Defaults: im Desktop-Modus aus oder sehr großzügig, im Docker-Modus
+     aktivierbar mit moderatem Aktiv-Limit.
+4. **Queue-/Statusanzeige:**
+   - In der Warteschlange sichtbar machen, wenn ein Transfer gerade im
+     Schonmodus läuft ("gedrosselt wegen UI-Aktivität").
+   - Logs sollen klar zeigen, wann und mit welchem Limit gedrosselt wurde.
+
+### Risiken & Hinweise
+- Bandbreitenlimits helfen vor allem bei Netzwerk- und I/O-Druck; CPU-lastige
+  `ffmpeg`-Konvertierungen brauchen ggf. separat begrenzte Threads oder
+  Priorität.
+- Ein laufender `rsync`/`rclone`-Prozess kann seine Parameter nicht ohne Weiteres
+  nachträglich ändern. Für Version 1 reicht daher ein Limit pro Transferstart;
+  dynamische Anpassung während eines laufenden Transfers wäre eine zweite Stufe
+  oder müsste über eigene Copy-Schleifen erfolgen.
+- Die Drosselung darf keine Timeouts verursachen und muss in Fortschritt/Logs
+  transparent bleiben.
+
+### Aufwand (grob)
+Klein–mittel: Settings-Erweiterung, Aktivitätsstatus im Backend, `bwlimit` für
+`rsync`/`rclone`, gedrosselter Python-Copy-Fallback, UI-/Queue-Hinweis und Tests
+für die Limit-Auswahl.
