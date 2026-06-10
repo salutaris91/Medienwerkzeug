@@ -2877,6 +2877,100 @@ def job_queue_worker():
 _rclone_about_cache = {}
 _RCLONE_ABOUT_TTL = 300
 
+_STORAGE_PROBE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "storage_probe.py")
+_STORAGE_PROBE_TIMEOUT_SEC = 20
+_METRICS_BREAKER_THRESHOLD = 3
+_METRICS_BREAKER_PAUSE_SEC = 600
+
+
+def _run_storage_probe(mode, path, timeout_sec=_STORAGE_PROBE_TIMEOUT_SEC):
+    """Runs a storage measurement in a separate, hard-killable process.
+
+    Returns (result_dict_or_None, timed_out). A process — unlike a thread —
+    can be SIGKILLed when a stale mount blocks it (Roadmap #16).
+    """
+    import sys, subprocess, json
+    cmd = [sys.executable, _STORAGE_PROBE_PATH, mode, path]
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    except Exception as e:
+        log_message(f"⚠️ Speicher-Probe konnte nicht gestartet werden ({mode} für {path}): {e}")
+        return None, False
+    try:
+        out, err = proc.communicate(timeout=timeout_sec)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        try:
+            proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            # Probe stuck in uninterruptible sleep (stale mount); SIGKILL takes
+            # effect once the blocked syscall returns — do not wait for it.
+            pass
+        log_message(f"⚠️ Speicher-Probe Timeout nach {timeout_sec}s ({mode} für {path}), Prozess beendet.")
+        return None, True
+    if proc.returncode != 0:
+        detail = (err or "").strip() or f"Exit-Code {proc.returncode}"
+        log_message(f"⚠️ Speicher-Probe fehlgeschlagen ({mode} für {path}): {detail}")
+        return None, False
+    try:
+        return json.loads(out), False
+    except ValueError as e:
+        log_message(f"⚠️ Speicher-Probe lieferte ungültige Ausgabe ({mode} für {path}): {e}")
+        return None, False
+
+
+class _MetricsCircuitBreaker:
+    """Pauses a single measurement after repeated timeouts.
+
+    While a target hangs (stale mount), spawning a fresh probe process every
+    60s cycle is pointless — after `threshold` consecutive timeouts the
+    measurement is skipped for `pause_sec` seconds.
+    """
+
+    def __init__(self, threshold=_METRICS_BREAKER_THRESHOLD, pause_sec=_METRICS_BREAKER_PAUSE_SEC):
+        self.threshold = threshold
+        self.pause_sec = pause_sec
+        self._timeout_counts = {}
+        self._paused_until = {}
+
+    def allows(self, key):
+        import time
+        paused_until = self._paused_until.get(key)
+        if paused_until is None:
+            return True
+        if time.time() < paused_until:
+            return False
+        del self._paused_until[key]
+        log_message(f"ℹ️ Speichermessung für '{key}' wird nach Pause wieder versucht.")
+        return True
+
+    def record_timeout(self, key):
+        import time
+        count = self._timeout_counts.get(key, 0) + 1
+        self._timeout_counts[key] = count
+        if count >= self.threshold:
+            self._timeout_counts[key] = 0
+            self._paused_until[key] = time.time() + self.pause_sec
+            log_message(
+                f"⚠️ Speichermessung für '{key}' nach {self.threshold} Timeouts "
+                f"für {self.pause_sec // 60} Minuten pausiert."
+            )
+
+    def record_result(self, key):
+        self._timeout_counts.pop(key, None)
+
+
+def _measure_folder_size_bytes(path, breaker, key):
+    """Folder size via probe process; returns bytes or None (timeout/paused/error)."""
+    if not breaker.allows(key):
+        return None
+    result, timed_out = _run_storage_probe("folder_size", path)
+    if timed_out:
+        breaker.record_timeout(key)
+        return None
+    breaker.record_result(key)
+    return result.get("bytes") if result else None
+
 def _rclone_about(remote):
     import subprocess, json, time
     now = time.time()
@@ -2895,8 +2989,7 @@ def _rclone_about(remote):
     _rclone_about_cache[remote] = (now, data)
     return data
 
-def _read_target_storage(target):
-    import shutil, os
+def _read_target_storage(target, breaker=None):
     info = {
         "name": target.get("name", ""),
         "type": target.get("type", ""),
@@ -2918,37 +3011,39 @@ def _read_target_storage(target):
         return info
 
     root_path = target.get("root_path")
-    if root_path and os.path.exists(root_path):
-        try:
-            usage = shutil.disk_usage(root_path)
+    if root_path:
+        # os.path.exists/shutil.disk_usage hang on stale mounts, therefore
+        # both run inside the killable probe process (Roadmap #16).
+        breaker_key = f"target:{root_path}"
+        if breaker is not None and not breaker.allows(breaker_key):
+            info["error"] = "Speichermessung pausiert (wiederholte Timeouts)."
+            return info
+        usage, timed_out = _run_storage_probe("disk_usage", root_path)
+        if breaker is not None:
+            if timed_out:
+                breaker.record_timeout(breaker_key)
+            else:
+                breaker.record_result(breaker_key)
+        if timed_out:
+            info["error"] = "Speichermessung Timeout (Mount reagiert nicht)."
+        elif usage and usage.get("exists"):
             info["available"] = True
-            info["total"] = usage.total
-            info["free"] = usage.free
-            if usage.free > usage.total or usage.used < 0:
+            info["total"] = usage["total"]
+            info["free"] = usage["free"]
+            if usage["free"] > usage["total"] or usage["used"] < 0:
                 info["usage_unreliable"] = True
             else:
-                info["used"] = usage.used
-                info["used_percent"] = round((usage.used / usage.total) * 100, 2) if usage.total > 0 else 0.0
-        except Exception as e:
-            info["error"] = str(e)
+                info["used"] = usage["used"]
+                info["used_percent"] = round((usage["used"] / usage["total"]) * 100, 2) if usage["total"] > 0 else 0.0
     return info
 
 def system_metrics_worker():
     import time
-    from gui.core.helpers import get_folder_size_bytes
     from gui.core.utils import load_settings
 
-    def run_with_timeout(func, arg, timeout_sec=20):
-        result = [None]
-        def _worker():
-            try:
-                result[0] = func(arg)
-            except Exception as e:
-                log_message(f"⚠️ System-Metrik-Abfrage fehlgeschlagen ({getattr(func, '__name__', 'unbekannt')} für {arg}): {e}")
-        t = threading.Thread(target=_worker, daemon=True)
-        t.start()
-        t.join(timeout_sec)
-        return result[0]
+    # Messungen laufen in killbaren Probe-Prozessen statt Daemon-Threads,
+    # damit stale Mounts keine Threads akkumulieren (Roadmap #16).
+    breaker = _MetricsCircuitBreaker()
 
     while SYSTEM_STATUS.get('running', True):
         try:
@@ -2957,8 +3052,8 @@ def system_metrics_worker():
             outbox = settings.get("outbox_dir", os.path.expanduser("~/Downloads/Medien Output"))
 
             # 1. Berechne Ordnergrößen (mit 20s Timeout)
-            inbox_bytes = run_with_timeout(get_folder_size_bytes, inbox, 20) if inbox else 0
-            outbox_bytes = run_with_timeout(get_folder_size_bytes, outbox, 20) if outbox else 0
+            inbox_bytes = _measure_folder_size_bytes(inbox, breaker, "inbox") if inbox else 0
+            outbox_bytes = _measure_folder_size_bytes(outbox, breaker, "outbox") if outbox else 0
             with METRICS_LOCK:
                 SYSTEM_METRICS['inbox_size_gb'] = round(inbox_bytes / (1024**3), 2) if inbox_bytes is not None else None
                 SYSTEM_METRICS['outbox_size_gb'] = round(outbox_bytes / (1024**3), 2) if outbox_bytes is not None else None
@@ -2967,7 +3062,7 @@ def system_metrics_worker():
             targets = [t for t in settings.get("storage_targets", []) if t.get("enabled", True)]
             nas_info = None
             for target in targets:
-                candidate = run_with_timeout(_read_target_storage, target, 20)
+                candidate = _read_target_storage(target, breaker=breaker)
                 if candidate and candidate.get("available"):
                     nas_info = candidate
                     break

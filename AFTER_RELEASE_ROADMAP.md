@@ -22,7 +22,7 @@ die aktive After-Release-Roadmap übernommen.
 | 13 | Komfortablere Health-Quick-Fix-Oberfläche | geplant | klein–mittel |
 | 14 | Health-Status-Vertrag & Frontend-Testabdeckung | geplant | klein–mittel |
 | 15 | FAQ sprachlich und visuell überarbeiten | erledigt | klein |
-| 16 | System Metrics Worker: Thread-Akkumulation verhindern | geplant | klein |
+| 16 | System Metrics Worker: Thread-Akkumulation verhindern | erledigt | klein |
 | 17 | NAS-Diagnose-Checkliste auf der Startseite | geplant | klein–mittel |
 | 18 | Docker-Image veröffentlichen (GHCR/Docker Hub) | geplant | mittel |
 | 19 | Geführter rclone-Web-Flow | geplant | mittel |
