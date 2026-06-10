@@ -1,21 +1,31 @@
-# Medienwerkzeug 🎬🎥
+# Medienwerkzeug
 
-**Medienwerkzeug** ist eine intuitive Web-basierte Steuerungszentrale zur Verwaltung, Benennung, Strukturierung und Synchronisation deiner privaten Medienbibliothek. Das Tool automatisiert den Prozess von lokalen Importordnern bis zur geordneten Archivierung auf NAS- und Cloud-Speicherzielen.
+**Medienwerkzeug** ist die Vorbereitungs- und Ordnungszentrale für deine private Medienbibliothek, bevor Plex, Jellyfin, Emby oder ähnliche Medienserver übernehmen. Das Tool sorgt dafür, dass Dateien, Ordner, Staffelstrukturen, Metadaten und Zielpfade auf der Platte sauber, einheitlich und serverfreundlich vorbereitet sind.
+
+Statt selbst ein weiterer Mediaserver sein zu wollen, arbeitet Medienwerkzeug Hand in Hand mit deiner bestehenden Medienumgebung: Es nimmt rohe Importordner, chaotische Dateinamen und verteilte Quellen entgegen und formt daraus eine Bibliothek, die auf NAS, externen Laufwerken und Cloud-Zielen nachvollziehbar organisiert ist und von Plex, Jellyfin oder Emby deutlich besser erkannt wird.
+
+**Kurz gesagt:** Medienwerkzeug ist der Schritt **vor** deinem Medienserver. Es hilft dir dabei, dass auf der Platte alles so aussieht, wie dein Medienserver es später haben möchte.
+
+Für Menschen mit einer wachsenden Mediathek bedeutet das vor allem eins: weniger Dateichaos, weniger manuelle Nacharbeit und deutlich mehr Vertrauen darin, dass Ordner, Namen und Zielpfade am Ende wirklich zusammenpassen.
+
+![Startseite des Medienwerkzeugs](docs/images/readme/dashboard.png)
 
 ---
 
 ## Inhaltsverzeichnis
 
+- [Warum Medienwerkzeug?](#-warum-medienwerkzeug)
+- [Schnellstart](#-schnellstart)
 - [Systemanforderungen](#%EF%B8%8F-systemanforderungen)
+- [Setup & Installation](#%EF%B8%8F-setup--installation)
+- [Starten der Anwendung](#-starten-der-anwendung)
+  - [Variante A: Docker (Empfohlen, jetzt verfügbar)](#variante-a-docker-empfohlen-jetzt-verf%C3%BCgbar)
+  - [Variante B: Desktop-App (Coming Soon)](#variante-b-desktop-app-coming-soon)
+  - [Variante C: Kommandozeile (für Entwicklung)](#variante-c-kommandozeile-f%C3%BCr-entwicklung)
 - [Hauptfunktionen](#-hauptfunktionen)
 - [Projektstruktur](#-projektstruktur)
 - [Entwickler-Wiki](#-entwickler-wiki)
 - [System- & Datenfluss](#-system---datenfluss)
-- [Setup & Installation](#%EF%B8%8F-setup--installation)
-- [Starten der Anwendung](#-starten-der-anwendung)
-  - [Variante A: macOS App](#variante-a-macos-app-empfohlen-für-desktop)
-  - [Variante B: Kommandozeile](#variante-b-kommandozeile)
-  - [Variante C: Docker (NAS / Server)](#variante-c-docker-empfohlen-für-nas--server)
 - [Sicherheit & Zugriffskontrolle](#-sicherheit--zugriffskontrolle)
 - [Transparenz: Datenschutz & ausgehende Verbindungen](#-transparenz-datenschutz--ausgehende-verbindungen)
 - [Best Practices](#-best-practices-serien-universen--sendeplätze-zb-arte-entdeckung-der-welt)
@@ -23,17 +33,214 @@
 
 ---
 
+## Warum Medienwerkzeug?
 
-## ⚙️ Systemanforderungen
+Medienwerkzeug löst ein Problem, das Plex, Jellyfin oder Emby bewusst nicht lösen: den Weg **vor** der eigentlichen Bibliothek.
+
+Wenn bereits vorhandene Mediendateien, Archivbestände oder lokale Importquellen in uneinheitlichen Ordnern landen, kümmert sich Medienwerkzeug um genau diesen unordentlichen Zwischenzustand:
+
+* Es erkennt Inhalte, bereinigt Namen und bringt Serien, Filme und Dokus in eine konsistente Struktur.
+* Es bereitet Ordner, Dateien, Artwork und Metadaten so auf, dass nachgelagerte Medienserver sauberer matchen.
+* Es synchronisiert die fertigen Ergebnisse kontrolliert auf NAS- und Cloud-Ziele.
+* Es hilft dir dabei, dass deine Mediathek auf der Platte langfristig ordentlich und wartbar bleibt, statt mit jeder Quelle chaotischer zu werden.
+
+Damit ist Medienwerkzeug kein Ersatz für Plex, Jellyfin oder Emby, sondern deren vorgeschaltete Ordnungs- und Vorbereitungsinstanz.
+
+Der Fokus liegt auf der Organisation, Benennung und Synchronisation eigener oder berechtigt genutzter Medienbestände, nicht auf dem Beschaffen von Inhalten.
+
+## Schnellstart
+
+**Heute verfügbar:** die Docker-Version für NAS und Server.
+
+**In Vorbereitung:** eine bequemere Desktop-App für Endnutzer, die später ohne Docker auskommen soll.
+
+Wenn du Medienwerkzeug direkt ausprobieren willst, kommst du heute am schnellsten über Docker ans Ziel:
+
+1. Docker auf deinem NAS oder Server bereitstellen.
+2. Die Compose-Vorlage aus dieser README übernehmen.
+3. Container starten und den Einrichtungsassistenten im Browser öffnen.
+
+Die Oberfläche ist dabei nicht nur funktional, sondern führt dich sichtbar durch die wichtigsten Arbeitsbereiche: Import, Vorschau, Einstellungen, Bibliothek und Warteschlange.
+
+## Systemanforderungen
 Das Medienwerkzeug ist für performante, fehlerresiliente Arbeitsabläufe optimiert.
 
 * **Betriebssystem:** macOS (nativ optimiert für lokale Pfade und Papierkorb-Integration), auch lauffähig auf Linux/Windows mit angepassten Pfaden.
 * **Prozessor (CPU):** Multicore empfohlen (für asynchrone Health-Scans und rclone-Uploads).
 * **Arbeitsspeicher (RAM):** Mindestens 2 GB RAM (für Caching der Verzeichnisbäume beim Health-Scan mit +10.000 Dateien).
 * **NAS & Storage:** SMB/NFS Freigaben müssen im OS erreichbar sein.
-* **Abhängigkeiten:** `rclone` für pCloud-Sync, `ffmpeg`/`ffprobe` für intelligente Videokonvertierung (optional).
+* **Abhängigkeiten:** `rclone` für Cloud-Sync, `ffmpeg`/`ffprobe` für intelligente Videokonvertierung (optional).
 
-## 🚀 Hauptfunktionen
+---
+
+## Setup & Installation
+
+### 1. Welcher Installationsweg ist aktuell gedacht?
+
+Der aktuell vorgesehene und aktiv verteilte Installationsweg ist **Docker**.
+
+* **Docker / NAS / Server:** der empfohlene Weg für die reale Nutzung heute.
+* **Desktop-App:** ist geplant, aber noch nicht als reguläre Endnutzer-Version verfügbar.
+* **Kommandozeile:** sinnvoll für Entwicklung, Tests oder manuelles lokales Starten.
+
+### 2. Docker-Installation
+
+### Variante A: Docker (Empfohlen, jetzt verfügbar)
+
+Das Medienwerkzeug kann als Docker-Container auf einem NAS oder Server betrieben werden. Das Image enthält die benötigten Werkzeuge für die Kernfunktionen sowie optionale Zusatzpfade (`ffmpeg`, `rclone`, optional `yt-dlp`) - auf dem NAS muss nichts zusätzlich installiert werden.
+
+![Einstellungsbereich im Medienwerkzeug](docs/images/readme/settings.png)
+
+#### Voraussetzungen
+
+- Docker auf dem NAS installiert (Synology: Paketcenter -> Docker)
+- SSH-Zugang zum NAS
+
+> ⚠️ **Performance-Hinweis:** Videokonvertierungen (z. B. HEVC Umwandlung per FFmpeg) direkt auf dem NAS können durch schwächere NAS-CPUs deutlich langsamer sein als auf einem dedizierten Mac/PC. Nutze für große Video-Umwandlungen gegebenenfalls später bevorzugt die Desktop-Version.
+
+#### Schritt 1: Ordner anlegen
+
+Lege den Konfigurationsordner auf dem NAS an und setze die Besitzerrechte auf deinen NAS-Benutzer, damit die App darin schreiben darf:
+
+```bash
+mkdir -p /pfad/zu/medienwerkzeug/config
+chown PUID:PGID /pfad/zu/medienwerkzeug/config
+```
+
+> **Deine PUID und PGID findest du mit:**
+> ```bash
+> id dein-nas-benutzername
+> # Beispielausgabe: uid=1000(alex) gid=10(admin)
+> # -> PUID=1000, PGID=10
+> ```
+
+#### Schritt 2: `docker-compose.yml` anlegen
+
+Erstelle eine `docker-compose.yml` auf dem NAS (z. B. unter `/pfad/zu/medienwerkzeug/docker-compose.yml`):
+
+```yaml
+services:
+  medienwerkzeug:
+    image: ghcr.io/dein-github-username/medienwerkzeug:latest
+    container_name: medienwerkzeug
+    user: "PUID:PGID"          # Ersetze mit deinen Werten, z. B. "1000:10"
+    ports:
+      - "5811:5001"
+    environment:
+      - TZ=Europe/Berlin
+      - PUID=1000               # Deine UID
+      - PGID=10                 # Deine GID
+    volumes:
+      - /pfad/zu/medienwerkzeug/config:/config
+      - /pfad/zu/deinen/medien:/media   # Übergeordneter Ordner deiner Mediathek
+    restart: unless-stopped
+```
+
+> **Zum Volume `/media`:** Trage den übergeordneten Ordner deiner Mediathek ein. Liegen deine Medien z. B. unter `/volume1/Media` mit Unterordnern `Filme`, `Serien`, `Doku` usw., reicht ein einziger Eintrag:
+> ```yaml
+> - /volume1/Media:/media
+> ```
+> Die App sieht dann intern `/media/Filme`, `/media/Serien` usw. - alle Unterordner automatisch.
+
+#### Schritt 3: Container starten
+
+```bash
+docker compose up -d
+```
+
+Die Anwendung ist danach unter `http://deine-nas-ip:5811` erreichbar.
+
+Beim ersten Start öffnet sich der Einrichtungsassistent, der dich durch API-Keys, Pfade und Sicherheitseinstellungen führt.
+
+#### Schritt 4: Updates einspielen
+
+Wenn eine neue Version verfügbar ist, reichen zwei Befehle auf dem NAS:
+
+```bash
+docker compose pull     # Neues Image holen
+docker compose up -d    # Container mit neuem Image neu starten
+```
+
+Deine Konfiguration in `/config` bleibt dabei vollständig erhalten.
+
+#### Schritt 5: Fehlerdiagnose
+
+```bash
+docker logs medienwerkzeug        # Letzter Output
+docker logs -f medienwerkzeug     # Live mitlesen
+docker ps                         # Prüfen ob Container läuft
+```
+
+#### Schritt 6: Daten & Profile (Data Profiles)
+
+Das Medienwerkzeug speichert Zustandsdaten, Konvertierungshistorien und spezifische Metadaten im Ordner `/config/data/profiles`. Diese Profile ermöglichen eine schnelle Wiedererkennung wiederkehrender Serien, Quellen und Verarbeitungsläufe. Durch das `/config` Volume bleiben diese Daten auch bei Container-Updates sicher erhalten.
+
+### 3. Grundkonfiguration
+
+API-Keys können direkt in der Web-GUI unter **Einstellungen** (Metadaten API-Keys) eingetragen werden. Die Werte werden in der UI maskiert angezeigt (z. B. `****abcd`), um sie vor unbefugtem Auslesen zu schützen.
+
+Alternativ kann manuell eine `.env` Datei im Projekt-Root (oder gem. `MW_ENV_FILE`) angelegt werden:
+```env
+TMDB_API_KEY=dein_tmdb_api_key
+TVDB_API_KEY=dein_tvdb_api_key
+```
+
+Pfade und Synchronisationseinstellungen werden in `data/settings.json` verwaltet (oder direkt über die GUI-Einstellungen angepasst):
+* **inbox_dir:** Pfad zum Ordner `Medien Input`.
+* **outbox_dir:** Pfad zum Ordner `Medien Output`.
+* **nas_root:** Mount-Pfad des NAS (z. B. `/Volumes/Kino`).
+* **import_sources:** Liste lokaler Pfade, aus denen bereits vorhandene, berechtigte Mediendateien gesammelt in die Inbox importiert werden.
+* **storage_targets:** Dynamisch verwaltete Speicherziele für NAS und Cloud-Dienste.
+* **sync_categories:** Zuordnungen von Metadaten-Kategorien zu Unterpfaden auf deinen Speicherzielen.
+
+### 4. Speicherziele & `rclone` Setup
+
+Unter dem Einstellungs-Tab **"Speicher & Sync"** kannst du beliebig viele Speicherziele konfigurieren (z. B. dein lokales NAS oder Cloud-Anbieter wie pCloud, Google Drive etc.).
+
+#### Was bedeuten die Felder?
+* **Lokal-Pfad (Wurzelverzeichnis):** Der Pfad auf deinem Mac, unter dem das Speicherziel erreichbar ist (z. B. `/Volumes/Kino` für dein NAS oder `/Users/alex/pCloud Drive` für pCloud). Das Tool kopiert bevorzugt mit `rsync` an diesen lokalen Mount-Pfad.
+* **rclone Remote (Optional):** Der Name der Verbindung in deiner rclone-Konfiguration (z. B. `pcloud:`). Dies dient als **automatisches Fallback**: Ist der lokale Mountpfad offline (weil die Sync-App geschlossen ist), lädt das Backend die Dateien per `rclone` direkt in die Cloud hoch.
+* **SMB Details (nur NAS):** Konfiguration der lokalen IP-Adresse, der Backup-/Tailscale-IP, des Finder-Servernamens und des SMB-Share-Namens. Der Finder-Fallback wird nur beim manuellen NAS-Verbinden geöffnet, nicht während automatischer Verarbeitungsläufe.
+
+#### `rclone` konfigurieren (Kurzanleitung)
+1. **Installation:** Falls nicht installiert, installiere `rclone` über Homebrew im macOS Terminal:
+   ```bash
+   brew install rclone
+   ```
+2. **Einrichten eines neuen Remotes:**
+   Führe im Terminal folgenden Befehl aus und folge dem interaktiven Assistenten:
+   ```bash
+   rclone config
+   ```
+   * Drücke `n` für "New remote".
+   * Wähle einen Wunschnamen (z. B. `pcloud`). **Diesen Namen trägst du später in das Feld `rclone Remote` ein** (als `pcloud:`).
+   * Wähle die Nummer für deinen Cloud-Speicher (z. B. `pcloud` oder `google drive`).
+   * Folge den Anweisungen zur Browser-Authentifizierung.
+3. **Verbindung prüfen:**
+   Liste deine konfigurierten Remotes im Terminal auf:
+   ```bash
+   rclone listremotes
+   ```
+   Trage den ausgegebenen Namen (z. B. `pcloud:`) in das Einstellungs-Dashboard des Medienwerkzeugs ein.
+4. **Verbindung testen (optional):**
+   ```bash
+   rclone about pcloud:
+   ```
+   Gibt das Speicher-Kontingent (gesamt/belegt/frei) zurück. Genau diese Abfrage nutzt
+   auch das Dashboard, um die Speicherbelegung eines Cloud-Ziels anzuzeigen.
+
+> **Beliebiger Anbieter:** Es ist **kein** anbieterspezifischer Code nötig - der Cloud-Dienst
+> wird allein durch das `rclone-Remote` bestimmt. Für Google Drive trägst du z. B. `gdrive:`
+> ein, für OneDrive `onedrive:` usw. Anzeige und Verarbeitungs-Schalter übernehmen automatisch
+> den Namen des Speicherziels (z. B. „Auch in Google Drive sichern").
+>
+> **Mehrere Clouds gleichzeitig** (unabhängig schaltbar) sind noch nicht umgesetzt - siehe
+> [`AFTER_RELEASE_ROADMAP.md`](AFTER_RELEASE_ROADMAP.md) (Punkt 1).
+>
+> 💡 In den Einstellungen unter **„Speicher & Sync"** gibt es neben der Erklärung ein
+> **❓-Symbol**, das beim Drüberfahren eine `rclone`-Kurzanleitung einblendet.
+
+## Hauptfunktionen
 1. **Automatischer Metadaten-Abgleich:** Vollautomatische, fuzzy-gewichtete Suche auf TMDB und TVDB für Serien, Einzelepisoden, Filme und Dokumentationen mit intelligenter Namensbereinigung.
 2. **Klares Vorschau-System:** Detaillierte Vorschau aller geplanten Umbenennungen, Zielpfade (NAS & pCloud getrennt) sowie Junk-Dateien vor der Ausführung.
 3. **Einhaltung strenger Zielstrukturen:**
@@ -49,7 +256,7 @@ Das Medienwerkzeug ist für performante, fehlerresiliente Arbeitsabläufe optimi
 7. **Multi-Staffel-Verarbeitung:** Unterstützung für die gleichzeitige Zuordnung und Einsortierung von Episoden über mehrere Staffeln hinweg.
 8. **Native macOS Papierkorb-Integration:** Gelöschte Projektordner und Junk-Dateien werden sicher in den macOS-Papierkorb verschoben statt unwiderruflich gelöscht zu werden.
 9. **Wartungs-Werkzeug (Medienpfade bereinigen):** Komfortabler Scan und Bereinigung von Müll- und Junkdateien in den Arbeitsordnern mit automatischer Entfernung leerer Unterordner.
-10. **Optionale Online-Medien-Verarbeitung:** Einzelne YouTube- oder Mediathek-Links können über `yt-dlp` verarbeitet werden, sofern du die notwendigen Rechte an den Inhalten hast und die jeweiligen Plattformbedingungen einhältst.
+10. **Optionale Online-Medien-Verarbeitung:** Einzelne YouTube- oder Mediathek-Links können über `yt-dlp` in bestehende, berechtigte Workflows eingebunden werden, sofern du die notwendigen Rechte an den Inhalten hast und die jeweiligen Plattformbedingungen einhältst.
 11. **Ordner-Zugriff & Autostart (📂):** Direktes Öffnen der Medienordner über native macOS Finder-Buttons (nur Desktop-Modus) oder eine sichere, integrierte Web-Ordneransicht (Docker-Modus).
 12. **Doubletten-Erkennung:** Automatischer Scan des NAS-Zielverzeichnisses nach bereits existierenden Episoden (Muster `SxxExx`) inklusive Anzeige von Auflösung und Dateigröße (via `ffprobe`) vor dem Starten.
 13. **Visualisierte Fortschritts-Pipeline:** Vierstufige Fortschrittsanzeige in Echtzeit (`[Metadaten] ➔ [Konvertierung] ➔ [NAS-Kopieren] ➔ [pCloud-Sync]`) mit Statussymbolen und Prozentsätzen pro Job.
@@ -57,7 +264,7 @@ Das Medienwerkzeug ist für performante, fehlerresiliente Arbeitsabläufe optimi
 15. **Witz des Tages (Flachwitze):** Glassmorphe Modal-Einblendung beim App-Start und Jobabschluss (synchronisiert sich asynchron mit GitHub und bietet lokales Offline-Fallback).
 16. **Optionale YouTube-Beobachtung:** Dashboard zur Hintergrundprüfung von Kanälen/Playlists mit Suchfiltern, Zielkategorie-Zuweisung und optionaler manueller Freigabeliste.
 17. **Premium-Design & Themes:** Umschaltbare Design-Themes (🌌 Deep Space, 🏔️ Nordic Slate, 🍂 Amber Warmth, 🍎 Apple Silver) mit butterweichen View-Transitions, 3D-Card-Parallax (Neigungs-Effekt) und mausfolgenden Lichtkegel-Glows.
-18. **Online-Medien-Merge & Kanallogos:** Automatischer Abruf von Kanal-Profilbildern, zeitstempelbasierte Filterung (`last_checked_timestamp`) und Ausschluss-Keywords. Mehrteilige berechtigte Videos können über den FFmpeg-`concat`-Demuxer verlustfrei zusammengefügt werden.
+18. **Online-Medien-Merge & Kanallogos:** Automatischer Abruf von Kanal-Profilbildern, zeitstempelbasierte Filterung (`last_checked_timestamp`) und Ausschluss-Keywords. Mehrteilige, berechtigt genutzte Videos können über den FFmpeg-`concat`-Demuxer verlustfrei zusammengefügt werden.
 19. **Interaktiver Dubletten-Vergleicher (Upgrade-Löser):** Deep-Compare von Video-Auflösung, Bitrate, Codec und Größe bei bereits auf dem NAS vorhandenen Dateien inklusive direkter "Upgrade"-Aktion.
 20. **Visuelles Statistik-Dashboard (📊):** Speicherplatzersparnis-Metriken, circular SVG-NAS-Speicherbelegungsdiagramm und ein interaktives, rein in SVG & CSS animiertes Balkendiagramm zur Visualisierung der Speicherersparnis der letzten 15 Konvertierungen.
 21. **Media Health Dashboard (🔍):** Vollständiger Bibliotheks-Hintergrund-Scan über alle konfigurierten NAS-Kategorien hinweg zur Erkennung von fehlenden NFOs, fehlendem Artwork, Episodenlücken, Codec-Inkonsistenzen (ffprobe-Stichprobe), leeren Ordnern, verdächtig kleinen Videodateien, doppelt verschachtelten Filmordnern, kryptischen 8.3-Kurznamen, fehlendem Jahr im Ordnernamen, fehlender oder ungültiger FSK-Altersfreigabe und Ordner-/Dateiname-Mismatches. Quick-Fix-Buttons ermöglichen das direkte Auflösen von Verschachtelungen, Umbenennen (Ordner an Datei angleichen, Datei an Ordner angleichen oder freien Namen wählen) sowie das Setzen von FSK-Werten direkt in der NFO-Datei.
@@ -66,7 +273,7 @@ Das Medienwerkzeug ist für performante, fehlerresiliente Arbeitsabläufe optimi
 
 ---
 
-## 📁 Projektstruktur
+## Projektstruktur
 
 ```
 Medienwerkzeug/
@@ -97,14 +304,14 @@ Medienwerkzeug/
 
 ---
 
-## 🧭 Entwickler-Wiki
+## Entwickler-Wiki
 
 Für einen technischen Einstieg in Architektur, Verarbeitung, API, NAS-Werkzeuge
 und Speicherziele siehe das [Entwickler-Wiki](docs/wiki/index.md).
 
 ---
 
-## 🔄 System- & Datenfluss
+## System- & Datenfluss
 
 Das folgende Diagramm zeigt den Lebenszyklus einer Mediendatei von der Inbox bis zum Zielort:
 
@@ -121,185 +328,27 @@ graph TD
     F -->|4. Bereinigung| J[Löschen des Input-Projektordners]
 ```
 
----
+## Starten der Anwendung
 
-## 🛠️ Setup & Installation
+### Variante A: Docker (Empfohlen, jetzt verfügbar)
 
-### 1. Voraussetzungen
-* **Python 3.9+** (Die erforderlichen Abhängigkeiten können über `pip install -r requirements.txt` installiert werden)
-* **macOS** (für NAS SMB-Mounting und AppleScript-Wrapper)
-* **yt-dlp** (optional; nur erforderlich, wenn du die Online-Medien-Verarbeitung für berechtigte Inhalte nutzt)
-* **rclone** (für den pCloud-Upload über ein eingerichtetes Remote namens `pcloud:`)
+Die reguläre Nutzung ist aktuell über Docker vorgesehen. Folge dafür direkt der Installationsanleitung oben unter [Setup & Installation](#%EF%B8%8F-setup--installation).
 
-### 2. Konfiguration
-API-Keys können direkt in der Web-GUI unter **Einstellungen** (Metadaten API-Keys) eingetragen werden. Die Werte werden in der UI maskiert angezeigt (z. B. `****abcd`), um sie vor unbefugtem Auslesen zu schützen.
+### Variante B: Desktop-App (Coming Soon)
 
-Alternativ kann manuell eine `.env` Datei im Projekt-Root (oder gem. `MW_ENV_FILE`) angelegt werden:
-```env
-TMDB_API_KEY=dein_tmdb_api_key
-TVDB_API_KEY=dein_tvdb_api_key
-```
+Eine eigenständige Desktop-Version für Endnutzer ist geplant, aber aktuell noch nicht der primäre Distributionsweg. Bis dahin ist Docker die offizielle und aktiv gepflegte Variante.
 
-Pfade und Synchronisationseinstellungen werden in `data/settings.json` verwaltet (oder direkt über die GUI-Einstellungen angepasst):
-* **inbox_dir:** Pfad zum Ordner `Medien Input`.
-* **outbox_dir:** Pfad zum Ordner `Medien Output`.
-* **nas_root:** Mount-Pfad des NAS (z. B. `/Volumes/Kino`).
-* **import_sources:** Liste lokaler Pfade, aus denen bereits vorhandene, berechtigte Mediendateien gesammelt in die Inbox importiert werden.
-* **storage_targets:** Dynamisch verwaltete Speicherziele für NAS und Cloud-Dienste.
-* **sync_categories:** Zuordnungen von Metadaten-Kategorien zu Unterpfaden auf deinen Speicherzielen.
+### Variante C: Kommandozeile (für Entwicklung)
 
-### 3. Speicherziele & rclone Setup
-
-Unter dem Einstellungs-Tab **"Speicher & Sync"** kannst du beliebig viele Speicherziele konfigurieren (z. B. dein lokales NAS oder Cloud-Anbieter wie pCloud, Google Drive etc.).
-
-#### Was bedeuten die Felder?
-* **Lokal-Pfad (Wurzelverzeichnis):** Der Pfad auf deinem Mac, unter dem das Speicherziel erreichbar ist (z. B. `/Volumes/Kino` für dein NAS oder `/Users/alex/pCloud Drive` für pCloud). Das Tool kopiert bevorzugt mit `rsync` an diesen lokalen Mount-Pfad.
-* **rclone Remote (Optional):** Der Name der Verbindung in deiner rclone-Konfiguration (z. B. `pcloud:`). Dies dient als **automatisches Fallback**: Ist der lokale Mountpfad offline (weil die Sync-App geschlossen ist), lädt das Backend die Dateien per rclone direkt in die Cloud hoch.
-* **SMB Details (nur NAS):** Konfiguration der lokalen IP-Adresse, der Backup-/Tailscale-IP, des Finder-Servernamens und des SMB-Share-Namens. Der Finder-Fallback wird nur beim manuellen NAS-Verbinden geöffnet, nicht während automatischer Verarbeitungsläufe.
-
-#### rclone konfigurieren (Kurzanleitung)
-1. **Installation:** Falls nicht installiert, installiere rclone über Homebrew im macOS Terminal:
-   ```bash
-   brew install rclone
-   ```
-2. **Einrichten eines neuen Remotes:**
-   Führe im Terminal folgenden Befehl aus und folge dem interaktiven Assistenten:
-   ```bash
-   rclone config
-   ```
-   * Drücke `n` für "New remote".
-   * Wähle einen Wunschnamen (z. B. `pcloud`). **Diesen Namen trägst du später in das Feld `rclone Remote` ein** (als `pcloud:`).
-   * Wähle die Nummer für deinen Cloud-Speicher (z. B. `pcloud` oder `google drive`).
-   * Folge den Anweisungen zur Browser-Authentifizierung.
-3. **Verbindung prüfen:**
-   Liste deine konfigurierten Remotes im Terminal auf:
-   ```bash
-   rclone listremotes
-   ```
-   Trage den ausgegebenen Namen (z. B. `pcloud:`) in das Einstellungs-Dashboard des Medienwerkzeugs ein.
-4. **Verbindung testen (optional):**
-   ```bash
-   rclone about pcloud:
-   ```
-   Gibt das Speicher-Kontingent (gesamt/belegt/frei) zurück. Genau diese Abfrage nutzt
-   auch das Dashboard, um die Speicherbelegung eines Cloud-Ziels anzuzeigen.
-
-> **Beliebiger Anbieter:** Es ist **kein** anbieterspezifischer Code nötig – der Cloud-Dienst
-> wird allein durch das `rclone-Remote` bestimmt. Für Google Drive trägst du z. B. `gdrive:`
-> ein, für OneDrive `onedrive:` usw. Anzeige und Verarbeitungs-Schalter übernehmen automatisch
-> den Namen des Speicherziels (z. B. „Auch in Google Drive sichern").
->
-> **Mehrere Clouds gleichzeitig** (unabhängig schaltbar) sind noch nicht umgesetzt – siehe
-> [`AFTER_RELEASE_ROADMAP.md`](AFTER_RELEASE_ROADMAP.md) (Punkt 1).
->
-> 💡 In den Einstellungen unter **„Speicher & Sync"** gibt es neben der Erklärung ein
-> **❓-Symbol**, das beim Drüberfahren eine rclone-Kurzanleitung einblendet.
-
----
-
-## 💻 Starten der Anwendung
-
-### Variante A: macOS App (Empfohlen für Desktop)
-Doppelklicke auf `Medienwerkzeug.app` im Hauptverzeichnis. Das startet den Server im Hintergrund und öffnet die GUI automatisch im Webbrowser.
-
-### Variante B: Kommandozeile
 Öffne das Terminal und starte den Server manuell:
 ```bash
 python3 gui/main.py
 ```
 Die Anwendung ist danach unter [http://127.0.0.1:5001](http://127.0.0.1:5001) erreichbar.
 
-### Variante C: Docker (Empfohlen für NAS / Server)
-
-Das Medienwerkzeug kann als Docker-Container auf einem NAS oder Server betrieben werden. Das Image enthält die benötigten Werkzeuge (`ffmpeg`, optional `yt-dlp`, `rclone`) — auf dem NAS muss nichts zusätzlich installiert werden.
-
-#### 1. Voraussetzungen
-
-- Docker auf dem NAS installiert (Synology: Paketcenter → Docker)
-- SSH-Zugang zum NAS
-
-> ⚠️ **Performance-Hinweis:** Videokonvertierungen (z. B. HEVC Umwandlung per FFmpeg) direkt auf dem NAS können durch schwächere NAS-CPUs deutlich langsamer sein als auf einem dedizierten Mac/PC. Nutze für große Video-Umwandlungen ggf. bevorzugt die macOS-Desktop-App.
-
-#### 2. Ordner anlegen
-
-Lege den Konfigurationsordner auf dem NAS an und setze die Besitzerrechte auf deinen NAS-Benutzer, damit die App darin schreiben darf:
-
-```bash
-mkdir -p /pfad/zu/medienwerkzeug/config
-chown PUID:PGID /pfad/zu/medienwerkzeug/config
-```
-
-> **Deine PUID und PGID findest du mit:**
-> ```bash
-> id dein-nas-benutzername
-> # Beispielausgabe: uid=1000(alex) gid=10(admin)
-> # → PUID=1000, PGID=10
-> ```
-
-#### 3. docker-compose.yml anlegen
-
-Erstelle eine `docker-compose.yml` auf dem NAS (z. B. unter `/pfad/zu/medienwerkzeug/docker-compose.yml`):
-
-```yaml
-services:
-  medienwerkzeug:
-    image: ghcr.io/dein-github-username/medienwerkzeug:latest
-    container_name: medienwerkzeug
-    user: "PUID:PGID"          # Ersetze mit deinen Werten, z. B. "1000:10"
-    ports:
-      - "5811:5001"
-    environment:
-      - TZ=Europe/Berlin
-      - PUID=1000               # Deine UID
-      - PGID=10                 # Deine GID
-    volumes:
-      - /pfad/zu/medienwerkzeug/config:/config
-      - /pfad/zu/deinen/medien:/media   # Übergeordneter Ordner deiner Mediathek
-    restart: unless-stopped
-```
-
-> **Zum Volume `/media`:** Trage den übergeordneten Ordner deiner Mediathek ein. Liegen deine Medien z. B. unter `/volume1/Media` mit Unterordnern `Filme`, `Serien`, `Doku` usw., reicht ein einziger Eintrag:
-> ```yaml
-> - /volume1/Media:/media
-> ```
-> Die App sieht dann intern `/media/Filme`, `/media/Serien` usw. — alle Unterordner automatisch.
-
-#### 4. Container starten
-
-```bash
-docker compose up -d
-```
-
-Die Anwendung ist danach unter `http://deine-nas-ip:5811` erreichbar.
-
-Beim ersten Start öffnet sich der Einrichtungsassistent, der dich durch API-Keys, Pfade und Sicherheitseinstellungen führt.
-
-#### 5. Updates einspielen
-
-Wenn eine neue Version verfügbar ist, reichen zwei Befehle auf dem NAS:
-
-```bash
-docker compose pull     # Neues Image holen
-docker compose up -d    # Container mit neuem Image neu starten
-```
-
-Deine Konfiguration in `/config` bleibt dabei vollständig erhalten.
-
-#### 6. Fehlerdiagnose
-
-```bash
-docker logs medienwerkzeug        # Letzter Output
-docker logs -f medienwerkzeug     # Live mitlesen
-docker ps                         # Prüfen ob Container läuft
-```
-
-#### 7. Daten & Profile (Data Profiles)
-
-Das Medienwerkzeug speichert Zustandsdaten, Konvertierungshistorien und spezifische Metadaten im Ordner `/config/data/profiles`. Diese Profile ermöglichen eine schnelle Wiedererkennung wiederkehrender Serien, Quellen und Verarbeitungsläufe. Durch das `/config` Volume bleiben diese Daten auch bei Container-Updates sicher erhalten.
-
 ---
 
-## 🔒 Sicherheit & Zugriffskontrolle
+## Sicherheit & Zugriffskontrolle
 
 Da das Medienwerkzeug als Flask-Server im lokalen Netzwerk (LAN) erreichbar ist, verfügt es über einen optionalen Zugriffsschutz:
 
@@ -314,7 +363,7 @@ Da das Medienwerkzeug als Flask-Server im lokalen Netzwerk (LAN) erreichbar ist,
 
 ---
 
-## 🔍 Transparenz: Datenschutz & ausgehende Verbindungen
+## Transparenz: Datenschutz & ausgehende Verbindungen
 
 Wer fremde Software bei sich laufen lässt, sollte wissen, was sie tut. Dieser Abschnitt listet vollständig auf, womit das Medienwerkzeug nach außen spricht. Der gesamte Quellcode ist einsehbar – jede hier genannte Verbindung lässt sich im Code nachvollziehen.
 
@@ -360,7 +409,7 @@ Das mitgelieferte `docker-compose.yml` ist bereits auf geringe Rechte ausgelegt 
 
 ---
 
-## 📖 Best Practices: Serien-Universen & Sendeplätze (z.B. ARTE "Entdeckung der Welt")
+## Best Practices: Serien-Universen & Sendeplätze (z.B. ARTE "Entdeckung der Welt")
 
 Bei Sendungen, die unter einem gemeinsamen Dach-Sendeplatz laufen (wie *Entdeckung der Welt*, *Arte Thema*, *ZDF-Reportage*), aber inhaltlich eigenständige Unterserien mit eigener Metadaten-Struktur sind (z. B. *Nationalparks China*, *Wunder der Tiefsee*), empfiehlt sich folgender Workflow für Emby/Plex:
 
@@ -374,7 +423,7 @@ Bei Sendungen, die unter einem gemeinsamen Dach-Sendeplatz laufen (wie *Entdecku
 
 ---
 
-## 🧪 Unit-Tests ausführen
+## Unit-Tests ausführen
 
 Um die Testsuite für Hilfsfunktionen, Pfadbereinigungen und Job-Serialisierung auszuführen, führe folgenden Befehl im Hauptverzeichnis aus:
 ```bash
