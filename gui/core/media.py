@@ -228,7 +228,8 @@ def get_video_codec(filepath):
     try:
         cmd = ["ffprobe", "-v", "quiet", "-show_entries", "stream=codec_name", "-select_streams", "v:0", "-of", "csv=p=0", filepath]
         return subprocess.check_output(cmd, text=True, timeout=5).strip().lower()
-    except Exception:
+    except Exception as e:
+        print(f"Error getting video codec for {filepath}: {e}")
         return None
 
 
@@ -260,8 +261,8 @@ def get_media_info(filepath):
                 info["duration"] = float(dur)
             except (ValueError, TypeError):
                 pass
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Error getting media info for {filepath}: {e}")
     return info
 
 

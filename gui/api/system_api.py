@@ -49,8 +49,8 @@ def handle_api_capabilities():
                 cmd = ["ffmpeg", "-nostdin", "-vaapi_device", device_path, "-f", "lavfi", "-i", "color=c=black:s=128x128:r=1:d=0.1", "-vf", "format=nv12,hwupload", "-c:v", "hevc_vaapi", "-f", "null", "-"]
                 res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
                 vaapi_probe_success = (res.returncode == 0)
-            except Exception:
-                pass
+            except Exception as e:
+                log_message(f"⚠️ VAAPI-Probe-Encoding fehlgeschlagen ({device_path}): {e}")
                 
         handle_api_capabilities.last_hw_diag = {
             "dri_exists": dri_exists,
@@ -644,7 +644,7 @@ def api_profiles():
                         data = json.load(file)
                         profiles.append({"filename": f, "data": data})
                 except Exception as e:
-                    pass
+                    log_message(f"⚠️ Profil-Datei konnte nicht geladen werden: {f} ({e})")
         return jsonify({"profiles": profiles})
 
     elif request.method == 'POST':

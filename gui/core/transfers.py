@@ -254,8 +254,8 @@ def ensure_nas_mounted(allow_finder_fallback=False):
             log_message("🌐 Starte Tailscale...")
             subprocess.run(["tailscale", "up"], capture_output=True, timeout=5)
             status = check_nas_status()
-        except Exception:
-            pass
+        except Exception as e:
+            log_message(f"⚠️ Tailscale-Start fehlgeschlagen: {e}")
             
     if status == "connected":
         return True

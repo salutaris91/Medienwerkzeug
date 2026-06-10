@@ -28,14 +28,23 @@ def run_with_retries_and_timeout(cmd, max_attempts=3, timeout_sec=300, line_call
             )
             
             def read_output(proc, cb):
+                callback_error_logged = False
                 try:
                     for line in iter(proc.stdout.readline, ''):
                         if not line:
                             break
                         if cb:
-                            cb(line)
-                except Exception:
+                            try:
+                                cb(line)
+                            except Exception as cb_err:
+                                if not callback_error_logged:
+                                    log_message(f"❌ Fehler im Callback des Output-Readers: {cb_err}")
+                                    callback_error_logged = True
+                except (ValueError, OSError):
+                    # Normaler Abbruch beim Schließen des Streams durch Prozess-Beendigung
                     pass
+                except Exception as e:
+                    log_message(f"⚠️ Unerwarteter Fehler im Output-Reader-Thread: {e}")
                         
             reader_thread = threading.Thread(target=read_output, args=(process, line_callback))
             reader_thread.daemon = True

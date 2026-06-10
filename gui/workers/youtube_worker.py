@@ -242,8 +242,8 @@ def check_single_subscription(sub):
                         has_changes = True
                     if v_timestamp and v_timestamp > max_timestamp:
                         max_timestamp = v_timestamp
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_message(f"[YouTube Abo-Überwachung] ⚠️ Feed-Eintrag konnte nicht verarbeitet werden: {e}")
             if max_timestamp == 0:
                 max_timestamp = time.time()
         else:
@@ -255,8 +255,8 @@ def check_single_subscription(sub):
                 try:
                     video_data = json.loads(line)
                     feed_videos.append(video_data)
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_message(f"[YouTube Abo-Überwachung] ⚠️ Feed-Zeile konnte nicht geparst werden: {e}")
 
             # Extract dynamic context keywords if German filter is enabled
             context_keywords = set()
