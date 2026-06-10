@@ -70,7 +70,7 @@ def run_with_retries_and_timeout(cmd, max_attempts=3, timeout_sec=300, line_call
                     else:
                         try:
                             process.kill()
-                        except:
+                        except Exception:
                             pass
         except Exception as e:
             log_message(f"❌ Unerwarteter Fehler in Versuch {attempt}: {e}")
