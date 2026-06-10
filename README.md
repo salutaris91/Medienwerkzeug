@@ -1,10 +1,14 @@
-# Medienwerkzeug 🎬🎥
+# Medienwerkzeug
 
 **Medienwerkzeug** ist die Vorbereitungs- und Ordnungszentrale für deine private Medienbibliothek, bevor Plex, Jellyfin, Emby oder ähnliche Medienserver übernehmen. Das Tool sorgt dafür, dass Dateien, Ordner, Staffelstrukturen, Metadaten und Zielpfade auf der Platte sauber, einheitlich und serverfreundlich vorbereitet sind.
 
 Statt selbst ein weiterer Mediaserver sein zu wollen, arbeitet Medienwerkzeug Hand in Hand mit deiner bestehenden Medienumgebung: Es nimmt rohe Importordner, chaotische Dateinamen und verteilte Quellen entgegen und formt daraus eine Bibliothek, die auf NAS, externen Laufwerken und Cloud-Zielen nachvollziehbar organisiert ist und von Plex, Jellyfin oder Emby deutlich besser erkannt wird.
 
 **Kurz gesagt:** Medienwerkzeug ist der Schritt **vor** deinem Medienserver. Es hilft dir dabei, dass auf der Platte alles so aussieht, wie dein Medienserver es später haben möchte.
+
+Für Menschen mit einer wachsenden Mediathek bedeutet das vor allem eins: weniger Dateichaos, weniger manuelle Nacharbeit und deutlich mehr Vertrauen darin, dass Ordner, Namen und Zielpfade am Ende wirklich zusammenpassen.
+
+![Startseite des Medienwerkzeugs](docs/images/readme/dashboard.png)
 
 ---
 
@@ -29,7 +33,7 @@ Statt selbst ein weiterer Mediaserver sein zu wollen, arbeitet Medienwerkzeug Ha
 
 ---
 
-## ✨ Warum Medienwerkzeug?
+## Warum Medienwerkzeug?
 
 Medienwerkzeug löst ein Problem, das Plex, Jellyfin oder Emby bewusst nicht lösen: den Weg **vor** der eigentlichen Bibliothek.
 
@@ -44,21 +48,21 @@ Damit ist Medienwerkzeug kein Ersatz für Plex, Jellyfin oder Emby, sondern dere
 
 Der Fokus liegt auf der Organisation, Benennung und Synchronisation eigener oder berechtigt genutzter Medienbestände, nicht auf dem Beschaffen von Inhalten.
 
-## 🚀 Schnellstart
+## Schnellstart
 
 **Heute verfügbar:** die Docker-Version für NAS und Server.
 
 **In Vorbereitung:** eine bequemere Desktop-App für Endnutzer, die später ohne Docker auskommen soll.
 
-Wenn du Medienwerkzeug direkt ausprobieren willst, starte am besten hier:
+Wenn du Medienwerkzeug direkt ausprobieren willst, kommst du heute am schnellsten über Docker ans Ziel:
 
 1. Docker auf deinem NAS oder Server bereitstellen.
 2. Die Compose-Vorlage aus dieser README übernehmen.
 3. Container starten und den Einrichtungsassistenten im Browser öffnen.
 
-> Screenshots der Oberfläche folgen. Bis dahin ist die Docker-Variante der schnellste Weg, um das Tool direkt produktiv zu testen.
+Die Oberfläche ist dabei nicht nur funktional, sondern führt dich sichtbar durch die wichtigsten Arbeitsbereiche: Import, Vorschau, Einstellungen, Bibliothek und Warteschlange.
 
-## ⚙️ Systemanforderungen
+## Systemanforderungen
 Das Medienwerkzeug ist für performante, fehlerresiliente Arbeitsabläufe optimiert.
 
 * **Betriebssystem:** macOS (nativ optimiert für lokale Pfade und Papierkorb-Integration), auch lauffähig auf Linux/Windows mit angepassten Pfaden.
@@ -69,7 +73,7 @@ Das Medienwerkzeug ist für performante, fehlerresiliente Arbeitsabläufe optimi
 
 ---
 
-## 🛠️ Setup & Installation
+## Setup & Installation
 
 ### 1. Welcher Installationsweg ist aktuell gedacht?
 
@@ -84,6 +88,8 @@ Der aktuell vorgesehene und aktiv verteilte Installationsweg ist **Docker**.
 ### Variante A: Docker (Empfohlen, jetzt verfügbar)
 
 Das Medienwerkzeug kann als Docker-Container auf einem NAS oder Server betrieben werden. Das Image enthält die benötigten Werkzeuge für die Kernfunktionen sowie optionale Zusatzpfade (`ffmpeg`, `rclone`, optional `yt-dlp`) - auf dem NAS muss nichts zusätzlich installiert werden.
+
+![Einstellungsbereich im Medienwerkzeug](docs/images/readme/settings.png)
 
 #### Voraussetzungen
 
@@ -234,7 +240,7 @@ Unter dem Einstellungs-Tab **"Speicher & Sync"** kannst du beliebig viele Speich
 > 💡 In den Einstellungen unter **„Speicher & Sync"** gibt es neben der Erklärung ein
 > **❓-Symbol**, das beim Drüberfahren eine `rclone`-Kurzanleitung einblendet.
 
-## 🚀 Hauptfunktionen
+## Hauptfunktionen
 1. **Automatischer Metadaten-Abgleich:** Vollautomatische, fuzzy-gewichtete Suche auf TMDB und TVDB für Serien, Einzelepisoden, Filme und Dokumentationen mit intelligenter Namensbereinigung.
 2. **Klares Vorschau-System:** Detaillierte Vorschau aller geplanten Umbenennungen, Zielpfade (NAS & pCloud getrennt) sowie Junk-Dateien vor der Ausführung.
 3. **Einhaltung strenger Zielstrukturen:**
@@ -267,7 +273,7 @@ Unter dem Einstellungs-Tab **"Speicher & Sync"** kannst du beliebig viele Speich
 
 ---
 
-## 📁 Projektstruktur
+## Projektstruktur
 
 ```
 Medienwerkzeug/
@@ -298,14 +304,14 @@ Medienwerkzeug/
 
 ---
 
-## 🧭 Entwickler-Wiki
+## Entwickler-Wiki
 
 Für einen technischen Einstieg in Architektur, Verarbeitung, API, NAS-Werkzeuge
 und Speicherziele siehe das [Entwickler-Wiki](docs/wiki/index.md).
 
 ---
 
-## 🔄 System- & Datenfluss
+## System- & Datenfluss
 
 Das folgende Diagramm zeigt den Lebenszyklus einer Mediendatei von der Inbox bis zum Zielort:
 
@@ -322,7 +328,7 @@ graph TD
     F -->|4. Bereinigung| J[Löschen des Input-Projektordners]
 ```
 
-## 💻 Starten der Anwendung
+## Starten der Anwendung
 
 ### Variante A: Docker (Empfohlen, jetzt verfügbar)
 
@@ -342,7 +348,7 @@ Die Anwendung ist danach unter [http://127.0.0.1:5001](http://127.0.0.1:5001) er
 
 ---
 
-## 🔒 Sicherheit & Zugriffskontrolle
+## Sicherheit & Zugriffskontrolle
 
 Da das Medienwerkzeug als Flask-Server im lokalen Netzwerk (LAN) erreichbar ist, verfügt es über einen optionalen Zugriffsschutz:
 
@@ -357,7 +363,7 @@ Da das Medienwerkzeug als Flask-Server im lokalen Netzwerk (LAN) erreichbar ist,
 
 ---
 
-## 🔍 Transparenz: Datenschutz & ausgehende Verbindungen
+## Transparenz: Datenschutz & ausgehende Verbindungen
 
 Wer fremde Software bei sich laufen lässt, sollte wissen, was sie tut. Dieser Abschnitt listet vollständig auf, womit das Medienwerkzeug nach außen spricht. Der gesamte Quellcode ist einsehbar – jede hier genannte Verbindung lässt sich im Code nachvollziehen.
 
@@ -403,7 +409,7 @@ Das mitgelieferte `docker-compose.yml` ist bereits auf geringe Rechte ausgelegt 
 
 ---
 
-## 📖 Best Practices: Serien-Universen & Sendeplätze (z.B. ARTE "Entdeckung der Welt")
+## Best Practices: Serien-Universen & Sendeplätze (z.B. ARTE "Entdeckung der Welt")
 
 Bei Sendungen, die unter einem gemeinsamen Dach-Sendeplatz laufen (wie *Entdeckung der Welt*, *Arte Thema*, *ZDF-Reportage*), aber inhaltlich eigenständige Unterserien mit eigener Metadaten-Struktur sind (z. B. *Nationalparks China*, *Wunder der Tiefsee*), empfiehlt sich folgender Workflow für Emby/Plex:
 
@@ -417,7 +423,7 @@ Bei Sendungen, die unter einem gemeinsamen Dach-Sendeplatz laufen (wie *Entdecku
 
 ---
 
-## 🧪 Unit-Tests ausführen
+## Unit-Tests ausführen
 
 Um die Testsuite für Hilfsfunktionen, Pfadbereinigungen und Job-Serialisierung auszuführen, führe folgenden Befehl im Hauptverzeichnis aus:
 ```bash
