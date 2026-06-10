@@ -1159,8 +1159,8 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             p_path = os.path.join(folder_path, f"poster{ext}")
             _download_with_timeout(p_url, p_path)
             needs_poster = False
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Artwork Error] Fallback-Poster-Download für Film '{filename_base}' fehlgeschlagen: {e}", file=sys.stderr)
 
     if needs_fanart and data.get('backdrop_path'):
         try:
@@ -1171,8 +1171,8 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             f_path = os.path.join(folder_path, f"{pref_base}{ext}")
             _download_with_timeout(b_url, f_path)
             needs_fanart = False
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Artwork Error] Fallback-Fanart-Download für Film '{filename_base}' fehlgeschlagen: {e}", file=sys.stderr)
 
     return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart, "logo": not needs_logo, "banner": not needs_banner}
 
@@ -1773,15 +1773,15 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
             p_url = f"https://image.tmdb.org/t/p/original{data['poster_path']}"
             _download_with_timeout(p_url, poster_path)
             needs_poster = False
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Artwork Error] Fallback-Poster-Download für Serie {show_id} fehlgeschlagen: {e}", file=sys.stderr)
     if needs_fanart and data.get('backdrop_path'):
         try:
             b_url = f"https://image.tmdb.org/t/p/original{data['backdrop_path']}"
             _download_with_timeout(b_url, fanart_path)
             needs_fanart = False
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Artwork Error] Fallback-Fanart-Download für Serie {show_id} fehlgeschlagen: {e}", file=sys.stderr)
 
     return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart, "logo": not needs_logo, "banner": not needs_banner}
 
