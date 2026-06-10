@@ -629,7 +629,8 @@ def api_profiles():
     if not os.path.exists(profiles_dir):
         try:
             os.makedirs(profiles_dir, exist_ok=True)
-        except:
+        except OSError as e:
+            log_message(f"⚠️ Profilordner '{profiles_dir}' nicht erstellbar ({e}), nutze Standardpfad '{default_profiles_dir}'.")
             profiles_dir = default_profiles_dir
             os.makedirs(profiles_dir, exist_ok=True)
 
