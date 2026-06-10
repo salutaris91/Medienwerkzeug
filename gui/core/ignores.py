@@ -10,6 +10,7 @@ import json
 import threading
 
 from gui.core import utils
+from gui.core.helpers import log_message
 
 IGNORE_FILE = os.path.join(utils.DATA_DIR, "ignored_findings.json")
 _lock = threading.Lock()
@@ -22,8 +23,8 @@ def _load():
                 data = json.load(f)
                 if isinstance(data, list):
                     return set(data)
-    except Exception:
-        pass
+    except Exception as e:
+        log_message(f"⚠️ Ignorier-Liste konnte nicht gelesen werden: {IGNORE_FILE} ({e})")
     return set()
 
 
@@ -33,7 +34,8 @@ def _save(keys):
         with open(IGNORE_FILE, "w", encoding="utf-8") as f:
             json.dump(sorted(keys), f, ensure_ascii=False, indent=2)
         return True
-    except Exception:
+    except Exception as e:
+        log_message(f"⚠️ Ignorier-Liste konnte nicht gespeichert werden: {IGNORE_FILE} ({e})")
         return False
 
 

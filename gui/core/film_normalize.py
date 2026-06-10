@@ -71,7 +71,8 @@ def build_plan(settings=None):
     for cat_name, cat_path in _movie_categories(settings):
         try:
             entries = sorted(os.listdir(cat_path))
-        except OSError:
+        except OSError as e:
+            log_message(f"⚠️ [Filme normalisieren] Kategorie-Ordner nicht lesbar: {cat_path} ({e})")
             continue
 
         # 1) Lose Dateien (direkt in der Kategorie liegende Videos + Begleitdateien)
@@ -102,7 +103,8 @@ def build_plan(settings=None):
                 continue
             try:
                 sub = sorted(os.listdir(p))
-            except OSError:
+            except OSError as e:
+                log_message(f"⚠️ [Filme normalisieren] Genre-Ordner nicht lesbar: {p} ({e})")
                 continue
             for sd in sub:
                 src = os.path.join(p, sd)
@@ -233,8 +235,8 @@ def apply_moves(items, on_progress=None):
                         trash.send_to_trash(g)
                     except trash.TrashError as e:
                         log_message(f"⚠️ Konnte leeren Genre-Ordner {g} nicht in Quarantäne verschieben: {e}")
-        except Exception:
-            pass
+        except Exception as e:
+            log_message(f"⚠️ [Filme normalisieren] Genre-Ordner-Aufräumen fehlgeschlagen für {g}: {e}")
 
     if on_progress:
         on_progress(total, total, "Fertig")

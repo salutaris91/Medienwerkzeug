@@ -631,8 +631,8 @@ def find_existing_series_folder_by_id(destination_path, provider, show_id):
                             m_tmdb = re.search(r'<tmdbid>(.*?)</tmdbid>', content)
                             if m_tmdb and m_tmdb.group(1).strip() == str(show_id):
                                 return entry
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_message(f"⚠️ tvshow.nfo in '{entry}' konnte nicht gelesen werden: {e}")
     except Exception as e:
         print(f"Error scanning folders for ID match: {e}")
     return None
@@ -734,8 +734,8 @@ def handle_api_series_detect():
                     if os.path.isdir(os.path.join(destination, entry)) and not entry.startswith('.'):
                         folders.add(entry)
                         folder_to_dest[entry] = destination
-            except Exception:
-                pass
+            except Exception as e:
+                log_message(f"⚠️ Zielordner konnte nicht gelistet werden: {destination} ({e})")
                 
         rel_dest = os.path.relpath(destination, nas_root)
         outbox_dest = os.path.join(outbox_root, rel_dest)
@@ -746,8 +746,8 @@ def handle_api_series_detect():
                         folders.add(entry)
                         if entry not in folder_to_dest:
                             folder_to_dest[entry] = destination
-            except Exception:
-                pass
+            except Exception as e:
+                log_message(f"⚠️ Outbox-Ordner konnte nicht gelistet werden: {outbox_dest} ({e})")
                 
     cleaned_proj = clean_series_name_for_fs(project_name)
     
@@ -803,8 +803,8 @@ def handle_api_series_detect():
                             if os.path.isdir(entry_path) and not entry.startswith('.'):
                                 if entry not in existing_seasons:
                                     existing_seasons.append(entry)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_message(f"⚠️ Staffelordner konnten nicht gelistet werden: {sd} ({e})")
         existing_seasons.sort(key=lambda s: s.lower())
 
         # Check if tvshow.nfo exists
@@ -849,8 +849,8 @@ def handle_api_series_detect():
                         provider = "tmdb_tv"
                         show_id = m_tmdb.group(1).strip()
                         break
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_message(f"⚠️ NFO-Datei konnte nicht gelesen werden: {np} ({e})")
                     
         if show_id and provider:
             return jsonify({

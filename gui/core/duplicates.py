@@ -321,16 +321,16 @@ def resolve_duplicate(file_path):
             try:
                 trash.send_to_trash(sidecar)
                 deleted.append(os.path.basename(sidecar))
-            except Exception:
-                pass
+            except Exception as e:
+                log_message(f"⚠️ [Duplikat] Begleitdatei konnte nicht in Quarantäne verschoben werden: {sidecar} ({e})")
 
     # Leeren Episoden-Unterordner aufräumen (falls die Datei in eigenem Ordner lag)
     parent = os.path.dirname(target)
     try:
         if os.path.realpath(parent) != nas_root and not os.listdir(parent):
             trash.send_to_trash(parent)
-    except Exception:
-        pass
+    except Exception as e:
+        log_message(f"⚠️ [Duplikat] Leerer Episoden-Ordner konnte nicht in Quarantäne verschoben werden: {parent} ({e})")
 
     log_message(f"🗑️ [Duplikat] Gelöscht: {', '.join(deleted)}")
     return True, f"Gelöscht: {', '.join(deleted)}"
@@ -356,6 +356,6 @@ def _read_cache():
         if os.path.exists(CACHE_FILE):
             with open(CACHE_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
-    except Exception:
-        pass
+    except Exception as e:
+        log_message(f"⚠️ [Duplikat-Scan] Cache konnte nicht gelesen werden: {e}")
     return None

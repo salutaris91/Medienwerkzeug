@@ -601,8 +601,8 @@ def execute_streamfab_import(import_items, delete_items):
                 if not os.listdir(dir_path):
                     try:
                         trash.send_to_trash(dir_path)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_message(f"⚠️ Leerer Ordner konnte nicht in Quarantäne verschoben werden: {dir_path} ({e})")
     return count
 
 def find_files_recursively(directory, extensions=None):
@@ -1772,8 +1772,8 @@ def process_worker(params):
                             try:
                                 os.remove(os.path.join(dest_movie_dir_outbox, f))
                                 log_message(f"Bereinigt (Poster-Duplikat entfernt): {f}")
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                log_message(f"⚠️ Poster-Duplikat konnte nicht entfernt werden: {f} ({e})")
 
                 # --- 2. Find all backdrop candidates ---
                 backdrop_candidates = [
@@ -1830,8 +1830,8 @@ def process_worker(params):
                             try:
                                 os.remove(os.path.join(dest_movie_dir_outbox, f))
                                 log_message(f"Bereinigt (Hintergrund-Duplikat entfernt): {f}")
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                log_message(f"⚠️ Hintergrund-Duplikat konnte nicht entfernt werden: {f} ({e})")
 
                 # --- 3. Clean up logo and banner title-specific duplicates ---
                 all_outbox_files_now = os.listdir(dest_movie_dir_outbox)
@@ -1844,8 +1844,8 @@ def process_worker(params):
                             shutil.copy(os.path.join(dest_movie_dir_outbox, f), os.path.join(dest_movie_dir_outbox, logo_target))
                         try:
                             os.remove(os.path.join(dest_movie_dir_outbox, f))
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log_message(f"⚠️ Logo-Duplikat konnte nicht entfernt werden: {f} ({e})")
                     elif f_lower.startswith(base_movie.lower() + "-banner"):
                         _, ext = os.path.splitext(f)
                         banner_target = f"banner{ext.lower()}"
@@ -1853,8 +1853,8 @@ def process_worker(params):
                             shutil.copy(os.path.join(dest_movie_dir_outbox, f), os.path.join(dest_movie_dir_outbox, banner_target))
                         try:
                             os.remove(os.path.join(dest_movie_dir_outbox, f))
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log_message(f"⚠️ Banner-Duplikat konnte nicht entfernt werden: {f} ({e})")
 
                 # Open output directory in Finder
                 if settings.get("open_outbox_finder"):
@@ -2296,8 +2296,8 @@ def process_worker(params):
                                 ep_title = ep_data.get("title", "")
                             else:
                                 ep_title = str(ep_data)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log_message(f"⚠️ Episodentitel für S{season}E{ep_num} konnte nicht abgerufen werden: {e}")
 
                         ep_title = sanitize_filename(ep_title)
                         season_str = f"S{int(season):02d}"
@@ -2675,8 +2675,8 @@ def process_worker(params):
                 try:
                     os.rmdir(root)
                     deleted_dirs += 1
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_message(f"⚠️ Leerer Ordner konnte nicht gelöscht werden: {root} ({e})")
         log_message(f"✅ {moved_count} Datei(en) hochgezogen. {deleted_dirs} leere(n) Ordner gelöscht.")
 
     elif media_type == "tool_batch_convert":
@@ -2695,8 +2695,8 @@ def process_worker(params):
                     if not force_reconvert and codec in ["hevc", "h265", "vp9", "av1"]:
                         log_message(f"{f} ist bereits {codec.upper()}. Überspringe.")
                         is_hevc = True
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_message(f"⚠️ Codec-Prüfung (ffprobe) fehlgeschlagen für {f}: {e}")
 
                 if not is_hevc:
                     base = os.path.splitext(f)[0]
@@ -2889,7 +2889,8 @@ def _rclone_about(remote):
         parsed = json.loads(out)
         if parsed.get("total"):
             data = {"total": parsed.get("total"), "used": parsed.get("used"), "free": parsed.get("free")}
-    except Exception:
+    except Exception as e:
+        log_message(f"⚠️ rclone about für Remote '{remote}' fehlgeschlagen: {e}")
         data = None
     _rclone_about_cache[remote] = (now, data)
     return data
@@ -2942,8 +2943,8 @@ def system_metrics_worker():
         def _worker():
             try:
                 result[0] = func(arg)
-            except Exception:
-                pass
+            except Exception as e:
+                log_message(f"⚠️ System-Metrik-Abfrage fehlgeschlagen ({getattr(func, '__name__', 'unbekannt')} für {arg}): {e}")
         t = threading.Thread(target=_worker, daemon=True)
         t.start()
         t.join(timeout_sec)

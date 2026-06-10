@@ -447,8 +447,8 @@ def handle_api_paths_clean():
                         if not os.listdir(dir_path):
                             trash.send_to_trash(dir_path)
                             cleaned.append(os.path.relpath(dir_path, base_dir))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_message(f"⚠️ Leerer Ordner konnte nicht in Quarantäne verschoben werden: {dir_path} ({e})")
             return cleaned
 
         if inbox_dir and os.path.exists(inbox_dir):
@@ -508,8 +508,8 @@ def handle_api_clean_project():
                 try:
                     trash.send_to_trash(path_f)
                     deleted_files.append(f)
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_message(f"⚠️ Datei konnte nicht in Quarantäne verschoben werden: {path_f} ({e})")
                     
         # Leere Ordner aufräumen
         for root, dirs, files in os.walk(target_dir, topdown=False):
@@ -518,8 +518,8 @@ def handle_api_clean_project():
                 try:
                     trash.send_to_trash(root)
                     deleted_dirs.append(os.path.relpath(root, target_dir))
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_message(f"⚠️ Leerer Ordner konnte nicht in Quarantäne verschoben werden: {root} ({e})")
     else:
         # Alter Fallback (löscht pauschal txt/url)
         for root, dirs, files in os.walk(target_dir, topdown=False):
@@ -532,16 +532,16 @@ def handle_api_clean_project():
                     try:
                         trash.send_to_trash(path_f)
                         deleted_files.append(os.path.relpath(path_f, target_dir))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_message(f"⚠️ Datei konnte nicht in Quarantäne verschoben werden: {path_f} ({e})")
             for d in dirs:
                 path_d = os.path.join(root, d)
                 if not os.listdir(path_d):
                     try:
                         trash.send_to_trash(path_d)
                         deleted_dirs.append(os.path.relpath(path_d, target_dir))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_message(f"⚠️ Leerer Ordner konnte nicht in Quarantäne verschoben werden: {path_d} ({e})")
                         
     return jsonify({
         "status": "ok",
@@ -856,8 +856,8 @@ def get_inbox_suggestions():
                             if "doku" in content or "dokumentation" in content or "documentary" in content:
                                 is_doku = True
                                 break
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_message(f"⚠️ NFO-Datei für Doku-Erkennung nicht lesbar: {e}")
                         
         # Determine suggested search query & check obfuscation
         suggested_query = item
@@ -932,8 +932,8 @@ def get_inbox_suggestions():
                         with open(os.path.join(pdir, pf), "r") as f:
                             prof = json.load(f)
                             break
-            except Exception:
-                pass
+            except Exception as e:
+                log_message(f"⚠️ Profil-Verzeichnis konnte nicht durchsucht werden: {e}")
                 
         if prof and prof.get("show_id"):
             profile_match = True

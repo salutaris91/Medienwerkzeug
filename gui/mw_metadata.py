@@ -406,8 +406,8 @@ def get_show_info(provider, show_id):
             if len(seasons) > 20:
                 info_str = f"Staffeln vorhanden: {seasons[0]} bis {seasons[-1]}"
             return info_str
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[Show Info Error] Staffelstruktur für '{show_id}' ({provider}) nicht abrufbar: {e}", file=sys.stderr)
     return "Keine Info zur Staffelstruktur gefunden."
 
 def search_tvmaze(query):
@@ -450,7 +450,8 @@ def search_tvmaze(query):
                             'id': show['id'],
                             'name': f"{show['name']} ({year}) [{country_name}]"
                         }
-        except Exception:
+        except Exception as e:
+            print(f"[TVMaze Search Error] Suchvariante '{q}' fehlgeschlagen: {e}", file=sys.stderr)
             continue
 
     return list(all_results.values())[:8]
@@ -483,6 +484,7 @@ def fetch_tvmaze(show_id, season):
                         result[ep_num] = {"title": title, "date": date_str}
         return result
     except Exception as e:
+        print(f"[TVMaze Fetch Error] Episoden für Show {show_id}, Staffel {season} nicht abrufbar: {e}", file=sys.stderr)
         return {}
 
 def get_fernsehserien_episodes(series_name_or_url, season):
@@ -507,6 +509,7 @@ def get_fernsehserien_episodes(series_name_or_url, season):
 
         return result
     except Exception as e:
+        print(f"[Fernsehserien Error] Episodenliste für '{series_name_or_url}', Staffel {season} nicht abrufbar: {e}", file=sys.stderr)
         return {}
 
 
@@ -707,6 +710,7 @@ def fetch_tmdb_tv(show_id, season, lang="de-DE"):
                 result[ep_num] = {"title": title, "date": date_str}
             return result
     except Exception as e:
+        print(f"[TMDB TV Fetch Error] Episoden für Show {show_id}, Staffel {season} nicht abrufbar: {e}", file=sys.stderr)
         return {}
 
 def match_episode(filename, json_str):
@@ -754,7 +758,7 @@ def match_episode(filename, json_str):
         if best_score >= 0.5:
             return best_match
     except Exception as e:
-        pass
+        print(f"[Episode Match Error] Episoden-Matching für '{filename}' fehlgeschlagen: {e}", file=sys.stderr)
     return ""
 
 
@@ -767,7 +771,8 @@ def search_ofdb(query):
         req = urllib.request.Request(url, data=data, headers={'User-Agent': 'Mozilla/5.0'})
         try:
             html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
-        except Exception:
+        except Exception as e:
+            print(f"[OFDb Search Error] Suche nach '{q_str}' fehlgeschlagen: {e}", file=sys.stderr)
             return []
 
         results = []
@@ -811,7 +816,9 @@ def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     try:
         html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
-    except Exception: return {}
+    except Exception as e:
+        print(f"[OFDb NFO Error] Filmseite für OFDb-ID {ofdb_id} nicht abrufbar: {e}", file=sys.stderr)
+        return {}
 
     title_m = re.search(r'<title>OFDb - (.*?) \(\d{4}\)</title>', html)
     title = title_m.group(1) if title_m else filename_base
@@ -960,7 +967,8 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
         if needs_nfo:
             try:
                 meta = json.loads(tmdb_id) if isinstance(tmdb_id, str) else tmdb_id
-            except Exception:
+            except Exception as e:
+                print(f"[Movie NFO Error] Manuelle Metadaten unlesbar, nutze Fallback '{filename_base}': {e}", file=sys.stderr)
                 meta = {"title": filename_base, "year": "", "plot": ""}
             title = meta.get("title", filename_base)
             year = meta.get("year", "")
@@ -1151,8 +1159,8 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             p_path = os.path.join(folder_path, f"poster{ext}")
             _download_with_timeout(p_url, p_path)
             needs_poster = False
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Artwork Error] Fallback-Poster-Download für Film '{filename_base}' fehlgeschlagen: {e}", file=sys.stderr)
 
     if needs_fanart and data.get('backdrop_path'):
         try:
@@ -1163,8 +1171,8 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             f_path = os.path.join(folder_path, f"{pref_base}{ext}")
             _download_with_timeout(b_url, f_path)
             needs_fanart = False
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Artwork Error] Fallback-Fanart-Download für Film '{filename_base}' fehlgeschlagen: {e}", file=sys.stderr)
 
     return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart, "logo": not needs_logo, "banner": not needs_banner}
 
@@ -1172,7 +1180,8 @@ def fetch_show_nfo_data(provider, show_id):
     if provider == "manual":
         try:
             meta = json.loads(show_id) if isinstance(show_id, str) else show_id
-        except Exception:
+        except Exception as e:
+            print(f"[Show NFO Error] Manuelle Serien-Metadaten unlesbar, nutze Fallback: {e}", file=sys.stderr)
             meta = {"title": show_id or "Manuelle Serie", "plot": "", "year": ""}
         return {
             "title": meta.get("title", "Manuelle Serie"),
@@ -1194,7 +1203,8 @@ def fetch_show_nfo_data(provider, show_id):
                 title = entries[0].get("playlist_title") or entries[0].get("playlist") or entries[0].get("title") or "YouTube/Mediathek Serie"
                 plot = entries[0].get("description") or ""
             return {"title": title, "plot": plot, "year": ""}
-        except Exception:
+        except Exception as e:
+            print(f"[Show NFO Error] yt-dlp-Metadaten für '{show_id}' nicht abrufbar: {e}", file=sys.stderr)
             return {"title": "YouTube/Mediathek Serie", "plot": "", "year": ""}
     elif provider == "tvdb":
         try:
@@ -1238,7 +1248,8 @@ def fetch_movie_nfo_data(provider, movie_id):
     if provider == "manual" or (isinstance(movie_id, str) and movie_id.startswith("{")):
         try:
             meta = json.loads(movie_id) if isinstance(movie_id, str) else movie_id
-        except Exception:
+        except Exception as e:
+            print(f"[Movie NFO Error] Manuelle Film-Metadaten unlesbar, nutze Fallback: {e}", file=sys.stderr)
             meta = {"title": "Manueller Film", "year": "", "plot": ""}
         return {
             "title": meta.get("title", ""),
@@ -1278,7 +1289,8 @@ def fetch_movie_nfo_data(provider, movie_id):
                 elif entry.get("release_year"):
                     year = str(entry.get("release_year"))
             return {"title": title, "plot": plot, "year": year}
-        except Exception:
+        except Exception as e:
+            print(f"[Movie NFO Error] yt-dlp-Metadaten für '{movie_id}' nicht abrufbar: {e}", file=sys.stderr)
             return {"title": "", "plot": "", "year": ""}
     else: # TMDB
         try:
@@ -1310,7 +1322,8 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
                 "plot": ep_data.get("plot", ""),
                 "aired": ""
             }
-        except Exception:
+        except Exception as e:
+            print(f"[Episode NFO Error] Mediathek-Episode S{season}E{episode} für '{show_id}' nicht abrufbar: {e}", file=sys.stderr)
             return {"title": f"Folge {episode}", "plot": "", "aired": ""}
     elif provider == "ytdlp":
         try:
@@ -1343,7 +1356,8 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
                         d = matched_entry.get("upload_date")
                         aired = f"{d[:4]}-{d[4:6]}-{d[6:8]}"
             return {"title": ep_title, "plot": ep_plot, "aired": aired}
-        except Exception:
+        except Exception as e:
+            print(f"[Episode NFO Error] yt-dlp-Episode {episode} für '{show_id}' nicht abrufbar: {e}", file=sys.stderr)
             return {"title": f"Folge {episode}", "plot": "", "aired": ""}
     elif provider == "tvdb":
         try:
@@ -1374,7 +1388,9 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
                                     pg += 1
                                 else:
                                     break
-                        except Exception: break
+                        except Exception as e:
+                            print(f"[TVDB Fetch Error] Episodenliste ({lang_code}) für Serie {sid}, Seite {pg} abgebrochen: {e}", file=sys.stderr)
+                            break
                     if eps:
                         try:
                             with open(cache_path, 'w', encoding='utf-8') as f:
@@ -1435,7 +1451,8 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
     if provider == "manual":
         try:
             meta = json.loads(show_id) if isinstance(show_id, str) else show_id
-        except Exception:
+        except Exception as e:
+            print(f"[Show NFO Error] Manuelle Serien-Metadaten unlesbar, nutze Fallback: {e}", file=sys.stderr)
             meta = {"title": show_id or "Manuelle Serie", "plot": "", "year": ""}
 
         nfo_path = os.path.join(target_folder, "tvshow.nfo")
@@ -1734,37 +1751,37 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
             try:
                 _download_with_timeout(images['poster'], poster_path)
                 needs_poster = False
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[Artwork Error] Poster-Download für Serie {show_id} fehlgeschlagen: {e}", file=sys.stderr)
 
         if needs_fanart and images.get('backdrop'):
             try:
                 _download_with_timeout(images['backdrop'], fanart_path)
                 needs_fanart = False
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[Artwork Error] Fanart-Download für Serie {show_id} fehlgeschlagen: {e}", file=sys.stderr)
 
         if needs_logo and images.get('logo'):
             try:
                 _download_with_timeout(images['logo'], logo_path)
                 needs_logo = False
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[Artwork Error] Logo-Download für Serie {show_id} fehlgeschlagen: {e}", file=sys.stderr)
 
     if needs_poster and data.get('poster_path'):
         try:
             p_url = f"https://image.tmdb.org/t/p/original{data['poster_path']}"
             _download_with_timeout(p_url, poster_path)
             needs_poster = False
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Artwork Error] Fallback-Poster-Download für Serie {show_id} fehlgeschlagen: {e}", file=sys.stderr)
     if needs_fanart and data.get('backdrop_path'):
         try:
             b_url = f"https://image.tmdb.org/t/p/original{data['backdrop_path']}"
             _download_with_timeout(b_url, fanart_path)
             needs_fanart = False
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Artwork Error] Fallback-Fanart-Download für Serie {show_id} fehlgeschlagen: {e}", file=sys.stderr)
 
     return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart, "logo": not needs_logo, "banner": not needs_banner}
 
@@ -1941,7 +1958,9 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                                 pg += 1
                             else:
                                 break
-                    except Exception: break
+                    except Exception as e:
+                        print(f"[TVDB Fetch Error] Episodenliste ({lang_code}) für Serie {sid}, Seite {pg} abgebrochen: {e}", file=sys.stderr)
+                        break
                 if eps:
                     try:
                         with open(cache_path, 'w', encoding='utf-8') as f:
@@ -2084,7 +2103,8 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
         try:
             t_url = f"https://image.tmdb.org/t/p/original{data['still_path']}"
             _download_with_timeout(t_url, thumb_path)
-        except Exception:
+        except Exception as e:
+            print(f"[Artwork Error] Episoden-Thumbnail S{season}E{episode} nicht ladbar: {e}", file=sys.stderr)
             needs_thumb = False
 
     return {"nfo": needs_nfo, "thumb": needs_thumb}
@@ -2133,7 +2153,8 @@ def guess_season(provider, show_id, filenames_json_or_list):
     if isinstance(filenames_json_or_list, str):
         try:
             filenames = json.loads(filenames_json_or_list)
-        except Exception:
+        except Exception as e:
+            print(f"[Season Guess Error] Dateinamen-Liste unlesbar: {e}", file=sys.stderr)
             return None
     else:
         filenames = filenames_json_or_list
@@ -2161,8 +2182,8 @@ def guess_season(provider, show_id, filenames_json_or_list):
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 seasons = [str(s['number']) for s in data if s.get('number', 0) > 0]
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[Season Guess Error] Staffelliste für '{show_id}' ({provider}) nicht abrufbar: {e}", file=sys.stderr)
 
     if not seasons: return None
 

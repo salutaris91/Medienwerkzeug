@@ -265,8 +265,8 @@ def handle_api_youtube_search_parts():
                         "thumbnail": v_thumb,
                         "channel": v_channel
                     })
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_message(f"⚠️ YouTube-Suchtreffer konnte nicht verarbeitet werden: {e}")
         
         return jsonify({"query": search_query, "results": results})
     except Exception as e:

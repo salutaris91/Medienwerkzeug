@@ -545,8 +545,8 @@ def handle_api_resolve_duplicate():
                     try:
                         trash.send_to_trash(art_file)
                         log_message(f"  🗑️ Zugehörige Datei in Quarantäne verschoben: {art_file}")
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_message(f"⚠️ Zugehörige Datei konnte nicht in Quarantäne verschoben werden: {art_file} ({e})")
                         
             return jsonify({"status": "success", "message": "Existierende Datei in Quarantäne verschoben. Bereit für Upgrade."})
         except trash.TrashError as e:

@@ -254,8 +254,8 @@ def ensure_nas_mounted(allow_finder_fallback=False):
             log_message("🌐 Starte Tailscale...")
             subprocess.run(["tailscale", "up"], capture_output=True, timeout=5)
             status = check_nas_status()
-        except Exception:
-            pass
+        except Exception as e:
+            log_message(f"⚠️ Tailscale-Start fehlgeschlagen: {e}")
             
     if status == "connected":
         return True
@@ -887,7 +887,8 @@ def walk_nas_categories(settings=None, category_ids=None):
 
         try:
             entries = sorted(os.listdir(cat_path))
-        except OSError:
+        except OSError as e:
+            log_message(f"⚠️ [Bibliothek-Scan] Kategorie-Ordner nicht lesbar: {cat_path} ({e})")
             continue
 
         for entry in entries:
@@ -904,8 +905,8 @@ def walk_nas_categories(settings=None, category_ids=None):
                     if any(os.path.isdir(os.path.join(show_path, e)) and looks_like_season(e)
                            for e in os.listdir(show_path)):
                         item_type = "series"
-                except OSError:
-                    pass
+                except OSError as e:
+                    log_message(f"⚠️ [Bibliothek-Scan] Typ-Erkennung nicht möglich für {show_path}: {e}")
 
             yield {
                 "category": cat_name,

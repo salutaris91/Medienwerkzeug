@@ -4,7 +4,7 @@ import re
 import time
 import shutil
 import gui.mw_metadata as mw_metadata
-from gui.core.helpers import limit_filename_length, sanitize_filename
+from gui.core.helpers import limit_filename_length, log_message, sanitize_filename
 import gui.core.trash as trash
 
 TRANSACTIONS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "rename_transactions")
@@ -307,8 +307,8 @@ def rollback_renames(transaction_id):
             if os.path.exists(old_path):
                 try:
                     trash.send_to_trash(old_path)
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_message(f"⚠️ [NAS-Renamer] Backup-Datei konnte nicht in Quarantäne verschoben werden: {old_path} ({e})")
             continue
             
         if os.path.exists(new_path):
