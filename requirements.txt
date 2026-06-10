@@ -2,3 +2,4 @@ Flask==3.0.3
 Werkzeug==3.0.3
 Flask-Cors==4.0.0
 send2trash==1.8.3
+waitress==3.0.2

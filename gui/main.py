@@ -218,7 +218,16 @@ def main():
                 webbrowser.open(f"http://127.0.0.1:{port}")
             threading.Timer(1.0, open_browser).start()
         
-        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+        try:
+            from waitress import serve
+        except ImportError:
+            print("⚠️ waitress not installed, falling back to Flask dev server (run 'pip install -r requirements.txt').")
+            app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+        else:
+            # threads=16: SSE log streams hold one worker thread per open
+            # connection, so the default pool of 4 would starve quickly.
+            print(f"Serving via waitress on port {port}.")
+            serve(app, host='0.0.0.0', port=port, threads=16)
     except OSError as e:
         if e.errno == 48 or "Address already in use" in str(e):
             print(f"Server is already running on port {port}! Just opening the browser...")
