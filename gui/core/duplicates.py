@@ -356,6 +356,6 @@ def _read_cache():
         if os.path.exists(CACHE_FILE):
             with open(CACHE_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
-    except Exception:
-        pass
+    except Exception as e:
+        log_message(f"⚠️ [Duplikat-Scan] Cache konnte nicht gelesen werden: {e}")
     return None

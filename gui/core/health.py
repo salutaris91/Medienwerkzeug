@@ -151,8 +151,8 @@ def _get_provider_from_nfo(nfo_path):
             m = re.search(r'<mw_provider>(.*?)</mw_provider>', content)
             if m:
                 return m.group(1).strip()
-    except Exception:
-        pass
+    except Exception as e:
+        log_message(f"⚠️ [Bibliothek-Check] NFO nicht lesbar: {nfo_path} ({e})")
     return None
 
 
@@ -163,7 +163,8 @@ def find_primary_nfo(folder_path, is_movie=False):
         return None
     try:
         entries = os.listdir(folder_path)
-    except OSError:
+    except OSError as e:
+        log_message(f"⚠️ [Bibliothek-Check] Ordner nicht lesbar: {folder_path} ({e})")
         return None
 
     if not is_movie:
@@ -226,8 +227,8 @@ def _check_fsk(issues, category, folder_path, nfo_path):
             _add_issue(issues, "info", "invalid_age_rating", category, folder_path,
                        f"{os.path.basename(folder_path)}: Ungültige Altersfreigabe in NFO ({val})")
 
-    except Exception:
-        pass
+    except Exception as e:
+        log_message(f"⚠️ [Bibliothek-Check] FSK-Prüfung fehlgeschlagen für {nfo_path}: {e}")
 
 
 def _check_season(issues, category, show_name, season_path, validator):
@@ -239,7 +240,8 @@ def _check_season(issues, category, show_name, season_path, validator):
     try:
         child_dirs = [e for e in sorted(os.listdir(season_path))
                       if not e.startswith('.') and os.path.isdir(os.path.join(season_path, e))]
-    except OSError:
+    except OSError as e:
+        log_message(f"⚠️ [Bibliothek-Check] Staffel-Ordner nicht lesbar: {season_path} ({e})")
         child_dirs = []
 
     # Wirklich leerer Ordner (kein Video, keine Episoden-Unterordner)
@@ -337,7 +339,8 @@ def _check_series_show(issues, category, show_path, validator):
     files_checked = 0
     try:
         entries = os.listdir(show_path)
-    except OSError:
+    except OSError as e:
+        log_message(f"⚠️ [Bibliothek-Check] Serien-Ordner nicht lesbar: {show_path} ({e})")
         return 0
     entries_lower = {e.lower() for e in entries}
 
@@ -432,7 +435,8 @@ def _check_movie(issues, category, movie_path, validator):
     name = os.path.basename(movie_path)
     try:
         entries = [e for e in os.listdir(movie_path) if not e.startswith('.')]
-    except OSError:
+    except OSError as e:
+        log_message(f"⚠️ [Bibliothek-Check] Film-Ordner nicht lesbar: {movie_path} ({e})")
         return 0
 
     # --- Check: Doppelte Verschachtelung (Ordner/Ordner/video.mkv) ---
@@ -702,7 +706,8 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
                 # sondern die enthaltenen Film-Unterordner einzeln.
                 try:
                     subdirs = sorted(e for e in os.listdir(show["path"]) if not e.startswith('.'))
-                except OSError:
+                except OSError as e:
+                    log_message(f"⚠️ [Bibliothek-Check] Genre-Ordner nicht lesbar: {show['path']} ({e})")
                     subdirs = []
                 for sd in subdirs:
                     if _cancel_event.is_set():
@@ -866,6 +871,6 @@ def _read_cache():
         if os.path.exists(CACHE_FILE):
             with open(CACHE_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
-    except Exception:
-        pass
+    except Exception as e:
+        log_message(f"⚠️ [Health-Scan] Cache konnte nicht gelesen werden: {e}")
     return None

@@ -856,8 +856,8 @@ def get_inbox_suggestions():
                             if "doku" in content or "dokumentation" in content or "documentary" in content:
                                 is_doku = True
                                 break
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_message(f"⚠️ NFO-Datei für Doku-Erkennung nicht lesbar: {e}")
                         
         # Determine suggested search query & check obfuscation
         suggested_query = item
@@ -932,8 +932,8 @@ def get_inbox_suggestions():
                         with open(os.path.join(pdir, pf), "r") as f:
                             prof = json.load(f)
                             break
-            except Exception:
-                pass
+            except Exception as e:
+                log_message(f"⚠️ Profil-Verzeichnis konnte nicht durchsucht werden: {e}")
                 
         if prof and prof.get("show_id"):
             profile_match = True

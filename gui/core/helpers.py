@@ -186,8 +186,8 @@ def get_matched_series_name(nas_serien_path, outbox_serien_path, clean_show_name
             for entry in os.listdir(nas_serien_path):
                 if os.path.isdir(os.path.join(nas_serien_path, entry)) and not entry.startswith('.'):
                     candidates.add(entry)
-        except Exception:
-            pass
+        except Exception as e:
+            log_message(f"⚠️ Serien-Ordner auf NAS konnte nicht gelistet werden: {nas_serien_path} ({e})")
             
     # Scan Outbox
     if outbox_serien_path and os.path.exists(outbox_serien_path):
@@ -195,8 +195,8 @@ def get_matched_series_name(nas_serien_path, outbox_serien_path, clean_show_name
             for entry in os.listdir(outbox_serien_path):
                 if os.path.isdir(os.path.join(outbox_serien_path, entry)) and not entry.startswith('.'):
                     candidates.add(entry)
-        except Exception:
-            pass
+        except Exception as e:
+            log_message(f"⚠️ Serien-Ordner in Outbox konnte nicht gelistet werden: {outbox_serien_path} ({e})")
             
     # Search for exact normalized match
     for cand in candidates:
@@ -393,8 +393,8 @@ def get_folder_size_bytes(path):
                         total += os.path.getsize(fp)
                 except OSError:
                     pass
-    except Exception:
-        pass
+    except Exception as e:
+        log_message(f"⚠️ Ordnergröße konnte nicht ermittelt werden: {path} ({e})")
     return total
 
 def folder_size_monitor():

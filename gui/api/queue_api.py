@@ -477,8 +477,8 @@ def handle_api_preview_process():
                         else:
                             if entry.isdigit():
                                 existing_seasons.append(int(entry))
-            except Exception:
-                pass
+            except Exception as e:
+                log_message(f"⚠️ Staffelordner konnten nicht gelistet werden: {sd} ({e})")
 
         preview_mapped_seasons = set()
         if season and season != "all":
