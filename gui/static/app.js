@@ -1,4 +1,6 @@
-import { applyTheme } from './js/theme.js?v=66';
+import { applyTheme } from './js/theme.js?v=68';
+import { cleanSeriesName } from './js/utils.js?v=68';
+import { formatBytes } from './js/format.js?v=68';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -1595,20 +1597,7 @@ async function rollbackNasRenamer() {
 // ==========================================================================
 // UTILS / HELPERS
 // ==========================================================================
-function cleanSeriesName(name) {
-    if (!name) return "";
-    // Remove search suffixes in parentheses (case-insensitive)
-    let cleaned = name.replace(/\s*\((Mediathek\s+(Serie|Film)\s+aus\s+URL|Freie\s+Mediathek-Suche|fernsehserien\.de\s+URL|\d*\s*Videos?\s+via\s+URL)\)/gi, '');
-    // Remove trailing channel tag in brackets, e.g., [ARTE], [ARTE.DE], [TMDB_TV], [US]
-    let prev;
-    do {
-        prev = cleaned;
-        cleaned = cleaned.replace(/\s*\[[a-zA-Z0-9\._-]+\]\s*$/, '');
-    } while (cleaned !== prev);
-    // Replace underscores with spaces
-    cleaned = cleaned.replace(/_/g, ' ');
-    return cleaned.trim();
-}
+
 function scrollToDetailTop() {
     // 1. Scroll main window / document root (used in responsive/zoomed layouts)
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -2364,14 +2353,7 @@ async function splitProjectFile(project, fileName) {
 // ==========================================================================
 // SIZE ESTIMATION FOR H.265 CONVERSION
 // ==========================================================================
-function formatBytes(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const dm = 2;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-}
+
 
 async function updateSizeEstimation(mediaType) {
     const panelId = mediaType === "movie" ? "movie-size-estimate-panel" : "series-size-estimate-panel";
