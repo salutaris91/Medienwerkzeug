@@ -116,16 +116,14 @@
   "Health Scan Cache Tests": [
     "tests_test_health_scan_cache_py"
   ],
-  "Queue and Search APIs": [
-    "gui_api_search_api_py"
+  "Queue, Search and System APIs": [
+    "gui_api_search_api_py",
+    "gui_api_system_api_py"
   ],
   "Utility Logic Tests": [
     "tests_test_utils_testmediawerkzeuglogic"
   ],
   "NAS Mount Fallback Tests": [
     "tests_test_transfers_nas_mount_py"
-  ],
-  "System API": [
-    "gui_api_system_api_py"
   ]
 }
