@@ -1,3 +1,5 @@
+import { applyTheme } from './js/theme.js?v=66';
+
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
 // ==========================================================================
@@ -418,7 +420,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // Load settings and status immediately
     loadSettings().then(() => {
         triggerLaunchQuote();
-        // initCardParallaxAndGlow();
     });
 
     const themeSelect = document.getElementById("settings-app-theme");
@@ -9698,6 +9699,8 @@ function initQueue() {
     if (closeBtn) closeBtn.addEventListener("click", closeQueue);
     if (overlay) overlay.addEventListener("click", closeQueue);
 
+    window.openQueue = openQueue;
+
     const clearBtn = document.getElementById("btn-clear-queue");
     if (clearBtn) {
         clearBtn.addEventListener("click", async () => {
@@ -10439,68 +10442,7 @@ function showQuoteModal(quoteData) {
     });
 }
 
-function applyTheme(themeName) {
-    if (themeName === "apple-silver") themeName = "apple-black";
-    if (!themeName) themeName = "deep-space";
-    localStorage.setItem("app_theme", themeName);
 
-    const themes = ["theme-deep-space", "theme-nordic-slate", "theme-amber-warmth", "theme-apple-black", "theme-superfood-light"];
-
-    // Prüfe View-Transition Support für flüssige Farbübergänge
-    if (document.startViewTransition) {
-        document.startViewTransition(() => {
-            themes.forEach(t => document.body.classList.remove(t));
-            document.body.classList.add("theme-" + themeName);
-        });
-    } else {
-        themes.forEach(t => document.body.classList.remove(t));
-        document.body.classList.add("theme-" + themeName);
-    }
-}
-
-function initCardParallaxAndGlow() {
-    // Registriere die Listener direkt und exklusiv auf den einzelnen Karten
-    const cards = document.querySelectorAll(".card");
-    cards.forEach(card => {
-        let rect = null;
-
-        card.addEventListener("mouseenter", () => {
-            rect = card.getBoundingClientRect();
-        });
-
-        card.addEventListener("mousemove", (e) => {
-            if (!rect) {
-                rect = card.getBoundingClientRect();
-            }
-
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-
-            // Setze CSS Variablen für den radialen Glow
-            card.style.setProperty("--mouse-x", `${x}px`);
-            card.style.setProperty("--mouse-y", `${y}px`);
-
-            // 3D-Kipp-Effekt
-            const cardWidth = rect.width;
-            const cardHeight = rect.height;
-            const relativeX = (x / cardWidth) - 0.5;
-            const relativeY = (y / cardHeight) - 0.5;
-
-            const rotateY = relativeX * 6; // Max 3 Grad Rotation
-            const rotateX = -relativeY * 6;
-
-            card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-2px)`;
-        });
-
-        card.addEventListener("mouseleave", () => {
-            rect = null;
-            card.style.transform = "none";
-            // Setze Glow zurück außerhalb des Sichtfelds
-            card.style.setProperty("--mouse-x", `-9999px`);
-            card.style.setProperty("--mouse-y", `-9999px`);
-        });
-    });
-}
 
 // YouTube Merge Modal Logic
 let currentMergeItems = [];
@@ -10860,7 +10802,7 @@ function openDuplicateCompareModal(existingPath, existingFilename, newFilename, 
     document.getElementById("dup-exist-bitrate").textContent = "Lade...";
     document.getElementById("dup-exist-duration").textContent = "Lade...";
 
-    const projName = typeof activeProject === "string" ? activeProject : "";
+    const projName = typeof currentProject === "string" ? currentProject : "";
     const newPath = currentSettings.inbox_dir + "/" + (projName ? projName + "/" : "") + newFilename;
 
     activeDuplicateInfo = {
@@ -12334,7 +12276,7 @@ async function applyNormalize() {
         if (data.ok) {
             const statusEl = document.getElementById("normalize-status");
             if (statusEl) statusEl.textContent = "In die Warteschlange eingereiht – Fortschritt im Queue-Panel.";
-            openQueue();
+            window.openQueue();
             pollQueue();
             setTimeout(loadNormalizePreview, 3000);
         } else {
