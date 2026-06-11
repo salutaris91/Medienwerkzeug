@@ -12258,6 +12258,32 @@ function updateNormalizeApplyCount() {
     if (btn) { btn.textContent = `✅ ${n} Ausgewählte anwenden`; btn.disabled = n === 0; }
 }
 
+async function waitForQueueJob(taskId, { intervalMs = 2000, timeoutMs = 10 * 60 * 1000 } = {}) {
+    const deadline = Date.now() + timeoutMs;
+    let notFoundCount = 0;
+    while (Date.now() < deadline) {
+        try {
+            const res = await fetch("/api/queue");
+            if (res.ok) {
+                const data = await res.json();
+                const job = (data.jobs || []).find(j => j.id === taskId);
+                if (job) {
+                    notFoundCount = 0;
+                    if (job.status !== "queued" && job.status !== "running") return job;
+                } else if (++notFoundCount >= 3) {
+                    // Job ist aus der Queue verschwunden (z. B. geleert) — nicht ewig warten
+                    return null;
+                }
+            }
+        } catch (e) {
+            // Netzwerk-Aussetzer beim Polling ignorieren, nächster Versuch folgt
+        }
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+    console.warn(`waitForQueueJob: Timeout beim Warten auf Job ${taskId}`);
+    return null;
+}
+
 async function applyNormalize() {
     const idxs = Array.from(document.querySelectorAll(".normalize-item:checked"))
         .map(cb => parseInt(cb.getAttribute("data-idx")));
@@ -12278,7 +12304,12 @@ async function applyNormalize() {
             if (statusEl) statusEl.textContent = "In die Warteschlange eingereiht – Fortschritt im Queue-Panel.";
             window.openQueue();
             pollQueue();
-            setTimeout(loadNormalizePreview, 3000);
+            // Vorschau erst neu laden, wenn der Verschiebe-Job wirklich fertig ist
+            // (fester 3s-Timeout zeigte vorher den alten Stand, weil der Job länger läuft)
+            if (data.task_id) {
+                await waitForQueueJob(data.task_id);
+            }
+            loadNormalizePreview();
         } else {
             const statusEl = document.getElementById("normalize-status");
             if (statusEl) statusEl.textContent = data.message || "Fehler beim Anwenden.";
