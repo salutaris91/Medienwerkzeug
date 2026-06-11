@@ -20,7 +20,7 @@ die aktive After-Release-Roadmap übernommen.
 | 11 | Inkrementeller Cache für den Duplikat-Scan | geplant | mittel |
 | 12 | Performance-Optimierung für sehr große Serienbibliotheken | geplant | mittel |
 | 13 | Komfortablere Health-Quick-Fix-Oberfläche | geplant | klein–mittel |
-| 14 | Health-Status-Vertrag & Frontend-Testabdeckung | geplant | klein–mittel |
+| 14 | Health-Status-Vertrag & Frontend-Testabdeckung | in Arbeit | klein–mittel |
 | 15 | FAQ sprachlich und visuell überarbeiten | erledigt | klein |
 | 16 | System Metrics Worker: Thread-Akkumulation verhindern | erledigt | klein |
 | 17 | NAS-Diagnose-Checkliste auf der Startseite | geplant | klein–mittel |
@@ -472,6 +472,9 @@ vollständig neu aufgebaut wird oder der Nutzer seine Position verliert.
 ---
 
 ## 14. Health-Status-Vertrag & Frontend-Testabdeckung
+
+> [!NOTE]
+> **Fortschritt (11.06.2026):** Eine minimale JS-Testinfrastruktur auf Basis des nativen Node.js Test-Runners `node:test` wurde aufgesetzt. Die beiden ESM-Module `utils.js` und `format.js` sind über Unit-Tests abgedeckt (Infrastruktur steht). Die eigentliche Vertragsschnittstelle und DOM-Tests des Health-Scans stehen noch aus.
 
 Für den Vor-Release reicht eine pragmatische Health-UI-Limitierung mit Backend-
 Regressionstest. Eine gründlichere Absicherung der Health-Status-Schnittstelle

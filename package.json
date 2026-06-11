@@ -1,0 +1,8 @@
+{
+  "name": "medienwerkzeug",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test:frontend": "node --test \"tests/frontend/**/*.test.js\""
+  }
+}
