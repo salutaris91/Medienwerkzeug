@@ -44,10 +44,8 @@ venv/
 .venv/
 env/
 
-# Node / JS-Tooling (experimentell, nicht Teil der App)
+# Node / JS-Tooling
 node_modules/
-package.json
-package-lock.json
 test_app.js
 
 # Logs

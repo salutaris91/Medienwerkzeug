@@ -425,6 +425,7 @@ Bei Sendungen, die unter einem gemeinsamen Dach-Sendeplatz laufen (wie *Entdecku
 
 ## Unit-Tests ausführen
 
+### Backend-Tests
 Um die Testsuite für Hilfsfunktionen, Pfadbereinigungen und Job-Serialisierung auszuführen, führe folgenden Befehl im Hauptverzeichnis aus:
 ```bash
 python3 -m unittest discover -s tests -b
@@ -432,3 +433,9 @@ python3 -m unittest discover -s tests -b
 
 Der Schalter `-b` puffert die ausführlichen Logs erfolgreicher Tests. Wenn ein
 Test fehlschlägt, zeigt `unittest` die relevanten Ausgaben weiterhin an.
+
+### Frontend-Tests
+Um die JavaScript-Tests der Frontend-Logik auszuführen, verwende folgenden Befehl (Node.js 18+ erforderlich):
+```bash
+npm run test:frontend
+```
