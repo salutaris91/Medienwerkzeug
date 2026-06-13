@@ -17,12 +17,12 @@ def test_h264_video_codec_still_counts_as_inefficient():
 
 
 def test_quality_hints_require_conversion_checkbox():
-    app_js = (REPO_ROOT / "gui/static/app.js").read_text(encoding="utf-8")
+    intel_js = (REPO_ROOT / "gui/static/js/intelligence.js").read_text(encoding="utf-8")
 
-    assert 'document.getElementById("movie-option-convert")' in app_js
-    assert 'document.getElementById("series-option-convert")' in app_js
-    assert "hintEl.classList.add(\"hidden\")" in app_js
-    assert "!convertCb || !convertCb.checked" in app_js
+    assert 'document.getElementById("movie-option-convert")' in intel_js
+    assert 'document.getElementById("series-option-convert")' in intel_js
+    assert "hintEl.classList.add(\"hidden\")" in intel_js
+    assert "!convertCb || !convertCb.checked" in intel_js
 
 
 def test_dynamic_storage_target_labels_keep_word_spacing():
