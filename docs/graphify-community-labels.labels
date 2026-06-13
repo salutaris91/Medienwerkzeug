@@ -7,7 +7,8 @@
   ],
 
   "Frontend Application State and Queue Dashboard": [
-    "gui_static_app_js"
+    "gui_static_app_js",
+    "static_app_populatelocalprofilesdropdown"
   ],
   "API Documentation": [
     "api_md"
@@ -55,9 +56,6 @@
   ],
   "Ignored Findings Storage": [
     "gui_core_ignores_py"
-  ],
-  "Local Profiles Frontend": [
-    "static_app_populatelocalprofilesdropdown"
   ],
   "Project Cleanup Frontend": [
     "static_app_rendercleanfilelist"

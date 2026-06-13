@@ -1,7 +1,8 @@
-import { applyTheme } from './js/theme.js?v=69';
-import { cleanSeriesName } from './js/utils.js?v=69';
-import { formatBytes } from './js/format.js?v=69';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=69';
+import { applyTheme } from './js/theme.js?v=70';
+import { cleanSeriesName } from './js/utils.js?v=70';
+import { formatBytes } from './js/format.js?v=70';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=70';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=70';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -11025,10 +11026,8 @@ async function updateHomepageData(statusData) {
 
     // 4. Fetch Stats for NAS capacity and space savings
     try {
-        const statsRes = await fetch("/api/stats");
-        if (statsRes.ok) {
-            const statsData = await statsRes.json();
-
+        const statsData = await fetchStats();
+        if (statsData) {
             // NAS storage
             const nasInfo = statsData.nas;
             const progress = document.getElementById("hero-nas-progress");
@@ -11086,9 +11085,8 @@ async function updateHomepageData(statusData) {
 
     // 5. Fetch YouTube Subscriptions Count
     try {
-        const subsRes = await fetch("/api/youtube/subscriptions");
-        if (subsRes.ok) {
-            const subsData = await subsRes.json();
+        const subsData = await fetchYoutubeSubscriptions();
+        if (subsData) {
             const subs = subsData.subscriptions || [];
             const abosText = document.getElementById("hero-abos-status-text");
             if (abosText) {
@@ -11106,11 +11104,10 @@ async function updateHomepageData(statusData) {
 
     // 6. Fetch Smart Inbox Suggestions
     try {
-        const analyzeRes = await fetch("/api/inbox/analyze");
+        const analyzeData = await fetchSmartInboxSuggestions();
         const cardSmartInbox = document.getElementById("card-smart-inbox");
         const smartInboxList = document.getElementById("smart-inbox-list");
-        if (analyzeRes.ok && cardSmartInbox && smartInboxList) {
-            const analyzeData = await analyzeRes.json();
+        if (analyzeData && cardSmartInbox && smartInboxList) {
             const suggestions = analyzeData.suggestions || [];
             if (suggestions.length > 0) {
                 cardSmartInbox.style.display = "block";
