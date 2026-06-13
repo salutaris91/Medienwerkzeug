@@ -1,6 +1,7 @@
-import { applyTheme } from './js/theme.js?v=68';
-import { cleanSeriesName } from './js/utils.js?v=68';
-import { formatBytes } from './js/format.js?v=68';
+import { applyTheme } from './js/theme.js?v=69';
+import { cleanSeriesName } from './js/utils.js?v=69';
+import { formatBytes } from './js/format.js?v=69';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=69';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -2705,63 +2706,6 @@ async function scanProject(project) {
 // ==========================================================================
 // AUTO MATCHING ALGORITHM
 // ==========================================================================
-function cleanFilenameForManualTitle(filename) {
-    if (!filename) return "";
-    let name = filename.substring(0, filename.lastIndexOf('.')) || filename;
-    name = name.replace(/s\d+e\d+/gi, "");
-    name = name.replace(/\b\d+x\d+\b/gi, "");
-    name = name.replace(/\b(ep|episode|folge|f|e|ep\.)\s*\d+\b/gi, "");
-    name = name.replace(/[._\-]/g, " ");
-    name = name.replace(/\s+/g, " ").trim();
-    return name;
-}
-
-function guessEpisodeNumber(filename) {
-    const cleanName = filename.toLowerCase();
-
-    // Pattern: s01e05
-    let match = cleanName.match(/s\d+e(\d+)/);
-    if (match) return parseInt(match[1], 10);
-
-    // Pattern: 1x05
-    match = cleanName.match(/\d+x(\d+)/);
-    if (match) return parseInt(match[1], 10);
-
-    // Pattern: ep 05 / episode 05
-    match = cleanName.match(/ep(?:isode)?[.\s-]?(\d+)/);
-    if (match) return parseInt(match[1], 10);
-
-    // Pattern: isolated digits (excluding year range 1900-2100)
-    const withoutExt = filename.substring(0, filename.lastIndexOf('.')) || filename;
-    const digitMatches = withoutExt.match(/\b\d+\b/g);
-    if (digitMatches) {
-        for (const digitStr of digitMatches) {
-            const val = parseInt(digitStr, 10);
-            if (val > 0 && val < 200) { // realistic episode range
-                return val;
-            }
-        }
-    }
-
-    return null;
-}
-
-function guessSeasonAndEpisode(filename) {
-    const clean = filename.toLowerCase();
-    let match = clean.match(/s(\d+)e(\d+)/);
-    if (match) {
-        return `S${parseInt(match[1], 10).toString().padStart(2, '0')}E${parseInt(match[2], 10).toString().padStart(2, '0')}`;
-    }
-    match = clean.match(/\b(\d+)x(\d+)\b/);
-    if (match) {
-        return `S${parseInt(match[1], 10).toString().padStart(2, '0')}E${parseInt(match[2], 10).toString().padStart(2, '0')}`;
-    }
-    match = clean.match(/\b(?:staffel|st|s)\s*(\d+)\b.*?\b(?:folge|ep|e|f|episode)\s*(\d+)\b/);
-    if (match) {
-        return `S${parseInt(match[1], 10).toString().padStart(2, '0')}E${parseInt(match[2], 10).toString().padStart(2, '0')}`;
-    }
-    return null;
-}
 
 async function detectExistingSeries(projectName) {
     if (!projectName) {
