@@ -7,8 +7,7 @@
   ],
 
   "Frontend Application State and Queue Dashboard": [
-    "gui_static_app_js",
-    "static_app_populatelocalprofilesdropdown"
+    "gui_static_app_js"
   ],
   "API Documentation": [
     "api_md"
@@ -34,7 +33,7 @@
   ],
   "Dashboard, Smart Inbox and Conversion Intelligence Frontend": [
     "static_app_loadstatus",
-    "static_app_loadconversionrecommendations"
+    "gui_static_js_intelligence_js"
   ],
   "README and Setup Guide": [
     "readme_md"
@@ -116,10 +115,8 @@
   "Search API": [
     "gui_api_search_api_py"
   ],
-  "System API": [
-    "gui_api_system_api_py"
-  ],
-  "Queue API": [
+  "System and Queue APIs": [
+    "gui_api_system_api_py",
     "gui_api_queue_api_py"
   ],
   "Utility Logic Tests": [
