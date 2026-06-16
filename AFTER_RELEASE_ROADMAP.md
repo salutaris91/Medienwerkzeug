@@ -45,7 +45,7 @@ die aktive After-Release-Roadmap übernommen.
 | 36 | Health-Dashboard: Gruppierung, Massen-Fixes (Batch) & Auto-Korrektur | geplant | mittel |
 | 37 | Docker-Schonmodus bei UI-Aktivität (Transfers drosseln) | geplant | klein–mittel |
 | 38 | Intelligente Pipeline-Parallelisierung bei langen Uploads | geplant | mittel |
-| 39 | Frontend-Resilienz (Double-Check) bei 401-Fehlern ("Schutzpanzer") | geplant | klein |
+| 39 | Frontend-Resilienz: Double-Check bei vereinzelten 401-Fehlern | geplant | klein |
 
 ---
 
@@ -1126,16 +1126,19 @@ Mittel: Scheduler-/Queue-Erweiterung, Phasenmodell, Ressourcenlimits,
 phasenbewusste Statusanzeige, Wiederaufnahme-/Fehlerlogik und Tests für
 Parallelitätsgrenzen.
 
-## 39. Frontend-Resilienz (Double-Check) bei 401-Fehlern ("Schutzpanzer")
+## 39. Frontend-Resilienz: Double-Check bei vereinzelten 401-Fehlern
+
+**Einordnung / Priorität:** Defense-in-Depth, niedrige Priorität. Die ursprünglich beobachteten "Phantom-Logouts" hatten eine Backend-Ursache (`session.clear()` schickte auf cookielosen Requests einen `Set-Cookie`-Lösch-Header und löschte so das gültige Login-Cookie). Diese Ursache ist mit #58 behoben. Dieser Eintrag adressiert nur noch die verbleibende Sprödigkeit im Frontend, nicht den eigentlichen Bug.
 
 **Problem:** 
-Aktuell lauscht der globale `fetch`-Interceptor in `app.js` auf alle API-Antworten. Sobald eine einzige Hintergrundanfrage (z.B. für Statistiken oder Logs) durch das Netzwerk (VPN-Wechsel, Adblocker, Safari ITP, kurzzeitige Proxy-Aussetzer) mit einem `401 Unauthorized` abgewiesen wird, schaltet das Frontend hart auf den Login-Bildschirm (`showLoginScreen()`). Dies geschieht selbst dann, wenn das Session-Cookie eigentlich noch völlig intakt ist, was zu frustrierenden "Phantom-Logouts" führt.
+Der globale `fetch`-Interceptor in `gui/static/app.js` (siehe `response.status === 401`) ruft bei *jedem* 401 hart `showLoginScreen()` auf — auch wenn das Session-Cookie intakt ist und nur eine einzelne Hintergrundanfrage (Statistiken, Logs) abgewiesen wurde. Mögliche Auslöser für ein vereinzeltes 401 ohne echten Sessionverlust: ein `fetch()` ohne `credentials`, `SameSite`-Konflikte, Safari ITP oder ein abgelaufenes Cookie. (Ein VPN gehört ausdrücklich *nicht* dazu — es arbeitet auf Netzwerkebene und verändert keine HTTP-Header.)
 
 **Ziel:** 
-Das Frontend soll widerstandsfähiger (resilienter) gegen vereinzelte `401`-Netzwerkfehler werden. Anstatt den Nutzer sofort auszuloggen, soll das Frontend im Fehlerfall kurz innehalten und beim Server sicherheitshalber nachfragen, ob die Session wirklich abgelaufen ist.
+Ein einzelnes 401 soll nicht mehr sofort zum Login-Screen führen, solange die Session laut Server noch gültig ist.
 
 **Lösungsskizze:**
-1. Im globalen `fetch`-Interceptor in `app.js`: Wird ein `401`-Status erkannt (der nicht vom Status-Endpoint selbst kommt), wird der Login-Screen nicht mehr blind aufgerufen.
-2. Stattdessen wird ein asynchroner Double-Check ausgeführt: `fetch('/api/auth/status')`.
-3. Nur wenn dieser Double-Check ausdrücklich meldet, dass die Authentifizierung fehlt (`auth_required: true` && `authenticated: false`), wird `showLoginScreen()` ausgelöst.
-4. Meldet der Server hingegen `authenticated: true`, wird der ursprüngliche `401`-Fehler als reiner Netzwerk-Schluckauf (z.B. ein vom VPN gestripptes Cookie) interpretiert, geloggt (`console.warn`) und die Benutzeroberfläche bleibt unverändert aktiv.
+1. Im Interceptor bei `401` (außer von `/api/auth/status` selbst) nicht mehr blind `showLoginScreen()` aufrufen.
+2. Stattdessen die bestehende `checkAuthStatus()`-Logik wiederverwenden (nicht zweite Implementierung bauen) und als **Single-Flight** ausführen: bei mehreren parallelen 401 nur *eine* gemeinsame `/api/auth/status`-Abfrage laufen lassen, sonst droht ein Anfrage-Sturm und flackernder Login-Screen.
+3. Meldet der Server `authenticated: false` → `showLoginScreen()`.
+4. Meldet der Server `authenticated: true` → den **ursprünglichen Request einmal wiederholen**, statt den Fehler still zu schlucken. Schlägt auch der Retry fehl, einen sichtbaren transienten Hinweis zeigen (kein stilles Scheitern — Hausregel).
+5. Offene Frage für die Umsetzung: `/api/auth/status` und der gescheiterte Originalrequest können legitim widersprechen (Session läuft dazwischen ab). Verhalten in diesem Grenzfall bewusst festlegen.
