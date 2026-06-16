@@ -51,8 +51,11 @@ def auth_before_request():
         session_version = session.get('auth_version')
 
         if not authenticated or session_version != current_version:
-            # Session is invalid or expired
-            session.clear()
+            # Session is invalid or expired.
+            # Only clear the session if there was actually data in it,
+            # to prevent sending a Set-Cookie deletion header on requests that simply lacked the cookie.
+            if session:
+                session.clear()
             if request.path.startswith('/api/'):
                 abort(401, "Authentication required")
             else:
