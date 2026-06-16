@@ -380,6 +380,37 @@ class TestAuth(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertFalse(res.get_json().get("authenticated"))
 
+    def test_unauthenticated_request_no_deletion_cookie(self):
+        """Test 15: A request without a session cookie to a protected path returns 401 but no Set-Cookie deletion header."""
+        self.persistence.set_password("my-test-password")
+
+        # Request a protected path without any session
+        res = self.client.get("/api/settings")
+        self.assertEqual(res.status_code, 401)
+
+        # Ensure no Set-Cookie header is present (since session wasn't explicitly cleared)
+        headers = res.headers.getlist("Set-Cookie")
+        self.assertFalse(any("session=" in header for header in headers))
+
+    def test_invalid_session_sends_deletion_cookie(self):
+        """Test 16: A request with an invalid/expired session cookie returns 401 AND sends a Set-Cookie deletion header."""
+        self.persistence.set_password("my-test-password")
+
+        # 1. Login to get a valid session
+        res = self.client.post("/api/auth/login", json={"password": "my-test-password"})
+        self.assertEqual(res.status_code, 200)
+
+        # 2. Change password to invalidate the session cookie
+        self.persistence.set_password("new-password")
+
+        # 3. Request protected path using the old session
+        res = self.client.get("/api/settings")
+        self.assertEqual(res.status_code, 401)
+
+        # 4. Check that the Set-Cookie deletion header is sent
+        headers = res.headers.getlist("Set-Cookie")
+        self.assertTrue(any("session=" in header and "Expires=" in header for header in headers))
+
 
 if __name__ == "__main__":
     unittest.main()
