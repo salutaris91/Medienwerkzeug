@@ -33,6 +33,11 @@ app.config.update(
     SECRET_KEY=secret_key,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
+    # Unique cookie name to avoid collisions with other apps on the same host.
+    # Cookies are scoped per host, not per port, so the Flask default name
+    # 'session' clashes when multiple apps share one IP (e.g. behind Tailscale).
+    # A foreign 'session' cookie would overwrite ours and log the user out.
+    SESSION_COOKIE_NAME='mw_session',
 )
 
 # Register central auth and CSRF middleware hook

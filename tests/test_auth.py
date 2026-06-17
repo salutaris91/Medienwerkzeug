@@ -411,6 +411,22 @@ class TestAuth(unittest.TestCase):
         headers = res.headers.getlist("Set-Cookie")
         self.assertTrue(any("session=" in header and "Expires=" in header for header in headers))
 
+    def test_session_cookie_has_unique_name(self):
+        """Test 17: The session cookie uses the app-specific name 'mw_session', not the
+        generic Flask default 'session', so it cannot collide with other apps on the same host."""
+        self.persistence.set_password("my-test-password")
+
+        res = self.client.post("/api/auth/login", json={"password": "my-test-password"})
+        self.assertEqual(res.status_code, 200)
+
+        headers = res.headers.getlist("Set-Cookie")
+        cookie_names = [header.split("=", 1)[0].strip() for header in headers]
+
+        # Session cookie must be set under the unique name ...
+        self.assertIn("mw_session", cookie_names)
+        # ... and never under the generic Flask default, which would clash.
+        self.assertNotIn("session", cookie_names)
+
 
 if __name__ == "__main__":
     unittest.main()
