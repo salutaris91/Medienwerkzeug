@@ -32,7 +32,6 @@
     "static_app_executeseriesworkflow"
   ],
   "Dashboard, Smart Inbox and Conversion Intelligence Frontend": [
-    "static_app_loadstatus",
     "gui_static_js_intelligence_js"
   ],
   "README and Setup Guide": [
@@ -115,10 +114,8 @@
   "Search API": [
     "gui_api_search_api_py"
   ],
-  "Queue API": [
-    "gui_api_queue_api_py"
-  ],
-  "System API": [
+  "Queue and System APIs": [
+    "gui_api_queue_api_py",
     "gui_api_system_api_py"
   ],
   "Utility Logic Tests": [

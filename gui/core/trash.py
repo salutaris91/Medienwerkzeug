@@ -30,11 +30,31 @@ def get_allowed_roots():
         
     return [r for r in roots if os.path.exists(r)]
 
-def send_to_trash(filepath: str) -> bool:
+def send_to_trash(filepath: str, force: bool = False) -> bool:
     if not os.path.exists(filepath):
         return True # Bereits weg
         
     real_path = os.path.realpath(filepath)
+    
+    # 1. Guard check for NAS metadata files if not forced
+    if not force:
+        from gui.core.utils import load_settings
+        settings = load_settings()
+        nas = settings.get("nas_root")
+        if nas:
+            nas_real = os.path.realpath(nas)
+            is_under_nas = False
+            try:
+                is_under_nas = (os.path.commonpath([real_path, nas_real]) == nas_real)
+            except ValueError:
+                pass
+            
+            if is_under_nas and os.path.basename(real_path).lower() in ("tvshow.nfo", "season.nfo"):
+                import traceback
+                from gui.core.helpers import log_message
+                tb_str = "".join(traceback.format_stack()[:-1])
+                log_message(f"🚨 BLOCKIERTE LÖSCHUNG auf NAS: {filepath} (force=False)\nStacktrace:\n{tb_str}")
+                raise TrashError(f"Löschen von Metadaten-Datei '{os.path.basename(real_path)}' auf dem NAS wurde blockiert, da force=False.")
     
     # Verhindere das Löschen des Quarantäne-Ordners selbst
     if ".medienwerkzeug-trash" in real_path.split(os.sep):
@@ -101,16 +121,34 @@ def send_to_trash(filepath: str) -> bool:
         except Exception as e:
             raise TrashError(f"Kann Quarantäne-Ordner auf Mountpoint {mount_point} nicht anlegen/prüfen: {e}")
             
+        # Structure the quarantine path: YYYY-MM-DD_HH-MM-SS/ParentDirName/Basename
+        timestamp_folder = time.strftime("%Y-%m-%d_%H-%M-%S")
+        parent_dir_name = os.path.basename(os.path.dirname(real_path))
+        if not parent_dir_name:
+            parent_dir_name = "root"
+            
+        target_parent_dir = os.path.join(trash_dir, timestamp_folder, parent_dir_name)
+        try:
+            os.makedirs(target_parent_dir, exist_ok=True)
+        except Exception as e:
+            raise TrashError(f"Kann Ziel-Quarantäne-Unterordner {target_parent_dir} nicht anlegen: {e}")
+            
         basename = os.path.basename(real_path)
-        dest_path = os.path.join(trash_dir, basename)
+        dest_path = os.path.join(target_parent_dir, basename)
         
         if os.path.exists(dest_path):
-            timestamp = int(time.time())
             name, ext = os.path.splitext(basename)
-            dest_path = os.path.join(trash_dir, f"{name}_{timestamp}{ext}")
+            counter = 1
+            while True:
+                candidate = os.path.join(target_parent_dir, f"{name}_{counter}{ext}")
+                if not os.path.exists(candidate):
+                    dest_path = candidate
+                    break
+                counter += 1
             
         try:
             shutil.move(real_path, dest_path)
             return True
         except Exception as e:
             raise TrashError(f"Verschieben in den Quarantäne-Ordner fehlgeschlagen: {e}")
+

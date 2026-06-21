@@ -206,9 +206,101 @@ def get_matched_series_name(nas_serien_path, outbox_serien_path, clean_show_name
             
     return clean_show_name
 
+import threading
+import time
+
+_job_log_handles = {}
+_job_log_lock = threading.Lock()
+
+def get_current_task_id():
+    t_name = threading.current_thread().name
+    if t_name.startswith("job-"):
+        rest = t_name[4:]
+        # Remove suffixes like "-transfer-reader", "-transfer", "-reader"
+        for suffix in ["-transfer-reader", "-transfer", "-reader"]:
+            if rest.endswith(suffix):
+                rest = rest[:-len(suffix)]
+        return rest
+    return None
+
+def _write_job_log(task_id, msg):
+    from gui.core.utils import load_settings
+    settings = load_settings()
+    data_dir = settings.get("data_dir")
+    if not data_dir:
+        settings_file = settings.get("settings_file", "")
+        if settings_file:
+            data_dir = os.path.dirname(settings_file)
+        else:
+            data_dir = "/config/data"
+            
+    log_dir = os.path.join(data_dir, "logs")
+    
+    with _job_log_lock:
+        if task_id not in _job_log_handles:
+            try:
+                os.makedirs(log_dir, exist_ok=True)
+                log_file = os.path.join(log_dir, f"job-{task_id}.log")
+                _job_log_handles[task_id] = open(log_file, "a", encoding="utf-8")
+            except Exception as e:
+                print(f"Error opening job log for {task_id}: {e}", file=sys.stderr)
+                return
+        
+        handle = _job_log_handles[task_id]
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            handle.write(f"[{ts}] {msg}\n")
+            handle.flush()
+        except Exception as e:
+            print(f"Error writing to job log for {task_id}: {e}", file=sys.stderr)
+
+def close_job_log(task_id):
+    with _job_log_lock:
+        if task_id in _job_log_handles:
+            try:
+                _job_log_handles[task_id].close()
+            except Exception:
+                pass
+            del _job_log_handles[task_id]
+
+def cleanup_old_job_logs(retention_days=14):
+    """Deletes job log files older than retention_days."""
+    from gui.core.utils import load_settings
+    settings = load_settings()
+    data_dir = settings.get("data_dir")
+    if not data_dir:
+        settings_file = settings.get("settings_file", "")
+        if settings_file:
+            data_dir = os.path.dirname(settings_file)
+        else:
+            data_dir = "/config/data"
+            
+    log_dir = os.path.join(data_dir, "logs")
+    if not os.path.exists(log_dir):
+        return
+        
+    now = time.time()
+    cutoff = now - (retention_days * 86400)
+    try:
+        for f in os.listdir(log_dir):
+            if f.startswith("job-") and f.endswith(".log"):
+                path = os.path.join(log_dir, f)
+                try:
+                    if os.path.getmtime(path) < cutoff:
+                        os.remove(path)
+                        print(f"Removed old job log file: {f}")
+                except Exception as e:
+                    print(f"Error deleting log file {f}: {e}", file=sys.stderr)
+    except Exception as e:
+        print(f"Error listing log directory for cleanup: {e}", file=sys.stderr)
+
 def log_message(msg):
     log_queue.put(msg)
     print(msg)
+    
+    task_id = get_current_task_id()
+    if task_id:
+        _write_job_log(task_id, msg)
 
 def update_task_pipeline_status(task_id, step, status, progress=None):
     if not task_id:

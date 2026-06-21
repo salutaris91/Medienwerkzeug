@@ -907,7 +907,17 @@ def process_worker(params):
             nas_serien = destination if destination else f"{nas_root}/Serien"
             rel_dest = os.path.relpath(nas_serien, nas_root)
             outbox_serien = os.path.join(outbox_root, rel_dest)
-            clean_show_name = get_matched_series_name(nas_serien, outbox_serien, limit_filename_length(sanitize_filename(show_name)))
+            
+            matched_folder = None
+            if show_id and provider:
+                from gui.api.search_api import find_existing_series_folder_by_id
+                matched_folder = find_existing_series_folder_by_id(nas_serien, provider, show_id)
+                
+            if matched_folder:
+                clean_show_name = matched_folder
+                log_message(f"Auto-Matching (per ID): Gefundener existierender Ordner '{matched_folder}' für ID '{show_id}'")
+            else:
+                clean_show_name = get_matched_series_name(nas_serien, outbox_serien, limit_filename_length(sanitize_filename(show_name)))
 
         log_message(f"Typ: Serie | Name: {show_name} (Bereinigt: {clean_show_name}) | Staffel: {season}")
 
@@ -1105,7 +1115,7 @@ def process_worker(params):
                     transfer_queue.task_done()
 
         # Start the Transfer Thread
-        transfer_thread = threading.Thread(target=transfer_worker, daemon=True)
+        transfer_thread = threading.Thread(target=transfer_worker, name=f"job-{task_id}-transfer", daemon=True)
         transfer_thread.start()
 
         try:
@@ -1631,7 +1641,7 @@ def process_worker(params):
                     transfer_queue.task_done()
 
         # Start the Transfer Thread
-        transfer_thread = threading.Thread(target=transfer_worker, daemon=True)
+        transfer_thread = threading.Thread(target=transfer_worker, name=f"job-{task_id}-transfer", daemon=True)
         transfer_thread.start()
 
         try:
@@ -1959,6 +1969,8 @@ def process_worker(params):
         movie_name = params.get("movie_name")
         show_id = params.get("show_id")
         show_name = clean_series_name_for_fs(params.get("show_name")) if params.get("show_name") else ""
+        season = params.get("season")
+        provider = params.get("provider")
 
         nas_show_folder = params.get("nas_show_folder")
         if nas_show_folder:
@@ -1967,10 +1979,17 @@ def process_worker(params):
             nas_serien = destination if destination else f"{nas_root}/Serien"
             rel_dest = os.path.relpath(nas_serien, nas_root)
             outbox_serien = os.path.join(outbox_root, rel_dest)
-            clean_show_name = get_matched_series_name(nas_serien, outbox_serien, limit_filename_length(sanitize_filename(show_name))) if show_name else ""
-
-        season = params.get("season")
-        provider = params.get("provider")
+            
+            matched_folder = None
+            if show_id and provider:
+                from gui.api.search_api import find_existing_series_folder_by_id
+                matched_folder = find_existing_series_folder_by_id(nas_serien, provider, show_id)
+                
+            if matched_folder:
+                clean_show_name = matched_folder
+                log_message(f"Auto-Matching (per ID): Gefundener existierender Ordner '{matched_folder}' für ID '{show_id}'")
+            else:
+                clean_show_name = get_matched_series_name(nas_serien, outbox_serien, limit_filename_length(sanitize_filename(show_name))) if show_name else ""
 
         copy_to_nas = params.get("copy_to_nas", False)
 
@@ -2875,6 +2894,10 @@ def job_queue_worker():
         from gui.core.jobs import update_job, get_job
         update_job(task_id, status="running", message="Verarbeitung gestartet...")
 
+        curr_thread = threading.current_thread()
+        old_name = curr_thread.name
+        curr_thread.name = f"job-{task_id}"
+
         try:
             params = job["params"]
             params["task_id"] = task_id
@@ -2897,6 +2920,9 @@ def job_queue_worker():
             print(f"Job {task_id} failed: {e}")
             print(traceback.format_exc())
         finally:
+            curr_thread.name = old_name
+            from gui.core.helpers import close_job_log
+            close_job_log(task_id)
             job_queue.task_done()
 
 _rclone_about_cache = {}
