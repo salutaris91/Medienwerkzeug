@@ -205,8 +205,8 @@ def test_trash_guard_and_quarantine(tmp_path):
     
     orig_os_stat = os.stat
     nas_dir_str = os.path.realpath(str(nas_dir))
-    def stat_side_effect(path):
-        r = orig_os_stat(path)
+    def stat_side_effect(path, *args, **kwargs):
+        r = orig_os_stat(path, *args, **kwargs)
         path_str = os.path.abspath(str(path))
         new_dev = 123 if path_str.startswith(nas_dir_str) else 456
         # Construct real os.stat_result tuple
