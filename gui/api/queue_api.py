@@ -290,6 +290,12 @@ def handle_api_preview_process():
             except Exception as e:
                 print(f"Error fetching preview episodes: {e}")
 
+        ui_season_val = params.get("ui_season", 1)
+        try:
+            ui_season_val = int(ui_season_val)
+        except (ValueError, TypeError):
+            ui_season_val = 1
+
         clean_titles = []
         for f in all_files:
             basename = os.path.basename(f)
@@ -308,8 +314,16 @@ def handle_api_preview_process():
                             if not ep_data and provider == "ytdlp" and len(episodes) == 1:
                                 ep_data = list(episodes.values())[0]
                             ep_title = ep_data.get("title", "") if isinstance(ep_data, dict) else str(ep_data)
+                            
+                            match = re.match(r"^S(\d+)E(\d+)$", str(meta_ep), re.IGNORECASE)
+                            if match:
+                                if curr_season == "all":
+                                    curr_season = int(match.group(1))
                         else:
                             ep_title = ep_num.get("title", "")
+
+                        if curr_season == "all":
+                            curr_season = ui_season_val
                     else:
                         ep_data = episodes.get(str(ep_num), {})
                         if not ep_data and provider == "ytdlp" and len(episodes) == 1:
@@ -322,6 +336,8 @@ def handle_api_preview_process():
                             curr_ep_num = int(match.group(2))
                         else:
                             curr_season = season
+                            if curr_season == "all":
+                                curr_season = ui_season_val
                             curr_ep_num = ep_num
 
                     force_abs = params.get("force_absolute_season_1", False)

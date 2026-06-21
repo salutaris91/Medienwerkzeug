@@ -4100,6 +4100,7 @@ async function executeSeriesWorkflow() {
         show_id: selectedShow.id,
         provider: selectedShow.provider,
         season: (isManualSeriesMode || !isAllSeasons) ? parseInt(season, 10) : "all",
+        ui_season: parseInt(document.getElementById("series-season-num")?.value || "1", 10) || 1,
         mappings: mappings,
         convert: convert,
         quality: quality,

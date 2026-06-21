@@ -600,6 +600,7 @@ def handle_api_fetch_episodes():
         return jsonify({"error": str(e), "status": "error"}), getattr(e, 'status_code', 503)
     except Exception as e:
         print(f"Error fetching episodes: {e}")
+        return jsonify({"error": f"Fehler beim Laden der Episoden: {str(e)}", "status": "error"}), 500
         
     return jsonify(episodes)
 

@@ -471,6 +471,9 @@ def open_folder_in_finder(path):
     Opens a directory path. On macOS, uses AppleScript to guarantee it opens
     in a new Finder window to prevent tab/window overwrites when opening multiple folders.
     """
+    if os.environ.get("MW_RUNTIME") == "docker":
+        return
+
     if not path or not os.path.exists(path):
         return
         
@@ -483,11 +486,20 @@ def open_folder_in_finder(path):
             subprocess.run(["osascript", "-e", script], check=True, capture_output=True)
         except Exception as e:
             print(f"AppleScript open window failed, falling back to open command: {e}")
-            subprocess.run(["open", abs_path])
+            try:
+                subprocess.run(["open", abs_path])
+            except Exception as e2:
+                print(f"Open command failed: {e2}")
     elif sys.platform == "win32":
-        os.startfile(abs_path)
+        try:
+            os.startfile(abs_path)
+        except Exception as e:
+            print(f"win32 startfile failed: {e}")
     else:
-        subprocess.run(["xdg-open", abs_path])
+        try:
+            subprocess.run(["xdg-open", abs_path])
+        except Exception as e:
+            print(f"xdg-open failed: {e}")
 
 
 def parse_subtitle_suffix(original_name):

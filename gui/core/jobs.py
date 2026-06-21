@@ -83,6 +83,11 @@ def update_job(job_id, status=None, progress=None, message=None,
         
         job = active_jobs[job_id]
         
+        # If job is already in terminal state (done, error) and we are not transitioning status,
+        # ignore progress/message/pipeline updates to prevent race conditions from lagging background threads.
+        if job.get("status") in ("done", "error") and status not in ("running", "queued"):
+            return True
+        
         # Check if critical status has changed
         status_changed = False
         if status is not None and job.get("status") != status:
