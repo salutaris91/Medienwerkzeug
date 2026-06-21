@@ -53,3 +53,75 @@ def test_nfo_helper_invalid_root(tmp_path):
     
     with pytest.raises(ValueError, match="Ungültiges NFO Root-Tag"):
         update_or_insert_nfo_element(str(nfo_file), "title", "New")
+
+def test_job_logging_routing_and_cleanup(tmp_path):
+    import gui.core.utils as utils
+    from gui.core.helpers import log_message, close_job_log, cleanup_old_job_logs, _job_log_handles
+    import threading
+    import time
+    
+    # 1. Setup mock settings
+    utils._MOCK_SETTINGS = {"data_dir": str(tmp_path)}
+    
+    # Ensure starting clean
+    from gui.core.helpers import _job_log_lock
+    with _job_log_lock:
+        _job_log_handles.clear()
+    
+    # 2. Test logging in a job thread
+    def run_job_thread():
+        log_message("Message from worker")
+        
+    t = threading.Thread(target=run_job_thread, name="job-test-task-123")
+    t.start()
+    t.join()
+    
+    log_file = tmp_path / "logs" / "job-test-task-123.log"
+    assert log_file.exists()
+    content = log_file.read_text(encoding="utf-8")
+    assert "Message from worker" in content
+    
+    # 3. Test logging in child threads
+    def run_transfer_thread():
+        log_message("Message from transfer")
+        
+    t2 = threading.Thread(target=run_transfer_thread, name="job-test-task-123-transfer")
+    t2.start()
+    t2.join()
+    
+    content = log_file.read_text(encoding="utf-8")
+    assert "Message from transfer" in content
+
+    def run_reader_thread():
+        log_message("Message from reader")
+        
+    t3 = threading.Thread(target=run_reader_thread, name="job-test-task-123-reader")
+    t3.start()
+    t3.join()
+    
+    content = log_file.read_text(encoding="utf-8")
+    assert "Message from reader" in content
+    
+    # Verify the handle is cached
+    assert "test-task-123" in _job_log_handles
+    
+    # 4. Test closing the log
+    close_job_log("test-task-123")
+    assert "test-task-123" not in _job_log_handles
+    
+    # 5. Test retention cleanup
+    old_log_file = tmp_path / "logs" / "job-old-task.log"
+    old_log_file.write_text("Old log message", encoding="utf-8")
+    
+    # Set back modification time of old_log_file to 15 days ago
+    fifteen_days_ago = time.time() - (15 * 86400)
+    os.utime(str(old_log_file), (fifteen_days_ago, fifteen_days_ago))
+    
+    cleanup_old_job_logs(14)
+    
+    assert not old_log_file.exists()
+    assert log_file.exists()
+    
+    # Reset mock settings
+    utils._MOCK_SETTINGS = None
+

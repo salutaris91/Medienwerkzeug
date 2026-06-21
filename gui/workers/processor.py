@@ -1105,7 +1105,7 @@ def process_worker(params):
                     transfer_queue.task_done()
 
         # Start the Transfer Thread
-        transfer_thread = threading.Thread(target=transfer_worker, daemon=True)
+        transfer_thread = threading.Thread(target=transfer_worker, name=f"job-{task_id}-transfer", daemon=True)
         transfer_thread.start()
 
         try:
@@ -1631,7 +1631,7 @@ def process_worker(params):
                     transfer_queue.task_done()
 
         # Start the Transfer Thread
-        transfer_thread = threading.Thread(target=transfer_worker, daemon=True)
+        transfer_thread = threading.Thread(target=transfer_worker, name=f"job-{task_id}-transfer", daemon=True)
         transfer_thread.start()
 
         try:
@@ -2875,6 +2875,10 @@ def job_queue_worker():
         from gui.core.jobs import update_job, get_job
         update_job(task_id, status="running", message="Verarbeitung gestartet...")
 
+        curr_thread = threading.current_thread()
+        old_name = curr_thread.name
+        curr_thread.name = f"job-{task_id}"
+
         try:
             params = job["params"]
             params["task_id"] = task_id
@@ -2897,6 +2901,9 @@ def job_queue_worker():
             print(f"Job {task_id} failed: {e}")
             print(traceback.format_exc())
         finally:
+            curr_thread.name = old_name
+            from gui.core.helpers import close_job_log
+            close_job_log(task_id)
             job_queue.task_done()
 
 _rclone_about_cache = {}

@@ -200,7 +200,12 @@ def main():
     from gui.core.helpers import folder_size_monitor
     monitor_thread = threading.Thread(target=folder_size_monitor, daemon=True)
     monitor_thread.start()
-    print("Folder size monitor thread started.")
+    # Cleanup old job logs on startup
+    try:
+        from gui.core.helpers import cleanup_old_job_logs
+        cleanup_old_job_logs(14)
+    except Exception as e:
+        print(f"Failed to cleanup old job logs: {e}")
 
     # Trigger app_start telemetry if enabled
     try:

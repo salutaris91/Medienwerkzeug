@@ -46,7 +46,12 @@ def run_with_retries_and_timeout(cmd, max_attempts=3, timeout_sec=300, line_call
                 except Exception as e:
                     log_message(f"⚠️ Unerwarteter Fehler im Output-Reader-Thread: {e}")
                         
-            reader_thread = threading.Thread(target=read_output, args=(process, line_callback))
+            parent_name = threading.current_thread().name
+            reader_thread = threading.Thread(
+                target=read_output, 
+                args=(process, line_callback), 
+                name=f"{parent_name}-reader"
+            )
             reader_thread.daemon = True
             reader_thread.start()
             
