@@ -914,7 +914,7 @@ def process_worker(params):
                 matched_folder = find_existing_series_folder_by_id(nas_serien, provider, show_id)
                 
             if matched_folder:
-                clean_show_name = clean_series_name_for_fs(matched_folder)
+                clean_show_name = matched_folder
                 log_message(f"Auto-Matching (per ID): Gefundener existierender Ordner '{matched_folder}' für ID '{show_id}'")
             else:
                 clean_show_name = get_matched_series_name(nas_serien, outbox_serien, limit_filename_length(sanitize_filename(show_name)))
@@ -1986,7 +1986,7 @@ def process_worker(params):
                 matched_folder = find_existing_series_folder_by_id(nas_serien, provider, show_id)
                 
             if matched_folder:
-                clean_show_name = clean_series_name_for_fs(matched_folder)
+                clean_show_name = matched_folder
                 log_message(f"Auto-Matching (per ID): Gefundener existierender Ordner '{matched_folder}' für ID '{show_id}'")
             else:
                 clean_show_name = get_matched_series_name(nas_serien, outbox_serien, limit_filename_length(sanitize_filename(show_name))) if show_name else ""

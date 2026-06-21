@@ -257,7 +257,7 @@ def handle_api_preview_process():
                 matched_folder = find_existing_series_folder_by_id(nas_serien, provider, show_id)
                 
             if matched_folder:
-                clean_show_name = clean_series_name_for_fs(matched_folder)
+                clean_show_name = matched_folder
             else:
                 clean_show_name = get_matched_series_name(nas_serien, outbox_serien, limit_filename_length(sanitize_filename(show_name)))
 
