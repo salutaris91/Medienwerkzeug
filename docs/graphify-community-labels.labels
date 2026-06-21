@@ -111,8 +111,10 @@
   "Health Scan Cache Tests": [
     "tests_test_health_scan_cache_py"
   ],
-  "Search and Queue APIs": [
-    "gui_api_search_api_py",
+  "Search API": [
+    "gui_api_search_api_py"
+  ],
+  "Queue API": [
     "gui_api_queue_api_py"
   ],
   "System API": [
