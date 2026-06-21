@@ -1,7 +1,7 @@
 from gui.core.helpers import get_folder_size_bytes
 import os, sys, json, time, shutil, subprocess, urllib, threading
 from flask import Blueprint, request, jsonify, Response, send_from_directory
-from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history, get_runtime_capabilities
+from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history, get_runtime_capabilities, MW_APP_VERSION
 from gui.core.helpers import *
 from gui.core.helpers import log_queue
 from gui.core.transfers import *
@@ -134,6 +134,61 @@ def handle_api_check_dependencies():
     force = query.get("force", "false").lower() == "true"
     results = check_dependency_status(force_updates=force)
     return jsonify(results)
+
+
+
+@system_api.route('/update-status', methods=['GET'])
+def handle_api_update_status():
+    from gui.core.persistence import load_env_keys
+    env_keys = load_env_keys()
+    repo = os.environ.get("MW_UPDATE_REPO") or env_keys.get("MW_UPDATE_REPO", "")
+    
+    if not repo:
+        return jsonify({
+            "update_check_available": False,
+            "current_version": MW_APP_VERSION,
+            "latest_version": None,
+            "update_available": False,
+            "runtime": get_runtime_capabilities().get("runtime", "desktop")
+        })
+        
+    latest_version = fetch_latest_github_version(repo)
+    if not latest_version:
+        return jsonify({
+            "update_check_available": True,
+            "current_version": MW_APP_VERSION,
+            "latest_version": None,
+            "update_available": False,
+            "error": "Fehler beim Abrufen der neuesten Version von GitHub",
+            "runtime": get_runtime_capabilities().get("runtime", "desktop")
+        })
+        
+    update_available = False
+    try:
+        from packaging import version
+        update_available = version.parse(latest_version) > version.parse(MW_APP_VERSION)
+    except Exception:
+        try:
+            import re
+            l_parts = [int(x) for x in re.findall(r"\d+", MW_APP_VERSION)]
+            r_parts = [int(x) for x in re.findall(r"\d+", latest_version)]
+            update_available = r_parts > l_parts
+        except Exception:
+            update_available = (latest_version.strip() != MW_APP_VERSION.strip())
+            
+    runtime = get_runtime_capabilities().get("runtime", "desktop")
+    recommended_command = ""
+    if runtime == "docker":
+        recommended_command = "docker compose pull && docker compose up -d"
+        
+    return jsonify({
+        "update_check_available": True,
+        "current_version": MW_APP_VERSION,
+        "latest_version": latest_version,
+        "update_available": update_available,
+        "runtime": runtime,
+        "recommended_command": recommended_command
+    })
 
 
 

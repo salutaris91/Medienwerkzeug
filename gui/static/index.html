@@ -1510,9 +1510,34 @@
                             <button id="btn-reset-merge-confirm" class="btn btn-secondary btn-sm" style="margin-top: 6px;">🔄 Bestätigungs-Abfragen reaktivieren</button>
                         </div>
 
+                        <div class="form-group inline-style-120" id="settings-group-system-update">
+                            <span class="form-label-style">System-Update:</span>
+                            <p class="inline-style-121">Prüfe, ob eine Aktualisierung für die Medienwerkzeug-App bzw. das Docker-Image verfügbar ist.</p>
+                            
+                            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                                <button id="btn-check-app-update" class="btn btn-primary btn-sm">
+                                    🔄 Auf Aktualisierung prüfen
+                                </button>
+                                <span id="app-update-status-badge" class="badge" style="display: none; padding: 4px 8px; border-radius: 4px; font-weight: 500; font-size: 0.85em;"></span>
+                            </div>
+                            
+                            <div id="app-update-details-area" style="display: none; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 15px; border-radius: 8px; font-size: 0.9em; line-height: 1.5; margin-bottom: 10px;">
+                                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px;">
+                                    <span style="color: var(--text-muted);">Installierte Version:</span>
+                                    <span id="app-current-version-val" style="font-weight: 500;">-</span>
+                                    <span style="color: var(--text-muted);">Verfügbare Version:</span>
+                                    <span id="app-latest-version-val" style="font-weight: 500;">-</span>
+                                </div>
+                                <div id="app-update-instruction-box" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-light);">
+                                    <span style="font-weight: 500; display: block; margin-bottom: 6px; color: var(--warning);">Empfohlener Update-Befehl:</span>
+                                    <code id="app-update-command-val" style="background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 4px; font-family: monospace; display: block; word-break: break-all; color: #a3e635; border: 1px solid rgba(255,255,255,0.05);">-</code>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="form-group inline-style-120" >
-                            <span class="form-label-style">Abhängigkeiten & CLI-Tools:</span>
-                            <p class="inline-style-121">Prüfe systemkritische Tools wie yt-dlp, rclone, ffmpeg und deno auf installierte Versionen und neue Updates.</p>
+                            <span class="form-label-style">Entwickler-Diagnose / Interne Tools:</span>
+                            <p class="inline-style-121">Übersicht der internen System-Tools. (Bei Docker-Laufzeit sind diese fest im Image verbaut und werden über Container-Updates aktualisiert).</p>
                             
                             <div class="inline-style-142">
                                 <label for="settings-check-dependency-updates" class="inline-style-82">

@@ -317,5 +317,44 @@ class TestEndpoints(unittest.TestCase):
         self.assertIn("error", data)
         self.assertEqual(data["error"], "Task nicht gefunden.")
 
+    @patch("gui.api.system_api.fetch_latest_github_version")
+    @patch("gui.api.system_api.get_runtime_capabilities")
+    @patch("gui.core.persistence.load_env_keys")
+    def test_update_status_endpoint(self, mock_env_keys, mock_caps, mock_fetch):
+        mock_env_keys.return_value = {}
+        original_env_repo = os.environ.pop("MW_UPDATE_REPO", None)
+        mock_caps.return_value = {"runtime": "desktop"}
+        
+        res = self.client.get("/api/update-status")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertFalse(data["update_check_available"])
+        self.assertEqual(data["runtime"], "desktop")
+        
+        os.environ["MW_UPDATE_REPO"] = "salutaris91/Medienwerkzeug"
+        mock_fetch.return_value = None
+        res = self.client.get("/api/update-status")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["update_check_available"])
+        self.assertIsNone(data["latest_version"])
+        self.assertIn("error", data)
+        
+        mock_fetch.return_value = "1.1.0"
+        mock_caps.return_value = {"runtime": "docker"}
+        with patch("gui.api.system_api.MW_APP_VERSION", "1.0.0"):
+            res = self.client.get("/api/update-status")
+            self.assertEqual(res.status_code, 200)
+            data = res.get_json()
+            self.assertTrue(data["update_available"])
+            self.assertEqual(data["latest_version"], "1.1.0")
+            self.assertEqual(data["runtime"], "docker")
+            self.assertEqual(data["recommended_command"], "docker compose pull && docker compose up -d")
+
+        if original_env_repo is not None:
+            os.environ["MW_UPDATE_REPO"] = original_env_repo
+        else:
+            os.environ.pop("MW_UPDATE_REPO", None)
+
 if __name__ == "__main__":
     unittest.main()
