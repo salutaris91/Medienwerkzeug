@@ -138,7 +138,13 @@ def send_to_trash(filepath: str, force: bool = False) -> bool:
         
         if os.path.exists(dest_path):
             name, ext = os.path.splitext(basename)
-            dest_path = os.path.join(target_parent_dir, f"{name}_{int(time.time())}{ext}")
+            counter = 1
+            while True:
+                candidate = os.path.join(target_parent_dir, f"{name}_{counter}{ext}")
+                if not os.path.exists(candidate):
+                    dest_path = candidate
+                    break
+                counter += 1
             
         try:
             shutil.move(real_path, dest_path)

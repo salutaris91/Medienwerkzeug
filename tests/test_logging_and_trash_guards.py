@@ -54,6 +54,50 @@ def test_nfo_helper_invalid_root(tmp_path):
     with pytest.raises(ValueError, match="Ungültiges NFO Root-Tag"):
         update_or_insert_nfo_element(str(nfo_file), "title", "New")
 
+def test_nfo_helper_hardening(tmp_path):
+    nfo_file = tmp_path / "tvshow.nfo"
+    nfo_file.write_text("<tvshow></tvshow>", encoding="utf-8")
+    
+    # 1. Test tag name validation
+    with pytest.raises(ValueError, match="Ungültiger XML-Tag-Name"):
+        update_or_insert_nfo_element(str(nfo_file), "invalid tag", "val")
+        
+    with pytest.raises(ValueError, match="Ungültiger XML-Tag-Name"):
+        update_or_insert_nfo_element(str(nfo_file), "mpaa/>", "val")
+
+    # 2. Test self-closing tags
+    original_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<tvshow>
+  <title>Title</title>
+  <mpaa />
+</tvshow>
+"""
+    nfo_file.write_text(original_xml, encoding="utf-8")
+    update_or_insert_nfo_element(str(nfo_file), "mpaa", "FSK 12")
+    
+    updated_content = nfo_file.read_text(encoding="utf-8")
+    assert "<mpaa>FSK 12</mpaa>" in updated_content
+    assert "<title>Title</title>" in updated_content
+
+    # Self-closing tag without space
+    original_xml_2 = """<?xml version="1.0" encoding="UTF-8"?>
+<tvshow>
+  <mpaa/>
+</tvshow>
+"""
+    nfo_file.write_text(original_xml_2, encoding="utf-8")
+    update_or_insert_nfo_element(str(nfo_file), "mpaa", "FSK 16")
+    updated_content_2 = nfo_file.read_text(encoding="utf-8")
+    assert "<mpaa>FSK 16</mpaa>" in updated_content_2
+
+    # 3. Test strict encoding (invalid bytes)
+    with open(str(nfo_file), "wb") as f:
+        f.write(b"<tvshow>\xff\xfe\xfd</tvshow>")
+        
+    with pytest.raises(IOError, match="NFO lesefehler"):
+        update_or_insert_nfo_element(str(nfo_file), "title", "val")
+
+
 def test_job_logging_routing_and_cleanup(tmp_path):
     import gui.core.utils as utils
     from gui.core.helpers import log_message, close_job_log, cleanup_old_job_logs, _job_log_handles
@@ -209,6 +253,12 @@ def test_trash_guard_and_quarantine(tmp_path):
             parent_folder = trash_dir / ts_folder / "nas"
             assert parent_folder.exists()
             assert (parent_folder / "S01E01.mp4").exists()
+            
+            # Test collision avoidance (same file trashed again in same second)
+            regular_file_2 = nas_dir / "S01E01.mp4"
+            regular_file_2.write_text("another video", encoding="utf-8")
+            assert send_to_trash(str(regular_file_2), force=False)
+            assert (parent_folder / "S01E01_1.mp4").exists()
             
             # 4. Test that tvshow.nfo can be trashed with force=True
             assert send_to_trash(str(tvshow_nfo), force=True)

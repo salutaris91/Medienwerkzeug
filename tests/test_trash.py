@@ -175,7 +175,7 @@ def test_docker_mode_collision_avoidance(mock_time, mock_access, mock_makedirs, 
         src_arg, dest_arg = mock_move.call_args[0]
         assert src_arg == "/allowed/file.txt"
         assert dest_arg.startswith("/allowed/.medienwerkzeug-trash/")
-        assert dest_arg.endswith("/allowed/file_1234567890.txt")
+        assert dest_arg.endswith("/allowed/file_1.txt")
 
 @pytest.fixture
 def test_client():

@@ -21,8 +21,12 @@ def update_or_insert_nfo_element(nfo_path, tag_name, inner_content, is_xml_block
     if not os.path.exists(nfo_path):
         raise FileNotFoundError(f"NFO file not found: {nfo_path}")
         
+    # Validate tag name to prevent XML injection / malformed tags
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9._-]*$', tag_name):
+        raise ValueError(f"Ungültiger XML-Tag-Name: {tag_name}")
+
     try:
-        with open(nfo_path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(nfo_path, "r", encoding="utf-8") as f:
             content = f.read()
     except Exception as e:
         raise IOError(f"NFO lesefehler: {e}")
@@ -51,9 +55,11 @@ def update_or_insert_nfo_element(nfo_path, tag_name, inner_content, is_xml_block
     replacement = f"<{tag_name}>{escaped_content}</{tag_name}>"
 
     if len(elements) == 1:
-        # Replace existing tag
-        pattern = re.compile(rf'<{tag_name}[\s>].*?</{tag_name}>', re.DOTALL | re.IGNORECASE)
-        new_content = re.sub(pattern, replacement, content, count=1)
+        # Replace existing tag (supports both self-closing and standard tags)
+        pattern = re.compile(rf'<{tag_name}(?:\s+[^>]*?)?/>|<{tag_name}[\s>].*?</{tag_name}>', re.DOTALL | re.IGNORECASE)
+        new_content, count = re.subn(pattern, replacement, content, count=1)
+        if count == 0:
+            raise ValueError(f"Tag <{tag_name}> existiert laut Parser, konnte aber im XML-String nicht per Regex ersetzt werden (evtl. fehlerhaftes Format).")
     else:
         # Insert before closing tag
         closing_tag = f"</{root_tag}>"
