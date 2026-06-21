@@ -471,6 +471,10 @@ SYSTEM_METRICS = {
 }
 METRICS_LOCK = threading.Lock()
 
+# Active YouTube tasks tracking
+active_yt_tasks = {}
+active_yt_tasks_lock = threading.Lock()
+
 from gui.core.jobs import active_jobs, active_jobs_lock
 def build_job_pipeline(params, has_metadata, convert):
     pipeline = {

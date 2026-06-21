@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install deno
-ARG DENO_VERSION=v2.1.4
+ARG DENO_VERSION=v2.8.3
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then \
         DENO_ARCH="x86_64-unknown-linux-gnu"; \
@@ -39,13 +39,14 @@ ENV MW_DATA_DIR=/config/data
 ENV MW_ENV_FILE=/config/.env
 ENV RCLONE_CONFIG=/config/rclone/rclone.conf
 ENV TZ=Europe/Berlin
+ENV MW_APP_VERSION=1.0.0
 
 # Create working directory
 WORKDIR /app
 
-# Install Python dependencies including yt-dlp
+# Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt yt-dlp
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application source code
 COPY . .

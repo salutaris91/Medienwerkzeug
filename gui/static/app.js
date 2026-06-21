@@ -7579,6 +7579,77 @@ function initEventListeners() {
 let currentSettings = { import_sources: [] };
 let conversionRecommendations = null;
 
+async function checkAppUpdate() {
+    const btn = document.getElementById("btn-check-app-update");
+    const badge = document.getElementById("app-update-status-badge");
+    const detailsArea = document.getElementById("app-update-details-area");
+    const currentVal = document.getElementById("app-current-version-val");
+    const latestVal = document.getElementById("app-latest-version-val");
+    const instructionBox = document.getElementById("app-update-instruction-box");
+    const commandVal = document.getElementById("app-update-command-val");
+
+    if (!btn || !badge || !detailsArea || !currentVal || !latestVal || !instructionBox || !commandVal) return;
+
+    btn.disabled = true;
+    btn.innerHTML = `<span style="display: inline-block; animation: spin 1s linear infinite; margin-right: 6px;">🔄</span> Prüfe...`;
+    
+    badge.style.display = "none";
+    detailsArea.style.display = "none";
+    instructionBox.style.display = "none";
+
+    try {
+        const response = await fetch('/api/update-status');
+        if (response.ok) {
+            const data = await response.json();
+            
+            currentVal.textContent = data.current_version || "N/A";
+            latestVal.textContent = data.latest_version || "N/A";
+            detailsArea.style.display = "block";
+            
+            if (data.update_check_available === false) {
+                badge.textContent = "Updates nicht konfiguriert";
+                badge.style.backgroundColor = "var(--text-muted)";
+                badge.style.color = "#fff";
+                badge.style.display = "inline-block";
+            } else if (data.update_available) {
+                badge.textContent = "Update verfügbar";
+                badge.style.backgroundColor = "var(--warning)";
+                badge.style.color = "#000";
+                badge.style.display = "inline-block";
+                
+                if (data.recommended_command) {
+                    commandVal.textContent = data.recommended_command;
+                    instructionBox.style.display = "block";
+                }
+            } else if (data.error) {
+                badge.textContent = "Fehler bei Prüfung";
+                badge.style.backgroundColor = "var(--danger)";
+                badge.style.color = "#fff";
+                badge.style.display = "inline-block";
+            } else {
+                badge.textContent = "Aktuell";
+                badge.style.backgroundColor = "var(--success)";
+                badge.style.color = "#fff";
+                badge.style.display = "inline-block";
+            }
+        } else {
+            badge.textContent = "Fehler";
+            badge.style.backgroundColor = "var(--danger)";
+            badge.style.color = "#fff";
+            badge.style.display = "inline-block";
+        }
+    } catch (e) {
+        console.error("Error checking app update:", e);
+        badge.textContent = "Verbindungsfehler";
+        badge.style.backgroundColor = "var(--danger)";
+        badge.style.color = "#fff";
+        badge.style.display = "inline-block";
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = "🔄 Auf Aktualisierung prüfen";
+    }
+}
+
 async function checkDependencies(force = false) {
     const listContainer = document.getElementById("dependency-status-list");
     if (!listContainer) return;
@@ -7978,6 +8049,7 @@ async function loadSettings() {
                 });
 
             checkDependencies(false);
+            checkAppUpdate();
         }
     } catch (e) {
         console.error("Error loading settings:", e);
@@ -8934,6 +9006,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btnCheckDeps) {
         btnCheckDeps.addEventListener("click", () => {
             checkDependencies(true);
+        });
+    }
+
+    const btnCheckAppUpdate = document.getElementById("btn-check-app-update");
+    if (btnCheckAppUpdate) {
+        btnCheckAppUpdate.addEventListener("click", () => {
+            checkAppUpdate();
         });
     }
 
