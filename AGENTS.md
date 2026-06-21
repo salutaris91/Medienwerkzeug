@@ -150,8 +150,13 @@ Sobald ein Feature oder ein zusammenhängender Arbeitsschritt abgeschlossen ist,
 ## Deployment-Notizen
 
 Projekt- und personenbezogene Deployment-Pfade, Hostnamen, Volumes und
-Betriebsnotizen gehören nicht in die versionierten Agent-Regeln. Sie werden in
-lokalen, gitignorierten Übergabe- oder Deployment-Notizen gepflegt.
+Betriebsnotizen gehören in lokale, gitignorierte Übergabe- oder Deployment-Notizen.
+
+### Live-Update auf dem NAS
+Um Änderungen auf dem NAS im Livebetrieb zu aktualisieren und neu zu starten, folgendes konsolidierte Kommando ausführen:
+```bash
+cd /home/Alex/medienwerkzeug && git checkout main && git pull && docker compose down && docker compose up --build -d
+```
 
 ---
 
