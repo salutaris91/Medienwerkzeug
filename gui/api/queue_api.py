@@ -250,7 +250,16 @@ def handle_api_preview_process():
             nas_serien = destination if destination else f"{nas_root}/Serien"
             rel_dest = os.path.relpath(nas_serien, nas_root)
             outbox_serien = os.path.join(outbox_root, rel_dest)
-            clean_show_name = get_matched_series_name(nas_serien, outbox_serien, limit_filename_length(sanitize_filename(show_name)))
+            
+            matched_folder = None
+            if show_id and provider:
+                from gui.api.search_api import find_existing_series_folder_by_id
+                matched_folder = find_existing_series_folder_by_id(nas_serien, provider, show_id)
+                
+            if matched_folder:
+                clean_show_name = clean_series_name_for_fs(matched_folder)
+            else:
+                clean_show_name = get_matched_series_name(nas_serien, outbox_serien, limit_filename_length(sanitize_filename(show_name)))
 
         nas_serien = destination if destination else f"{nas_root}/Serien"
         dest_show_dir = os.path.join(nas_serien, clean_show_name)
@@ -535,10 +544,15 @@ def handle_api_preview_process():
         if show_id and provider:
             from gui.api.search_api import find_existing_series_folder_by_id
             nas_match_folder = find_existing_series_folder_by_id(nas_serien, provider, show_id)
-            if nas_match_folder and nas_match_folder != clean_show_name:
+            
+            # The default name based on metadata (without ID fallback)
+            outbox_serien_path = os.path.join(outbox_root, os.path.relpath(nas_serien, nas_root))
+            metadata_show_name = get_matched_series_name(nas_serien, outbox_serien_path, limit_filename_length(sanitize_filename(show_name)))
+            
+            if nas_match_folder and nas_match_folder != metadata_show_name:
                 preview["show_name_mismatch"] = {
                     "nas_name": nas_match_folder,
-                    "metadata_name": clean_show_name
+                    "metadata_name": metadata_show_name
                 }
 
     return jsonify(preview)
