@@ -534,7 +534,7 @@ def handle_api_resolve_duplicate():
         
     if action == "upgrade":
         try:
-            trash.send_to_trash(existing_path)
+            trash.send_to_trash(existing_path, force=True)
             log_message(f"🗑️ [Dubletten-Upgrade] Existierende Datei auf NAS in Quarantäne verschoben: {existing_path}")
             
             # Delete corresponding nfo / artwork if present
@@ -543,7 +543,7 @@ def handle_api_resolve_duplicate():
                 art_file = base_path + ext
                 if os.path.exists(art_file):
                     try:
-                        trash.send_to_trash(art_file)
+                        trash.send_to_trash(art_file, force=True)
                         log_message(f"  🗑️ Zugehörige Datei in Quarantäne verschoben: {art_file}")
                     except Exception as e:
                         log_message(f"⚠️ Zugehörige Datei konnte nicht in Quarantäne verschoben werden: {art_file} ({e})")
@@ -874,7 +874,7 @@ def handle_api_health_fix():
             rest = [e for e in os.listdir(inner) if not e.startswith('.')]
             if not rest:
                 try:
-                    trash.send_to_trash(inner)
+                    trash.send_to_trash(inner, force=True)
                 except Exception as e:
                     log_message(f"⚠️ [Health-Fix] Konnte leeren Ordner {inner} nicht in Quarantäne verschieben: {e}")
             log_message(f"🔧 [Health-Fix] Verschachtelung aufgelöst: {path}")

@@ -306,7 +306,7 @@ def resolve_duplicate(file_path):
 
     deleted = []
     try:
-        trash.send_to_trash(target)
+        trash.send_to_trash(target, force=True)
         deleted.append(os.path.basename(target))
     except trash.TrashError as e:
         return False, str(e)
@@ -319,7 +319,7 @@ def resolve_duplicate(file_path):
         sidecar = base + suffix
         if os.path.isfile(sidecar):
             try:
-                trash.send_to_trash(sidecar)
+                trash.send_to_trash(sidecar, force=True)
                 deleted.append(os.path.basename(sidecar))
             except Exception as e:
                 log_message(f"⚠️ [Duplikat] Begleitdatei konnte nicht in Quarantäne verschoben werden: {sidecar} ({e})")
@@ -328,7 +328,7 @@ def resolve_duplicate(file_path):
     parent = os.path.dirname(target)
     try:
         if os.path.realpath(parent) != nas_root and not os.listdir(parent):
-            trash.send_to_trash(parent)
+            trash.send_to_trash(parent, force=True)
     except Exception as e:
         log_message(f"⚠️ [Duplikat] Leerer Episoden-Ordner konnte nicht in Quarantäne verschoben werden: {parent} ({e})")
 

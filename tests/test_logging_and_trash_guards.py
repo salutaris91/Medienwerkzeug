@@ -125,3 +125,101 @@ def test_job_logging_routing_and_cleanup(tmp_path):
     # Reset mock settings
     utils._MOCK_SETTINGS = None
 
+def test_trash_guard_and_quarantine(tmp_path):
+    import os
+    import pytest
+    import gui.core.utils as utils
+    from gui.core.trash import send_to_trash, TrashError
+    
+    # 1. Setup mock folders
+    nas_dir = tmp_path / "nas"
+    nas_dir.mkdir()
+    inbox_dir = tmp_path / "inbox"
+    inbox_dir.mkdir()
+    
+    utils._MOCK_SETTINGS = {
+        "nas_root": str(nas_dir),
+        "inbox_dir": str(inbox_dir),
+        "outbox_dir": str(tmp_path / "outbox")
+    }
+    
+    # Create files
+    tvshow_nfo = nas_dir / "tvshow.nfo"
+    tvshow_nfo.write_text("<tvshow></tvshow>", encoding="utf-8")
+    
+    season_nfo = nas_dir / "season.nfo"
+    season_nfo.write_text("<season></season>", encoding="utf-8")
+    
+    regular_file = nas_dir / "S01E01.mp4"
+    regular_file.write_text("video content", encoding="utf-8")
+    
+    # Enable docker runtime to test quarantine
+    old_runtime = os.environ.get("MW_RUNTIME")
+    os.environ["MW_RUNTIME"] = "docker"
+    
+    from unittest.mock import patch, MagicMock
+    
+    orig_os_stat = os.stat
+    nas_dir_str = os.path.realpath(str(nas_dir))
+    def stat_side_effect(path):
+        r = orig_os_stat(path)
+        path_str = os.path.abspath(str(path))
+        new_dev = 123 if path_str.startswith(nas_dir_str) else 456
+        # Construct real os.stat_result tuple
+        stat_tuple = (
+            r.st_mode,
+            r.st_ino,
+            new_dev,
+            r.st_nlink,
+            r.st_uid,
+            r.st_gid,
+            r.st_size,
+            r.st_atime,
+            r.st_mtime,
+            r.st_ctime
+        )
+        return os.stat_result(stat_tuple)
+        
+    try:
+        with patch("gui.core.trash.os.stat", side_effect=stat_side_effect):
+            # 2. Test block for tvshow.nfo and season.nfo with force=False
+            with pytest.raises(TrashError, match="Löschen von Metadaten-Datei.*blockiert"):
+                send_to_trash(str(tvshow_nfo), force=False)
+                
+            with pytest.raises(TrashError, match="Löschen von Metadaten-Datei.*blockiert"):
+                send_to_trash(str(season_nfo), force=False)
+                
+            # Verify they were not deleted
+            assert tvshow_nfo.exists()
+            assert season_nfo.exists()
+            
+            # 3. Test that regular files can be trashed without force=True
+            assert send_to_trash(str(regular_file), force=False)
+            assert not regular_file.exists()
+            
+            # Verify the quarantined structure
+            trash_dir = nas_dir / ".medienwerkzeug-trash"
+            assert trash_dir.exists()
+            
+            # Under trash_dir, there should be a timestamp directory, then parent directory (nas), then the file
+            timestamp_folders = [f for f in os.listdir(trash_dir) if not f.startswith(".")]
+            assert len(timestamp_folders) == 1
+            ts_folder = timestamp_folders[0]
+            
+            parent_folder = trash_dir / ts_folder / "nas"
+            assert parent_folder.exists()
+            assert (parent_folder / "S01E01.mp4").exists()
+            
+            # 4. Test that tvshow.nfo can be trashed with force=True
+            assert send_to_trash(str(tvshow_nfo), force=True)
+            assert not tvshow_nfo.exists()
+    finally:
+        # Clean up mock settings and env
+        utils._MOCK_SETTINGS = None
+        if old_runtime is not None:
+            os.environ["MW_RUNTIME"] = old_runtime
+        else:
+            os.environ.pop("MW_RUNTIME", None)
+
+
+

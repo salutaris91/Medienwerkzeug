@@ -418,7 +418,7 @@ def handle_api_paths_clean():
                     continue
                 if os.path.exists(path_f):
                     try:
-                        trash.send_to_trash(path_f)
+                        trash.send_to_trash(path_f, force=True)
                         deleted_files.append(f"inbox/{f}")
                     except Exception as e:
                         return jsonify({"error": f"Quarantäne-Fehler bei inbox/{f}: {e}"}), 500
@@ -432,7 +432,7 @@ def handle_api_paths_clean():
                     continue
                 if os.path.exists(path_f):
                     try:
-                        trash.send_to_trash(path_f)
+                        trash.send_to_trash(path_f, force=True)
                         deleted_files.append(f"output/{f}")
                     except Exception as e:
                         return jsonify({"error": f"Quarantäne-Fehler bei output/{f}: {e}"}), 500
@@ -445,7 +445,7 @@ def handle_api_paths_clean():
                     dir_path = os.path.join(root, d)
                     try:
                         if not os.listdir(dir_path):
-                            trash.send_to_trash(dir_path)
+                            trash.send_to_trash(dir_path, force=True)
                             cleaned.append(os.path.relpath(dir_path, base_dir))
                     except Exception as e:
                         log_message(f"⚠️ Leerer Ordner konnte nicht in Quarantäne verschoben werden: {dir_path} ({e})")
@@ -506,7 +506,7 @@ def handle_api_clean_project():
                 continue
             if os.path.exists(path_f):
                 try:
-                    trash.send_to_trash(path_f)
+                    trash.send_to_trash(path_f, force=True)
                     deleted_files.append(f)
                 except Exception as e:
                     log_message(f"⚠️ Datei konnte nicht in Quarantäne verschoben werden: {path_f} ({e})")
@@ -516,7 +516,7 @@ def handle_api_clean_project():
             if root == target_dir: continue
             if not os.listdir(root):
                 try:
-                    trash.send_to_trash(root)
+                    trash.send_to_trash(root, force=True)
                     deleted_dirs.append(os.path.relpath(root, target_dir))
                 except Exception as e:
                     log_message(f"⚠️ Leerer Ordner konnte nicht in Quarantäne verschoben werden: {root} ({e})")
@@ -530,7 +530,7 @@ def handle_api_clean_project():
                 if ext in ['.txt', '.url']:
                     path_f = os.path.join(root, f)
                     try:
-                        trash.send_to_trash(path_f)
+                        trash.send_to_trash(path_f, force=True)
                         deleted_files.append(os.path.relpath(path_f, target_dir))
                     except Exception as e:
                         log_message(f"⚠️ Datei konnte nicht in Quarantäne verschoben werden: {path_f} ({e})")
@@ -538,7 +538,7 @@ def handle_api_clean_project():
                 path_d = os.path.join(root, d)
                 if not os.listdir(path_d):
                     try:
-                        trash.send_to_trash(path_d)
+                        trash.send_to_trash(path_d, force=True)
                         deleted_dirs.append(os.path.relpath(path_d, target_dir))
                     except Exception as e:
                         log_message(f"⚠️ Leerer Ordner konnte nicht in Quarantäne verschoben werden: {path_d} ({e})")
@@ -583,7 +583,7 @@ def handle_api_delete_project():
         return jsonify({"status": "error", "error": "Ordner existiert nicht."})
         
     try:
-        trash.send_to_trash(target_dir_abs)
+        trash.send_to_trash(target_dir_abs, force=True)
         def log_message(m): print(m)
         log_message(f"🗑️ Ordner erfolgreich in Quarantäne verschoben: {project}")
         return jsonify({"status": "success"})
@@ -664,7 +664,7 @@ def handle_api_merge_projects():
         # Remove source directory if empty or has only dotfiles
         remaining = [f for f in os.listdir(source_dir_abs) if not f.startswith('.')]
         if len(remaining) == 0:
-            trash.send_to_trash(source_dir_abs)
+            trash.send_to_trash(source_dir_abs, force=True)
             
         log_message(f"🔄 Ordner zusammengeführt: '{source}' -> '{target}'")
         return jsonify({"status": "success"})
@@ -760,7 +760,7 @@ def handle_api_split_project_file():
             remaining = [r for r in remaining if not r.startswith(".")]
             if not remaining:
                 try:
-                    trash.send_to_trash(source_dir_abs)
+                    trash.send_to_trash(source_dir_abs, force=True)
                     log_message(f"🗑️ Quellordner in Quarantäne verschoben, da leer: {project}")
                 except Exception as e:
                     log_message(f"⚠️ Fehler beim Löschen des leeren Quellordners {project}: {e}")

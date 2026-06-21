@@ -96,8 +96,11 @@ def test_docker_mode_moves_to_trash_folder(mock_access, mock_makedirs, mock_move
     with patch("gui.core.trash.os.path.isfile", return_value=True):
         send_to_trash("/allowed/file.txt")
         
-        # Should have moved to /allowed/.medienwerkzeug-trash/file.txt
-        mock_move.assert_called_once_with("/allowed/file.txt", "/allowed/.medienwerkzeug-trash/file.txt")
+        assert mock_move.call_count == 1
+        src_arg, dest_arg = mock_move.call_args[0]
+        assert src_arg == "/allowed/file.txt"
+        assert dest_arg.startswith("/allowed/.medienwerkzeug-trash/")
+        assert dest_arg.endswith("/allowed/file.txt")
 
 
 @patch("gui.core.trash.os.path.exists", return_value=True)
@@ -158,8 +161,8 @@ def test_docker_mode_collision_avoidance(mock_time, mock_access, mock_makedirs, 
     def exists_side_effect(path):
         # The source file exists
         if path == "/allowed/file.txt": return True
-        # The destination already exists, forcing a rename
-        if path == "/allowed/.medienwerkzeug-trash/file.txt": return True
+        # If it's the expected destination path without renaming, return True to force rename
+        if ".medienwerkzeug-trash" in path and path.endswith("/file.txt"): return True
         # The root path exists
         if path == "/allowed": return True
         return False
@@ -168,8 +171,11 @@ def test_docker_mode_collision_avoidance(mock_time, mock_access, mock_makedirs, 
     with patch("gui.core.trash.os.path.isfile", return_value=True):
         send_to_trash("/allowed/file.txt")
         
-        # Should have moved with timestamp added
-        mock_move.assert_called_once_with("/allowed/file.txt", "/allowed/.medienwerkzeug-trash/file_1234567890.txt")
+        assert mock_move.call_count == 1
+        src_arg, dest_arg = mock_move.call_args[0]
+        assert src_arg == "/allowed/file.txt"
+        assert dest_arg.startswith("/allowed/.medienwerkzeug-trash/")
+        assert dest_arg.endswith("/allowed/file_1234567890.txt")
 
 @pytest.fixture
 def test_client():
