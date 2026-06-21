@@ -225,7 +225,8 @@ def test_trash_guard_and_quarantine(tmp_path):
         return os.stat_result(stat_tuple)
         
     try:
-        with patch("gui.core.trash.os.stat", side_effect=stat_side_effect):
+        with patch("gui.core.trash.os.stat", side_effect=stat_side_effect), \
+             patch("gui.core.trash.time.strftime", return_value="2026-06-21_22-00-00"):
             # 2. Test block for tvshow.nfo and season.nfo with force=False
             with pytest.raises(TrashError, match="Löschen von Metadaten-Datei.*blockiert"):
                 send_to_trash(str(tvshow_nfo), force=False)
@@ -245,12 +246,7 @@ def test_trash_guard_and_quarantine(tmp_path):
             trash_dir = nas_dir / ".medienwerkzeug-trash"
             assert trash_dir.exists()
             
-            # Under trash_dir, there should be a timestamp directory, then parent directory (nas), then the file
-            timestamp_folders = [f for f in os.listdir(trash_dir) if not f.startswith(".")]
-            assert len(timestamp_folders) == 1
-            ts_folder = timestamp_folders[0]
-            
-            parent_folder = trash_dir / ts_folder / "nas"
+            parent_folder = trash_dir / "2026-06-21_22-00-00" / "nas"
             assert parent_folder.exists()
             assert (parent_folder / "S01E01.mp4").exists()
             

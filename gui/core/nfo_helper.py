@@ -56,7 +56,8 @@ def update_or_insert_nfo_element(nfo_path, tag_name, inner_content, is_xml_block
 
     if len(elements) == 1:
         # Replace existing tag (supports both self-closing and standard tags)
-        pattern = re.compile(rf'<{tag_name}(?:\s+[^>]*?)?/>|<{tag_name}[\s>].*?</{tag_name}>', re.DOTALL | re.IGNORECASE)
+        escaped_tag = re.escape(tag_name)
+        pattern = re.compile(rf'<{escaped_tag}(?:\s+[^>]*?)?/>|<{escaped_tag}[\s>].*?</{escaped_tag}>', re.DOTALL | re.IGNORECASE)
         new_content, count = re.subn(pattern, replacement, content, count=1)
         if count == 0:
             raise ValueError(f"Tag <{tag_name}> existiert laut Parser, konnte aber im XML-String nicht per Regex ersetzt werden (evtl. fehlerhaftes Format).")
