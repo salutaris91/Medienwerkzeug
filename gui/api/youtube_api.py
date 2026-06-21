@@ -12,7 +12,7 @@ import gui.mw_metadata as mw_metadata
 youtube_api = Blueprint('youtube_api', __name__)
 
 # Global variables imported from processor
-from gui.workers.processor import SYSTEM_STATUS
+from gui.workers.processor import SYSTEM_STATUS, active_yt_tasks, active_yt_tasks_lock
 
 
 

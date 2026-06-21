@@ -302,5 +302,20 @@ class TestEndpoints(unittest.TestCase):
         self.assertIn("error", res.json)
         self.assertIn("TMDb TV offline", res.json["error"])
 
+    def test_youtube_tasks_lock_defined(self):
+        from gui.workers.processor import active_yt_tasks, active_yt_tasks_lock
+        from gui.api.youtube_api import active_yt_tasks as api_tasks, active_yt_tasks_lock as api_lock
+        
+        self.assertIsNotNone(active_yt_tasks)
+        self.assertIsNotNone(active_yt_tasks_lock)
+        self.assertIs(active_yt_tasks, api_tasks)
+        self.assertIs(active_yt_tasks_lock, api_lock)
+        
+        res = self.client.get("/api/yt/segments?taskId=nonexistent")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn("error", data)
+        self.assertEqual(data["error"], "Task nicht gefunden.")
+
 if __name__ == "__main__":
     unittest.main()
