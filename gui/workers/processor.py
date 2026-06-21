@@ -682,6 +682,11 @@ def process_worker(params):
     movie_id = params.get("movie_id")
     provider = params.get("provider")
     season = params.get("season")
+    ui_season_val = params.get("ui_season", 1)
+    try:
+        ui_season_val = int(ui_season_val)
+    except (ValueError, TypeError):
+        ui_season_val = 1
     mappings = params.get("mappings", {})
     convert = params.get("convert", False)
     quality = params.get("quality", 60)
@@ -1103,209 +1108,299 @@ def process_worker(params):
         transfer_thread = threading.Thread(target=transfer_worker, daemon=True)
         transfer_thread.start()
 
-        # 4. Process mappings sequentially
-        for file_idx, (filename, ep_num_val) in enumerate(mapping_items):
-            # If explicit_renames was used, the file is ALREADY renamed to the target_filename
-            # We just need to generate the NFO!
+        try:
+            # 4. Process mappings sequentially
+            for file_idx, (filename, ep_num_val) in enumerate(mapping_items):
+                # If explicit_renames was used, the file is ALREADY renamed to the target_filename
+                # We just need to generate the NFO!
 
-            # Get episode title and original season/episode values
-            if isinstance(ep_num_val, dict):
-                ep_num = ep_num_val.get("episode", 1)
-                ep_season = ep_num_val.get("season", season)
-                ep_title = ep_num_val.get("title", "")
-                meta_ep = ep_num_val.get("metadata_ep_num")
-                if meta_ep:
-                    ep_data = episodes.get(str(meta_ep), {})
-                    if not ep_data and provider == "ytdlp" and len(episodes) == 1:
-                        ep_data = list(episodes.values())[0]
-                    if isinstance(ep_data, dict):
-                        ep_title = ep_data.get("title", ep_title)
-                    else:
-                        ep_title = str(ep_data) or ep_title
-
-                    match = re.match(r"^S(\d+)E(\d+)$", str(meta_ep), re.IGNORECASE)
-                    if match:
-                        orig_season = int(match.group(1))
-                        orig_episode = int(match.group(2))
-                    else:
-                        orig_season = season
-                        try:
-                            orig_episode = int(meta_ep)
-                        except (ValueError, TypeError):
-                            orig_episode = meta_ep
-                else:
-                    orig_season = ep_season
-                    orig_episode = ep_num
-            else:
-                ep_data = episodes.get(str(ep_num_val), {})
-                if not ep_data and provider == "ytdlp" and len(episodes) == 1:
-                    ep_data = list(episodes.values())[0]
-                ep_title = ""
-                if isinstance(ep_data, dict):
-                    ep_title = ep_data.get("title", "")
-                else:
-                    ep_title = str(ep_data)
-
-                match = re.match(r"^S(\d+)E(\d+)$", str(ep_num_val), re.IGNORECASE)
-                if match:
-                    ep_season = int(match.group(1))
-                    ep_num = int(match.group(2))
-                else:
-                    ep_num = ep_num_val
-                    ep_season = season
-                orig_season = ep_season
-                orig_episode = ep_num
-
-            force_abs = params.get("force_absolute_season_1", False)
-            if force_abs:
+                # Get episode title and original season/episode values
                 if isinstance(ep_num_val, dict):
-                    ep_data = ep_num_val
+                    ep_num = ep_num_val.get("episode", 1)
+                    ep_season = ep_num_val.get("season", season)
+                    ep_title = ep_num_val.get("title", "")
+                    meta_ep = ep_num_val.get("metadata_ep_num")
+                    if meta_ep:
+                        ep_data = episodes.get(str(meta_ep), {})
+                        if not ep_data and provider == "ytdlp" and len(episodes) == 1:
+                            ep_data = list(episodes.values())[0]
+                        if isinstance(ep_data, dict):
+                            ep_title = ep_data.get("title", ep_title)
+                        else:
+                            ep_title = str(ep_data) or ep_title
+
+                        match = re.match(r"^S(\d+)E(\d+)$", str(meta_ep), re.IGNORECASE)
+                        if match:
+                            orig_season = int(match.group(1))
+                            orig_episode = int(match.group(2))
+                            if ep_season == "all":
+                                ep_season = orig_season
+                        else:
+                            orig_season = season
+                            if orig_season == "all":
+                                orig_season = ui_season_val
+                            try:
+                                orig_episode = int(meta_ep)
+                            except (ValueError, TypeError):
+                                orig_episode = meta_ep
+                    else:
+                        orig_season = ep_season
+                        if orig_season == "all":
+                            orig_season = ui_season_val
+                        orig_episode = ep_num
+
+                    if ep_season == "all":
+                        ep_season = ui_season_val
                 else:
                     ep_data = episodes.get(str(ep_num_val), {})
                     if not ep_data and provider == "ytdlp" and len(episodes) == 1:
                         ep_data = list(episodes.values())[0]
-                abs_num = extract_absolute_episode_number(ep_num_val, ep_data, filename)
-                ep_season = 1
-                ep_num = abs_num
+                    ep_title = ""
+                    if isinstance(ep_data, dict):
+                        ep_title = ep_data.get("title", "")
+                    else:
+                        ep_title = str(ep_data)
 
-            ep_title = sanitize_filename(ep_title)
+                    match = re.match(r"^S(\d+)E(\d+)$", str(ep_num_val), re.IGNORECASE)
+                    if match:
+                        ep_season = int(match.group(1))
+                        ep_num = int(match.group(2))
+                    else:
+                        ep_num = ep_num_val
+                        ep_season = season
+                        if ep_season == "all":
+                            ep_season = ui_season_val
+                    orig_season = ep_season
+                    orig_episode = ep_num
 
-            # Format: Show Name - SxxExx - Title.ext
-            ext = os.path.splitext(filename)[1].lower()
-            try:
-                season_str = f"S{int(ep_season):02d}"
-            except (ValueError, TypeError):
-                season_str = f"S{ep_season}"
-            try:
-                ep_str = f"E{int(ep_num):02d}"
-            except (ValueError, TypeError):
-                ep_str = f"E{ep_num}"
+                force_abs = params.get("force_absolute_season_1", False)
+                if force_abs:
+                    if isinstance(ep_num_val, dict):
+                        ep_data = ep_num_val
+                    else:
+                        ep_data = episodes.get(str(ep_num_val), {})
+                        if not ep_data and provider == "ytdlp" and len(episodes) == 1:
+                            ep_data = list(episodes.values())[0]
+                    abs_num = extract_absolute_episode_number(ep_num_val, ep_data, filename)
+                    ep_season = 1
+                    ep_num = abs_num
 
-            # Save file title for display
-            file_titles[file_idx] = f"{season_str}{ep_str}"
+                ep_title = sanitize_filename(ep_title)
 
-            clean_title = f"{clean_show_name} - {season_str}{ep_str}"
-            if ep_title:
-                clean_title += f" - {ep_title}"
-            clean_title = limit_filename_length(clean_title)
-
-            target_filename = f"{clean_title}{ext}"
-            target_filepath = os.path.join(current_dir, target_filename)
-
-            if explicit_renames is None:
-                # Old backwards compatible fallback
-                filepath = os.path.join(current_dir, filename)
-                if not os.path.exists(filepath):
-                    continue
-                log_message(f"Benenne um: {filename} -> {target_filename}")
+                # Format: Show Name - SxxExx - Title.ext
+                ext = os.path.splitext(filename)[1].lower()
                 try:
-                    os.rename(filepath, target_filepath)
-                except Exception as e:
-                    log_message(f"Fehler beim Umbenennen: {e}")
-                    continue
-
-                # Rename subtitles
-                base_old = os.path.splitext(filename)[0]
-                for f in os.listdir(current_dir):
-                    if f.startswith(base_old) and f != filename:
-                        sub_ext = os.path.splitext(f)[1].lower()
-                        if sub_ext in ['.srt', '.vtt', '.ass', '.ssa', '.sub', '.idx']:
-                            sub_old_path = os.path.join(current_dir, f)
-                            sub_new_path = os.path.join(current_dir, f"{clean_title}{sub_ext}")
-                            log_message(f"Benenne Untertitel um: {f} -> {clean_title}{sub_ext}")
-                            try:
-                                os.rename(sub_old_path, sub_new_path)
-                            except Exception as e:
-                                log_message(f"Fehler: {e}")
-
-            # Generate Episode NFO
-            if show_id and provider:
-                log_message(f"Generiere Episoden-NFO für {ep_str}...")
+                    season_str = f"S{int(ep_season):02d}"
+                except (ValueError, TypeError):
+                    season_str = f"S{ep_season}"
                 try:
-                    ep_overrides = None
-                    if "episodes" in nfo_overrides:
-                        ep_overrides = nfo_overrides["episodes"].get(filename) or nfo_overrides["episodes"].get(os.path.join(current_dir, filename))
-                    res = mw_metadata.generate_episode_nfo(
-                        provider, show_id, orig_season, orig_episode, current_dir, clean_title,
-                        force_season=ep_season, force_episode=ep_num, nfo_overrides=ep_overrides
+                    ep_str = f"E{int(ep_num):02d}"
+                except (ValueError, TypeError):
+                    ep_str = f"E{ep_num}"
+
+                # Save file title for display
+                file_titles[file_idx] = f"{season_str}{ep_str}"
+
+                clean_title = f"{clean_show_name} - {season_str}{ep_str}"
+                if ep_title:
+                    clean_title += f" - {ep_title}"
+                clean_title = limit_filename_length(clean_title)
+
+                target_filename = f"{clean_title}{ext}"
+                target_filepath = os.path.join(current_dir, target_filename)
+
+                if explicit_renames is None:
+                    # Old backwards compatible fallback
+                    filepath = os.path.join(current_dir, filename)
+                    if not os.path.exists(filepath):
+                        continue
+                    log_message(f"Benenne um: {filename} -> {target_filename}")
+                    try:
+                        os.rename(filepath, target_filepath)
+                    except Exception as e:
+                        log_message(f"Fehler beim Umbenennen: {e}")
+                        continue
+
+                    # Rename subtitles
+                    base_old = os.path.splitext(filename)[0]
+                    for f in os.listdir(current_dir):
+                        if f.startswith(base_old) and f != filename:
+                            sub_ext = os.path.splitext(f)[1].lower()
+                            if sub_ext in ['.srt', '.vtt', '.ass', '.ssa', '.sub', '.idx']:
+                                sub_old_path = os.path.join(current_dir, f)
+                                sub_new_path = os.path.join(current_dir, f"{clean_title}{sub_ext}")
+                                log_message(f"Benenne Untertitel um: {f} -> {clean_title}{sub_ext}")
+                                try:
+                                    os.rename(sub_old_path, sub_new_path)
+                                except Exception as e:
+                                    log_message(f"Fehler: {e}")
+
+                # Generate Episode NFO
+                if show_id and provider:
+                    log_message(f"Generiere Episoden-NFO für {ep_str}...")
+                    try:
+                        ep_overrides = None
+                        if "episodes" in nfo_overrides:
+                            ep_overrides = nfo_overrides["episodes"].get(filename) or nfo_overrides["episodes"].get(os.path.join(current_dir, filename))
+                        res = mw_metadata.generate_episode_nfo(
+                            provider, show_id, orig_season, orig_episode, current_dir, clean_title,
+                            force_season=ep_season, force_episode=ep_num, nfo_overrides=ep_overrides
+                        )
+                        log_message(f"Episode NFO Status: {res}")
+                    except Exception as e:
+                        log_message(f"Fehler bei Episode NFO: {e}")
+                current_prog = 50 + int(50 * (file_idx + 1) / N)
+                _update_pipeline_metadata_progress(task_id, current_prog)
+
+                # H.265 Conversion
+                final_filename = target_filename
+                final_filepath = target_filepath
+                if convert:
+                    temp_output = os.path.join(current_dir, f"{clean_title}_neu.mkv")
+                    def ffmpeg_progress_cb(percent, msg):
+                        conv_pct[file_idx] = percent
+                        update_global_job_progress()
+                        with active_jobs_lock:
+                            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
+                                avg_conv = sum(conv_pct) / N
+                                active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
+
+                    conv_success, conv_file = media.execute_video_conversion(
+                        target_filepath=target_filepath,
+                        temp_output=temp_output,
+                        final_filepath=os.path.join(current_dir, f"{clean_title}.mkv"),
+                        quality=quality,
+                        content_type=content_type,
+                        original_filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath),
+                        delete_original=delete_original,
+                        progress_callback=ffmpeg_progress_cb,
+                        log_message_fn=log_message,
+                        run_ffmpeg_fn=run_ffmpeg_with_progress,
+                        send_to_trash_fn=trash.send_to_trash,
+                        log_queue=log_queue
                     )
-                    log_message(f"Episode NFO Status: {res}")
+                    if conv_success:
+                        final_filepath = os.path.join(current_dir, conv_file)
+                        final_filename = conv_file
+                    conv_pct[file_idx] = 100
+                else:
+                    conv_pct[file_idx] = 100
+                update_global_job_progress()
+
+                # Move to local Output folder
+                nas_serien = destination if destination else f"{nas_root}/Serien"
+                rel_dest = os.path.relpath(nas_serien, nas_root)
+                outbox_serien = os.path.join(outbox_root, rel_dest)
+                dest_dir_outbox = os.path.join(outbox_serien, clean_show_name, f"Staffel {int(ep_season)}", clean_title)
+
+                log_message(f"Verschiebe in Output-Pfad: {dest_dir_outbox}")
+                try:
+                    os.makedirs(dest_dir_outbox, exist_ok=True)
+
+                    # Move video file
+                    shutil.move(final_filepath, os.path.join(dest_dir_outbox, final_filename))
+                    log_message(f"Erfolgreich in Output-Ordner verschoben: {final_filename}")
+
+                    # Move accompanying files safely (excluding original video files, handling subfolders recursively)
+                    whitelist_tv = []
+                    if explicit_renames:
+                        whitelist_tv.extend(explicit_renames)
+                    if explicit_subs:
+                        whitelist_tv.extend(explicit_subs)
+                    safe_move_recursive(
+                        current_dir,
+                        dest_dir_outbox,
+                        prefix_filter=clean_title,
+                        fallback_basename=None,
+                        whitelist=whitelist_tv,
+                        junk_list=explicit_junk
+                    )
                 except Exception as e:
-                    log_message(f"Fehler bei Episode NFO: {e}")
-            current_prog = 50 + int(50 * (file_idx + 1) / N)
-            _update_pipeline_metadata_progress(task_id, current_prog)
+                    log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
 
-            # H.265 Conversion
-            final_filename = target_filename
-            final_filepath = target_filepath
-            if convert:
-                temp_output = os.path.join(current_dir, f"{clean_title}_neu.mkv")
-                def ffmpeg_progress_cb(percent, msg):
-                    conv_pct[file_idx] = percent
-                    update_global_job_progress()
-                    with active_jobs_lock:
-                        if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                            active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
-                            avg_conv = sum(conv_pct) / N
-                            active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
+                # Queue NAS transfer task
+                settings = load_settings()
+                storage_targets = settings.get("storage_targets", [])
+                for target in storage_targets:
+                    t_id = target.get("id")
+                    t_type = target.get("type")
+                    if t_type != "nas" and t_id != "nas":
+                        continue
 
-                conv_success, conv_file = media.execute_video_conversion(
-                    target_filepath=target_filepath,
-                    temp_output=temp_output,
-                    final_filepath=os.path.join(current_dir, f"{clean_title}.mkv"),
-                    quality=quality,
-                    content_type=content_type,
-                    original_filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath),
-                    delete_original=delete_original,
-                    progress_callback=ffmpeg_progress_cb,
-                    log_message_fn=log_message,
-                    run_ffmpeg_fn=run_ffmpeg_with_progress,
-                    send_to_trash_fn=trash.send_to_trash,
-                    log_queue=log_queue
-                )
-                if conv_success:
-                    final_filepath = os.path.join(current_dir, conv_file)
-                    final_filename = conv_file
-                conv_pct[file_idx] = 100
-            else:
-                conv_pct[file_idx] = 100
-            update_global_job_progress()
+                    should_copy = False
+                    if params.get(f"copy_to_{t_id}") is not None:
+                        should_copy = params.get(f"copy_to_{t_id}")
+                    elif params.get("copy_to_nas") is not None:
+                        should_copy = params.get("copy_to_nas")
 
-            # Move to local Output folder
+                    if should_copy and target.get("enabled", True):
+                        if t_id == "nas":
+                            if not ensure_nas_mounted():
+                                raise RuntimeError("NAS konnte nicht gemountet werden. Kopiervorgang abgebrochen.")
+
+                        target_base = resolve_target_destination(target, rel_sub, "tv")
+                        dest_dir_target = os.path.join(target_base, clean_show_name, f"Staffel {int(ep_season)}", clean_title)
+                        transfer_queue.put({
+                            "type": "nas_transfer",
+                            "target_id": t_id,
+                            "file_idx": file_idx,
+                            "dest_dir_outbox": dest_dir_outbox,
+                            "dest_dir_nas": dest_dir_target,
+                            "final_filename": final_filename,
+                            "clean_title": clean_title
+                        })
+                    else:
+                        if t_id in target_progresses:
+                            target_progresses[t_id][file_idx] = 100
+
+                update_global_job_progress()
+
+            _mark_convert_step_done(task_id)
+
+            # Move show-level files to local Output
             nas_serien = destination if destination else f"{nas_root}/Serien"
             rel_dest = os.path.relpath(nas_serien, nas_root)
             outbox_serien = os.path.join(outbox_root, rel_dest)
-            dest_dir_outbox = os.path.join(outbox_serien, clean_show_name, f"Staffel {int(ep_season)}", clean_title)
-
-            log_message(f"Verschiebe in Output-Pfad: {dest_dir_outbox}")
+            dest_show_dir_outbox = os.path.join(outbox_serien, clean_show_name)
             try:
-                os.makedirs(dest_dir_outbox, exist_ok=True)
+                os.makedirs(dest_show_dir_outbox, exist_ok=True)
+                meta_files = _get_series_meta_files(settings)
+                for f in meta_files:
+                    p_src = os.path.join(current_dir, f)
+                    if os.path.exists(p_src):
+                        p_dest = os.path.join(dest_show_dir_outbox, f)
+                        if os.path.exists(p_dest):
+                            log_message(f"Serien-Metadatei existiert bereits im Output-Ordner und wird nicht überschrieben: {f}")
+                        else:
+                            shutil.move(p_src, p_dest)
+                            log_message(f"Serien-Metadatei in Output-Ordner verschoben: {f}")
+                # Open local destination in Finder
+                if settings.get("open_outbox_finder"):
+                    open_folder_in_finder(dest_show_dir_outbox)
+            except Exception as e:
+                log_message(f"Fehler beim Verschieben der Serien-Metadaten in Output-Ordner: {e}")
 
-                # Move video file
-                shutil.move(final_filepath, os.path.join(dest_dir_outbox, final_filename))
-                log_message(f"Erfolgreich in Output-Ordner verschoben: {final_filename}")
-
-                # Move accompanying files safely (excluding original video files, handling subfolders recursively)
-                whitelist_tv = []
+            # Auffangregel: Move any remaining non-video, non-dot files to the show folder
+            try:
+                whitelist_show = []
                 if explicit_renames:
-                    whitelist_tv.extend(explicit_renames)
+                    whitelist_show.extend(explicit_renames)
                 if explicit_subs:
-                    whitelist_tv.extend(explicit_subs)
+                    whitelist_show.extend(explicit_subs)
                 safe_move_recursive(
                     current_dir,
-                    dest_dir_outbox,
-                    prefix_filter=clean_title,
-                    fallback_basename=None,
-                    whitelist=whitelist_tv,
+                    dest_show_dir_outbox,
+                    prefix_filter=None,
+                    fallback_basename=clean_show_name,
+                    whitelist=whitelist_show,
                     junk_list=explicit_junk
                 )
             except Exception as e:
-                log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
+                log_message(f"Fehler bei finaler Safe-Move-Bereinigung: {e}")
 
-            # Queue NAS transfer task
-            settings = load_settings()
-            storage_targets = settings.get("storage_targets", [])
-            for target in storage_targets:
+            # Copy show-level files to NAS targets if requested
+            for target in settings.get("storage_targets", []):
                 t_id = target.get("id")
                 t_type = target.get("type")
                 if t_type != "nas" and t_id != "nas":
@@ -1318,123 +1413,45 @@ def process_worker(params):
                     should_copy = params.get("copy_to_nas")
 
                 if should_copy and target.get("enabled", True):
-                    if t_id == "nas":
-                        if not ensure_nas_mounted():
-                            raise RuntimeError("NAS konnte nicht gemountet werden. Kopiervorgang abgebrochen.")
-
                     target_base = resolve_target_destination(target, rel_sub, "tv")
-                    dest_dir_target = os.path.join(target_base, clean_show_name, f"Staffel {int(ep_season)}", clean_title)
+                    dest_show_dir_target = os.path.join(target_base, clean_show_name)
                     transfer_queue.put({
-                        "type": "nas_transfer",
+                        "type": "show_metadata_nas_transfer",
+                        "dest_show_dir_outbox": dest_show_dir_outbox,
+                        "dest_show_dir_nas": dest_show_dir_target
+                    })
+
+            # Queue all Cloud/third-party targets copies
+            for target in settings.get("storage_targets", []):
+                t_id = target.get("id")
+                t_type = target.get("type")
+                if t_type == "nas" or t_id == "nas":
+                    continue
+
+                should_copy = False
+                if params.get(f"copy_to_{t_id}") is not None:
+                    should_copy = params.get(f"copy_to_{t_id}")
+                elif params.get("copy_to_pcloud") is not None:
+                    should_copy = params.get("copy_to_pcloud")
+
+                if should_copy and target.get("enabled", True):
+                    target_base = resolve_target_destination(target, rel_sub, "tv")
+                    transfer_queue.put({
+                        "type": "cloud_transfer",
                         "target_id": t_id,
-                        "file_idx": file_idx,
-                        "dest_dir_outbox": dest_dir_outbox,
-                        "dest_dir_nas": dest_dir_target,
-                        "final_filename": final_filename,
-                        "clean_title": clean_title
+                        "dest_show_dir_outbox": dest_show_dir_outbox,
+                        "nas_serien": target_base,
+                        "explicit_remote_base": explicit_pcloud_base if t_id == "pcloud" else None
                     })
                 else:
-                    if t_id in target_progresses:
-                        target_progresses[t_id][file_idx] = 100
-
-            update_global_job_progress()
-
-        _mark_convert_step_done(task_id)
-
-        # Move show-level files to local Output
-        nas_serien = destination if destination else f"{nas_root}/Serien"
-        rel_dest = os.path.relpath(nas_serien, nas_root)
-        outbox_serien = os.path.join(outbox_root, rel_dest)
-        dest_show_dir_outbox = os.path.join(outbox_serien, clean_show_name)
-        try:
-            os.makedirs(dest_show_dir_outbox, exist_ok=True)
-            meta_files = _get_series_meta_files(settings)
-            for f in meta_files:
-                p_src = os.path.join(current_dir, f)
-                if os.path.exists(p_src):
-                    p_dest = os.path.join(dest_show_dir_outbox, f)
-                    if os.path.exists(p_dest):
-                        log_message(f"Serien-Metadatei existiert bereits im Output-Ordner und wird nicht überschrieben: {f}")
-                    else:
-                        shutil.move(p_src, p_dest)
-                        log_message(f"Serien-Metadatei in Output-Ordner verschoben: {f}")
-            # Open local destination in Finder
-            if settings.get("open_outbox_finder"):
-                open_folder_in_finder(dest_show_dir_outbox)
-        except Exception as e:
-            log_message(f"Fehler beim Verschieben der Serien-Metadaten in Output-Ordner: {e}")
-
-        # Auffangregel: Move any remaining non-video, non-dot files to the show folder
-        try:
-            whitelist_show = []
-            if explicit_renames:
-                whitelist_show.extend(explicit_renames)
-            if explicit_subs:
-                whitelist_show.extend(explicit_subs)
-            safe_move_recursive(
-                current_dir,
-                dest_show_dir_outbox,
-                prefix_filter=None,
-                fallback_basename=clean_show_name,
-                whitelist=whitelist_show,
-                junk_list=explicit_junk
-            )
-        except Exception as e:
-            log_message(f"Fehler bei finaler Safe-Move-Bereinigung: {e}")
-
-        # Copy show-level files to NAS targets if requested
-        for target in settings.get("storage_targets", []):
-            t_id = target.get("id")
-            t_type = target.get("type")
-            if t_type != "nas" and t_id != "nas":
-                continue
-
-            should_copy = False
-            if params.get(f"copy_to_{t_id}") is not None:
-                should_copy = params.get(f"copy_to_{t_id}")
-            elif params.get("copy_to_nas") is not None:
-                should_copy = params.get("copy_to_nas")
-
-            if should_copy and target.get("enabled", True):
-                target_base = resolve_target_destination(target, rel_sub, "tv")
-                dest_show_dir_target = os.path.join(target_base, clean_show_name)
-                transfer_queue.put({
-                    "type": "show_metadata_nas_transfer",
-                    "dest_show_dir_outbox": dest_show_dir_outbox,
-                    "dest_show_dir_nas": dest_show_dir_target
-                })
-
-        # Queue all Cloud/third-party targets copies
-        for target in settings.get("storage_targets", []):
-            t_id = target.get("id")
-            t_type = target.get("type")
-            if t_type == "nas" or t_id == "nas":
-                continue
-
-            should_copy = False
-            if params.get(f"copy_to_{t_id}") is not None:
-                should_copy = params.get(f"copy_to_{t_id}")
-            elif params.get("copy_to_pcloud") is not None:
-                should_copy = params.get("copy_to_pcloud")
-
-            if should_copy and target.get("enabled", True):
-                target_base = resolve_target_destination(target, rel_sub, "tv")
-                transfer_queue.put({
-                    "type": "cloud_transfer",
-                    "target_id": t_id,
-                    "dest_show_dir_outbox": dest_show_dir_outbox,
-                    "nas_serien": target_base,
-                    "explicit_remote_base": explicit_pcloud_base if t_id == "pcloud" else None
-                })
-            else:
-                with progress_lock:
-                    if t_id in target_progresses:
-                        target_progresses[t_id] = 100
-                update_global_job_progress()
-
-        # Send Sentinel and join
-        transfer_queue.put(None)
-        transfer_thread.join()
+                    with progress_lock:
+                        if t_id in target_progresses:
+                            target_progresses[t_id] = 100
+                    update_global_job_progress()
+        finally:
+            # Send Sentinel and join
+            transfer_queue.put(None)
+            transfer_thread.join()
 
         _mark_remaining_steps_done(task_id)
 
@@ -1617,308 +1634,309 @@ def process_worker(params):
         transfer_thread = threading.Thread(target=transfer_worker, daemon=True)
         transfer_thread.start()
 
-        # Process video files sequentially
-        for file_idx, video_file in enumerate(video_files):
-            ext = os.path.splitext(video_file)[1].lower()
-            target_filename = f"{clean_movie_name}{ext}"
-            filepath = os.path.join(current_dir, video_file)
-            target_filepath = os.path.join(current_dir, target_filename)
+        try:
+            # Process video files sequentially
+            for file_idx, video_file in enumerate(video_files):
+                ext = os.path.splitext(video_file)[1].lower()
+                target_filename = f"{clean_movie_name}{ext}"
+                filepath = os.path.join(current_dir, video_file)
+                target_filepath = os.path.join(current_dir, target_filename)
 
-            if not os.path.exists(filepath) and not os.path.exists(target_filepath):
-                log_message(f"⚠️ Datei '{video_file}' existiert nicht (mehr). Überspringe.")
-                continue
-
-            if video_file != target_filename:
-                log_message(f"Benenne um: {video_file} -> {target_filename}")
-                try:
-                    os.rename(filepath, target_filepath)
-                except Exception as e:
-                    log_message(f"Fehler beim Umbenennen: {e}")
+                if not os.path.exists(filepath) and not os.path.exists(target_filepath):
+                    log_message(f"⚠️ Datei '{video_file}' existiert nicht (mehr). Überspringe.")
                     continue
 
-            # Generate movie NFO
-            if movie_id and provider:
-                log_message("Generiere NFO und lade Poster/Fanart...")
-                try:
-                    movie_overrides = nfo_overrides.get("movie")
-                    if provider == "ofdb":
-                        res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
-                    else:
-                        res = mw_metadata.generate_movie_nfo(movie_id, current_dir, clean_movie_name, nfo_overrides=movie_overrides)
-                    log_message(f"Movie NFO Status: {res}")
-                except Exception as e:
-                    log_message(f"Fehler bei NFO-Erstellung: {e}")
-            current_prog = 50 + int(50 * (file_idx + 1) / N)
-            _update_pipeline_metadata_progress(task_id, current_prog)
+                if video_file != target_filename:
+                    log_message(f"Benenne um: {video_file} -> {target_filename}")
+                    try:
+                        os.rename(filepath, target_filepath)
+                    except Exception as e:
+                        log_message(f"Fehler beim Umbenennen: {e}")
+                        continue
 
-            # H.265 Conversion
-            final_filename = target_filename
-            final_filepath = target_filepath
-            if convert:
-                temp_output = os.path.join(current_dir, f"{clean_movie_name}_neu.mkv")
-                def ffmpeg_progress_cb(percent, msg):
-                    conv_pct[file_idx] = percent
-                    update_global_job_progress()
-                    with active_jobs_lock:
-                        if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                            active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
-                            avg_conv = sum(conv_pct) / N
-                            active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
+                # Generate movie NFO
+                if movie_id and provider:
+                    log_message("Generiere NFO und lade Poster/Fanart...")
+                    try:
+                        movie_overrides = nfo_overrides.get("movie")
+                        if provider == "ofdb":
+                            res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
+                        else:
+                            res = mw_metadata.generate_movie_nfo(movie_id, current_dir, clean_movie_name, nfo_overrides=movie_overrides)
+                        log_message(f"Movie NFO Status: {res}")
+                    except Exception as e:
+                        log_message(f"Fehler bei NFO-Erstellung: {e}")
+                current_prog = 50 + int(50 * (file_idx + 1) / N)
+                _update_pipeline_metadata_progress(task_id, current_prog)
 
-                conv_success, conv_file = media.execute_video_conversion(
-                    target_filepath=target_filepath,
-                    temp_output=temp_output,
-                    final_filepath=os.path.join(current_dir, f"{clean_movie_name}.mkv"),
-                    quality=quality,
-                    content_type=content_type,
-                    original_filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath),
-                    delete_original=delete_original,
-                    progress_callback=ffmpeg_progress_cb,
-                    log_message_fn=log_message,
-                    run_ffmpeg_fn=run_ffmpeg_with_progress,
-                    send_to_trash_fn=trash.send_to_trash,
-                    log_queue=log_queue
-                )
-                if conv_success:
-                    final_filepath = os.path.join(current_dir, conv_file)
-                    final_filename = conv_file
-                conv_pct[file_idx] = 100
-            else:
-                conv_pct[file_idx] = 100
-            update_global_job_progress()
+                # H.265 Conversion
+                final_filename = target_filename
+                final_filepath = target_filepath
+                if convert:
+                    temp_output = os.path.join(current_dir, f"{clean_movie_name}_neu.mkv")
+                    def ffmpeg_progress_cb(percent, msg):
+                        conv_pct[file_idx] = percent
+                        update_global_job_progress()
+                        with active_jobs_lock:
+                            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
+                                avg_conv = sum(conv_pct) / N
+                                active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
 
-            # Move to local Output folder
-            dest_movies = destination if destination else f"{nas_root}/Filme"
-            rel_dest = os.path.relpath(dest_movies, nas_root)
-            outbox_movies = os.path.join(outbox_root, rel_dest)
-            dest_movie_dir_outbox = os.path.join(outbox_movies, clean_movie_name)
-
-            log_message(f"Verschiebe in Output-Pfad: {dest_movie_dir_outbox}")
-            try:
-                os.makedirs(dest_movie_dir_outbox, exist_ok=True)
-
-                # Move movie video file
-                shutil.move(final_filepath, os.path.join(dest_movie_dir_outbox, final_filename))
-                log_message(f"Erfolgreich in Output-Ordner verschoben: {final_filename}")
-
-                # Move accompanying files safely (excluding original video files, handling subfolders recursively)
-                whitelist_movie = []
-                if explicit_renames:
-                    whitelist_movie.extend(explicit_renames)
-                if explicit_subs:
-                    whitelist_movie.extend(explicit_subs)
-                safe_move_recursive(
-                    current_dir,
-                    dest_movie_dir_outbox,
-                    prefix_filter=None,
-                    fallback_basename=clean_movie_name,
-                    whitelist=whitelist_movie,
-                    junk_list=explicit_junk
-                )
-
-                # Ensure only server-specific core poster/backdrop variants exist
-                server_type = settings.get("media_server", "emby") or "emby"
-                all_outbox_files = os.listdir(dest_movie_dir_outbox)
-                base_movie, _ = os.path.splitext(final_filename)
-
-                # --- 1. Find all poster candidates ---
-                poster_candidates = [
-                    "poster.jpg", "poster.png", "poster.webp",
-                    "folder.jpg", "folder.png", "folder.webp",
-                    "cover.jpg", "cover.png", "cover.webp",
-                    "default.jpg", "default.png", "default.webp",
-                ]
-                found_posters = []
-                for f in all_outbox_files:
-                    f_lower = f.lower()
-                    if f_lower in poster_candidates or f_lower.startswith(base_movie.lower() + "-poster") or f_lower.startswith(base_movie.lower() + "-cover"):
-                        found_posters.append(f)
-
-                # Find the single best master poster
-                master_poster = None
-                poster_prio = [
-                    "poster.jpg", "poster.png", "poster.webp",
-                    "folder.jpg", "folder.png", "folder.webp",
-                    "cover.jpg", "cover.png", "cover.webp",
-                    "default.jpg", "default.png", "default.webp",
-                ]
-                for p_name in poster_prio:
-                    for f in found_posters:
-                        if f.lower() == p_name:
-                            master_poster = f
-                            break
-                    if master_poster:
-                        break
-                if not master_poster and found_posters:
-                    master_poster = found_posters[0]
-
-                # Determine poster core targets
-                target_posters = ["poster"]
-                if server_type in ("emby", "jellyfin"):
-                    target_posters.append("folder")
-
-                # If master poster exists, copy/rename it and delete others
-                if master_poster:
-                    master_path = os.path.join(dest_movie_dir_outbox, master_poster)
-                    _, ext = os.path.splitext(master_poster)
-                    ext = ext.lower()
-
-                    core_poster_names = [f"{t_base}{ext}" for t_base in target_posters]
-                    for core_name in core_poster_names:
-                        core_path = os.path.join(dest_movie_dir_outbox, core_name)
-                        if not os.path.exists(core_path):
-                            shutil.copy(master_path, core_path)
-                            log_message(f"Erstellt (Filmplakat-Kompatibilität): {core_name}")
-
-                    # Remove all other poster files (candidates) that are not the allowed core names
-                    for f in found_posters:
-                        if f not in core_poster_names:
-                            try:
-                                os.remove(os.path.join(dest_movie_dir_outbox, f))
-                                log_message(f"Bereinigt (Poster-Duplikat entfernt): {f}")
-                            except Exception as e:
-                                log_message(f"⚠️ Poster-Duplikat konnte nicht entfernt werden: {f} ({e})")
-
-                # --- 2. Find all backdrop candidates ---
-                backdrop_candidates = [
-                    "fanart.jpg", "fanart.png", "fanart.webp",
-                    "backdrop.jpg", "backdrop.png", "backdrop.webp",
-                    "background.jpg", "background.png", "background.webp",
-                    "backgrounds.jpg", "backgrounds.png", "backgrounds.webp",
-                    "art.jpg", "art.png", "art.webp",
-                ]
-                found_backdrops = []
-                for f in all_outbox_files:
-                    f_lower = f.lower()
-                    if f_lower in backdrop_candidates or f_lower.startswith(base_movie.lower() + "-fanart") or f_lower.startswith(base_movie.lower() + "-backdrop"):
-                        found_backdrops.append(f)
-
-                # Find the single best master backdrop
-                master_backdrop = None
-                backdrop_prio = [
-                    "fanart.jpg", "fanart.png", "fanart.webp",
-                    "backdrop.jpg", "backdrop.png", "backdrop.webp",
-                    "background.jpg", "background.png", "background.webp",
-                    "backgrounds.jpg", "backgrounds.png", "backgrounds.webp",
-                    "art.jpg", "art.png", "art.webp",
-                ]
-                for b_name in backdrop_prio:
-                    for f in found_backdrops:
-                        if f.lower() == b_name:
-                            master_backdrop = f
-                            break
-                    if master_backdrop:
-                        break
-                if not master_backdrop and found_backdrops:
-                    master_backdrop = found_backdrops[0]
-
-                # Determine backdrop core targets (fanart.ext and backdrop.ext are two allowed core names)
-                target_backdrops = ["fanart", "backdrop"]
-
-                # If master backdrop exists, copy/rename it and delete others
-                if master_backdrop:
-                    master_path = os.path.join(dest_movie_dir_outbox, master_backdrop)
-                    _, ext = os.path.splitext(master_backdrop)
-                    ext = ext.lower()
-
-                    core_backdrop_names = [f"{t_base}{ext}" for t_base in target_backdrops]
-                    for core_name in core_backdrop_names:
-                        core_path = os.path.join(dest_movie_dir_outbox, core_name)
-                        if not os.path.exists(core_path):
-                            shutil.copy(master_path, core_path)
-                            log_message(f"Erstellt (Hintergrundbild-Kompatibilität): {core_name}")
-
-                    # Remove all other backdrop files (candidates) that are not the allowed core names
-                    for f in found_backdrops:
-                        if f not in core_backdrop_names:
-                            try:
-                                os.remove(os.path.join(dest_movie_dir_outbox, f))
-                                log_message(f"Bereinigt (Hintergrund-Duplikat entfernt): {f}")
-                            except Exception as e:
-                                log_message(f"⚠️ Hintergrund-Duplikat konnte nicht entfernt werden: {f} ({e})")
-
-                # --- 3. Clean up logo and banner title-specific duplicates ---
-                all_outbox_files_now = os.listdir(dest_movie_dir_outbox)
-                for f in all_outbox_files_now:
-                    f_lower = f.lower()
-                    if f_lower.startswith(base_movie.lower() + "-logo") or f_lower.startswith(base_movie.lower() + "-clearlogo"):
-                        _, ext = os.path.splitext(f)
-                        logo_target = f"logo{ext.lower()}"
-                        if not os.path.exists(os.path.join(dest_movie_dir_outbox, logo_target)):
-                            shutil.copy(os.path.join(dest_movie_dir_outbox, f), os.path.join(dest_movie_dir_outbox, logo_target))
-                        try:
-                            os.remove(os.path.join(dest_movie_dir_outbox, f))
-                        except Exception as e:
-                            log_message(f"⚠️ Logo-Duplikat konnte nicht entfernt werden: {f} ({e})")
-                    elif f_lower.startswith(base_movie.lower() + "-banner"):
-                        _, ext = os.path.splitext(f)
-                        banner_target = f"banner{ext.lower()}"
-                        if not os.path.exists(os.path.join(dest_movie_dir_outbox, banner_target)):
-                            shutil.copy(os.path.join(dest_movie_dir_outbox, f), os.path.join(dest_movie_dir_outbox, banner_target))
-                        try:
-                            os.remove(os.path.join(dest_movie_dir_outbox, f))
-                        except Exception as e:
-                            log_message(f"⚠️ Banner-Duplikat konnte nicht entfernt werden: {f} ({e})")
-
-                # Open output directory in Finder
-                if settings.get("open_outbox_finder"):
-                    open_folder_in_finder(dest_movie_dir_outbox)
-            except Exception as e:
-                log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
-
-            # Queue copies for each enabled target
-            settings = load_settings()
-            for target in settings.get("storage_targets", []):
-                t_id = target.get("id")
-                t_type = target.get("type")
-
-                should_copy = False
-                if params.get(f"copy_to_{t_id}") is not None:
-                    should_copy = params.get(f"copy_to_{t_id}")
-                elif t_type == "nas" and params.get("copy_to_nas") is not None:
-                    should_copy = params.get("copy_to_nas")
-                elif t_type != "nas" and params.get("copy_to_pcloud") is not None:
-                    should_copy = params.get("copy_to_pcloud")
-
-                if should_copy and target.get("enabled", True):
-                    if t_type == "nas" or t_id == "nas":
-                        if t_id == "nas":
-                            if not ensure_nas_mounted():
-                                raise RuntimeError("NAS konnte nicht gemountet werden. Kopiervorgang abgebrochen.")
-
-                        target_base = resolve_target_destination(target, rel_sub, "movie")
-                        dest_movie_dir_target = os.path.join(target_base, clean_movie_name)
-
-                        transfer_queue.put({
-                            "type": "movie_nas_transfer",
-                            "target_id": t_id,
-                            "file_idx": file_idx,
-                            "dest_movie_dir_outbox": dest_movie_dir_outbox,
-                            "dest_movie_dir_nas": dest_movie_dir_target,
-                            "final_filename": final_filename
-                        })
-                    else:
-                        target_base = resolve_target_destination(target, rel_sub, "movie")
-                        transfer_queue.put({
-                            "type": "movie_cloud_transfer",
-                            "target_id": t_id,
-                            "file_idx": file_idx,
-                            "dest_movie_dir_outbox": dest_movie_dir_outbox,
-                            "dest_movies": target_base,
-                            "explicit_remote_base": explicit_pcloud_base if t_id == "pcloud" else None,
-                            "clean_movie_name": clean_movie_name
-                        })
+                    conv_success, conv_file = media.execute_video_conversion(
+                        target_filepath=target_filepath,
+                        temp_output=temp_output,
+                        final_filepath=os.path.join(current_dir, f"{clean_movie_name}.mkv"),
+                        quality=quality,
+                        content_type=content_type,
+                        original_filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath),
+                        delete_original=delete_original,
+                        progress_callback=ffmpeg_progress_cb,
+                        log_message_fn=log_message,
+                        run_ffmpeg_fn=run_ffmpeg_with_progress,
+                        send_to_trash_fn=trash.send_to_trash,
+                        log_queue=log_queue
+                    )
+                    if conv_success:
+                        final_filepath = os.path.join(current_dir, conv_file)
+                        final_filename = conv_file
+                    conv_pct[file_idx] = 100
                 else:
-                    if t_id in target_progresses:
-                        target_progresses[t_id][file_idx] = 100
+                    conv_pct[file_idx] = 100
+                update_global_job_progress()
 
-            update_global_job_progress()
+                # Move to local Output folder
+                dest_movies = destination if destination else f"{nas_root}/Filme"
+                rel_dest = os.path.relpath(dest_movies, nas_root)
+                outbox_movies = os.path.join(outbox_root, rel_dest)
+                dest_movie_dir_outbox = os.path.join(outbox_movies, clean_movie_name)
 
-        _mark_convert_step_done(task_id)
+                log_message(f"Verschiebe in Output-Pfad: {dest_movie_dir_outbox}")
+                try:
+                    os.makedirs(dest_movie_dir_outbox, exist_ok=True)
 
-        # Send Sentinel and join
-        transfer_queue.put(None)
-        transfer_thread.join()
+                    # Move movie video file
+                    shutil.move(final_filepath, os.path.join(dest_movie_dir_outbox, final_filename))
+                    log_message(f"Erfolgreich in Output-Ordner verschoben: {final_filename}")
+
+                    # Move accompanying files safely (excluding original video files, handling subfolders recursively)
+                    whitelist_movie = []
+                    if explicit_renames:
+                        whitelist_movie.extend(explicit_renames)
+                    if explicit_subs:
+                        whitelist_movie.extend(explicit_subs)
+                    safe_move_recursive(
+                        current_dir,
+                        dest_movie_dir_outbox,
+                        prefix_filter=None,
+                        fallback_basename=clean_movie_name,
+                        whitelist=whitelist_movie,
+                        junk_list=explicit_junk
+                    )
+
+                    # Ensure only server-specific core poster/backdrop variants exist
+                    server_type = settings.get("media_server", "emby") or "emby"
+                    all_outbox_files = os.listdir(dest_movie_dir_outbox)
+                    base_movie, _ = os.path.splitext(final_filename)
+
+                    # --- 1. Find all poster candidates ---
+                    poster_candidates = [
+                        "poster.jpg", "poster.png", "poster.webp",
+                        "folder.jpg", "folder.png", "folder.webp",
+                        "cover.jpg", "cover.png", "cover.webp",
+                        "default.jpg", "default.png", "default.webp",
+                    ]
+                    found_posters = []
+                    for f in all_outbox_files:
+                        f_lower = f.lower()
+                        if f_lower in poster_candidates or f_lower.startswith(base_movie.lower() + "-poster") or f_lower.startswith(base_movie.lower() + "-cover"):
+                            found_posters.append(f)
+
+                    # Find the single best master poster
+                    master_poster = None
+                    poster_prio = [
+                        "poster.jpg", "poster.png", "poster.webp",
+                        "folder.jpg", "folder.png", "folder.webp",
+                        "cover.jpg", "cover.png", "cover.webp",
+                        "default.jpg", "default.png", "default.webp",
+                    ]
+                    for p_name in poster_prio:
+                        for f in found_posters:
+                            if f.lower() == p_name:
+                                master_poster = f
+                                break
+                        if master_poster:
+                            break
+                    if not master_poster and found_posters:
+                        master_poster = found_posters[0]
+
+                    # Determine poster core targets
+                    target_posters = ["poster"]
+                    if server_type in ("emby", "jellyfin"):
+                        target_posters.append("folder")
+
+                    # If master poster exists, copy/rename it and delete others
+                    if master_poster:
+                        master_path = os.path.join(dest_movie_dir_outbox, master_poster)
+                        _, ext = os.path.splitext(master_poster)
+                        ext = ext.lower()
+
+                        core_poster_names = [f"{t_base}{ext}" for t_base in target_posters]
+                        for core_name in core_poster_names:
+                            core_path = os.path.join(dest_movie_dir_outbox, core_name)
+                            if not os.path.exists(core_path):
+                                shutil.copy(master_path, core_path)
+                                log_message(f"Erstellt (Filmplakat-Kompatibilität): {core_name}")
+
+                        # Remove all other poster files (candidates) that are not the allowed core names
+                        for f in found_posters:
+                            if f not in core_poster_names:
+                                try:
+                                    os.remove(os.path.join(dest_movie_dir_outbox, f))
+                                    log_message(f"Bereinigt (Poster-Duplikat entfernt): {f}")
+                                except Exception as e:
+                                    log_message(f"⚠️ Poster-Duplikat konnte nicht entfernt werden: {f} ({e})")
+
+                    # --- 2. Find all backdrop candidates ---
+                    backdrop_candidates = [
+                        "fanart.jpg", "fanart.png", "fanart.webp",
+                        "backdrop.jpg", "backdrop.png", "backdrop.webp",
+                        "background.jpg", "background.png", "background.webp",
+                        "backgrounds.jpg", "backgrounds.png", "backgrounds.webp",
+                        "art.jpg", "art.png", "art.webp",
+                    ]
+                    found_backdrops = []
+                    for f in all_outbox_files:
+                        f_lower = f.lower()
+                        if f_lower in backdrop_candidates or f_lower.startswith(base_movie.lower() + "-fanart") or f_lower.startswith(base_movie.lower() + "-backdrop"):
+                            found_backdrops.append(f)
+
+                    # Find the single best master backdrop
+                    master_backdrop = None
+                    backdrop_prio = [
+                        "fanart.jpg", "fanart.png", "fanart.webp",
+                        "backdrop.jpg", "backdrop.png", "backdrop.webp",
+                        "background.jpg", "background.png", "background.webp",
+                        "backgrounds.jpg", "backgrounds.png", "backgrounds.webp",
+                        "art.jpg", "art.png", "art.webp",
+                    ]
+                    for b_name in backdrop_prio:
+                        for f in found_backdrops:
+                            if f.lower() == b_name:
+                                master_backdrop = f
+                                break
+                        if master_backdrop:
+                            break
+                    if not master_backdrop and found_backdrops:
+                        master_backdrop = found_backdrops[0]
+
+                    # Determine backdrop core targets (fanart.ext and backdrop.ext are two allowed core names)
+                    target_backdrops = ["fanart", "backdrop"]
+
+                    # If master backdrop exists, copy/rename it and delete others
+                    if master_backdrop:
+                        master_path = os.path.join(dest_movie_dir_outbox, master_backdrop)
+                        _, ext = os.path.splitext(master_backdrop)
+                        ext = ext.lower()
+
+                        core_backdrop_names = [f"{t_base}{ext}" for t_base in target_backdrops]
+                        for core_name in core_backdrop_names:
+                            core_path = os.path.join(dest_movie_dir_outbox, core_name)
+                            if not os.path.exists(core_path):
+                                shutil.copy(master_path, core_path)
+                                log_message(f"Erstellt (Hintergrundbild-Kompatibilität): {core_name}")
+
+                        # Remove all other backdrop files (candidates) that are not the allowed core names
+                        for f in found_backdrops:
+                            if f not in core_backdrop_names:
+                                try:
+                                    os.remove(os.path.join(dest_movie_dir_outbox, f))
+                                    log_message(f"Bereinigt (Hintergrund-Duplikat entfernt): {f}")
+                                except Exception as e:
+                                    log_message(f"⚠️ Hintergrund-Duplikat konnte nicht entfernt werden: {f} ({e})")
+
+                    # --- 3. Clean up logo and banner title-specific duplicates ---
+                    all_outbox_files_now = os.listdir(dest_movie_dir_outbox)
+                    for f in all_outbox_files_now:
+                        f_lower = f.lower()
+                        if f_lower.startswith(base_movie.lower() + "-logo") or f_lower.startswith(base_movie.lower() + "-clearlogo"):
+                            _, ext = os.path.splitext(f)
+                            logo_target = f"logo{ext.lower()}"
+                            if not os.path.exists(os.path.join(dest_movie_dir_outbox, logo_target)):
+                                shutil.copy(os.path.join(dest_movie_dir_outbox, f), os.path.join(dest_movie_dir_outbox, logo_target))
+                            try:
+                                os.remove(os.path.join(dest_movie_dir_outbox, f))
+                            except Exception as e:
+                                log_message(f"⚠️ Logo-Duplikat konnte nicht entfernt werden: {f} ({e})")
+                        elif f_lower.startswith(base_movie.lower() + "-banner"):
+                            _, ext = os.path.splitext(f)
+                            banner_target = f"banner{ext.lower()}"
+                            if not os.path.exists(os.path.join(dest_movie_dir_outbox, banner_target)):
+                                shutil.copy(os.path.join(dest_movie_dir_outbox, f), os.path.join(dest_movie_dir_outbox, banner_target))
+                            try:
+                                os.remove(os.path.join(dest_movie_dir_outbox, f))
+                            except Exception as e:
+                                log_message(f"⚠️ Banner-Duplikat konnte nicht entfernt werden: {f} ({e})")
+
+                    # Open output directory in Finder
+                    if settings.get("open_outbox_finder"):
+                        open_folder_in_finder(dest_movie_dir_outbox)
+                except Exception as e:
+                    log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
+
+                # Queue copies for each enabled target
+                settings = load_settings()
+                for target in settings.get("storage_targets", []):
+                    t_id = target.get("id")
+                    t_type = target.get("type")
+
+                    should_copy = False
+                    if params.get(f"copy_to_{t_id}") is not None:
+                        should_copy = params.get(f"copy_to_{t_id}")
+                    elif t_type == "nas" and params.get("copy_to_nas") is not None:
+                        should_copy = params.get("copy_to_nas")
+                    elif t_type != "nas" and params.get("copy_to_pcloud") is not None:
+                        should_copy = params.get("copy_to_pcloud")
+
+                    if should_copy and target.get("enabled", True):
+                        if t_type == "nas" or t_id == "nas":
+                            if t_id == "nas":
+                                if not ensure_nas_mounted():
+                                    raise RuntimeError("NAS konnte nicht gemountet werden. Kopiervorgang abgebrochen.")
+
+                            target_base = resolve_target_destination(target, rel_sub, "movie")
+                            dest_movie_dir_target = os.path.join(target_base, clean_movie_name)
+
+                            transfer_queue.put({
+                                "type": "movie_nas_transfer",
+                                "target_id": t_id,
+                                "file_idx": file_idx,
+                                "dest_movie_dir_outbox": dest_movie_dir_outbox,
+                                "dest_movie_dir_nas": dest_movie_dir_target,
+                                "final_filename": final_filename
+                            })
+                        else:
+                            target_base = resolve_target_destination(target, rel_sub, "movie")
+                            transfer_queue.put({
+                                "type": "movie_cloud_transfer",
+                                "target_id": t_id,
+                                "file_idx": file_idx,
+                                "dest_movie_dir_outbox": dest_movie_dir_outbox,
+                                "dest_movies": target_base,
+                                "explicit_remote_base": explicit_pcloud_base if t_id == "pcloud" else None,
+                                "clean_movie_name": clean_movie_name
+                            })
+                    else:
+                        if t_id in target_progresses:
+                            target_progresses[t_id][file_idx] = 100
+
+                update_global_job_progress()
+
+            _mark_convert_step_done(task_id)
+        finally:
+            # Send Sentinel and join
+            transfer_queue.put(None)
+            transfer_thread.join()
 
         _mark_remaining_steps_done(task_id)
 
@@ -2645,6 +2663,7 @@ def process_worker(params):
 
         except Exception as e:
             log_message(f"❌ Fehler in YouTube-Pipeline: {e}")
+            log_message(traceback.format_exc())
             from gui.core.jobs import update_job
             update_job(task_id, status="error", message=f"Fehler: {str(e)}")
         finally:
@@ -2865,6 +2884,7 @@ def job_queue_worker():
             if job_state and job_state.get("status") != "error":
                 update_job(task_id, status="done", progress=100, message="Erfolgreich beendet")
         except Exception as e:
+            log_message(traceback.format_exc())
             job_state = get_job(task_id)
             pipeline = None
             if job_state and "pipeline" in job_state:
@@ -2875,6 +2895,7 @@ def job_queue_worker():
                         step_info["message"] = "Fehlgeschlagen"
             update_job(task_id, status="error", message=f"Fehler: {str(e)}", pipeline=pipeline)
             print(f"Job {task_id} failed: {e}")
+            print(traceback.format_exc())
         finally:
             job_queue.task_done()
 
