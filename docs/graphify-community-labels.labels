@@ -114,10 +114,8 @@
   "Search API": [
     "gui_api_search_api_py"
   ],
-  "Queue API": [
-    "gui_api_queue_api_py"
-  ],
-  "System API": [
+  "Queue and System APIs": [
+    "gui_api_queue_api_py",
     "gui_api_system_api_py"
   ],
   "Utility Logic Tests": [
