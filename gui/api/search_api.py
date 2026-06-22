@@ -404,34 +404,21 @@ def handle_api_search():
                             }]
                     else:
                         # Fallback for Mediathek/other URLs that yt-dlp fails to extract directly
-                        import urllib.request
-                        import re
-                        req = urllib.request.Request(q, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"})
                         try:
-                            with urllib.request.urlopen(req, timeout=5) as response:
-                                html = response.read().decode('utf-8', errors='ignore')
-                            title_match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE)
-                            if title_match:
-                                title = title_match.group(1).strip()
-                                title = re.sub(r"^Vorschau:\s*", "", title, flags=re.IGNORECASE)
-                                title = title.split("|")[0].split(" - ARD")[0].split(" - ZDF")[0].strip()
-                                
-                                search_term = title
-                                if "•" in title:
-                                    search_term = title.split("•")[0].strip()
-                                elif " - " in title:
-                                    search_term = title.split(" - ")[0].strip()
-                                
+                            resolved = mw_metadata.resolve_mediathek_url_topic(q)
+                            if resolved:
                                 res_type = media_type if media_type in ("tv", "doku") else "movie"
                                 name_suffix = "Serie aus URL" if res_type != "movie" else "Film aus URL"
                                 results = [{
-                                    "id": f"url_mediathek:{search_term}",
-                                    "name": f"{search_term} (Mediathek {name_suffix})",
+                                    "id": f"url_mediathek:{resolved}",
+                                    "name": f"{resolved} (Mediathek {name_suffix})",
                                     "provider": "mediathek",
                                     "media_type": res_type
                                 }]
+                            else:
+                                raise ValueError(f"Could not resolve topic from URL {q}")
                         except Exception as e:
-                            print(f"Error scraping fallback URL {q}: {e}")
+                            errors.append(e)
             except Exception as e:
                 errors.append(e)
         elif media_type == "tv":

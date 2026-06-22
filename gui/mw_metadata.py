@@ -2427,6 +2427,87 @@ def calculate_match_score(query, result_name):
 
 # --- Mediathek & YT-DLP Integration ---
 
+class SmartRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def http_error_308(self, req, fp, code, msg, headers):
+        newurl = headers.get('location') or headers.get('Location')
+        if not newurl:
+            raise urllib.error.HTTPError(req.full_url, code, msg, headers, fp)
+        newurl = urllib.parse.urljoin(req.full_url, newurl)
+        new_req = self.redirect_request(req, fp, 307, msg, headers, newurl)
+        return self.parent.open(new_req)
+
+def resolve_mediathek_url_topic(url_or_topic):
+    if not isinstance(url_or_topic, str):
+        return url_or_topic
+
+    val = url_or_topic.strip()
+    if not (val.startswith("http://") or val.startswith("https://")):
+        return val
+
+    # Resolve URL to topic
+    # 1. Try Scraping using a local SmartRedirectHandler
+    try:
+        req = urllib.request.Request(
+            val,
+            headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"}
+        )
+        opener = urllib.request.build_opener(SmartRedirectHandler)
+        with opener.open(req, timeout=5) as response:
+            html = response.read().decode('utf-8', errors='ignore')
+
+        title_match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE)
+        if title_match:
+            raw_title = title_match.group(1).strip()
+
+            # Apply title cleanup logic
+            # Remove "Vorschau:" prefix
+            title = re.sub(r"^Vorschau:\s*", "", raw_title, flags=re.IGNORECASE)
+
+            # Remove explicit sender suffixes
+            for suffix in [" - ZDFmediathek", " - ARD Mediathek", " - ZDF", " - ARD", " | ARD Mediathek", " | ZDFmediathek"]:
+                if title.endswith(suffix):
+                    title = title[:-len(suffix)].strip()
+
+            # Split only on separators with spaces
+            for sep in [" - ", " | ", " • "]:
+                if sep in title:
+                    title = title.split(sep)[0].strip()
+
+            if title:
+                return title
+    except Exception as e:
+        print(f"[resolve_mediathek_url_topic] Scraping failed for {val}: {e}", file=sys.stderr)
+
+    # 2. Heuristics fallback (URL path parsing)
+    try:
+        parsed = urllib.parse.urlparse(val)
+        path_parts = [p for p in parsed.path.split('/') if p]
+        if path_parts:
+            # ARD Mediathek check: /sendung/topic-name/id
+            if "ardmediathek.de" in parsed.netloc:
+                if "sendung" in path_parts:
+                    idx = path_parts.index("sendung")
+                    if idx + 1 < len(path_parts):
+                        topic = path_parts[idx + 1]
+                        return topic.replace("-", " ").title()
+
+            # ZDF/Arte check or generic fallback:
+            last_part = path_parts[-1]
+            # If the last part looks like a numerical ID or long hash, use the penultimate part
+            if len(path_parts) > 1 and (last_part.isdigit() or len(last_part) > 30):
+                last_part = path_parts[-2]
+
+            # Remove trailing numbers/version identifiers like heute-show-104 -> heute-show
+            last_part = re.sub(r'-\d+$', '', last_part)
+            return last_part.replace("-", " ").title()
+    except Exception as e:
+        print(f"[resolve_mediathek_url_topic] Heuristics failed for {val}: {e}", file=sys.stderr)
+
+    if val.startswith("http://") or val.startswith("https://"):
+        return None
+    return val
+
+
 def search_mediathek(query):
     url = "https://mediathekviewweb.de/api/query"
     payload = {
@@ -2480,6 +2561,12 @@ def fetch_mediathek_episodes(topic):
     if topic.startswith("url_mediathek:"):
         topic = topic.split("url_mediathek:", 1)[1]
         is_query_search = True
+
+    if topic.startswith("http://") or topic.startswith("https://"):
+        resolved = resolve_mediathek_url_topic(topic)
+        if resolved:
+            topic = resolved
+            is_query_search = True
 
     url = "https://mediathekviewweb.de/api/query"
     payload = {
