@@ -2519,5 +2519,39 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertEqual(called_args[0], "/tmp/outbox/Serienname")
             self.assertEqual(called_args[1], "/Volumes/pCloud/04a_Dokus/Serienname")
 
+    def test_resolve_category_target_path(self):
+        from unittest.mock import patch
+        from gui.core.transfers import resolve_category_target_path
+        
+        with patch("gui.core.transfers.load_settings") as mock_load_settings:
+            mock_load_settings.return_value = {
+                "storage_targets": [
+                    {
+                        "id": "pcloud",
+                        "name": "pCloud",
+                        "type": "cloud",
+                        "rclone_remote": "pcloud:"
+                    }
+                ],
+                "sync_categories": [
+                    {
+                        "id": "1",
+                        "nas_sub": "/Serien",
+                        "pcloud_remote": "pcloud:04a_Dokus",
+                        "targets": {
+                            "pcloud": "pcloud:04a_Dokus"
+                        }
+                    }
+                ]
+            }
+            
+            # Resolve by category ID
+            path_by_id = resolve_category_target_path("1", "pcloud", "tv")
+            self.assertEqual(path_by_id, "pcloud:04a_Dokus")
+            
+            # Resolve by nas_sub
+            path_by_sub = resolve_category_target_path("/Serien", "pcloud", "tv")
+            self.assertEqual(path_by_sub, "pcloud:04a_Dokus")
+
 if __name__ == "__main__":
     unittest.main()
