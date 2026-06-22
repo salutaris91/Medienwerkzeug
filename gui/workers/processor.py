@@ -911,6 +911,14 @@ def process_worker(params):
                 except Exception as e: print(f"Warning: Ignored exception {e}")
 
     if media_type == "tv":
+        from gui.core.jobs import get_job, update_job
+        job = get_job(task_id) if task_id else None
+        pipeline = job.get("pipeline", {}) if job else {}
+        manifest = job.get("manifest", {}) if job else {}
+
+        is_metadata_done = pipeline.get("metadata", {}).get("status") == "done"
+        is_convert_done = pipeline.get("convert", {}).get("status") == "done"
+
         rel_sub = ""
         if destination:
             if destination.startswith(nas_root):
@@ -943,16 +951,19 @@ def process_worker(params):
         log_message(f"Typ: Serie | Name: {show_name} (Bereinigt: {clean_show_name}) | Staffel: {season}")
 
         # 1. Generate tvshow.nfo and download show artwork (poster.jpg, fanart.jpg)
-        from gui.core.jobs import update_job
-        update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=50)
-        if show_id and provider:
-            log_message("Generiere tvshow.nfo und lade Poster/Fanart...")
-            try:
-                show_overrides = nfo_overrides.get("show")
-                res = mw_metadata.generate_tvshow_nfo(provider, show_id, current_dir, nfo_overrides=show_overrides)
-                log_message(f"tvshow.nfo Status: {res}")
-            except Exception as e:
-                log_message(f"Fehler bei tvshow.nfo: {e}")
+        if not is_metadata_done:
+            from gui.core.jobs import update_job
+            update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=50)
+            if show_id and provider:
+                log_message("Generiere tvshow.nfo und lade Poster/Fanart...")
+                try:
+                    show_overrides = nfo_overrides.get("show")
+                    res = mw_metadata.generate_tvshow_nfo(provider, show_id, current_dir, nfo_overrides=show_overrides)
+                    log_message(f"tvshow.nfo Status: {res}")
+                except Exception as e:
+                    log_message(f"Fehler bei tvshow.nfo: {e}")
+        else:
+            log_message("Metadaten-Schritt ('metadata') ist bereits erledigt. Überspringe tvshow.nfo Generierung.")
 
         # 2. Fetch episodes metadata
         log_message("Rufe Episoden-Metadaten ab...")
@@ -1240,17 +1251,53 @@ def process_worker(params):
                 target_filename = f"{clean_title}{ext}"
                 target_filepath = os.path.join(current_dir, target_filename)
 
+                # Precompute Outbox path to check if file already processed
+                nas_serien = destination if destination else f"{nas_root}/Serien"
+                rel_dest = os.path.relpath(nas_serien, nas_root)
+                outbox_serien = os.path.join(outbox_root, rel_dest)
+                dest_dir_outbox = os.path.join(outbox_serien, clean_show_name, f"Staffel {int(ep_season)}", clean_title)
+
+                outbox_target = os.path.join(dest_dir_outbox, target_filename)
+                outbox_conv = os.path.join(dest_dir_outbox, f"{clean_title}.mkv")
+                manifest_entry = manifest.get(filename)
+                manifest_file_exists = False
+                if manifest_entry:
+                    manifest_target_filename = manifest_entry.get("target_filename")
+                    manifest_dest_dir = manifest_entry.get("dest_dir_outbox")
+                    if manifest_target_filename and manifest_dest_dir:
+                        manifest_target_path = os.path.join(manifest_dest_dir, manifest_target_filename)
+                        manifest_conv_path = os.path.join(manifest_dest_dir, os.path.splitext(manifest_target_filename)[0] + ".mkv")
+                        if os.path.exists(manifest_target_path):
+                            manifest_file_exists = True
+                            dest_dir_outbox = manifest_dest_dir
+                            target_filename = manifest_target_filename
+                            clean_title = manifest_entry.get("clean_title", clean_title)
+                        elif os.path.exists(manifest_conv_path):
+                            manifest_file_exists = True
+                            dest_dir_outbox = manifest_dest_dir
+                            target_filename = os.path.splitext(manifest_target_filename)[0] + ".mkv"
+                            clean_title = manifest_entry.get("clean_title", clean_title)
+
+                file_already_in_outbox = os.path.exists(outbox_target) or os.path.exists(outbox_conv) or manifest_file_exists
+
                 if explicit_renames is None:
                     # Old backwards compatible fallback
                     filepath = os.path.join(current_dir, filename)
                     if not os.path.exists(filepath):
-                        continue
-                    log_message(f"Benenne um: {filename} -> {target_filename}")
-                    try:
-                        os.rename(filepath, target_filepath)
-                    except Exception as e:
-                        log_message(f"Fehler beim Umbenennen: {e}")
-                        continue
+                        if file_already_in_outbox:
+                            log_message(f"Originaldatei {filename} ist nicht mehr in Inbox, aber bereits verarbeitet in Outbox. Überspringe Umbenennung.")
+                        else:
+                            continue
+                    else:
+                        if file_already_in_outbox and is_metadata_done:
+                            log_message(f"Episode {filename} ist bereits verarbeitet. Überspringe Umbenennung.")
+                        else:
+                            log_message(f"Benenne um: {filename} -> {target_filename}")
+                            try:
+                                os.rename(filepath, target_filepath)
+                            except Exception as e:
+                                log_message(f"Fehler beim Umbenennen: {e}")
+                                continue
 
                     # Rename subtitles
                     base_old = os.path.splitext(filename)[0]
@@ -1268,87 +1315,116 @@ def process_worker(params):
 
                 # Generate Episode NFO
                 if show_id and provider:
-                    log_message(f"Generiere Episoden-NFO für {ep_str}...")
-                    try:
-                        ep_overrides = None
-                        if "episodes" in nfo_overrides:
-                            ep_overrides = nfo_overrides["episodes"].get(filename) or nfo_overrides["episodes"].get(os.path.join(current_dir, filename))
-                        res = mw_metadata.generate_episode_nfo(
-                            provider, show_id, orig_season, orig_episode, current_dir, clean_title,
-                            force_season=ep_season, force_episode=ep_num, nfo_overrides=ep_overrides
-                        )
-                        log_message(f"Episode NFO Status: {res}")
-                    except Exception as e:
-                        log_message(f"Fehler bei Episode NFO: {e}")
+                    if file_already_in_outbox and is_metadata_done:
+                        log_message(f"Episode NFO für {ep_str} existiert bereits. Überspringe Generierung.")
+                    else:
+                        log_message(f"Generiere Episoden-NFO für {ep_str}...")
+                        try:
+                            ep_overrides = None
+                            if "episodes" in nfo_overrides:
+                                ep_overrides = nfo_overrides["episodes"].get(filename) or nfo_overrides["episodes"].get(os.path.join(current_dir, filename))
+                            res = mw_metadata.generate_episode_nfo(
+                                provider, show_id, orig_season, orig_episode, current_dir, clean_title,
+                                force_season=ep_season, force_episode=ep_num, nfo_overrides=ep_overrides
+                            )
+                            log_message(f"Episode NFO Status: {res}")
+                        except Exception as e:
+                            log_message(f"Fehler bei Episode NFO: {e}")
                 current_prog = 50 + int(50 * (file_idx + 1) / N)
                 _update_pipeline_metadata_progress(task_id, current_prog)
 
                 # H.265 Conversion
                 final_filename = target_filename
                 final_filepath = target_filepath
-                if convert:
-                    temp_output = os.path.join(current_dir, f"{clean_title}_neu.mkv")
-                    def ffmpeg_progress_cb(percent, msg):
-                        conv_pct[file_idx] = percent
-                        update_global_job_progress()
-                        with active_jobs_lock:
-                            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
-                                avg_conv = sum(conv_pct) / N
-                                active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
 
-                    conv_success, conv_file = media.execute_video_conversion(
-                        target_filepath=target_filepath,
-                        temp_output=temp_output,
-                        final_filepath=os.path.join(current_dir, f"{clean_title}.mkv"),
-                        quality=quality,
-                        content_type=content_type,
-                        original_filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath),
-                        delete_original=delete_original,
-                        progress_callback=ffmpeg_progress_cb,
-                        log_message_fn=log_message,
-                        run_ffmpeg_fn=run_ffmpeg_with_progress,
-                        send_to_trash_fn=trash.send_to_trash,
-                        log_queue=log_queue
-                    )
-                    if conv_success:
-                        final_filepath = os.path.join(current_dir, conv_file)
-                        final_filename = conv_file
-                    conv_pct[file_idx] = 100
+                if file_already_in_outbox:
+                    resolved_conv = os.path.join(dest_dir_outbox, f"{clean_title}.mkv")
+                    resolved_target = os.path.join(dest_dir_outbox, target_filename)
+                    if os.path.exists(resolved_conv):
+                        final_filename = f"{clean_title}.mkv"
+                    elif os.path.exists(resolved_target):
+                        final_filename = target_filename
+                    else:
+                        final_filename = target_filename
+                    final_filepath = os.path.join(dest_dir_outbox, final_filename)
+
+                if convert:
+                    has_conv_file = os.path.exists(os.path.join(dest_dir_outbox, f"{clean_title}.mkv")) if file_already_in_outbox else os.path.exists(outbox_conv)
+                    if file_already_in_outbox and (is_convert_done or has_conv_file):
+                        log_message(f"Konvertierung für {final_filename} ist bereits erledigt. Überspringe.")
+                        conv_pct[file_idx] = 100
+                    else:
+                        temp_output = os.path.join(current_dir, f"{clean_title}_neu.mkv")
+                        def ffmpeg_progress_cb(percent, msg):
+                            conv_pct[file_idx] = percent
+                            update_global_job_progress()
+                            with active_jobs_lock:
+                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
+                                    active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
+                                    avg_conv = sum(conv_pct) / N
+                                    active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
+
+                        conv_success, conv_file = media.execute_video_conversion(
+                            target_filepath=target_filepath,
+                            temp_output=temp_output,
+                            final_filepath=os.path.join(current_dir, f"{clean_title}.mkv"),
+                            quality=quality,
+                            content_type=content_type,
+                            original_filename=os.path.basename(filepath if 'filepath' in locals() else target_filepath),
+                            delete_original=delete_original,
+                            progress_callback=ffmpeg_progress_cb,
+                            log_message_fn=log_message,
+                            run_ffmpeg_fn=run_ffmpeg_with_progress,
+                            send_to_trash_fn=trash.send_to_trash,
+                            log_queue=log_queue
+                        )
+                        if conv_success:
+                            final_filepath = os.path.join(current_dir, conv_file)
+                            final_filename = conv_file
+                        conv_pct[file_idx] = 100
                 else:
                     conv_pct[file_idx] = 100
                 update_global_job_progress()
 
                 # Move to local Output folder
-                nas_serien = destination if destination else f"{nas_root}/Serien"
-                rel_dest = os.path.relpath(nas_serien, nas_root)
-                outbox_serien = os.path.join(outbox_root, rel_dest)
-                dest_dir_outbox = os.path.join(outbox_serien, clean_show_name, f"Staffel {int(ep_season)}", clean_title)
+                if file_already_in_outbox:
+                    log_message(f"Datei liegt bereits in Output-Ordner: {final_filename}. Überspringe Verschieben.")
+                else:
+                    log_message(f"Verschiebe in Output-Pfad: {dest_dir_outbox}")
+                    try:
+                        os.makedirs(dest_dir_outbox, exist_ok=True)
 
-                log_message(f"Verschiebe in Output-Pfad: {dest_dir_outbox}")
-                try:
-                    os.makedirs(dest_dir_outbox, exist_ok=True)
+                        # Move video file
+                        shutil.move(final_filepath, os.path.join(dest_dir_outbox, final_filename))
+                        log_message(f"Erfolgreich in Output-Ordner verschoben: {final_filename}")
 
-                    # Move video file
-                    shutil.move(final_filepath, os.path.join(dest_dir_outbox, final_filename))
-                    log_message(f"Erfolgreich in Output-Ordner verschoben: {final_filename}")
+                        # Move accompanying files safely (excluding original video files, handling subfolders recursively)
+                        whitelist_tv = []
+                        if explicit_renames:
+                            whitelist_tv.extend(explicit_renames)
+                        if explicit_subs:
+                            whitelist_tv.extend(explicit_subs)
+                        safe_move_recursive(
+                            current_dir,
+                            dest_dir_outbox,
+                            prefix_filter=clean_title,
+                            fallback_basename=None,
+                            whitelist=whitelist_tv,
+                            junk_list=explicit_junk
+                        )
+                    except Exception as e:
+                        log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
 
-                    # Move accompanying files safely (excluding original video files, handling subfolders recursively)
-                    whitelist_tv = []
-                    if explicit_renames:
-                        whitelist_tv.extend(explicit_renames)
-                    if explicit_subs:
-                        whitelist_tv.extend(explicit_subs)
-                    safe_move_recursive(
-                        current_dir,
-                        dest_dir_outbox,
-                        prefix_filter=clean_title,
-                        fallback_basename=None,
-                        whitelist=whitelist_tv,
-                        junk_list=explicit_junk
-                    )
-                except Exception as e:
-                    log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
+                # Persist manifest entry for future retries only if file actually exists in outbox
+                if os.path.exists(os.path.join(dest_dir_outbox, final_filename)):
+                    manifest[filename] = {
+                        "target_filename": final_filename,
+                        "dest_dir_outbox": dest_dir_outbox,
+                        "clean_title": clean_title,
+                        "season": ep_season,
+                        "episode": ep_num
+                    }
+                    update_job(task_id, manifest=manifest)
 
                 # Queue NAS transfer task
                 settings = load_settings()
@@ -1357,6 +1433,11 @@ def process_worker(params):
                     t_id = target.get("id")
                     t_type = target.get("type")
                     if t_type != "nas" and t_id != "nas":
+                        continue
+
+                    if pipeline.get(t_id, {}).get("status") == "done":
+                        if t_id in target_progresses:
+                            target_progresses[t_id][file_idx] = 100
                         continue
 
                     should_copy = False
@@ -1437,6 +1518,9 @@ def process_worker(params):
                 if t_type != "nas" and t_id != "nas":
                     continue
 
+                if pipeline.get(t_id, {}).get("status") == "done":
+                    continue
+
                 should_copy = False
                 if params.get(f"copy_to_{t_id}") is not None:
                     should_copy = params.get(f"copy_to_{t_id}")
@@ -1461,6 +1545,13 @@ def process_worker(params):
                 t_id = target.get("id")
                 t_type = target.get("type")
                 if t_type == "nas" or t_id == "nas":
+                    continue
+
+                if pipeline.get(t_id, {}).get("status") == "done":
+                    with progress_lock:
+                        if t_id in target_progresses:
+                            target_progresses[t_id] = 100
+                    update_global_job_progress()
                     continue
 
                 should_copy = False
@@ -2040,13 +2131,43 @@ def process_worker(params):
         with active_yt_tasks_lock:
             active_yt_tasks[task_id] = task_info
 
-        update_task_pipeline_status(task_id, "metadata", "running", 0)
+        from gui.core.jobs import get_job, update_job
+        job = get_job(task_id) if task_id else None
+        pipeline = job.get("pipeline", {}) if job else {}
+        manifest = job.get("manifest", {}) if job else {}
+
+        is_metadata_done = pipeline.get("metadata", {}).get("status") == "done"
+        convert_status = pipeline.get("convert", {}).get("status")
+        mapping = {}
+        should_bypass = False
+        if is_metadata_done and manifest and convert_status in ("done", "skipped"):
+            # Verify that all files described in the manifest actually exist in the outbox
+            manifest_files_ok = True
+            for filename, entry in manifest.items():
+                target_filename = entry.get("target_filename")
+                dest_dir_outbox = entry.get("dest_dir_outbox")
+                if not target_filename or not dest_dir_outbox:
+                    manifest_files_ok = False
+                    break
+                target_path = os.path.join(dest_dir_outbox, target_filename)
+                conv_path = os.path.join(dest_dir_outbox, os.path.splitext(target_filename)[0] + ".mkv")
+                if not os.path.exists(target_path) and not os.path.exists(conv_path):
+                    manifest_files_ok = False
+                    break
+            if manifest_files_ok:
+                should_bypass = True
+
+        if not should_bypass:
+            update_task_pipeline_status(task_id, "metadata", "running", 0)
 
         log_message(f"=== STARTE YOUTUBE DOWNLOAD PIPELINE FUER TASK {task_id} ===")
         log_message(f"Ziel-Temp-Ordner: {temp_dir}")
 
         try:
-            if media_type == "youtube":
+            if should_bypass:
+                log_message("Pragmatischer Step-Retry: Download und Postprocessing bereits erledigt. Rekonstruiere aus Manifest.")
+                downloaded_files = sorted(list(manifest.keys()))
+            elif media_type == "youtube":
                 # Build yt-dlp command
                 cmd = ["yt-dlp", "--newline", "-P", temp_dir]
 
@@ -2229,264 +2350,296 @@ def process_worker(params):
 
                 downloaded_files = [final_name]
 
-            # If LosslessCut is checked and we have video files
-            if open_losslesscut and downloaded_files:
-                primary_file = downloaded_files[0]
-                primary_filepath = os.path.join(temp_dir, primary_file)
+            if not should_bypass:
+                # If LosslessCut is checked and we have video files
+                if open_losslesscut and downloaded_files:
+                    primary_file = downloaded_files[0]
+                    primary_filepath = os.path.join(temp_dir, primary_file)
 
-                lossless_path = "/Applications/LosslessCut.app"
-                if os.path.exists(lossless_path):
-                    log_message(f"🎬 Oeffne {primary_file} in LosslessCut...")
-                    update_task_pipeline_status(task_id, "convert", "running", 50)
-                    subprocess.run(["open", "-a", "LosslessCut", primary_filepath])
+                    lossless_path = "/Applications/LosslessCut.app"
+                    if os.path.exists(lossless_path):
+                        log_message(f"🎬 Oeffne {primary_file} in LosslessCut...")
+                        update_task_pipeline_status(task_id, "convert", "running", 50)
+                        subprocess.run(["open", "-a", "LosslessCut", primary_filepath])
 
-                    # Update state and wait for GUI event
-                    task_info["state"] = "waiting_for_cut"
-                    log_message("⏳ Warte darauf, dass der Nutzer den Schnitt in LosslessCut fertigstellt...")
-                    task_info["event"].wait()
+                        # Update state and wait for GUI event
+                        task_info["state"] = "waiting_for_cut"
+                        log_message("⏳ Warte darauf, dass der Nutzer den Schnitt in LosslessCut fertigstellt...")
+                        task_info["event"].wait()
 
-                    log_message("Schnitt als abgeschlossen markiert. Scanne nach exportierten Dateien...")
-                    time.sleep(1)
+                        log_message("Schnitt als abgeschlossen markiert. Scanne nach exportierten Dateien...")
+                        time.sleep(1)
 
-                    all_videos = [f for f in os.listdir(temp_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov')) and not f.startswith(".")]
-                    cut_files = [f for f in all_videos if f != primary_file]
+                        all_videos = [f for f in os.listdir(temp_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov')) and not f.startswith(".")]
+                        cut_files = [f for f in all_videos if f != primary_file]
 
-                    if cut_files:
-                        log_message(f"Schnittdateien gefunden: {', '.join(cut_files)}")
-                        try:
-                            trash.send_to_trash(primary_filepath)
-                            log_message("Ungeschnittene Originaldatei in Quarantäne verschoben.")
-                        except Exception as e:
-                            log_message(f"Fehler beim In-Quarantäne-Verschieben des Originals: {e}")
-                        downloaded_files = cut_files
+                        if cut_files:
+                            log_message(f"Schnittdateien gefunden: {', '.join(cut_files)}")
+                            try:
+                                trash.send_to_trash(primary_filepath)
+                                log_message("Ungeschnittene Originaldatei in Quarantäne verschoben.")
+                            except Exception as e:
+                                log_message(f"Fehler beim In-Quarantäne-Verschieben des Originals: {e}")
+                            downloaded_files = cut_files
+                        else:
+                            log_message("Keine Schnittdateien gefunden. Verwende Originaldatei.")
+                            downloaded_files = [primary_file]
+                        update_task_pipeline_status(task_id, "convert", "done", 100)
                     else:
-                        log_message("Keine Schnittdateien gefunden. Verwende Originaldatei.")
-                        downloaded_files = [primary_file]
-                    update_task_pipeline_status(task_id, "convert", "done", 100)
+                        log_message("⚠️ LosslessCut.app nicht unter /Applications gefunden. Ueberspringe...")
+
+                # Refresh downloaded files list
+                downloaded_files = sorted([f for f in os.listdir(temp_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov', '.mp3', '.m4a')) and not f.startswith(".")])
+
+                if not downloaded_files:
+                    raise RuntimeError("Keine verarbeitbaren Videodateien gefunden.")
+
+                # TMDB/TVDB Season/Episodes Mapping for Series Mode
+                mapping = {}
+                if metadata_mode == "tv" and show_id and len(downloaded_files) > 1:
+                    task_info["state"] = "waiting_for_mapping"
+                    log_message("⏳ Warte auf Zuweisung der Video-Kapitel/Segmente im Web-Interface...")
+                    update_task_pipeline_status(task_id, "metadata", "running", 90)
+                    task_info["mapping_event"].wait()
+
+                    mapping = task_info.get("mapping", {})
+                    log_message(f"Zuweisungen erhalten: {mapping}")
+
+                # If embed_thumbnail was requested and we had splits/cuts, embed thumbnail now
+                if embed_thumb:
+                    log_message("🖼️ Thumbnail wird heruntergeladen und eingebettet...")
+                    thumb_tmp = os.path.join(temp_dir, ".thumbnail_tmp")
+                    thumb_jpg = os.path.join(temp_dir, ".thumbnail_tmp.jpg")
+                    if os.path.exists(thumb_jpg):
+                        os.remove(thumb_jpg)
+
+                    thumb_dl_cmd = ["yt-dlp", "--write-thumbnail", "--skip-download", "--convert-thumbnails", "jpg", "-o", thumb_tmp, url]
+                    subprocess.run(thumb_dl_cmd, capture_output=True)
+
+                    if os.path.exists(thumb_jpg):
+                        for f in downloaded_files:
+                            if f.lower().endswith(('.mp4', '.mkv')):
+                                filepath = os.path.join(temp_dir, f)
+                                temp_thumb_file = os.path.join(temp_dir, f"thumb_{f}")
+                                ff_thumb_cmd = [
+                                    "ffmpeg", "-y", "-i", filepath, "-i", thumb_jpg,
+                                    "-map", "0", "-map", "1", "-c", "copy",
+                                    "-disposition:v:1", "attached_pic", temp_thumb_file
+                                ]
+                                ff_proc = subprocess.run(ff_thumb_cmd, capture_output=True)
+                                if ff_proc.returncode == 0 and os.path.exists(temp_thumb_file):
+                                    os.replace(temp_thumb_file, filepath)
+                                    log_message(f"  ✅ Thumbnail in {f} eingebettet.")
+                                else:
+                                    if os.path.exists(temp_thumb_file):
+                                        os.remove(temp_thumb_file)
+                                    log_message(f"  ❌ Einbetten in {f} fehlgeschlagen.")
+                        os.remove(thumb_jpg)
+                    else:
+                        log_message("  ❌ Thumbnail konnte nicht geladen werden.")
+
+                # NFO & Renaming
+                # Generate tvshow.nfo in Series mode
+                if metadata_mode == "tv" and show_id and provider:
+                    try:
+                        mw_metadata.generate_tvshow_nfo(provider, show_id, temp_dir)
+                    except Exception as e:
+                        log_message(f"Fehler bei tvshow.nfo: {e}")
+
+            # Determine local outbox equivalent
+            if destination:
+                if destination.startswith(nas_root):
+                    rel_dest = os.path.relpath(destination, nas_root)
+                    outbox_dest = os.path.join(outbox_root, rel_dest)
                 else:
-                    log_message("⚠️ LosslessCut.app nicht unter /Applications gefunden. Ueberspringe...")
-
-            # Refresh downloaded files list
-            downloaded_files = sorted([f for f in os.listdir(temp_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov', '.mp3', '.m4a')) and not f.startswith(".")])
-
-            if not downloaded_files:
-                raise RuntimeError("Keine verarbeitbaren Videodateien gefunden.")
-
-            # TMDB/TVDB Season/Episodes Mapping for Series Mode
-            mapping = {}
-            if metadata_mode == "tv" and show_id and len(downloaded_files) > 1:
-                task_info["state"] = "waiting_for_mapping"
-                log_message("⏳ Warte auf Zuweisung der Video-Kapitel/Segmente im Web-Interface...")
-                update_task_pipeline_status(task_id, "metadata", "running", 90)
-                task_info["mapping_event"].wait()
-
-                mapping = task_info.get("mapping", {})
-                log_message(f"Zuweisungen erhalten: {mapping}")
-
-            # If embed_thumbnail was requested and we had splits/cuts, embed thumbnail now
-            if embed_thumb:
-                log_message("🖼️ Thumbnail wird heruntergeladen und eingebettet...")
-                thumb_tmp = os.path.join(temp_dir, ".thumbnail_tmp")
-                thumb_jpg = os.path.join(temp_dir, ".thumbnail_tmp.jpg")
-                if os.path.exists(thumb_jpg):
-                    os.remove(thumb_jpg)
-
-                thumb_dl_cmd = ["yt-dlp", "--write-thumbnail", "--skip-download", "--convert-thumbnails", "jpg", "-o", thumb_tmp, url]
-                subprocess.run(thumb_dl_cmd, capture_output=True)
-
-                if os.path.exists(thumb_jpg):
-                    for f in downloaded_files:
-                        if f.lower().endswith(('.mp4', '.mkv')):
-                            filepath = os.path.join(temp_dir, f)
-                            temp_thumb_file = os.path.join(temp_dir, f"thumb_{f}")
-                            ff_thumb_cmd = [
-                                "ffmpeg", "-y", "-i", filepath, "-i", thumb_jpg,
-                                "-map", "0", "-map", "1", "-c", "copy",
-                                "-disposition:v:1", "attached_pic", temp_thumb_file
-                            ]
-                            ff_proc = subprocess.run(ff_thumb_cmd, capture_output=True)
-                            if ff_proc.returncode == 0 and os.path.exists(temp_thumb_file):
-                                os.replace(temp_thumb_file, filepath)
-                                log_message(f"  ✅ Thumbnail in {f} eingebettet.")
-                            else:
-                                if os.path.exists(temp_thumb_file):
-                                    os.remove(temp_thumb_file)
-                                log_message(f"  ❌ Einbetten in {f} fehlgeschlagen.")
-                    os.remove(thumb_jpg)
-                else:
-                    log_message("  ❌ Thumbnail konnte nicht geladen werden.")
-
-            # NFO & Renaming
-            # Generate tvshow.nfo in Series mode
-            if metadata_mode == "tv" and show_id and provider:
-                try:
-                    mw_metadata.generate_tvshow_nfo(provider, show_id, temp_dir)
-                except Exception as e:
-                    log_message(f"Fehler bei tvshow.nfo: {e}")
+                    outbox_dest = os.path.join(outbox_root, os.path.basename(destination))
+            else:
+                outbox_dest = outbox_root
 
             all_transfers_successful = True
             for idx, filename in enumerate(downloaded_files):
-                filepath = os.path.join(temp_dir, filename)
-                ext = os.path.splitext(filename)[1].lower()
-                target_filename = filename
-                clean_base = os.path.splitext(filename)[0]
+                entry = manifest.get(filename, {})
+                target_filename = entry.get("target_filename", filename)
+                dest_dir_outbox = entry.get("dest_dir_outbox")
+                clean_base = entry.get("clean_title", os.path.splitext(filename)[0])
 
-                if metadata_mode == "movie" and movie_id:
-                    clean_movie_name = limit_filename_length(sanitize_filename(movie_name))
-                    target_filename = f"{clean_movie_name}{ext}"
-                    os.rename(filepath, os.path.join(temp_dir, target_filename))
-                    filepath = os.path.join(temp_dir, target_filename)
-                    clean_base = clean_movie_name
+                transfer_successful = False
+                if should_bypass and dest_dir_outbox:
+                    target_path = os.path.join(dest_dir_outbox, target_filename)
+                    conv_path = os.path.join(dest_dir_outbox, os.path.splitext(target_filename)[0] + ".mkv")
+                    if os.path.exists(target_path):
+                        log_message(f"Bypassing processing for {target_filename} as it already exists in outbox.")
+                        transfer_successful = True
+                    elif os.path.exists(conv_path):
+                        target_filename = os.path.splitext(target_filename)[0] + ".mkv"
+                        log_message(f"Bypassing processing for {target_filename} (converted version) as it already exists in outbox.")
+                        transfer_successful = True
 
-                    log_message(f"Generiere Film-NFO für {target_filename}...")
-                    if provider == "ofdb":
-                        mw_metadata.generate_ofdb_nfo(movie_id, temp_dir, clean_base)
-                    else:
-                        mw_metadata.generate_movie_nfo(movie_id, temp_dir, clean_base)
+                if transfer_successful:
+                    # Do nothing
+                    pass
+                else:
+                    filepath = os.path.join(temp_dir, filename)
+                    ext = os.path.splitext(filename)[1].lower()
+                    target_filename = filename
+                    clean_base = os.path.splitext(filename)[0]
 
-                elif metadata_mode == "tv" and show_id:
-                    ep_num = mapping.get(filename)
-                    if not ep_num and len(downloaded_files) == 1:
-                        ep_num = params.get("episode")
-
-                    if ep_num:
-                        ep_title = ""
-                        try:
-                            if provider == "tvdb":
-                                eps = mw_metadata.fetch_tvdb(show_id, season, "deu")
-                            else:
-                                lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
-                                eps = mw_metadata.fetch_tmdb_tv(show_id, season, lang)
-                            ep_data = eps.get(str(ep_num), {})
-                            if isinstance(ep_data, dict):
-                                ep_title = ep_data.get("title", "")
-                            else:
-                                ep_title = str(ep_data)
-                        except Exception as e:
-                            log_message(f"⚠️ Episodentitel für S{season}E{ep_num} konnte nicht abgerufen werden: {e}")
-
-                        ep_title = sanitize_filename(ep_title)
-                        season_str = f"S{int(season):02d}"
-                        ep_str = f"E{int(ep_num):02d}"
-
-                        clean_show_title = f"{clean_show_name} - {season_str}{ep_str}"
-                        if ep_title:
-                            clean_show_title += f" - {ep_title}"
-                        clean_show_title = limit_filename_length(clean_show_title)
-
-                        target_filename = f"{clean_show_title}{ext}"
+                    if metadata_mode == "movie" and movie_id:
+                        clean_movie_name = limit_filename_length(sanitize_filename(movie_name))
+                        target_filename = f"{clean_movie_name}{ext}"
                         os.rename(filepath, os.path.join(temp_dir, target_filename))
                         filepath = os.path.join(temp_dir, target_filename)
-                        clean_base = clean_show_title
+                        clean_base = clean_movie_name
 
-                        log_message(f"Generiere Episoden-NFO für {ep_str} ({target_filename})...")
-                        mw_metadata.generate_episode_nfo(provider, show_id, season, ep_num, temp_dir, clean_base)
+                        log_message(f"Generiere Film-NFO für {target_filename}...")
+                        if provider == "ofdb":
+                            mw_metadata.generate_ofdb_nfo(movie_id, temp_dir, clean_base)
+                        else:
+                            mw_metadata.generate_movie_nfo(movie_id, temp_dir, clean_base)
 
-                else:
-                    # YouTube Mode (Allgemein)
-                    log_message(f"Generiere standardmäßige YouTube-NFO für {filename}...")
-                    nfo_path = os.path.join(temp_dir, f"{clean_base}.nfo")
-                    yt_title = params.get("yt_title", clean_base)
-                    yt_uploader = params.get("yt_uploader", "YouTube")
-                    yt_description = params.get("yt_description", "")
+                    elif metadata_mode == "tv" and show_id:
+                        ep_num = mapping.get(filename)
+                        if not ep_num and len(downloaded_files) == 1:
+                            ep_num = params.get("episode")
 
-                    xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-                    xml += '<movie>\n  <lockdata>true</lockdata>\n'
-                    xml += f"  <title>{yt_title.replace('&', '&amp;')}</title>\n"
-                    xml += f"  <plot>{yt_description.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
-                    xml += f"  <studio>{yt_uploader.replace('&', '&amp;')}</studio>\n"
-                    xml += '</movie>\n'
+                        if ep_num:
+                            ep_title = ""
+                            try:
+                                if provider == "tvdb":
+                                    eps = mw_metadata.fetch_tvdb(show_id, season, "deu")
+                                else:
+                                    lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
+                                    eps = mw_metadata.fetch_tmdb_tv(show_id, season, lang)
+                                ep_data = eps.get(str(ep_num), {})
+                                if isinstance(ep_data, dict):
+                                    ep_title = ep_data.get("title", "")
+                                else:
+                                    ep_title = str(ep_data)
+                            except Exception as e:
+                                log_message(f"⚠️ Episodentitel für S{season}E{ep_num} konnte nicht abgerufen werden: {e}")
 
-                    try:
-                        with open(nfo_path, "w", encoding="utf-8") as nf:
-                            nf.write(xml)
-                        log_message(f"  ✅ NFO erstellt: {clean_base}.nfo")
-                    except Exception as e:
-                        log_message(f"  ❌ Fehler bei NFO-Erstellung: {e}")
+                            ep_title = sanitize_filename(ep_title)
+                            season_str = f"S{int(season):02d}"
+                            ep_str = f"E{int(ep_num):02d}"
 
-                    # Download YouTube thumbnail as poster.jpg and fanart.jpg
-                    yt_thumb_url = params.get("yt_thumbnail")
-                    if yt_thumb_url:
-                        log_message("🖼️ Lade YouTube-Thumbnail als Poster/Fanart herunter...")
-                        try:
-                            import urllib.request
-                            req = urllib.request.Request(yt_thumb_url, headers={'User-Agent': 'Mozilla/5.0'})
-                            with urllib.request.urlopen(req) as response:
-                                thumb_data = response.read()
+                            clean_show_title = f"{clean_show_name} - {season_str}{ep_str}"
+                            if ep_title:
+                                clean_show_title += f" - {ep_title}"
+                            clean_show_title = limit_filename_length(clean_show_title)
 
-                            poster_names, backdrop_names = _get_movie_artwork_lists(settings, target_filename)
-                            pref_poster = poster_names[0] if poster_names else "poster.jpg"
-                            pref_backdrop = backdrop_names[0] if backdrop_names else "fanart.jpg"
+                            target_filename = f"{clean_show_title}{ext}"
+                            os.rename(filepath, os.path.join(temp_dir, target_filename))
+                            filepath = os.path.join(temp_dir, target_filename)
+                            clean_base = clean_show_title
 
-                            for filename_artwork in [pref_poster, pref_backdrop]:
-                                art_path = os.path.join(temp_dir, filename_artwork)
-                                with open(art_path, "wb") as f_art:
-                                    f_art.write(thumb_data)
-                            log_message("  ✅ Poster und Fanart heruntergeladen.")
-                        except Exception as e:
-                            log_message(f"  ❌ Fehler beim Herunterladen des YouTube-Thumbnails: {e}")
+                            log_message(f"Generiere Episoden-NFO für {ep_str} ({target_filename})...")
+                            mw_metadata.generate_episode_nfo(provider, show_id, season, ep_num, temp_dir, clean_base)
 
-                # Determine local outbox equivalent
-                if destination:
-                    if destination.startswith(nas_root):
-                        rel_dest = os.path.relpath(destination, nas_root)
-                        outbox_dest = os.path.join(outbox_root, rel_dest)
                     else:
-                        outbox_dest = os.path.join(outbox_root, os.path.basename(destination))
-                else:
-                    outbox_dest = outbox_root
+                        # YouTube Mode (Allgemein)
+                        log_message(f"Generiere standardmäßige YouTube-NFO für {filename}...")
+                        nfo_path = os.path.join(temp_dir, f"{clean_base}.nfo")
+                        yt_title = params.get("yt_title", clean_base)
+                        yt_uploader = params.get("yt_uploader", "YouTube")
+                        yt_description = params.get("yt_description", "")
 
-                dest_dir_outbox = outbox_dest
-                if metadata_mode == "tv" and show_id:
-                    dest_dir_outbox = os.path.join(outbox_dest, clean_show_name, f"Staffel {int(season)}", clean_base)
-                elif metadata_mode == "movie" and movie_id:
-                    dest_dir_outbox = os.path.join(outbox_dest, clean_base)
+                        xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+                        xml += '<movie>\n  <lockdata>true</lockdata>\n'
+                        xml += f"  <title>{yt_title.replace('&', '&amp;')}</title>\n"
+                        xml += f"  <plot>{yt_description.replace('&', '&amp;').replace('<', '&lt;')}</plot>\n"
+                        xml += f"  <studio>{yt_uploader.replace('&', '&amp;')}</studio>\n"
+                        xml += '</movie>\n'
 
-                log_message(f"Verschiebe {target_filename} nach {dest_dir_outbox}...")
-                transfer_successful = False
-                try:
-                    os.makedirs(dest_dir_outbox, exist_ok=True)
+                        try:
+                            with open(nfo_path, "w", encoding="utf-8") as nf:
+                                nf.write(xml)
+                            log_message(f"  ✅ NFO erstellt: {clean_base}.nfo")
+                        except Exception as e:
+                            log_message(f"  ❌ Fehler bei NFO-Erstellung: {e}")
 
-                    # Move file
-                    shutil.move(filepath, os.path.join(dest_dir_outbox, target_filename))
-                    # Move accompanying files
-                    for f in os.listdir(temp_dir):
-                        if f.startswith(clean_base) and f != target_filename:
-                            shutil.move(os.path.join(temp_dir, f), os.path.join(dest_dir_outbox, f))
+                        # Download YouTube thumbnail as poster.jpg and fanart.jpg
+                        yt_thumb_url = params.get("yt_thumbnail")
+                        if yt_thumb_url:
+                            log_message("🖼️ Lade YouTube-Thumbnail als Poster/Fanart herunter...")
+                            try:
+                                import urllib.request
+                                req = urllib.request.Request(yt_thumb_url, headers={'User-Agent': 'Mozilla/5.0'})
+                                with urllib.request.urlopen(req) as response:
+                                    thumb_data = response.read()
 
-                    # Ensure all server-specific poster/backdrop variants exist in outbox
-                    poster_names, backdrop_names = _get_movie_artwork_lists(settings, target_filename)
+                                poster_names, backdrop_names = _get_movie_artwork_lists(settings, target_filename)
+                                pref_poster = poster_names[0] if poster_names else "poster.jpg"
+                                pref_backdrop = backdrop_names[0] if backdrop_names else "fanart.jpg"
 
-                    existing_poster_src = None
-                    for p_name in poster_names:
-                        p_path = os.path.join(temp_dir, p_name)
-                        if os.path.exists(p_path):
-                            existing_poster_src = p_path
-                            break
-                    if existing_poster_src:
+                                for filename_artwork in [pref_poster, pref_backdrop]:
+                                    art_path = os.path.join(temp_dir, filename_artwork)
+                                    with open(art_path, "wb") as f_art:
+                                        f_art.write(thumb_data)
+                                log_message("  ✅ Poster und Fanart heruntergeladen.")
+                            except Exception as e:
+                                log_message(f"  ❌ Fehler beim Herunterladen des YouTube-Thumbnails: {e}")
+
+                    dest_dir_outbox = outbox_dest
+                    if metadata_mode == "tv" and show_id:
+                        dest_dir_outbox = os.path.join(outbox_dest, clean_show_name, f"Staffel {int(season)}", clean_base)
+                    elif metadata_mode == "movie" and movie_id:
+                        dest_dir_outbox = os.path.join(outbox_dest, clean_base)
+
+                    log_message(f"Verschiebe {target_filename} nach {dest_dir_outbox}...")
+                    transfer_successful = False
+                    try:
+                        os.makedirs(dest_dir_outbox, exist_ok=True)
+
+                        # Move file
+                        shutil.move(filepath, os.path.join(dest_dir_outbox, target_filename))
+                        # Move accompanying files
+                        for f in os.listdir(temp_dir):
+                            if f.startswith(clean_base) and f != target_filename:
+                                shutil.move(os.path.join(temp_dir, f), os.path.join(dest_dir_outbox, f))
+
+                        # Ensure all server-specific poster/backdrop variants exist in outbox
+                        poster_names, backdrop_names = _get_movie_artwork_lists(settings, target_filename)
+
+                        existing_poster_src = None
                         for p_name in poster_names:
-                            shutil.copy(existing_poster_src, os.path.join(dest_dir_outbox, p_name))
-                            log_message(f"  ✅ Filmplakat kopiert: {p_name}")
+                            p_path = os.path.join(temp_dir, p_name)
+                            if os.path.exists(p_path):
+                                existing_poster_src = p_path
+                                break
+                        if existing_poster_src:
+                            for p_name in poster_names:
+                                shutil.copy(existing_poster_src, os.path.join(dest_dir_outbox, p_name))
+                                log_message(f"  ✅ Filmplakat kopiert: {p_name}")
 
-                    existing_backdrop_src = None
-                    for b_name in backdrop_names:
-                        b_path = os.path.join(temp_dir, b_name)
-                        if os.path.exists(b_path):
-                            existing_backdrop_src = b_path
-                            break
-                    if existing_backdrop_src:
+                        existing_backdrop_src = None
                         for b_name in backdrop_names:
-                            shutil.copy(existing_backdrop_src, os.path.join(dest_dir_outbox, b_name))
-                            log_message(f"  ✅ Hintergrundbild kopiert: {b_name}")
+                            b_path = os.path.join(temp_dir, b_name)
+                            if os.path.exists(b_path):
+                                existing_backdrop_src = b_path
+                                break
+                        if existing_backdrop_src:
+                            for b_name in backdrop_names:
+                                shutil.copy(existing_backdrop_src, os.path.join(dest_dir_outbox, b_name))
+                                log_message(f"  ✅ Hintergrundbild kopiert: {b_name}")
 
-                    log_message(f"  ✅ Erfolgreich in Output-Ordner übertragen: {target_filename}")
-                    transfer_successful = True
+                        log_message(f"  ✅ Erfolgreich in Output-Ordner übertragen: {target_filename}")
+                        transfer_successful = True
 
-                    if settings.get("open_outbox_finder"):
-                        open_folder_in_finder(dest_dir_outbox)
-                except Exception as e:
-                    log_message(f"  ❌ Fehler bei Übertragung in Output-Ordner: {e}")
-                    all_transfers_successful = False
+                        if settings.get("open_outbox_finder"):
+                            open_folder_in_finder(dest_dir_outbox)
+
+                        # Persist manifest entry
+                        manifest[filename] = {
+                            "target_filename": target_filename,
+                            "dest_dir_outbox": dest_dir_outbox,
+                            "clean_title": clean_base,
+                            "season": season if metadata_mode == "tv" else None,
+                            "episode": ep_num if (metadata_mode == "tv" and 'ep_num' in locals()) else None
+                        }
+                        update_job(task_id, manifest=manifest)
+                    except Exception as e:
+                        log_message(f"  ❌ Fehler bei Übertragung in Output-Ordner: {e}")
+                        all_transfers_successful = False
 
                 # Copy to targets dynamically
                 if destination and transfer_successful:
@@ -2503,6 +2656,10 @@ def process_worker(params):
                     for target in settings.get("storage_targets", []):
                         t_id = target.get("id")
                         t_type = target.get("type")
+
+                        if pipeline.get(t_id, {}).get("status") == "done":
+                            log_message(f"Ziel {target.get('name', t_id)} ist bereits fertig. Überspringe Kopieren.")
+                            continue
 
                         should_copy = False
                         if params.get(f"copy_to_{t_id}") is not None:
@@ -2582,21 +2739,22 @@ def process_worker(params):
             dest_show_dir_outbox = None
             if metadata_mode == "tv" and show_id and destination:
                 dest_show_dir_outbox = os.path.join(outbox_dest, clean_show_name)
-                try:
-                    os.makedirs(dest_show_dir_outbox, exist_ok=True)
-                    meta_files = _get_series_meta_files(settings)
-                    for f in meta_files:
-                        p_src = os.path.join(temp_dir, f)
-                        if os.path.exists(p_src):
-                            p_dest = os.path.join(dest_show_dir_outbox, f)
-                            if os.path.exists(p_dest):
-                                log_message(f"Serien-Metadatei existiert bereits in Output und wird nicht überschrieben: {f}")
-                            else:
-                                shutil.move(p_src, p_dest)
-                                log_message(f"Serien-Metadatei verschoben: {f}")
-                except Exception as e:
-                    log_message(f"Fehler beim Verschieben der Serien-Metadaten in Output: {e}")
-                    all_transfers_successful = False
+                if not should_bypass:
+                    try:
+                        os.makedirs(dest_show_dir_outbox, exist_ok=True)
+                        meta_files = _get_series_meta_files(settings)
+                        for f in meta_files:
+                            p_src = os.path.join(temp_dir, f)
+                            if os.path.exists(p_src):
+                                p_dest = os.path.join(dest_show_dir_outbox, f)
+                                if os.path.exists(p_dest):
+                                    log_message(f"Serien-Metadatei existiert bereits in Output und wird nicht überschrieben: {f}")
+                                else:
+                                    shutil.move(p_src, p_dest)
+                                    log_message(f"Serien-Metadatei verschoben: {f}")
+                    except Exception as e:
+                        log_message(f"Fehler beim Verschieben der Serien-Metadaten in Output: {e}")
+                        all_transfers_successful = False
 
                 # Copy show-level files to NAS targets if requested
                 settings = load_settings()
@@ -2604,6 +2762,9 @@ def process_worker(params):
                     t_id = target.get("id")
                     t_type = target.get("type")
                     if t_type != "nas" and t_id != "nas":
+                        continue
+
+                    if pipeline.get(t_id, {}).get("status") == "done":
                         continue
 
                     should_copy = False
@@ -2650,59 +2811,62 @@ def process_worker(params):
             # Copy to local folder if requested
             copy_to_local = params.get("copy_to_local", False)
             if copy_to_local and local_destination_path:
-                update_task_pipeline_status(task_id, "local", "running", 0)
-                try:
-                    # Build structured destination path
-                    local_dest_dir = local_destination_path
-                    if metadata_mode == "tv" and show_id:
-                        local_dest_dir = os.path.join(local_destination_path, clean_show_name, f"Staffel {int(season)}", clean_base)
-                    elif metadata_mode == "movie" and movie_id:
-                        local_dest_dir = os.path.join(local_destination_path, clean_base)
-                    else:
-                        # General YouTube: use video title as folder name
-                        yt_title = sanitize_filename(params.get("yt_title", "YouTube Download"))
-                        local_dest_dir = os.path.join(local_destination_path, limit_filename_length(yt_title))
+                if pipeline.get("local", {}).get("status") == "done":
+                    log_message("Kopieren in lokalen Ordner ('local') ist bereits erledigt. Überspringe.")
+                else:
+                    update_task_pipeline_status(task_id, "local", "running", 0)
+                    try:
+                        # Build structured destination path
+                        local_dest_dir = local_destination_path
+                        if metadata_mode == "tv" and show_id:
+                            local_dest_dir = os.path.join(local_destination_path, clean_show_name, f"Staffel {int(season)}", clean_base)
+                        elif metadata_mode == "movie" and movie_id:
+                            local_dest_dir = os.path.join(local_destination_path, clean_base)
+                        else:
+                            # General YouTube: use video title as folder name
+                            yt_title = sanitize_filename(params.get("yt_title", "YouTube Download"))
+                            local_dest_dir = os.path.join(local_destination_path, limit_filename_length(yt_title))
 
-                    os.makedirs(local_dest_dir, exist_ok=True)
-                    log_message(f"Kopiere in lokalen Ordner: {local_dest_dir}...")
+                        os.makedirs(local_dest_dir, exist_ok=True)
+                        log_message(f"Kopiere in lokalen Ordner: {local_dest_dir}...")
 
-                    # Copy video file
-                    src_video = os.path.join(dest_dir_outbox, target_filename) if transfer_successful else filepath
-                    shutil.copy2(src_video, os.path.join(local_dest_dir, target_filename))
+                        # Copy video file
+                        src_video = os.path.join(dest_dir_outbox, target_filename) if transfer_successful else filepath
+                        shutil.copy2(src_video, os.path.join(local_dest_dir, target_filename))
 
-                    # Copy accompanying files (NFOs, subtitles)
-                    source_dir = dest_dir_outbox if transfer_successful else temp_dir
-                    for f in os.listdir(source_dir):
-                        f_path = os.path.join(source_dir, f)
-                        if os.path.isfile(f_path) and f != target_filename:
-                            poster_names, backdrop_names = _get_movie_artwork_lists(settings, target_filename)
-                            if f.startswith(clean_base) or f in poster_names or f in backdrop_names:
-                                shutil.copy2(f_path, os.path.join(local_dest_dir, f))
+                        # Copy accompanying files (NFOs, subtitles)
+                        source_dir = dest_dir_outbox if transfer_successful else temp_dir
+                        for f in os.listdir(source_dir):
+                            f_path = os.path.join(source_dir, f)
+                            if os.path.isfile(f_path) and f != target_filename:
+                                poster_names, backdrop_names = _get_movie_artwork_lists(settings, target_filename)
+                                if f.startswith(clean_base) or f in poster_names or f in backdrop_names:
+                                    shutil.copy2(f_path, os.path.join(local_dest_dir, f))
 
-                    # Copy show-level files for series
-                    if metadata_mode == "tv" and show_id and dest_show_dir_outbox and os.path.isdir(dest_show_dir_outbox):
-                        local_show_dir = os.path.join(local_destination_path, clean_show_name)
-                        os.makedirs(local_show_dir, exist_ok=True)
-                        meta_files = _get_series_meta_files(settings)
-                        for f in meta_files:
-                            src = os.path.join(dest_show_dir_outbox, f)
-                            if os.path.exists(src):
-                                dest_f = os.path.join(local_show_dir, f)
-                                if os.path.exists(dest_f):
-                                    log_message(f"Serien-Metadatei existiert bereits im lokalen Zielordner und wird nicht überschrieben: {f}")
-                                else:
-                                    shutil.copy2(src, dest_f)
+                        # Copy show-level files for series
+                        if metadata_mode == "tv" and show_id and dest_show_dir_outbox and os.path.isdir(dest_show_dir_outbox):
+                            local_show_dir = os.path.join(local_destination_path, clean_show_name)
+                            os.makedirs(local_show_dir, exist_ok=True)
+                            meta_files = _get_series_meta_files(settings)
+                            for f in meta_files:
+                                src = os.path.join(dest_show_dir_outbox, f)
+                                if os.path.exists(src):
+                                    dest_f = os.path.join(local_show_dir, f)
+                                    if os.path.exists(dest_f):
+                                        log_message(f"Serien-Metadatei existiert bereits im lokalen Zielordner und wird nicht überschrieben: {f}")
+                                    else:
+                                        shutil.copy2(src, dest_f)
 
-                    log_message(f"  ✅ Erfolgreich in lokalen Ordner kopiert: {local_dest_dir}")
-                    update_task_pipeline_status(task_id, "local", "done", 100)
+                        log_message(f"  ✅ Erfolgreich in lokalen Ordner kopiert: {local_dest_dir}")
+                        update_task_pipeline_status(task_id, "local", "done", 100)
 
-                    # Open local folder if setting is enabled
-                    if settings.get("open_outbox_finder"):
-                        open_folder_in_finder(local_dest_dir)
-                except Exception as e:
-                    log_message(f"  ❌ Fehler beim Kopieren in lokalen Ordner: {e}")
-                    update_task_pipeline_status(task_id, "local", "error", 0)
-                    all_transfers_successful = False
+                        # Open local folder if setting is enabled
+                        if settings.get("open_outbox_finder"):
+                            open_folder_in_finder(local_dest_dir)
+                    except Exception as e:
+                        log_message(f"  ❌ Fehler beim Kopieren in lokalen Ordner: {e}")
+                        update_task_pipeline_status(task_id, "local", "error", 0)
+                        all_transfers_successful = False
 
             # Clean up temp folder OR open it on failure
             if not copy_to_nas or all_transfers_successful:

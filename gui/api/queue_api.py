@@ -687,7 +687,32 @@ def handle_api_queue_retry():
     provider = job_params.get("provider")
     has_metadata = (show_id and provider) or (movie_id and provider)
 
-    new_pipeline = build_job_pipeline(job_params, has_metadata, convert)
+    ref_pipeline = build_job_pipeline(job_params, has_metadata, convert)
+    old_pipeline = job.get("pipeline", {})
+    new_pipeline = {}
+    for step_key, ref_val in ref_pipeline.items():
+        old_step = old_pipeline.get(step_key, {})
+        if old_step.get("status") == "done":
+            new_pipeline[step_key] = {
+                "status": "done",
+                "progress": 100
+            }
+        elif old_step.get("status") == "skipped":
+            new_pipeline[step_key] = {
+                "status": "skipped",
+                "progress": 0
+            }
+        else:
+            if ref_val.get("status") == "skipped":
+                new_pipeline[step_key] = {
+                    "status": "skipped",
+                    "progress": 0
+                }
+            else:
+                new_pipeline[step_key] = {
+                    "status": "pending",
+                    "progress": 0
+                }
 
     # Zurücksetzen auf initialen Warteschlangen-Zustand
     update_job(
