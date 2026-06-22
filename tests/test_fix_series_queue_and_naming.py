@@ -192,8 +192,8 @@ class TestFixSeriesQueueAndNaming(unittest.TestCase):
         renames = data["renames"]
         self.assertEqual(len(renames), 2)
         new_names = [r["new"] for r in renames]
-        self.assertIn("Serengeti - S03E01 - Serengeti Tag 1.mp4", new_names)
-        self.assertIn("Serengeti - S03E02 - Serengeti Tag 2.mp4", new_names)
+        self.assertIn("Serengeti - S03E01 - Tag 1.mp4", new_names)
+        self.assertIn("Serengeti - S03E02 - Tag 2.mp4", new_names)
 
     @patch("gui.workers.processor.threading.Thread")
     @patch("gui.workers.processor.os.rename")

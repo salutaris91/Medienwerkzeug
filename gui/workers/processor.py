@@ -1228,6 +1228,7 @@ def process_worker(params):
                     ep_num = abs_num
 
                 ep_title = sanitize_filename(ep_title)
+                ep_title = clean_episode_title_for_filename(clean_show_name, ep_title)
 
                 # Format: Show Name - SxxExx - Title.ext
                 ext = os.path.splitext(filename)[1].lower()

@@ -362,6 +362,7 @@ def handle_api_preview_process():
                         curr_ep_num = abs_num
 
                     ep_title = sanitize_filename(ep_title)
+                    ep_title = clean_episode_title_for_filename(clean_show_name, ep_title)
 
                     try:
                         season_str = f"S{int(curr_season):02d}"

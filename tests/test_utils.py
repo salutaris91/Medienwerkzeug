@@ -97,6 +97,18 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         self.assertEqual(server.clean_series_name_for_fs(""), "")
         self.assertEqual(server.clean_series_name_for_fs(None), "")
 
+    def test_clean_episode_title_for_filename(self):
+        from gui.core.helpers import clean_episode_title_for_filename
+        self.assertEqual(clean_episode_title_for_filename("Serengeti", "Serengeti - Wilde Geschichten"), "Wilde Geschichten")
+        self.assertEqual(clean_episode_title_for_filename("Serengeti", "Serengeti: Wilde Geschichten"), "Wilde Geschichten")
+        self.assertEqual(clean_episode_title_for_filename("Serengeti", "Serengeti Tag 1"), "Tag 1")
+        self.assertEqual(clean_episode_title_for_filename("Serengeti", "Serengetis Löwen"), "Serengetis Löwen")
+        self.assertEqual(clean_episode_title_for_filename("Entdeckung der Welt (Natur und Tiere) - Serengeti", "Serengeti - Wilde Geschichten"), "Wilde Geschichten")
+        self.assertEqual(clean_episode_title_for_filename("", "Serengeti"), "Serengeti")
+        self.assertEqual(clean_episode_title_for_filename("Serengeti", ""), "")
+        self.assertEqual(clean_episode_title_for_filename(None, "Serengeti"), "Serengeti")
+        self.assertEqual(clean_episode_title_for_filename("Serengeti", None), "")
+
     def test_filename_sanitization_and_length_limit(self):
         from gui import server
         self.assertEqual(server.sanitize_filename("A - B: C"), "A - B - C")
