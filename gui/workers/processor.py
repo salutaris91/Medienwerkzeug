@@ -1267,8 +1267,16 @@ def process_worker(params):
                     if manifest_target_filename and manifest_dest_dir:
                         manifest_target_path = os.path.join(manifest_dest_dir, manifest_target_filename)
                         manifest_conv_path = os.path.join(manifest_dest_dir, os.path.splitext(manifest_target_filename)[0] + ".mkv")
-                        if os.path.exists(manifest_target_path) or os.path.exists(manifest_conv_path):
+                        if os.path.exists(manifest_target_path):
                             manifest_file_exists = True
+                            dest_dir_outbox = manifest_dest_dir
+                            target_filename = manifest_target_filename
+                            clean_title = manifest_entry.get("clean_title", clean_title)
+                        elif os.path.exists(manifest_conv_path):
+                            manifest_file_exists = True
+                            dest_dir_outbox = manifest_dest_dir
+                            target_filename = os.path.splitext(manifest_target_filename)[0] + ".mkv"
+                            clean_title = manifest_entry.get("clean_title", clean_title)
 
                 file_already_in_outbox = os.path.exists(outbox_target) or os.path.exists(outbox_conv) or manifest_file_exists
 
@@ -2453,9 +2461,20 @@ def process_worker(params):
                 clean_base = entry.get("clean_title", os.path.splitext(filename)[0])
 
                 transfer_successful = False
-                if should_bypass and dest_dir_outbox and os.path.exists(os.path.join(dest_dir_outbox, target_filename)):
-                    log_message(f"Bypassing processing for {target_filename} as it already exists in outbox.")
-                    transfer_successful = True
+                if should_bypass and dest_dir_outbox:
+                    target_path = os.path.join(dest_dir_outbox, target_filename)
+                    conv_path = os.path.join(dest_dir_outbox, os.path.splitext(target_filename)[0] + ".mkv")
+                    if os.path.exists(target_path):
+                        log_message(f"Bypassing processing for {target_filename} as it already exists in outbox.")
+                        transfer_successful = True
+                    elif os.path.exists(conv_path):
+                        target_filename = os.path.splitext(target_filename)[0] + ".mkv"
+                        log_message(f"Bypassing processing for {target_filename} (converted version) as it already exists in outbox.")
+                        transfer_successful = True
+
+                if transfer_successful:
+                    # Do nothing
+                    pass
                 else:
                     filepath = os.path.join(temp_dir, filename)
                     ext = os.path.splitext(filename)[1].lower()

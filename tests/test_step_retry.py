@@ -476,3 +476,153 @@ class TestStepRetry(unittest.TestCase):
 
         # Since the file was missing from outbox, the worker MUST run yt-dlp to download it again
         mock_ytdlp.assert_called_once()
+
+    @patch("gui.workers.processor.mw_metadata.generate_tvshow_nfo")
+    @patch("gui.workers.processor.mw_metadata.fetch_tvdb")
+    @patch("gui.workers.processor.run_rsync_with_progress")
+    @patch("gui.workers.processor.ensure_nas_mounted")
+    def test_tv_show_retry_overrides_paths_from_manifest(self, mock_nas_mounted, mock_rsync, mock_fetch_tvdb, mock_tvshow_nfo):
+        """test_tv_show_retry_overrides_paths_from_manifest: Verifies that TV show retry uses dest_dir_outbox, clean_title and target_filename from the manifest, even if the recalculation produces different results."""
+        mock_nas_mounted.return_value = True
+        mock_rsync.return_value = True
+        mock_fetch_tvdb.return_value = {
+            "1": {"title": "Recalculated Episode Title"}  # Different title
+        }
+
+        # Setup folders
+        show_dir = os.path.join(self.inbox_dir, "MyShow")
+        os.makedirs(show_dir, exist_ok=True)
+        # Episode 1 is in inbox
+        ep1_file = os.path.join(show_dir, "video1.mp4")
+        with open(ep1_file, "w") as f:
+            f.write("video1 content")
+
+        # The manifest points to a different title and directory than recalculated
+        manifest_outbox_dir = os.path.join(self.outbox_dir, "Serien", "MyShow", "Staffel 1", "MyShow - S01E01 - Original Title")
+        os.makedirs(manifest_outbox_dir, exist_ok=True)
+        manifest_file = os.path.join(manifest_outbox_dir, "MyShow - S01E01 - Original Title.mp4")
+        with open(manifest_file, "w") as f:
+            f.write("original file content")
+
+        # Setup job and pipeline state
+        job_id = "tv-show-path-override-job"
+        pipeline = {
+            "metadata": {"status": "done", "progress": 100},
+            "convert": {"status": "done", "progress": 100},
+            "nas": {"status": "error", "progress": 50}
+        }
+        params = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "show_id": "123",
+            "provider": "tvdb",
+            "season": "1",
+            "convert": False,
+            "copy_to_nas": True,
+            "mappings": {
+                "video1.mp4": 1
+            },
+            "project_name": "MyShow",
+            "task_id": job_id
+        }
+        manifest = {
+            "video1.mp4": {
+                "target_filename": "MyShow - S01E01 - Original Title.mp4",
+                "dest_dir_outbox": manifest_outbox_dir,
+                "clean_title": "MyShow - S01E01 - Original Title",
+                "season": 1,
+                "episode": 1
+            }
+        }
+
+        self.jobs.create_job(job_id, "TV Show", "tv", params, pipeline=pipeline, status="queued")
+        self.jobs.update_job(job_id, manifest=manifest, status="error")
+
+        # Retry
+        res = self._post("/api/queue/retry", {"task_id": job_id})
+        self.assertEqual(res.status_code, 200)
+
+        # Run worker
+        from gui.workers.processor import process_worker
+        updated_job = self.jobs.get_job(job_id)
+        params_with_dir = updated_job["params"].copy()
+        params_with_dir["current_dir"] = show_dir
+        
+        process_worker(params_with_dir)
+
+        # Check that rsync was called with the path from the MANIFEST, not the recalculated path
+        # Recalculated path would have had 'Recalculated Episode Title' in it.
+        # Manifest path has 'Original Title'.
+        self.assertEqual(mock_rsync.call_count, 1)
+        args, kwargs = mock_rsync.call_args
+        src_arg = args[0]
+        self.assertIn("Original Title", src_arg)
+        self.assertNotIn("Recalculated", src_arg)
+
+    @patch("gui.workers.processor.run_ytdlp_with_progress")
+    @patch("gui.workers.processor.run_rsync_with_progress")
+    @patch("gui.workers.processor.ensure_nas_mounted")
+    def test_youtube_retry_manifest_with_converted_mkv(self, mock_nas_mounted, mock_rsync, mock_ytdlp):
+        """test_youtube_retry_manifest_with_converted_mkv: Tests YouTube retry when download is already done and converted to .mkv, validating that bypass is active and the .mkv filename is copied to the NAS."""
+        mock_nas_mounted.return_value = True
+        mock_rsync.return_value = True
+
+        outbox_show_dir = os.path.join(self.outbox_dir, "Serien", "MyShow", "Staffel 1", "MyShow - S01E01 - Ep1")
+        os.makedirs(outbox_show_dir, exist_ok=True)
+        # Only the converted .mkv version exists in outbox, the original .mp4 from manifest is missing
+        ep1_outbox_mkv = os.path.join(outbox_show_dir, "MyShow - S01E01 - Ep1.mkv")
+        with open(ep1_outbox_mkv, "w") as f:
+            f.write("converted video content")
+
+        job_id = "yt-mkv-retry-job"
+        pipeline = {
+            "metadata": {"status": "done", "progress": 100},
+            "convert": {"status": "skipped", "progress": 0},
+            "nas": {"status": "error", "progress": 0}
+        }
+        params = {
+            "media_type": "youtube",
+            "metadata_mode": "tv",
+            "show_name": "MyShow",
+            "show_id": "123",
+            "provider": "tvdb",
+            "season": "1",
+            "episode": "1",
+            "yt_url": "https://youtube.com/watch?v=123",
+            "yt_urls": ["https://youtube.com/watch?v=123"],
+            "url": "https://youtube.com/watch?v=123",
+            "copy_to_nas": True,
+            "task_id": job_id,
+            "destination_id": "2"
+        }
+        manifest = {
+            "video1.mp4": {
+                "target_filename": "MyShow - S01E01 - Ep1.mp4",  # Original extension is .mp4
+                "dest_dir_outbox": outbox_show_dir,
+                "clean_title": "MyShow - S01E01 - Ep1",
+                "season": 1,
+                "episode": 1
+            }
+        }
+
+        self.jobs.create_job(job_id, "YouTube Show", "youtube", params, pipeline=pipeline, status="queued")
+        self.jobs.update_job(job_id, manifest=manifest, status="error")
+
+        # Retry
+        res = self._post("/api/queue/retry", {"task_id": job_id})
+        self.assertEqual(res.status_code, 200)
+
+        # Run worker
+        from gui.workers.processor import process_worker
+        updated_job = self.jobs.get_job(job_id)
+        process_worker(updated_job["params"])
+
+        # Check outcomes:
+        # 1. yt-dlp should NOT be called since the .mkv file in outbox makes the bypass valid
+        mock_ytdlp.assert_not_called()
+
+        # 2. Rsync must be called with the .mkv file path
+        mock_rsync.assert_called_once()
+        args, kwargs = mock_rsync.call_args
+        src_arg = args[0]
+        self.assertTrue(src_arg.endswith(".mkv"), f"Expected src to end with .mkv, got {src_arg}")
