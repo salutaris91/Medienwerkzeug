@@ -17,7 +17,7 @@ Implementierung einer automatischen und manuellen Quarantäne- und Papierkorb-Le
 
 > [!IMPORTANT]
 > **Sicherheits- und Berechtigungsgrenzen (Symlinks & Verzeichnisse):**
-> - Ein Symlink im Trash, der auf ein externes Verzeichnis verweist (z. B. `/outside`), darf beim Löschen **nicht** aufgelöst werden (kein `realpath` on dem Symlink selbst), da dies sonst den externen Pfad löschen würde. 
+> - Ein Symlink im Trash, der auf ein externes Verzeichnis verweist (z. B. `/outside`), darf beim Löschen **nicht** aufgelöst werden (kein `realpath` an dem Symlink selbst), da dies sonst den externen Pfad löschen würde. 
 > - Stattdessen wird der Pfad des Symlinks selbst per `abspath` und `commonpath` gegen den Trash-Ordner validiert und anschließend direkt mit `os.unlink` (bzw. `os.remove`) entfernt.
 > - Echte Verzeichnisse werden per `os.path.realpath` validiert und mittels `shutil.rmtree` gelöscht (mit Deaktivierung von Symlink-Verfolgungen während der Rekursion).
 
