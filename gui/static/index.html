@@ -1315,6 +1315,61 @@
                                 </div>
                             </div>
                         </div>
+
+                        <hr style="border-color: var(--border-light); margin: 25px 0;">
+
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <span class="form-label-style">Papierkorb & Quarantäne (Docker):</span>
+                            <p style="font-size: 0.9em; color: var(--text-muted); margin-bottom: 15px;">
+                                Steuert die automatische und manuelle Bereinigung des Anwendungs-Papierkorbs (`.medienwerkzeug-trash`).
+                            </p>
+
+                            <!-- Settings -->
+                            <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
+                                <label class="checkbox-container" for="settings-trash-auto-empty">
+                                    <input type="checkbox" id="settings-trash-auto-empty">
+                                    <span class="checkmark"></span> Automatische Bereinigung aktivieren
+                                </label>
+
+                                <div style="display: flex; align-items: center; gap: 10px; padding-left: 28px;">
+                                    <label for="settings-trash-retention-days" style="font-size: 0.9em;">Elemente aufbewahren für:</label>
+                                    <input type="number" id="settings-trash-retention-days" min="0" value="7" style="width: 70px; padding: 4px 8px; background: var(--bg-surface); border: 1px solid var(--border-light); border-radius: 4px; color: var(--text);">
+                                    <span style="font-size: 0.9em; color: var(--text-muted);">Tage</span>
+                                </div>
+                            </div>
+
+                            <!-- Actions & Stats -->
+                            <div style="background: var(--bg-surface-2); border: 1px solid var(--border-light); border-radius: 6px; padding: 15px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                                    <div>
+                                        <div style="font-weight: 500; font-size: 0.95em; margin-bottom: 4px;">Aktueller Status:</div>
+                                        <div id="trash-stats-text" style="font-size: 0.9em; color: var(--text-muted);">
+                                            Lade Papierkorb-Statistiken...
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; gap: 10px;">
+                                        <button id="btn-trash-probe" class="btn btn-secondary btn-sm" type="button">🔍 Prüfen</button>
+                                        <button id="btn-trash-cleanup" class="btn btn-danger btn-sm" type="button">🗑️ Abgelaufene jetzt löschen</button>
+                                    </div>
+                                </div>
+
+                                <!-- Stuck Warning -->
+                                <div id="trash-stuck-warning" class="alert alert-warning hidden" style="margin-top: 15px; font-size: 0.85em; padding: 10px 15px; border-radius: 4px; display: flex; align-items: center; gap: 10px; background: rgba(243, 156, 18, 0.15); border: 1px solid rgba(243, 156, 18, 0.3); color: #f39c12;">
+                                    ⚠️ <span>Löschvorgang läuft ungewöhnlich lange. Möglicherweise blockiert ein Netzwerk-Mount.</span>
+                                </div>
+
+                                <!-- Progress bar / detailed status -->
+                                <div id="trash-cleanup-progress" class="hidden" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-light);">
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.85em; margin-bottom: 6px;">
+                                        <span id="trash-cleanup-status-title" style="font-weight: 500;">Bereinigung läuft...</span>
+                                        <span id="trash-cleanup-status-info" style="color: var(--text-muted);">0 gelöscht</span>
+                                    </div>
+                                    <div style="width: 100%; height: 6px; background: var(--bg-surface); border-radius: 3px; overflow: hidden;">
+                                        <div id="trash-cleanup-progress-bar" style="width: 0%; height: 100%; background: var(--accent); transition: width 0.3s;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- TAB 3: NOTIFICATIONS -->
@@ -2552,6 +2607,25 @@ group_add:
                 <div id="login-error-message" class="hidden" style="color: #ef4444; font-size: 0.85em; text-align: left;"></div>
                 <button type="submit" class="btn btn-accent btn-lg" style="width: 100%; justify-content: center; font-weight: 600;">🔓 Anmelden</button>
             </form>
+        </div>
+    </div>
+    <!-- Modal: Trash Preview (Dry Run) -->
+    <div id="modal-trash-preview" class="mw-modal-overlay">
+        <div class="mw-modal" style="max-width: 700px; display: flex; flex-direction: column; padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-glass); background: rgba(30, 30, 45, 0.95); backdrop-filter: blur(10px); box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-light); padding-bottom: 12px; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: var(--text-main);">🗑️ Papierkorb-Prüfung (Vorschau)</h3>
+                <span class="close-modal" id="close-modal-trash-preview" style="cursor: pointer; font-size: 1.5em; color: var(--text-muted);">&times;</span>
+            </div>
+            <p class="text-muted" style="margin-top: 0; margin-bottom: 16px; font-size: 0.9em;">
+                Die folgenden abgelaufenen Dateien und Verzeichnisse würden bei einer Bereinigung endgültig gelöscht:
+            </p>
+            <div id="trash-preview-list" style="max-height: 350px; overflow-y: auto; background: var(--bg-surface); border: 1px solid var(--border-light); border-radius: 4px; padding: 12px; font-family: monospace; font-size: 0.85em; margin-bottom: 20px; white-space: pre-wrap; word-break: break-all; color: var(--text-muted);">
+                Keine abgelaufenen Elemente gefunden.
+            </div>
+            <div class="mw-modal-actions" style="display: flex; justify-content: flex-end; gap: 12px;">
+                <button class="mw-modal-btn mw-modal-btn-cancel" id="btn-trash-preview-cancel" type="button">Schließen</button>
+                <button class="mw-modal-btn mw-modal-btn-confirm" id="btn-trash-preview-confirm" style="background: var(--red); color: white;" type="button">🗑️ Abgelaufene jetzt löschen</button>
+            </div>
         </div>
     </div>
 

@@ -224,3 +224,50 @@ def get_runtime_capabilities():
             "safe_delete": True
         }
     }
+
+def get_allowed_roots(check_exists=True):
+    settings = load_settings()
+    roots = []
+    
+    def add_root(p):
+        if p and isinstance(p, str):
+            p = p.strip()
+            if p:
+                try:
+                    roots.append(os.path.realpath(os.path.expanduser(p)))
+                except Exception:
+                    pass
+
+    add_root(settings.get("inbox_dir"))
+    add_root(settings.get("outbox_dir"))
+    add_root(settings.get("nas_root"))
+    
+    for t in settings.get("storage_targets", []):
+        if isinstance(t, dict):
+            add_root(t.get("root_path") or t.get("path"))
+            
+    for s in settings.get("import_sources", []):
+        if isinstance(s, str):
+            add_root(s)
+        elif isinstance(s, dict):
+            add_root(s.get("path"))
+            
+    for f in settings.get("local_download_folders", []):
+        if isinstance(f, str):
+            add_root(f)
+        elif isinstance(f, dict):
+            add_root(f.get("path"))
+            
+    # Remove duplicates and return directories
+    unique_roots = []
+    for r in roots:
+        if r not in unique_roots:
+            if not check_exists:
+                unique_roots.append(r)
+            else:
+                try:
+                    if os.path.exists(r):
+                        unique_roots.append(r)
+                except Exception:
+                    pass
+    return unique_roots

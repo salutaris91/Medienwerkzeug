@@ -851,3 +851,52 @@ def handle_api_settings_password():
         from flask import session
         session.pop('auth_version', None)
         return jsonify({"status": "success", "message": "Passwort erfolgreich entfernt."})
+
+@system_api.route('/system/trash/stats', methods=['GET'])
+def handle_api_trash_stats():
+    from flask import request
+    from gui.core.trash import get_trash_stats, TrashError
+    force = request.args.get("force_refresh", "false").lower() == "true"
+    try:
+        stats = get_trash_stats(force_refresh=force)
+        return jsonify(stats)
+    except TrashError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": f"Unerwarteter Fehler beim Abrufen der Quarantäne-Statistik: {e}"}), 500
+
+@system_api.route('/system/trash/cleanup-status', methods=['GET'])
+def handle_api_trash_cleanup_status():
+    from gui.core.trash import TRASH_CLEANUP_STATUS
+    return jsonify(TRASH_CLEANUP_STATUS)
+
+@system_api.route('/system/trash/cleanup', methods=['POST'])
+def handle_api_trash_cleanup():
+    from flask import request
+    from gui.core.trash import empty_trash_async, TRASH_CLEANUP_STATUS, TrashError
+    
+    # Concurrency check
+    if TRASH_CLEANUP_STATUS["running"]:
+        return jsonify({"status": "already_running", "message": "Ein Bereinigungslauf ist bereits aktiv."}), 409
+        
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+        
+    dry_run = params.get("dry_run", False)
+    retention = params.get("retention_days")
+    if retention is not None:
+        try:
+            retention = int(retention)
+        except ValueError:
+            return jsonify({"error": "retention_days muss ein Integer sein"}), 400
+            
+    try:
+        result = empty_trash_async(retention_days=retention, dry_run=dry_run)
+        return jsonify(result)
+    except TrashError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Fehler bei der Bereinigung: {e}"}), 500
+
