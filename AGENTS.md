@@ -108,7 +108,7 @@ Vor diesen Aktionen stoppen, genau auflisten was betroffen ist, und auf explizit
 - Pushen nur auf ausdrückliche Nachfrage
 - Commit-Messages auf Englisch, knapp und im Imperativ (`add folder-size monitor`, nicht `added ...`)
 - Jede Commit-Message endet mit der tool-spezifischen Zeile:
-  `Co-Authored-By: Codex Opus 4.8 <noreply@anthropic.com>`
+  `Co-Authored-By: AI Coding Assistant <noreply@github.com>`
 
 ### Parallele Agents
 
