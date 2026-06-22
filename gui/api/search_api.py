@@ -821,34 +821,16 @@ def handle_api_series_detect():
             
         show_id = None
         provider = None
+        nfo_meta = {}
         
         for np in nfo_paths:
             if os.path.exists(np):
                 try:
-                    with open(np, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                        
-                    # Search for mw_provider and mw_showid
-                    import re
-                    m_prov = re.search(r'<mw_provider>(.*?)</mw_provider>', content)
-                    m_id = re.search(r'<mw_showid>(.*?)</mw_showid>', content)
-                    
-                    if m_prov and m_id:
-                        provider = m_prov.group(1).strip()
-                        show_id = m_id.group(1).strip()
-                        break
-                        
-                    # Fallback search for tvdbid or tmdbid
-                    m_tvdb = re.search(r'<tvdbid>(.*?)</tvdbid>', content)
-                    if m_tvdb:
-                        provider = "tvdb"
-                        show_id = m_tvdb.group(1).strip()
-                        break
-                        
-                    m_tmdb = re.search(r'<tmdbid>(.*?)</tmdbid>', content)
-                    if m_tmdb:
-                        provider = "tmdb_tv"
-                        show_id = m_tmdb.group(1).strip()
+                    from gui.core.nfo_helper import read_nfo_metadata
+                    nfo_meta = read_nfo_metadata(np)
+                    if nfo_meta.get("mw_provider") and nfo_meta.get("mw_showid"):
+                        provider = nfo_meta["mw_provider"]
+                        show_id = nfo_meta["mw_showid"]
                         break
                 except Exception as e:
                     log_message(f"⚠️ NFO-Datei konnte nicht gelesen werden: {np} ({e})")
@@ -860,7 +842,11 @@ def handle_api_series_detect():
                 "provider": provider,
                 "show_name": best_match,
                 "folder_found": folder_found,
-                "existing_seasons": existing_seasons
+                "existing_seasons": existing_seasons,
+                "title": nfo_meta.get("title"),
+                "year": nfo_meta.get("year"),
+                "plot": nfo_meta.get("plot"),
+                "mw_data": nfo_meta.get("mw_data")
             })
         else:
             return jsonify({

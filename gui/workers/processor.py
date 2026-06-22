@@ -143,6 +143,10 @@ def _handle_transfer_task(
     elif task_type == "show_metadata_nas_transfer":
         dest_show_dir_outbox = task["dest_show_dir_outbox"]
         dest_show_dir_nas = task["dest_show_dir_nas"]
+        provider = task.get("provider")
+        show_id = task.get("show_id")
+        source_url = task.get("source_url")
+        resolved_topic = task.get("resolved_topic")
 
         log_message(f"[Transfer Thread]: Kopiere Serien-Metadaten auf {dest_show_dir_nas}...")
         os.makedirs(dest_show_dir_nas, exist_ok=True)
@@ -154,6 +158,23 @@ def _handle_transfer_task(
                 p_dest = os.path.join(dest_show_dir_nas, f)
                 if os.path.exists(p_dest):
                     log_message(f"[Transfer Thread]: {f} existiert bereits. Wird nicht überschrieben.")
+                    if f == "tvshow.nfo" and provider and show_id:
+                        try:
+                            from gui.core.nfo_helper import update_nfo_mw_data, read_nfo_metadata
+                            outbox_meta = read_nfo_metadata(p_src)
+                            mw = outbox_meta.get("mw_data", {})
+                            final_url = source_url or mw.get("source_url")
+                            final_topic = resolved_topic or mw.get("resolved_topic")
+                            update_nfo_mw_data(
+                                p_dest,
+                                provider=provider,
+                                show_id=show_id,
+                                source_url=final_url,
+                                resolved_topic=final_topic
+                            )
+                            log_message(f"[Transfer Thread]: mw_data in {f} auf NAS aktualisiert.")
+                        except Exception as e:
+                            log_message(f"⚠️ [Transfer Thread]: Fehler beim Aktualisieren von mw_data in {f} auf NAS: {e}")
                 else:
                     shutil.copy(p_src, p_dest)
         log_message("[Transfer Thread]: Serien-Metadaten kopiert.")
@@ -1428,7 +1449,11 @@ def process_worker(params):
                     transfer_queue.put({
                         "type": "show_metadata_nas_transfer",
                         "dest_show_dir_outbox": dest_show_dir_outbox,
-                        "dest_show_dir_nas": dest_show_dir_target
+                        "dest_show_dir_nas": dest_show_dir_target,
+                        "provider": provider,
+                        "show_id": show_id,
+                        "source_url": params.get("source_url"),
+                        "resolved_topic": params.get("resolved_topic")
                     })
 
             # Queue all Cloud/third-party targets copies
@@ -2599,6 +2624,23 @@ def process_worker(params):
                                     p_dest = os.path.join(dest_show_dir_target, f)
                                     if os.path.exists(p_dest):
                                         log_message(f"Serien-Metadatei existiert bereits auf {target.get('name', t_id)} und wird nicht überschrieben: {f}")
+                                        if f == "tvshow.nfo" and provider and show_id:
+                                            try:
+                                                from gui.core.nfo_helper import update_nfo_mw_data, read_nfo_metadata
+                                                outbox_meta = read_nfo_metadata(p_src)
+                                                mw = outbox_meta.get("mw_data", {})
+                                                final_url = params.get("source_url") or mw.get("source_url")
+                                                final_topic = params.get("resolved_topic") or mw.get("resolved_topic")
+                                                update_nfo_mw_data(
+                                                    p_dest,
+                                                    provider=provider,
+                                                    show_id=show_id,
+                                                    source_url=final_url,
+                                                    resolved_topic=final_topic
+                                                )
+                                                log_message(f"mw_data in {f} auf {target.get('name', t_id)} aktualisiert.")
+                                            except Exception as e:
+                                                log_message(f"⚠️ Fehler beim Aktualisieren von mw_data in {f} auf {target.get('name', t_id)}: {e}")
                                     else:
                                         shutil.copy(p_src, p_dest)
                                         log_message(f"Serien-Metadatei auf {target.get('name', t_id)} kopiert: {f}")

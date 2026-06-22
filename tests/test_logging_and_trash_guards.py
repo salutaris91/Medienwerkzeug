@@ -268,4 +268,105 @@ def test_trash_guard_and_quarantine(tmp_path):
             os.environ.pop("MW_RUNTIME", None)
 
 
+def test_nfo_helper_read_metadata_and_mw_data(tmp_path):
+    from gui.core.nfo_helper import read_nfo_metadata, update_nfo_mw_data
+    nfo_file = tmp_path / "tvshow.nfo"
+    
+    # 1. Test empty / missing NFO
+    assert read_nfo_metadata(str(nfo_file)) == {}
+    
+    # 2. Test reading valid XML NFO
+    xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+<tvshow>
+  <title>Serengeti</title>
+  <year>2020</year>
+  <plot>Amazing documentary about nature.</plot>
+  <mw_provider>ytdlp</mw_provider>
+  <mw_showid>https://www.youtube.com/playlist?list=PL123</mw_showid>
+  <mw_data>
+    <provider>ytdlp</provider>
+    <show_id>https://www.youtube.com/playlist?list=PL123</show_id>
+    <source_url>https://www.youtube.com/playlist?list=PL123</source_url>
+    <resolved_topic>Serengeti</resolved_topic>
+    <last_sync>2026-06-22T07:00:00</last_sync>
+  </mw_data>
+</tvshow>
+"""
+    nfo_file.write_text(xml_content, encoding="utf-8")
+    meta = read_nfo_metadata(str(nfo_file))
+    
+    assert meta["title"] == "Serengeti"
+    assert meta["year"] == "2020"
+    assert meta["plot"] == "Amazing documentary about nature."
+    assert meta["mw_provider"] == "ytdlp"
+    assert meta["mw_showid"] == "https://www.youtube.com/playlist?list=PL123"
+    assert meta["mw_data"]["provider"] == "ytdlp"
+    assert meta["mw_data"]["source_url"] == "https://www.youtube.com/playlist?list=PL123"
+    assert meta["mw_data"]["resolved_topic"] == "Serengeti"
+    assert meta["mw_data"]["last_sync"] == "2026-06-22T07:00:00"
 
+    # 3. Test reading invalid XML (Regex Fallback)
+    invalid_xml = """<tvshow>
+  <title>Invalid XML Show
+  <mw_provider>mediathek</mw_provider>
+  <mw_showid>url_mediathek:Arte</mw_showid>
+  <mw_data>
+    <provider>mediathek</provider>
+    <source_url>http://arte.tv/show</source_url>
+    <resolved_topic>Arte</resolved_topic>
+  </mw_data>
+</tvshow>"""
+    nfo_file.write_text(invalid_xml, encoding="utf-8")
+    meta2 = read_nfo_metadata(str(nfo_file))
+    assert meta2["mw_provider"] == "mediathek"
+    assert meta2["mw_showid"] == "url_mediathek:Arte"
+    assert meta2["mw_data"]["source_url"] == "http://arte.tv/show"
+    assert meta2["mw_data"]["resolved_topic"] == "Arte"
+
+
+def test_nfo_helper_update_mw_data_strict(tmp_path):
+    from gui.core.nfo_helper import update_nfo_mw_data, read_nfo_metadata
+    nfo_file = tmp_path / "tvshow.nfo"
+    
+    # 1. Create a valid tvshow.nfo
+    xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+<tvshow>
+  <title>Serengeti</title>
+  <plot>Amazing nature.</plot>
+  <mw_provider>mediathek</mw_provider>
+  <mw_showid>url_mediathek:Serengeti</mw_showid>
+</tvshow>
+"""
+    nfo_file.write_text(xml_content, encoding="utf-8")
+    
+    # 2. Test successful update of mw_data
+    update_nfo_mw_data(
+        str(nfo_file), 
+        provider="mediathek", 
+        show_id="url_mediathek:Serengeti", 
+        source_url="https://www.arte.tv/serengeti", 
+        resolved_topic="Serengeti"
+    )
+    
+    meta = read_nfo_metadata(str(nfo_file))
+    assert meta["mw_data"]["provider"] == "mediathek"
+    assert meta["mw_data"]["source_url"] == "https://www.arte.tv/serengeti"
+    assert meta["mw_data"]["resolved_topic"] == "Serengeti"
+    assert meta["mw_data"]["last_sync"] is not None
+    # Verify title & plot did not change
+    assert meta["title"] == "Serengeti"
+    assert meta["plot"] == "Amazing nature."
+
+    # 3. Test strict validation: writing to invalid XML should raise Exception
+    nfo_file.write_text("<tvshow><title>Broken XML", encoding="utf-8")
+    with pytest.raises(ValueError, match="Original-XML fehlerhaft"):
+        update_nfo_mw_data(str(nfo_file), "mediathek", "url_mediathek:Serengeti")
+
+    # 4. Test manual provider filtering: ignore if no useful fields are there
+    valid_xml = "<tvshow><title>Manual Show</title><mw_provider>manual</mw_provider><mw_showid>JSON_DUMMY</mw_showid></tvshow>"
+    nfo_file.write_text(valid_xml, encoding="utf-8")
+    
+    # JSON-like show_id and no source_url/resolved_topic -> should skip writing mw_data
+    update_nfo_mw_data(str(nfo_file), "manual", '{"title": "JSON Show"}', source_url=None, resolved_topic=None)
+    meta_manual = read_nfo_metadata(str(nfo_file))
+    assert "mw_data" not in meta_manual or not meta_manual["mw_data"]
