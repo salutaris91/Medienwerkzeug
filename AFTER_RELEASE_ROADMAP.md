@@ -46,6 +46,7 @@ die aktive After-Release-Roadmap übernommen.
 | 37 | Docker-Schonmodus bei UI-Aktivität (Transfers drosseln) | geplant | klein–mittel |
 | 38 | Intelligente Pipeline-Parallelisierung bei langen Uploads | geplant | mittel |
 | 39 | Frontend-Resilienz: Double-Check bei vereinzelten 401-Fehlern | geplant | klein |
+| 40 | Mediathek-Episoden-Sync: Vorzeitiger Abbruch bei unauflösbaren URLs | geplant | klein |
 
 ---
 
@@ -1142,3 +1143,21 @@ Ein einzelnes 401 soll nicht mehr sofort zum Login-Screen führen, solange die S
 3. Meldet der Server `authenticated: false` → `showLoginScreen()`.
 4. Meldet der Server `authenticated: true` → den **ursprünglichen Request einmal wiederholen**, statt den Fehler still zu schlucken. Schlägt auch der Retry fehl, einen sichtbaren transienten Hinweis zeigen (kein stilles Scheitern — Hausregel).
 5. Offene Frage für die Umsetzung: `/api/auth/status` und der gescheiterte Originalrequest können legitim widersprechen (Session läuft dazwischen ab). Verhalten in diesem Grenzfall bewusst festlegen.
+
+---
+
+## 40. Mediathek-Episoden-Sync: Vorzeitiger Abbruch bei unauflösbaren URLs
+
+**Einordnung / Priorität:** Klein, funktionale Absicherung.
+
+**Problem:**
+Falls `resolve_mediathek_url_topic()` in `fetch_mediathek_episodes()` für eine URL `None` zurückliefert (weil die URL unauflösbar ist), läuft der Funktionskörper von `fetch_mediathek_episodes()` derzeit weiter. Dadurch wird die rohe URL (da `resolved is None` das `topic` nicht überschreibt) als Suchbegriff an MediathekViewWeb gesendet. Dies führt zu einer überflüssigen Netzwerkanfrage und liefert am Ende immer `{}` zurück.
+
+**Ziel:**
+Unnötige Netzwerkanfragen an die MediathekViewWeb-API bei unauflösbaren URLs vermeiden und den Fehlschlag strukturiert abbrechen und loggen.
+
+**Lösungsskizze:**
+In `gui/mw_metadata.py` innerhalb von `fetch_mediathek_episodes(topic)`:
+1. Wenn `topic` als URL erkannt wird:
+2. Rufen wir `resolved = resolve_mediathek_url_topic(topic)` auf.
+3. Ist `resolved is None` (Auflösung gescheitert), brechen wir die Funktion sofort ab (`return {}`) und geben eine entsprechende Warnmeldung im Log aus (`print(f"Skipping episode sync: URL {topic} could not be resolved to a topic", file=sys.stderr)`).
