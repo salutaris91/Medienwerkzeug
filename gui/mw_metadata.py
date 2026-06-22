@@ -1445,8 +1445,54 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
             return {"title": f"Folge {episode}", "plot": f"Fehler: {e}", "aired": ""}
     return {"title": f"Folge {episode}", "plot": "", "aired": ""}
 
-def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
+def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, source_url=None, resolved_topic=None):
     import os
+
+    def build_mw_data_xml(provider, show_id, title=None, source_url=None, resolved_topic=None):
+        import time
+        from xml.sax.saxutils import escape
+        
+        if provider == "manual":
+            has_url = source_url and source_url.strip() and not source_url.strip().startswith("{")
+            has_topic = resolved_topic and resolved_topic.strip()
+            is_id_json = show_id and (show_id.strip().startswith("{") or show_id.strip().startswith("["))
+            if not has_url and not has_topic and (not show_id or is_id_json):
+                return ""
+
+        final_source_url = source_url
+        final_resolved_topic = resolved_topic
+        final_show_id = show_id
+
+        if not final_source_url:
+            if provider == "ytdlp":
+                final_source_url = show_id
+            elif provider == "mediathek" and show_id and show_id.startswith("http"):
+                final_source_url = show_id
+                
+        if not final_resolved_topic:
+            if provider == "mediathek" and show_id:
+                if show_id.startswith("url_mediathek:"):
+                    final_resolved_topic = show_id.split("url_mediathek:", 1)[1]
+                else:
+                    final_resolved_topic = show_id
+            elif provider == "ytdlp":
+                final_resolved_topic = title or "YouTube/Mediathek Serie"
+
+        if provider == "manual" and final_show_id:
+            if final_show_id.strip().startswith("{") or final_show_id.strip().startswith("["):
+                final_show_id = None
+
+        mw_xml = "  <mw_data>\n"
+        mw_xml += f"    <provider>{escape(provider)}</provider>\n"
+        if final_show_id:
+            mw_xml += f"    <show_id>{escape(str(final_show_id))}</show_id>\n"
+        if final_source_url:
+            mw_xml += f"    <source_url>{escape(final_source_url)}</source_url>\n"
+        if final_resolved_topic:
+            mw_xml += f"    <resolved_topic>{escape(final_resolved_topic)}</resolved_topic>\n"
+        mw_xml += f"    <last_sync>{time.strftime('%Y-%m-%dT%H:%M:%S')}</last_sync>\n"
+        mw_xml += "  </mw_data>\n"
+        return mw_xml
 
     if provider == "manual":
         try:
@@ -1474,6 +1520,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         if year:
             xml += f"  <year>{escape_xml(year)}</year>\n"
         xml += "  <mw_provider>manual</mw_provider>\n"
+        xml += build_mw_data_xml("manual", show_id, title=title, source_url=source_url, resolved_topic=resolved_topic)
         xml += '</tvshow>\n'
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
@@ -1499,7 +1546,8 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         if year:
             xml += f"  <year>{escape_xml(year)}</year>\n"
         xml += f"  <mw_provider>mediathek</mw_provider>\n"
-        xml += f"  <mw_showid>{show_id}</mw_showid>\n"
+        xml += f"  <mw_showid>{escape_xml(show_id)}</mw_showid>\n"
+        xml += build_mw_data_xml("mediathek", show_id, title=title, source_url=source_url, resolved_topic=resolved_topic)
         xml += '</tvshow>\n'
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
@@ -1529,7 +1577,8 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         if year:
             xml += f"  <year>{year}</year>\n"
         xml += "  <mw_provider>ytdlp</mw_provider>\n"
-        xml += f"  <mw_showid>{show_id}</mw_showid>\n"
+        xml += f"  <mw_showid>{escape_xml(show_id)}</mw_showid>\n"
+        xml += build_mw_data_xml("ytdlp", show_id, title=title, source_url=source_url, resolved_topic=resolved_topic)
         xml += '</tvshow>\n'
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
@@ -1617,9 +1666,10 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
             for comp in data.get('companies', []):
                 if comp.get('name'):
                     xml += f"  <studio>{escape_xml(comp.get('name'))}</studio>\n"
-            xml += f"  <tvdbid>{show_id}</tvdbid>\n"
+            xml += f"  <tvdbid>{escape_xml(str(show_id))}</tvdbid>\n"
             xml += f"  <mw_provider>{provider}</mw_provider>\n"
-            xml += f"  <mw_showid>{show_id}</mw_showid>\n"
+            xml += f"  <mw_showid>{escape_xml(str(show_id))}</mw_showid>\n"
+            xml += build_mw_data_xml(provider, show_id, title=title, source_url=source_url, resolved_topic=resolved_topic)
             for g in data.get('genres', []):
                 xml += f"  <genre>{escape_xml(g.get('name', ''))}</genre>\n"
             for c in data.get('characters', [])[:15]:
@@ -1728,9 +1778,10 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None):
         for net in data.get('networks', []):
             if net.get('name'):
                 xml += f"  <studio>{escape_xml(net.get('name'))}</studio>\n"
-        xml += f"  <tmdbid>{show_id}</tmdbid>\n"
+        xml += f"  <tmdbid>{escape_xml(str(show_id))}</tmdbid>\n"
         xml += f"  <mw_provider>{provider}</mw_provider>\n"
-        xml += f"  <mw_showid>{show_id}</mw_showid>\n"
+        xml += f"  <mw_showid>{escape_xml(str(show_id))}</mw_showid>\n"
+        xml += build_mw_data_xml(provider, show_id, title=data.get('name', ''), source_url=source_url, resolved_topic=resolved_topic)
         for g in data.get('genres', []):
             xml += f"  <genre>{escape_xml(g.get('name', ''))}</genre>\n"
         for c in data.get('credits', {}).get('cast', [])[:15]:

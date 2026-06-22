@@ -1,9 +1,10 @@
-import { applyTheme } from './js/theme.js?v=71';
-import { cleanSeriesName } from './js/utils.js?v=71';
-import { formatBytes } from './js/format.js?v=71';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=71';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=71';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=71';
+import { applyTheme } from './js/theme.js?v=73';
+import { cleanSeriesName } from './js/utils.js?v=73';
+import { formatBytes } from './js/format.js?v=73';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=73';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=73';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=73';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=73';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -2726,7 +2727,11 @@ async function detectExistingSeries(projectName) {
                     id: data.show_id,
                     name: data.show_name || projectName,
                     provider: data.provider,
-                    loadedFromNfo: true
+                    loadedFromNfo: true,
+                    title: data.title,
+                    year: data.year,
+                    plot: data.plot,
+                    mw_data: data.mw_data
                 });
                 return;
             }
@@ -2763,7 +2768,11 @@ async function triggerSeriesMatchingFromFolder(folderName) {
                     id: data.show_id,
                     name: data.show_name || folderName,
                     provider: data.provider,
-                    loadedFromNfo: true
+                    loadedFromNfo: true,
+                    title: data.title,
+                    year: data.year,
+                    plot: data.plot,
+                    mw_data: data.mw_data
                 });
                 return;
             }
@@ -3067,24 +3076,42 @@ async function selectShow(show) {
     if (seriesNfoYear) seriesNfoYear.value = "";
     if (seriesNfoPlot) seriesNfoPlot.value = "Lade Metadaten...";
 
-    // Fetch and populate show NFO metadata (background thread, guarded)
-    fetch(`/api/metadata/fetch?media_type=tv&provider=${show.provider}&show_id=${show.id}`)
-        .then(res => {
-            if (currentRequestId !== selectShowRequestId) return null;
-            return res.json();
-        })
-        .then(data => {
-            if (!data || currentRequestId !== selectShowRequestId) return;
-            if (seriesNfoTitle && data.title) seriesNfoTitle.value = data.title;
-            if (seriesNfoYear && data.year) seriesNfoYear.value = data.year;
-            if (seriesNfoPlot) seriesNfoPlot.value = data.plot || "";
-        })
-        .catch(err => {
-            console.error("Error fetching show NFO preview:", err);
-            if (currentRequestId === selectShowRequestId && seriesNfoPlot) {
-                seriesNfoPlot.value = "";
-            }
-        });
+    const hasLocalMetadata = show.loadedFromNfo === true && (
+        (show.title && show.title.trim().length > 0) ||
+        (show.year && String(show.year).trim().length > 0) ||
+        (show.plot && show.plot.trim().length > 0)
+    );
+
+    if (hasLocalMetadata) {
+        if (seriesNfoTitle) seriesNfoTitle.value = show.title || "";
+        if (seriesNfoYear) seriesNfoYear.value = show.year || "";
+        if (seriesNfoPlot) seriesNfoPlot.value = show.plot || "";
+    } else {
+        // Fetch and populate show NFO metadata (background thread, guarded)
+        fetch(`/api/metadata/fetch?media_type=tv&provider=${encodeURIComponent(show.provider)}&show_id=${encodeURIComponent(show.id)}`)
+            .then(res => {
+                if (currentRequestId !== selectShowRequestId) return null;
+                return res.json();
+            })
+            .then(data => {
+                if (!data || currentRequestId !== selectShowRequestId) return;
+                if (seriesNfoTitle && data.title) seriesNfoTitle.value = data.title;
+                if (seriesNfoYear && data.year) seriesNfoYear.value = data.year;
+                if (seriesNfoPlot) seriesNfoPlot.value = data.plot || "";
+            })
+            .catch(err => {
+                console.error("Error fetching show NFO preview:", err);
+                if (currentRequestId === selectShowRequestId && seriesNfoPlot) {
+                    seriesNfoPlot.value = "";
+                }
+            });
+    }
+
+    // Safely update the mw_data UI panel
+    const mwDataContainer = document.getElementById("selected-show-mw-data");
+    const mwUrlSpan = document.getElementById("selected-show-mw-url");
+    const mwSyncSpan = document.getElementById("selected-show-mw-sync");
+    updateMwDataPanel(mwDataContainer, mwUrlSpan, mwSyncSpan, show.mw_data);
 
     // 1. Find folder on NAS (AWAIT)
     let nasFolder = cleanSeriesName(show.name);
@@ -3785,7 +3812,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
 
                 if (epPlotTextarea) epPlotTextarea.value = "Lade Metadaten...";
                 try {
-                    const response = await fetch(`/api/metadata/fetch?media_type=episode&provider=${selectedShow.provider}&show_id=${selectedShow.id}&season=${epSeason}&episode=${epNum}`);
+                    const response = await fetch(`/api/metadata/fetch?media_type=episode&provider=${encodeURIComponent(selectedShow.provider)}&show_id=${encodeURIComponent(selectedShow.id)}&season=${encodeURIComponent(epSeason)}&episode=${encodeURIComponent(epNum)}`);
                     if (response.ok) {
                         const data = await response.json();
                         const cacheKeys = Object.keys(fetchedEpisodeMetadataCache);
@@ -3968,7 +3995,7 @@ function selectMovie(movie) {
     if (movieNfoPlot) movieNfoPlot.value = "Lade Metadaten...";
 
     // Fetch and populate movie NFO metadata
-    fetch(`/api/metadata/fetch?media_type=movie&provider=${movie.provider}&movie_id=${movie.id}`)
+    fetch(`/api/metadata/fetch?media_type=movie&provider=${encodeURIComponent(movie.provider)}&movie_id=${encodeURIComponent(movie.id)}`)
         .then(res => res.json())
         .then(data => {
             if (movieNfoTitle && data.title) movieNfoTitle.value = data.title;
@@ -4144,7 +4171,8 @@ async function executeSeriesWorkflow() {
     }
     payload.nfo_overrides = nfoOverrides;
 
-    openPreviewModal(payload);
+    const finalPayload = prepareSeriesPayload(selectedShow, payload);
+    openPreviewModal(finalPayload);
 }
 
 async function executeMovieWorkflow() {
