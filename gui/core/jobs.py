@@ -70,7 +70,7 @@ def create_job(job_id, name, job_type, params, pipeline=None, status="queued"):
 
 def update_job(job_id, status=None, progress=None, message=None,
                pipeline_step=None, pipeline_status=None, pipeline_progress=None,
-               pipeline_message=None, pipeline=None):
+               pipeline_message=None, pipeline=None, manifest=None):
     """
     Updates a job's status, progress, or message.
     Updates the RAM state immediately. Throttles disk-writes for progress updates
@@ -100,6 +100,10 @@ def update_job(job_id, status=None, progress=None, message=None,
         if message is not None:
             job["message"] = message
 
+        if manifest is not None:
+            job["manifest"] = copy.deepcopy(manifest)
+            status_changed = True
+        
         if pipeline is not None:
             job["pipeline"] = copy.deepcopy(pipeline)
             status_changed = True
