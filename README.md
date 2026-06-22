@@ -241,7 +241,7 @@ Unter dem Einstellungs-Tab **"Speicher & Sync"** kannst du beliebig viele Speich
 > **❓-Symbol**, das beim Drüberfahren eine `rclone`-Kurzanleitung einblendet.
 
 ## Hauptfunktionen
-1. **Automatischer Metadaten-Abgleich:** Vollautomatische, fuzzy-gewichtete Suche auf TMDB und TVDB für Serien, Einzelepisoden, Filme und Dokumentationen mit intelligenter Namensbereinigung.
+1. **Automatischer Metadaten-Abgleich:** Vollautomatische, fuzzy-gewichtete Suche auf TMDB und TVDB für Serien, Einzelepisoden, Filme und Dokumentationen mit intelligenter Namensbereinigung. Für TV-Serien wird ein ID-basiertes Matching-Fallback (TMDB-/TVDB-IDs aus bestehenden `tvshow.nfo` auf dem NAS) genutzt, um Ordner-Splits und Fehlausrichtungen zu verhindern.
 2. **Klares Vorschau-System:** Detaillierte Vorschau aller geplanten Umbenennungen, Zielpfade (NAS & pCloud getrennt) sowie Junk-Dateien vor der Ausführung.
 3. **Einhaltung strenger Zielstrukturen:**
    * **Filme & Einzel-Dokus:** `[Kategorie-Unterpfad]/[Filmname (Jahr)]/` mit synchronisierten Covern (`poster.jpg` etc.).
@@ -252,14 +252,14 @@ Unter dem Einstellungs-Tab **"Speicher & Sync"** kannst du beliebig viele Speich
    * **NAS:** Robustes Übertragen durch lokale Container-Volumes (Docker) oder automatisches SMB-Mounten (macOS Desktop).
    * **pCloud:** Paralleler, performanter Upload via `rclone` (mit Echtzeit-Fortschritt).
 5. **Integriertes Einstellungs-Dashboard (⚙️):** Bequeme Verwaltung von globalen Pfaden, lokalen Importquellen und dynamischen Sync-Kategorien über die Weboberfläche.
-6. **Warteschlange & Persistenz:** Thread-sicheres Queue-System mit Speicherung des aktuellen Zustands. Abgebrochene Jobs können nach Server-Neustarts per Knopfdruck fortgesetzt werden.
+6. **Warteschlange & Persistenz:** Thread-sicheres Queue-System mit Speicherung des aktuellen Zustands. Abgebrochene Jobs können nach Server-Neustarts per Knopfdruck fortgesetzt werden. Fehlgeschlagene Jobs können wiederholt werden, wobei bereits erfolgreiche Pipeline-Schritte (wie z. B. Video-Konvertierungen) dank des persistenten Job-Manifests übersprungen werden (Teil-Retry).
 7. **Multi-Staffel-Verarbeitung:** Unterstützung für die gleichzeitige Zuordnung und Einsortierung von Episoden über mehrere Staffeln hinweg.
 8. **Native macOS Papierkorb-Integration:** Gelöschte Projektordner und Junk-Dateien werden sicher in den macOS-Papierkorb verschoben statt unwiderruflich gelöscht zu werden.
 9. **Wartungs-Werkzeug (Medienpfade bereinigen):** Komfortabler Scan und Bereinigung von Müll- und Junkdateien in den Arbeitsordnern mit automatischer Entfernung leerer Unterordner.
 10. **Optionale Online-Medien-Verarbeitung:** Einzelne YouTube- oder Mediathek-Links können über `yt-dlp` in bestehende, berechtigte Workflows eingebunden werden, sofern du die notwendigen Rechte an den Inhalten hast und die jeweiligen Plattformbedingungen einhältst.
 11. **Ordner-Zugriff & Autostart (📂):** Direktes Öffnen der Medienordner über native macOS Finder-Buttons (nur Desktop-Modus) oder eine sichere, integrierte Web-Ordneransicht (Docker-Modus).
 12. **Doubletten-Erkennung:** Automatischer Scan des NAS-Zielverzeichnisses nach bereits existierenden Episoden (Muster `SxxExx`) inklusive Anzeige von Auflösung und Dateigröße (via `ffprobe`) vor dem Starten.
-13. **Visualisierte Fortschritts-Pipeline:** Vierstufige Fortschrittsanzeige in Echtzeit (`[Metadaten] ➔ [Konvertierung] ➔ [NAS-Kopieren] ➔ [pCloud-Sync]`) mit Statussymbolen und Prozentsätzen pro Job.
+13. **Visualisierte Fortschritts-Pipeline:** Vierstufige Fortschrittsanzeige in Echtzeit (`[Metadaten] ➔ [Konvertierung] ➔ [NAS-Kopieren] ➔ [pCloud-Sync]`) mit Statussymbolen und Prozentsätzen pro Job. Bereits erfolgreiche Stufen eines Jobs werden bei einer Wiederholung (Retry) automatisch übersprungen (pragmatischer Step-Retry).
 14. **Multi-Kanal-Benachrichtigungen:** Statusbenachrichtigungen über macOS (AppleScript), Telegram (Bot-API) und WhatsApp (CallMeBot) bei Abschluss von Jobs ab einer konfigurierbaren GB-Größenschwelle.
 15. **Witz des Tages (Flachwitze):** Glassmorphe Modal-Einblendung beim App-Start und Jobabschluss (synchronisiert sich asynchron mit GitHub und bietet lokales Offline-Fallback).
 16. **Optionale YouTube-Beobachtung:** Dashboard zur Hintergrundprüfung von Kanälen/Playlists mit Suchfiltern, Zielkategorie-Zuweisung und optionaler manueller Freigabeliste.
@@ -270,6 +270,8 @@ Unter dem Einstellungs-Tab **"Speicher & Sync"** kannst du beliebig viele Speich
 21. **Media Health Dashboard (🔍):** Vollständiger Bibliotheks-Hintergrund-Scan über alle konfigurierten NAS-Kategorien hinweg zur Erkennung von fehlenden NFOs, fehlendem Artwork, Episodenlücken, Codec-Inkonsistenzen (ffprobe-Stichprobe), leeren Ordnern, verdächtig kleinen Videodateien, doppelt verschachtelten Filmordnern, kryptischen 8.3-Kurznamen, fehlendem Jahr im Ordnernamen, fehlender oder ungültiger FSK-Altersfreigabe und Ordner-/Dateiname-Mismatches. Quick-Fix-Buttons ermöglichen das direkte Auflösen von Verschachtelungen, Umbenennen (Ordner an Datei angleichen, Datei an Ordner angleichen oder freien Namen wählen) sowie das Setzen von FSK-Werten direkt in der NFO-Datei.
 22. **NAS-weite Duplikat-Erkennung (🗑️):** Hintergrund-Erkennung und Gruppierung doppelter Serien-Episoden auf dem gesamten NAS mit smarter Bewertung (HEVC > Auflösung > Dateigröße) zur Bestimmung der optimal zu behaltenden Version und Berechnung des rückgewinnbaren Speicherplatzes inklusive sicherem Löschdialog.
 23. **Vollständiger Untertitel-Support (📥):** Nahtlose Erkennung und Verarbeitung der Formate `.srt`, `.vtt`, `.ass`, `.ssa`, `.sub` und `.idx` (VobSub) inklusive Sprach- und Forced-Tag-Parsing. VobSub-Untertitelpärchen (`.sub`/`.idx`) werden intelligent miteinander gekoppelt, um eine konsistente Benennung und das gemeinsame Verschieben zu garantieren (auch innerhalb der Auffangregel).
+24. **Detaillierte Pro-Job-Logs & Sicherheit:** Jeder Job schreibt in eine eigene, persistente Logdatei (`data/logs/job-[task_id].log`) mit einer automatischen Aufbewahrungsfrist von 14 Tagen. Ein Löschschutz verhindert zudem das versehentliche Verschieben oder Löschen wichtiger Sidecar-Dateien (`tvshow.nfo`, `season.nfo`) auf dem NAS.
+25. **Robuste Mediathek-URL-Auflösung:** Zuverlässiges Scraping und Auflösen von Online-Mediathek-Links (z.B. ARD, ZDF) mit automatischer HTTP 308-Redirect-Kompensation und einer intelligenten Pfad-Heuristik zur Ermittlung des passenden Such-Topics, falls die Seite offline ist.
 
 ---
 
