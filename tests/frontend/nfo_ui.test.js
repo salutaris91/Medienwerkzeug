@@ -130,3 +130,39 @@ test('prepareSeriesPayload - without mw_data', () => {
     assert.strictEqual(payload.resolved_topic, undefined);
     assert.strictEqual(payload.mw_data, undefined);
 });
+
+test('updateMwDataPanel - with unsafe scheme source_url', () => {
+    const container = createMockElement(['hidden']);
+    const urlSpan = createMockElement(['hidden']);
+    const syncSpan = createMockElement(['hidden']);
+
+    const originalCreateTextNode = globalThis.document ? globalThis.document.createTextNode : null;
+    if (!globalThis.document) {
+        globalThis.document = {};
+    }
+    globalThis.document.createTextNode = (text) => {
+        return { textContent: text };
+    };
+
+    const mwData = {
+        source_url: "javascript:alert(1)",
+        last_sync: "2026-06-22T07:07:21"
+    };
+
+    try {
+        updateMwDataPanel(container, urlSpan, syncSpan, mwData);
+
+        assert.strictEqual(container.classList.contains("hidden"), false);
+        assert.strictEqual(urlSpan.classList.contains("hidden"), false);
+        assert.strictEqual(urlSpan.textContent, "Quell-URL: ");
+        assert.strictEqual(urlSpan.children.length, 1);
+        assert.strictEqual(urlSpan.children[0].textContent, "javascript:alert(1)");
+        assert.strictEqual(urlSpan.children[0].href, undefined);
+    } finally {
+        if (originalCreateTextNode) {
+            globalThis.document.createTextNode = originalCreateTextNode;
+        } else {
+            delete globalThis.document;
+        }
+    }
+});

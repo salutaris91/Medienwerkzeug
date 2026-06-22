@@ -3088,7 +3088,7 @@ async function selectShow(show) {
         if (seriesNfoPlot) seriesNfoPlot.value = show.plot || "";
     } else {
         // Fetch and populate show NFO metadata (background thread, guarded)
-        fetch(`/api/metadata/fetch?media_type=tv&provider=${show.provider}&show_id=${show.id}`)
+        fetch(`/api/metadata/fetch?media_type=tv&provider=${encodeURIComponent(show.provider)}&show_id=${encodeURIComponent(show.id)}`)
             .then(res => {
                 if (currentRequestId !== selectShowRequestId) return null;
                 return res.json();
@@ -3812,7 +3812,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
 
                 if (epPlotTextarea) epPlotTextarea.value = "Lade Metadaten...";
                 try {
-                    const response = await fetch(`/api/metadata/fetch?media_type=episode&provider=${selectedShow.provider}&show_id=${selectedShow.id}&season=${epSeason}&episode=${epNum}`);
+                    const response = await fetch(`/api/metadata/fetch?media_type=episode&provider=${encodeURIComponent(selectedShow.provider)}&show_id=${encodeURIComponent(selectedShow.id)}&season=${encodeURIComponent(epSeason)}&episode=${encodeURIComponent(epNum)}`);
                     if (response.ok) {
                         const data = await response.json();
                         const cacheKeys = Object.keys(fetchedEpisodeMetadataCache);
@@ -3995,7 +3995,7 @@ function selectMovie(movie) {
     if (movieNfoPlot) movieNfoPlot.value = "Lade Metadaten...";
 
     // Fetch and populate movie NFO metadata
-    fetch(`/api/metadata/fetch?media_type=movie&provider=${movie.provider}&movie_id=${movie.id}`)
+    fetch(`/api/metadata/fetch?media_type=movie&provider=${encodeURIComponent(movie.provider)}&movie_id=${encodeURIComponent(movie.id)}`)
         .then(res => res.json())
         .then(data => {
             if (movieNfoTitle && data.title) movieNfoTitle.value = data.title;

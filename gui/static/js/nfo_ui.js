@@ -9,15 +9,20 @@ export function updateMwDataPanel(container, urlSpan, syncSpan, mwData) {
                 urlSpan.textContent = "Quell-URL: ";
                 urlSpan.classList.remove("hidden");
                 
-                const link = document.createElement("a");
-                link.href = mwData.source_url;
-                link.textContent = mwData.source_url;
-                link.target = "_blank";
-                link.rel = "noopener noreferrer";
-                link.style.color = "var(--primary)";
-                link.style.textDecoration = "underline";
-                
-                urlSpan.appendChild(link);
+                const isHttp = mwData.source_url.startsWith("http://") || mwData.source_url.startsWith("https://");
+                if (isHttp) {
+                    const link = document.createElement("a");
+                    link.href = mwData.source_url;
+                    link.textContent = mwData.source_url;
+                    link.target = "_blank";
+                    link.rel = "noopener noreferrer";
+                    link.style.color = "var(--primary)";
+                    link.style.textDecoration = "underline";
+                    urlSpan.appendChild(link);
+                } else {
+                    const textNode = document.createTextNode(mwData.source_url);
+                    urlSpan.appendChild(textNode);
+                }
             } else {
                 urlSpan.classList.add("hidden");
                 urlSpan.textContent = "";
