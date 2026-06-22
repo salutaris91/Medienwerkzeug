@@ -1546,7 +1546,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
         if year:
             xml += f"  <year>{escape_xml(year)}</year>\n"
         xml += f"  <mw_provider>mediathek</mw_provider>\n"
-        xml += f"  <mw_showid>{show_id}</mw_showid>\n"
+        xml += f"  <mw_showid>{escape_xml(show_id)}</mw_showid>\n"
         xml += build_mw_data_xml("mediathek", show_id, title=title, source_url=source_url, resolved_topic=resolved_topic)
         xml += '</tvshow>\n'
         with open(nfo_path, 'w', encoding='utf-8') as f:
@@ -1577,7 +1577,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
         if year:
             xml += f"  <year>{year}</year>\n"
         xml += "  <mw_provider>ytdlp</mw_provider>\n"
-        xml += f"  <mw_showid>{show_id}</mw_showid>\n"
+        xml += f"  <mw_showid>{escape_xml(show_id)}</mw_showid>\n"
         xml += build_mw_data_xml("ytdlp", show_id, title=title, source_url=source_url, resolved_topic=resolved_topic)
         xml += '</tvshow>\n'
         with open(nfo_path, 'w', encoding='utf-8') as f:
@@ -1666,9 +1666,9 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
             for comp in data.get('companies', []):
                 if comp.get('name'):
                     xml += f"  <studio>{escape_xml(comp.get('name'))}</studio>\n"
-            xml += f"  <tvdbid>{show_id}</tvdbid>\n"
+            xml += f"  <tvdbid>{escape_xml(str(show_id))}</tvdbid>\n"
             xml += f"  <mw_provider>{provider}</mw_provider>\n"
-            xml += f"  <mw_showid>{show_id}</mw_showid>\n"
+            xml += f"  <mw_showid>{escape_xml(str(show_id))}</mw_showid>\n"
             xml += build_mw_data_xml(provider, show_id, title=title, source_url=source_url, resolved_topic=resolved_topic)
             for g in data.get('genres', []):
                 xml += f"  <genre>{escape_xml(g.get('name', ''))}</genre>\n"
@@ -1778,9 +1778,9 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
         for net in data.get('networks', []):
             if net.get('name'):
                 xml += f"  <studio>{escape_xml(net.get('name'))}</studio>\n"
-        xml += f"  <tmdbid>{show_id}</tmdbid>\n"
+        xml += f"  <tmdbid>{escape_xml(str(show_id))}</tmdbid>\n"
         xml += f"  <mw_provider>{provider}</mw_provider>\n"
-        xml += f"  <mw_showid>{show_id}</mw_showid>\n"
+        xml += f"  <mw_showid>{escape_xml(str(show_id))}</mw_showid>\n"
         xml += build_mw_data_xml(provider, show_id, title=data.get('name', ''), source_url=source_url, resolved_topic=resolved_topic)
         for g in data.get('genres', []):
             xml += f"  <genre>{escape_xml(g.get('name', ''))}</genre>\n"

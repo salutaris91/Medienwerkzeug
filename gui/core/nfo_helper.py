@@ -192,6 +192,14 @@ def read_nfo_metadata(nfo_path):
                     mw_data[subtag] = m_sub.group(1).strip()
             metadata["mw_data"] = mw_data
 
+    # Promote values from mw_data if top-level tags are missing
+    if metadata.get("mw_data"):
+        mw = metadata["mw_data"]
+        if not metadata.get("mw_provider") and mw.get("provider"):
+            metadata["mw_provider"] = mw["provider"]
+        if not metadata.get("mw_showid") and (mw.get("show_id") or mw.get("source_url")):
+            metadata["mw_showid"] = mw.get("show_id") or mw.get("source_url")
+
     return metadata
 
 

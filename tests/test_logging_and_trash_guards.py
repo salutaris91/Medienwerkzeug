@@ -370,3 +370,139 @@ def test_nfo_helper_update_mw_data_strict(tmp_path):
     update_nfo_mw_data(str(nfo_file), "manual", '{"title": "JSON Show"}', source_url=None, resolved_topic=None)
     meta_manual = read_nfo_metadata(str(nfo_file))
     assert "mw_data" not in meta_manual or not meta_manual["mw_data"]
+
+
+def test_generate_tvshow_nfo_with_url_id(tmp_path):
+    from gui.mw_metadata import generate_tvshow_nfo
+    from gui.core.nfo_helper import read_nfo_metadata
+    
+    # 1. Test ytdlp with URL containing & and other query params
+    url_id = "https://www.youtube.com/playlist?list=PL123&index=5&foo=bar"
+    
+    from unittest.mock import patch
+    with patch("gui.mw_metadata.fetch_ytdlp_url_metadata", return_value=[{"playlist_title": "Nature Docs"}]):
+        res = generate_tvshow_nfo("ytdlp", url_id, str(tmp_path))
+        
+    assert res["nfo"] is True
+    nfo_file = tmp_path / "tvshow.nfo"
+    assert nfo_file.exists()
+    
+    meta = read_nfo_metadata(str(nfo_file))
+    assert meta["mw_provider"] == "ytdlp"
+    assert meta["mw_showid"] == url_id
+    assert meta["mw_data"]["source_url"] == url_id
+
+    # 2. Test mediathek with URL ID containing &
+    mediathek_url_id = "https://www.ardmediathek.de/sendung/serengeti?id=123&test=1"
+    
+    os.remove(str(nfo_file))
+    res2 = generate_tvshow_nfo("mediathek", mediathek_url_id, str(tmp_path))
+    assert res2["nfo"] is True
+    assert nfo_file.exists()
+    
+    meta2 = read_nfo_metadata(str(nfo_file))
+    assert meta2["mw_provider"] == "mediathek"
+    assert meta2["mw_showid"] == mediathek_url_id
+    assert meta2["mw_data"]["source_url"] == mediathek_url_id
+
+
+def test_find_existing_series_folder_by_id_only_in_mw_data(tmp_path):
+    from gui.api.search_api import find_existing_series_folder_by_id
+    
+    show_dir = tmp_path / "Serengeti"
+    show_dir.mkdir()
+    nfo_file = show_dir / "tvshow.nfo"
+    
+    xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+<tvshow>
+  <title>Serengeti</title>
+  <mw_data>
+    <provider>ytdlp</provider>
+    <show_id>https://www.youtube.com/playlist?list=PL123</show_id>
+    <source_url>https://www.youtube.com/playlist?list=PL123</source_url>
+  </mw_data>
+</tvshow>
+"""
+    nfo_file.write_text(xml_content, encoding="utf-8")
+    
+    match = find_existing_series_folder_by_id(
+        str(tmp_path), 
+        provider="ytdlp", 
+        show_id="https://www.youtube.com/playlist?list=PL123"
+    )
+    assert match == "Serengeti"
+
+
+def test_transfer_nfo_mw_data_sync_end_to_end(tmp_path):
+    from gui.workers.processor import _handle_transfer_task
+    from gui.core.nfo_helper import read_nfo_metadata
+    
+    outbox_dir = tmp_path / "outbox"
+    outbox_dir.mkdir()
+    outbox_nfo = outbox_dir / "tvshow.nfo"
+    
+    outbox_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<tvshow>
+  <title>Serengeti</title>
+  <mw_provider>ytdlp</mw_provider>
+  <mw_showid>https://www.youtube.com/playlist?list=PL123</mw_showid>
+  <mw_data>
+    <provider>ytdlp</provider>
+    <show_id>https://www.youtube.com/playlist?list=PL123</show_id>
+    <source_url>https://www.youtube.com/playlist?list=PL123</source_url>
+    <resolved_topic>Serengeti</resolved_topic>
+    <last_sync>2026-06-20T12:00:00</last_sync>
+  </mw_data>
+</tvshow>
+"""
+    outbox_nfo.write_text(outbox_xml, encoding="utf-8")
+    
+    nas_dir = tmp_path / "nas"
+    nas_dir.mkdir()
+    nas_nfo = nas_dir / "tvshow.nfo"
+    
+    nas_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<tvshow>
+  <title>Curated Serengeti Title</title>
+  <plot>Curated manual plot that must be preserved.</plot>
+  <mw_provider>ytdlp</mw_provider>
+  <mw_showid>https://www.youtube.com/playlist?list=PL123</mw_showid>
+</tvshow>
+"""
+    nas_nfo.write_text(nas_xml, encoding="utf-8")
+    
+    task = {
+        "type": "show_metadata_nas_transfer",
+        "dest_show_dir_outbox": str(outbox_dir),
+        "dest_show_dir_nas": str(nas_dir),
+        "provider": "ytdlp",
+        "show_id": "https://www.youtube.com/playlist?list=PL123",
+        "source_url": "https://www.youtube.com/playlist?list=PL123",
+        "resolved_topic": "Serengeti"
+    }
+    
+    from unittest.mock import MagicMock
+    log_mock = MagicMock()
+    
+    _handle_transfer_task(
+        task=task,
+        task_id="test_task",
+        target_progresses={},
+        target_speeds={},
+        progress_lock=None,
+        N=1,
+        log_message=log_mock,
+        update_global_job_progress=MagicMock()
+    )
+    
+    assert nas_nfo.exists()
+    meta = read_nfo_metadata(str(nas_nfo))
+    
+    assert meta["title"] == "Curated Serengeti Title"
+    assert meta["plot"] == "Curated manual plot that must be preserved."
+    
+    assert meta["mw_data"]["provider"] == "ytdlp"
+    assert meta["mw_data"]["source_url"] == "https://www.youtube.com/playlist?list=PL123"
+    assert meta["mw_data"]["resolved_topic"] == "Serengeti"
+    assert meta["mw_data"]["last_sync"] is not None
+

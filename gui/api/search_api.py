@@ -609,28 +609,26 @@ def find_existing_series_folder_by_id(destination_path, provider, show_id):
     if not destination_path or not os.path.exists(destination_path) or not show_id:
         return None
     try:
+        from gui.core.nfo_helper import read_nfo_metadata
         for entry in os.listdir(destination_path):
             folder_path = os.path.join(destination_path, entry)
             if os.path.isdir(folder_path) and not entry.startswith('.'):
                 nfo_path = os.path.join(folder_path, "tvshow.nfo")
                 if os.path.exists(nfo_path):
                     try:
-                        with open(nfo_path, 'r', encoding='utf-8', errors='ignore') as f:
-                            content = f.read()
-                        import re
-                        m_id = re.search(r'<mw_showid>(.*?)</mw_showid>', content)
-                        m_prov = re.search(r'<mw_provider>(.*?)</mw_provider>', content)
-                        if m_id and m_prov:
-                            if m_id.group(1).strip() == str(show_id) and m_prov.group(1).strip() == str(provider):
+                        meta = read_nfo_metadata(nfo_path)
+                        if meta:
+                            meta_show_id = meta.get("mw_showid")
+                            meta_provider = meta.get("mw_provider")
+                            
+                            if meta_show_id and meta_provider:
+                                if str(meta_show_id).strip() == str(show_id).strip() and str(meta_provider).strip() == str(provider).strip():
+                                    return entry
+                            
+                            # Fallback checks (e.g. if we search for tvdb/tmdb directly)
+                            if provider == "tvdb" and str(meta_show_id).strip() == str(show_id).strip():
                                 return entry
-                        
-                        if provider == "tvdb":
-                            m_tvdb = re.search(r'<tvdbid>(.*?)</tvdbid>', content)
-                            if m_tvdb and m_tvdb.group(1).strip() == str(show_id):
-                                return entry
-                        elif provider in ["tmdb_tv", "tmdb_tv_en"]:
-                            m_tmdb = re.search(r'<tmdbid>(.*?)</tmdbid>', content)
-                            if m_tmdb and m_tmdb.group(1).strip() == str(show_id):
+                            elif provider in ["tmdb_tv", "tmdb_tv_en"] and str(meta_show_id).strip() == str(show_id).strip():
                                 return entry
                     except Exception as e:
                         log_message(f"⚠️ tvshow.nfo in '{entry}' konnte nicht gelesen werden: {e}")
