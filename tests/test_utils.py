@@ -2463,5 +2463,61 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         self.assertTrue(len(naming_issues) > 0)
         self.assertIn("anderen Seriennamen", naming_issues[0]["message"])
 
+    def test_local_pcloud_mount_path_fix(self):
+        from unittest.mock import patch, MagicMock
+        from gui.core.transfers import copy_to_cloud_target
+        
+        with patch("gui.core.transfers.load_settings") as mock_load_settings, \
+             patch("gui.core.transfers.os.path.isdir", return_value=True) as mock_isdir, \
+             patch("gui.core.transfers.subprocess.run") as mock_run, \
+             patch("gui.core.transfers.run_rsync_with_progress", return_value=True) as mock_rsync:
+            
+            mock_load_settings.return_value = {
+                "pcloud_dir": "/Volumes/pCloud",
+                "open_pcloud_finder": False,
+                "nas_root": "/Volumes/Kino",
+                "storage_targets": [
+                    {
+                        "id": "nas",
+                        "name": "NAS",
+                        "type": "nas",
+                        "root_path": "/Volumes/Kino",
+                        "enabled": True
+                    },
+                    {
+                        "id": "pcloud",
+                        "name": "pCloud",
+                        "type": "cloud",
+                        "rclone_remote": "",
+                        "root_path": "/Volumes/pCloud",
+                        "enabled": True
+                    }
+                ],
+                "sync_categories": [
+                    {
+                        "id": "1",
+                        "nas_sub": "/Serien",
+                        "pcloud_remote": "pcloud:04a_Dokus",
+                        "targets": {
+                            "pcloud": "pcloud:04a_Dokus"
+                        }
+                    }
+                ]
+            }
+            
+            success = copy_to_cloud_target(
+                source_dir="/tmp/outbox/Serienname",
+                nas_target_dir="/Volumes/Kino/Serien",
+                target_id="pcloud",
+                task_id="test_task",
+                explicit_remote_base="pcloud:04a_Dokus"
+            )
+            
+            self.assertTrue(success)
+            mock_rsync.assert_called_once()
+            called_args = mock_rsync.call_args[0]
+            self.assertEqual(called_args[0], "/tmp/outbox/Serienname")
+            self.assertEqual(called_args[1], "/Volumes/pCloud/04a_Dokus/Serienname")
+
 if __name__ == "__main__":
     unittest.main()

@@ -765,7 +765,12 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
             
     if fuse_ok:
         prefix = rclone_remote
-        if prefix and ":" in prefix:
+        if ":" in remote_target:
+            # Falls remote_target einen Doppelpunkt enthält (z. B. "pcloud:04a_Dokus/Serienname"),
+            # spalten wir diesen ab, um einen sauberen lokalen Pfad zu erhalten.
+            rel_target = remote_target.split(":", 1)[1].lstrip("/")
+            clean_remote_target = os.path.join(pcloud_local, rel_target)
+        elif prefix and ":" in prefix:
             clean_remote_target = remote_target.replace(prefix, pcloud_local + "/")
         else:
             clean_remote_target = os.path.join(pcloud_local, remote_target.lstrip("/"))
