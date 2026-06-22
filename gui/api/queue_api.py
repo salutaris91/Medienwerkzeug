@@ -67,20 +67,8 @@ def handle_api_preview_process():
     # Resolve pCloud destination remote base
     explicit_pcloud_base = None
     if pcloud_destination_id:
-        sync_cats = settings.get("sync_categories", [])
-        found_cat = None
-        for cat in sync_cats:
-            if cat.get("id") == str(pcloud_destination_id):
-                found_cat = cat
-                break
-        if not found_cat:
-            for cat in sync_cats:
-                nas_sub = cat.get("nas_sub", "")
-                if nas_sub and (nas_sub in str(pcloud_destination_id)):
-                    found_cat = cat
-                    break
-        if found_cat:
-            explicit_pcloud_base = found_cat.get('pcloud_remote')
+        from gui.core.transfers import resolve_category_target_path
+        explicit_pcloud_base = resolve_category_target_path(pcloud_destination_id, "pcloud", media_type)
 
     if project_name:
         current_dir = os.path.join(inbox_root, project_name)
@@ -362,6 +350,7 @@ def handle_api_preview_process():
                         curr_ep_num = abs_num
 
                     ep_title = sanitize_filename(ep_title)
+                    ep_title = clean_episode_title_for_filename(clean_show_name, ep_title)
 
                     try:
                         season_str = f"S{int(curr_season):02d}"
@@ -467,7 +456,26 @@ def handle_api_preview_process():
 
         if params.get("copy_to_pcloud", False):
             if pcloud_path:
-                dest_str += f"\n☁️ pCloud: {pcloud_path}"
+                if clean_titles:
+                    unique_pcloud_paths = []
+                    for s, t in clean_titles:
+                        try:
+                            s_num = int(s)
+                            p = f"{pcloud_path}/Staffel {s_num}/{t}"
+                        except (ValueError, TypeError):
+                            p = f"{pcloud_path}/{s}/{t}"
+                        if p not in unique_pcloud_paths:
+                            unique_pcloud_paths.append(p)
+                    if len(unique_pcloud_paths) == 1:
+                        dest_str += f"\n☁️ pCloud: {unique_pcloud_paths[0]}"
+                    else:
+                        dest_str += "\n☁️ pCloud:\n" + "\n".join(f"  • {p}" for p in unique_pcloud_paths)
+                else:
+                    try:
+                        s_num = int(season)
+                        dest_str += f"\n☁️ pCloud: {pcloud_path}/Staffel {s_num}/[Episoden-Unterordner]"
+                    except (ValueError, TypeError):
+                        dest_str += f"\n☁️ pCloud: {pcloud_path}/[Staffeln]/[Episoden-Unterordner]"
             else:
                 dest_str += "\n☁️ pCloud: (Kein Mapping gefunden)"
         else:

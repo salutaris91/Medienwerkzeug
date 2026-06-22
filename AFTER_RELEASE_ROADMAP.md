@@ -47,6 +47,8 @@ die aktive After-Release-Roadmap übernommen.
 | 38 | Intelligente Pipeline-Parallelisierung bei langen Uploads | geplant | mittel |
 | 39 | Frontend-Resilienz: Double-Check bei vereinzelten 401-Fehlern | geplant | klein |
 | 40 | Mediathek-Episoden-Sync: Vorzeitiger Abbruch bei unauflösbaren URLs | geplant | klein |
+| 41 | Explizites Umbenennen bestehender NAS-Serienordner | geplant | mittel |
+| 42 | Absolute Nummerierung: Episoden einschieben und nachfolgende Folgen verschieben | geplant | mittel |
 
 ---
 
@@ -1161,3 +1163,96 @@ In `gui/mw_metadata.py` innerhalb von `fetch_mediathek_episodes(topic)`:
 1. Wenn `topic` als URL erkannt wird:
 2. Rufen wir `resolved = resolve_mediathek_url_topic(topic)` auf.
 3. Ist `resolved is None` (Auflösung gescheitert), brechen wir die Funktion sofort ab (`return {}`) und geben eine entsprechende Warnmeldung im Log aus (`print(f"Skipping episode sync: URL {topic} could not be resolved to a topic", file=sys.stderr)`).
+
+---
+
+## 41. Explizites Umbenennen bestehender NAS-Serienordner
+
+**Einordnung / Priorität:** Komfort- und Sicherheitsfeature. Nicht Teil der
+aktuellen Serienverarbeitung: Das Feld "Serienname / Ordnername auf NAS
+(anpassbar)" legt nur den Zielordnernamen für neue Dateien fest und benennt
+keinen bestehenden NAS-Ordner um.
+
+**Problem:**
+Wenn ein bestehender Serienordner auf dem NAS einen langen oder falschen Namen
+hat, kann Medienwerkzeug aktuell neue Dateien in einen neuen Zielordner schreiben,
+aber den vorhandenen Hauptordner nicht bewusst umbenennen. Das kann zu parallelen
+Ordnern führen, z. B. `Entdeckung der Welt (Natur und Tiere) - Serengeti` und
+`Serengeti`.
+
+**Ziel:**
+Ein separater, expliziter Befehl zum Umbenennen eines bestehenden NAS-
+Serienordners. Diese Aktion darf nicht automatisch über das anpassbare
+Zielordner-Feld ausgelöst werden.
+
+**Lösungsskizze:**
+1. In der Serienansicht oder im NAS-Renaming-Bereich einen Button anbieten:
+   `Bestehenden NAS-Ordner umbenennen`.
+2. Vor Ausführung eine klare Vorschau anzeigen:
+   `Alter Ordner -> Neuer Ordner`, inklusive vollständigem NAS-Pfad.
+3. Sicherheitsbestätigung verlangen, weil es eine echte Dateisystem-Operation
+   auf dem NAS ist.
+4. Zielkonflikte prüfen: Wenn der neue Ordner bereits existiert, nicht blind
+   überschreiben. Stattdessen Zusammenführen/Abbrechen als bewusste Entscheidung
+   anbieten.
+5. Operation mit Transaktionslog erfassen und, soweit möglich, Rollback anbieten.
+6. `tvshow.nfo` und App-eigene `mw_data` erhalten; keine kuratierten NFO-Felder
+   überschreiben.
+
+**Risiken & Hinweise:**
+- Ein `os.rename` auf demselben NAS-Volume ist schnell, bleibt aber riskant bei
+  falschem Zielnamen oder konkurrierenden Zugriffen durch Emby/Jellyfin.
+- Ordner-Merge ist deutlich gefährlicher als reines Umbenennen und sollte
+  entweder separat bestätigt oder zunächst nicht implementiert werden.
+- Die aktuelle UI sollte bis dahin klar kommunizieren, dass das anpassbare Feld
+  nur ein Zielordnername für neue Dateien ist.
+
+### Aufwand (grob)
+Mittel: Backend-Endpunkt, Sicherheitsvorschau, Konfliktprüfung, Transaktionslog,
+UI-Button, Tests mit temporärer NAS-Struktur.
+
+---
+
+## 42. Absolute Nummerierung: Episoden einschieben und nachfolgende Folgen verschieben
+
+**Einordnung / Priorität:** Komfortfeature für Serien mit absoluter Nummerierung
+oder flacher Mediathek-/YouTube-Nummerierung.
+
+**Problem:**
+Bei absolut nummerierten Serien kann später eine fehlende Episode auftauchen, die
+zwischen bestehende Folgen gehört. Beispiel: Vorhanden sind `1, 2, 3, 4, 5`; eine
+neue Episode soll als neue `2` eingefügt werden. Dann müssen die bisherigen
+Folgen `2, 3, 4, 5` kontrolliert zu `3, 4, 5, 6` verschoben werden, ohne Dateien,
+Untertitel oder NFOs zu verlieren.
+
+**Ziel:**
+Ein Werkzeug, das einen Einfügepunkt auswählt, alle betroffenen nachfolgenden
+Episoden in der richtigen Reihenfolge umnummeriert und danach die neue Episode
+an der freien Position einordnet.
+
+**Lösungsskizze:**
+1. Bestehende Episoden aus einem Serienordner scannen und absolute Nummern aus
+   Dateinamen/NFOs erkennen.
+2. UI-Dialog: `Neue Episode bei Nummer N einschieben`.
+3. Vor Ausführung eine vollständige Umbenennungs-/Verschiebevorschau anzeigen,
+   z. B. `2 -> 3`, `3 -> 4`, `4 -> 5`, `5 -> 6`.
+4. Umbenennung in zwei Phasen durchführen:
+   - zuerst alle betroffenen Dateien in temporäre, kollisionsfreie Namen
+     verschieben,
+   - danach in die finalen Zielnamen verschieben.
+5. Zugehörige Sidecars mitbewegen: `.nfo`, Untertitel, Poster/Companion-Dateien,
+   soweit sie dem Episoden-Basename folgen.
+6. NFOs aktualisieren, aber kuratierte Inhalte erhalten.
+7. Transaktionslog + Rollback anbieten.
+
+**Risiken & Hinweise:**
+- Direkte Umbenennung in aufsteigender Reihenfolge erzeugt Kollisionen; deshalb
+  ist die temporäre Zwischenphase Pflicht.
+- NFO-Updates müssen defensiv sein: Episodennummern ändern, manuelle Titel/Plots
+  erhalten.
+- Erst mit Vorschau und Tests für Lücken, doppelte Nummern und fehlende Sidecars
+  umsetzen.
+
+### Aufwand (grob)
+Mittel: Scanner, Kollisionsstrategie, Transaktionslog, UI-Vorschau, NFO-
+Teilupdate und Regressionstests.

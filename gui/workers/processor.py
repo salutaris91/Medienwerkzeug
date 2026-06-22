@@ -747,20 +747,8 @@ def process_worker(params):
     # Resolve pCloud destination remote base
     explicit_pcloud_base = None
     if pcloud_destination_id:
-        sync_cats = settings.get("sync_categories", [])
-        found_cat = None
-        for cat in sync_cats:
-            if cat.get("id") == str(pcloud_destination_id):
-                found_cat = cat
-                break
-        if not found_cat:
-            for cat in sync_cats:
-                nas_sub = cat.get("nas_sub", "")
-                if nas_sub and (nas_sub in str(pcloud_destination_id)):
-                    found_cat = cat
-                    break
-        if found_cat:
-            explicit_pcloud_base = found_cat.get('pcloud_remote')
+        from gui.core.transfers import resolve_category_target_path
+        explicit_pcloud_base = resolve_category_target_path(pcloud_destination_id, "pcloud", media_type)
 
     # Resolve local destination path
     local_destination_id = params.get("local_destination_id")
@@ -1228,6 +1216,7 @@ def process_worker(params):
                     ep_num = abs_num
 
                 ep_title = sanitize_filename(ep_title)
+                ep_title = clean_episode_title_for_filename(clean_show_name, ep_title)
 
                 # Format: Show Name - SxxExx - Title.ext
                 ext = os.path.splitext(filename)[1].lower()

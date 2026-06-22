@@ -44,6 +44,56 @@ def sanitize_filename(name):
     name = re.sub(r' +', ' ', name)
     return name.strip()
 
+def clean_episode_title_for_filename(show_name, episode_title):
+    """
+    Entfernt doppelte Seriennamen am Anfang des Episodentitels, wortgrenzen-sicher.
+    """
+    if not episode_title:
+        return ""
+    if not show_name:
+        return episode_title
+
+    ep_title_lower = episode_title.lower().strip()
+
+    # Trenne Show-Namen an gängigen Trennern auf
+    parts = [p.strip() for p in re.split(r'\s+-\s+|\s+–\s+|\s+—\s+|:\s+', show_name) if p.strip()]
+    parts.append(show_name)
+
+    # Letzte Teile ohne Klammern
+    for p in list(parts):
+        cleaned_part = re.sub(r'\(.*?\)', '', p).strip()
+        if cleaned_part and cleaned_part != p:
+            parts.append(cleaned_part)
+
+    # Sortiere nach Länge absteigend, um die längsten Übereinstimmungen zuerst zu entfernen
+    parts = sorted(list(set(parts)), key=len, reverse=True)
+
+    cleaned_title = episode_title
+    for part in parts:
+        part_lower = part.lower().strip()
+        if not part_lower:
+            continue
+
+        escaped_part = re.escape(part_lower)
+        # Separatoren: z.B. "Serengeti - " oder "Serengeti: "
+        pattern_separator = rf"^{escaped_part}\s*(?:[-:–—]\s*)+"
+        # Gefolgt von Leerzeichen und bekannten Nummerierungs-Mustern via Lookahead
+        pattern_numbered = rf"^{escaped_part}\s+(?=(?:tag|folge|episode|teil|part|season|staffel|show)\s+\d+)"
+
+        match = re.match(pattern_separator, ep_title_lower)
+        if not match:
+            match = re.match(pattern_numbered, ep_title_lower)
+
+        if match:
+            # Schneide den gefundenen Präfix ab
+            length_to_cut = match.end()
+            cleaned_title = episode_title[length_to_cut:].strip()
+            # Führende Bindestriche, Doppelpunkte oder Leerzeichen im bereinigten Titel nochmals abfangen
+            cleaned_title = re.sub(r'^[-:–—\s]+', '', cleaned_title)
+            break
+
+    return cleaned_title
+
 def clean_series_name_for_fs(name):
     if not name:
         return ""

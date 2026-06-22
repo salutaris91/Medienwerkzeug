@@ -97,6 +97,20 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         self.assertEqual(server.clean_series_name_for_fs(""), "")
         self.assertEqual(server.clean_series_name_for_fs(None), "")
 
+    def test_clean_episode_title_for_filename(self):
+        from gui.core.helpers import clean_episode_title_for_filename
+        self.assertEqual(clean_episode_title_for_filename("Serengeti", "Serengeti - Wilde Geschichten"), "Wilde Geschichten")
+        self.assertEqual(clean_episode_title_for_filename("Serengeti", "Serengeti: Wilde Geschichten"), "Wilde Geschichten")
+        self.assertEqual(clean_episode_title_for_filename("Serengeti", "Serengeti Tag 1"), "Tag 1")
+        self.assertEqual(clean_episode_title_for_filename("Serengeti", "Serengetis Löwen"), "Serengetis Löwen")
+        self.assertEqual(clean_episode_title_for_filename("Entdeckung der Welt (Natur und Tiere) - Serengeti", "Serengeti - Wilde Geschichten"), "Wilde Geschichten")
+        self.assertEqual(clean_episode_title_for_filename("Dark", "Dark Matter"), "Dark Matter")
+        self.assertEqual(clean_episode_title_for_filename("Lost", "Lost and Found"), "Lost and Found")
+        self.assertEqual(clean_episode_title_for_filename("", "Serengeti"), "Serengeti")
+        self.assertEqual(clean_episode_title_for_filename("Serengeti", ""), "")
+        self.assertEqual(clean_episode_title_for_filename(None, "Serengeti"), "Serengeti")
+        self.assertEqual(clean_episode_title_for_filename("Serengeti", None), "")
+
     def test_filename_sanitization_and_length_limit(self):
         from gui import server
         self.assertEqual(server.sanitize_filename("A - B: C"), "A - B - C")
@@ -2450,6 +2464,120 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         naming_issues = [i for i in issues if i["type"] == "inconsistent_naming"]
         self.assertTrue(len(naming_issues) > 0)
         self.assertIn("anderen Seriennamen", naming_issues[0]["message"])
+
+    def test_local_pcloud_mount_path_fix(self):
+        from unittest.mock import patch, MagicMock
+        from gui.core.transfers import copy_to_cloud_target
+
+        with patch("gui.core.transfers.load_settings") as mock_load_settings, \
+             patch("gui.core.transfers.os.path.isdir", return_value=True) as mock_isdir, \
+             patch("gui.core.transfers.subprocess.run") as mock_run, \
+             patch("gui.core.transfers.run_rsync_with_progress", return_value=True) as mock_rsync:
+
+            mock_load_settings.return_value = {
+                "pcloud_dir": "/Volumes/pCloud",
+                "open_pcloud_finder": False,
+                "nas_root": "/Volumes/Kino",
+                "storage_targets": [
+                    {
+                        "id": "nas",
+                        "name": "NAS",
+                        "type": "nas",
+                        "root_path": "/Volumes/Kino",
+                        "enabled": True
+                    },
+                    {
+                        "id": "pcloud",
+                        "name": "pCloud",
+                        "type": "cloud",
+                        "rclone_remote": "",
+                        "root_path": "/Volumes/pCloud",
+                        "enabled": True
+                    }
+                ],
+                "sync_categories": [
+                    {
+                        "id": "1",
+                        "nas_sub": "/Serien",
+                        "pcloud_remote": "pcloud:04a_Dokus",
+                        "targets": {
+                            "pcloud": "pcloud:04a_Dokus"
+                        }
+                    }
+                ]
+            }
+
+            success = copy_to_cloud_target(
+                source_dir="/tmp/outbox/Serienname",
+                nas_target_dir="/Volumes/Kino/Serien",
+                target_id="pcloud",
+                task_id="test_task",
+                explicit_remote_base="pcloud:04a_Dokus"
+            )
+
+            self.assertTrue(success)
+            mock_rsync.assert_called_once()
+            called_args = mock_rsync.call_args[0]
+            self.assertEqual(called_args[0], "/tmp/outbox/Serienname")
+            self.assertEqual(called_args[1], "/Volumes/pCloud/04a_Dokus/Serienname")
+
+    def test_resolve_category_target_path(self):
+        from unittest.mock import patch
+        from gui.core.transfers import resolve_category_target_path
+
+        with patch("gui.core.transfers.load_settings") as mock_load_settings:
+            mock_load_settings.return_value = {
+                "storage_targets": [
+                    {
+                        "id": "pcloud",
+                        "name": "pCloud",
+                        "type": "cloud",
+                        "rclone_remote": "pcloud:"
+                    }
+                ],
+                "sync_categories": [
+                    {
+                        "id": "1",
+                        "nas_sub": "/Serien",
+                        "pcloud_remote": "pcloud:04a_Dokus",
+                        "targets": {
+                            "pcloud": "pcloud:04a_Dokus"
+                        }
+                    }
+                ]
+            }
+
+            # Resolve by category ID
+            path_by_id = resolve_category_target_path("1", "pcloud", "tv")
+            self.assertEqual(path_by_id, "pcloud:04a_Dokus")
+
+            # Resolve by nas_sub
+            path_by_sub = resolve_category_target_path("/Serien", "pcloud", "tv")
+            self.assertEqual(path_by_sub, "pcloud:04a_Dokus")
+
+            # Test empty target mapping fallback to pcloud_remote
+            mock_load_settings.return_value = {
+                "storage_targets": [
+                    {
+                        "id": "pcloud",
+                        "name": "pCloud",
+                        "type": "cloud",
+                        "rclone_remote": "pcloud:"
+                    }
+                ],
+                "sync_categories": [
+                    {
+                        "id": "4",
+                        "nas_sub": "/Serien",
+                        "pcloud_remote": "pcloud:04a_Dokus",
+                        "targets": {
+                            "pcloud": ""
+                        }
+                    }
+                ]
+            }
+            path_empty_target = resolve_category_target_path("4", "pcloud", "tv")
+            self.assertEqual(path_empty_target, "pcloud:04a_Dokus")
 
 if __name__ == "__main__":
     unittest.main()
