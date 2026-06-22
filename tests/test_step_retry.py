@@ -626,3 +626,85 @@ class TestStepRetry(unittest.TestCase):
         args, kwargs = mock_rsync.call_args
         src_arg = args[0]
         self.assertTrue(src_arg.endswith(".mkv"), f"Expected src to end with .mkv, got {src_arg}")
+
+    @patch("gui.workers.processor.mw_metadata.generate_tvshow_nfo")
+    @patch("gui.workers.processor.mw_metadata.fetch_tvdb")
+    @patch("gui.workers.processor.run_rsync_with_progress")
+    @patch("gui.workers.processor.ensure_nas_mounted")
+    def test_tv_show_retry_manifest_with_converted_mkv(self, mock_nas_mounted, mock_rsync, mock_fetch_tvdb, mock_tvshow_nfo):
+        """test_tv_show_retry_manifest_with_converted_mkv: Tests TV show retry when original file in manifest is .mp4, but only the converted .mkv version exists in the outbox, validating that bypass is active and the .mkv filename is used."""
+        mock_nas_mounted.return_value = True
+        mock_rsync.return_value = True
+        mock_fetch_tvdb.return_value = {
+            "1": {"title": "Episode One"}
+        }
+
+        # Setup folders
+        show_dir = os.path.join(self.inbox_dir, "MyShow")
+        os.makedirs(show_dir, exist_ok=True)
+        # Episode 1 is in inbox
+        ep1_file = os.path.join(show_dir, "video1.mp4")
+        with open(ep1_file, "w") as f:
+            f.write("video1 content")
+
+        outbox_show_dir = os.path.join(self.outbox_dir, "Serien", "MyShow", "Staffel 1", "MyShow - S01E01 - Episode One")
+        os.makedirs(outbox_show_dir, exist_ok=True)
+        # Only the converted .mkv version exists in outbox
+        ep1_outbox_mkv = os.path.join(outbox_show_dir, "MyShow - S01E01 - Episode One.mkv")
+        with open(ep1_outbox_mkv, "w") as f:
+            f.write("converted video content")
+
+        # Setup job and pipeline state
+        job_id = "tv-show-mkv-retry-job"
+        pipeline = {
+            "metadata": {"status": "done", "progress": 100},
+            "convert": {"status": "done", "progress": 100},
+            "nas": {"status": "error", "progress": 50}
+        }
+        params = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "show_id": "123",
+            "provider": "tvdb",
+            "season": "1",
+            "convert": False,
+            "copy_to_nas": True,
+            "mappings": {
+                "video1.mp4": 1
+            },
+            "project_name": "MyShow",
+            "task_id": job_id
+        }
+        manifest = {
+            "video1.mp4": {
+                "target_filename": "MyShow - S01E01 - Episode One.mp4",  # Original extension in manifest is .mp4
+                "dest_dir_outbox": outbox_show_dir,
+                "clean_title": "MyShow - S01E01 - Episode One",
+                "season": 1,
+                "episode": 1
+            }
+        }
+
+        self.jobs.create_job(job_id, "TV Show", "tv", params, pipeline=pipeline, status="queued")
+        self.jobs.update_job(job_id, manifest=manifest, status="error")
+
+        # Retry
+        res = self._post("/api/queue/retry", {"task_id": job_id})
+        self.assertEqual(res.status_code, 200)
+
+        # Run worker
+        from gui.workers.processor import process_worker
+        updated_job = self.jobs.get_job(job_id)
+        params_with_dir = updated_job["params"].copy()
+        params_with_dir["current_dir"] = show_dir
+        
+        process_worker(params_with_dir)
+
+        # 1. tvshow.nfo should NOT be generated again since metadata was done
+        mock_tvshow_nfo.assert_not_called()
+
+        # 2. Rsync must be called with the .mkv file path from the manifest
+        mock_rsync.assert_called_once()
+        args, kwargs = mock_rsync.call_args
+        src_arg = args[0]
+        self.assertTrue(src_arg.endswith(".mkv"), f"Expected TV show src to end with .mkv, got {src_arg}")

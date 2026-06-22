@@ -1338,12 +1338,14 @@ def process_worker(params):
                 final_filepath = target_filepath
 
                 if file_already_in_outbox:
-                    if os.path.exists(outbox_conv):
+                    resolved_conv = os.path.join(dest_dir_outbox, f"{clean_title}.mkv")
+                    resolved_target = os.path.join(dest_dir_outbox, target_filename)
+                    if os.path.exists(resolved_conv):
                         final_filename = f"{clean_title}.mkv"
-                    elif os.path.exists(outbox_target):
+                    elif os.path.exists(resolved_target):
                         final_filename = target_filename
-                    elif manifest_entry:
-                        final_filename = manifest_entry.get("target_filename", target_filename)
+                    else:
+                        final_filename = target_filename
                     final_filepath = os.path.join(dest_dir_outbox, final_filename)
 
                 if convert:
