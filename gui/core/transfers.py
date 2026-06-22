@@ -670,13 +670,14 @@ def resolve_target_destination(target, rel_sub, media_type="movie"):
         if cat.get("nas_sub") == rel_sub:
             if "targets" in cat and t_id in cat["targets"]:
                 val = cat["targets"][t_id]
-                if t_type == "nas" or t_id == "nas" or t_type == "local":
-                    root = target.get("root_path", "")
-                    if val.startswith(root) and root:
-                        return val
-                    else:
-                        return os.path.join(root, val.lstrip("/"))
-                return val
+                if val:
+                    if t_type == "nas" or t_id == "nas" or t_type == "local":
+                        root = target.get("root_path", "")
+                        if val.startswith(root) and root:
+                            return val
+                        else:
+                            return os.path.join(root, val.lstrip("/"))
+                    return val
             # Fallbacks
             if t_type == "nas" or t_id == "nas":
                 return os.path.join(target.get("root_path", ""), cat.get("nas_sub", rel_sub).lstrip("/"))
@@ -699,37 +700,37 @@ def resolve_target_destination(target, rel_sub, media_type="movie"):
 
 def resolve_category_target_path(destination_id, target_id, media_type="tv"):
     """
-    Sucht die Kategorie anhand der destination_id (z. B. Kategorie-ID oder rel_sub) 
+    Sucht die Kategorie anhand der destination_id (z. B. Kategorie-ID oder rel_sub)
     und ermittelt über resolve_target_destination den cloud-spezifischen Zielpfad.
     """
     if not destination_id:
         return None
-        
+
     settings = load_settings()
     sync_cats = settings.get("sync_categories", [])
-    
+
     # 1. Kategorie über ID oder nas_sub finden
     found_cat = None
     for cat in sync_cats:
         if cat.get("id") == str(destination_id):
             found_cat = cat
             break
-            
+
     if not found_cat:
         for cat in sync_cats:
             nas_sub = cat.get("nas_sub", "")
             if nas_sub and (nas_sub in str(destination_id)):
                 found_cat = cat
                 break
-                
+
     if not found_cat:
         return None
-        
+
     # 2. Target-Konfiguration holen
     target = next((t for t in settings.get("storage_targets", []) if t.get("id") == target_id), None)
     if not target:
         target = {"id": target_id, "type": "cloud" if target_id == "pcloud" else "local"}
-        
+
     # 3. Pfad auflösen
     nas_sub = found_cat.get("nas_sub", "")
     return resolve_target_destination(target, nas_sub, media_type)

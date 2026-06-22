@@ -104,6 +104,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         self.assertEqual(clean_episode_title_for_filename("Serengeti", "Serengeti Tag 1"), "Tag 1")
         self.assertEqual(clean_episode_title_for_filename("Serengeti", "Serengetis Löwen"), "Serengetis Löwen")
         self.assertEqual(clean_episode_title_for_filename("Entdeckung der Welt (Natur und Tiere) - Serengeti", "Serengeti - Wilde Geschichten"), "Wilde Geschichten")
+        self.assertEqual(clean_episode_title_for_filename("Dark", "Dark Matter"), "Dark Matter")
+        self.assertEqual(clean_episode_title_for_filename("Lost", "Lost and Found"), "Lost and Found")
         self.assertEqual(clean_episode_title_for_filename("", "Serengeti"), "Serengeti")
         self.assertEqual(clean_episode_title_for_filename("Serengeti", ""), "")
         self.assertEqual(clean_episode_title_for_filename(None, "Serengeti"), "Serengeti")
@@ -2466,12 +2468,12 @@ class TestMediawerkzeugLogic(unittest.TestCase):
     def test_local_pcloud_mount_path_fix(self):
         from unittest.mock import patch, MagicMock
         from gui.core.transfers import copy_to_cloud_target
-        
+
         with patch("gui.core.transfers.load_settings") as mock_load_settings, \
              patch("gui.core.transfers.os.path.isdir", return_value=True) as mock_isdir, \
              patch("gui.core.transfers.subprocess.run") as mock_run, \
              patch("gui.core.transfers.run_rsync_with_progress", return_value=True) as mock_rsync:
-            
+
             mock_load_settings.return_value = {
                 "pcloud_dir": "/Volumes/pCloud",
                 "open_pcloud_finder": False,
@@ -2504,7 +2506,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                     }
                 ]
             }
-            
+
             success = copy_to_cloud_target(
                 source_dir="/tmp/outbox/Serienname",
                 nas_target_dir="/Volumes/Kino/Serien",
@@ -2512,7 +2514,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                 task_id="test_task",
                 explicit_remote_base="pcloud:04a_Dokus"
             )
-            
+
             self.assertTrue(success)
             mock_rsync.assert_called_once()
             called_args = mock_rsync.call_args[0]
@@ -2522,7 +2524,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
     def test_resolve_category_target_path(self):
         from unittest.mock import patch
         from gui.core.transfers import resolve_category_target_path
-        
+
         with patch("gui.core.transfers.load_settings") as mock_load_settings:
             mock_load_settings.return_value = {
                 "storage_targets": [
@@ -2544,14 +2546,38 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                     }
                 ]
             }
-            
+
             # Resolve by category ID
             path_by_id = resolve_category_target_path("1", "pcloud", "tv")
             self.assertEqual(path_by_id, "pcloud:04a_Dokus")
-            
+
             # Resolve by nas_sub
             path_by_sub = resolve_category_target_path("/Serien", "pcloud", "tv")
             self.assertEqual(path_by_sub, "pcloud:04a_Dokus")
+
+            # Test empty target mapping fallback to pcloud_remote
+            mock_load_settings.return_value = {
+                "storage_targets": [
+                    {
+                        "id": "pcloud",
+                        "name": "pCloud",
+                        "type": "cloud",
+                        "rclone_remote": "pcloud:"
+                    }
+                ],
+                "sync_categories": [
+                    {
+                        "id": "4",
+                        "nas_sub": "/Serien",
+                        "pcloud_remote": "pcloud:04a_Dokus",
+                        "targets": {
+                            "pcloud": ""
+                        }
+                    }
+                ]
+            }
+            path_empty_target = resolve_category_target_path("4", "pcloud", "tv")
+            self.assertEqual(path_empty_target, "pcloud:04a_Dokus")
 
 if __name__ == "__main__":
     unittest.main()
