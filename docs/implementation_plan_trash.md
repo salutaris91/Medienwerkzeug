@@ -1,12 +1,23 @@
-# Quarantänebereinigung (Docker-Papierkorb) - Version 3 (Kopie für das Repository)
+# Quarantänebereinigung (Docker-Papierkorb) - Version 4 (Kopie für das Repository)
 
 Implementierung einer automatischen und manuellen Quarantäne- und Papierkorb-Leerung im Docker-Modus (Roadmap-Punkt 32). Dies betrifft die in den Mountpoints generierten `.medienwerkzeug-trash`-Verzeichnisse.
 
 ## User Review Required
 
 > [!IMPORTANT]
+> **P0-Fix: Top-Level-Symlink im Trash**
+> - Falls der Timestamp-Ordner selbst ein Symlink ist (geprüft mit `os.path.islink` auf Basis von `lstat`), wird er sofort per `os.unlink` gelöscht, ohne `os.walk` aufzurufen. Dies verhindert das Traversieren und unabsichtliche Löschen von externen Dateien.
+> - Echte Unterverzeichnisse und Dateien, die über `os.walk` gefunden werden, werden doppelt validiert: sowohl ihr scheinbarer Pfad (`abspath`) als auch ihr realer Pfad (`realpath` - falls sie keine Symlinks sind) müssen innerhalb des Trash-Ordners liegen.
+> - Neue Tests in `tests/test_trash_cleaner.py` decken diesen kritischen Fall explizit ab.
+
+> [!IMPORTANT]
+> **P2-Fix: 0 Tage Aufbewahrungsdauer**
+> - In `app.js` wird die Konvertierung an allen drei Stellen (`btn-save-settings`, `btn-trash-probe` und `btn-trash-cleanup`) von `parseInt(...) || 7` auf `isNaN(val) ? 7 : val` umgestellt. Dies ermöglicht die Konfiguration von `0` Tagen Aufbewahrungsdauer (sofortige Bereinigung).
+> - Backend-seitig wird in `empty_trash_async` die Aufbewahrungsdauer ebenfalls sauber als `int` verarbeitet, wobei `0` als gültiger Wert akzeptiert wird.
+
+> [!IMPORTANT]
 > **Sicherheits- und Berechtigungsgrenzen (Symlinks & Verzeichnisse):**
-> - Ein Symlink im Trash, der auf ein externes Verzeichnis verweist (z. B. `/outside`), darf beim Löschen **nicht** aufgelöst werden (kein `realpath` auf dem Symlink selbst), da dies sonst den externen Pfad löschen würde. 
+> - Ein Symlink im Trash, der auf ein externes Verzeichnis verweist (z. B. `/outside`), darf beim Löschen **nicht** aufgelöst werden (kein `realpath` on dem Symlink selbst), da dies sonst den externen Pfad löschen würde. 
 > - Stattdessen wird der Pfad des Symlinks selbst per `abspath` und `commonpath` gegen den Trash-Ordner validiert und anschließend direkt mit `os.unlink` (bzw. `os.remove`) entfernt.
 > - Echte Verzeichnisse werden per `os.path.realpath` validiert und mittels `shutil.rmtree` gelöscht (mit Deaktivierung von Symlink-Verfolgungen während der Rekursion).
 
@@ -23,7 +34,7 @@ Implementierung einer automatischen und manuellen Quarantäne- und Papierkorb-Le
 
 ## Open Questions
 
-Keine. Alle Review-Punkte wurden eingearbeitet.
+Keine. Alle Review-Punkte und Findings (P0, P2) wurden eingearbeitet.
 
 ---
 
@@ -43,7 +54,7 @@ Keine. Alle Review-Punkte wurden eingearbeitet.
     - `inbox_dir`
     - `outbox_dir`
     - `nas_root`
-    - `storage_targets` (Felder `root_path` oder `path`)
+    - `storage_targets` (Felder `root_path` or `path`)
     - `import_sources` (Unterstützung für Strings und Dictionaries)
     - `local_download_folders` (neu aufgenommen)
 
@@ -69,7 +80,7 @@ Keine. Alle Review-Punkte wurden eingearbeitet.
          - Validiere den realen Pfad mittels `os.path.realpath` und `os.path.commonpath`.
          - Wenn gültig, lösche es per `shutil.rmtree`.
       3. Falls es sich um eine reguläre Datei handelt:
-         - Validiere den pfad und lösche per `os.remove`.
+         - Validiere den Pfad und lösche per `os.remove`.
     - Aktualisiert `TRASH_CLEANUP_STATUS` mit `finished_at`, `deleted_count`, `error_count` und `last_error` und setzt `running: False`.
 
 #### [MODIFY] [storage_probe.py](file:///Users/alex/Documents/Medienwerkzeug/gui/workers/storage_probe.py)
@@ -130,6 +141,8 @@ Keine. Alle Review-Punkte wurden eingearbeitet.
   5. **Dry-Run:** Stellt sicher, dass bei `dry_run=True` keine realen Löschungen stattfinden.
   6. **Concurrency-Schutz:** Startet zwei simulierte Bereinigungen parallel und stellt sicher, dass die zweite mit einer Exception/Fehlermeldung abgelehnt wird.
   7. **Async-Status:** Verifiziert, dass der Status `running` korrekt auf `True` und danach `False` gesetzt wird.
+  8. **Top-Level-Symlink:** Verifiziert, dass ein als Timestamp-Verzeichnis getarnter Symlink direkt per unlink gelöscht wird, ohne dessen Ziele zu traversieren.
+  9. **Retention = 0 Tage:** Verifiziert, dass bei 0 Tagen alle abgelaufenen Elemente sofort erfasst und gelöscht werden (kein Fallback auf 7 Tage).
 
 ### Manual Verification
 1. Starten der App im Docker-Modus.

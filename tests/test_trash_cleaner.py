@@ -223,3 +223,63 @@ def test_empty_trash_async_success():
         assert TRASH_CLEANUP_STATUS["error_count"] == 0
         assert TRASH_CLEANUP_STATUS["last_error"] is None
         assert TRASH_CLEANUP_STATUS["finished_at"] is not None
+
+
+def test_empty_trash_core_top_level_symlink(tmp_path):
+    """Testfall: Ein Top-Level-Symlink im Trash (als Timestamp-Ordner getarnt)
+    wird direkt als Symlink per unlink gelöscht, ohne dem Link-Ziel zu folgen."""
+    trash_dir = tmp_path / "mock-trash"
+    trash_dir.mkdir()
+    
+    # Target outside trash
+    outside_dir = tmp_path / "outside_victim"
+    outside_dir.mkdir()
+    outside_file = outside_dir / "victim.txt"
+    outside_file.write_text("DO NOT DELETE")
+    
+    # Symlink timestamp folder pointing to the outside directory
+    # name format must match timestamp pattern: YYYY-MM-DD_HH-MM-SS
+    symlink_timestamp_folder = trash_dir / "2026-06-12_12-00-00"
+    symlink_timestamp_folder.symlink_to(outside_dir)
+    
+    with patch("gui.core.trash.get_trash_dirs", return_value=[str(trash_dir)]):
+        deleted, errors = _empty_trash_core(retention_days=7, dry_run=False)
+        
+        assert len(errors) == 0
+        assert str(symlink_timestamp_folder) in deleted
+        
+        # The symlink itself must be gone
+        assert not symlink_timestamp_folder.exists()
+        assert not os.path.lexists(symlink_timestamp_folder)
+        
+        # The target directory and file outside MUST STILL EXIST!
+        assert outside_dir.exists()
+        assert outside_file.exists()
+        assert outside_file.read_text() == "DO NOT DELETE"
+
+
+def test_empty_trash_core_zero_days_retention(tmp_path):
+    """Testfall: retention_days=0 löscht sofort alle Ordner (auch gerade erst erstellte)
+    und fällt nicht auf den Standardwert 7 zurück."""
+    trash_dir = tmp_path / "mock-trash"
+    trash_dir.mkdir()
+    
+    # Fresh folder (created "now")
+    now_str = time.strftime("%Y-%m-%d_%H-%M-%S")
+    fresh_folder = trash_dir / now_str
+    fresh_folder.mkdir()
+    fresh_file = fresh_folder / "fresh.mp4"
+    fresh_file.write_text("fresh content")
+    
+    with patch("gui.core.trash.get_trash_dirs", return_value=[str(trash_dir)]):
+        # With retention_days=0, it should delete the fresh folder immediately
+        deleted, errors = _empty_trash_core(retention_days=0, dry_run=False)
+        
+        assert len(errors) == 0
+        assert str(fresh_folder) in deleted
+        assert str(fresh_file) in deleted
+        
+        # Folders and files must be deleted
+        assert not fresh_file.exists()
+        assert not fresh_folder.exists()
+

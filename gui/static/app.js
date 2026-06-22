@@ -8876,7 +8876,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 check_dependency_updates: checkDepUpdatesEl ? checkDepUpdatesEl.checked : false,
 
                 trash_auto_empty: document.getElementById("settings-trash-auto-empty")?.checked || false,
-                trash_retention_days: parseInt(document.getElementById("settings-trash-retention-days")?.value, 10) || 7,
+                trash_retention_days: (() => { const val = parseInt(document.getElementById("settings-trash-retention-days")?.value, 10); return isNaN(val) ? 7 : val; })(),
 
                 open_outbox_finder: document.getElementById("settings-open-outbox-finder")?.checked || false,
                 open_nas_finder: document.getElementById("settings-open-nas-finder")?.checked || false,
@@ -12707,7 +12707,8 @@ async function probeTrash() {
         btnProbe.textContent = "⌛ Prüfe...";
     }
     
-    const retentionDays = parseInt(retentionInput?.value, 10) || 7;
+    const val = parseInt(retentionInput?.value, 10);
+    const retentionDays = isNaN(val) ? 7 : val;
     
     try {
         const response = await fetch("/api/system/trash/cleanup", {
@@ -12743,7 +12744,8 @@ async function probeTrash() {
 
 async function triggerTrashCleanup() {
     const retentionInput = document.getElementById("settings-trash-retention-days");
-    const retentionDays = parseInt(retentionInput?.value, 10) || 7;
+    const val = parseInt(retentionInput?.value, 10);
+    const retentionDays = isNaN(val) ? 7 : val;
     
     try {
         const response = await fetch("/api/system/trash/cleanup", {

@@ -217,7 +217,14 @@ def empty_trash_async(retention_days=None, dry_run=False):
     if retention_days is None:
         from gui.core.persistence import load_settings
         settings = load_settings()
-        retention_days = int(settings.get("trash_retention_days", 7))
+        retention_val = settings.get("trash_retention_days")
+        if retention_val is None:
+            retention_days = 7
+        else:
+            try:
+                retention_days = int(retention_val)
+            except ValueError:
+                retention_days = 7
         
     if dry_run:
         # Dry-run is executed synchronously since it's just a scan
@@ -303,7 +310,29 @@ def _empty_trash_core(retention_days, dry_run=False):
             if age_days < retention_days:
                 continue
                 
-            # Secure deletion walkthrough
+            # SECURITY GUARD: Is the timestamp folder itself a symlink?
+            if os.path.islink(subdir_path):
+                abs_item = os.path.abspath(subdir_path)
+                abs_trash = os.path.abspath(trash_dir)
+                try:
+                    if os.path.commonpath([abs_item, abs_trash]) != abs_trash or abs_item == abs_trash:
+                        errors.append((subdir_path, "Sicherheits-Check fehlgeschlagen: Symlink-Timestamp liegt außerhalb des Trash-Ordners."))
+                        continue
+                except ValueError:
+                    errors.append((subdir_path, "Sicherheits-Check fehlgeschlagen: Symlink-Timestamp-Partitionen weichen ab."))
+                    continue
+                    
+                if dry_run:
+                    deleted_paths.append(subdir_path)
+                else:
+                    try:
+                        os.unlink(subdir_path)
+                        deleted_paths.append(subdir_path)
+                    except Exception as e:
+                        errors.append((subdir_path, str(e)))
+                continue # Do NOT traverse into the symlink folder!
+                
+            # Secure deletion walkthrough for real directories
             try:
                 items_to_delete = []
                 for root, dirs, files in os.walk(subdir_path, followlinks=False):
@@ -321,7 +350,7 @@ def _empty_trash_core(retention_days, dry_run=False):
                 items_to_delete.sort(key=lambda x: len(x[0]), reverse=True)
                 
                 for item_path, is_symlink in items_to_delete:
-                    # Security boundary check (must lie inside the trash dir root)
+                    # Security Check 1: Apparent path must lie inside the trash dir
                     abs_item = os.path.abspath(item_path)
                     abs_trash = os.path.abspath(trash_dir)
                     
@@ -332,6 +361,18 @@ def _empty_trash_core(retention_days, dry_run=False):
                     except ValueError:
                         errors.append((item_path, "Sicherheits-Check fehlgeschlagen: Pfad-Partitionen weichen ab."))
                         continue
+                        
+                    # Security Check 2: Resolved/real path must lie inside the trash dir (only if not a symlink itself)
+                    if not is_symlink and not os.path.islink(item_path):
+                        real_item = os.path.realpath(item_path)
+                        real_trash = os.path.realpath(trash_dir)
+                        try:
+                            if os.path.commonpath([real_item, real_trash]) != real_trash or real_item == real_trash:
+                                errors.append((item_path, "Sicherheits-Check fehlgeschlagen: Realer Pfad liegt außerhalb des Trash-Ordners."))
+                                continue
+                        except ValueError:
+                            errors.append((item_path, "Sicherheits-Check fehlgeschlagen: Pfad-Partitionen weichen ab."))
+                            continue
                         
                     if dry_run:
                         deleted_paths.append(item_path)
