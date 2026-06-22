@@ -627,11 +627,12 @@ class TestStepRetry(unittest.TestCase):
         src_arg = args[0]
         self.assertTrue(src_arg.endswith(".mkv"), f"Expected src to end with .mkv, got {src_arg}")
 
+    @patch("gui.workers.processor.media.execute_video_conversion")
     @patch("gui.workers.processor.mw_metadata.generate_tvshow_nfo")
     @patch("gui.workers.processor.mw_metadata.fetch_tvdb")
     @patch("gui.workers.processor.run_rsync_with_progress")
     @patch("gui.workers.processor.ensure_nas_mounted")
-    def test_tv_show_retry_manifest_with_converted_mkv(self, mock_nas_mounted, mock_rsync, mock_fetch_tvdb, mock_tvshow_nfo):
+    def test_tv_show_retry_manifest_with_converted_mkv(self, mock_nas_mounted, mock_rsync, mock_fetch_tvdb, mock_tvshow_nfo, mock_execute_conv):
         """test_tv_show_retry_manifest_with_converted_mkv: Tests TV show retry when original file in manifest is .mp4, but only the converted .mkv version exists in the outbox, validating that bypass is active and the .mkv filename is used."""
         mock_nas_mounted.return_value = True
         mock_rsync.return_value = True
@@ -658,7 +659,7 @@ class TestStepRetry(unittest.TestCase):
         job_id = "tv-show-mkv-retry-job"
         pipeline = {
             "metadata": {"status": "done", "progress": 100},
-            "convert": {"status": "done", "progress": 100},
+            "convert": {"status": "error", "progress": 50},
             "nas": {"status": "error", "progress": 50}
         }
         params = {
@@ -667,7 +668,7 @@ class TestStepRetry(unittest.TestCase):
             "show_id": "123",
             "provider": "tvdb",
             "season": "1",
-            "convert": False,
+            "convert": True,
             "copy_to_nas": True,
             "mappings": {
                 "video1.mp4": 1
@@ -703,7 +704,10 @@ class TestStepRetry(unittest.TestCase):
         # 1. tvshow.nfo should NOT be generated again since metadata was done
         mock_tvshow_nfo.assert_not_called()
 
-        # 2. Rsync must be called with the .mkv file path from the manifest
+        # 2. execute_video_conversion should NOT be called since convert is skipped (.mkv exists)
+        mock_execute_conv.assert_not_called()
+
+        # 3. Rsync must be called with the .mkv file path from the manifest
         mock_rsync.assert_called_once()
         args, kwargs = mock_rsync.call_args
         src_arg = args[0]

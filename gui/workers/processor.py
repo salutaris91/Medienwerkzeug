@@ -1349,7 +1349,8 @@ def process_worker(params):
                     final_filepath = os.path.join(dest_dir_outbox, final_filename)
 
                 if convert:
-                    if file_already_in_outbox and (is_convert_done or os.path.exists(outbox_conv)):
+                    has_conv_file = os.path.exists(os.path.join(dest_dir_outbox, f"{clean_title}.mkv")) if file_already_in_outbox else os.path.exists(outbox_conv)
+                    if file_already_in_outbox and (is_convert_done or has_conv_file):
                         log_message(f"Konvertierung für {final_filename} ist bereits erledigt. Überspringe.")
                         conv_pct[file_idx] = 100
                     else:
