@@ -507,7 +507,7 @@ def build_job_pipeline(params, has_metadata, convert):
         t_id = target.get("id")
         t_type = target.get("type")
 
-        should_copy = True
+        should_copy = False
         if params.get(f"copy_to_{t_id}") is not None:
             should_copy = params.get(f"copy_to_{t_id}")
         elif t_type == "nas" and params.get("copy_to_nas") is not None:
@@ -1260,7 +1260,17 @@ def process_worker(params):
                 outbox_target = os.path.join(dest_dir_outbox, target_filename)
                 outbox_conv = os.path.join(dest_dir_outbox, f"{clean_title}.mkv")
                 manifest_entry = manifest.get(filename)
-                file_already_in_outbox = os.path.exists(outbox_target) or os.path.exists(outbox_conv) or bool(manifest_entry)
+                manifest_file_exists = False
+                if manifest_entry:
+                    manifest_target_filename = manifest_entry.get("target_filename")
+                    manifest_dest_dir = manifest_entry.get("dest_dir_outbox")
+                    if manifest_target_filename and manifest_dest_dir:
+                        manifest_target_path = os.path.join(manifest_dest_dir, manifest_target_filename)
+                        manifest_conv_path = os.path.join(manifest_dest_dir, os.path.splitext(manifest_target_filename)[0] + ".mkv")
+                        if os.path.exists(manifest_target_path) or os.path.exists(manifest_conv_path):
+                            manifest_file_exists = True
+
+                file_already_in_outbox = os.path.exists(outbox_target) or os.path.exists(outbox_conv) or manifest_file_exists
 
                 if explicit_renames is None:
                     # Old backwards compatible fallback
@@ -1394,15 +1404,16 @@ def process_worker(params):
                     except Exception as e:
                         log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
 
-                # Persist manifest entry for future retries
-                manifest[filename] = {
-                    "target_filename": final_filename,
-                    "dest_dir_outbox": dest_dir_outbox,
-                    "clean_title": clean_title,
-                    "season": ep_season,
-                    "episode": ep_num
-                }
-                update_job(task_id, manifest=manifest)
+                # Persist manifest entry for future retries only if file actually exists in outbox
+                if os.path.exists(os.path.join(dest_dir_outbox, final_filename)):
+                    manifest[filename] = {
+                        "target_filename": final_filename,
+                        "dest_dir_outbox": dest_dir_outbox,
+                        "clean_title": clean_title,
+                        "season": ep_season,
+                        "episode": ep_num
+                    }
+                    update_job(task_id, manifest=manifest)
 
                 # Queue NAS transfer task
                 settings = load_settings()
@@ -2116,9 +2127,24 @@ def process_worker(params):
 
         is_metadata_done = pipeline.get("metadata", {}).get("status") == "done"
         convert_status = pipeline.get("convert", {}).get("status")
+        mapping = {}
         should_bypass = False
         if is_metadata_done and manifest and convert_status in ("done", "skipped"):
-            should_bypass = True
+            # Verify that all files described in the manifest actually exist in the outbox
+            manifest_files_ok = True
+            for filename, entry in manifest.items():
+                target_filename = entry.get("target_filename")
+                dest_dir_outbox = entry.get("dest_dir_outbox")
+                if not target_filename or not dest_dir_outbox:
+                    manifest_files_ok = False
+                    break
+                target_path = os.path.join(dest_dir_outbox, target_filename)
+                conv_path = os.path.join(dest_dir_outbox, os.path.splitext(target_filename)[0] + ".mkv")
+                if not os.path.exists(target_path) and not os.path.exists(conv_path):
+                    manifest_files_ok = False
+                    break
+            if manifest_files_ok:
+                should_bypass = True
 
         if not should_bypass:
             update_task_pipeline_status(task_id, "metadata", "running", 0)

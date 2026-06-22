@@ -95,7 +95,8 @@ class TestStepRetry(unittest.TestCase):
             "show_id": "123",
             "provider": "tvdb",
             "convert": True,
-            "copy_to_nas": True
+            "copy_to_nas": True,
+            "copy_to_pcloud": True
         }
         self.jobs.create_job(job_id, "Test Retry", "tv", params, pipeline=pipeline, status="error")
 
@@ -263,6 +264,7 @@ class TestStepRetry(unittest.TestCase):
             "provider": "tvdb",
             "season": "1",
             "episode": "1",
+            "yt_url": "https://youtube.com/watch?v=123",
             "yt_urls": ["https://youtube.com/watch?v=123"],
             "url": "https://youtube.com/watch?v=123",
             "copy_to_nas": True,
@@ -299,3 +301,178 @@ class TestStepRetry(unittest.TestCase):
         # 2. Rsync must be called to copy the already present outbox file to the NAS
         mock_rsync.assert_called_once()
         self.assertEqual(self.jobs.get_job(job_id)["status"], "done")
+
+    def test_retry_pcloud_enabled_but_not_selected(self):
+        """Tests that if pcloud target is enabled in settings but not selected in job, it stays skipped on retry."""
+        job_id = "pcloud-not-selected-job"
+        pipeline = {
+            "metadata": {"status": "done", "progress": 100},
+            "convert": {"status": "skipped", "progress": 0},
+            "nas": {"status": "error", "progress": 0}
+        }
+        params = {
+            "show_id": "123",
+            "provider": "tvdb",
+            "convert": False,
+            "copy_to_nas": True,
+            # copy_to_pcloud is explicitly False
+            "copy_to_pcloud": False
+        }
+        self.jobs.create_job(job_id, "Test Pcloud Selected", "tv", params, pipeline=pipeline, status="error")
+
+        # Enable pcloud target in settings
+        import gui.core.persistence as persistence
+        settings = persistence.load_settings()
+        settings["storage_targets"][1]["enabled"] = True
+        persistence.save_settings(settings)
+
+        # Trigger retry
+        res = self._post("/api/queue/retry", {"task_id": job_id})
+        self.assertEqual(res.status_code, 200)
+
+        job = self.jobs.get_job(job_id)
+        new_pipeline = job["pipeline"]
+        
+        # NAS target was error, must become pending
+        self.assertEqual(new_pipeline["nas"]["status"], "pending")
+        # pCloud target was enabled in settings, but NOT selected in job params -> must remain skipped
+        self.assertEqual(new_pipeline["pcloud"]["status"], "skipped")
+
+    @patch("gui.workers.processor.mw_metadata.generate_tvshow_nfo")
+    @patch("gui.workers.processor.mw_metadata.fetch_tvdb")
+    @patch("gui.workers.processor.run_rsync_with_progress")
+    @patch("gui.workers.processor.ensure_nas_mounted")
+    def test_tv_show_retry_manifest_but_outbox_missing(self, mock_nas_mounted, mock_rsync, mock_fetch_tvdb, mock_tvshow_nfo):
+        """Tests that TV Show retry does NOT bypass when manifest exists but the file is missing from outbox."""
+        mock_nas_mounted.return_value = True
+        mock_rsync.return_value = True
+        mock_fetch_tvdb.return_value = {
+            "1": {"title": "Episode One"}
+        }
+
+        # Setup folders
+        show_dir = os.path.join(self.inbox_dir, "MyShow")
+        os.makedirs(show_dir, exist_ok=True)
+        # Episode 1 is in inbox
+        ep1_file = os.path.join(show_dir, "video1.mp4")
+        with open(ep1_file, "w") as f:
+            f.write("video1 content")
+
+        # File is NOT in the outbox (even though it's in the manifest)
+        outbox_show_dir = os.path.join(self.outbox_dir, "Serien", "MyShow", "Staffel 1", "MyShow - S01E01 - Episode One")
+        # Ensure directory doesn't have the file
+        if os.path.exists(outbox_show_dir):
+            shutil.rmtree(outbox_show_dir)
+
+        # Setup job and pipeline state
+        job_id = "tv-show-retry-missing-outbox-job"
+        pipeline = {
+            "metadata": {"status": "done", "progress": 100},
+            "convert": {"status": "done", "progress": 100},
+            "nas": {"status": "error", "progress": 50}
+        }
+        params = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "show_id": "123",
+            "provider": "tvdb",
+            "season": "1",
+            "convert": False,
+            "copy_to_nas": True,
+            "mappings": {
+                "video1.mp4": 1
+            },
+            "project_name": "MyShow",
+            "task_id": job_id
+        }
+        manifest = {
+            "video1.mp4": {
+                "target_filename": "MyShow - S01E01 - Episode One.mp4",
+                "dest_dir_outbox": outbox_show_dir,
+                "clean_title": "MyShow - S01E01 - Episode One",
+                "season": 1,
+                "episode": 1
+            }
+        }
+
+        self.jobs.create_job(job_id, "TV Show", "tv", params, pipeline=pipeline, status="queued")
+        self.jobs.update_job(job_id, manifest=manifest, status="error")
+
+        # Retry
+        res = self._post("/api/queue/retry", {"task_id": job_id})
+        self.assertEqual(res.status_code, 200)
+
+        # Run worker
+        from gui.workers.processor import process_worker
+        updated_job = self.jobs.get_job(job_id)
+        params_with_dir = updated_job["params"].copy()
+        params_with_dir["current_dir"] = show_dir
+        
+        process_worker(params_with_dir)
+
+        # The file was missing in outbox, so the worker MUST have processed it (moved/renamed it)
+        ep1_outbox = os.path.join(outbox_show_dir, "MyShow - S01E01 - Episode One.mp4")
+        self.assertTrue(os.path.exists(ep1_outbox), "File should have been re-moved to outbox because it was missing.")
+
+    @patch("gui.workers.processor.run_ytdlp_with_progress")
+    @patch("gui.workers.processor.run_rsync_with_progress")
+    @patch("gui.workers.processor.ensure_nas_mounted")
+    def test_youtube_retry_manifest_but_outbox_missing(self, mock_nas_mounted, mock_rsync, mock_ytdlp):
+        """Tests that YouTube retry does NOT bypass when manifest exists but the file is missing from outbox."""
+        mock_nas_mounted.return_value = True
+        mock_rsync.return_value = True
+        mock_ytdlp.return_value = True
+
+        # Setup folders
+        temp_yt_dir = os.path.join(self.inbox_dir, ".temp_yt_yt-retry-missing-job")
+        os.makedirs(temp_yt_dir, exist_ok=True)
+
+        outbox_show_dir = os.path.join(self.outbox_dir, "Serien", "MyShow", "Staffel 1", "MyShow - S01E01 - Ep1")
+        if os.path.exists(outbox_show_dir):
+            shutil.rmtree(outbox_show_dir)
+
+        job_id = "yt-retry-missing-job"
+        pipeline = {
+            "metadata": {"status": "done", "progress": 100},
+            "convert": {"status": "skipped", "progress": 0},
+            "nas": {"status": "error", "progress": 0}
+        }
+        params = {
+            "media_type": "youtube",
+            "metadata_mode": "tv",
+            "show_name": "MyShow",
+            "show_id": "123",
+            "provider": "tvdb",
+            "season": "1",
+            "episode": "1",
+            "yt_url": "https://youtube.com/watch?v=123",
+            "yt_urls": ["https://youtube.com/watch?v=123"],
+            "url": "https://youtube.com/watch?v=123",
+            "copy_to_nas": True,
+            "task_id": job_id,
+            "destination_id": "2"
+        }
+        manifest = {
+            "video1.mp4": {
+                "target_filename": "MyShow - S01E01 - Ep1.mp4",
+                "dest_dir_outbox": outbox_show_dir,
+                "clean_title": "MyShow - S01E01 - Ep1",
+                "season": 1,
+                "episode": 1
+            }
+        }
+
+        self.jobs.create_job(job_id, "YouTube Show", "youtube", params, pipeline=pipeline, status="queued")
+        self.jobs.update_job(job_id, manifest=manifest, status="error")
+
+        # Retry
+        res = self._post("/api/queue/retry", {"task_id": job_id})
+        self.assertEqual(res.status_code, 200)
+
+        # Run worker
+        from gui.workers.processor import process_worker
+        updated_job = self.jobs.get_job(job_id)
+        process_worker(updated_job["params"])
+
+        # Since the file was missing from outbox, the worker MUST run yt-dlp to download it again
+        mock_ytdlp.assert_called_once()
