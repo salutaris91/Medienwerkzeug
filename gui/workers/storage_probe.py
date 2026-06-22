@@ -32,6 +32,25 @@ def measure_folder_size_bytes(path):
     return {"bytes": total}
 
 
+def measure_trash_stats_bytes(path):
+    total_bytes = 0
+    total_files = 0
+    for dirpath, dirnames, filenames in os.walk(path, followlinks=False):
+        for name in filenames:
+            file_path = os.path.join(dirpath, name)
+            try:
+                if not os.path.islink(file_path):
+                    total_bytes += os.path.getsize(file_path)
+                total_files += 1
+            except OSError:
+                pass
+        for name in dirnames:
+            file_path = os.path.join(dirpath, name)
+            if os.path.islink(file_path):
+                total_files += 1
+    return {"bytes": total_bytes, "count": total_files}
+
+
 def measure_disk_usage(path):
     if not os.path.exists(path):
         return {"exists": False}
@@ -45,13 +64,15 @@ def measure_disk_usage(path):
 
 
 def main(argv):
-    if len(argv) != 2 or argv[0] not in ("folder_size", "disk_usage"):
-        print("usage: storage_probe.py {folder_size|disk_usage} <path>", file=sys.stderr)
+    if len(argv) != 2 or argv[0] not in ("folder_size", "disk_usage", "trash_stats"):
+        print("usage: storage_probe.py {folder_size|disk_usage|trash_stats} <path>", file=sys.stderr)
         return 2
     mode, path = argv
     try:
         if mode == "folder_size":
             result = measure_folder_size_bytes(path)
+        elif mode == "trash_stats":
+            result = measure_trash_stats_bytes(path)
         else:
             result = measure_disk_usage(path)
     except Exception as e:

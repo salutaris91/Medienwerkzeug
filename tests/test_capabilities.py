@@ -68,7 +68,9 @@ def test_ensure_nas_mounted_docker(mock_load_settings, mock_isdir, monkeypatch):
 
 @mock.patch('gui.api.system_api.load_settings')
 @mock.patch('gui.core.helpers.load_settings')
-def test_system_folder_contents_allowed(mock_helper_load, mock_api_load, client, tmp_path):
+@mock.patch('gui.core.utils.load_settings')
+def test_system_folder_contents_allowed(mock_utils_load, mock_helper_load, mock_api_load, client, tmp_path):
+    mock_utils_load.return_value = {"inbox_dir": str(tmp_path)}
     mock_helper_load.return_value = {"inbox_dir": str(tmp_path)}
     mock_api_load.return_value = {"inbox_dir": str(tmp_path)}
     test_file = tmp_path / "test.txt"
@@ -86,7 +88,9 @@ def test_system_folder_contents_allowed(mock_helper_load, mock_api_load, client,
 
 @mock.patch('gui.api.system_api.load_settings')
 @mock.patch('gui.core.helpers.load_settings')
-def test_system_folder_contents_denied(mock_helper_load, mock_api_load, client, tmp_path):
+@mock.patch('gui.core.utils.load_settings')
+def test_system_folder_contents_denied(mock_utils_load, mock_helper_load, mock_api_load, client, tmp_path):
+    mock_utils_load.return_value = {"inbox_dir": str(tmp_path)}
     mock_helper_load.return_value = {"inbox_dir": str(tmp_path)}
     mock_api_load.return_value = {"inbox_dir": str(tmp_path)}
     
@@ -96,7 +100,9 @@ def test_system_folder_contents_denied(mock_helper_load, mock_api_load, client, 
 
 @mock.patch('gui.api.system_api.load_settings')
 @mock.patch('gui.core.helpers.load_settings')
-def test_system_folder_contents_file_instead_of_dir(mock_helper_load, mock_api_load, client, tmp_path):
+@mock.patch('gui.core.utils.load_settings')
+def test_system_folder_contents_file_instead_of_dir(mock_utils_load, mock_helper_load, mock_api_load, client, tmp_path):
+    mock_utils_load.return_value = {"inbox_dir": str(tmp_path)}
     mock_helper_load.return_value = {"inbox_dir": str(tmp_path)}
     mock_api_load.return_value = {"inbox_dir": str(tmp_path)}
     test_file = tmp_path / "test.txt"
@@ -107,7 +113,8 @@ def test_system_folder_contents_file_instead_of_dir(mock_helper_load, mock_api_l
     assert "Pfad ist kein Ordner" in res.get_json()["error"]
 
 @mock.patch('gui.core.helpers.load_settings')
-def test_is_path_allowed_symlink_breakout(mock_load, tmp_path):
+@mock.patch('gui.core.utils.load_settings')
+def test_is_path_allowed_symlink_breakout(mock_utils_load, mock_load, tmp_path):
     from gui.core.helpers import is_path_allowed
     import os
     allowed_dir = tmp_path / "allowed"
@@ -118,6 +125,7 @@ def test_is_path_allowed_symlink_breakout(mock_load, tmp_path):
     outside_file = outside_dir / "secret.txt"
     outside_file.write_text("secret")
     
+    mock_utils_load.return_value = {"inbox_dir": str(allowed_dir)}
     mock_load.return_value = {"inbox_dir": str(allowed_dir)}
     
     # Create symlink inside allowed_dir pointing outside

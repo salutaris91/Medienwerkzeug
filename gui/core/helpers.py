@@ -118,33 +118,16 @@ def is_path_allowed(target_path):
     if not target_path:
         return False
         
-    settings = load_settings()
-    
-    # Hilfsfunktion zum sicheren Hinzufügen von Pfaden
-    allowed_roots = []
-    def add_root(p):
-        if p and isinstance(p, str):
-            p = p.strip()
-            if p:
-                allowed_roots.append(os.path.realpath(os.path.expanduser(p)))
-
-    add_root(settings.get("inbox_dir", ""))
-    add_root(settings.get("outbox_dir", ""))
-    add_root(settings.get("nas_root", ""))
-    
-    for t in settings.get("storage_targets", []):
-        add_root(t.get("root_path") or t.get("path"))
-            
-    for s in settings.get("import_sources", []):
-        add_root(s)
-            
-    # Filtere Duplikate und leere Einträge heraus
-    allowed_roots = list(set(r for r in allowed_roots if r))
+    from gui.core.utils import get_allowed_roots
+    allowed_roots = get_allowed_roots(check_exists=False)
     
     if not allowed_roots:
         return False
 
-    target_real = os.path.realpath(os.path.expanduser(target_path))
+    try:
+        target_real = os.path.realpath(os.path.expanduser(target_path))
+    except Exception:
+        return False
     
     for root_real in allowed_roots:
         try:

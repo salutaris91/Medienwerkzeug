@@ -142,6 +142,8 @@ DEFAULT_SETTINGS = {
     "nas_root": "",
     "pcloud_dir": "",
     "import_sources": [],
+    "trash_auto_empty": False,
+    "trash_retention_days": 7,
     "check_dependency_updates": False,
     "open_outbox_finder": False,
     "open_nas_finder": False,

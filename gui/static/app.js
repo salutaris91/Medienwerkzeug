@@ -8023,6 +8023,13 @@ async function loadSettings() {
 
             setInputVal("settings-media-server", currentSettings.media_server || "");
 
+            // Trash Settings
+            setCheckbox("settings-trash-auto-empty", !!currentSettings.trash_auto_empty);
+            setInputVal("settings-trash-retention-days", currentSettings.trash_retention_days !== undefined ? currentSettings.trash_retention_days : 7);
+            
+            // Stats loading
+            loadTrashStats();
+
             if (!currentSettings.import_sources) currentSettings.import_sources = [];
             if (!currentSettings.sync_categories) currentSettings.sync_categories = [];
             if (!currentSettings.local_download_folders) currentSettings.local_download_folders = [];
@@ -8867,6 +8874,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 nas_root: document.getElementById("settings-nas-root")?.value || "",
                 pcloud_dir: document.getElementById("settings-pcloud-dir")?.value || "",
                 check_dependency_updates: checkDepUpdatesEl ? checkDepUpdatesEl.checked : false,
+
+                trash_auto_empty: document.getElementById("settings-trash-auto-empty")?.checked || false,
+                trash_retention_days: (() => { const val = parseInt(document.getElementById("settings-trash-retention-days")?.value, 10); return isNaN(val) ? 7 : val; })(),
 
                 open_outbox_finder: document.getElementById("settings-open-outbox-finder")?.checked || false,
                 open_nas_finder: document.getElementById("settings-open-nas-finder")?.checked || false,
@@ -12655,3 +12665,191 @@ window.clearNasOverride = function() {
         }
     }
 };
+
+// ==========================================
+// Docker Trash & Quarantine Management
+// ==========================================
+
+let trashCleanupInterval = null;
+let trashCleanupStartedAt = null;
+
+async function loadTrashStats() {
+    const statsTextEl = document.getElementById("trash-stats-text");
+    if (!statsTextEl) return;
+    
+    try {
+        const response = await fetch("/api/system/trash/stats");
+        if (response.ok) {
+            const data = await response.json();
+            if (data.error) {
+                statsTextEl.innerHTML = `<span class="text-danger">Fehler: ${data.error}</span>`;
+                return;
+            }
+            const sizeMB = (data.bytes / (1024 * 1024)).toFixed(2);
+            statsTextEl.textContent = `${data.count} Dateien (${sizeMB} MB) in der Quarantäne.`;
+        } else {
+            statsTextEl.textContent = "Fehler beim Laden der Quarantäne-Statistiken.";
+        }
+    } catch (error) {
+        console.error("Error loading trash stats:", error);
+        statsTextEl.textContent = "Fehler beim Laden der Quarantäne-Statistiken.";
+    }
+}
+
+async function probeTrash() {
+    const btnProbe = document.getElementById("btn-trash-probe");
+    const previewListEl = document.getElementById("trash-preview-list");
+    const retentionInput = document.getElementById("settings-trash-retention-days");
+    const modal = document.getElementById("modal-trash-preview");
+    
+    if (btnProbe) {
+        btnProbe.disabled = true;
+        btnProbe.textContent = "⌛ Prüfe...";
+    }
+    
+    const val = parseInt(retentionInput?.value, 10);
+    const retentionDays = isNaN(val) ? 7 : val;
+    
+    try {
+        const response = await fetch("/api/system/trash/cleanup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ dry_run: true, retention_days: retentionDays })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.deleted && data.deleted.length > 0) {
+                previewListEl.textContent = data.deleted.join("\n");
+                document.getElementById("btn-trash-preview-confirm").disabled = false;
+            } else {
+                previewListEl.textContent = "Keine abgelaufenen Elemente gefunden.";
+                document.getElementById("btn-trash-preview-confirm").disabled = true;
+            }
+            if (modal) modal.classList.add("active");
+        } else {
+            const data = await response.json();
+            alert("Fehler bei der Papierkorb-Prüfung: " + (data.error || response.statusText));
+        }
+    } catch (error) {
+        console.error("Error probing trash:", error);
+        alert("Error probing trash: " + error.message);
+    } finally {
+        if (btnProbe) {
+            btnProbe.disabled = false;
+            btnProbe.textContent = "🔍 Prüfen";
+        }
+    }
+}
+
+async function triggerTrashCleanup() {
+    const retentionInput = document.getElementById("settings-trash-retention-days");
+    const val = parseInt(retentionInput?.value, 10);
+    const retentionDays = isNaN(val) ? 7 : val;
+    
+    try {
+        const response = await fetch("/api/system/trash/cleanup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ dry_run: false, retention_days: retentionDays })
+        });
+        
+        if (response.status === 409) {
+            alert("Ein Bereinigungslauf ist bereits aktiv.");
+            return;
+        }
+        
+        if (response.ok) {
+            // Start polling
+            const progressDiv = document.getElementById("trash-cleanup-progress");
+            if (progressDiv) progressDiv.classList.remove("hidden");
+            
+            const btnCleanup = document.getElementById("btn-trash-cleanup");
+            if (btnCleanup) btnCleanup.disabled = true;
+            
+            document.getElementById("trash-cleanup-progress-bar").style.width = "0%";
+            document.getElementById("trash-cleanup-status-info").textContent = "Löschvorgang gestartet...";
+            
+            trashCleanupStartedAt = Date.now();
+            document.getElementById("trash-stuck-warning").classList.add("hidden");
+            
+            if (trashCleanupInterval) clearInterval(trashCleanupInterval);
+            trashCleanupInterval = setInterval(pollTrashCleanupStatus, 2000);
+        } else {
+            const data = await response.json();
+            alert("Fehler beim Starten der Bereinigung: " + (data.error || response.statusText));
+        }
+    } catch (error) {
+        console.error("Error starting trash cleanup:", error);
+        alert("Error starting trash cleanup: " + error.message);
+    }
+}
+
+async function pollTrashCleanupStatus() {
+    try {
+        const response = await fetch("/api/system/trash/cleanup-status");
+        if (response.ok) {
+            const status = await response.json();
+            
+            // Stuck warning check (after 5 minutes = 300 seconds)
+            if (status.running) {
+                const elapsedSeconds = (Date.now() - trashCleanupStartedAt) / 1000;
+                if (elapsedSeconds > 300) {
+                    document.getElementById("trash-stuck-warning").classList.remove("hidden");
+                } else {
+                    document.getElementById("trash-stuck-warning").classList.add("hidden");
+                }
+                
+                // Show simple progress indicator
+                document.getElementById("trash-cleanup-progress-bar").style.width = "50%";
+                document.getElementById("trash-cleanup-status-info").textContent = `${status.deleted_count || 0} Elemente gelöscht...`;
+            } else {
+                // Done
+                clearInterval(trashCleanupInterval);
+                trashCleanupInterval = null;
+                
+                document.getElementById("trash-cleanup-progress-bar").style.width = "100%";
+                document.getElementById("trash-cleanup-status-info").textContent = `Fertig. ${status.deleted_count} gelöscht.`;
+                
+                if (status.last_error) {
+                    alert("Bereinigung abgeschlossen mit Fehlern: " + status.last_error);
+                }
+                
+                setTimeout(() => {
+                    document.getElementById("trash-cleanup-progress").classList.add("hidden");
+                    const btnCleanup = document.getElementById("btn-trash-cleanup");
+                    if (btnCleanup) btnCleanup.disabled = false;
+                }, 4000);
+                
+                loadTrashStats();
+            }
+        }
+    } catch (error) {
+        console.error("Error polling trash cleanup status:", error);
+    }
+}
+
+// Bind Trash Events
+document.addEventListener("DOMContentLoaded", () => {
+    const btnProbe = document.getElementById("btn-trash-probe");
+    const btnCleanup = document.getElementById("btn-trash-cleanup");
+    const modal = document.getElementById("modal-trash-preview");
+    
+    if (btnProbe) btnProbe.addEventListener("click", probeTrash);
+    if (btnCleanup) {
+        btnCleanup.addEventListener("click", () => {
+            if (confirm("Möchtest du alle abgelaufenen Elemente in der Quarantäne wirklich endgültig löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.")) {
+                triggerTrashCleanup();
+            }
+        });
+    }
+    
+    // Close Modal Bindings
+    const closeModal = () => { if (modal) modal.classList.remove("active"); };
+    document.getElementById("close-modal-trash-preview")?.addEventListener("click", closeModal);
+    document.getElementById("btn-trash-preview-cancel")?.addEventListener("click", closeModal);
+    document.getElementById("btn-trash-preview-confirm")?.addEventListener("click", () => {
+        closeModal();
+        triggerTrashCleanup();
+    });
+});

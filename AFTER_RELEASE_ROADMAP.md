@@ -38,7 +38,7 @@ die aktive After-Release-Roadmap übernommen.
 | 29 | Speicherziel Syncing: Separater Zielordner pro Speicherziel | geplant | klein–mittel |
 | 30 | Cloud-Upload (rclone): Status- und Fortschritts-Feedback in der Warteschlange | geplant | klein–mittel |
 | 31 | NAS-Downloader-Integration (JDownloader/Download-Backend) | geplant | mittel |
-| 32 | Automatische Papierkorb-Leerung unter Docker | geplant | klein–mittel |
+| 32 | Automatische Papierkorb-Leerung unter Docker | erledigt | klein–mittel |
 | 33 | Automatischer TVDB-Fallback für fehlende TMDB-Plots | geplant | klein |
 | 34 | Altersfreigabe-Checks im UI deutlicher erklären | geplant | klein |
 | 35 | Premium-Umbenennungsdialog für Health-Fixes mit Metadaten-Lookup | geplant | klein–mittel |

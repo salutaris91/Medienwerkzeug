@@ -59,6 +59,62 @@ app.register_blueprint(onboarding_api, url_prefix='/api')
 def index():
     return send_from_directory('static', 'index.html')
 
+def trash_cleanup_worker():
+    """Hintergrund-Thread für periodischen Docker-Trash Cleanup und stündliches Statistik-Update."""
+    import time
+    from gui.core.utils import load_settings
+    from gui.core.trash import empty_trash_async, get_trash_stats, TrashError
+    
+    print("Trash cleanup worker started.", flush=True)
+    
+    # 1. Sofortiges Statistik-Update beim App-Start
+    try:
+        get_trash_stats(force_refresh=True)
+    except Exception as e:
+        print(f"Initialer Trash-Statistik-Scan fehlgeschlagen: {e}", flush=True)
+        
+    # 2. Sofortiger Startup-Cleanup falls konfiguriert
+    try:
+        settings = load_settings()
+        if settings.get("trash_auto_empty", False):
+            print("Auto-empty configured: running startup trash cleanup...", flush=True)
+            retention = settings.get("trash_retention_days", 7)
+            empty_trash_async(retention_days=retention)
+    except TrashError as te:
+        print(f"Startup trash cleanup blocked: {te}", flush=True)
+    except Exception as e:
+        print(f"Fehler bei Startup trash cleanup: {e}", flush=True)
+        
+    hours_counter = 0
+    while True:
+        try:
+            # 1 Stunde schlafen (sekündliche kleine Sleeps ermöglichen schnelles Beenden beim Herunterfahren)
+            for _ in range(3600):
+                time.sleep(1)
+            
+            hours_counter += 1
+            
+            # Stündliches Statistik-Update
+            try:
+                get_trash_stats(force_refresh=True)
+            except Exception as e:
+                print(f"Periodischer Trash-Statistik-Scan fehlgeschlagen: {e}", flush=True)
+                
+            # Alle 12 Stunden Bereinigung
+            if hours_counter >= 12:
+                hours_counter = 0
+                settings = load_settings()
+                if settings.get("trash_auto_empty", False):
+                    print("Running periodischen Trash-Cleanup...", flush=True)
+                    retention = settings.get("trash_retention_days", 7)
+                    try:
+                        empty_trash_async(retention_days=retention)
+                    except TrashError as te:
+                        print(f"Periodischer Trash-Cleanup blockiert: {te}", flush=True)
+                    
+        except Exception as e:
+            print(f"Fehler im Trash-Cleanup Monitor: {e}", flush=True)
+
 def is_port_in_use(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('127.0.0.1', port)) == 0
@@ -200,6 +256,12 @@ def main():
     from gui.core.helpers import folder_size_monitor
     monitor_thread = threading.Thread(target=folder_size_monitor, daemon=True)
     monitor_thread.start()
+    
+    # Start trash cleanup worker thread
+    trash_thread = threading.Thread(target=trash_cleanup_worker, daemon=True)
+    trash_thread.start()
+    print("Trash cleanup worker thread started.")
+
     # Cleanup old job logs on startup
     try:
         from gui.core.helpers import cleanup_old_job_logs
