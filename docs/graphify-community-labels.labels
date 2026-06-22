@@ -115,9 +115,7 @@
   "Queue API": [
     "gui_api_queue_api_py"
   ],
-  "System API": [
-    "gui_api_system_api_py"
-  ],
+  "System API": [],
   "Utility Logic Tests": [
     "tests_test_utils_testmediawerkzeuglogic"
   ],
