@@ -230,24 +230,22 @@ def handle_api_preview_process():
                 preview["junk"].append(f)
 
     elif media_type == "tv":
-        show_name = clean_series_name_for_fs(params.get("show_name", "Unknown Show"))
+        show_name = params.get("show_name", "Unknown Show")
         nas_show_folder = params.get("nas_show_folder")
-        if nas_show_folder:
-            clean_show_name = clean_series_name_for_fs(nas_show_folder)
-        else:
-            nas_serien = destination if destination else f"{nas_root}/Serien"
-            rel_dest = os.path.relpath(nas_serien, nas_root)
-            outbox_serien = os.path.join(outbox_root, rel_dest)
-            
-            matched_folder = None
-            if show_id and provider:
-                from gui.api.search_api import find_existing_series_folder_by_id
-                matched_folder = find_existing_series_folder_by_id(nas_serien, provider, show_id)
-                
-            if matched_folder:
-                clean_show_name = matched_folder
-            else:
-                clean_show_name = get_matched_series_name(nas_serien, outbox_serien, limit_filename_length(sanitize_filename(show_name)))
+        nas_serien = destination if destination else f"{nas_root}/Serien"
+        rel_dest = os.path.relpath(nas_serien, nas_root)
+        outbox_serien = os.path.join(outbox_root, rel_dest)
+        
+        from gui.core.series_helper import resolve_series_folder_name
+        clean_show_name = resolve_series_folder_name(
+            destination=nas_serien, 
+            outbox_root=outbox_serien, 
+            provider=provider, 
+            show_id=show_id, 
+            show_name=show_name, 
+            nas_show_folder=nas_show_folder, 
+            log_reason=False
+        )
 
         nas_serien = destination if destination else f"{nas_root}/Serien"
         dest_show_dir = os.path.join(nas_serien, clean_show_name)
@@ -550,12 +548,12 @@ def handle_api_preview_process():
             preview["warning"] = "Abweichung der Nummerierung: Auf dem NAS existieren Standard-Staffeln (z.B. Staffel 1), aber die Vorschau ordnet die Episoden Jahreszahl-Staffeln (z.B. Staffel 2026) zu! Bitte passe die Staffeln in den Episoden-Details an."
         # Check for show name mismatch with existing NAS folder (matching show ID)
         if show_id and provider:
-            from gui.api.search_api import find_existing_series_folder_by_id
+            from gui.core.series_helper import find_existing_series_folder_by_id, resolve_series_folder_name
             nas_match_folder = find_existing_series_folder_by_id(nas_serien, provider, show_id)
             
             # The default name based on metadata (without ID fallback)
             outbox_serien_path = os.path.join(outbox_root, os.path.relpath(nas_serien, nas_root))
-            metadata_show_name = get_matched_series_name(nas_serien, outbox_serien_path, limit_filename_length(sanitize_filename(show_name)))
+            metadata_show_name = resolve_series_folder_name(nas_serien, outbox_serien_path, None, None, show_name, log_reason=False)
             
             if nas_match_folder and nas_match_folder != metadata_show_name:
                 preview["show_name_mismatch"] = {
