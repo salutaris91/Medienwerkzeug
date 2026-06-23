@@ -186,6 +186,17 @@ def apply_renames(target_folder, rename_plan):
     if not os.path.exists(target_folder):
         return {"status": "error", "message": "Der Ordner existiert nicht."}
         
+    # Innere Kollisionsprüfung
+    target_paths = set()
+    for item in rename_plan:
+        new_rel = item.get("proposed_rel_path")
+        if not new_rel:
+            continue
+        new_rel_lower = new_rel.lower()
+        if new_rel_lower in target_paths:
+            return {"status": "error", "message": f"Kollision im Umbenennungsplan: Mehrere Dateien sollen zu '{new_rel}' umbenannt werden."}
+        target_paths.add(new_rel_lower)
+        
     if not os.path.exists(TRANSACTIONS_DIR):
         os.makedirs(TRANSACTIONS_DIR, exist_ok=True)
         
