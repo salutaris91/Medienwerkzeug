@@ -1891,8 +1891,8 @@ def process_worker(params):
                     # We only consider non-title-specific files in poster_candidates as existing core files.
                     existing_core_posters = [f for f in found_posters if f.lower() in poster_candidates and f in valid_poster_names]
                     if existing_core_posters:
-                        # Sort existing core posters by poster_prio to ensure we keep the most preferred one
-                        existing_core_posters.sort(key=lambda x: poster_prio.index(x.lower()) if x.lower() in poster_prio else 999)
+                        # Sort existing core posters by their order in valid_poster_names to ensure server preference
+                        existing_core_posters.sort(key=lambda x: valid_poster_names.index(x) if x in valid_poster_names else 999)
                         master_poster = existing_core_posters[0]
                         core_poster_names = [master_poster]
                     else:
@@ -1962,8 +1962,8 @@ def process_worker(params):
                     # We only consider non-title-specific files in backdrop_candidates as existing core files.
                     existing_core_backdrops = [f for f in found_backdrops if f.lower() in backdrop_candidates and f in valid_backdrop_names]
                     if existing_core_backdrops:
-                        # Sort existing core backdrops by backdrop_prio to ensure we keep the most preferred one
-                        existing_core_backdrops.sort(key=lambda x: backdrop_prio.index(x.lower()) if x.lower() in backdrop_prio else 999)
+                        # Sort existing core backdrops by their order in valid_backdrop_names to ensure server preference
+                        existing_core_backdrops.sort(key=lambda x: valid_backdrop_names.index(x) if x in valid_backdrop_names else 999)
                         master_backdrop = existing_core_backdrops[0]
                         core_backdrop_names = [master_backdrop]
                     else:

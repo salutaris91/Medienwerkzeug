@@ -554,8 +554,15 @@ def handle_api_preview_process():
             dest_str += "\n☁️ pCloud: (nicht aktiv)"
 
         if params.get("copy_to_nas", True) and os.path.exists(dest_show_dir):
-            if any(os.path.exists(os.path.join(dest_show_dir, f)) for f in ["tvshow.nfo", "poster.jpg", "fanart.jpg"]):
-                dest_str += "\n⚠️ Serie existiert bereits auf NAS mit vorhandenen Metadaten (tvshow.nfo, poster.jpg, fanart.jpg). Diese Dateien werden nicht überschrieben."
+            server_type = settings.get("media_server", "emby") or "emby"
+            from gui.core.artwork_validators import get_validator
+            val = get_validator(server_type)
+            check_names = ["tvshow.nfo"] + val.get_series_poster_names() + val.get_series_backdrop_names()
+            seen = set()
+            unique_check_names = [x for x in check_names if not (x in seen or seen.add(x))]
+            existing_files = [f for f in unique_check_names if os.path.exists(os.path.join(dest_show_dir, f))]
+            if existing_files:
+                dest_str += f"\n⚠️ Serie existiert bereits auf NAS mit vorhandenen Metadaten ({', '.join(existing_files)}). Diese Dateien werden nicht überschrieben."
         preview["destination"] = dest_str
 
     # Season year warning
