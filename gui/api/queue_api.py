@@ -122,6 +122,21 @@ def handle_api_preview_process():
             dest_str += "\n☁️ pCloud: (nicht aktiv)"
         preview["destination"] = dest_str
 
+        # Collide warning for existing movie on NAS
+        if params.get("copy_to_nas", True) and os.path.exists(nas_path):
+            existing_videos = []
+            try:
+                for item in os.listdir(nas_path):
+                    if os.path.splitext(item)[1].lower() in video_exts:
+                        existing_videos.append(item)
+            except Exception as e:
+                print(f"[Preview] Error listing existing movie dir: {e}")
+            
+            if existing_videos:
+                preview["warning"] = f"Achtung: Der Film existiert bereits auf dem NAS im Ordner '{clean_movie_name}' mit folgenden Videodateien: {', '.join(existing_videos)}. Diese Dateien werden überschrieben!"
+            else:
+                preview["warning"] = f"Achtung: Der Film-Ordner '{clean_movie_name}' existiert bereits auf dem NAS, enthält aber keine Videodateien. Vorhandene Metadaten könnten überschrieben werden."
+
         # Collect video files to identify main film and samples
         video_files_in_proj = []
         for f in all_files:
