@@ -7,8 +7,8 @@ Dieses Release bringt einen zuverlässigen NAS-Überschreibschutz für Filme (in
 ## Highlights in v1.3.0
 
 ### 1. NAS-Überschreibschutz & Medienvergleich für Filme (#30)
-* **Zentraler Schutz vor Überschreiben:** Bei Transfers zu NAS-Zielen wird nun ein opt-in Überschreibschutz aktiviert. Existiert der Zielpfad bereits, wird die Datei in ein Quarantäne-Verzeichnis verschoben, anstatt überschrieben zu werden.
-* **Plaintext-Medienvergleich:** Kollisionen werden nach dem Ermitteln der finalen Dateinamen geprüft. Treten Kollisionen auf, liefert die API einen strukturierten Plaintext-Vergleich der Medienparameter (Auflösung, Dateigröße, Audio-Codec und Bitrate) direkt an das UI aus, statt den Transfer blind zu starten.
+* **Zentraler Schutz vor Überschreiben:** Bei Transfers zu NAS-Zielen wird nun ein opt-in Überschreibschutz aktiviert. Existiert der Zielpfad bereits, wird die vorhandene Datei automatisch in einen Quarantäne-Papierkorb (`.medienwerkzeug-trash`) auf dem NAS verschoben, anstatt sie unwiderruflich zu überschreiben. Schlägt dieses Verschieben fehl, wird der gesamte Transfer abgebrochen.
+* **Plaintext-Medienvergleich im UI:** Kollisionen werden nach dem Ermitteln der finalen Dateinamen geprüft. Treten Kollisionen auf, zeigt das UI ein rotes Warnungs-Banner mit einer tabellarischen Gegenüberstellung der Medienparameter (Dateiname, Dateigröße, Auflösung, Video-/Audio-Codec, Bitrate, Dauer sowie eine automatische Qualitäts-Einschätzung) der vorhandenen und der neuen Datei.
 
 ### 2. Typisierte Inbox-Einzeldateien (#31)
 * **Saubere Unterscheidung:** Einzeldateien in der Inbox werden jetzt typisiert erfasst und nicht mehr als Ordner-Projekte behandelt.
