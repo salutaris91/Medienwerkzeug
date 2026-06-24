@@ -270,7 +270,8 @@ def handle_api_scan_project():
         "ext_counts": ext_counts,
         "is_doku": is_doku,
         "has_inefficient_video": has_inefficient_video,
-        "suggested_query": suggested_query
+        "suggested_query": suggested_query,
+        "is_single_file": is_single_file
     })
 
 
@@ -786,13 +787,37 @@ import gui.core.trash as trash
 _inbox_cache = {}
 _inbox_cache_time = 0
 
+def clean_scene_tags(name):
+    if not name:
+        return ""
+    scene_keywords = {
+        '1080p', '720p', '2160p', '4k', 'x264', 'x265', 'hevc', 'h264', 'bluray', 
+        'web-dl', 'webdl', 'dts', 'dd5', 'hdtv', 'aac', 'ac3', 'bdrip', 'webrip', 
+        'brrip', 'multi', 'dl', 'dual', 'atmos', 'german', 'deutsch', 'french', 
+        'english', 'eng', 'dubbed', 'repack', 'proper', 'subbed', 'custom', 
+        'untouched', 'patched', 'retail', 'web', 'hdtvrip', 'blurayrip', 'uhd',
+        'truehd', 'hdr', '10bit', 'hq', 'dd51', 'fhd'
+    }
+    normalized = name.replace(".", " ").replace("_", " ").replace("-", " ")
+    words = normalized.split()
+    cleaned_words = []
+    for w in words:
+        w_clean = w.lower().strip("()[]{}")
+        if w_clean in scene_keywords:
+            break
+        cleaned_words.append(w)
+    cleaned_name = " ".join(cleaned_words).strip()
+    if len(cleaned_name) < 2:
+        return name.replace(".", " ").replace("_", " ").replace("-", " ").strip()
+    return cleaned_name
+
 def get_cleaner_suggested_query(folder_name, video_name_no_ext):
     """
     Entscheidet, ob der Videodateiname (ohne Extension) ein besserer Suchbegriff ist als der Ordnername.
     Liefert den bevorzugten Namen zurück.
     """
     if not video_name_no_ext:
-        return folder_name
+        return clean_scene_tags(folder_name)
 
     scene_keywords = {
         '1080p', '720p', '2160p', '4k', 'x264', 'x265', 'hevc', 'h264', 'bluray', 
@@ -815,22 +840,22 @@ def get_cleaner_suggested_query(folder_name, video_name_no_ext):
 
     # Heuristik 1: Wenn der Ordnername Scene-Keywords enthält, der Videodateiname aber keine (oder weniger)
     if fn_kw_count > vn_kw_count:
-        return video_name_no_ext
+        return clean_scene_tags(video_name_no_ext)
 
     # Heuristik 2: Wenn der Videodateiname ein Jahr enthält, der Ordnername aber nicht
     if vn_has_year and not fn_has_year:
-        return video_name_no_ext
+        return clean_scene_tags(video_name_no_ext)
 
     # Heuristik 3: Wenn der Videodateiname ein Jahr in Klammern wie " (2000)" enthält (sehr typisch für saubere Namen)
     if re.search(r'\(\d{4}\)', video_name_no_ext):
-        return video_name_no_ext
+        return clean_scene_tags(video_name_no_ext)
 
     # Heuristik 4: Wenn der Ordnername extrem lang und unleserlich ist
     if len(folder_name) > 40 and len(video_name_no_ext) < len(folder_name) - 10:
-        return video_name_no_ext
+        return clean_scene_tags(video_name_no_ext)
 
     # Fallback
-    return folder_name
+    return clean_scene_tags(folder_name)
 
 def get_inbox_suggestions():
     global _inbox_cache, _inbox_cache_time

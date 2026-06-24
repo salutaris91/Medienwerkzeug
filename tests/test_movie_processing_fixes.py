@@ -1150,6 +1150,92 @@ class TestMovieProcessingFixes(unittest.TestCase):
         video3 = "dragonkeeper_main"
         self.assertEqual(get_cleaner_suggested_query(folder3, video3), "Dragonkeeper")
 
+        # Fall 4: Videoname enthält Scene-Rauschen -> Bereinigung
+        folder4 = "Taxi.Taxi.2000.French.1080p.BluRay.x264-FHD"
+        video4 = "Taxi.Taxi.2000.German.1080p"
+        self.assertEqual(get_cleaner_suggested_query(folder4, video4), "Taxi Taxi 2000")
+
+    def test_movie_preview_warning_with_media_info_comparison(self):
+        """Testet, ob bei Kollisionen der Medienvergleich in der Vorschau-Warnung korrekte Details auflistet."""
+        # 1. Zielordner und Film auf dem NAS anlegen
+        nas_movie_dir = os.path.join(self.nas_root, "Filme", "Collision Movie (2026)")
+        os.makedirs(nas_movie_dir, exist_ok=True)
+        nas_video_file = os.path.join(nas_movie_dir, "Collision Movie (2026).mkv")
+        with open(nas_video_file, "w") as f:
+            f.write("old version of movie")
+
+        # 2. Inbox-Ordner anlegen
+        proj_dir = os.path.join(self.inbox_dir, "CollisionMovieInboxWarning")
+        os.makedirs(proj_dir, exist_ok=True)
+        inbox_video_file = os.path.join(proj_dir, "movie.mkv")
+        with open(inbox_video_file, "w") as f:
+            f.write("new version of movie")
+
+        # 3. media.get_media_info mocken für beide Pfade
+        def mock_get_media_info(filepath):
+            if "nas" in filepath:
+                # Vorhandene Datei auf NAS: h264, SD (720x576), ac3, 1.8 Mbps, 1h 22m (4920s), 1.45 GB
+                return {
+                    "width": 720,
+                    "height": 576,
+                    "codec": "h264",
+                    "audio_codec": "ac3",
+                    "bit_rate": 1800000,
+                    "duration": 4920,
+                    "size": int(1.45 * 1024 * 1024 * 1024)
+                }
+            else:
+                # Neue Datei in Inbox: hevc, 1080p (1920x1080), dts, 3.2 Mbps, 1h 24m (5040s), 2.10 GB
+                return {
+                    "width": 1920,
+                    "height": 1080,
+                    "codec": "hevc",
+                    "audio_codec": "dts",
+                    "bit_rate": 3200000,
+                    "duration": 5040,
+                    "size": int(2.10 * 1024 * 1024 * 1024)
+                }
+
+        payload = {
+            "media_type": "movie",
+            "project_name": "CollisionMovieInboxWarning",
+            "movie_name": "Collision Movie (2026)",
+            "destination_id": "1",
+            "copy_to_nas": True
+        }
+
+        with patch("gui.core.media.get_media_info", side_effect=mock_get_media_info):
+            res = self._post("/api/preview_process", json_data=payload)
+            self.assertEqual(res.status_code, 200)
+            preview = res.get_json()
+            
+            warning = preview.get("warning", "")
+            self.assertIsNotNone(warning)
+            
+            # Verifizieren, dass der Plaintext-Vergleich stattfindet und die korrekten Attribute auflistet
+            self.assertIn("Vergleich der Videodateien", warning)
+            self.assertIn("Dateiname", warning)
+            self.assertIn("Dateigröße", warning)
+            self.assertIn("Auflösung", warning)
+            self.assertIn("Video-Codec", warning)
+            self.assertIn("Audio-Codec", warning)
+            self.assertIn("Bitrate", warning)
+            self.assertIn("Dauer", warning)
+            
+            # Verifizieren, dass die gemockten Werte sauber formatiert in der Tabelle stehen
+            self.assertIn("1.45 GB", warning)
+            self.assertIn("2.10 GB", warning)
+            self.assertIn("720x576", warning)
+            self.assertIn("1920x1080", warning)
+            self.assertIn("H264", warning)
+            self.assertIn("HEVC", warning)
+            self.assertIn("AC3", warning)
+            self.assertIn("DTS", warning)
+            self.assertIn("1.8 Mbps", warning)
+            self.assertIn("3.2 Mbps", warning)
+            self.assertIn("1h 22m 0s", warning)
+            self.assertIn("1h 24m 0s", warning)
+
     def test_transfer_quarantine_error_aborts_copy(self):
         """Testet, ob bei einem Fehler im Quarantäne-Backup der Kopiervorgang abgebrochen wird."""
         from gui.core.transfers import run_copy_fallback, run_rsync_with_progress

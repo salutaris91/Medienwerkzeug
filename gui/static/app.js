@@ -2674,7 +2674,7 @@ async function scanProject(project) {
             else if (ext === 'nfo') badgeClass += " nfo";
 
             let actionHtml = "";
-            if (!isDir && isVideo && project !== "__inbox_recursive__") {
+            if (!isDir && isVideo && project !== "__inbox_recursive__" && !data.is_single_file && project !== "") {
                 actionHtml = `<button class="btn btn-sm btn-split-file" data-project="${escapeHTML(project)}" data-file="${escapeHTML(name)}" title="In ein separates Projekt abspalten" style="background: rgba(255, 255, 255, 0.1); border: 1px solid var(--border-glass); color: var(--text-normal); cursor: pointer; padding: 3px 8px; border-radius: var(--radius-sm); font-size: 0.7rem; transition: all 0.2s ease;">Trennen</button>`;
             }
 

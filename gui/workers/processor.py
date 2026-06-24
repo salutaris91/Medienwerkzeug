@@ -98,8 +98,7 @@ def _handle_transfer_task(
             success = run_rsync_with_progress(
                 os.path.join(dest_dir_outbox, final_filename),
                 os.path.join(dest_dir_nas, final_filename),
-                task_id=nas_progress_cb,
-                protect_existing=True
+                task_id=nas_progress_cb
             )
             if not success:
                 log_message(f"⚠️ [Transfer Thread]: Fehler beim Kopieren von {final_filename} auf {target_id}.")
