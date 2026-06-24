@@ -31,10 +31,10 @@ die aktive After-Release-Roadmap übernommen.
 | 22 | Update-Hinweise und Release Notes | geplant | klein–mittel |
 | 23 | Lizenz- und Drittanbieterhinweise | geplant | klein |
 | 24 | API-Key Maskierung UX (Fokus/Editierung-Verhalten) | geplant | klein |
-| 25 | TV-Pfad: Angleichung der Untertitel-Erkennung | geplant | klein |
+| 25 | TV-Pfad: Angleichung der Untertitel-Erkennung | erledigt | klein |
 | 26 | FAQ/Dokumentation: Docker-Importquellen und Volume-Mapping beschreiben | geplant | klein |
-| 27 | Web-Folder-Picker: Dynamische Titel je nach ausgewählter Kategorie | geplant | klein |
-| 28 | Web-Folder-Picker: Layout-Verbreiterung & responsive Anpassungen | geplant | klein |
+| 27 | Web-Folder-Picker: Dynamische Titel je nach ausgewählter Kategorie | erledigt | klein |
+| 28 | Web-Folder-Picker: Layout-Verbreiterung & responsive Anpassungen | erledigt | klein |
 | 29 | Speicherziel Syncing: Separater Zielordner pro Speicherziel | geplant | klein–mittel |
 | 30 | Cloud-Upload (rclone): Status- und Fortschritts-Feedback in der Warteschlange | geplant | klein–mittel |
 | 31 | NAS-Downloader-Integration (JDownloader/Download-Backend) | geplant | mittel |

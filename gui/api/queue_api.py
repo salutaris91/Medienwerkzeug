@@ -369,16 +369,37 @@ def handle_api_preview_process():
                     preview["renames"].append({"old": f, "new": target_filename})
 
                     base_old = os.path.splitext(basename)[0]
+                    vid_dir = os.path.dirname(f)
+                    
+                    videos_in_same_dir = [vf for vf in all_files if os.path.splitext(vf)[1].lower() in video_exts and os.path.dirname(vf) == vid_dir]
+                    total_videos_in_proj = sum(1 for vf in all_files if os.path.splitext(vf)[1].lower() in video_exts)
+
                     matching_subs = []
                     other_companion_files = []
                     for sf in all_files:
+                        if sf == f: continue
                         sbasename = os.path.basename(sf)
-                        if sbasename.startswith(base_old) and sf != f:
-                            sext = os.path.splitext(sf)[1].lower()
+                        sext = os.path.splitext(sf)[1].lower()
+                        sdir = os.path.dirname(sf)
+
+                        is_match = False
+                        if sbasename.startswith(base_old):
+                            is_match = True
+                        elif sext in sub_exts:
+                            if total_videos_in_proj == 1:
+                                is_match = True
+                            elif len(videos_in_same_dir) == 1:
+                                if vid_dir == "":
+                                    is_match = True
+                                elif sdir == vid_dir or sdir.startswith(vid_dir + os.sep):
+                                    is_match = True
+
+                        if is_match:
                             if sext in sub_exts:
                                 matching_subs.append(sf)
                             elif sext in ('.nfo', '.jpg', '.png'):
-                                other_companion_files.append((sf, sbasename, sext))
+                                if sbasename.startswith(base_old):
+                                    other_companion_files.append((sf, sbasename, sext))
 
                     matching_subs.sort()
                     local_resolved_subs = {}
