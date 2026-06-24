@@ -6796,7 +6796,7 @@ function initEventListeners() {
         if (titleEl) {
             titleEl.textContent = "📂 " + (title || "Ordner auswählen");
         }
-        
+
         document.getElementById("modal-folder-picker").classList.add("active");
         loadFolderPickerDir(path);
     };

@@ -242,3 +242,80 @@ class TestFixSeriesQueueAndNaming(unittest.TestCase):
         # and mock_thread.join() was called in the finally block
         mock_queue.put.assert_called_with(None)
         mock_thread.join.assert_called_once()
+
+    @patch("gui.api.queue_api.mw_metadata.fetch_tvdb")
+    def test_preview_process_subtitle_heuristics(self, mock_fetch):
+        """Test 7: TV subtitle heuristics: Root vs Subfolder, Ambiguity, Nested subs."""
+        mock_fetch.return_value = {
+            "1": {"title": "Episode 1", "plot": ""},
+            "2": {"title": "Bonus Episode", "plot": ""}
+        }
+
+        # Project folder structure:
+        # Serengeti/
+        #   S01E01.mkv
+        #   Bonus/
+        #     bonus.mkv
+        #     ger_forced.sub
+        inbox_show_dir = os.path.join(self.inbox_dir, "Serengeti")
+        os.makedirs(os.path.join(inbox_show_dir, "Bonus"), exist_ok=True)
+
+        open(os.path.join(inbox_show_dir, "S01E01.mkv"), "w").close()
+        open(os.path.join(inbox_show_dir, "Bonus", "bonus.mkv"), "w").close()
+        open(os.path.join(inbox_show_dir, "Bonus", "ger_forced.sub"), "w").close()
+
+        # Nested allowed subs:
+        # Season 1/S01E02.mkv
+        # Season 1/Subs/de.srt
+        os.makedirs(os.path.join(inbox_show_dir, "Season 1", "Subs"), exist_ok=True)
+        open(os.path.join(inbox_show_dir, "Season 1", "S01E02.mkv"), "w").close()
+        open(os.path.join(inbox_show_dir, "Season 1", "Subs", "de.srt"), "w").close()
+
+        # Ambiguity prevention:
+        # Extra/ep3.mkv
+        # Extra/ep4.mkv
+        # Extra/loose.srt (ambiguous because two videos in Extra, shouldn't match either automatically)
+        os.makedirs(os.path.join(inbox_show_dir, "Extra"), exist_ok=True)
+        open(os.path.join(inbox_show_dir, "Extra", "ep3.mkv"), "w").close()
+        open(os.path.join(inbox_show_dir, "Extra", "ep4.mkv"), "w").close()
+        open(os.path.join(inbox_show_dir, "Extra", "loose.srt"), "w").close()
+
+        payload = {
+            "media_type": "tv",
+            "project_name": "Serengeti",
+            "show_name": "Serengeti",
+            "show_id": "tvdb_show_123",
+            "provider": "tvdb",
+            "season": "1",
+            "mappings": {
+                "S01E01.mkv": "1",
+                "Bonus/bonus.mkv": "2",
+                "Season 1/S01E02.mkv": "1",
+                "Extra/ep3.mkv": "1",
+                "Extra/ep4.mkv": "2"
+            }
+        }
+
+        res = self._post("/api/preview_process", json_data=payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+
+        subs = data["subs"]
+
+        # Verify that "Bonus/ger_forced.sub" is mapped to the bonus episode rename name
+        # but NOT to the root episode rename name.
+        bonus_sub_mappings = [s for s in subs if s["old"] == "Bonus/ger_forced.sub"]
+        self.assertEqual(len(bonus_sub_mappings), 1)
+        self.assertEqual(bonus_sub_mappings[0]["new"], "Serengeti - S01E02 - Bonus Episode.de.forced.sub")
+
+        # Nested subtitle "Season 1/Subs/de.srt" should map to "Season 1/S01E02.mkv"'s renamed name.
+        nested_sub_mappings = [s for s in subs if s["old"] == "Season 1/Subs/de.srt"]
+        self.assertEqual(len(nested_sub_mappings), 1)
+        self.assertEqual(nested_sub_mappings[0]["new"], "Serengeti - S01E01 - Episode 1.de.srt")
+
+        # Ambiguous subtitle "Extra/loose.srt" should NOT map to anything (and end up in junk)
+        loose_sub_mappings = [s for s in subs if s["old"] == "Extra/loose.srt"]
+        self.assertEqual(len(loose_sub_mappings), 0)
+
+        junk = data["junk"]
+        self.assertIn("Extra/loose.srt", junk)
