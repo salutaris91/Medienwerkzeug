@@ -365,9 +365,9 @@ class TestMovieProcessingFixes(unittest.TestCase):
         # Output directory is outbox/Filme/Artwork Movie (2026)
         dest_movie_dir = os.path.join(self.outbox_dir, "Filme", "Artwork Movie (2026)")
 
-        # Verify poster.png was copied to folder.png (since Emby copies poster to folder)
+        # Verify poster.png was copied / exists, but folder.png should not exist (deduplicated)
         self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "poster.png")))
-        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "folder.png")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "folder.png")))
 
         # BUT poster.jpg or folder.jpg should NOT exist
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "poster.jpg")))
@@ -419,7 +419,7 @@ class TestMovieProcessingFixes(unittest.TestCase):
 
         # Core compatibility poster files should be created
         self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "poster.jpg")))
-        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "folder.jpg")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "folder.jpg")))
         self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "fanart.jpg")))
 
         # Title-specific files should be cleaned up / NOT exist in outbox
@@ -457,7 +457,7 @@ class TestMovieProcessingFixes(unittest.TestCase):
         dest_movie_dir = os.path.join(self.outbox_dir, "Filme", "Jpg Movie (2026)")
 
         self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "poster.jpg")))
-        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "folder.jpg")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "folder.jpg")))
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "poster.png")))
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "folder.png")))
 
@@ -492,7 +492,7 @@ class TestMovieProcessingFixes(unittest.TestCase):
         dest_movie_dir = os.path.join(self.outbox_dir, "Filme", "Png Movie (2026)")
 
         self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "poster.png")))
-        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "folder.png")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "folder.png")))
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "poster.jpg")))
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "folder.jpg")))
 
@@ -536,13 +536,13 @@ class TestMovieProcessingFixes(unittest.TestCase):
 
         # Master poster.jpg is preferred in priority, so poster.png/folder.png should be deleted
         self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "poster.jpg")))
-        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "folder.jpg")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "folder.jpg")))
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "poster.png")))
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "folder.png")))
 
-        # Master fanart.jpg is preferred, backdrop.jpg/fanart.jpg are created from it. fanart.png/backdrop.png should be deleted
+        # Master fanart.jpg is preferred. fanart.png/backdrop.png/backdrop.jpg should be deleted/not exist
         self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "fanart.jpg")))
-        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "backdrop.jpg")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "backdrop.jpg")))
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "fanart.png")))
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "backdrop.png")))
 
@@ -619,9 +619,9 @@ class TestMovieProcessingFixes(unittest.TestCase):
         dest_movie_dir = os.path.join(self.outbox_dir, "Filme", "Webp Movie (2026)")
 
         self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "poster.webp")))
-        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "folder.webp")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "folder.webp")))
         self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "fanart.webp")))
-        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "backdrop.webp")))
+        self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "backdrop.webp")))
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "poster.jpg")))
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "folder.jpg")))
         self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "fanart.jpg")))
@@ -963,6 +963,51 @@ class TestMovieProcessingFixes(unittest.TestCase):
         self.assertEqual(history[0]["quality"], 60)
         self.assertEqual(history[0]["content_type"], "movie")
         self.assertEqual(history[0]["filename"], "Converted Movie (2026).mp4")
+
+    def test_jellyfin_artwork_sorting_preference(self):
+        """Wenn media_server=jellyfin und fanart.jpg plus backdrop.jpg vorhanden sind, bleibt backdrop.jpg erhalten und fanart.jpg wird entfernt."""
+        # Save original media_server settings and temporarily set it to jellyfin
+        orig_server = self.settings.get("media_server")
+        self.settings["media_server"] = "jellyfin"
+        persistence.save_settings(self.settings)
+        try:
+            proj_dir = os.path.join(self.inbox_dir, "JellyfinPrioMovie")
+            os.makedirs(proj_dir)
+
+            # Create movie video file
+            video = os.path.join(proj_dir, "movie.mkv")
+            with open(video, "wb") as f:
+                f.truncate(10 * 1024 * 1024)
+
+            # Create BOTH fanart.jpg AND backdrop.jpg
+            with open(os.path.join(proj_dir, "fanart.jpg"), "w") as f:
+                f.write("fanart data")
+            with open(os.path.join(proj_dir, "backdrop.jpg"), "w") as f:
+                f.write("backdrop data")
+
+            params = {
+                "media_type": "movie",
+                "project_name": "JellyfinPrioMovie",
+                "movie_name": "Jellyfin Prio Movie (2026)",
+                "destination_id": "1",
+                "copy_to_nas": True,
+                "explicit_renames": [
+                    {"old": "movie.mkv", "new": "Jellyfin Prio Movie (2026).mkv"}
+                ],
+                "explicit_subs": [],
+                "explicit_junk": []
+            }
+
+            processor.process_worker(params)
+            dest_movie_dir = os.path.join(self.outbox_dir, "Filme", "Jellyfin Prio Movie (2026)")
+
+            # backdrop.jpg should exist (preferred for Jellyfin)
+            self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "backdrop.jpg")))
+            # fanart.jpg should NOT exist (since we deduplicate and backdrop.jpg is preferred)
+            self.assertFalse(os.path.exists(os.path.join(dest_movie_dir, "fanart.jpg")))
+        finally:
+            self.settings["media_server"] = orig_server
+            persistence.save_settings(self.settings)
 
 if __name__ == "__main__":
     unittest.main()

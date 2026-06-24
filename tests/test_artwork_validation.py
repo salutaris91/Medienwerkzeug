@@ -144,5 +144,45 @@ class TestArtworkValidation(unittest.TestCase):
         self.assertFalse(emby.matches_artwork_name("fanart-.jpg", "fanart.jpg"))
         self.assertFalse(emby.matches_artwork_name("fanart_.jpg", "fanart.jpg"))
 
+    def test_emby_only_generates_one_backdrop(self):
+        emby_val = artwork_validators.get_validator("emby")
+        self.assertEqual(emby_val.get_preferred_movie_backdrop_name("movie.mkv"), "fanart.jpg")
+        self.assertEqual(emby_val.get_preferred_series_backdrop_name(), "fanart.jpg")
+
+    def test_jellyfin_prefers_backdrop(self):
+        jelly_val = artwork_validators.get_validator("jellyfin")
+        self.assertEqual(jelly_val.get_preferred_movie_backdrop_name("movie.mkv"), "backdrop.jpg")
+        self.assertEqual(jelly_val.get_preferred_series_backdrop_name(), "backdrop.jpg")
+
+    def test_existing_backdrop_recognized_by_emby(self):
+        emby_val = artwork_validators.get_validator("emby")
+        # If we have backdrop.jpg, has_artwork_file should return True for series backdrops
+        with unittest.mock.patch("os.path.isdir", return_value=True), \
+             unittest.mock.patch("os.listdir", return_value=["backdrop.jpg"]):
+            has_backdrop = emby_val.has_artwork_file("/some/path", emby_val.get_series_backdrop_names())
+            self.assertTrue(has_backdrop)
+
+    def test_queue_import_whitelist(self):
+        allowed_names = artwork_validators.get_all_allowed_metadata_names()
+        self.assertIn("backdrop.jpg", allowed_names)
+        self.assertIn("backdrop.png", allowed_names)
+        self.assertIn("poster.jpg", allowed_names)
+        self.assertIn("fanart.jpg", allowed_names)
+        self.assertIn("folder.jpg", allowed_names)
+
+    def test_sidecar_suffixes_list_contains_only_basename_bound(self):
+        suffixes = artwork_validators.get_basename_sidecar_suffixes()
+        # Should contain basename-bound suffixes
+        self.assertIn("-fanart.jpg", suffixes)
+        self.assertIn("-backdrop.jpg", suffixes)
+        self.assertIn("-poster.jpg", suffixes)
+        self.assertIn(".nfo", suffixes)
+        
+        # Should NOT contain standalone/folder-level names
+        self.assertNotIn("fanart.jpg", suffixes)
+        self.assertNotIn("backdrop.jpg", suffixes)
+        self.assertNotIn("poster.jpg", suffixes)
+        self.assertNotIn("folder.jpg", suffixes)
+
 if __name__ == "__main__":
     unittest.main()

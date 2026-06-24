@@ -381,3 +381,76 @@ def get_validator(server_name: str) -> ArtworkValidator:
         return JellyfinArtworkValidator()
     else:
         return EmbyArtworkValidator()
+
+
+def get_basename_sidecar_suffixes() -> list[str]:
+    """
+    Returns a unified list of all basename-bound sidecar and metadata suffixes 
+    (e.g., '.nfo', subtitle extensions, and video-specific artwork suffixes like 
+    '-poster.jpg', '-fanart.jpg', '-backdrop.jpg', etc.) that are appended directly 
+    to a video file's base name (e.g. video_base + suffix).
+    
+    Excludes standalone/folder-level artworks like 'poster.jpg' or 'fanart.jpg'.
+    """
+    # 1. Base NFO
+    suffixes = ['.nfo']
+    
+    # 2. Subtitles (with and without language codes)
+    sub_formats = ['.srt', '.vtt', '.ass', '.ssa', '.sub', '.idx']
+    for fmt in sub_formats:
+        suffixes.append(fmt)
+        for lang in ['de', 'en']:
+            suffixes.append(f'.{lang}{fmt}')
+            suffixes.append(f'.{lang}.forced{fmt}')
+            
+    # 3. Base-specific artwork suffixes across all servers
+    for art in ['-poster', '-fanart', '-backdrop', '-logo', '-clearlogo', '-banner', '-thumb', '-landscape']:
+        for ext in ['.jpg', '.jpeg', '.png', '.webp']:
+            suffixes.append(f"{art}{ext}")
+            
+    # Remove duplicates but maintain order
+    seen = set()
+    return [x for x in suffixes if not (x in seen or seen.add(x))]
+
+
+def get_all_allowed_metadata_names() -> list[str]:
+    """
+    Returns a list of all standalone/folder-level artwork and metadata names 
+    supported by all configured media servers (Emby, Jellyfin, Plex).
+    """
+    validators = [EmbyArtworkValidator(), JellyfinArtworkValidator(), PlexArtworkValidator()]
+    names = ['tvshow.nfo', 'season.nfo', 'movie.nfo']
+    
+    for val in validators:
+        # Standard series-level artwork names
+        names.extend(val.get_series_poster_names())
+        names.extend(val.get_series_backdrop_names())
+        names.extend(val.get_series_logo_names())
+        names.extend(val.get_series_banner_names())
+        
+        # Standard movie-level artwork names (static ones that don't start with the dummy file name prefix)
+        for name in val.get_movie_poster_names("dummy.mkv"):
+            if not name.startswith("dummy"):
+                names.append(name)
+        for name in val.get_movie_backdrop_names("dummy.mkv"):
+            if not name.startswith("dummy"):
+                names.append(name)
+        for name in val.get_movie_logo_names("dummy.mkv"):
+            if not name.startswith("dummy"):
+                names.append(name)
+        for name in val.get_movie_banner_names("dummy.mkv"):
+            if not name.startswith("dummy"):
+                names.append(name)
+        for name in val.get_movie_thumb_names("dummy.mkv"):
+            if not name.startswith("dummy"):
+                names.append(name)
+                
+    # Also add season poster formats for seasons 0 to 20
+    for s in range(21):
+        for val in validators:
+            for name in val.get_season_poster_names(s):
+                names.append(name)
+                
+    seen = set()
+    return [x for x in names if not (x in seen or seen.add(x))]
+

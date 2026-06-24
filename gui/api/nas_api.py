@@ -541,7 +541,8 @@ def handle_api_resolve_duplicate():
             
             # Delete corresponding nfo / artwork if present
             base_path = os.path.splitext(existing_path)[0]
-            for ext in [".nfo", ".srt", "-poster.jpg", "-fanart.jpg"]:
+            from gui.core.artwork_validators import get_basename_sidecar_suffixes
+            for ext in get_basename_sidecar_suffixes():
                 art_file = base_path + ext
                 if os.path.exists(art_file):
                     try:
