@@ -706,8 +706,8 @@ def handle_api_series_detect():
             except Exception as e:
                 log_message(f"⚠️ Outbox-Ordner konnte nicht gelistet werden: {outbox_dest} ({e})")
                 
-    from gui.core.series_helper import resolve_series_folder_name
-    cleaned_proj = resolve_series_folder_name(destination, outbox_dest, None, None, project_name, log_reason=False)
+    from gui.core.helpers import clean_series_name_for_fs, limit_filename_length
+    cleaned_proj = limit_filename_length(clean_series_name_for_fs(project_name))
     # Helper to find best match in list
     best_match = None
     

@@ -16,11 +16,11 @@ def find_existing_series_folder_by_id(destination_path, provider, show_id):
                         if meta:
                             meta_show_id = meta.get("mw_showid")
                             meta_provider = meta.get("mw_provider")
-                            
+
                             if meta_show_id and meta_provider:
                                 if str(meta_show_id).strip() == str(show_id).strip() and str(meta_provider).strip() == str(provider).strip():
                                     return entry
-                            
+
                             # Fallback checks (e.g. if we search for tvdb/tmdb directly)
                             if provider == "tvdb" and str(meta_show_id).strip() == str(show_id).strip():
                                 return entry
@@ -62,8 +62,16 @@ def resolve_series_folder_name(destination, outbox_root, provider, show_id, show
             log_message(f"📁 [Folder Resolve] ID-Match in Outbox gefunden: '{outbox_match}'")
         return outbox_match
 
-    # Fallback: clean name
+    # Fallback: fuzzy match via get_matched_series_name
+    from gui.core.helpers import get_matched_series_name
     clean_name = limit_filename_length(clean_series_name_for_fs(show_name))
+    fuzzy_match = get_matched_series_name(destination, outbox_root, clean_name)
+    if fuzzy_match and fuzzy_match != clean_name:
+        if log_reason:
+            log_message(f"📁 [Folder Resolve] Fuzzy-Match gefunden: '{fuzzy_match}' (für '{clean_name}')")
+        return fuzzy_match
+
+    # Fallback: clean name
     if log_reason:
         log_message(f"📁 [Folder Resolve] Kein Match gefunden. Erstelle neuen Ordner: '{clean_name}'")
     return clean_name

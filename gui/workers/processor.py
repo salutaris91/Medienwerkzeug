@@ -29,7 +29,7 @@ def _get_series_meta_files(settings):
 
 def _update_transfer_progress(target_id, file_idx, percent, msg, target_progresses, target_speeds, progress_lock, N, task_id, update_global_job_progress):
     import re
-    
+
     with progress_lock:
         try:
             target_progresses[target_id][file_idx] = percent
@@ -41,7 +41,7 @@ def _update_transfer_progress(target_id, file_idx, percent, msg, target_progress
         speed_match = re.search(r'\(([\d.]+\s*[kKMG]i?B/s)\)', msg)
         if not speed_match:
             speed_match = re.search(r'([\d.]+\s*[kKMG]i?B/s)', msg)
-        
+
         speed_str = speed_match.group(1) if speed_match else None
         if speed_str:
             try:
@@ -76,23 +76,23 @@ def _handle_transfer_task(
 
     task_type = task["type"]
     file_idx = task.get("file_idx")
-    
+
     if task_type in ["nas_transfer", "movie_nas_transfer"]:
         target_id = task.get("target_id", "nas")
         final_filename = task["final_filename"]
-        
+
         def nas_progress_cb(percent, msg):
             _update_transfer_progress(
                 target_id, file_idx, percent, msg,
                 target_progresses, target_speeds, progress_lock,
                 N, task_id, update_global_job_progress
             )
-            
+
         if task_type == "nas_transfer":
             dest_dir_outbox = task["dest_dir_outbox"]
             dest_dir_nas = task["dest_dir_nas"]
             clean_title = task["clean_title"]
-            
+
             log_message(f"[Transfer Thread]: Starte NAS-Kopieren für {final_filename} auf {target_id}...")
             os.makedirs(dest_dir_nas, exist_ok=True)
             success = run_rsync_with_progress(
@@ -115,11 +115,11 @@ def _handle_transfer_task(
                     if f.startswith(clean_title) and f != final_filename:
                         shutil.copy(os.path.join(dest_dir_outbox, f), os.path.join(dest_dir_nas, f))
                 log_message(f"[Transfer Thread]: Kopieren auf {target_id} fertig für {final_filename}.")
-                
+
         else:  # movie_nas_transfer
             dest_movie_dir_outbox = task["dest_movie_dir_outbox"]
             dest_movie_dir_nas = task["dest_movie_dir_nas"]
-            
+
             log_message(f"[Transfer Thread]: Starte NAS-Kopieren für {final_filename} auf {target_id}...")
             os.makedirs(dest_movie_dir_nas, exist_ok=True)
             success = run_rsync_with_progress(
@@ -137,9 +137,9 @@ def _handle_transfer_task(
                     if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
                         if target_id in active_jobs[task_id]["pipeline"]:
                             active_jobs[task_id]["pipeline"][target_id]["status"] = "error"
-                            
+
         update_global_job_progress()
-        
+
     elif task_type == "show_metadata_nas_transfer":
         dest_show_dir_outbox = task["dest_show_dir_outbox"]
         dest_show_dir_nas = task["dest_show_dir_nas"]
@@ -178,26 +178,26 @@ def _handle_transfer_task(
                 else:
                     shutil.copy(p_src, p_dest)
         log_message("[Transfer Thread]: Serien-Metadaten kopiert.")
-        
+
     elif task_type in ["pcloud_transfer", "cloud_transfer", "movie_pcloud_transfer", "movie_cloud_transfer"]:
         target_id = task.get("target_id", "pcloud")
         explicit_remote_base = task.get("explicit_remote_base") or task.get("explicit_pcloud_base")
-        
+
         settings = load_settings()
         target = next((t for t in settings.get("storage_targets", []) if t.get("id") == target_id), None)
         target_name = target.get("name", target_id) if target else target_id
-        
+
         def cloud_progress_cb(percent, msg):
             _update_transfer_progress(
                 target_id, file_idx, percent, msg,
                 target_progresses, target_speeds, progress_lock,
                 N, task_id, update_global_job_progress
             )
-            
+
         if task_type in ["pcloud_transfer", "cloud_transfer"]:
             dest_show_dir_outbox = task["dest_show_dir_outbox"]
             nas_serien = task["nas_serien"]
-            
+
             log_message(f"[Transfer Thread]: Starte Upload für {target_name}...")
             success = copy_to_cloud_target(
                 dest_show_dir_outbox,
@@ -211,7 +211,7 @@ def _handle_transfer_task(
             dest_movie_dir_outbox = task["dest_movie_dir_outbox"]
             dest_movies = task["dest_movies"]
             clean_movie_name = task.get("clean_movie_name", "")
-            
+
             log_message(f"[Transfer Thread]: Starte Upload nach {target_name} für {clean_movie_name}...")
             success = copy_to_cloud_target(
                 dest_movie_dir_outbox,
@@ -221,7 +221,7 @@ def _handle_transfer_task(
                 explicit_remote_base=explicit_remote_base
             )
             name_log = f"{target_name} für {clean_movie_name}"
-            
+
         if success:
             with progress_lock:
                 try:
@@ -918,19 +918,19 @@ def process_worker(params):
 
         show_name = params.get("show_name", "Unknown Show")
         nas_show_folder = params.get("nas_show_folder")
-        
+
         nas_serien = destination if destination else f"{nas_root}/Serien"
         rel_dest = os.path.relpath(nas_serien, nas_root)
         outbox_serien = os.path.join(outbox_root, rel_dest)
-        
+
         from gui.core.series_helper import resolve_series_folder_name
         clean_show_name = resolve_series_folder_name(
-            destination=nas_serien, 
-            outbox_root=outbox_serien, 
-            provider=provider, 
-            show_id=show_id, 
-            show_name=show_name, 
-            nas_show_folder=nas_show_folder, 
+            destination=nas_serien,
+            outbox_root=outbox_serien,
+            provider=provider,
+            show_id=show_id,
+            show_name=show_name,
+            nas_show_folder=nas_show_folder,
             log_reason=True
         )
 
@@ -2079,15 +2079,15 @@ def process_worker(params):
         nas_serien = destination if destination else f"{nas_root}/Serien"
         rel_dest = os.path.relpath(nas_serien, nas_root)
         outbox_serien = os.path.join(outbox_root, rel_dest)
-        
+
         from gui.core.series_helper import resolve_series_folder_name
         clean_show_name = resolve_series_folder_name(
-            destination=nas_serien, 
-            outbox_root=outbox_serien, 
-            provider=provider, 
-            show_id=show_id, 
-            show_name=show_name, 
-            nas_show_folder=nas_show_folder, 
+            destination=nas_serien,
+            outbox_root=outbox_serien,
+            provider=provider,
+            show_id=show_id,
+            show_name=show_name,
+            nas_show_folder=nas_show_folder,
             log_reason=True
         ) if show_name else ""
 
@@ -2961,37 +2961,37 @@ def process_worker(params):
         open_after = params.get("open_after", False)
         delete_original = params.get("delete_original", False)
         task_id = params.get("task_id")
-        
+
         settings = load_settings()
         category = next((c for c in settings.get("sync_categories", []) if str(c.get("id")) == str(cat_id)), None)
         if not category:
             raise RuntimeError("Keine gültige Kategorie ausgewählt oder gefunden.")
-            
+
         log_message(f"=== STARTE MANUELLES SYNC FÜR KATEGORIE: {category.get('name')} ===")
         all_success = True
         any_attempted = False
-        
+
         for target in settings.get("storage_targets", []):
             t_id = target.get("id")
             if target.get("enabled") is False:
                 continue
             if not params.get(f"copy_to_{t_id}", False):
                 continue
-                
+
             any_attempted = True
             log_message(f"Bereite Sync für Ziel '{target.get('name')}' vor...")
-            
+
             if target.get("type") == "nas" or t_id == "nas":
                 if not ensure_nas_mounted():
                     log_message(f"❌ NAS konnte nicht gemountet werden. Kopiervorgang für {target.get('name')} abgebrochen.")
                     all_success = False
                     continue
-                
+
                 # Resolve NAS path
                 rel_sub = category.get("targets", {}).get(t_id)
                 if not rel_sub and t_id == "nas":
                     rel_sub = category.get("nas_sub", "")
-                
+
                 if not rel_sub:
                     log_message(f"❌ Kein Zielpfad-Mapping konfiguriert für Ziel {target.get('name')}.")
                     all_success = False
@@ -2999,10 +2999,10 @@ def process_worker(params):
 
                 root_path = target.get("root_path", "")
                 dest = os.path.join(root_path, rel_sub.lstrip('/')) if root_path and not rel_sub.startswith(root_path) else rel_sub
-                
+
                 folder_name = os.path.basename(current_dir.rstrip('/'))
                 nas_target = os.path.join(dest, folder_name)
-                
+
                 log_message(f"Kopiere Ordner auf NAS: {nas_target}")
                 try:
                     success = run_rsync_with_progress(current_dir, nas_target, task_id)
@@ -3021,17 +3021,17 @@ def process_worker(params):
                 t_sub = category.get("targets", {}).get(t_id)
                 if not t_sub and t_id == "pcloud":
                     t_sub = category.get("pcloud_remote", "")
-                
+
                 if not t_sub:
                     log_message(f"❌ Kein Remote-Zielpfad-Mapping konfiguriert für Cloud-Ziel {target.get('name')}.")
                     all_success = False
                     continue
 
                 success = copy_to_cloud_target(
-                    current_dir, 
-                    "", 
-                    t_id, 
-                    task_id, 
+                    current_dir,
+                    "",
+                    t_id,
+                    task_id,
                     explicit_remote_base=t_sub
                 )
                 if not success:
@@ -3039,7 +3039,7 @@ def process_worker(params):
 
         if not any_attempted:
             raise RuntimeError("Keine Speicherziele ausgewählt oder Mapping ungültig.")
-            
+
         if not all_success:
             raise RuntimeError("Fehler bei mindestens einem Synchronisations-Ziel.")
 

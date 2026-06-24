@@ -215,7 +215,7 @@ def handle_api_preview_process():
                     target_basename = candidate
                     resolved_subs[rel_path_no_ext] = target_basename
                     used_resolved_basenames.add(target_basename)
-                
+
                 target_filename = f"{target_basename}{ext}"
                 preview["subs"].append({"old": f, "new": target_filename})
             elif basename.lower() in ['poster.jpg', 'fanart.jpg', 'tvshow.nfo', 'season.nfo']:
@@ -235,15 +235,15 @@ def handle_api_preview_process():
         nas_serien = destination if destination else f"{nas_root}/Serien"
         rel_dest = os.path.relpath(nas_serien, nas_root)
         outbox_serien = os.path.join(outbox_root, rel_dest)
-        
+
         from gui.core.series_helper import resolve_series_folder_name
         clean_show_name = resolve_series_folder_name(
-            destination=nas_serien, 
-            outbox_root=outbox_serien, 
-            provider=provider, 
-            show_id=show_id, 
-            show_name=show_name, 
-            nas_show_folder=nas_show_folder, 
+            destination=nas_serien,
+            outbox_root=outbox_serien,
+            provider=provider,
+            show_id=show_id,
+            show_name=show_name,
+            nas_show_folder=nas_show_folder,
             log_reason=False
         )
 
@@ -309,7 +309,7 @@ def handle_api_preview_process():
                             if not ep_data and provider == "ytdlp" and len(episodes) == 1:
                                 ep_data = list(episodes.values())[0]
                             ep_title = ep_data.get("title", "") if isinstance(ep_data, dict) else str(ep_data)
-                            
+
                             match = re.match(r"^S(\d+)E(\d+)$", str(meta_ep), re.IGNORECASE)
                             if match:
                                 if curr_season == "all":
@@ -399,7 +399,7 @@ def handle_api_preview_process():
                             target_basename = candidate
                             local_resolved_subs[rel_path_no_ext] = target_basename
                             local_used.add(target_basename)
-                        
+
                         preview["subs"].append({"old": sf, "new": f"{target_basename}{sext}"})
 
                     for sf, sbasename, sext in other_companion_files:
@@ -550,11 +550,11 @@ def handle_api_preview_process():
         if show_id and provider:
             from gui.core.series_helper import find_existing_series_folder_by_id, resolve_series_folder_name
             nas_match_folder = find_existing_series_folder_by_id(nas_serien, provider, show_id)
-            
+
             # The default name based on metadata (without ID fallback)
             outbox_serien_path = os.path.join(outbox_root, os.path.relpath(nas_serien, nas_root))
             metadata_show_name = resolve_series_folder_name(nas_serien, outbox_serien_path, None, None, show_name, log_reason=False)
-            
+
             if nas_match_folder and nas_match_folder != metadata_show_name:
                 preview["show_name_mismatch"] = {
                     "nas_name": nas_match_folder,

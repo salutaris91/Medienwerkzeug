@@ -851,7 +851,7 @@ def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=
     nfo_path = os.path.join(target_folder, f"{filename_base}.nfo")
     with open(nfo_path, 'w', encoding='utf-8') as f:
         f.write(xml)
-        log_message(f"[NFO] {nfo_path}: created")
+        log_message(f"[NFO] {nfo_path}: created (provider={provider})")
 
     return {"nfo": True, "poster": False, "fanart": False, "msg": "OFDb NFO erstellt"}
 
@@ -965,7 +965,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             xml += '</movie>\n'
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
-                log_message(f"[NFO] {nfo_path}: created")
+                log_message(f"[NFO] {nfo_path}: created (provider={provider})")
         return {"nfo": needs_nfo, "poster": False, "fanart": False, "msg": "Mediathek Film NFO erstellt"}
 
     if tmdb_id == "manual" or (isinstance(tmdb_id, str) and tmdb_id.startswith("{")):
@@ -994,7 +994,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             xml += '</movie>\n'
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
-                log_message(f"[NFO] {nfo_path}: created")
+                log_message(f"[NFO] {nfo_path}: created (provider={provider})")
         return {"nfo": needs_nfo, "poster": False, "fanart": False, "msg": "Manuelle Film NFO erstellt"}
 
     if isinstance(tmdb_id, str) and (tmdb_id.startswith("http://") or tmdb_id.startswith("https://")):
@@ -1036,7 +1036,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
                 xml += '</movie>\n'
                 with open(nfo_path, 'w', encoding='utf-8') as f:
                     f.write(xml)
-                    log_message(f"[NFO] {nfo_path}: created")
+                    log_message(f"[NFO] {nfo_path}: created (provider={provider})")
 
             if thumbnail_url and needs_poster:
                 try:
@@ -1124,7 +1124,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
 
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
-            log_message(f"[NFO] {nfo_path}: created")
+            log_message(f"[NFO] {nfo_path}: created (provider={provider})")
 
     # Download images using TMDB Images API for German-localized/higher-quality art
     if (needs_poster or needs_fanart or needs_logo or needs_banner) and str(tmdb_id).isdigit():
@@ -1532,7 +1532,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
         xml += '</tvshow>\n'
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
-            log_message(f"[NFO] {nfo_path}: created")
+            log_message(f"[NFO] {nfo_path}: created (provider={provider})")
         return {"nfo": True, "poster": False, "fanart": False, "msg": "Manuelle tvshow.nfo erstellt"}
 
     if provider == "mediathek":
@@ -1560,7 +1560,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
         xml += '</tvshow>\n'
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
-            log_message(f"[NFO] {nfo_path}: created")
+            log_message(f"[NFO] {nfo_path}: created (provider={provider})")
         return {"nfo": True, "poster": False, "fanart": False, "msg": "Mediathek tvshow.nfo erstellt"}
 
     if provider == "ytdlp":
@@ -1592,7 +1592,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
         xml += '</tvshow>\n'
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
-            log_message(f"[NFO] {nfo_path}: created")
+            log_message(f"[NFO] {nfo_path}: created (provider={provider})")
         return {"nfo": True, "poster": False, "fanart": False, "msg": "ytdlp tvshow.nfo erstellt"}
 
     if provider not in ["tmdb_tv", "tmdb_tv_en", "tvdb"]:
@@ -1695,7 +1695,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
             xml += '</tvshow>\n'
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
-                log_message(f"[NFO] {nfo_path}: created")
+                log_message(f"[NFO] {nfo_path}: created (provider={provider})")
 
         if needs_poster or needs_fanart or needs_logo or needs_banner:
             artworks = data.get('artworks', [])
@@ -1808,7 +1808,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
         xml += '</tvshow>\n'
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
-            log_message(f"[NFO] {nfo_path}: created")
+            log_message(f"[NFO] {nfo_path}: created (provider={provider})")
 
     if (needs_poster or needs_fanart or needs_logo or needs_banner) and str(show_id).isdigit():
         images = fetch_tmdb_images("tv", show_id)
@@ -1895,7 +1895,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             xml += '</episodedetails>\n'
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
-                log_message(f"[NFO] {nfo_path}: created")
+                log_message(f"[NFO] {nfo_path}: created (provider={provider})")
         return {"nfo": needs_nfo, "thumb": False}
 
     if provider == "mediathek":
@@ -1922,7 +1922,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             xml += '</episodedetails>\n'
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
-                log_message(f"[NFO] {nfo_path}: created")
+                log_message(f"[NFO] {nfo_path}: created (provider={provider})")
         return {"nfo": needs_nfo, "thumb": False}
 
     if provider == "ytdlp":
@@ -1977,7 +1977,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                 xml += '</episodedetails>\n'
                 with open(nfo_path, 'w', encoding='utf-8') as f:
                     f.write(xml)
-                    log_message(f"[NFO] {nfo_path}: created")
+                    log_message(f"[NFO] {nfo_path}: created (provider={provider})")
 
             if thumbnail_url and needs_thumb:
                 try:
@@ -2068,7 +2068,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                     xml += '</episodedetails>\n'
                     with open(nfo_path, 'w', encoding='utf-8') as f:
                         f.write(xml)
-                        log_message(f"[NFO] {nfo_path}: created")
+                        log_message(f"[NFO] {nfo_path}: created (provider={provider})")
                     return {"nfo": True, "thumb": False, "msg": "Episode online bei TVDB nicht gefunden (lokaler Fallback generiert)"}
                 except Exception as write_err:
                     return {"nfo": False, "thumb": False, "msg": f"Episode online bei TVDB nicht gefunden, Schreibfehler: {write_err}"}
@@ -2110,7 +2110,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             xml += '</episodedetails>\n'
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
-                log_message(f"[NFO] {nfo_path}: created")
+                log_message(f"[NFO] {nfo_path}: created (provider={provider})")
 
         if needs_thumb and ep_data.get('image'):
             try: _download_with_timeout(ep_data.get('image'), thumb_path); needs_thumb = False
@@ -2146,7 +2146,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                 xml += '</episodedetails>\n'
                 with open(nfo_path, 'w', encoding='utf-8') as f:
                     f.write(xml)
-                    log_message(f"[NFO] {nfo_path}: created")
+                    log_message(f"[NFO] {nfo_path}: created (provider={provider})")
                 return {"nfo": True, "thumb": False, "msg": f"Online-Fehler ({str(e)}), lokaler Fallback generiert"}
             except Exception as write_err:
                 return {"error": f"Original: {str(e)}, Schreibfehler Fallback: {str(write_err)}"}
@@ -2173,7 +2173,7 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
         xml += '</episodedetails>\n'
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
-            log_message(f"[NFO] {nfo_path}: created")
+            log_message(f"[NFO] {nfo_path}: created (provider={provider})")
 
     if needs_thumb and data.get('still_path'):
         try:
@@ -2222,7 +2222,7 @@ def generate_youtube_nfo(json_path, nfo_path, nfo_type):
 
     with open(nfo_path, 'w', encoding='utf-8') as f:
         f.write(xml)
-        log_message(f"[NFO] {nfo_path}: created")
+        log_message(f"[NFO] {nfo_path}: created (provider={provider})")
 
     return {"nfo": True}
 

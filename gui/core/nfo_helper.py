@@ -252,7 +252,7 @@ def update_nfo_mw_data(nfo_path, provider, show_id, source_url=None, resolved_to
     # Bug 4: Provider-Konsistenz prüfen
     old_provider = existing_mw.get("provider")
     if old_provider and old_provider != provider:
-        log_message(f"⚠️ [NFO-Helper] Provider-Inkonsistenz in {os.path.basename(nfo_path)}: Alt={old_provider}, Neu={provider}. Behalte alte Werte bei und aktualisiere nur <last_sync>.")
+        log_message(f"⚠️ [NFO-Helper] Provider-Inkonsistenz in {os.path.basename(nfo_path)}: Alt={old_provider}, Neu={provider}. Schreibe alte Werte (Provider/ID) neu in den Block und aktualisiere nur <last_sync>.")
         provider = old_provider
         final_show_id = existing_mw.get("show_id")
         final_source_url = existing_mw.get("source_url")
