@@ -65,7 +65,8 @@ def handle_api_check_nas_duplicate():
         return jsonify({"duplicate": None})
     rel_dest = os.path.relpath(destination, nas_root)
     outbox_serien = os.path.join(outbox_root, rel_dest)
-    clean_show_name = get_matched_series_name(destination, outbox_serien, limit_filename_length(sanitize_filename(clean_show_name)))
+    from gui.core.series_helper import resolve_series_folder_name
+    clean_show_name = resolve_series_folder_name(destination, outbox_serien, None, None, clean_show_name, log_reason=False)
     
     show_dir = os.path.join(destination, clean_show_name)
     
@@ -301,7 +302,8 @@ def handle_api_nas_seasons():
         if exact_match:
             matched_folder = clean_show
         else:
-            matched_folder = get_matched_series_name(dest_path, outbox_dest, clean_show)
+            from gui.core.series_helper import resolve_series_folder_name
+            matched_folder = resolve_series_folder_name(dest_path, outbox_dest, None, None, clean_show, log_reason=False)
         
         show_path = os.path.join(dest_path, matched_folder)
         outbox_show_path = os.path.join(outbox_dest, matched_folder)

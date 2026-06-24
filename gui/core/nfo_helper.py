@@ -34,7 +34,7 @@ def update_or_insert_nfo_element(nfo_path, tag_name, inner_content, is_xml_block
     try:
         tree = ET.fromstring(content)
     except Exception as e:
-        raise ValueError(f"Original-XML fehlerhaft: {e}")
+        raise ValueError(f"Original-XML fehlerhaft in {os.path.basename(nfo_path)}: {e}")
 
     root_tag = tree.tag
     if root_tag not in ["movie", "tvshow", "episodedetails"]:
@@ -73,7 +73,7 @@ def update_or_insert_nfo_element(nfo_path, tag_name, inner_content, is_xml_block
     try:
         ET.fromstring(new_content)
     except Exception as e:
-        raise ValueError(f"Generiertes XML fehlerhaft: {e}")
+        raise ValueError(f"Generiertes XML fehlerhaft in {os.path.basename(nfo_path)}: {e}")
 
     # Backup original
     ts = time.strftime("%Y%m%d_%H%M%S")
@@ -248,6 +248,15 @@ def update_nfo_mw_data(nfo_path, provider, show_id, source_url=None, resolved_to
     final_source_url = source_url if source_url is not None else existing_mw.get("source_url")
     final_resolved_topic = resolved_topic if resolved_topic is not None else existing_mw.get("resolved_topic")
     final_show_id = show_id if show_id is not None else existing_mw.get("show_id")
+
+    # Bug 4: Provider-Konsistenz prüfen
+    old_provider = existing_mw.get("provider")
+    if old_provider and old_provider != provider:
+        log_message(f"⚠️ [NFO-Helper] Provider-Inkonsistenz in {os.path.basename(nfo_path)}: Alt={old_provider}, Neu={provider}. Schreibe alte Werte (Provider/ID) neu in den Block und aktualisiere nur <last_sync>.")
+        provider = old_provider
+        final_show_id = existing_mw.get("show_id")
+        final_source_url = existing_mw.get("source_url")
+        final_resolved_topic = existing_mw.get("resolved_topic")
 
     # Fallback-Herleitung für URLs/Topics
     if not final_source_url:

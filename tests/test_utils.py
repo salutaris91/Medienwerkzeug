@@ -118,7 +118,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         long_name = "a" * 200
         truncated = server.limit_filename_length(long_name, 160)
         self.assertEqual(len(truncated), 160)
-        self.assertTrue(truncated.endswith("..."))
+        self.assertTrue(truncated.endswith("a"))
         self.assertEqual(server.limit_filename_length("short name", 160), "short name")
 
     def test_series_name_normalization(self):

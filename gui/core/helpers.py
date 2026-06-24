@@ -183,7 +183,7 @@ def limit_filename_length(name, max_len=160):
     if not name:
         return ""
     if len(name) > max_len:
-        return name[:max_len - 3] + "..."
+        return name[:max_len].strip()
     return name
 
 def normalize_series_name(name):
