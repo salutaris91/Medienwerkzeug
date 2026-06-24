@@ -86,7 +86,7 @@ class TestMovieProcessingFixes(unittest.TestCase):
         os.makedirs(self.mock_trash_dir, exist_ok=True)
 
         # Mock trash.send_to_trash
-        def mock_send_to_trash(filepath):
+        def mock_send_to_trash(filepath, force=False):
             if os.path.exists(filepath):
                 dest = os.path.join(self.mock_trash_dir, os.path.basename(filepath))
                 if os.path.exists(dest):
@@ -1008,6 +1008,72 @@ class TestMovieProcessingFixes(unittest.TestCase):
         finally:
             self.settings["media_server"] = orig_server
             persistence.save_settings(self.settings)
+
+    def test_movie_preview_warning_when_movie_exists_on_nas(self):
+        """Prüft, ob in der Vorschau gewarnt wird, wenn der Film-Zielordner auf dem NAS bereits existiert."""
+        # 1. Zielordner und Film auf dem NAS anlegen
+        nas_movie_dir = os.path.join(self.nas_root, "Filme", "Test Movie (2026)")
+        os.makedirs(nas_movie_dir, exist_ok=True)
+        with open(os.path.join(nas_movie_dir, "Test Movie (2026).mkv"), "w") as f:
+            f.write("existing video on nas")
+
+        # 2. Inbox-Ordner anlegen
+        proj_dir = os.path.join(self.inbox_dir, "TestMovieInbox")
+        os.makedirs(proj_dir, exist_ok=True)
+        with open(os.path.join(proj_dir, "movie.mkv"), "wb") as f:
+            f.truncate(1 * 1024 * 1024)
+
+        payload = {
+            "media_type": "movie",
+            "project_name": "TestMovieInbox",
+            "movie_name": "Test Movie (2026)",
+            "destination_id": "1",
+            "copy_to_nas": True
+        }
+
+        # API-Aufruf
+        res = self._post("/api/preview_process", json_data=payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+
+        # Prüfen, ob die Warnung im JSON enthalten ist
+        self.assertIn("warning", data)
+        self.assertIn("Test Movie (2026).mkv", data["warning"])
+        self.assertIn("existiert bereits auf dem NAS", data["warning"])
+
+    def test_movie_processing_quarantine_collision(self):
+        """Prüft, ob beim Verarbeiten eine kollidierende Filmdatei auf dem NAS in die Quarantäne verschoben wird."""
+        # 1. Zielordner und Film auf dem NAS anlegen
+        nas_movie_dir = os.path.join(self.nas_root, "Filme", "Collision Movie (2026)")
+        os.makedirs(nas_movie_dir, exist_ok=True)
+        nas_video_file = os.path.join(nas_movie_dir, "Collision Movie (2026).mkv")
+        with open(nas_video_file, "w") as f:
+            f.write("old version of movie")
+
+        # 2. Inbox-Ordner anlegen
+        proj_dir = os.path.join(self.inbox_dir, "CollisionMovieInbox")
+        os.makedirs(proj_dir, exist_ok=True)
+        with open(os.path.join(proj_dir, "movie.mkv"), "wb") as f:
+            f.truncate(2 * 1024 * 1024)
+
+        params = {
+            "media_type": "movie",
+            "project_name": "CollisionMovieInbox",
+            "movie_name": "Collision Movie (2026)",
+            "destination_id": "1",
+            "copy_to_nas": True,
+            "explicit_renames": [
+                {"old": "movie.mkv", "new": "Collision Movie (2026).mkv"}
+            ],
+            "explicit_subs": [],
+            "explicit_junk": []
+        }
+
+        # Ausführen des Workers
+        processor.process_worker(params)
+
+        # Prüfen, ob die alte Filmdatei in die Quarantäne (mock_trash_dir) verschoben wurde
+        self.assertTrue(os.path.exists(os.path.join(self.mock_trash_dir, "Collision Movie (2026).mkv")))
 
 if __name__ == "__main__":
     unittest.main()
