@@ -122,6 +122,19 @@ def _handle_transfer_task(
 
             log_message(f"[Transfer Thread]: Starte NAS-Kopieren für {final_filename} auf {target_id}...")
             os.makedirs(dest_movie_dir_nas, exist_ok=True)
+
+            # Schutz vor Überschreiben: Existierende Zieldateien vorab in den Papierkorb verschieben
+            if os.path.exists(dest_movie_dir_nas) and os.path.exists(dest_movie_dir_outbox):
+                for f in os.listdir(dest_movie_dir_outbox):
+                    target_file_path = os.path.join(dest_movie_dir_nas, f)
+                    if os.path.exists(target_file_path):
+                        log_message(f"[Transfer Thread]: Zieldatei {f} existiert bereits auf dem NAS. Sende zur Sicherheit in die Quarantäne...")
+                        try:
+                            import gui.core.trash as trash
+                            trash.send_to_trash(target_file_path, force=True)
+                        except Exception as trash_err:
+                            log_message(f"⚠️ [Transfer Thread]: Fehler beim Senden von {f} in die Quarantäne: {trash_err}")
+
             success = run_rsync_with_progress(
                 dest_movie_dir_outbox,
                 dest_movie_dir_nas,
