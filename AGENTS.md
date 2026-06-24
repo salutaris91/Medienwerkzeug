@@ -110,6 +110,11 @@ Vor diesen Aktionen stoppen, genau auflisten was betroffen ist, und auf explizit
 - Jede Commit-Message endet mit der tool-spezifischen Zeile:
   `Co-Authored-By: AI Coding Assistant <noreply@github.com>`
 
+### GitHub CLI (gh) & Pull Requests
+
+- Wenn Pull Requests per `gh pr create` (oder andere `gh` Befehle) erstellt werden und die Umgebungsvariable `GITHUB_TOKEN` blockiert (z. B. durch einen gesetzten Dummy-Token), muss dieser explizit umgangen werden.
+- Nutze dafür `env -u GITHUB_TOKEN gh ...`, damit die GitHub CLI das lokal im Keychain gespeicherte, gültige Token verwendet.
+
 ### Parallele Agents
 
 - Jeder Agent arbeitet zwingend in einem eigenen Branch und einem eigenen Git-Worktree.
