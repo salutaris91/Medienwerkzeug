@@ -234,12 +234,12 @@ def get_video_codec(filepath):
 
 
 def get_media_info(filepath):
-    """Liefert Codec, Auflösung, Dauer und Größe einer Videodatei via einem ffprobe-Aufruf.
+    """Liefert Codec, Auflösung, Dauer, Größe, Audio-Codec und Bitrate einer Videodatei via einem ffprobe-Aufruf.
 
     Rückgabe-dict (Felder None, falls nicht ermittelbar):
-        {"codec", "width", "height", "duration", "size"}
+        {"codec", "width", "height", "duration", "size", "audio_codec", "bit_rate"}
     """
-    info = {"codec": None, "width": None, "height": None, "duration": None, "size": None}
+    info = {"codec": None, "width": None, "height": None, "duration": None, "size": None, "audio_codec": None, "bit_rate": None}
     try:
         info["size"] = os.path.getsize(filepath)
     except OSError:
@@ -254,11 +254,18 @@ def get_media_info(filepath):
                 info["codec"] = (stream.get("codec_name") or "").lower() or None
                 info["width"] = stream.get("width")
                 info["height"] = stream.get("height")
-                break
+            elif stream.get("codec_type") == "audio" and info["audio_codec"] is None:
+                info["audio_codec"] = (stream.get("codec_name") or "").lower() or None
         dur = data.get("format", {}).get("duration")
         if dur is not None:
             try:
                 info["duration"] = float(dur)
+            except (ValueError, TypeError):
+                pass
+        bit_rate = data.get("format", {}).get("bit_rate")
+        if bit_rate is not None:
+            try:
+                info["bit_rate"] = int(bit_rate)
             except (ValueError, TypeError):
                 pass
     except Exception as e:

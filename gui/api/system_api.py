@@ -310,9 +310,18 @@ def handle_api_status():
     os.makedirs(outbox, exist_ok=True)
 
     projects = []
+    project_types = {}
+    video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
     for d in os.listdir(inbox):
-        if os.path.isdir(os.path.join(inbox, d)) and not d.startswith("."):
+        if d.startswith("."):
+            continue
+        full_path = os.path.join(inbox, d)
+        if os.path.isdir(full_path):
             projects.append(d)
+            project_types[d] = True
+        elif os.path.isfile(full_path) and os.path.splitext(d)[1].lower() in video_exts:
+            projects.append(d)
+            project_types[d] = False
 
     import time
     # Cache NAS status and details for 30 seconds to avoid P5 pinging constantly
@@ -339,6 +348,7 @@ def handle_api_status():
         "outbox_path": outbox,
         "streamfab_downloads": check_streamfab(),
         "projects": sorted(projects),
+        "project_types": project_types,
         "inbox_size_gb": inbox_val,
         "outbox_size_gb": outbox_val,
         "metrics_loading": metrics_loading

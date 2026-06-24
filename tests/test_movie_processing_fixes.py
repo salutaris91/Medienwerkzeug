@@ -104,7 +104,13 @@ class TestMovieProcessingFixes(unittest.TestCase):
         self.patcher_nas.start()
 
         # Mock run_rsync_with_progress
-        def mock_rsync(src, dst, task_id=None, move=False):
+        def mock_rsync(src, dst, task_id=None, move=False, protect_existing=False):
+            if protect_existing:
+                from gui.core.transfers import _quarantine_colliding_files
+                try:
+                    _quarantine_colliding_files(src, dst)
+                except Exception:
+                    return False
             if os.path.isdir(src):
                 shutil.copytree(src, dst, dirs_exist_ok=True)
             else:
@@ -1074,6 +1080,101 @@ class TestMovieProcessingFixes(unittest.TestCase):
 
         # Prüfen, ob die alte Filmdatei in die Quarantäne (mock_trash_dir) verschoben wurde
         self.assertTrue(os.path.exists(os.path.join(self.mock_trash_dir, "Collision Movie (2026).mkv")))
+
+    def test_single_file_inbox_processing(self):
+        """Testet, ob eine Einzeldatei in der Inbox korrekt typisiert gelistet, in der Vorschau angezeigt und verarbeitet wird."""
+        single_movie = os.path.join(self.inbox_dir, "Single Movie (2026).mkv")
+        with open(single_movie, "wb") as f:
+            f.truncate(5 * 1024 * 1024)
+
+        # 1. API /api/status aufrufen und auf Typisierung prüfen
+        res = self.client.get("/api/status")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        
+        projects = data.get("projects", [])
+        self.assertIn("Single Movie (2026).mkv", projects)
+        project_types = data.get("project_types", {})
+        self.assertFalse(project_types.get("Single Movie (2026).mkv", True))
+
+        # 2. Vorschau-API testen
+        payload = {
+            "media_type": "movie",
+            "project_name": "Single Movie (2026).mkv",
+            "movie_name": "Single Movie (2026)",
+            "destination_id": "1",
+            "copy_to_nas": True
+        }
+        res = self._post("/api/preview_process", json_data=payload)
+        self.assertEqual(res.status_code, 200)
+        preview = res.get_json()
+        self.assertEqual(len(preview["renames"]), 1)
+        self.assertEqual(preview["renames"][0]["old"], "Single Movie (2026).mkv")
+        self.assertEqual(preview["renames"][0]["new"], "Single Movie (2026).mkv")
+
+        # 3. Worker ausführen
+        params = {
+            "media_type": "movie",
+            "project_name": "Single Movie (2026).mkv",
+            "movie_name": "Single Movie (2026)",
+            "destination_id": "1",
+            "copy_to_nas": True,
+            "explicit_renames": [{"old": "Single Movie (2026).mkv", "new": "Single Movie (2026).mkv"}],
+            "explicit_subs": [],
+            "explicit_junk": []
+        }
+        processor.process_worker(params)
+
+        # 4. Prüfen, ob die Datei im Outbox-Pfad angekommen ist
+        dest_movie_dir = os.path.join(self.outbox_dir, "Filme", "Single Movie (2026)")
+        self.assertTrue(os.path.exists(os.path.join(dest_movie_dir, "Single Movie (2026).mkv")))
+        # Und die Datei im Inbox-Pfad ist verschoben/weg
+        self.assertFalse(os.path.exists(single_movie))
+
+    def test_get_cleaner_suggested_query_heuristic(self):
+        """Testet die get_cleaner_suggested_query Heuristik für die Filmsuche."""
+        from gui.api.project_api import get_cleaner_suggested_query
+        
+        # Fall 1: Ordnername verrauscht mit Scene-Tags -> Videoname bevorzugen
+        folder1 = "Taxi.Taxi.2000.French.1080p.BluRay.x264-FHD"
+        video1 = "Taxi Taxi (2000)"
+        self.assertEqual(get_cleaner_suggested_query(folder1, video1), "Taxi Taxi (2000)")
+
+        # Fall 2: Videoname hat Jahreszahl in Klammern, Ordner nicht
+        folder2 = "Taxi Taxi French"
+        video2 = "Taxi Taxi (2000)"
+        self.assertEqual(get_cleaner_suggested_query(folder2, video2), "Taxi Taxi (2000)")
+
+        # Fall 3: Einfacher Ordnername ohne Scene-Rauschen -> Ordnername bleibt
+        folder3 = "Dragonkeeper"
+        video3 = "dragonkeeper_main"
+        self.assertEqual(get_cleaner_suggested_query(folder3, video3), "Dragonkeeper")
+
+    def test_transfer_quarantine_error_aborts_copy(self):
+        """Testet, ob bei einem Fehler im Quarantäne-Backup der Kopiervorgang abgebrochen wird."""
+        from gui.core.transfers import run_copy_fallback, run_rsync_with_progress
+        
+        src_file = os.path.join(self.inbox_dir, "test_abort_src.mkv")
+        with open(src_file, "w") as f: f.write("new content")
+        
+        dst_file = os.path.join(self.nas_root, "test_abort_dst.mkv")
+        with open(dst_file, "w") as f: f.write("pre-existing content")
+
+        # Mock send_to_trash to raise Exception
+        with patch("gui.core.trash.send_to_trash", side_effect=Exception("Quarantäne-Fehler simulieren")):
+            # 1. Fallback-Kopie testen
+            success = run_copy_fallback(src_file, dst_file, protect_existing=True)
+            self.assertFalse(success)
+            # Dst-Datei wurde NICHT überschrieben
+            with open(dst_file, "r") as f:
+                self.assertEqual(f.read(), "pre-existing content")
+
+            # 2. Rsync-Kopie testen
+            success_rsync = run_rsync_with_progress(src_file, dst_file, protect_existing=True)
+            self.assertFalse(success_rsync)
+            # Dst-Datei weiterhin unberührt
+            with open(dst_file, "r") as f:
+                self.assertEqual(f.read(), "pre-existing content")
 
 if __name__ == "__main__":
     unittest.main()
