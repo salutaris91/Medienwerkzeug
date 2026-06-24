@@ -851,7 +851,7 @@ def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=
     nfo_path = os.path.join(target_folder, f"{filename_base}.nfo")
     with open(nfo_path, 'w', encoding='utf-8') as f:
         f.write(xml)
-        log_message(f"[NFO] {nfo_path}: created (provider={provider})")
+        log_message(f"[NFO] {nfo_path}: created (provider='ofdb')")
 
     return {"nfo": True, "poster": False, "fanart": False, "msg": "OFDb NFO erstellt"}
 
@@ -965,7 +965,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             xml += '</movie>\n'
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
-                log_message(f"[NFO] {nfo_path}: created (provider={provider})")
+                log_message(f"[NFO] {nfo_path}: created (provider='mediathek')")
         return {"nfo": needs_nfo, "poster": False, "fanart": False, "msg": "Mediathek Film NFO erstellt"}
 
     if tmdb_id == "manual" or (isinstance(tmdb_id, str) and tmdb_id.startswith("{")):
@@ -994,7 +994,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             xml += '</movie>\n'
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
-                log_message(f"[NFO] {nfo_path}: created (provider={provider})")
+                log_message(f"[NFO] {nfo_path}: created (provider='manual')")
         return {"nfo": needs_nfo, "poster": False, "fanart": False, "msg": "Manuelle Film NFO erstellt"}
 
     if isinstance(tmdb_id, str) and (tmdb_id.startswith("http://") or tmdb_id.startswith("https://")):
@@ -1036,7 +1036,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
                 xml += '</movie>\n'
                 with open(nfo_path, 'w', encoding='utf-8') as f:
                     f.write(xml)
-                    log_message(f"[NFO] {nfo_path}: created (provider={provider})")
+                    log_message(f"[NFO] {nfo_path}: created (provider='ytdlp')")
 
             if thumbnail_url and needs_poster:
                 try:
@@ -1124,7 +1124,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
 
         with open(nfo_path, 'w', encoding='utf-8') as f:
             f.write(xml)
-            log_message(f"[NFO] {nfo_path}: created (provider={provider})")
+            log_message(f"[NFO] {nfo_path}: created (provider='tmdb')")
 
     # Download images using TMDB Images API for German-localized/higher-quality art
     if (needs_poster or needs_fanart or needs_logo or needs_banner) and str(tmdb_id).isdigit():
@@ -2222,7 +2222,7 @@ def generate_youtube_nfo(json_path, nfo_path, nfo_type):
 
     with open(nfo_path, 'w', encoding='utf-8') as f:
         f.write(xml)
-        log_message(f"[NFO] {nfo_path}: created (provider={provider})")
+        log_message(f"[NFO] {nfo_path}: created (provider='youtube')")
 
     return {"nfo": True}
 

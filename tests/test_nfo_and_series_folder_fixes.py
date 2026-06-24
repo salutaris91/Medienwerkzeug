@@ -51,23 +51,23 @@ class TestNfoAndSeriesFolderFixes(unittest.TestCase):
         from gui.api.search_api import handle_api_series_detect
         from flask import Flask
         app = Flask(__name__)
-        
+
         # We need to mock os.path.exists and os.listdir to simulate multiple destinations
         with patch('gui.api.search_api.os.path.exists') as mock_exists, \
              patch('gui.api.search_api.os.listdir') as mock_listdir, \
              patch('gui.api.search_api.os.path.isdir') as mock_isdir, \
              patch('gui.api.search_api.ensure_nas_mounted') as mock_ensure, \
              patch('gui.api.search_api.load_settings') as mock_settings:
-             
+
             mock_settings.return_value = {
-                "nas_root": "/nas", 
+                "nas_root": "/nas",
                 "outbox_dir": "/outbox",
                 "sync_categories": [{"nas_sub": "/Serien"}, {"nas_sub": "/Dokus"}]
             }
             mock_exists.return_value = True
             mock_isdir.return_value = True
             mock_ensure.return_value = True
-            
+
             def listdir_side_effect(path):
                 if path == "/nas/Serien":
                     return ["Other"]
@@ -85,12 +85,12 @@ class TestNfoAndSeriesFolderFixes(unittest.TestCase):
     def test_nas_renamer_collision(self):
         target_dir = os.path.join(self.temp_dir, "RenameTarget")
         os.makedirs(target_dir)
-        
+
         rename_plan = [
             {"rel_path": "file1.mkv", "proposed_rel_path": "A:B.mkv"},
             {"rel_path": "file2.mkv", "proposed_rel_path": "A - B.mkv"}
         ]
-        
+
         # sanitize_filename will make A:B into A - B (or something similar depending on implementation)
         # Assuming sanitize_filename removes/replaces colons.
         res = apply_renames(target_dir, rename_plan)
@@ -101,7 +101,7 @@ class TestNfoAndSeriesFolderFixes(unittest.TestCase):
     @patch("gui.mw_metadata.urllib.request.urlopen")
     def test_generate_episode_nfo_without_overrides(self, mock_urlopen):
         import json
-        
+
         def urlopen_side_effect(req, *args, **kwargs):
             url = req.full_url if hasattr(req, 'full_url') else req
             mock_resp = MagicMock()
@@ -119,15 +119,15 @@ class TestNfoAndSeriesFolderFixes(unittest.TestCase):
             mock_cm = MagicMock()
             mock_cm.__enter__.return_value = mock_resp
             return mock_cm
-            
+
         mock_urlopen.side_effect = urlopen_side_effect
-        
+
         target_folder = self.temp_dir
         filename_base = "S01E01"
-            
+
         # call WITHOUT nfo_overrides
         res = generate_episode_nfo("tvdb", "123", 1, 1, target_folder, filename_base, nfo_overrides=None)
-        
+
         self.assertTrue(res.get("nfo"))
         nfo_path = os.path.join(self.temp_dir, "S01E01.nfo")
         self.assertTrue(os.path.exists(nfo_path))
@@ -154,17 +154,17 @@ class TestNfoAndSeriesFolderFixes(unittest.TestCase):
 
         # Update with different provider
         update_nfo_mw_data(nfo_path, provider="tmdb_tv", show_id="999", source_url="http://tmdb", resolved_topic="Other")
-        
+
         # Read back
         meta = read_nfo_metadata(nfo_path)
         mw = meta.get("mw_data", {})
-        
+
         # Provider and ID should remain the old ones
         self.assertEqual(mw.get("provider"), "tvdb")
         self.assertEqual(mw.get("show_id"), "123")
         self.assertEqual(mw.get("source_url"), "http://tvdb/123")
         self.assertEqual(mw.get("resolved_topic"), "Test Show")
-        
+
         # last_sync must be updated (not 2000-01-01)
         self.assertNotEqual(mw.get("last_sync"), "2000-01-01T00:00:00")
         self.assertTrue(len(mw.get("last_sync", "")) > 10)
