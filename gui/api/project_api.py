@@ -146,9 +146,13 @@ def handle_api_scan_project():
         
     if not is_path_allowed(target_dir):
         return jsonify({"error": "Access Denied"}), 403
-        
+
     if not os.path.exists(target_dir):
         return jsonify({"error": "Directory not found"}), 404
+
+    is_single_file = os.path.isfile(target_dir)
+    target_parent = os.path.dirname(target_dir) if is_single_file else target_dir
+
     file_list = []
     ext_counts = {}
     
@@ -156,7 +160,10 @@ def handle_api_scan_project():
     if not project:
         all_files = [f for f in os.listdir(target_dir) if os.path.isfile(os.path.join(target_dir, f)) and not f.startswith('.')]
     else:
-        all_files = find_files_recursively(target_dir)
+        if is_single_file:
+            all_files = [os.path.basename(target_dir)]
+        else:
+            all_files = find_files_recursively(target_dir)
     for f in all_files:
         file_list.append(f)
         ext = os.path.splitext(f)[1].lower()[1:]
@@ -189,7 +196,7 @@ def handle_api_scan_project():
     
     # Get video files list
     video_extensions = {'.mp4', '.mkv', '.avi', '.webm', '.mov'}
-    video_files = [os.path.join(target_dir, f) for f in all_files if os.path.splitext(f)[1].lower() in video_extensions]
+    video_files = [os.path.join(target_parent, f) for f in all_files if os.path.splitext(f)[1].lower() in video_extensions]
     
     has_inefficient_video = False
     if video_files:
@@ -209,13 +216,14 @@ def handle_api_scan_project():
             log_message(f"Fehler bei der Codec-Erkennung: {e}")
     
     # Determine suggested search query
-    suggested_query = project
+    folder_base = project if not is_single_file else os.path.splitext(project)[0]
+    suggested_query = folder_base
     is_obfuscated = False
-    if project:
+    if folder_base:
         # Check if there are any separators
         separators = {'.', '_', '-', ' '}
-        has_separator = any(c in project for c in separators)
-        if not has_separator and len(project) >= 10:
+        has_separator = any(c in folder_base for c in separators)
+        if not has_separator and len(folder_base) >= 10:
             is_obfuscated = True
             
     if video_files:
@@ -223,15 +231,7 @@ def handle_api_scan_project():
         first_video = video_files[0]
         video_base = os.path.basename(first_video)
         video_base_no_ext = os.path.splitext(video_base)[0]
-        
-        if is_obfuscated:
-            suggested_query = video_base_no_ext
-        else:
-            # Compare number of word separators
-            project_seps = sum(1 for c in project if c in {'.', '_', '-'})
-            video_seps = sum(1 for c in video_base_no_ext if c in {'.', '_', '-'})
-            if video_seps > project_seps + 2:
-                suggested_query = video_base_no_ext
+        suggested_query = get_cleaner_suggested_query(folder_base, video_base_no_ext)
 
     # Clean up suggested_query from episode / season suffix patterns
     if suggested_query:
@@ -270,7 +270,8 @@ def handle_api_scan_project():
         "ext_counts": ext_counts,
         "is_doku": is_doku,
         "has_inefficient_video": has_inefficient_video,
-        "suggested_query": suggested_query
+        "suggested_query": suggested_query,
+        "is_single_file": is_single_file
     })
 
 
@@ -786,14 +787,136 @@ import gui.core.trash as trash
 _inbox_cache = {}
 _inbox_cache_time = 0
 
+def clean_scene_tags(name):
+    if not name:
+        return ""
+
+    unambiguous_keywords = {
+        '1080p', '720p', '2160p', '4k', 'x264', 'x265', 'hevc', 'h264', 'bluray',
+        'web-dl', 'webdl', 'hdtv', 'bdrip', 'webrip', 'brrip', 'repack', 'proper',
+        'blurayrip', 'uhd', 'truehd', 'hdr', '10bit', 'fhd'
+    }
+
+    contextual_keywords = {
+        'german', 'deutsch', 'french', 'english', 'eng', 'dubbed', 'subbed',
+        'multi', 'dl', 'dual', 'atmos', 'dts', 'ac3', 'aac', 'dd51', 'dd5',
+        'custom', 'untouched', 'patched', 'retail', 'web', 'hdtvrip', 'hq'
+    }
+
+    all_keywords = unambiguous_keywords.union(contextual_keywords)
+
+    def is_year(w):
+        w_clean = w.lower().strip("()[]{}")
+        return bool(re.match(r'^(19\d\d|20\d\d)$', w_clean))
+
+    def is_keyword(w):
+        w_clean = w.lower().strip("()[]{}")
+        return w_clean in all_keywords or is_year(w)
+
+    normalized = name.replace(".", " ").replace("_", " ").replace("-", " ")
+    words = normalized.split()
+    cut_index = len(words)
+
+    for i, w in enumerate(words):
+        w_clean = w.lower().strip("()[]{}")
+
+        # 1. Jahr gefunden -> Schnitt direkt nach dem Jahr, wenn alle Folgewörter ab i+1 Keywords/Jahre sind
+        if is_year(w):
+            all_following_are_keywords = True
+            for w_next in words[i+1:]:
+                if not is_keyword(w_next):
+                    all_following_are_keywords = False
+                    break
+            if all_following_are_keywords:
+                cut_index = i + 1
+                break
+
+        # 2. Eindeutiges Keyword gefunden -> Schnitt direkt hier
+        if w_clean in unambiguous_keywords:
+            cut_index = i
+            break
+
+        # 3. Kontextuelles Keyword gefunden -> Schnitt nur, wenn ab hier alles Keywords/Jahre sind
+        if w_clean in contextual_keywords:
+            all_following_are_keywords = True
+            for w_next in words[i:]:
+                if not is_keyword(w_next):
+                    all_following_are_keywords = False
+                    break
+            if all_following_are_keywords:
+                cut_index = i
+                break
+
+    cleaned_words = words[:cut_index]
+    cleaned_name = " ".join(cleaned_words).strip()
+    if len(cleaned_name) < 2:
+        return name.replace(".", " ").replace("_", " ").replace("-", " ").strip()
+    return cleaned_name
+
+def get_cleaner_suggested_query(folder_name, video_name_no_ext):
+    """
+    Entscheidet, ob der Videodateiname (ohne Extension) ein besserer Suchbegriff ist als der Ordnername.
+    Liefert den bevorzugten Namen zurück.
+    """
+    if not video_name_no_ext:
+        return clean_scene_tags(folder_name)
+
+    # Heuristik 0: Generische Ordnernamen immer durch Videonamen ersetzen
+    generic_names = {
+        'neuer ordner', 'new folder', 'downloads', 'download',
+        'film', 'movie', 'video', 'unbenannt', 'untitled'
+    }
+    # Bereinige Ordnernamen für die Prüfung (Zahlen, Klammern und Striche entfernen)
+    folder_clean = re.sub(r'[\d\(\)\[\]\{\}\-\_]', '', folder_name).lower().strip()
+    if folder_clean in generic_names or not folder_clean:
+        return clean_scene_tags(video_name_no_ext)
+
+    scene_keywords = {
+        '1080p', '720p', '2160p', '4k', 'x264', 'x265', 'hevc', 'h264', 'bluray',
+        'web-dl', 'webdl', 'dts', 'dd5.1', 'hdtv', 'aac', 'ac3', 'bdrip', 'webrip',
+        'brrip', 'multi', 'dl', 'dual', 'atmos'
+    }
+
+    # Bereinigen und in Lowercase umwandeln
+    fn_lower = folder_name.lower()
+    vn_lower = video_name_no_ext.lower()
+
+    # Zähle Scene-Keywords
+    fn_kw_count = sum(1 for kw in scene_keywords if kw in fn_lower)
+    vn_kw_count = sum(1 for kw in scene_keywords if kw in vn_lower)
+
+    # Prüfen, ob eine Jahreszahl (19xx oder 20xx) vorhanden ist
+    year_pattern = re.compile(r'\b(19|20)\d{2}\b')
+    fn_has_year = bool(year_pattern.search(folder_name))
+    vn_has_year = bool(year_pattern.search(video_name_no_ext))
+
+    # Heuristik 1: Wenn der Ordnername Scene-Keywords enthält, der Videodateiname aber keine (oder weniger)
+    if fn_kw_count > vn_kw_count:
+        return clean_scene_tags(video_name_no_ext)
+
+    # Heuristik 2: Wenn der Videodateiname ein Jahr enthält, der Ordnername aber nicht
+    if vn_has_year and not fn_has_year:
+        return clean_scene_tags(video_name_no_ext)
+
+    # Heuristik 3: Wenn der Videodateiname ein Jahr in Klammern wie " (2000)" enthält (sehr typisch für saubere Namen)
+    if re.search(r'\(\d{4}\)', video_name_no_ext):
+        return clean_scene_tags(video_name_no_ext)
+
+    # Heuristik 4: Wenn der Ordnername extrem lang und unleserlich ist
+    if len(folder_name) > 40 and len(video_name_no_ext) < len(folder_name) - 10:
+        return clean_scene_tags(video_name_no_ext)
+
+    # Fallback
+    return clean_scene_tags(folder_name)
+
 def get_inbox_suggestions():
     global _inbox_cache, _inbox_cache_time
     now = time.time()
-    
+
     # 30s Cache
     if now - _inbox_cache_time < 30:
         return _inbox_cache
-        
+
     settings = load_settings()
     inbox_dir = settings.get("inbox_dir")
     
@@ -801,29 +924,36 @@ def get_inbox_suggestions():
         return []
         
     suggestions = []
-    
+
     for item in os.listdir(inbox_dir):
         if item.startswith('.'):
             continue
-            
+
         full_path = os.path.join(inbox_dir, item)
-        if not os.path.isdir(full_path):
-            continue
-            
+        is_dir = os.path.isdir(full_path)
+        video_exts = {'.mp4', '.mkv', '.avi', '.mov', '.ts', '.webm'}
+
+        if not is_dir:
+            ext = os.path.splitext(item)[1].lower()
+            if ext not in video_exts:
+                continue
+
         # Count and collect all videos
         video_files = []
         nfo_files = []
-        video_exts = {'.mp4', '.mkv', '.avi', '.mov', '.ts', '.webm'}
-        
-        for root, dirs, files in os.walk(full_path):
-            for f in files:
-                if not f.startswith('.'):
-                    ext = os.path.splitext(f)[1].lower()
-                    if ext in video_exts:
-                        video_files.append(os.path.join(root, f))
-                    elif ext == '.nfo':
-                        nfo_files.append(os.path.join(root, f))
-                        
+
+        if is_dir:
+            for root, dirs, files in os.walk(full_path):
+                for f in files:
+                    if not f.startswith('.'):
+                        f_ext = os.path.splitext(f)[1].lower()
+                        if f_ext in video_exts:
+                            video_files.append(os.path.join(root, f))
+                        elif f_ext == '.nfo':
+                            nfo_files.append(os.path.join(root, f))
+        else:
+            video_files.append(full_path)
+
         video_count = len(video_files)
         if video_count == 0:
             continue
@@ -860,25 +990,19 @@ def get_inbox_suggestions():
                         log_message(f"⚠️ NFO-Datei für Doku-Erkennung nicht lesbar: {e}")
                         
         # Determine suggested search query & check obfuscation
-        suggested_query = item
+        folder_base = item if is_dir else os.path.splitext(item)[0]
+        suggested_query = folder_base
         is_obfuscated = False
         
         separators = {'.', '_', '-', ' '}
-        has_separator = any(c in item for c in separators)
-        if not has_separator and len(item) >= 10:
+        has_separator = any(c in folder_base for c in separators)
+        if not has_separator and len(folder_base) >= 10:
             is_obfuscated = True
             
         if video_files:
             video_base = os.path.basename(video_files[0])
             video_base_no_ext = os.path.splitext(video_base)[0]
-            
-            if is_obfuscated:
-                suggested_query = video_base_no_ext
-            else:
-                project_seps = sum(1 for c in item if c in {'.', '_', '-'})
-                video_seps = sum(1 for c in video_base_no_ext if c in {'.', '_', '-'})
-                if video_seps > project_seps + 2:
-                    suggested_query = video_base_no_ext
+            suggested_query = get_cleaner_suggested_query(folder_base, video_base_no_ext)
                     
         media_type = "movie"
         confidence = "low"

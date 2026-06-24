@@ -467,7 +467,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         processor.ensure_nas_mounted = lambda: True
 
         # Mock rsync to copy files (since process_worker expects rsync to do the copy)
-        def mock_rsync(src, dst, task_id=None, move=False):
+        def mock_rsync(src, dst, task_id=None, move=False, *args, **kwargs):
             if os.path.isdir(src):
                 shutil.copytree(src, dst, dirs_exist_ok=True)
             else:

@@ -489,9 +489,10 @@ def is_masked(val):
 # SETTINGS PERSISTENCE WRAPPERS WITH MIGRATION
 # ==========================================================================
 _cached_settings = None
+_cached_settings_path = None
 
 def load_settings():
-    global _cached_settings
+    global _cached_settings, _cached_settings_path
     if _MOCK_SETTINGS is not None:
         import copy
         mock_data = copy.deepcopy(_MOCK_SETTINGS)
@@ -499,10 +500,10 @@ def load_settings():
             mock_data["onboarded"] = True
         return mock_data
     ensure_legacy_data_migrated()
-    if _cached_settings is not None:
+    settings_path = get_settings_file_path()
+    if _cached_settings is not None and _cached_settings_path == settings_path:
         import copy
         return copy.deepcopy(_cached_settings)
-    settings_path = get_settings_file_path()
     file_existed = os.path.exists(settings_path)
     settings = read_json_file(settings_path, settings_lock, DEFAULT_SETTINGS)
     migrated = False
@@ -574,11 +575,12 @@ def load_settings():
     if migrated:
         write_json_file(settings_path, settings_lock, settings)
     _cached_settings = settings
+    _cached_settings_path = settings_path
     import copy
     return copy.deepcopy(_cached_settings)
 
 def save_settings(settings):
-    global _cached_settings
+    global _cached_settings, _cached_settings_path
     # Synchronize legacy keys
     for target in settings.get("storage_targets", []):
         if target.get("id") == "nas":
@@ -590,6 +592,7 @@ def save_settings(settings):
     if success:
         import copy
         _cached_settings = copy.deepcopy(settings)
+        _cached_settings_path = settings_path
     return success
 
 def update_settings(update_fn):
@@ -597,7 +600,7 @@ def update_settings(update_fn):
     Thread-safe and atomic settings mutation (RMW).
     Invalidates settings cache on successful write.
     """
-    global _cached_settings
+    global _cached_settings, _cached_settings_path
     settings_path = get_settings_file_path()
     def rmw_callback(data):
         update_fn(data)
@@ -610,6 +613,7 @@ def update_settings(update_fn):
     success = update_json_file(settings_path, settings_lock, rmw_callback, DEFAULT_SETTINGS)
     if success:
         _cached_settings = None
+        _cached_settings_path = None
     return success
 
 def set_password(password):

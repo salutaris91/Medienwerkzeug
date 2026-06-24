@@ -336,11 +336,57 @@ def get_rsync_progress_flag():
         log_message(f"rsync: Fehler bei Erkennung der rsync-Hilfe ({e}). Verwende --progress")
     return _rsync_progress_flag
 
-def run_copy_fallback(src, dst, task_id=None):
+def _quarantine_colliding_files(src, dst):
+    """
+    Sucht nach kollidierenden Dateien zwischen src und dst.
+    Verschiebt diese in die Quarantäne (send_to_trash) bevor der Kopiervorgang startet.
+    Wenn ein Verschieben fehlschlägt, wird eine Exception geworfen, um den Transfer abzubrechen.
+    """
+    import os
+    import gui.core.trash as trash
+    from gui.core.helpers import log_message
+
+    if not os.path.exists(src):
+        return
+
+    collisions = []
+
+    if os.path.isdir(src):
+        for root, dirs, files in os.walk(src):
+            for f in files:
+                src_file = os.path.join(root, f)
+                rel_path = os.path.relpath(src_file, src)
+                dest_file = os.path.join(dst, rel_path)
+                if os.path.exists(dest_file):
+                    collisions.append(dest_file)
+    else:
+        dest_file = dst
+        if os.path.isdir(dst):
+            dest_file = os.path.join(dst, os.path.basename(src))
+
+        if os.path.exists(dest_file) and not os.path.isdir(dest_file):
+            collisions.append(dest_file)
+
+    for col in collisions:
+        log_message(f"Zentraler Transfer-Schutz: Kollision entdeckt für {col}. Sende in die Quarantäne...")
+        try:
+            trash.send_to_trash(col, force=True)
+        except Exception as e:
+            log_message(f"❌ Zentraler Transfer-Schutz: Quarantäne fehlgeschlagen für {col}: {e}")
+            raise RuntimeError(f"Quarantäne-Backup fehlgeschlagen für {col}: {e}")
+
+def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
     import shutil
     import os
     
     log_message(f"rsync nicht verfügbar. Verwende Python-Fallback zum Kopieren von {src} nach {dst}...")
+    if protect_existing:
+        try:
+            _quarantine_colliding_files(src, dst)
+        except Exception as e:
+            log_message(f"❌ Kopiervorgang abgebrochen, da das Quarantäne-Sicherheitsnetz fehlgeschlagen ist: {e}")
+            return False
+
     try:
         # Determine if we are copying a directory or a file
         if os.path.isdir(src):
@@ -514,11 +560,18 @@ def run_copy_fallback(src, dst, task_id=None):
         log_message(f"❌ Fehler bei Python-Kopier-Fallback von {src} nach {dst}: {e}")
         return False
 
-def run_rsync_with_progress(src, dst, task_id=None, move=False):
+def run_rsync_with_progress(src, dst, task_id=None, move=False, protect_existing=False):
     import subprocess
     import re
     import shutil
     
+    if protect_existing:
+        try:
+            _quarantine_colliding_files(src, dst)
+        except Exception as e:
+            log_message(f"❌ Rsync-Vorgang abgebrochen, da das Quarantäne-Sicherheitsnetz fehlgeschlagen ist: {e}")
+            return False
+
     os.makedirs(os.path.dirname(dst) if not os.path.isdir(dst) else dst, exist_ok=True)
     
     cmd = ["rsync", "-a", "--inplace", "--no-owner", "--no-group", get_rsync_progress_flag()]
@@ -532,7 +585,7 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False):
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
     except (FileNotFoundError, OSError) as e:
         log_message(f"rsync konnte nicht gestartet werden ({e}). Verwende Python-Kopier-Fallback...")
-        success = run_copy_fallback(src, dst, task_id)
+        success = run_copy_fallback(src, dst, task_id, protect_existing=protect_existing)
         if success and move:
             import gui.core.trash as trash
             try:

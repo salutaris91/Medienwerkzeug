@@ -122,10 +122,12 @@ def _handle_transfer_task(
 
             log_message(f"[Transfer Thread]: Starte NAS-Kopieren für {final_filename} auf {target_id}...")
             os.makedirs(dest_movie_dir_nas, exist_ok=True)
+
             success = run_rsync_with_progress(
                 dest_movie_dir_outbox,
                 dest_movie_dir_nas,
-                task_id=nas_progress_cb
+                task_id=nas_progress_cb,
+                protect_existing=True
             )
             if success:
                 log_message(f"[Transfer Thread]: Kopieren auf {target_id} fertig für {final_filename}.")
@@ -775,15 +777,22 @@ def process_worker(params):
             except (ValueError, IndexError):
                 pass
 
+    is_single_file = False
     if project_name:
         current_dir = os.path.join(inbox_root, project_name)
+        if os.path.isfile(current_dir):
+            is_single_file = True
+            current_dir = os.path.dirname(current_dir)
     else:
         current_dir = inbox_root
 
     job_size_gb = 0.0
     try:
         if project_name:
-            job_size_gb = get_dir_size_gb(current_dir)
+            if is_single_file:
+                job_size_gb = os.path.getsize(os.path.join(current_dir, project_name)) / (1024 * 1024 * 1024)
+            else:
+                job_size_gb = get_dir_size_gb(current_dir)
         else:
             if media_type == "tv" and mappings:
                 total_bytes = 0
@@ -798,7 +807,10 @@ def process_worker(params):
                 if explicit_renames_check is not None:
                     v_files = [r["old"] for r in explicit_renames_check]
                 else:
-                    v_files = [f for f in os.listdir(current_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov')) and not f.startswith(".")]
+                    if is_single_file:
+                        v_files = [project_name]
+                    else:
+                        v_files = [f for f in os.listdir(current_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov')) and not f.startswith(".")]
                 for f in v_files:
                     fp = os.path.join(current_dir, f)
                     if os.path.exists(fp):
@@ -1600,7 +1612,10 @@ def process_worker(params):
         if explicit_renames is not None:
             video_files = [r["new"] for r in explicit_renames]
         else:
-            video_files = [f for f in os.listdir(current_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov')) and not f.startswith(".")]
+            if is_single_file:
+                video_files = [project_name]
+            else:
+                video_files = [f for f in os.listdir(current_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov')) and not f.startswith(".")]
         if not video_files:
             log_message("Keine Video-Dateien im Ordner gefunden.")
             return

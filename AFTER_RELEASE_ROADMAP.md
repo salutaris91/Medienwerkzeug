@@ -49,6 +49,7 @@ die aktive After-Release-Roadmap übernommen.
 | 40 | Mediathek-Episoden-Sync: Vorzeitiger Abbruch bei unauflösbaren URLs | geplant | klein |
 | 41 | Explizites Umbenennen bestehender NAS-Serienordner | geplant | mittel |
 | 42 | Absolute Nummerierung: Episoden einschieben und nachfolgende Folgen verschieben | geplant | mittel |
+| 43 | Film-Überschreibschutz auf dem NAS (Warnung & Quarantäne-Absicherung) | erledigt | klein–mittel |
 
 ---
 
@@ -1256,3 +1257,25 @@ an der freien Position einordnet.
 ### Aufwand (grob)
 Mittel: Scanner, Kollisionsstrategie, Transaktionslog, UI-Vorschau, NFO-
 Teilupdate und Regressionstests.
+
+---
+
+## 43. Film-Überschreibschutz auf dem NAS (Warnung & Quarantäne-Absicherung)
+
+**Einordnung / Priorität:** Datensicherheits- und UX-Feature zur Vermeidung von ungewolltem Datenverlust beim Kopieren auf das NAS.
+
+**Problem:**
+Zuvor gab es keine Warnfunktion oder automatische Papierkorb-Absicherung, wenn Filme auf dem NAS bereits existierten. Dies führte dazu, dass ältere/bessere Filmversionen durch minderwertige oder falsche Dateien unwiderruflich per `rsync --inplace` überschrieben wurden.
+
+**Ziel:**
+Eine detaillierte Warnung in der UI mit Medienvergleichstabelle sowie eine automatische Quarantäne (Verschieben der kollidierenden Dateien in `.medienwerkzeug-trash`) vor jedem Kopiervorgang.
+
+**Umsetzung:**
+1. API-Vorschau (/api/preview_process): Existenzprüfung der neuen Dateinamen auf dem NAS. Bei Kollision wird eine Plaintext-Vergleichstabelle (Größe, Auflösung, Video-/Audio-Codec, Bitrate, Dauer und Qualitätseinschätzung) generiert und in `preview["warning"]` abgelegt.
+2. Zentraler Überschreibschutz in `transfers.py` mit Opt-in `protect_existing`: Verschiebt alle kollidierenden Dateien vorab in den Quarantäne-Papierkorb. Bei einem Quarantäne-Fehler bricht der gesamte Transfer hart ab, um Datenverlust zu verhindern.
+3. Worker-Integration: Aktivierung von `protect_existing=True` im Worker ausschließlich bei NAS-Zielen für Filme.
+4. UI-Verbesserungen: Einzeldateien werden typisiert mit dem Symbol `🎥` statt `📁` gelistet, und die Lösch-Bestätigungstexte passen sich an.
+5. Unit-Tests: Vollständige Testabdeckung für Vorschau-Tabellen, Heuristiken, Einzeldateien-Importe und Quarantäne-Fehler-Abbrüche.
+
+### Aufwand (grob)
+Klein-Mittel: FFmpeg/ffprobe Metadaten-Extraktion, transfers.py Härtung, get_cleaner_suggested_query Heuristik, UI-Icons und Integrationstests.

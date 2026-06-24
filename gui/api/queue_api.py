@@ -70,15 +70,22 @@ def handle_api_preview_process():
         from gui.core.transfers import resolve_category_target_path
         explicit_pcloud_base = resolve_category_target_path(pcloud_destination_id, "pcloud", media_type)
 
+    is_single_file = False
     if project_name:
         current_dir = os.path.join(inbox_root, project_name)
+        if os.path.isfile(current_dir):
+            is_single_file = True
     else:
         current_dir = inbox_root
 
     if not os.path.exists(current_dir):
         return jsonify({"error": "Ordner existiert nicht."})
 
-    all_files = sorted(find_files_recursively(current_dir))
+    if is_single_file:
+        all_files = [os.path.basename(current_dir)]
+        current_dir = os.path.dirname(current_dir)
+    else:
+        all_files = sorted(find_files_recursively(current_dir))
     video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
     sub_exts = ('.srt', '.vtt', '.ass', '.ssa', '.sub', '.idx')
     from gui.core.artwork_validators import get_all_allowed_metadata_names
@@ -102,10 +109,29 @@ def handle_api_preview_process():
                 if year.isdigit() and len(year) == 4:
                     movie_name = re.sub(r"\s*\(\d{4}\)$", "", movie_name).strip()
                     movie_name = f"{movie_name} ({year})"
-        dest_movies = destination if destination else f"{nas_root}/Filme"
-        clean_movie_name = limit_filename_length(sanitize_filename(movie_name))
+        # Resolve NAS destination target base using resolve_target_destination
+        rel_sub = ""
+        if destination:
+            if destination.startswith(nas_root):
+                rel_sub = destination[len(nas_root):]
+            else:
+                rel_sub = os.path.basename(destination)
+        if not rel_sub:
+            rel_sub = "/Filme"
 
-        nas_path = os.path.join(dest_movies, clean_movie_name)
+        nas_target = None
+        for target in settings.get("storage_targets", []):
+            if target.get("type") == "nas":
+                nas_target = target
+                break
+
+        if nas_target:
+            target_base = resolve_target_destination(nas_target, rel_sub, "movie")
+        else:
+            target_base = destination if destination else os.path.join(nas_root, rel_sub.lstrip("/"))
+
+        clean_movie_name = limit_filename_length(sanitize_filename(movie_name))
+        nas_path = os.path.join(target_base, clean_movie_name)
         pcloud_path = f"{explicit_pcloud_base}/{clean_movie_name}" if explicit_pcloud_base else None
 
         if params.get("copy_to_nas", True):
@@ -230,6 +256,99 @@ def handle_api_preview_process():
                 preview["subs"].append({"old": f, "new": f"{clean_movie_name}{new_sfx}{ext}"})
             else:
                 preview["junk"].append(f)
+
+        # Collide warning for existing movie on NAS (based on planned renames)
+        if params.get("copy_to_nas", True) and os.path.exists(nas_path):
+            # Check if any renamed file actually collides
+            colliding_renames = []
+            for r in preview["renames"]:
+                target_file_path = os.path.join(nas_path, r["new"])
+                if os.path.exists(target_file_path):
+                    colliding_renames.append(r)
+
+            if colliding_renames:
+                # We have at least one colliding video file. We compare metadata!
+                comparison_txt = ""
+                for r in colliding_renames:
+                    src_full = os.path.join(current_dir, r["old"])
+                    dst_full = os.path.join(nas_path, r["new"])
+
+                    src_info = media.get_media_info(src_full)
+                    dst_info = media.get_media_info(dst_full)
+
+                    # Helper functions for formatting
+                    def fmt_size(sz):
+                        if not sz: return "Unbekannt"
+                        val = float(sz)
+                        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+                            if val < 1024.0:
+                                return f"{val:.2f} {unit}"
+                            val /= 1024.0
+                        return f"{val:.2f} PB"
+
+                    def fmt_dur(d):
+                        if not d: return "Unbekannt"
+                        d = int(d)
+                        h = d // 3600
+                        m = (d % 3600) // 60
+                        s = d % 60
+                        if h > 0:
+                            return f"{h}h {m}m {s}s"
+                        return f"{m}m {s}s"
+
+                    def fmt_bitrate(b):
+                        if not b: return "Unbekannt"
+                        mbps = b / 1_000_000.0
+                        if mbps >= 1.0:
+                            return f"{mbps:.1f} Mbps"
+                        return f"{b / 1000.0:.0f} kbps"
+
+                    def get_quality_desc(info):
+                        if not info or not info.get("width") or not info.get("height"):
+                            return "Unbekannt"
+                        w = info["width"]
+                        h = info["height"]
+                        codec = info.get("codec", "unbekannt")
+                        if w >= 3840 or h >= 2160:
+                            res = "4K UHD"
+                        elif w >= 1920 or h >= 1080:
+                            res = "1080p Full HD"
+                        elif w >= 1280 or h >= 720:
+                            res = "720p HD"
+                        else:
+                            res = f"{w}x{h} SD"
+                        return f"{res} ({str(codec).upper()})"
+
+                    src_res = f"{src_info.get('width')}x{src_info.get('height')}" if src_info.get('width') else 'Unbekannt'
+                    dst_res = f"{dst_info.get('width')}x{dst_info.get('height')}" if dst_info.get('width') else 'Unbekannt'
+
+                    comparison_txt += (
+                        f"ACHTUNG: Die Datei '{r['new']}' existiert bereits auf dem NAS im Ordner '{clean_movie_name}' und wird überschrieben!\n\n"
+                        f"Vergleich der Videodateien:\n"
+                        f"Eigenschaft           | Vorhandene Datei (NAS)              | Neue Datei (Vorschau)\n"
+                        f"----------------------+-------------------------------------+-------------------------------------\n"
+                        f"Dateiname             | {r['new'][:35]:<35} | {r['old'][:35]:<35}\n"
+                        f"Dateigröße            | {fmt_size(dst_info.get('size')):<35} | {fmt_size(src_info.get('size')):<35}\n"
+                        f"Auflösung             | {dst_res:<35} | {src_res:<35}\n"
+                        f"Video-Codec           | {str(dst_info.get('codec') or 'Unbekannt').upper():<35} | {str(src_info.get('codec') or 'Unbekannt').upper():<35}\n"
+                        f"Audio-Codec           | {str(dst_info.get('audio_codec') or 'Unbekannt').upper():<35} | {str(src_info.get('audio_codec') or 'Unbekannt').upper():<35}\n"
+                        f"Bitrate               | {fmt_bitrate(dst_info.get('bit_rate')):<35} | {fmt_bitrate(src_info.get('bit_rate')):<35}\n"
+                        f"Dauer                 | {fmt_dur(dst_info.get('duration')):<35} | {fmt_dur(src_info.get('duration')):<35}\n"
+                        f"Qualitäts-Einschätzung | {get_quality_desc(dst_info):<35} | {get_quality_desc(src_info):<35}\n"
+                    )
+                preview["warning"] = comparison_txt
+            else:
+                existing_videos = []
+                try:
+                    for item in os.listdir(nas_path):
+                        if os.path.splitext(item)[1].lower() in video_exts:
+                            existing_videos.append(item)
+                except Exception:
+                    pass
+                if existing_videos:
+                    preview["warning"] = f"Achtung: Der Film existiert bereits auf dem NAS im Ordner '{clean_movie_name}' mit folgenden Videodateien: {', '.join(existing_videos)}. Diese Dateien werden nicht direkt von der geplanten Aktion überschrieben, könnten aber beeinträchtigt werden."
+                else:
+                    preview["warning"] = f"Achtung: Der Film-Ordner '{clean_movie_name}' existiert bereits auf dem NAS, enthält aber keine Videodateien. Vorhandene Metadaten könnten überschrieben werden."
 
     elif media_type == "tv":
         total_videos_in_proj = sum(1 for vf in all_files if os.path.splitext(vf)[1].lower() in video_exts)

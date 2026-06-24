@@ -2100,7 +2100,7 @@ async function loadStatus(forceNasCheck = false) {
         }
 
         // Render project lists (sidebar)
-        renderProjectList(data.projects);
+        renderProjectList(data.projects, data.project_types);
 
         // Update Welcome Dashboard if elements exist (includes folder-size warnings)
         if (typeof updateHomepageData === "function") {
@@ -2116,8 +2116,8 @@ let activeProjectsProcessing = new Set();
 let lastProjectListJson = "";
 let lastActiveProject = "";
 
-function renderProjectList(projects) {
-    const currentJson = JSON.stringify(projects);
+function renderProjectList(projects, projectTypes) {
+    const currentJson = JSON.stringify({ projects, projectTypes });
     if (currentJson === lastProjectListJson && currentProject === lastActiveProject) {
         return; // Skip DOM update if data hasn't changed
     }
@@ -2151,14 +2151,24 @@ function renderProjectList(projects) {
     `;
 
     projects.forEach(p => {
-        const escapedP = escapeHTML(p);
+        let name = p;
+        let isDir = true;
+        if (p && typeof p === 'object') {
+            name = p.name;
+            isDir = p.is_directory;
+        } else if (projectTypes && projectTypes[p] !== undefined) {
+            isDir = projectTypes[p];
+        }
+        const escapedP = escapeHTML(name);
+        const icon = isDir ? "📁" : "🎥";
+        const deleteTitle = isDir ? "Ordner in Quarantäne verschieben" : "Datei in Quarantäne verschieben";
         html += `
-            <button class="project-item ${currentProject === p ? "active" : ""}" data-project="${escapedP}" draggable="true">
+            <button class="project-item ${currentProject === name ? "active" : ""}" data-project="${escapedP}" data-is-dir="${isDir}" draggable="true">
                 <span class="project-item-name">
-                    <span class="nav-icon" aria-hidden="true">📁</span>
+                    <span class="nav-icon" aria-hidden="true">${icon}</span>
                     <span class="nav-label">${escapedP}</span>
                 </span>
-                <span class="project-item-delete" title="Ordner in Quarantäne verschieben" data-project="${escapedP}">🗑️</span>
+                <span class="project-item-delete" title="${deleteTitle}" data-project="${escapedP}" data-is-dir="${isDir}">🗑️</span>
             </button>
         `;
     });
@@ -2182,7 +2192,12 @@ function renderProjectList(projects) {
         btn.addEventListener("click", async (e) => {
             e.stopPropagation();
             const p = btn.getAttribute("data-project");
-            if (confirm(`Möchtest du den Ordner "${p}" und alle darin enthaltenen Dateien wirklich in Quarantäne verschieben?`)) {
+            const isDir = btn.getAttribute("data-is-dir") !== "false";
+            const typeStr = isDir ? "Ordner" : "Datei";
+            const confirmMsg = isDir
+                ? `Möchtest du den Ordner "${p}" und alle darin enthaltenen Dateien wirklich in Quarantäne verschieben?`
+                : `Möchtest du die Datei "${p}" wirklich in Quarantäne verschieben?`;
+            if (confirm(confirmMsg)) {
                 await deleteProject(p);
             }
         });
@@ -2213,7 +2228,8 @@ function updateSidebarProcessingStates(activeProjects) {
         } else {
             item.classList.remove("processing");
             if (iconEl) {
-                iconEl.textContent = p === "" ? "📥" : (p === "__inbox_recursive__" ? "📂" : "📁");
+                const isDir = item.getAttribute("data-is-dir") !== "false";
+                iconEl.textContent = p === "" ? "📥" : (p === "__inbox_recursive__" ? "📂" : (isDir ? "📁" : "🎥"));
                 iconEl.classList.remove("spinning-icon");
             }
             if (deleteEl) {
@@ -2659,7 +2675,7 @@ async function scanProject(project) {
             else if (ext === 'nfo') badgeClass += " nfo";
 
             let actionHtml = "";
-            if (!isDir && isVideo && project !== "__inbox_recursive__") {
+            if (!isDir && isVideo && project !== "__inbox_recursive__" && !data.is_single_file && project !== "") {
                 actionHtml = `<button class="btn btn-sm btn-split-file" data-project="${escapeHTML(project)}" data-file="${escapeHTML(name)}" title="In ein separates Projekt abspalten" style="background: rgba(255, 255, 255, 0.1); border: 1px solid var(--border-glass); color: var(--text-normal); cursor: pointer; padding: 3px 8px; border-radius: var(--radius-sm); font-size: 0.7rem; transition: all 0.2s ease;">Trennen</button>`;
             }
 
