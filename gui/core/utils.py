@@ -18,7 +18,7 @@ from gui.core.persistence import load_settings, save_settings, get_data_dir_path
 DATA_DIR = get_data_dir_path()
 PROFILES_DIR = os.path.join(DATA_DIR, "profiles")
 HISTORY_FILE = os.path.join(DATA_DIR, "konv_history.json")
-MW_APP_VERSION = os.environ.get("MW_APP_VERSION", "1.2.0")
+MW_APP_VERSION = os.environ.get("MW_APP_VERSION", "1.3.0")
 
 def clean_show_name(show_name):
     if not show_name:

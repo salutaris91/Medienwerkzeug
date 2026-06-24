@@ -39,7 +39,7 @@ ENV MW_DATA_DIR=/config/data
 ENV MW_ENV_FILE=/config/.env
 ENV RCLONE_CONFIG=/config/rclone/rclone.conf
 ENV TZ=Europe/Berlin
-ENV MW_APP_VERSION=1.2.0
+ENV MW_APP_VERSION=1.3.0
 
 # Create working directory
 WORKDIR /app
