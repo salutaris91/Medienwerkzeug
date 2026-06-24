@@ -230,6 +230,58 @@ def handle_api_preview_process():
                 preview["junk"].append(f)
 
     elif media_type == "tv":
+        total_videos_in_proj = sum(1 for vf in all_files if os.path.splitext(vf)[1].lower() in video_exts)
+
+        def is_subtitle_matching_video(sdir, vid_dir):
+            is_nested = False
+            if sdir == vid_dir:
+                is_nested = True
+            elif vid_dir == "":
+                is_nested = True
+            elif sdir.startswith(vid_dir + os.sep):
+                is_nested = True
+
+            if not is_nested:
+                return False
+
+            curr = sdir
+            while curr != vid_dir:
+                videos_in_curr = [vf for vf in all_files if os.path.splitext(vf)[1].lower() in video_exts and os.path.dirname(vf) == curr]
+                if videos_in_curr:
+                    return False
+                if curr == "":
+                    break
+                curr = os.path.dirname(curr)
+            return True
+
+        def is_companion_of_any_video(sf):
+            sbasename = os.path.basename(sf)
+            sext = os.path.splitext(sf)[1].lower()
+            sdir = os.path.dirname(sf)
+
+            for vf in all_files:
+                if os.path.splitext(vf)[1].lower() not in video_exts:
+                    continue
+                if vf == sf:
+                    continue
+                vbasename = os.path.basename(vf)
+                vbase_old = os.path.splitext(vbasename)[0]
+                vdir = os.path.dirname(vf)
+
+                # Check name prefix
+                if sbasename.startswith(vbase_old):
+                    return True
+
+                # Folder-level subtitle heuristics
+                if sext in sub_exts:
+                    if total_videos_in_proj == 1:
+                        return True
+                    videos_in_same_dir_as_vf = [x for x in all_files if os.path.splitext(x)[1].lower() in video_exts and os.path.dirname(x) == vdir]
+                    if len(videos_in_same_dir_as_vf) == 1:
+                        if is_subtitle_matching_video(sdir, vdir):
+                            return True
+            return False
+
         show_name = params.get("show_name", "Unknown Show")
         nas_show_folder = params.get("nas_show_folder")
         nas_serien = destination if destination else f"{nas_root}/Serien"
@@ -369,16 +421,35 @@ def handle_api_preview_process():
                     preview["renames"].append({"old": f, "new": target_filename})
 
                     base_old = os.path.splitext(basename)[0]
+                    vid_dir = os.path.dirname(f)
+
+                    videos_in_same_dir = [vf for vf in all_files if os.path.splitext(vf)[1].lower() in video_exts and os.path.dirname(vf) == vid_dir]
+                    total_videos_in_proj = sum(1 for vf in all_files if os.path.splitext(vf)[1].lower() in video_exts)
+
                     matching_subs = []
                     other_companion_files = []
                     for sf in all_files:
+                        if sf == f: continue
                         sbasename = os.path.basename(sf)
-                        if sbasename.startswith(base_old) and sf != f:
-                            sext = os.path.splitext(sf)[1].lower()
+                        sext = os.path.splitext(sf)[1].lower()
+                        sdir = os.path.dirname(sf)
+
+                        is_match = False
+                        if sbasename.startswith(base_old):
+                            is_match = True
+                        elif sext in sub_exts:
+                            if total_videos_in_proj == 1:
+                                is_match = True
+                            elif len(videos_in_same_dir) == 1:
+                                if is_subtitle_matching_video(sdir, vid_dir):
+                                    is_match = True
+
+                        if is_match:
                             if sext in sub_exts:
                                 matching_subs.append(sf)
                             elif sext in ('.nfo', '.jpg', '.png'):
-                                other_companion_files.append((sf, sbasename, sext))
+                                if sbasename.startswith(base_old):
+                                    other_companion_files.append((sf, sbasename, sext))
 
                     matching_subs.sort()
                     local_resolved_subs = {}
@@ -415,7 +486,8 @@ def handle_api_preview_process():
                 else:
                     pass
             elif ext in sub_exts:
-                pass # Handled above or ignored
+                if not is_companion_of_any_video(f):
+                    preview["junk"].append(f)
             elif basename.lower() in good_meta:
                 # Show-level metadata files (tvshow.nfo, poster.jpg, fanart.jpg, season.nfo) — keep as-is
                 preview["subs"].append({"old": f, "new": basename})

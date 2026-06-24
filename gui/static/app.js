@@ -6782,7 +6782,7 @@ function initEventListeners() {
         folderPickerCallback = null;
     };
 
-    window.openFolderPicker = function(startPath, rootLimit, target, onSelect) {
+    window.openFolderPicker = function(startPath, rootLimit, target, title, onSelect) {
         folderPickerCallback = onSelect;
         folderPickerRootLimit = rootLimit || "";
         folderPickerTarget = target;
@@ -6792,6 +6792,11 @@ function initEventListeners() {
             path = rootLimit;
         }
         
+        const titleEl = document.getElementById("modal-folder-picker-title");
+        if (titleEl) {
+            titleEl.textContent = "📂 " + (title || "Ordner auswählen");
+        }
+
         document.getElementById("modal-folder-picker").classList.add("active");
         loadFolderPickerDir(path);
     };
@@ -7376,7 +7381,7 @@ function initEventListeners() {
                 dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
             }
 
-            window.openFolderPicker(val || dockerRoot, dockerRoot, null, (selectedPath) => {
+            window.openFolderPicker(val || dockerRoot, dockerRoot, null, "Ordner auswählen", (selectedPath) => {
                 inputEl.value = selectedPath;
             });
         } else {
@@ -8548,7 +8553,7 @@ function renderImportSources() {
                 e.preventDefault();
                 const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
                 const dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
-                window.openFolderPicker(input.value || dockerRoot, dockerRoot, null, (selectedPath) => {
+                window.openFolderPicker(input.value || dockerRoot, dockerRoot, null, "Ordner für Downloads/Import auswählen", (selectedPath) => {
                     input.value = selectedPath;
                     currentSettings.import_sources[index] = selectedPath;
                 });
@@ -8631,7 +8636,7 @@ function renderLocalFolders() {
                 e.preventDefault();
                 const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
                 const dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
-                window.openFolderPicker(pathInput.value || dockerRoot, dockerRoot, null, (selectedPath) => {
+                window.openFolderPicker(pathInput.value || dockerRoot, dockerRoot, null, "Lokalen Ordner auswählen", (selectedPath) => {
                     pathInput.value = selectedPath;
                     currentSettings.local_download_folders[index].path = selectedPath;
                     if (!nameInput.value) {
@@ -8781,7 +8786,8 @@ function renderSyncCategories() {
                         } else if (val) {
                             startPath = rootPath + "/" + val;
                         }
-                        window.openFolderPicker(startPath, rootPath, target, (selectedPath) => {
+                        const titleStr = cat.name ? `Ordner für ${cat.name} auswählen` : `Ordner auswählen`;
+                        window.openFolderPicker(startPath, rootPath, target, titleStr, (selectedPath) => {
                             let subPath = selectedPath;
                             if (subPath.startsWith(rootPath)) {
                                 subPath = subPath.substring(rootPath.length);
