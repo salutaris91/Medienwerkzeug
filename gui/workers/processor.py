@@ -1883,32 +1883,43 @@ def process_worker(params):
                     if not master_poster and found_posters:
                         master_poster = found_posters[0]
 
-                    # Determine poster core targets
-                    target_posters = ["poster"]
-                    if server_type in ("emby", "jellyfin"):
-                        target_posters.append("folder")
+                    # Determine allowed and preferred poster names for this server
+                    from gui.core import artwork_validators
+                    validator = artwork_validators.get_validator(server_type)
+                    valid_poster_names = validator.get_movie_poster_names(final_filename)
+                    
+                    # We only consider non-title-specific files in poster_candidates as existing core files.
+                    existing_core_posters = [f for f in found_posters if f.lower() in poster_candidates and f in valid_poster_names]
+                    if existing_core_posters:
+                        # Sort existing core posters by poster_prio to ensure we keep the most preferred one
+                        existing_core_posters.sort(key=lambda x: poster_prio.index(x.lower()) if x.lower() in poster_prio else 999)
+                        master_poster = existing_core_posters[0]
+                        core_poster_names = [master_poster]
+                    else:
+                        # No valid core poster exists yet. We create the preferred one.
+                        if master_poster:
+                            pref_name = validator.get_preferred_movie_poster_name(final_filename)
+                            _, ext = os.path.splitext(master_poster)
+                            pref_base, _ = os.path.splitext(pref_name)
+                            core_name = f"{pref_base}{ext.lower()}"
+                            core_poster_names = [core_name]
 
-                    # If master poster exists, copy/rename it and delete others
-                    if master_poster:
-                        master_path = os.path.join(dest_movie_dir_outbox, master_poster)
-                        _, ext = os.path.splitext(master_poster)
-                        ext = ext.lower()
-
-                        core_poster_names = [f"{t_base}{ext}" for t_base in target_posters]
-                        for core_name in core_poster_names:
+                            master_path = os.path.join(dest_movie_dir_outbox, master_poster)
                             core_path = os.path.join(dest_movie_dir_outbox, core_name)
                             if not os.path.exists(core_path):
                                 shutil.copy(master_path, core_path)
                                 log_message(f"Erstellt (Filmplakat-Kompatibilität): {core_name}")
+                        else:
+                            core_poster_names = []
 
-                        # Remove all other poster files (candidates) that are not the allowed core names
-                        for f in found_posters:
-                            if f not in core_poster_names:
-                                try:
-                                    os.remove(os.path.join(dest_movie_dir_outbox, f))
-                                    log_message(f"Bereinigt (Poster-Duplikat entfernt): {f}")
-                                except Exception as e:
-                                    log_message(f"⚠️ Poster-Duplikat konnte nicht entfernt werden: {f} ({e})")
+                    # Remove all other poster files (candidates) that are not the allowed core names
+                    for f in found_posters:
+                        if f not in core_poster_names:
+                            try:
+                                os.remove(os.path.join(dest_movie_dir_outbox, f))
+                                log_message(f"Bereinigt (Poster-Duplikat entfernt): {f}")
+                            except Exception as e:
+                                log_message(f"⚠️ Poster-Duplikat konnte nicht entfernt werden: {f} ({e})")
 
                     # --- 2. Find all backdrop candidates ---
                     backdrop_candidates = [
@@ -1943,30 +1954,43 @@ def process_worker(params):
                     if not master_backdrop and found_backdrops:
                         master_backdrop = found_backdrops[0]
 
-                    # Determine backdrop core targets (fanart.ext and backdrop.ext are two allowed core names)
-                    target_backdrops = ["fanart", "backdrop"]
+                    # Determine allowed and preferred backdrop names for this server
+                    from gui.core import artwork_validators
+                    validator = artwork_validators.get_validator(server_type)
+                    valid_backdrop_names = validator.get_movie_backdrop_names(final_filename)
+                    
+                    # We only consider non-title-specific files in backdrop_candidates as existing core files.
+                    existing_core_backdrops = [f for f in found_backdrops if f.lower() in backdrop_candidates and f in valid_backdrop_names]
+                    if existing_core_backdrops:
+                        # Sort existing core backdrops by backdrop_prio to ensure we keep the most preferred one
+                        existing_core_backdrops.sort(key=lambda x: backdrop_prio.index(x.lower()) if x.lower() in backdrop_prio else 999)
+                        master_backdrop = existing_core_backdrops[0]
+                        core_backdrop_names = [master_backdrop]
+                    else:
+                        # No valid core backdrop exists yet. We create the preferred one.
+                        if master_backdrop:
+                            pref_name = validator.get_preferred_movie_backdrop_name(final_filename)
+                            _, ext = os.path.splitext(master_backdrop)
+                            pref_base, _ = os.path.splitext(pref_name)
+                            core_name = f"{pref_base}{ext.lower()}"
+                            core_backdrop_names = [core_name]
 
-                    # If master backdrop exists, copy/rename it and delete others
-                    if master_backdrop:
-                        master_path = os.path.join(dest_movie_dir_outbox, master_backdrop)
-                        _, ext = os.path.splitext(master_backdrop)
-                        ext = ext.lower()
-
-                        core_backdrop_names = [f"{t_base}{ext}" for t_base in target_backdrops]
-                        for core_name in core_backdrop_names:
+                            master_path = os.path.join(dest_movie_dir_outbox, master_backdrop)
                             core_path = os.path.join(dest_movie_dir_outbox, core_name)
                             if not os.path.exists(core_path):
                                 shutil.copy(master_path, core_path)
                                 log_message(f"Erstellt (Hintergrundbild-Kompatibilität): {core_name}")
+                        else:
+                            core_backdrop_names = []
 
-                        # Remove all other backdrop files (candidates) that are not the allowed core names
-                        for f in found_backdrops:
-                            if f not in core_backdrop_names:
-                                try:
-                                    os.remove(os.path.join(dest_movie_dir_outbox, f))
-                                    log_message(f"Bereinigt (Hintergrund-Duplikat entfernt): {f}")
-                                except Exception as e:
-                                    log_message(f"⚠️ Hintergrund-Duplikat konnte nicht entfernt werden: {f} ({e})")
+                    # Remove all other backdrop files (candidates) that are not the allowed core names
+                    for f in found_backdrops:
+                        if f not in core_backdrop_names:
+                            try:
+                                os.remove(os.path.join(dest_movie_dir_outbox, f))
+                                log_message(f"Bereinigt (Hintergrund-Duplikat entfernt): {f}")
+                            except Exception as e:
+                                log_message(f"⚠️ Hintergrund-Duplikat konnte nicht entfernt werden: {f} ({e})")
 
                     # --- 3. Clean up logo and banner title-specific duplicates ---
                     all_outbox_files_now = os.listdir(dest_movie_dir_outbox)
@@ -2581,7 +2605,7 @@ def process_worker(params):
                             if f.startswith(clean_base) and f != target_filename:
                                 shutil.move(os.path.join(temp_dir, f), os.path.join(dest_dir_outbox, f))
 
-                        # Ensure all server-specific poster/backdrop variants exist in outbox
+                        # Copy the existing poster/backdrop only to the preferred server-specific name in outbox
                         poster_names, backdrop_names = _get_movie_artwork_lists(settings, target_filename)
 
                         existing_poster_src = None
@@ -2590,10 +2614,13 @@ def process_worker(params):
                             if os.path.exists(p_path):
                                 existing_poster_src = p_path
                                 break
-                        if existing_poster_src:
-                            for p_name in poster_names:
-                                shutil.copy(existing_poster_src, os.path.join(dest_dir_outbox, p_name))
-                                log_message(f"  ✅ Filmplakat kopiert: {p_name}")
+                        if existing_poster_src and poster_names:
+                            pref_poster_name = poster_names[0]
+                            _, src_ext = os.path.splitext(existing_poster_src)
+                            pref_base, _ = os.path.splitext(pref_poster_name)
+                            target_name = f"{pref_base}{src_ext.lower()}"
+                            shutil.copy(existing_poster_src, os.path.join(dest_dir_outbox, target_name))
+                            log_message(f"  ✅ Filmplakat kopiert: {target_name}")
 
                         existing_backdrop_src = None
                         for b_name in backdrop_names:
@@ -2601,10 +2628,13 @@ def process_worker(params):
                             if os.path.exists(b_path):
                                 existing_backdrop_src = b_path
                                 break
-                        if existing_backdrop_src:
-                            for b_name in backdrop_names:
-                                shutil.copy(existing_backdrop_src, os.path.join(dest_dir_outbox, b_name))
-                                log_message(f"  ✅ Hintergrundbild kopiert: {b_name}")
+                        if existing_backdrop_src and backdrop_names:
+                            pref_backdrop_name = backdrop_names[0]
+                            _, src_ext = os.path.splitext(existing_backdrop_src)
+                            pref_base, _ = os.path.splitext(pref_backdrop_name)
+                            target_name = f"{pref_base}{src_ext.lower()}"
+                            shutil.copy(existing_backdrop_src, os.path.join(dest_dir_outbox, target_name))
+                            log_message(f"  ✅ Hintergrundbild kopiert: {target_name}")
 
                         log_message(f"  ✅ Erfolgreich in Output-Ordner übertragen: {target_filename}")
                         transfer_successful = True

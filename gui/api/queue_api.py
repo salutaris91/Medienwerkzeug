@@ -81,7 +81,8 @@ def handle_api_preview_process():
     all_files = sorted(find_files_recursively(current_dir))
     video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
     sub_exts = ('.srt', '.vtt', '.ass', '.ssa', '.sub', '.idx')
-    good_meta = ('tvshow.nfo', 'poster.jpg', 'fanart.jpg', 'season.nfo', 'movie.nfo')
+    from gui.core.artwork_validators import get_all_allowed_metadata_names
+    good_meta = tuple(get_all_allowed_metadata_names())
 
     preview = {
         "renames": [],
@@ -218,14 +219,15 @@ def handle_api_preview_process():
 
                 target_filename = f"{target_basename}{ext}"
                 preview["subs"].append({"old": f, "new": target_filename})
-            elif basename.lower() in ['poster.jpg', 'fanart.jpg', 'tvshow.nfo', 'season.nfo']:
+            elif basename.lower() in good_meta:
                 preview["subs"].append({"old": f, "new": basename})
             elif ext == '.nfo':
                 preview["subs"].append({"old": f, "new": f"{clean_movie_name}.nfo"})
-            elif ext in ('.jpg', '.png') and 'poster' in basename.lower():
+            elif ext in ('.jpg', '.png', '.webp') and 'poster' in basename.lower():
                 preview["subs"].append({"old": f, "new": f"{clean_movie_name}-poster{ext}"})
-            elif ext in ('.jpg', '.png') and 'fanart' in basename.lower():
-                preview["subs"].append({"old": f, "new": f"{clean_movie_name}-fanart{ext}"})
+            elif ext in ('.jpg', '.png', '.webp') and ('fanart' in basename.lower() or 'backdrop' in basename.lower()):
+                new_sfx = "-fanart" if "fanart" in basename.lower() else "-backdrop"
+                preview["subs"].append({"old": f, "new": f"{clean_movie_name}{new_sfx}{ext}"})
             else:
                 preview["junk"].append(f)
 
@@ -491,8 +493,8 @@ def handle_api_preview_process():
             elif basename.lower() in good_meta:
                 # Show-level metadata files (tvshow.nfo, poster.jpg, fanart.jpg, season.nfo) — keep as-is
                 preview["subs"].append({"old": f, "new": basename})
-            elif ext in ('.nfo', '.jpg', '.png') and ('poster' in basename.lower() or 'fanart' in basename.lower()):
-                # Standalone poster/fanart not matching any video — keep as-is
+            elif ext in ('.nfo', '.jpg', '.png', '.webp') and ('poster' in basename.lower() or 'fanart' in basename.lower() or 'backdrop' in basename.lower() or 'banner' in basename.lower() or 'logo' in basename.lower() or 'clearlogo' in basename.lower() or 'thumb' in basename.lower() or 'landscape' in basename.lower()):
+                # Standalone poster/fanart/backdrop not matching any video — keep as-is
                 preview["subs"].append({"old": f, "new": basename})
             else:
                 preview["junk"].append(f)

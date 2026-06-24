@@ -23,16 +23,8 @@ import gui.core.trash as trash
 
 VIDEO_EXTENSIONS = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv'}
 EFFICIENT_CODECS = {'hevc', 'h265', 'av1', 'vp9'}
-SIDECAR_SUFFIXES = [
-    '.nfo',
-    '.srt', '.de.srt', '.en.srt', '.de.forced.srt', '.en.forced.srt',
-    '.vtt', '.de.vtt', '.en.vtt', '.de.forced.vtt', '.en.forced.vtt',
-    '.ass', '.de.ass', '.en.ass', '.de.forced.ass', '.en.forced.ass',
-    '.ssa', '.de.ssa', '.en.ssa', '.de.forced.ssa', '.en.forced.ssa',
-    '.sub', '.de.sub', '.en.sub', '.de.forced.sub', '.en.forced.sub',
-    '.idx', '.de.idx', '.en.idx', '.de.forced.idx', '.en.forced.idx',
-    '-thumb.jpg', '-poster.jpg', '-fanart.jpg'
-]
+from gui.core.artwork_validators import get_basename_sidecar_suffixes
+SIDECAR_SUFFIXES = get_basename_sidecar_suffixes()
 
 SXXEXX_RE = re.compile(r'[Ss](\d{1,3})[Ee](\d{1,4})')
 

@@ -1617,10 +1617,10 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
     needs_nfo = not os.path.exists(nfo_path)
     if not needs_nfo:
         log_message(f"[NFO] {nfo_path}: skipped (already exists)")
-    needs_poster = not os.path.exists(poster_path)
-    needs_fanart = not os.path.exists(fanart_path)
-    needs_logo = validator.supports_logos and not os.path.exists(logo_path)
-    needs_banner = validator.supports_banners and not os.path.exists(banner_path)
+    needs_poster = not validator.has_artwork_file(target_folder, validator.get_series_poster_names())
+    needs_fanart = not validator.has_artwork_file(target_folder, validator.get_series_backdrop_names())
+    needs_logo = validator.supports_logos and not validator.has_artwork_file(target_folder, validator.get_series_logo_names())
+    needs_banner = validator.supports_banners and not validator.has_artwork_file(target_folder, validator.get_series_banner_names())
 
     if not (needs_nfo or needs_poster or needs_fanart or needs_logo or needs_banner):
         return {"nfo": False, "poster": False, "fanart": False, "logo": False, "banner": False, "msg": "existiert"}
