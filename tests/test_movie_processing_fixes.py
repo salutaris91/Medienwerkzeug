@@ -1091,7 +1091,7 @@ class TestMovieProcessingFixes(unittest.TestCase):
         res = self.client.get("/api/status")
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
-        
+
         projects = data.get("projects", [])
         self.assertIn("Single Movie (2026).mkv", projects)
         project_types = data.get("project_types", {})
@@ -1134,7 +1134,7 @@ class TestMovieProcessingFixes(unittest.TestCase):
     def test_get_cleaner_suggested_query_heuristic(self):
         """Testet die get_cleaner_suggested_query Heuristik für die Filmsuche."""
         from gui.api.project_api import get_cleaner_suggested_query
-        
+
         # Fall 1: Ordnername verrauscht mit Scene-Tags -> Videoname bevorzugen
         folder1 = "Taxi.Taxi.2000.French.1080p.BluRay.x264-FHD"
         video1 = "Taxi Taxi (2000)"
@@ -1154,6 +1154,41 @@ class TestMovieProcessingFixes(unittest.TestCase):
         folder4 = "Taxi.Taxi.2000.French.1080p.BluRay.x264-FHD"
         video4 = "Taxi.Taxi.2000.German.1080p"
         self.assertEqual(get_cleaner_suggested_query(folder4, video4), "Taxi Taxi 2000")
+
+        # Fall 5: Filmtitel enthält "French" als echten Bestandteil
+        folder5 = "The French Dispatch"
+        video5 = "The.French.Dispatch.2021.German.DL.1080p"
+        self.assertEqual(get_cleaner_suggested_query(folder5, video5), "The French Dispatch 2021")
+
+        # Fall 6: Filmtitel enthält "English" als echten Bestandteil
+        folder6 = "The English Patient"
+        video6 = "The.English.Patient.1996.1080p.Bluray"
+        self.assertEqual(get_cleaner_suggested_query(folder6, video6), "The English Patient 1996")
+
+        # Fall 7: Titel fängt mit Sprach-Keyword an, gefolgt von normalen Wörtern
+        folder7 = "German Cinema Doc"
+        video7 = "German.Cinema.Doc.1080p"
+        self.assertEqual(get_cleaner_suggested_query(folder7, video7), "German Cinema Doc")
+
+        # Fall 8: Kette von Scene-Keywords am Ende (kein Jahr)
+        folder8 = "A Beautiful Mind"
+        video8 = "A.Beautiful.Mind.German.DL.AC3.Dubbed.WEB-DL"
+        self.assertEqual(get_cleaner_suggested_query(folder8, video8), "A Beautiful Mind")
+
+        # Fall 9: Filmtitel beginnt mit Jahreszahl, gefolgt von echtem Titel und zweitem Release-Jahr
+        folder9 = "2001.A.Space.Odyssey.1968.1080p.Bluray"
+        video9 = "2001.A.Space.Odyssey.1968.1080p.Bluray"
+        self.assertEqual(get_cleaner_suggested_query(folder9, video9), "2001 A Space Odyssey 1968")
+
+        # Fall 10: Generischer Ordnername mit Nummer ("Neuer Ordner 2")
+        folder10 = "Neuer Ordner (2)"
+        video10 = "The.Matrix.German.DL.1080p"
+        self.assertEqual(get_cleaner_suggested_query(folder10, video10), "The Matrix")
+
+        # Fall 11: Generischer Ordnername ("Downloads")
+        folder11 = "Downloads"
+        video11 = "Inception.2010.1080p"
+        self.assertEqual(get_cleaner_suggested_query(folder11, video11), "Inception 2010")
 
     def test_movie_preview_warning_with_media_info_comparison(self):
         """Testet, ob bei Kollisionen der Medienvergleich in der Vorschau-Warnung korrekte Details auflistet."""
@@ -1208,10 +1243,10 @@ class TestMovieProcessingFixes(unittest.TestCase):
             res = self._post("/api/preview_process", json_data=payload)
             self.assertEqual(res.status_code, 200)
             preview = res.get_json()
-            
+
             warning = preview.get("warning", "")
             self.assertIsNotNone(warning)
-            
+
             # Verifizieren, dass der Plaintext-Vergleich stattfindet und die korrekten Attribute auflistet
             self.assertIn("Vergleich der Videodateien", warning)
             self.assertIn("Dateiname", warning)
@@ -1221,7 +1256,7 @@ class TestMovieProcessingFixes(unittest.TestCase):
             self.assertIn("Audio-Codec", warning)
             self.assertIn("Bitrate", warning)
             self.assertIn("Dauer", warning)
-            
+
             # Verifizieren, dass die gemockten Werte sauber formatiert in der Tabelle stehen
             self.assertIn("1.45 GB", warning)
             self.assertIn("2.10 GB", warning)
@@ -1239,10 +1274,10 @@ class TestMovieProcessingFixes(unittest.TestCase):
     def test_transfer_quarantine_error_aborts_copy(self):
         """Testet, ob bei einem Fehler im Quarantäne-Backup der Kopiervorgang abgebrochen wird."""
         from gui.core.transfers import run_copy_fallback, run_rsync_with_progress
-        
+
         src_file = os.path.join(self.inbox_dir, "test_abort_src.mkv")
         with open(src_file, "w") as f: f.write("new content")
-        
+
         dst_file = os.path.join(self.nas_root, "test_abort_dst.mkv")
         with open(dst_file, "w") as f: f.write("pre-existing content")
 

@@ -345,7 +345,7 @@ def _quarantine_colliding_files(src, dst):
     import os
     import gui.core.trash as trash
     from gui.core.helpers import log_message
-    
+
     if not os.path.exists(src):
         return
 
@@ -363,7 +363,7 @@ def _quarantine_colliding_files(src, dst):
         dest_file = dst
         if os.path.isdir(dst):
             dest_file = os.path.join(dst, os.path.basename(src))
-        
+
         if os.path.exists(dest_file) and not os.path.isdir(dest_file):
             collisions.append(dest_file)
 

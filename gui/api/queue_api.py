@@ -124,7 +124,7 @@ def handle_api_preview_process():
             if target.get("type") == "nas":
                 nas_target = target
                 break
-        
+
         if nas_target:
             target_base = resolve_target_destination(nas_target, rel_sub, "movie")
         else:
@@ -265,17 +265,17 @@ def handle_api_preview_process():
                 target_file_path = os.path.join(nas_path, r["new"])
                 if os.path.exists(target_file_path):
                     colliding_renames.append(r)
-            
+
             if colliding_renames:
                 # We have at least one colliding video file. We compare metadata!
                 comparison_txt = ""
                 for r in colliding_renames:
                     src_full = os.path.join(current_dir, r["old"])
                     dst_full = os.path.join(nas_path, r["new"])
-                    
+
                     src_info = media.get_media_info(src_full)
                     dst_info = media.get_media_info(dst_full)
-                    
+
                     # Helper functions for formatting
                     def fmt_size(sz):
                         if not sz: return "Unbekannt"
@@ -285,7 +285,7 @@ def handle_api_preview_process():
                                 return f"{val:.2f} {unit}"
                             val /= 1024.0
                         return f"{val:.2f} PB"
-                        
+
                     def fmt_dur(d):
                         if not d: return "Unbekannt"
                         d = int(d)
@@ -295,14 +295,14 @@ def handle_api_preview_process():
                         if h > 0:
                             return f"{h}h {m}m {s}s"
                         return f"{m}m {s}s"
-                        
+
                     def fmt_bitrate(b):
                         if not b: return "Unbekannt"
                         mbps = b / 1_000_000.0
                         if mbps >= 1.0:
                             return f"{mbps:.1f} Mbps"
                         return f"{b / 1000.0:.0f} kbps"
-                        
+
                     def get_quality_desc(info):
                         if not info or not info.get("width") or not info.get("height"):
                             return "Unbekannt"
@@ -318,10 +318,10 @@ def handle_api_preview_process():
                         else:
                             res = f"{w}x{h} SD"
                         return f"{res} ({str(codec).upper()})"
-                    
+
                     src_res = f"{src_info.get('width')}x{src_info.get('height')}" if src_info.get('width') else 'Unbekannt'
                     dst_res = f"{dst_info.get('width')}x{dst_info.get('height')}" if dst_info.get('width') else 'Unbekannt'
-                    
+
                     comparison_txt += (
                         f"ACHTUNG: Die Datei '{r['new']}' existiert bereits auf dem NAS im Ordner '{clean_movie_name}' und wird überschrieben!\n\n"
                         f"Vergleich der Videodateien:\n"

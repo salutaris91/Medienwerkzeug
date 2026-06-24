@@ -1279,4 +1279,3 @@ Eine detaillierte Warnung in der UI mit Medienvergleichstabelle sowie eine autom
 
 ### Aufwand (grob)
 Klein-Mittel: FFmpeg/ffprobe Metadaten-Extraktion, transfers.py Härtung, get_cleaner_suggested_query Heuristik, UI-Icons und Integrationstests.
-

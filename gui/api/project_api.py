@@ -146,10 +146,10 @@ def handle_api_scan_project():
         
     if not is_path_allowed(target_dir):
         return jsonify({"error": "Access Denied"}), 403
-        
+
     if not os.path.exists(target_dir):
         return jsonify({"error": "Directory not found"}), 404
-        
+
     is_single_file = os.path.isfile(target_dir)
     target_parent = os.path.dirname(target_dir) if is_single_file else target_dir
 
@@ -790,22 +790,64 @@ _inbox_cache_time = 0
 def clean_scene_tags(name):
     if not name:
         return ""
-    scene_keywords = {
-        '1080p', '720p', '2160p', '4k', 'x264', 'x265', 'hevc', 'h264', 'bluray', 
-        'web-dl', 'webdl', 'dts', 'dd5', 'hdtv', 'aac', 'ac3', 'bdrip', 'webrip', 
-        'brrip', 'multi', 'dl', 'dual', 'atmos', 'german', 'deutsch', 'french', 
-        'english', 'eng', 'dubbed', 'repack', 'proper', 'subbed', 'custom', 
-        'untouched', 'patched', 'retail', 'web', 'hdtvrip', 'blurayrip', 'uhd',
-        'truehd', 'hdr', '10bit', 'hq', 'dd51', 'fhd'
+
+    unambiguous_keywords = {
+        '1080p', '720p', '2160p', '4k', 'x264', 'x265', 'hevc', 'h264', 'bluray',
+        'web-dl', 'webdl', 'hdtv', 'bdrip', 'webrip', 'brrip', 'repack', 'proper',
+        'blurayrip', 'uhd', 'truehd', 'hdr', '10bit', 'fhd'
     }
+
+    contextual_keywords = {
+        'german', 'deutsch', 'french', 'english', 'eng', 'dubbed', 'subbed',
+        'multi', 'dl', 'dual', 'atmos', 'dts', 'ac3', 'aac', 'dd51', 'dd5',
+        'custom', 'untouched', 'patched', 'retail', 'web', 'hdtvrip', 'hq'
+    }
+
+    all_keywords = unambiguous_keywords.union(contextual_keywords)
+
+    def is_year(w):
+        w_clean = w.lower().strip("()[]{}")
+        return bool(re.match(r'^(19\d\d|20\d\d)$', w_clean))
+
+    def is_keyword(w):
+        w_clean = w.lower().strip("()[]{}")
+        return w_clean in all_keywords or is_year(w)
+
     normalized = name.replace(".", " ").replace("_", " ").replace("-", " ")
     words = normalized.split()
-    cleaned_words = []
-    for w in words:
+    cut_index = len(words)
+
+    for i, w in enumerate(words):
         w_clean = w.lower().strip("()[]{}")
-        if w_clean in scene_keywords:
+
+        # 1. Jahr gefunden -> Schnitt direkt nach dem Jahr, wenn alle Folgewörter ab i+1 Keywords/Jahre sind
+        if is_year(w):
+            all_following_are_keywords = True
+            for w_next in words[i+1:]:
+                if not is_keyword(w_next):
+                    all_following_are_keywords = False
+                    break
+            if all_following_are_keywords:
+                cut_index = i + 1
+                break
+
+        # 2. Eindeutiges Keyword gefunden -> Schnitt direkt hier
+        if w_clean in unambiguous_keywords:
+            cut_index = i
             break
-        cleaned_words.append(w)
+
+        # 3. Kontextuelles Keyword gefunden -> Schnitt nur, wenn ab hier alles Keywords/Jahre sind
+        if w_clean in contextual_keywords:
+            all_following_are_keywords = True
+            for w_next in words[i:]:
+                if not is_keyword(w_next):
+                    all_following_are_keywords = False
+                    break
+            if all_following_are_keywords:
+                cut_index = i
+                break
+
+    cleaned_words = words[:cut_index]
     cleaned_name = " ".join(cleaned_words).strip()
     if len(cleaned_name) < 2:
         return name.replace(".", " ").replace("_", " ").replace("-", " ").strip()
@@ -819,9 +861,19 @@ def get_cleaner_suggested_query(folder_name, video_name_no_ext):
     if not video_name_no_ext:
         return clean_scene_tags(folder_name)
 
+    # Heuristik 0: Generische Ordnernamen immer durch Videonamen ersetzen
+    generic_names = {
+        'neuer ordner', 'new folder', 'downloads', 'download',
+        'film', 'movie', 'video', 'unbenannt', 'untitled'
+    }
+    # Bereinige Ordnernamen für die Prüfung (Zahlen, Klammern und Striche entfernen)
+    folder_clean = re.sub(r'[\d\(\)\[\]\{\}\-\_]', '', folder_name).lower().strip()
+    if folder_clean in generic_names or not folder_clean:
+        return clean_scene_tags(video_name_no_ext)
+
     scene_keywords = {
-        '1080p', '720p', '2160p', '4k', 'x264', 'x265', 'hevc', 'h264', 'bluray', 
-        'web-dl', 'webdl', 'dts', 'dd5.1', 'hdtv', 'aac', 'ac3', 'bdrip', 'webrip', 
+        '1080p', '720p', '2160p', '4k', 'x264', 'x265', 'hevc', 'h264', 'bluray',
+        'web-dl', 'webdl', 'dts', 'dd5.1', 'hdtv', 'aac', 'ac3', 'bdrip', 'webrip',
         'brrip', 'multi', 'dl', 'dual', 'atmos'
     }
 
@@ -860,11 +912,11 @@ def get_cleaner_suggested_query(folder_name, video_name_no_ext):
 def get_inbox_suggestions():
     global _inbox_cache, _inbox_cache_time
     now = time.time()
-    
+
     # 30s Cache
     if now - _inbox_cache_time < 30:
         return _inbox_cache
-        
+
     settings = load_settings()
     inbox_dir = settings.get("inbox_dir")
     
@@ -872,24 +924,24 @@ def get_inbox_suggestions():
         return []
         
     suggestions = []
-    
+
     for item in os.listdir(inbox_dir):
         if item.startswith('.'):
             continue
-            
+
         full_path = os.path.join(inbox_dir, item)
         is_dir = os.path.isdir(full_path)
         video_exts = {'.mp4', '.mkv', '.avi', '.mov', '.ts', '.webm'}
-        
+
         if not is_dir:
             ext = os.path.splitext(item)[1].lower()
             if ext not in video_exts:
                 continue
-            
+
         # Count and collect all videos
         video_files = []
         nfo_files = []
-        
+
         if is_dir:
             for root, dirs, files in os.walk(full_path):
                 for f in files:
@@ -901,7 +953,7 @@ def get_inbox_suggestions():
                             nfo_files.append(os.path.join(root, f))
         else:
             video_files.append(full_path)
-            
+
         video_count = len(video_files)
         if video_count == 0:
             continue

@@ -2163,7 +2163,7 @@ function renderProjectList(projects, projectTypes) {
         const icon = isDir ? "📁" : "🎥";
         const deleteTitle = isDir ? "Ordner in Quarantäne verschieben" : "Datei in Quarantäne verschieben";
         html += `
-            <button class="project-item ${currentProject === name ? "active" : ""}" data-project="${escapedP}" draggable="true">
+            <button class="project-item ${currentProject === name ? "active" : ""}" data-project="${escapedP}" data-is-dir="${isDir}" draggable="true">
                 <span class="project-item-name">
                     <span class="nav-icon" aria-hidden="true">${icon}</span>
                     <span class="nav-label">${escapedP}</span>
@@ -2194,7 +2194,7 @@ function renderProjectList(projects, projectTypes) {
             const p = btn.getAttribute("data-project");
             const isDir = btn.getAttribute("data-is-dir") !== "false";
             const typeStr = isDir ? "Ordner" : "Datei";
-            const confirmMsg = isDir 
+            const confirmMsg = isDir
                 ? `Möchtest du den Ordner "${p}" und alle darin enthaltenen Dateien wirklich in Quarantäne verschieben?`
                 : `Möchtest du die Datei "${p}" wirklich in Quarantäne verschieben?`;
             if (confirm(confirmMsg)) {
@@ -2228,7 +2228,8 @@ function updateSidebarProcessingStates(activeProjects) {
         } else {
             item.classList.remove("processing");
             if (iconEl) {
-                iconEl.textContent = p === "" ? "📥" : (p === "__inbox_recursive__" ? "📂" : "📁");
+                const isDir = item.getAttribute("data-is-dir") !== "false";
+                iconEl.textContent = p === "" ? "📥" : (p === "__inbox_recursive__" ? "📂" : (isDir ? "📁" : "🎥"));
                 iconEl.classList.remove("spinning-icon");
             }
             if (deleteEl) {
