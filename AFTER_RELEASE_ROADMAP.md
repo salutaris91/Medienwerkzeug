@@ -51,6 +51,7 @@ die aktive After-Release-Roadmap übernommen.
 | 42 | Absolute Nummerierung: Episoden einschieben und nachfolgende Folgen verschieben | geplant | mittel |
 | 43 | Film-Überschreibschutz auf dem NAS (Warnung & Quarantäne-Absicherung) | erledigt | klein–mittel |
 | 44 | VAAPI-High-Quality-Modus bis QP 18 | geplant | klein |
+| 45 | Startseite: Inbox/Outbox aufräumen, Speicherbelegung & Quarantäne-Onboarding | geplant | klein–mittel |
 
 ---
 
@@ -1322,3 +1323,51 @@ größerer High-Quality-/Archivbereich verfügbar wird.
 ### Aufwand (grob)
 Klein: Mapping, UI-Hinweis, Regressionstests und kurze manuelle Probe mit einer
 Testdatei.
+
+---
+
+## 45. Startseite: Inbox/Outbox aufräumen, Speicherbelegung & Quarantäne-Onboarding
+
+**Einordnung / Priorität:** Bedien- und Betriebsverbesserung für den Alltag,
+besonders bei Docker-/NAS-Nutzung mit begrenztem Speicherplatz.
+
+**Problem:**
+Inbox, Outbox und Quarantäne können Speicher belegen, ohne dass dies direkt auf
+der Startseite sichtbar oder schnell bedienbar ist. Gerade nach mehreren Imports,
+fehlgeschlagenen Verarbeitungen oder Quarantäne-Aktionen muss Alex aktuell an
+mehreren Stellen prüfen, wo Speicher verbraucht wird und wie er wieder frei wird.
+
+**Ziel:**
+Die Startseite soll klar zeigen, wie viel Speicher Inbox und Outbox belegen, und
+sichere Aufräumaktionen anbieten. Zusätzlich soll das Onboarding die Einstellung
+für das Löschen bzw. automatische Leeren der Quarantäne sichtbar machen, damit
+neue Installationen diese Entscheidung bewusst treffen.
+
+**Umsetzung:**
+1. **Dashboard-Speicherbelegung:** Belegung von Inbox und Outbox getrennt im
+   Dashboard anzeigen, inklusive Lade-/Fehlerzustand und verständlicher
+   Größenformatierung.
+2. **Startseiten-Aktionen:** Buttons zum Löschen/Aufräumen von Inbox- und
+   Outbox-Dateien auf der Startseite ergänzen.
+3. **Sicherheitsdialog:** Vor dem Löschen klar anzeigen, welcher Ordner betroffen
+   ist, wie viel Speicher frei würde und ob Dateien endgültig gelöscht oder in
+   die Quarantäne verschoben werden.
+4. **Onboarding:** Einstellung für Quarantäne-Löschung bzw. automatische
+   Quarantänebereinigung im Onboarding aufnehmen, besonders für Docker/NAS-
+   Setups.
+5. **Backend:** Endpunkte eng begrenzen: nur konfigurierte Inbox/Outbox-Pfade
+   erlauben, Symlink-/Pfad-Breakouts verhindern und laufende Jobs berücksichtigen.
+6. **Tests:** Unit-Tests für Pfadgrenzen, leere Ordner, fehlende Ordner,
+   blockierte Löschung bei laufenden Jobs und UI-/API-Fehlerzustände ergänzen.
+
+### Risiken & Hinweise
+- Löschaktionen auf der Startseite sind gefährlich, wenn sie zu leicht auslösbar
+  sind. Deshalb sind Vorschau, Bestätigung und klare Bezeichnung Pflicht.
+- Im Docker-Modus muss die Aktion mit der bestehenden Quarantäne-Logik
+  harmonieren und darf keine Host-Pfade außerhalb der erlaubten Mounts anfassen.
+- Die Speicherberechnung darf bei großen Ordnern die Oberfläche nicht blockieren;
+  ggf. Cache oder Hintergrundberechnung nutzen.
+
+### Aufwand (grob)
+Klein–mittel: Dashboard-Metriken, Startseitenbuttons, Bestätigungsdialog,
+Onboarding-Feld, sichere Backend-Endpunkte und Regressionstests.
