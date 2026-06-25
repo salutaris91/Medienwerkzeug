@@ -115,8 +115,11 @@ def load_show_profile(show_name):
             "auto_h265": "n",
             "schema": "staffeln",
             "provider": "",
-            "force_absolute_season_1": False
+            "force_absolute_season_1": False,
+            "is_custom": False
         }
+    else:
+        profile["is_custom"] = True
         
     # Ensure all required default values are set
     if "force_absolute_season_1" not in profile:
