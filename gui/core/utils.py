@@ -65,7 +65,11 @@ def load_show_profile(show_name):
     if os.path.exists(local_path):
         try:
             with open(local_path, "r", encoding="utf-8") as f:
-                profile = json.load(f)
+                data = json.load(f)
+            if isinstance(data, dict):
+                profile = data
+            else:
+                print(f"Profil {local_path} hat unerwartetes Format (kein Objekt), wird ignoriert.")
         except Exception as e:
             print(f"Error loading show profile from {local_path}: {e}")
 
@@ -115,8 +119,11 @@ def load_show_profile(show_name):
             "auto_h265": "n",
             "schema": "staffeln",
             "provider": "",
-            "force_absolute_season_1": False
+            "force_absolute_season_1": False,
+            "is_custom": False
         }
+    else:
+        profile["is_custom"] = True
         
     # Ensure all required default values are set
     if "force_absolute_season_1" not in profile:

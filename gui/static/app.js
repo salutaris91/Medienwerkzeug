@@ -331,7 +331,7 @@ async function fetchNasSeasons(requestId = null) {
             `;
 
             // 2. Auto-check absolute numbering if only Staffel 1 exists
-            if (data.seasons.length === 1) {
+            if (data.seasons.length === 1 && !window.currentShowHasCustomProfile) {
                 const sName = data.seasons[0].name.toLowerCase();
                 if (sName === "staffel 1" || sName === "season 1") {
                     const absoluteCb = document.getElementById("series-option-absolute-numbering");
@@ -3023,6 +3023,7 @@ async function selectShow(show) {
     selectShowRequestId++;
     const currentRequestId = selectShowRequestId;
     selectedShow = show;
+    window.currentShowHasCustomProfile = false;
 
     // Update local profile dropdown selection to match this show if possible
     const localProfileSelect = document.getElementById("series-local-profile-select");
@@ -3169,6 +3170,8 @@ async function selectShow(show) {
             const profile = await profRes.json();
             if (currentRequestId !== selectShowRequestId) return;
             if (profile) {
+                window.currentShowHasCustomProfile = !!profile.is_custom;
+
                 // Apply auto_h265
                 const convertCb = document.getElementById("series-option-convert");
                 if (convertCb) {

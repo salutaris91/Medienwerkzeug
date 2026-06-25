@@ -52,6 +52,7 @@ die aktive After-Release-Roadmap übernommen.
 | 43 | Film-Überschreibschutz auf dem NAS (Warnung & Quarantäne-Absicherung) | erledigt | klein–mittel |
 | 44 | VAAPI-High-Quality-Modus bis QP 18 | geplant | klein |
 | 45 | Startseite: Inbox/Outbox aufräumen, Speicherbelegung & Quarantäne-Onboarding | geplant | klein–mittel |
+| 46 | Profile-Dropdown: Frisch erstellte Serien-Profile sofort in der UI zur Verfügung stellen (ohne Page-Reload) | geplant | klein |
 
 ---
 
@@ -1371,3 +1372,26 @@ neue Installationen diese Entscheidung bewusst treffen.
 ### Aufwand (grob)
 Klein–mittel: Dashboard-Metriken, Startseitenbuttons, Bestätigungsdialog,
 Onboarding-Feld, sichere Backend-Endpunkte und Regressionstests.
+
+---
+
+## 46. Profile-Dropdown: Frisch erstellte Serien-Profile sofort in der UI zur Verfügung stellen (ohne Page-Reload)
+
+**Einordnung / Priorität:** UX-Verbesserung für die Sendezentrale (Serienimport).
+
+**Problem:**
+Wenn ein Benutzer ein neues Serien-Profil erstellt (durch Ausführen einer neuen Serie), wird dieses Profil auf dem Server gespeichert, aber die Liste der Profile im clientseitigen Dropdown (`series-local-profile-select`) wird nicht live aktualisiert. Möchte der Benutzer direkt danach eine weitere Staffel derselben Serie verarbeiten, taucht das neu erstellte Profil im Dropdown erst nach einem Neuladen der Seite auf.
+
+**Ziel:**
+Frisch angelegte oder aktualisierte Profile sollen sofort und ohne Neuladen der Seite im Dropdown "Lokales Profil wählen" (sowie der Profil-Suche) zur Verfügung stehen.
+
+**Umsetzung:**
+1. **Dropdown-Update nach Speichern:** Nach dem erfolgreichen POST auf `/api/profile` (in `btn-preview-execute`) soll die Funktion `populateLocalProfilesDropdown()` aufgerufen werden, um die Liste der Profile im Client im Hintergrund neu zu laden und das Dropdown zu aktualisieren.
+2. **Synchronisation bei UI-Aktionen:** Auch bei anderen relevanten Aktionen (z.B. Erstellung oder Änderung von Profilen) sicherstellen, dass die lokale Liste `allLocalProfiles` und das Dropdown synchron bleiben.
+
+### Risiken & Hinweise
+- Keine nennenswerten Risiken. Es handelt sich um ein rein clientseitiges Update der Dropdown-Werte über bestehende API-Endpunkte.
+
+### Aufwand (grob)
+Klein: Aufruf der bestehenden Funktion `populateLocalProfilesDropdown()` nach dem Speichern des Profils integrieren und testen.
+
