@@ -50,6 +50,7 @@ die aktive After-Release-Roadmap übernommen.
 | 41 | Explizites Umbenennen bestehender NAS-Serienordner | geplant | mittel |
 | 42 | Absolute Nummerierung: Episoden einschieben und nachfolgende Folgen verschieben | geplant | mittel |
 | 43 | Film-Überschreibschutz auf dem NAS (Warnung & Quarantäne-Absicherung) | erledigt | klein–mittel |
+| 44 | VAAPI-High-Quality-Modus bis QP 18 | geplant | klein |
 
 ---
 
@@ -1279,3 +1280,45 @@ Eine detaillierte Warnung in der UI mit Medienvergleichstabelle sowie eine autom
 
 ### Aufwand (grob)
 Klein-Mittel: FFmpeg/ffprobe Metadaten-Extraktion, transfers.py Härtung, get_cleaner_suggested_query Heuristik, UI-Icons und Integrationstests.
+
+---
+
+## 44. VAAPI-High-Quality-Modus bis QP 18
+
+**Einordnung / Priorität:** Qualitätsverbesserung für Docker-/NAS-Installationen
+mit VAAPI-Hardware-Encoding.
+
+**Problem:**
+Die aktuelle Qualitäts-Skala endet bei `100` und mapped VAAPI dort auf `QP 22`.
+Das ist bereits sehr gut, bietet aber keinen Spielraum für besonders kritische
+Archiv-Konvertierungen, bei denen Alex bewusst größere Dateien zugunsten maximaler
+visueller Qualität akzeptiert.
+
+**Ziel:**
+Die höchste VAAPI-Qualität soll optional bis `QP 18` reichen. `QP 22` bleibt ein
+sinnvoller Standard für sehr gute Qualität, während `QP 18` als bewusst
+größerer High-Quality-/Archivbereich verfügbar wird.
+
+**Umsetzung:**
+1. VAAPI-Qualitätsmapping in `gui/core/media.py` so anpassen, dass der obere
+   Bereich der Skala bis `QP 18` reicht.
+2. UI-Text prüfen: klar erklären, dass kleinere QP-Werte bessere Qualität und
+   größere Dateien bedeuten.
+3. Größenprognose und Konvertierung müssen dasselbe Mapping verwenden.
+4. Tests in `tests/test_docker_conversion.py` für die neuen Eckwerte ergänzen
+   (`quality=100 -> QP 18`, sinnvolle Zwischenwerte).
+5. Falls das bestehende `100`-Verhalten bewusst kompatibel bleiben soll:
+   alternativ einen Expertenmodus oder Preset "Archivqualität" vorsehen, statt
+   das Standard-Mapping still zu ändern.
+
+### Risiken & Hinweise
+- `QP 18` kann Dateien deutlich vergrößern, ohne bei jedem Material sichtbar
+  besser auszusehen.
+- VAAPI-QP ist nicht 1:1 mit libx265-CRF vergleichbar; die UI sollte keine
+  Gleichsetzung mit `CRF 18` versprechen.
+- Auf schwächerer NAS-Hardware kann sehr hohe Qualität längere Laufzeiten oder
+  höhere Last verursachen.
+
+### Aufwand (grob)
+Klein: Mapping, UI-Hinweis, Regressionstests und kurze manuelle Probe mit einer
+Testdatei.
