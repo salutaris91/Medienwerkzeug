@@ -65,7 +65,11 @@ def load_show_profile(show_name):
     if os.path.exists(local_path):
         try:
             with open(local_path, "r", encoding="utf-8") as f:
-                profile = json.load(f)
+                data = json.load(f)
+            if isinstance(data, dict):
+                profile = data
+            else:
+                print(f"Profil {local_path} hat unerwartetes Format (kein Objekt), wird ignoriert.")
         except Exception as e:
             print(f"Error loading show profile from {local_path}: {e}")
 

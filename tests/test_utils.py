@@ -141,6 +141,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         self.assertEqual(loaded["auto_h265"], "n")
         self.assertEqual(loaded["schema"], "absolut")
         self.assertEqual(loaded["provider"], "tmdb_tv")
+        self.assertTrue(loaded["is_custom"])
 
     def test_profile_migration(self):
         # Profil-Verzeichnis in die Test-Sandbox legen, damit der Test nicht in die
@@ -167,6 +168,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertEqual(loaded["auto_h265"], "j")
             self.assertEqual(loaded["schema"], "absolut")
             self.assertEqual(loaded["provider"], "tvdb")
+            self.assertTrue(loaded["is_custom"])
 
             # Check that it saved locally as JSON. clean_show_name behält Groß-/Kleinschreibung
             # und Leerzeichen bei -> Dateiname "Breaking Bad.json".
@@ -175,6 +177,17 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             with open(local_json_path, "r", encoding="utf-8") as f:
                 local_data = json.load(f)
             self.assertEqual(local_data["provider"], "tvdb")
+        finally:
+            utils._MOCK_SETTINGS = None
+
+    def test_profile_fallback_is_not_custom(self):
+        # Profil-Verzeichnis in die Test-Sandbox legen
+        profiles_dir = os.path.join(self.temp_home, "profiles")
+        os.makedirs(profiles_dir, exist_ok=True)
+        utils._MOCK_SETTINGS = {"profiles_path": profiles_dir}
+        try:
+            loaded = utils.load_show_profile("NonExistentShowName123")
+            self.assertFalse(loaded["is_custom"])
         finally:
             utils._MOCK_SETTINGS = None
 
