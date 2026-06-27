@@ -53,6 +53,7 @@ die aktive After-Release-Roadmap übernommen.
 | 44 | VAAPI-High-Quality-Modus bis QP 18 | geplant | klein |
 | 45 | Startseite: Inbox/Outbox aufräumen, Speicherbelegung & Quarantäne-Onboarding | geplant | klein–mittel |
 | 46 | Profile-Dropdown: Frisch erstellte Serien-Profile sofort in der UI zur Verfügung stellen (ohne Page-Reload) | geplant | klein |
+| 47 | Mediathek-URL-Auflösung: Untertitel / Trennstrich-Titel mit übernehmen | geplant | klein |
 
 ---
 
@@ -1394,4 +1395,29 @@ Frisch angelegte oder aktualisierte Profile sollen sofort und ohne Neuladen der 
 
 ### Aufwand (grob)
 Klein: Aufruf der bestehenden Funktion `populateLocalProfilesDropdown()` nach dem Speichern des Profils integrieren und testen.
+
+---
+
+## 47. Mediathek-URL-Auflösung: Untertitel / Trennstrich-Titel mit übernehmen
+
+**Einordnung / Priorität:** UX/Metadaten-Verbesserung bei der URL-Einspeisung.
+
+**Problem:**
+Bei der URL-Auflösung von Mediathek-Links (z. B. ARD/ZDF) in `resolve_mediathek_url_topic` (in [mw_metadata.py](file:///Users/alex/Documents/Medienwerkzeug/gui/mw_metadata.py#L2497-L2500)) wird der Titel beim ersten Vorkommen von Trennzeichen (` - `, ` | `, ` • `) abgespalten und der Rest verworfen.
+Dadurch wird z. B. aus `"Faszination Tiefsee - Expedition zum Grund der Meere"` nur `"Faszination Tiefsee"` extrahiert, wodurch der eigentliche Doku-Titel verloren geht.
+
+**Ziel:**
+Der vollständige Titel inklusive Untertitel (z. B. `"Faszination Tiefsee - Expedition zum Grund der Meere"`) soll erhalten bleiben bzw. intelligent zusammengeführt werden, anstatt nach dem ersten Trennzeichen abzuschneiden. Trennstriche für Sendernamen (z. B. `- ARD Mediathek`) müssen natürlich weiterhin bereinigt werden.
+
+**Umsetzung:**
+1. **Splitting-Logik anpassen:** In [mw_metadata.py](file:///Users/alex/Documents/Medienwerkzeug/gui/mw_metadata.py#L2497) die rigorose Trennung am ersten Separator überarbeiten. Zum Beispiel prüfen, ob der hintere Teil ein eigenständiger Episoden-/Doku-Titel ist, oder das Abschneiden ganz unterbinden bzw. konfigurierbar machen.
+2. **Tests anpassen:** Die Testfälle in [test_mediathek_url_resolution.py](file:///Users/alex/Documents/Medienwerkzeug/tests/test_mediathek_url_resolution.py) erweitern, um sicherzustellen, dass Titel mit gewünschten Untertiteln (wie `"Faszination Tiefsee - Expedition zum Grund der Meere"`) korrekt aufgelöst werden und nicht fälschlicherweise beschnitten werden.
+
+### Risiken & Hinweise
+- Es muss aufgepasst werden, dass unerwünschte Suffixe (wie ` - ARD` oder ` - Sendung verpasst?`) weiterhin sauber entfernt werden.
+- Die Heuristiken dürfen bei anderen Shows keine falschen Titel erzeugen.
+
+### Aufwand (grob)
+Klein: Anpassung der Regex- bzw. String-Splitting-Logik in `mw_metadata.py` und Anpassung der Unit-Tests.
+
 
