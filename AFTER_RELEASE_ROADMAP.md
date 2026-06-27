@@ -54,6 +54,7 @@ die aktive After-Release-Roadmap übernommen.
 | 45 | Startseite: Inbox/Outbox aufräumen, Speicherbelegung & Quarantäne-Onboarding | geplant | klein–mittel |
 | 46 | Profile-Dropdown: Frisch erstellte Serien-Profile sofort in der UI zur Verfügung stellen (ohne Page-Reload) | geplant | klein |
 | 47 | Mediathek-URL-Auflösung: Untertitel / Trennstrich-Titel mit übernehmen | geplant | klein |
+| 48 | Health-Scan: Qualitäts- & Bitrate-Grenzwerte definieren und markieren | geplant | mittel |
 
 ---
 
@@ -1420,4 +1421,32 @@ Der vollständige Titel inklusive Untertitel (z. B. `"Faszination Tiefsee - Expe
 ### Aufwand (grob)
 Klein: Anpassung der Regex- bzw. String-Splitting-Logik in `mw_metadata.py` und Anpassung der Unit-Tests.
 
+---
 
+## 48. Health-Scan: Qualitäts- & Bitrate-Grenzwerte definieren und markieren
+
+**Einordnung / Priorität:** Qualitätskontrolle und Bibliotheks-Hygiene.
+
+**Problem:**
+Bisher prüft der Bibliotheks-Scan (Health-Scan) vor allem das Namensschema und fehlende Dateien (wie NFOs oder Artworks). Es gibt jedoch keine Qualitätsprüfung der Videodateien selbst. Dateien mit einer unzureichend niedrigen Bitrate oder einer schlechten Codierung (z. B. veraltete Codecs bei gleichzeitig zu geringer Bitrate) werden nicht erfasst, obwohl sie eventuell neu codiert oder durch eine bessere Version ersetzt werden sollten.
+
+**Ziel:**
+Der Bibliotheks-Scan soll Mediendateien erfassen, deren Qualität/Bitrate unter frei definierbaren Schwellenwerten (pro Codec, z. B. H.264, HEVC) liegt. Diese Dateien sollen im Health-Dashboard markiert (geflaggt) werden. Zudem soll es eine Option in der Benutzeroberfläche geben, diese Qualitäts-Warnungen auszublenden (Mute/Ignore-Funktion), um die Liste übersichtlich zu halten.
+
+**Umsetzung:**
+1. **Konfiguration in Settings:** In den `settings.json` Schwellenwerte für "gute" Bitraten pro Codec/Auflösung (z. B. `min_bitrate_kbps` für `hevc_1080p`, `h264_1080p` etc.) konfigurierbar machen.
+2. **Erweiterung des Health-Scanners:**
+   - Einbindung von `ffprobe` im Health-Scan, um Codec und Gesamtbitrate der Videodatei auszulesen.
+   - Abgleich der ermittelten Werte mit den konfigurierten Schwellenwerten.
+   - Einstufen von Dateien unter dem Schwellenwert als "Low Quality / Low Bitrate".
+3. **Frontend-Erweiterungen:**
+   - Anzeige der Qualitätswarnungen im Health-Dashboard mit Angabe der gemessenen Bitrate und des Codecs.
+   - Schaltfläche zum temporären oder dauerhaften Ausblenden ("Stummschalten") dieser spezifischen Warnungen.
+   - Filteroption im UI-Header ("Qualitätswarnungen anzeigen/ausblenden").
+
+### Risiken & Hinweise
+- Der Einsatz von `ffprobe` bei jedem Scan über eine sehr große Bibliothek hinweg kann Performance-Einbußen verursachen. Hier muss die Bitrate-Ermittlung gecached werden (z. B. im inkrementellen Cache aus #11) oder nur bei neuen Dateien durchgeführt werden.
+- Falsche Flags bei sehr effizient codierten Videos (z. B. AV1 mit niedriger Bitrate, aber exzellenter visueller Qualität) müssen durch codec-spezifische Profile verhindert werden.
+
+### Aufwand (grob)
+Mittel: Erfordert die Erweiterung des Settings-Modells, Integration von `ffprobe`-Parsing, Anpassung des Health-Analyzers im Backend und Ausbau der Filtermöglichkeiten im Frontend.
