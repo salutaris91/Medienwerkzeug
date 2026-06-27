@@ -54,7 +54,7 @@ die aktive After-Release-Roadmap übernommen.
 | 45 | Startseite: Inbox/Outbox aufräumen, Speicherbelegung & Quarantäne-Onboarding | geplant | klein–mittel |
 | 46 | Profile-Dropdown: Frisch erstellte Serien-Profile sofort in der UI zur Verfügung stellen (ohne Page-Reload) | geplant | klein |
 | 47 | Mediathek-URL-Auflösung: Untertitel / Trennstrich-Titel mit übernehmen | geplant | klein |
-| 48 | Health-Scan: Qualitäts- & Bitrate-Grenzwerte definieren und markieren | geplant | mittel |
+| 48 | Health-Scan: Qualitäts-, Bitrate- & Audiospur-Prüfung definieren und markieren | geplant | mittel |
 
 ---
 
@@ -1423,30 +1423,30 @@ Klein: Anpassung der Regex- bzw. String-Splitting-Logik in `mw_metadata.py` und 
 
 ---
 
-## 48. Health-Scan: Qualitäts- & Bitrate-Grenzwerte definieren und markieren
+## 48. Health-Scan: Qualitäts-, Bitrate- & Audiospur-Prüfung definieren und markieren
 
 **Einordnung / Priorität:** Qualitätskontrolle und Bibliotheks-Hygiene.
 
 **Problem:**
-Bisher prüft der Bibliotheks-Scan (Health-Scan) vor allem das Namensschema und fehlende Dateien (wie NFOs oder Artworks). Es gibt jedoch keine Qualitätsprüfung der Videodateien selbst. Dateien mit einer unzureichend niedrigen Bitrate oder einer schlechten Codierung (z. B. veraltete Codecs bei gleichzeitig zu geringer Bitrate) werden nicht erfasst, obwohl sie eventuell neu codiert oder durch eine bessere Version ersetzt werden sollten.
+Bisher prüft der Bibliotheks-Scan (Health-Scan) vor allem das Namensschema und fehlende Dateien (wie NFOs oder Artworks). Es gibt jedoch keine Qualitätsprüfung der Videodateien selbst. Dateien mit einer unzureichend niedrigen Bitrate oder einer schlechten Codierung (z. B. veraltete Codecs bei gleichzeitig zu geringer Bitrate) werden nicht erfasst. Zudem fehlen in importierten Mediendateien oft wichtige Audiospuren (z. B. eine deutsche Audiospur, falls nur die Originalsprache vorhanden ist), was derzeit nicht automatisiert im Health-Scan gemeldet wird.
 
 **Ziel:**
-Der Bibliotheks-Scan soll Mediendateien erfassen, deren Qualität/Bitrate unter frei definierbaren Schwellenwerten (pro Codec, z. B. H.264, HEVC) liegt. Diese Dateien sollen im Health-Dashboard markiert (geflaggt) werden. Zudem soll es eine Option in der Benutzeroberfläche geben, diese Qualitäts-Warnungen auszublenden (Mute/Ignore-Funktion), um die Liste übersichtlich zu halten.
+Der Bibliotheks-Scan soll Mediendateien erfassen, deren Qualität/Bitrate unter frei definierbaren Schwellenwerten (pro Codec, z. B. H.264, HEVC) liegt, oder in denen definierte Pflicht-Audiospuren (z. B. Deutsch/`deu`/`ger`) fehlen. Diese Dateien sollen im Health-Dashboard markiert (geflaggt) werden. Zudem soll es eine Option in der Benutzeroberfläche geben, diese Warnungen stummzuschalten (Mute/Ignore-Funktion), um die Liste übersichtlich zu halten.
 
 **Umsetzung:**
-1. **Konfiguration in Settings:** In den `settings.json` Schwellenwerte für "gute" Bitraten pro Codec/Auflösung (z. B. `min_bitrate_kbps` für `hevc_1080p`, `h264_1080p` etc.) konfigurierbar machen.
+1. **Konfiguration in Settings:** In den `settings.json` Schwellenwerte für "gute" Bitraten pro Codec/Auflösung (z. B. `min_bitrate_kbps` für `hevc_1080p`) sowie die Liste der gewünschten Pflicht-Audiosprachen (z. B. `["deu", "ger"]`) konfigurierbar machen.
 2. **Erweiterung des Health-Scanners:**
-   - Einbindung von `ffprobe` im Health-Scan, um Codec und Gesamtbitrate der Videodatei auszulesen.
-   - Abgleich der ermittelten Werte mit den konfigurierten Schwellenwerten.
-   - Einstufen von Dateien unter dem Schwellenwert als "Low Quality / Low Bitrate".
+   - Einbindung von `ffprobe` im Health-Scan, um Codec, Gesamtbitrate und alle Audio-Streams (inklusive deren Language-Tags) auszulesen.
+   - Abgleich der Bitrate mit den Schwellenwerten und Prüfung der Audio-Streams auf Vorhandensein der Pflicht-Sprachen.
+   - Einstufen von Dateien unter dem Schwellenwert oder mit fehlenden Spuren als "Low Quality / Low Bitrate" bzw. "Missing Audio Track".
 3. **Frontend-Erweiterungen:**
-   - Anzeige der Qualitätswarnungen im Health-Dashboard mit Angabe der gemessenen Bitrate und des Codecs.
-   - Schaltfläche zum temporären oder dauerhaften Ausblenden ("Stummschalten") dieser spezifischen Warnungen.
-   - Filteroption im UI-Header ("Qualitätswarnungen anzeigen/ausblenden").
+   - Anzeige der Qualitäts- und Audiospurwarnungen im Health-Dashboard mit präzisen Details (z. B. gemessene Bitrate vs. Soll, gefundene vs. fehlende Audiosprachen).
+   - Schaltfläche zum temporären oder dauerhaften Ausblenden ("Stummschalten") dieser Warnungen.
+   - Filteroption im UI-Header ("Qualitäts- & Spurwarnungen anzeigen/ausblenden").
 
 ### Risiken & Hinweise
-- Der Einsatz von `ffprobe` bei jedem Scan über eine sehr große Bibliothek hinweg kann Performance-Einbußen verursachen. Hier muss die Bitrate-Ermittlung gecached werden (z. B. im inkrementellen Cache aus #11) oder nur bei neuen Dateien durchgeführt werden.
-- Falsche Flags bei sehr effizient codierten Videos (z. B. AV1 mit niedriger Bitrate, aber exzellenter visueller Qualität) müssen durch codec-spezifische Profile verhindert werden.
+- Der Einsatz von `ffprobe` bei jedem Scan über eine sehr große Bibliothek hinweg kann Performance-Einbußen verursachen. Hier muss die Medien-Ermittlung gecached werden (z. B. im inkrementellen Cache aus #11) oder nur bei neuen Dateien durchgeführt werden.
+- Fehlende Language-Tags in manchen MKV-Dateien (z. B. Spur als "und" für undefiniert markiert) könnten zu Falschmeldungen führen. Hier sollte ein Fallback oder eine Warnung "Undefinierte Audiospur" greifen, anstatt direkt von einer fehlenden Spur auszugehen.
 
 ### Aufwand (grob)
-Mittel: Erfordert die Erweiterung des Settings-Modells, Integration von `ffprobe`-Parsing, Anpassung des Health-Analyzers im Backend und Ausbau der Filtermöglichkeiten im Frontend.
+Mittel: Erfordert die Erweiterung des Settings-Modells, Integration von `ffprobe`-Parsing für Audio- und Video-Streams, Anpassung des Health-Analyzers im Backend und Ausbau der Filtermöglichkeiten im Frontend.
