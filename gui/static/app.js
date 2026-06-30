@@ -6873,7 +6873,13 @@ function initEventListeners() {
                         const tdIcon = document.createElement("td");
                         tdIcon.style.padding = "10px 15px";
                         tdIcon.style.color = f.is_error ? "#ef4444" : "inherit";
-                        tdIcon.textContent = f.is_error ? "⚠️" : (f.is_dir ? "📁" : "📄");
+                        if (f.is_error) {
+                            tdIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="display:inline-block; vertical-align:middle; color:#ef4444;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>`;
+                        } else if (f.is_dir) {
+                            tdIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="display:inline-block; vertical-align:middle; color:var(--accent);"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>`;
+                        } else {
+                            tdIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file" style="display:inline-block; vertical-align:middle; color:var(--text-muted);"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>`;
+                        }
 
                         const tdName = document.createElement("td");
                         tdName.style.padding = "10px 15px";
@@ -6957,7 +6963,7 @@ function initEventListeners() {
         
         const titleEl = document.getElementById("modal-folder-picker-title");
         if (titleEl) {
-            titleEl.textContent = "📂 " + (title || "Ordner auswählen");
+            titleEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="display:inline-block; vertical-align:middle; margin-right: 6px; color: var(--accent);"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg>${escapeHTML(title || "Ordner auswählen")}`;
         }
 
         document.getElementById("modal-folder-picker").classList.add("active");
@@ -7016,7 +7022,7 @@ function initEventListeners() {
                     li.style.alignItems = "center";
                     li.style.gap = "8px";
                     const iconSpan = document.createElement("span");
-                    iconSpan.textContent = "📁";
+                    iconSpan.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="display:inline-block; vertical-align:middle; color: var(--accent);"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>';
                     const nameSpan = document.createElement("span");
                     nameSpan.className = "folder-name";
                     nameSpan.textContent = sub;
@@ -7108,7 +7114,7 @@ function initEventListeners() {
                 <select id="bulk-action" class="input input-sm" style="width:130px;">
                     <option value="import">Importieren</option>
                     <option value="ignore">Ignorieren</option>
-                    <option value="delete">🗑 In Quarantäne</option>
+                    <option value="delete">In Quarantäne</option>
                 </select>
                 <button class="btn btn-sm btn-secondary" onclick="applyBulkImportAction()">Anwenden</button>
             </div>
@@ -7168,7 +7174,7 @@ function initEventListeners() {
                     <strong style="color: var(--accent);">${group.project_name}</strong>
                     <span class="text-muted text-sm ml-2">Ordner: ${group.safe_folder_name}</span>
                 </div>
-                <button class="btn btn-xs btn-secondary" onclick="openFolderInFinder('${dirPath.replace(/'/g, "\\'")}')" title="Im Finder öffnen">📂 Finder</button>
+                <button class="btn btn-xs btn-secondary" onclick="openFolderInFinder('${dirPath.replace(/'/g, "\\'")}')" title="Im Finder öffnen"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="display:inline-block; vertical-align:middle; margin-right: 4px; height: 12px; width: 12px;"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>Finder</button>
             `;
             groupDiv.appendChild(header);
 
@@ -7191,7 +7197,7 @@ function initEventListeners() {
                     <select class="input input-sm action-select" data-group="${group.safe_folder_name}" data-path="${file.path}" data-filename="${file.filename}" style="width: 130px;">
                         <option value="import" ${defaultAction === 'import' ? 'selected' : ''}>Importieren</option>
                         <option value="ignore">Ignorieren</option>
-                        <option value="delete">🗑 In Quarantäne</option>
+                        <option value="delete">In Quarantäne</option>
                     </select>
                 `;
                 groupDiv.appendChild(fileRow);
@@ -11027,7 +11033,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 alert("Netzwerkfehler beim Starten des Zusammenfügens.");
             } finally {
                 btnStart.disabled = false;
-                btnStart.innerHTML = "🚀 Teile zusammenfügen & laden";
+                btnStart.innerHTML = "Teile zusammenfügen & laden";
             }
         });
     }
@@ -11135,7 +11141,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (confirm("Möchtest du die existierende Datei auf dem NAS wirklich in Quarantäne verschieben?")) {
                 btnUpgrade.disabled = true;
-                btnUpgrade.textContent = "⌛ Führe Upgrade aus...";
+                btnUpgrade.textContent = "Führe Upgrade aus...";
 
                 try {
                     const res = await fetch("/api/media/resolve-duplicate", {
@@ -11167,7 +11173,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     alert("Netzwerkfehler beim Ausführen des Upgrades.");
                 } finally {
                     btnUpgrade.disabled = false;
-                    btnUpgrade.innerHTML = "🗑️ Vorhandene in Quarantäne & Upgrade";
+                    btnUpgrade.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2" style="display:inline-block; vertical-align:middle; margin-right: 4px; height: 12px; width: 12px;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>Vorhandene in Quarantäne & Upgrade';
                 }
             }
         });
