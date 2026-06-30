@@ -2462,6 +2462,10 @@ input[type="range"]::-moz-range-thumb:hover {
 
 .card-hero-header .card-icon {
     font-size: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
 }
 
 .card-hero-header h3 {
