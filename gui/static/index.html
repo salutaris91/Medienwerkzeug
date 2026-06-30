@@ -284,9 +284,8 @@
             </div>
         </div>
         
-        <div class="status-indicators">
             <button class="btn btn-accent-outline inline-style-1" id="header-queue-btn" >
-                📋 Warteschlange
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clipboard-list" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> Warteschlange
                 <span id="header-queue-badge" aria-live="polite" class="badge hidden inline-style-2" >0</span>
             </button>
 
@@ -310,7 +309,7 @@
         <!-- ==================== LEFT SIDEBAR (MASTER) ==================== -->
         <nav class="master-sidebar" aria-label="Hauptnavigation">
             <button class="btn btn-primary inline-style-3"  id="master-btn-home" aria-label="Sendezentrale Startseite">
-                🏠 Sendezentrale
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-home" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> Sendezentrale
             </button>
 
             <div class="sidebar-section collapsible-section" id="section-project-folders">
@@ -333,50 +332,66 @@
                 <div class="nav-list mt-10" >
                     <button class="project-item" id="nav-youtube-downloader" aria-label="Online-Medien öffnen">
                         <span class="project-item-name">
-                            <span class="nav-icon" aria-hidden="true">🎥</span>
+                            <span class="nav-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
+                            </span>
                             <span class="nav-label">Online-Medien</span>
                         </span>
                     </button>
                     <button class="project-item" id="nav-tools-dashboard" aria-label="Werkzeuge öffnen">
                         <span class="project-item-name">
-                            <span class="nav-icon" aria-hidden="true">🛠️</span>
+                            <span class="nav-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                            </span>
                             <span class="nav-label">Werkzeuge</span>
                         </span>
                     </button>
                     <button class="project-item" id="nav-dashboard" aria-label="Statistik Dashboard öffnen">
                         <span class="project-item-name">
-                            <span class="nav-icon" aria-hidden="true">📊</span>
+                            <span class="nav-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+                            </span>
                             <span class="nav-label">Dashboard</span>
                         </span>
                     </button>
                     <button class="project-item" id="nav-library" aria-label="Bibliothek & Wartung öffnen">
                         <span class="project-item-name">
-                            <span class="nav-icon" aria-hidden="true">🗂️</span>
+                            <span class="nav-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg>
+                            </span>
                             <span class="nav-label">Bibliothek</span>
                         </span>
                     </button>
                     <button class="project-item" id="nav-settings-dashboard" aria-label="Einstellungen öffnen">
                         <span class="project-item-name">
-                            <span class="nav-icon" aria-hidden="true">⚙️</span>
+                            <span class="nav-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </span>
                             <span class="nav-label">Einstellungen</span>
                         </span>
                     </button>
                     <button class="project-item" id="nav-queue-dashboard" aria-label="Warteschlange anzeigen">
                         <span class="project-item-name">
-                            <span class="nav-icon" aria-hidden="true">📋</span>
+                            <span class="nav-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+                            </span>
                             <span class="nav-label">Warteschlange</span>
                         </span>
                         <span id="queue-badge" class="badge hidden inline-style-8" >0</span>
                     </button>
                     <button class="project-item" id="nav-faq" aria-label="Hilfe &amp; FAQ öffnen">
                         <span class="project-item-name">
-                            <span class="nav-icon" aria-hidden="true">❓</span>
+                            <span class="nav-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+                            </span>
                             <span class="nav-label">Hilfe &amp; FAQ</span>
                         </span>
                     </button>
                     <button class="project-item hidden" id="btn-sidebar-logout" aria-label="Abmelden (Logout)" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px; color: #ef4444;">
                         <span class="project-item-name">
-                            <span class="nav-icon" aria-hidden="true">🔓</span>
+                            <span class="nav-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+                            </span>
                             <span class="nav-label">Abmelden</span>
                         </span>
                     </button>
@@ -384,7 +399,7 @@
                 <!-- Support-Link in Sidebar -->
                 <div style="margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px; padding-left: 10px; font-size: 0.85em;">
                     <a href="https://www.paypal.com/paypalme/alexmediatool" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; display: flex; align-items: center; gap: 8px;">
-                        <span>☕</span> <span>Entwicklung unterstützen</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-heart" style="fill: currentColor;"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg> <span>Entwicklung unterstützen</span>
                     </a>
                 </div>
             </div>
@@ -396,7 +411,7 @@
             <div id="view-empty" class="view-panel active inline-style-9" >
                 <!-- Speicherplatz-Warnung Banner -->
                 <div id="folder-size-warning" class="alert alert-danger hidden" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 8px; padding: 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
-                    <span style="font-size: 1.5rem;">⚠️</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="color: #ef4444; flex-shrink: 0;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
                     <div>
                         <h4 style="margin: 0 0 4px 0; color: #ef4444;">Speicherplatz-Warnung</h4>
                         <p id="folder-size-warning-text" style="margin: 0; font-size: 0.9em; color: #fca5a5;"></p>
@@ -411,8 +426,8 @@
                     <!-- Optional online media input -->
                     <div class="hero-action-box">
                         <input type="text" id="hero-yt-url" aria-label="Link für berechtigte Online-Medien eingeben" placeholder="Optionalen Medien-Link eingeben...">
-                        <button class="btn btn-accent" id="btn-hero-yt-go" style="white-space: nowrap;">🔍 Vorschau generieren</button>
-                        <button class="btn btn-primary fw-600" id="btn-hero-yt-abos" style="white-space: nowrap;">📺 Quellen verwalten</button>
+                        <button class="btn btn-accent" id="btn-hero-yt-go" style="white-space: nowrap;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Vorschau generieren</button>
+                        <button class="btn btn-primary fw-600" id="btn-hero-yt-abos" style="white-space: nowrap;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><rect width="20" height="15" x="2" y="3" rx="2"/><path d="M12 18v4"/><path d="m8 21 8-3"/></svg> Quellen verwalten</button>
                     </div>
                 </div>
                 
@@ -421,7 +436,7 @@
                 <!-- Feature 1: Smart Inbox (ersetzt die frühere "Inbox & Projekte"-Kachel) -->
                 <div class="card" id="card-smart-inbox" style="margin-bottom: 24px; display: none;">
                     <div class="card-hero-header">
-                        <span class="card-icon">📥</span>
+                        <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-inbox" style="vertical-align:middle;"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
                         <h3 style="margin:0;">Erkannte Projekte in der Inbox</h3>
                     </div>
                     <div id="smart-inbox-list" style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px;"></div>
@@ -430,7 +445,7 @@
                     <!-- Empfohlene Einstellungen (Conversion Intelligence) -->
                                         <div class="card" id="dashboard-intelligence">
                         <div class="card-hero-header">
-                            <span class="card-icon">🧠</span>
+                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lightbulb" style="vertical-align:middle;"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A5 5 0 0 0 8 8c0 1 .3 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg></span>
                             <h3 style="margin:0;">Empfohlene Einstellungen</h3>
                         </div>
                         <div id="intelligence-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 16px;">
@@ -439,7 +454,7 @@
                     </div>
 <div class="card" id="card-hero-system">
                         <div class="card-hero-header">
-                            <span class="card-icon">⚙️</span>
+                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="vertical-align:middle;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>
                             <h3>Systemverbindungen</h3>
                         </div>
                         <div class="connection-status-row">
@@ -455,13 +470,13 @@
                         <div id="hero-nas-connection-info" style="margin-top: 15px; font-size: 0.85em; color: var(--text-muted); border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 10px; display: none;">
                             <p id="hero-nas-info-message" style="margin: 0; line-height: 1.4;"></p>
                             <div id="hero-nas-action-container" style="margin-top: 10px; display: flex; gap: 8px;">
-                                <button class="btn btn-xs btn-accent" id="btn-hero-connect-nas" style="display: none;" type="button">🔌 Jetzt einhängen (Mounten)</button>
-                                <button class="btn btn-xs btn-secondary" id="btn-hero-refresh-nas" style="display: none;" type="button">🔄 Erneut prüfen</button>
+                                <button class="btn btn-xs btn-accent" id="btn-hero-connect-nas" style="display: none;" type="button"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> NAS-Verbindung herstellen</button>
+                                <button class="btn btn-xs btn-secondary" id="btn-hero-refresh-nas" style="display: none;" type="button"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Verbindung prüfen</button>
                             </div>
                         </div>
                         
                         <div id="hero-hw-warning" style="margin-top: 15px; font-size: 0.85em; color: var(--warning); border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 10px; display: none;">
-                            ⚠️ NAS-Konvertierung ist ohne Hardware-Encoding sehr langsam; für Geschwindigkeit Hardware-Encoding einrichten.
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--warning);"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg> NAS-Konvertierung ist ohne Hardware-Encoding sehr langsam; für Geschwindigkeit Hardware-Encoding einrichten.
                         </div>
 
                         <div class="nas-capacity-widget inline-style-12" >
@@ -478,7 +493,7 @@
                     <!-- Left 2: YouTube Abos -->
                     <div class="card interactive-card cursor-pointer" id="card-hero-abos" >
                         <div class="card-hero-header">
-                            <span class="card-icon">📺</span>
+                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="vertical-align:middle;"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg></span>
                             <h3>YouTube Abonnements</h3>
                         </div>
                         <p class="card-hero-text">Automatische Überwachung deiner Lieblingskanäle im Hintergrund.</p>
@@ -490,7 +505,7 @@
                     <!-- Right 2: Stats Ring / Savings -->
                     <div class="card interactive-card cursor-pointer" id="card-hero-stats" >
                         <div class="card-hero-header">
-                            <span class="card-icon">📊</span>
+                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bar-chart-3" style="vertical-align:middle;"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></span>
                             <h3>Speicherplatz-Ersparnis</h3>
                         </div>
                         <div class="inline-style-16">
@@ -507,7 +522,7 @@
                     <!-- Bibliothek & Wartung (öffnet eigenen Bereich) -->
                     <div class="card interactive-card cursor-pointer" id="card-hero-library">
                         <div class="card-hero-header">
-                            <span class="card-icon">🗂️</span>
+                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="vertical-align:middle;"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg></span>
                             <h3>Bibliothek &amp; Wartung</h3>
                         </div>
                         <p class="card-hero-text">NAS-Bibliothek auf fehlende NFOs, Episodenlücken &amp; Co. prüfen und doppelte Episoden finden.</p>
@@ -526,14 +541,14 @@
                     <div class="card-header-actions inline-style-20" >
                         <h2 id="current-project-title">Unsortierte Einzeldateien verarbeiten</h2>
                         <div class="header-buttons">
-                            <button class="btn btn-secondary btn-sm" id="btn-scan-project" aria-label="Projektordner aktualisieren">🔄 Aktualisieren</button>
-                            <button class="btn btn-danger btn-sm" id="btn-clean-project" aria-label="Projektordner aufräumen">🗑️ Aufräumen</button>
+                            <button class="btn btn-secondary btn-sm" id="btn-scan-project" aria-label="Projektordner aktualisieren"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Aktualisieren</button>
+                            <button class="btn btn-danger btn-sm" id="btn-clean-project" aria-label="Projektordner aufräumen"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> Aufräumen</button>
                         </div>
                     </div>
                     <p class="text-muted inline-style-21" id="current-project-path" >Pfad: ...</p>
                     
                     <div id="project-processing-warning" class="hidden" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ff6b6b; padding: 12px 16px; border-radius: var(--radius-md); margin-top: 15px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 1.2rem;">⏳</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock" style="display:inline-block; vertical-align:middle; color: var(--danger);"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                         <div>
                             <strong>Verarbeitung läuft:</strong> Dieses Projekt wird derzeit im Hintergrund verarbeitet oder ist in der Warteschlange. Bitte nimm keine Änderungen vor und starte die Verarbeitung nicht erneut.
                         </div>
@@ -561,22 +576,22 @@
                 <!-- Modus Auswahl Kacheln -->
                 <div id="folder-mode-selector" role="radiogroup" aria-label="Verarbeitungsmodus">
                     <div class="mode-card" id="mode-movie" role="radio" aria-checked="false" tabindex="0">
-                        <div class="mode-icon">🎬</div>
+                        <div class="mode-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/></svg></div>
                         <h3>Film</h3>
                         <p>Einzelfilm verarbeiten (TMDb)</p>
                     </div>
                     <div class="mode-card" id="mode-series" role="radio" aria-checked="false" tabindex="0">
-                        <div class="mode-icon">📺</div>
+                        <div class="mode-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg></div>
                         <h3>Serie</h3>
                         <p>Episoden zuordnen (TVDb)</p>
                     </div>
                 </div>
 
                 <div id="recursive-mode-notice" class="card hidden" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-glass); padding: 20px; border-radius: var(--radius-md); text-align: center; margin-top: 20px;">
-                    <span style="font-size: 2rem; display: block; margin-bottom: 10px;">🔍</span>
+                    <span style="display: block; margin-bottom: 10px; color: var(--accent);"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="margin: 0 auto;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
                     <h3 style="margin-top: 0; color: var(--text-main);">Rekursive Inbox-Ansicht</h3>
                     <p class="text-muted" style="max-width: 600px; margin: 0 auto; line-height: 1.5; font-size: 0.9rem;">
-                        Diese Ansicht listet alle Dateien der Inbox und sämtlicher Unterordner flach auf. Sie ist ideal, um unerwünschte Begleitdateien (wie z. B. Bilder, Logos oder NFOs aus lokalen Importordnern) über den <strong>🗑️ Aufräumen</strong>-Button oben rechts aufzuspüren und gesammelt zu löschen.
+                        Diese Ansicht listet alle Dateien der Inbox und sämtlicher Unterordner flach auf. Sie ist ideal, um unerwünschte Begleitdateien (wie z. B. Bilder, Logos oder NFOs aus lokalen Importordnern) über den <strong>Aufräumen</strong>-Button oben rechts aufzuspüren und gesammelt zu löschen.
                     </p>
                     <p style="color: var(--accent); margin-top: 15px; font-weight: 500; font-size: 0.9rem; margin-bottom: 0;">
                         Um einen Film oder eine Serie zu verarbeiten, wähle bitte einen spezifischen Projektordner aus der Seitenleiste.
@@ -625,7 +640,7 @@
                         
                         <!-- Film NFO Editier-Bereich -->
                         <details id="movie-nfo-details" class="inline-style-36">
-                            <summary class="inline-style-37">🎬 Film-Metadaten (movie.nfo) bearbeiten</summary>
+                            <summary class="inline-style-37"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/></svg> Film-Metadaten (movie.nfo) bearbeiten</summary>
                             <div class="inline-style-38">
                                 <div>
                                     <label for="movie-nfo-title" class="inline-style-39">Filmtitel:</label>
@@ -676,7 +691,7 @@
                         </div>
                         <div id="movie-quality-hint" class="conversion-recommendation-alert hidden" style="font-size: 0.85em; color: var(--accent); margin-top: 8px;"></div>
                         <div id="movie-size-estimate-panel" class="hidden inline-style-46" >
-                            <span>📊</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bar-chart-3" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
                             <span id="movie-size-estimate-text" aria-live="polite">Dateigrößen-Prognose: Berechnung läuft...</span>
                         </div>
                         <div class="form-group inline-style-47"  id="movie-nas-destination-container">
@@ -691,7 +706,7 @@
                             </select>
                         </div>
                         <div class="inline-style-48">
-                            <button class="btn btn-accent btn-lg inline-style-49" id="btn-execute-movie-process" >📋 Vorschau generieren</button>
+                            <button class="btn btn-accent btn-lg inline-style-49" id="btn-execute-movie-process" ><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> Vorschau generieren</button>
                         </div>
                     </div>
                 </div>
@@ -847,7 +862,7 @@
                         </div>
                         <div id="series-quality-hint" class="conversion-recommendation-alert hidden" style="font-size: 0.85em; color: var(--accent); margin-top: 8px;"></div>
                         <div id="series-size-estimate-panel" class="hidden inline-style-46" >
-                            <span>📊</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bar-chart-3" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
                             <span id="series-size-estimate-text" aria-live="polite">Dateigrößen-Prognose: Berechnung läuft...</span>
                         </div>
                         <div class="form-group inline-style-47"  id="series-nas-destination-container">
@@ -862,7 +877,7 @@
                             </select>
                         </div>
                         <div class="inline-style-48">
-                            <button class="btn btn-accent btn-lg inline-style-49" id="btn-execute-series-process" >📋 Vorschau generieren</button>
+                            <button class="btn btn-accent btn-lg inline-style-49" id="btn-execute-series-process" ><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> Vorschau generieren</button>
                         </div>
                     </div>
                 </div>
@@ -872,33 +887,33 @@
             <!-- STATE: TOOLS DASHBOARD -->
             <div id="view-tools" class="view-panel hidden">
                 <div class="card inline-style-60" >
-                    <div class="inline-style-61">🛠️</div>
+                    <div class="inline-style-61"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="color: var(--accent);"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
                     <h2>Werkzeuge-Dashboard</h2>
                     <p class="section-desc mb-20" >Führe manuelle Aktionen punktuell aus. Bei Klick auf ein Werkzeug wirst du nach dem gewünschten Pfad gefragt.</p>
                 </div>
                 
                 <div class="tools-grid inline-style-9" >
                     <button class="btn btn-secondary card inline-style-72" id="tool-btn-pull-files" aria-label="Dateien aus Unterordnern hochziehen" >
-                        <span class="inline-style-73">📁</span> <div><strong class="inline-style-74">Dateien hochziehen</strong><br><small class="text-muted">Unterordner auflösen</small></div>
+                        <span class="inline-style-73"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="vertical-align:middle;"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg></span> <div><strong class="inline-style-74">Dateien hochziehen</strong><br><small class="text-muted">Unterordner auflösen</small></div>
                     </button>
                     <button class="btn btn-secondary card inline-style-72" id="tool-btn-clean" aria-label="Zielordner bereinigen" >
-                        <span class="inline-style-73">🧹</span> <div><strong class="inline-style-74">Ordner bereinigen</strong><br><small class="text-muted">Trash entfernen</small></div>
+                        <span class="inline-style-73"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2" style="vertical-align:middle;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span> <div><strong class="inline-style-74">Ordner bereinigen</strong><br><small class="text-muted">Trash entfernen</small></div>
                     </button>
                     <button class="btn btn-secondary card inline-style-72" id="tool-btn-profiles" aria-label="Profile verwalten" >
-                        <span class="inline-style-73">👥</span> <div><strong class="inline-style-74">Profile verwalten</strong><br><small class="text-muted">Serien-Profile editieren</small></div>
+                        <span class="inline-style-73"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-users" style="vertical-align:middle;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> <div><strong class="inline-style-74">Profile verwalten</strong><br><small class="text-muted">Serien-Profile editieren</small></div>
                     </button>
 
                     <button class="btn btn-secondary card inline-style-72" id="tool-btn-convert" aria-label="H.265 Batch-Konvertierung starten" >
-                        <span class="inline-style-73">🎥</span> <div><strong class="inline-style-74">H.265 Batch-Konvertierung</strong><br><small class="text-muted">Videos komprimieren</small></div>
+                        <span class="inline-style-73"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-video" style="vertical-align:middle;"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg></span> <div><strong class="inline-style-74">H.265 Batch-Konvertierung</strong><br><small class="text-muted">Videos komprimieren</small></div>
                     </button>
                     <button class="btn btn-secondary card inline-style-72" id="tool-btn-nfo-agent" aria-label="NFO Metadaten generieren" >
-                        <span class="inline-style-73">📝</span> <div><strong class="inline-style-74">NFO Agent</strong><br><small class="text-muted">Metadaten generieren</small></div>
+                        <span class="inline-style-73"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" style="vertical-align:middle;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span> <div><strong class="inline-style-74">NFO Agent</strong><br><small class="text-muted">Metadaten generieren</small></div>
                     </button>
                     <button class="btn btn-secondary card inline-style-72" id="tool-btn-manual-sync" aria-label="Manuelle Speichersynchronisation starten" >
-                        <span class="inline-style-73">🔄</span> <div><strong class="inline-style-74">Speicherziel-Syncing</strong><br><small class="text-muted">Auf Speicherziele kopieren</small></div>
+                        <span class="inline-style-73"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="vertical-align:middle;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg></span> <div><strong class="inline-style-74">Speicherziel-Syncing</strong><br><small class="text-muted">Auf Speicherziele kopieren</small></div>
                     </button>
                     <button class="btn btn-secondary card inline-style-72" id="tool-btn-paths-clean" aria-label="Medienpfade aufräumen" >
-                        <span class="inline-style-73">🗑️</span> <div><strong class="inline-style-74">Globale Pfad-Bereinigung</strong><br><small class="text-muted">Inbox & Output aufräumen</small></div>
+                        <span class="inline-style-73"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2" style="vertical-align:middle;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span> <div><strong class="inline-style-74">Globale Pfad-Bereinigung</strong><br><small class="text-muted">Inbox & Output aufräumen</small></div>
                     </button>
                 </div>
             </div>
@@ -906,7 +921,7 @@
             <!-- STATE: STATS DASHBOARD -->
             <div id="view-dashboard" class="view-panel hidden">
                 <div class="card inline-style-60" >
-                    <div class="inline-style-61">📊</div>
+                    <div class="inline-style-61"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bar-chart-3" style="color: var(--accent);"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></div>
                     <h2>Statistik-Dashboard</h2>
                     <p class="section-desc mb-20" >Visualisiere deine Speicherersparnis durch effizientes HEVC-Transkodieren und die aktuelle Belegung deines NAS-Speichers.</p>
                 </div>
@@ -1024,7 +1039,7 @@
             <!-- STATE: NAS-BIBLIOTHEK & WARTUNG -->
             <div id="view-library" class="view-panel hidden">
                 <div style="margin-bottom: 20px;">
-                    <h2>🗂️ Bibliothek &amp; Wartung</h2>
+                    <h2><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="display:inline-block; vertical-align:middle; margin-right: 8px;"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg> Bibliothek &amp; Wartung</h2>
                     <p class="section-desc">Prüfe deine NAS-Bibliothek auf Pflegeprobleme und finde doppelte Episoden.</p>
                 </div>
 
@@ -1032,12 +1047,12 @@
                 <div class="card" id="dashboard-health">
                     <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
                         <div style="display:flex; align-items:center; gap:10px;">
-                            <span class="card-icon">🩺</span>
+                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity" style="display:inline-block; vertical-align:middle; color: var(--accent);"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
                             <h3 style="margin:0;">NAS Bibliotheks-Check</h3>
                         </div>
                         <div style="display:flex; gap:8px;">
-                            <button class="btn btn-secondary btn-sm" id="btn-health-scan">🔍 Scan starten</button>
-                            <button class="btn btn-danger btn-sm" id="btn-health-cancel" style="display:none;">⏹️ Abbrechen</button>
+                            <button class="btn btn-secondary btn-sm" id="btn-health-scan"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Scan starten</button>
+                            <button class="btn btn-danger btn-sm" id="btn-health-cancel" style="display:none;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><rect width="18" height="18" x="3" y="3" rx="2"/></svg> Abbrechen</button>
                         </div>
                     </div>
                     <div style="margin-top:12px; display:flex; align-items:center; gap:8px;">
@@ -1068,10 +1083,10 @@
                 <div class="card" id="dashboard-duplicates" style="margin-top: 24px;">
                     <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
                         <div style="display:flex; align-items:center; gap:10px;">
-                            <span class="card-icon">🧬</span>
+                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy" style="display:inline-block; vertical-align:middle; color: var(--accent);"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1 0 2 .9 2 2"/></svg></span>
                             <h3 style="margin:0;">Duplikat-Erkennung</h3>
                         </div>
-                        <button class="btn btn-secondary btn-sm" id="btn-duplicate-scan">🔍 Scan starten</button>
+                        <button class="btn btn-secondary btn-sm" id="btn-duplicate-scan"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Scan starten</button>
                     </div>
                     <p class="text-muted" style="margin:6px 0 0; font-size:0.8em;">Durchsucht doppelte Serien-Episoden auf dem NAS (Speicherziel 1). Speicherziel 2 (pCloud) wird als Cloud-Remote nicht einbezogen.</p>
                     <div id="duplicate-scan-status" class="text-muted" style="margin-top:12px;">Noch kein Scan durchgeführt.</div>
@@ -1088,23 +1103,23 @@
                 <div class="card" id="dashboard-normalize" style="margin-top: 24px;">
                     <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
                         <div style="display:flex; align-items:center; gap:10px;">
-                            <span class="card-icon">🎬</span>
+                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film" style="display:inline-block; vertical-align:middle; color: var(--accent);"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 17h4"/><path d="M17 17h3"/><path d="M17 7h3"/><path d="M3 12h18"/></svg></span>
                             <h3 style="margin:0;">Filme normalisieren</h3>
                         </div>
-                        <button class="btn btn-secondary btn-sm" id="btn-normalize-preview">🔍 Vorschau</button>
+                        <button class="btn btn-secondary btn-sm" id="btn-normalize-preview"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Vorschau</button>
                     </div>
                     <p class="text-muted" style="margin:6px 0 0; font-size:0.8em;">Stellt die Zielstruktur her: löst Genre-Ordner auf (Filme/Genre/Film → Filme/Film) und packt lose Dateien in eigene Ordner. Verschiebt nichts ohne deine Bestätigung.</p>
                     <div id="normalize-status" class="text-muted" style="margin-top:12px;">Noch keine Vorschau erstellt.</div>
                     <div id="normalize-plan" style="margin-top:14px; display:flex; flex-direction:column; gap:6px;"></div>
                     <div id="normalize-apply-wrap" style="display:none; margin-top:14px;">
-                        <button class="btn btn-primary btn-sm" id="btn-normalize-apply">✅ Ausgewählte anwenden</button>
+                        <button class="btn btn-primary btn-sm" id="btn-normalize-apply"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg> Ausgewählte anwenden</button>
                     </div>
                 </div>
                 <!-- Angleichung an Metadatendienst (NAS-Renaming-Tool) -->
                 <div class="card" id="dashboard-nas-renamer" style="margin-top: 24px; display: none;">
                     <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
                         <div style="display:flex; align-items:center; gap:10px;">
-                            <span class="card-icon">🏷️</span>
+                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tag" style="vertical-align:middle;"><path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.29-7.29a1 1 0 0 0 0-1.41L12 2z"/><path d="m5 5 .01-.01"/></svg></span>
                             <h3 style="margin:0;">NAS-Renaming-Tool</h3>
                         </div>
                     </div>
@@ -1157,7 +1172,7 @@
                         </div>
                         <div style="padding: 15px; background: var(--bg-surface-2); border-top: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
                             <span id="renamer-selected-count" class="text-muted">0 Dateien ausgewählt</span>
-                            <button class="btn btn-accent" id="btn-renamer-apply" disabled>✅ Ausgewählte umbenennen</button>
+                            <button class="btn btn-accent" id="btn-renamer-apply" disabled><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg> Ausgewählte umbenennen</button>
                         </div>
                     </div>
                     
@@ -1167,7 +1182,7 @@
                                 <strong style="color: var(--danger);">Letzte Umbenennung rückgängig machen</strong>
                                 <div style="font-size: 0.85em; color: var(--text-muted);" id="renamer-last-transaction-info">Transaktions-ID: -</div>
                             </div>
-                            <button class="btn btn-danger btn-sm" id="btn-renamer-rollback">↩️ Rollback ausführen</button>
+                            <button class="btn btn-danger btn-sm" id="btn-renamer-rollback"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-undo-2" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg> Rollback ausführen</button>
                         </div>
                     </div>
                 </div>
@@ -1176,18 +1191,18 @@
             <!-- STATE: SETTINGS DASHBOARD -->
             <div id="view-settings" class="view-panel hidden">
                 <div class="card inline-style-60" >
-                    <div class="inline-style-61">⚙️</div>
+                    <div class="inline-style-61"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="color: var(--accent);"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></div>
                     <h2>Einstellungen</h2>
                     <p class="section-desc mb-20" id="settings-tab-desc">Passe die globalen Pfade für das Medienwerkzeug an. Diese Werte werden für das Importieren und Verschieben verwendet.</p>
                     
                     <!-- Sub-Tabs Navigation -->
                     <div class="settings-tabs-nav">
-                        <button class="settings-tab-btn active" data-settings-tab="tab-paths">📁 Lokale Arbeitsordner</button>
-                        <button class="settings-tab-btn" data-settings-tab="tab-sync">🔄 Speicher & Sync</button>
-                        <button class="settings-tab-btn" data-settings-tab="tab-docker-hardware">🐳 Docker & Hardware</button>
-                        <button class="settings-tab-btn" data-settings-tab="tab-notifications">🔔 Benachrichtigungen</button>
-                        <button class="settings-tab-btn" data-settings-tab="tab-appearance">🎨 Darstellung & Tools</button>
-                        <button class="settings-tab-btn" data-settings-tab="tab-security">🔒 Sicherheit</button>
+                        <button class="settings-tab-btn active" data-settings-tab="tab-paths">Lokale Arbeitsordner</button>
+                        <button class="settings-tab-btn" data-settings-tab="tab-sync">Speicher & Sync</button>
+                        <button class="settings-tab-btn" data-settings-tab="tab-docker-hardware">Docker & Hardware</button>
+                        <button class="settings-tab-btn" data-settings-tab="tab-notifications">Benachrichtigungen</button>
+                        <button class="settings-tab-btn" data-settings-tab="tab-appearance">Darstellung & Tools</button>
+                        <button class="settings-tab-btn" data-settings-tab="tab-security">Sicherheit</button>
                     </div>
 
                     <!-- TAB 1: PATHS & DIRECTORIES -->
@@ -1846,7 +1861,7 @@
             <!-- Wait Gate: Segment Mapping -->
             <div class="modal-overlay hidden" id="yt-mapping-modal">
                 <div class="modal-card inline-style-162" >
-                    <div class="inline-style-161">📺</div>
+                    <div class="inline-style-161"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="color: var(--accent);"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg></div>
                     <h2>Kapitel zu Episoden zuweisen</h2>
                     <div id="yt-mapping-list" class="inline-style-163"></div>
                     <button class="btn btn-accent btn-lg" id="btn-yt-finalize-mapping">🚀 Zuweisung abschließen</button>
@@ -1857,7 +1872,7 @@
             <div class="modal-overlay hidden" id="yt-merge-modal">
                 <div class="modal-card inline-style-164" >
                     <div class="inline-style-165">
-                        <h2 class="inline-style-166">🔗 Mehrteiliges Video zusammenfügen</h2>
+                        <h2 class="inline-style-166"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link" style="display:inline-block; vertical-align:middle; margin-right: 6px;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Mehrteiliges Video zusammenfügen</h2>
                         <button id="btn-close-yt-merge" class="inline-style-167">&times;</button>
                     </div>
                     <p class="inline-style-168">
@@ -2048,13 +2063,13 @@
             <!-- STATE: YOUTUBE ABOS -->
             <div id="view-youtube-abos" class="view-panel hidden">
                 <div class="card inline-style-60" >
-                    <div class="inline-style-61">📺</div>
+                    <div class="inline-style-61"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="color: var(--accent);"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg></div>
                     <div class="inline-style-193">
                         <div>
                             <h2 class="inline-style-194">YouTube Quellen & Freigaben</h2>
                             <p class="section-desc inline-style-195" >Kanäle oder Playlists beobachten und neue berechtigte Videos in einer Freigabeliste sammeln oder gezielt verarbeiten.</p>
                         </div>
-                        <button class="btn btn-accent" id="btn-check-all-abos">🔄 Jetzt alle prüfen</button>
+                        <button class="btn btn-accent" id="btn-check-all-abos"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Alle Quellen prüfen</button>
                     </div>
 
                     <!-- Add subscription form -->
@@ -2220,7 +2235,9 @@ group_add:
     <footer class="app-console collapsed" id="app-console">
         <div class="console-header" id="console-header-toggle">
             <div class="console-title">
-                <span class="console-icon">💻</span>
+                <span class="console-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-terminal" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+                </span>
                 <h2>Ausgabe-Konsole</h2>
                 <span class="pulse-indicator hidden" id="console-pulse">● Aktiv</span>
             </div>
@@ -2238,9 +2255,9 @@ group_add:
     <div id="queue-panel-overlay" class="hidden inline-style-212" ></div>
     <div id="queue-panel">
         <div class="inline-style-213">
-            <h2 class="inline-style-214">📋 Warteschlange</h2>
+            <h2 class="inline-style-214"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clipboard-list" style="display:inline-block; vertical-align:middle; margin-right: 6px;"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> Warteschlange</h2>
             <div class="inline-style-58">
-                <button id="btn-clear-queue" class="btn btn-secondary btn-sm inline-style-215" >🗑️ Leeren</button>
+                <button id="btn-clear-queue" class="btn btn-secondary btn-sm inline-style-215" ><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> Leeren</button>
                 <button id="btn-close-queue" class="btn btn-secondary inline-style-216"  aria-label="Warteschlange schließen">✕</button>
             </div>
         </div>
@@ -2255,7 +2272,7 @@ group_add:
         
         <!-- Header -->
         <div class="inline-style-221">
-            <h2 class="inline-style-222">📋 Vorschau & Bereinigung</h2>
+            <h2 class="inline-style-222"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye" style="display:inline-block; vertical-align:middle; margin-right: 6px;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> Vorschau & Bereinigung</h2>
             <button id="btn-preview-close" class="btn inline-style-223"  aria-label="Vorschau schließen">&times;</button>
         </div>
         
