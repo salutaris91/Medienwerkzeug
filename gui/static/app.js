@@ -1116,7 +1116,7 @@ function createFallbackPoster(title, isTv, width, height) {
 
     const icon = document.createElement("div");
     icon.className = "fallback-poster-icon";
-    icon.innerHTML = isTv 
+    icon.innerHTML = isTv
         ? `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="height:28px; width:28px; color:var(--text-muted); opacity: 0.5;"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>`
         : `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film" style="height:28px; width:28px; color:var(--text-muted); opacity: 0.5;"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 17h4"/><path d="M17 17h4"/><path d="M17 7h4"/><path d="M7 12h10"/></svg>`;
 
@@ -2370,8 +2370,8 @@ function configureSmartInboxButton(btn, projectName, isProcessing) {
     btn.style.cursor = isProcessing ? "not-allowed" : "";
     btn.style.opacity = isProcessing ? "0.7" : "";
     btn.disabled = isProcessing;
-    btn.innerHTML = isProcessing 
-        ? `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-2" style="animation: spin 1s linear infinite; height: 12px; width: 12px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>In Bearbeitung...</span>` 
+    btn.innerHTML = isProcessing
+        ? `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-2" style="animation: spin 1s linear infinite; height: 12px; width: 12px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>In Bearbeitung...</span>`
         : `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="height: 12px; width: 12px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Auswählen</span>`;
     btn.onclick = isProcessing
         ? null

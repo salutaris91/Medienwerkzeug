@@ -4,24 +4,18 @@ Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert 
 
 ---
 
-## Stand am 30.06.2026 (Phase 2.2d - Nacharbeit)
+## Stand am 30.06.2026 (Phase 2.2e – Hauptflächen Emoji/UI-Polish)
 
-- **Emoji-Polish in verbleibenden modalen UI-Elementen & Alerts (Branch: feature/phase2-main-surface-emoji-polish):**
-  - **Ordnerauswahl (Folder Picker) & Normalisierungsvorschau:** Emojis wie `📂` (Genre) und `📄` (lose) durch reinen, professionellen Text ersetzt.
-  - **Meldungen & Statusanzeigen:**
-    - Emojis `❌`, `⚠️` und `✅` in den NAS-Mount-Statusanzeigen des Modals durch inline Lucide SVGs (`x-circle`, `alert-circle`, `check-circle`) ersetzt.
-    - Emojis `⚠️` (Anzeige-Limit erreicht) und `🚫` (Ignorieren) im Health-Befunde-Modal sowie im Dubletten-Vergleich durch inline Lucide SVGs (`alert-circle`, `ban`) ersetzt.
-    - `🔧` (Auflösen, Umbenennen, FSK setzen) im Health-Befunde-Modal durch die passenden Lucide SVGs (`wrench`, `edit-3`, `settings`) ersetzt.
-    - `⚠️` (Kein Transferziel aktiviert) in den YouTube Subscription Details des Import-Vorschau-Modals durch `alert-triangle` SVG ersetzt.
-  - **Buttons & Aktionen:**
-    - `📥` (Jetzt laden) und `🎬` (Im Downloader verarbeiten) im Smart Inbox Import-Vorschau-Modal durch `download` und `play` SVGs ersetzt.
-    - `🔍` (Prüfen) und `⌛` (Prüfe...) auf dem Trash-Probe-Button im Papierkorb-Modal durch `search` und ein animiertes `loader-2` SVG ersetzt.
-    - `🔒` (Passwort aktualisieren), `🔓` (Abmelden), `💾` (Speichern) und `🔓` (Anmelden) im Login- und Einstellungsbereich durch entsprechende Lucide SVGs (`lock`, `log-out`, `save`, `log-in`) ersetzt.
-    - `➕` (Abo hinzufügen) durch das Lucide `plus` SVG ersetzt.
-  - **Alerts & Logs:**
-    - `⚠️` (Bitte wähle zuerst einen Zielordner-Pfad aus!) und `⚠️` (Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!) im Tool Runner Modal entfernt.
-    - `🗑️` im Log & Alert beim Verschieben von Projekten in Quarantäne entfernt.
-  - **Tests:** Alle 329 Python-Tests und 36 Frontend-Tests laufen erfolgreich durch.
+- **Emoji-Polish der primären Ansichten, YouTube-Module, FAQ und Einstellungen (Branch: feature/phase2-main-surface-emoji-polish):**
+  - **Login- & Einstellungsbereich:** Emojis bei Aktionen wie `🔒` (Passwort ändern), `🔓` (Abmelden), `💾` (Einstellungen speichern) und `🔓` (Anmelden) durch professionelle inline Lucide-SVGs (`lock`, `log-out`, `save`, `log-in`) ersetzt.
+  - **YouTube-Abonnements & Details:**
+    - Emojis in den Transferziel-Badges (`📁 NAS`, `☁️ pCloud`, `💻 Lokal`) sowie im Modus (`⚙️`), der Aktualisierung (`🔄`), Ausschlusskriterien (`🚫`), dem deutschen Sprachfilter (`🇩🇪`) und dem letzten Check (`⏱️`) durch passende inline Lucide-SVGs (`server`, `cloud`, `monitor`, `settings`, `refresh-cw`, `ban`, `clock`) bzw. neutralen Text ersetzt.
+    - Die Buttons `Abo hinzufügen` (`➕`), `Jetzt alle prüfen` (`🔄`) und `Ignorieren` (`⌛`) auf SVGs umgerüstet.
+  - **Smart-Inbox-Vorschläge:** Emojis in Medien-Typen-Badges (`🎬 Film`, `📺 Serie`, `🌿 Doku`, `🌸 Anime`) durch inline Lucide-SVGs (`film`, `tv`, `leaf`, `sparkles`) ersetzt.
+  - **Ordnerauswahl, Statusmeldungen & Logs:**
+    - Bereinigung verbleibender Emojis in der Normalisierungsvorschau (Ersetzen von `📂` und `📄` durch reinen Text) und im Dubletten-Vergleich (`💾 Auf NAS vorhanden` durch `server`-SVG ersetzt).
+    - Entfernung von Emojis aus System-Erfolgsprotokollen in der Entwicklerkonsole (z. B. bei der Bereinigung, dem Import und dem Ordner-Merge).
+  - **Software-Updates & Abhängigkeiten:** Update-Prüfbutton (`🔄 Auf Aktualisierung prüfen`) und Ladeindikatoren mit einheitlichen Lucide-SVGs (`refresh-cw`, `loader-2`) ausgestattet.
 
 ---
 
