@@ -1038,7 +1038,7 @@ async function checkOnboardingDependencies() {
         return;
     }
 
-    listContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);"><span style="display: inline-block; animation: spin 1s linear infinite; margin-right: 8px;">🔄</span> Abhängigkeiten werden geprüft...</div>';
+    listContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);"><span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-2" style="animation: spin 1s linear infinite; height: 12px; width: 12px; margin-right: 8px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Abhängigkeiten werden geprüft...</span></div>';
 
     try {
         const response = await fetch('/api/check-dependencies?force=true');
@@ -1116,7 +1116,9 @@ function createFallbackPoster(title, isTv, width, height) {
 
     const icon = document.createElement("div");
     icon.className = "fallback-poster-icon";
-    icon.textContent = isTv ? "📺" : "🎬";
+    icon.innerHTML = isTv 
+        ? `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="height:28px; width:28px; color:var(--text-muted); opacity: 0.5;"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film" style="height:28px; width:28px; color:var(--text-muted); opacity: 0.5;"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 17h4"/><path d="M17 17h4"/><path d="M17 7h4"/><path d="M7 12h10"/></svg>`;
 
     const titleEl = document.createElement("p");
     titleEl.className = "fallback-poster-title";
@@ -1561,7 +1563,7 @@ async function applyNasRenamer() {
         }
 
         if (statusEl) {
-            statusEl.innerHTML = `<span style="color: var(--success);">✅ ${data.success_count} Dateien erfolgreich umbenannt.</span>`;
+            statusEl.innerHTML = `<span style="color: var(--success); display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-circle" style="height:12px; width:12px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>${data.success_count} Dateien erfolgreich umbenannt.</span>`;
             if (data.errors && data.errors.length > 0) {
                 statusEl.innerHTML += `<br><span style="color: var(--warning);">${data.errors.length} Fehler aufgetreten (siehe Konsole).</span>`;
                 console.warn("Renamer Errors:", data.errors);
@@ -1612,7 +1614,7 @@ async function rollbackNasRenamer() {
         }
 
         if (statusEl) {
-            statusEl.innerHTML = `<span style="color: var(--success);">✅ Rollback erfolgreich (${data.success_count} Dateien wiederhergestellt).</span>`;
+            statusEl.innerHTML = `<span style="color: var(--success); display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-circle" style="height:12px; width:12px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Rollback erfolgreich (${data.success_count} Dateien wiederhergestellt).</span>`;
         }
 
         rollbackContainer.style.display = "none";
@@ -2176,7 +2178,7 @@ function renderProjectList(projects, projectTypes) {
     let html = `
         <button class="project-item ${currentProject === "" ? "active" : ""}" data-project="">
             <span class="project-item-name">
-                <span class="nav-icon" aria-hidden="true">📥</span>
+                <span class="nav-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-inbox" style="height:14px; width:14px; color:var(--accent);"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
                 <span class="nav-label">Unsortierte Einzeldateien</span>
             </span>
         </button>
@@ -2257,7 +2259,7 @@ function updateSidebarProcessingStates(activeProjects) {
         if (isProcessing) {
             item.classList.add("processing");
             if (iconEl) {
-                iconEl.textContent = "🔄";
+                iconEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-2 spinning-icon" style="height:14px; width:14px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`;
                 iconEl.classList.add("spinning-icon");
             }
             if (deleteEl) {
@@ -2267,7 +2269,15 @@ function updateSidebarProcessingStates(activeProjects) {
             item.classList.remove("processing");
             if (iconEl) {
                 const isDir = item.getAttribute("data-is-dir") !== "false";
-                iconEl.textContent = p === "" ? "📥" : (p === "__inbox_recursive__" ? "📂" : (isDir ? "📁" : "🎥"));
+                if (p === "") {
+                    iconEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-inbox" style="height:14px; width:14px; color:var(--accent);"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>`;
+                } else if (p === "__inbox_recursive__") {
+                    iconEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="height:14px; width:14px; color:var(--accent);"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg>`;
+                } else if (isDir) {
+                    iconEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="height:14px; width:14px; color:var(--accent);"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>`;
+                } else {
+                    iconEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-video" style="height:14px; width:14px; color:var(--accent);"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>`;
+                }
                 iconEl.classList.remove("spinning-icon");
             }
             if (deleteEl) {
@@ -2360,7 +2370,9 @@ function configureSmartInboxButton(btn, projectName, isProcessing) {
     btn.style.cursor = isProcessing ? "not-allowed" : "";
     btn.style.opacity = isProcessing ? "0.7" : "";
     btn.disabled = isProcessing;
-    btn.innerHTML = isProcessing ? "🔄 In Bearbeitung..." : "⚡ Auswählen";
+    btn.innerHTML = isProcessing 
+        ? `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-2" style="animation: spin 1s linear infinite; height: 12px; width: 12px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>In Bearbeitung...</span>` 
+        : `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="height: 12px; width: 12px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Auswählen</span>`;
     btn.onclick = isProcessing
         ? null
         : () => handleSmartInboxClick(
@@ -3203,7 +3215,7 @@ async function selectShow(show) {
                 if (data.folder) {
                     nasFolder = data.folder;
                     if (matchStatusLabel) {
-                        matchStatusLabel.textContent = `✅ Zugeordnet zu existierendem NAS-Ordner: ${data.folder}`;
+                        matchStatusLabel.innerHTML = `<span style="display:inline-flex; align-items:center; gap:4px; color:var(--success);"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-circle" style="height:12px; width:12px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Zugeordnet zu existierendem NAS-Ordner: ${escapeHTML(data.folder)}</span>`;
                         matchStatusLabel.classList.remove("hidden");
                     }
                 }
@@ -3712,7 +3724,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                         info.innerHTML = '<span style="display:inline-flex; align-items:center; gap:4px; color:var(--text-muted);"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-circle" style="height:12px; width:12px; color:var(--warning);"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>Wird übersprungen</span>';
                         info.classList.remove("matched");
                     } else {
-                        info.textContent = `🎯 Zugeordnet: ${text}`;
+                        info.innerHTML = `<span style="display:inline-flex; align-items:center; gap:4px; color:var(--success);"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="height:12px; width:12px;"><polyline points="20 6 9 17 4 12"/></svg>Zugeordnet: ${escapeHTML(text)}</span>`;
                         info.classList.add("matched");
                     }
                 }
@@ -5031,7 +5043,7 @@ function renderYtMappingRows(segments) {
                         info.innerHTML = '<span style="display:inline-flex; align-items:center; gap:4px; color:var(--text-muted);"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-circle" style="height:12px; width:12px; color:var(--warning);"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>Wird übersprungen</span>';
                         info.classList.remove("matched");
                     } else {
-                        info.textContent = `🎯 Zugeordnet: ${text}`;
+                        info.innerHTML = `<span style="display:inline-flex; align-items:center; gap:4px; color:var(--success);"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="height:12px; width:12px;"><polyline points="20 6 9 17 4 12"/></svg>Zugeordnet: ${escapeHTML(text)}</span>`;
                         info.classList.add("matched");
                     }
                 }
@@ -5306,7 +5318,7 @@ function renderSubscriptionsList() {
             const cat = cats.find(c => c.id === nasId);
             const catName = cat ? cat.name : (nasId || "Unbekannt");
             const nasItem = document.createElement("div");
-            nasItem.innerHTML = `📁 NAS: <span style="color: var(--text-main); font-weight: 500;">${catName}</span>`;
+            nasItem.innerHTML = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-server" style="height:12px; width:12px; color:var(--text-muted);"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>NAS: <span style="color: var(--text-main); font-weight: 500;">${escapeHTML(catName)}</span></span>`;
             detailsRow.appendChild(nasItem);
         }
 
@@ -5316,7 +5328,7 @@ function renderSubscriptionsList() {
             const cat = cats.find(c => c.id === pcloudId);
             const catName = cat ? cat.name : (pcloudId || "Unbekannt");
             const pcloudItem = document.createElement("div");
-            pcloudItem.innerHTML = `☁️ pCloud: <span style="color: var(--text-main); font-weight: 500;">${catName}</span>`;
+            pcloudItem.innerHTML = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-cloud" style="height:12px; width:12px; color:var(--text-muted);"><path d="M17.5 19A3.5 3.5 0 0 0 21 15.5c0-2.79-2.54-4.5-5-4.5-.42-1.02-1.2-1.85-2.2-2.4C12.8 8.05 11.9 7.7 11 7.7A4.8 4.8 0 0 0 6 12.5c0 .4.04.8.1 1.2A3.5 3.5 0 0 0 3 17.2a3.3 3.3 0 0 0 3.3 3.3c.4 0 .76-.1 1.1-.3"/></svg>pCloud: <span style="color: var(--text-main); font-weight: 500;">${escapeHTML(catName)}</span></span>`;
             detailsRow.appendChild(pcloudItem);
         }
 
@@ -5341,7 +5353,7 @@ function renderSubscriptionsList() {
                 }
             }
             const localItem = document.createElement("div");
-            localItem.innerHTML = `💻 Lokal: <span style="color: var(--text-main); font-weight: 500;">${localName}</span>`;
+            localItem.innerHTML = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-monitor" style="height:12px; width:12px; color:var(--text-muted);"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>Lokal: <span style="color: var(--text-main); font-weight: 500;">${escapeHTML(localName)}</span></span>`;
             detailsRow.appendChild(localItem);
         }
 
@@ -5354,7 +5366,7 @@ function renderSubscriptionsList() {
         // Mode badge
         const isAuto = sub.auto_download !== false;
         const modeItem = document.createElement("div");
-        modeItem.innerHTML = `⚙️ Modus: <span style="color: var(--text-main); font-weight: 500;">${isAuto ? "Direkt laden" : "Freigabeliste"}</span>`;
+        modeItem.innerHTML = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px; color:var(--text-muted);"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>Modus: <span style="color: var(--text-main); font-weight: 500;">${isAuto ? "Direkt laden" : "Freigabeliste"}</span></span>`;
         detailsRow.appendChild(modeItem);
 
         // Schedule badge
@@ -5365,26 +5377,26 @@ function renderSubscriptionsList() {
         else if (schedule === "manual") scheduleText = "Nur manuell";
 
         const scheduleItem = document.createElement("div");
-        scheduleItem.innerHTML = `🔄 Aktualisierung: <span style="color: var(--text-main); font-weight: 500;">${scheduleText}</span>`;
+        scheduleItem.innerHTML = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="height:12px; width:12px; color:var(--text-muted);"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>Aktualisierung: <span style="color: var(--text-main); font-weight: 500;">${escapeHTML(scheduleText)}</span></span>`;
         detailsRow.appendChild(scheduleItem);
 
         // German language filter badge
         if (sub.filter_german) {
             const deItem = document.createElement("div");
-            deItem.innerHTML = `🇩🇪 Filter: <span style="background: rgba(16, 185, 129, 0.1); padding: 2px 6px; border-radius: 4px; color: var(--success); font-weight: 500; font-size: 11px;">Nur Deutsch</span>`;
+            deItem.innerHTML = `<span style="display:inline-flex; align-items:center; gap:4px;">Sprachfilter: <span style="background: rgba(16, 185, 129, 0.1); padding: 2px 6px; border-radius: 4px; color: var(--success); font-weight: 500; font-size: 11px;">Nur Deutsch</span></span>`;
             detailsRow.appendChild(deItem);
         }
 
         // Exclude keywords badge
         if (sub.exclude_keywords && sub.exclude_keywords.trim() !== "") {
             const excludeItem = document.createElement("div");
-            excludeItem.innerHTML = `🚫 Ausschluss: <span style="background: rgba(239, 68, 68, 0.08); padding: 2px 6px; border-radius: 4px; color: var(--danger); font-weight: 500; font-size: 11px;">"${sub.exclude_keywords}"</span>`;
+            excludeItem.innerHTML = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ban" style="height:12px; width:12px; color:var(--danger);"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>Ausschluss: <span style="background: rgba(239, 68, 68, 0.08); padding: 2px 6px; border-radius: 4px; color: var(--danger); font-weight: 500; font-size: 11px;">"${escapeHTML(sub.exclude_keywords)}"</span></span>`;
             detailsRow.appendChild(excludeItem);
         }
 
         // Last checked timestamp
         const timeItem = document.createElement("div");
-        timeItem.innerHTML = `⏱️ Letzter Check: ${lastCheckedStr}`;
+        timeItem.innerHTML = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock" style="height:12px; width:12px; color:var(--text-muted);"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Letzter Check: ${escapeHTML(lastCheckedStr)}</span>`;
         detailsRow.appendChild(timeItem);
 
         detailsContainer.appendChild(detailsRow);
@@ -5638,7 +5650,7 @@ function renderSubscriptionsList() {
                     btnIgnore.addEventListener("click", async () => {
                         btnApprove.disabled = true;
                         btnIgnore.disabled = true;
-                        btnIgnore.textContent = "⌛ Ignoriere...";
+                        btnIgnore.innerHTML = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-2" style="animation: spin 1s linear infinite; height:12px; width:12px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Ignoriere...</span>`;
                         try {
                             const res = await fetch("/api/youtube/subscriptions/ignore", {
                                 method: "POST",
@@ -6026,7 +6038,7 @@ async function checkAllSubscriptions() {
     const btn = document.getElementById("btn-check-all-abos");
     if (btn) {
         btn.disabled = true;
-        btn.textContent = "🔄 Prüfe...";
+        btn.innerHTML = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-2" style="animation: spin 1s linear infinite; height: 12px; width: 12px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Prüfe...</span>`;
     }
 
     appendConsoleLog("[System]: Starte manuelle Prüfung aller YouTube Abos...");
@@ -6036,7 +6048,7 @@ async function checkAllSubscriptions() {
             method: "POST"
         });
         if (response.ok) {
-            appendConsoleLog("✅ YouTube Abo-Überprüfung im Hintergrund gestartet.");
+            appendConsoleLog("YouTube Abo-Überprüfung im Hintergrund gestartet.");
             alert("Abo-Überprüfung im Hintergrund gestartet! Das kann einige Minuten dauern.");
         } else {
             throw new Error("API meldet Fehler");
@@ -6048,7 +6060,7 @@ async function checkAllSubscriptions() {
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.textContent = "🔄 Jetzt alle prüfen";
+            btn.innerHTML = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="height: 12px; width: 12px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>Jetzt alle prüfen</span>`;
         }
     }
 }
@@ -7236,7 +7248,7 @@ function initEventListeners() {
             });
             const data = await response.json();
             if (data.status === "ok") {
-                appendConsoleLog(`✅ ${data.moved_count} Datei(en) in die Inbox importiert.`);
+                appendConsoleLog(`${data.moved_count} Datei(en) in die Inbox importiert.`);
                 loadStatus();
                 if (currentProject === "") {
                     scanProject("");
@@ -7794,7 +7806,7 @@ async function checkAppUpdate() {
     if (!btn || !badge || !detailsArea || !currentVal || !latestVal || !instructionBox || !commandVal) return;
 
     btn.disabled = true;
-    btn.innerHTML = `<span style="display: inline-block; animation: spin 1s linear infinite; margin-right: 6px;">🔄</span> Prüfe...`;
+    btn.innerHTML = `<span style="display: inline-block; animation: spin 1s linear infinite; margin-right: 6px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-2" style="height:12px; width:12px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg></span> Prüfe...`;
     
     badge.style.display = "none";
     detailsArea.style.display = "none";
@@ -7849,7 +7861,7 @@ async function checkAppUpdate() {
         badge.style.display = "inline-block";
     } finally {
         btn.disabled = false;
-        btn.innerHTML = "🔄 Auf Aktualisierung prüfen";
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="height:12px; width:12px; margin-right:6px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>Auf Aktualisierung prüfen`;
     }
 }
 
@@ -7859,7 +7871,7 @@ async function checkDependencies(force = false) {
 
     if (force) {
         listContainer.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 20px; color: var(--text-muted);">
-            <span style="display: inline-block; animation: spin 1s linear infinite; margin-right: 8px;">🔄</span> Abhängigkeiten werden geprüft...
+            <span style="display: inline-block; animation: spin 1s linear infinite; margin-right: 8px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-2" style="height:12px; width:12px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg></span> Abhängigkeiten werden geprüft...
         </div>`;
     }
 
@@ -9184,7 +9196,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     if (data.status === "busy") {
                         alert("Abgebrochen: " + data.message);
                         btnRestartServer.disabled = false;
-                        btnRestartServer.textContent = "🔄 Server neu starten";
+                        btnRestartServer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-power" style="height:12px; width:12px; margin-right:6px;"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>Server neu starten';
                     } else if (data.status === "restarting") {
                         appendConsoleLog("[System]: Server startet neu... Warte auf Neustart.");
                         expandConsole();
@@ -9207,7 +9219,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 } else {
                     alert("Fehler beim Senden des Neustart-Befehls.");
                     btnRestartServer.disabled = false;
-                    btnRestartServer.textContent = "🔄 Server neu starten";
+                    btnRestartServer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-power" style="height:12px; width:12px; margin-right:6px;"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>Server neu starten';
                 }
             } catch (e) {
                 appendConsoleLog("[System]: Verbindung getrennt. Warte auf Server...");
@@ -9286,9 +9298,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const pathText = document.getElementById("docker-folder-view-path").textContent;
         navigator.clipboard.writeText(pathText).then(() => {
             const btn = document.getElementById("btn-docker-folder-copy-path");
-            const oldText = btn.textContent;
-            btn.textContent = "✅ Kopiert!";
-            setTimeout(() => btn.textContent = oldText, 2000);
+            const oldHtml = btn.innerHTML;
+            btn.innerHTML = `<span style="display:inline-flex; align-items:center; gap:4px; color:var(--success);"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="height:12px; width:12px;"><polyline points="20 6 9 17 4 12"/></svg>Kopiert!</span>`;
+            setTimeout(() => btn.innerHTML = oldHtml, 2000);
         });
     });
 
@@ -9891,7 +9903,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const data = await response.json();
 
             if (data.status === "ok") {
-                appendConsoleLog(`✅ Bereinigung fertig! (${data.deleted_files.length} Dateien, ${data.deleted_dirs.length} Ordner gelöscht)`);
+                appendConsoleLog(`Bereinigung fertig! (${data.deleted_files.length} Dateien, ${data.deleted_dirs.length} Ordner gelöscht)`);
                 scanProject(targetPath);
             }
         } catch (err) {
@@ -11303,7 +11315,7 @@ async function updateHomepageData(statusData) {
                     }
                 }
 
-                nasInfoMsg.innerHTML = `<span style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-circle" style="height:14px; width:14px;"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="12" y2="16"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>NAS erreichbar via ${ipType} (${details.reachable_ip || "unbekannt"}), aber nicht eingehängt.</span>`;
+                nasInfoMsg.innerHTML = `<span style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-circle" style="height:14px; width:14px;"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="12" y2="16"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>NAS erreichbar via ${ipType} (${escapeHTML(details.reachable_ip || "unbekannt")}), aber nicht eingehängt.</span>`;
                 nasInfoMsg.style.color = "var(--warning)";
 
                 const subSpan = document.createElement("span");
@@ -11470,16 +11482,16 @@ async function updateHomepageData(statusData) {
                     let typeBadge = "";
                     let badgeColor = "";
                     if (item.media_type === "movie") {
-                        typeBadge = "🎬 Film";
+                        typeBadge = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film" style="height:12px; width:12px;"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 17h4"/><path d="M17 17h4"/><path d="M17 7h4"/><path d="M7 12h10"/></svg>Film</span>`;
                         badgeColor = "background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);";
                     } else if (item.media_type === "tv") {
-                        typeBadge = "📺 Serie";
+                        typeBadge = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="height:12px; width:12px;"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>Serie</span>`;
                         badgeColor = "background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);";
                     } else if (item.media_type === "doku") {
-                        typeBadge = "🌿 Doku";
+                        typeBadge = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-leaf" style="height:12px; width:12px;"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.3 5.45-6"/></svg>Doku</span>`;
                         badgeColor = "background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);";
                     } else if (item.media_type === "anime") {
-                        typeBadge = "🌸 Anime";
+                        typeBadge = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles" style="height:12px; width:12px;"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>Anime</span>`;
                         badgeColor = "background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);";
                     }
 
@@ -12824,7 +12836,7 @@ async function mergeProjects(source, target) {
         });
         const data = await response.json();
         if (data.status === "success") {
-            appendConsoleLog(`✅ Ordner erfolgreich zusammengeführt.`);
+            appendConsoleLog(`Ordner erfolgreich zusammengeführt.`);
             if (typeof loadStatus === "function") {
                 await loadStatus();
             }
