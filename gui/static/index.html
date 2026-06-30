@@ -330,12 +330,12 @@
             <div class="sidebar-section inline-style-7" >
                 <h2>System</h2>
                 <div class="nav-list mt-10" >
-                    <button class="project-item" id="nav-youtube-downloader" aria-label="Online-Medien öffnen">
+                    <button class="project-item" id="nav-youtube-downloader" aria-label="Video-Downloader öffnen">
                         <span class="project-item-name">
                             <span class="nav-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
                             </span>
-                            <span class="nav-label">Online-Medien</span>
+                            <span class="nav-label">Video-Downloader</span>
                         </span>
                     </button>
                     <button class="project-item" id="nav-tools-dashboard" aria-label="Werkzeuge öffnen">
@@ -354,12 +354,12 @@
                             <span class="nav-label">Dashboard</span>
                         </span>
                     </button>
-                    <button class="project-item" id="nav-library" aria-label="Bibliothek & Wartung öffnen">
+                    <button class="project-item" id="nav-library" aria-label="Bibliotheks-Wartung öffnen">
                         <span class="project-item-name">
                             <span class="nav-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg>
                             </span>
-                            <span class="nav-label">Bibliothek</span>
+                            <span class="nav-label">Bibliotheks-Wartung</span>
                         </span>
                     </button>
                     <button class="project-item" id="nav-settings-dashboard" aria-label="Einstellungen öffnen">
@@ -370,15 +370,7 @@
                             <span class="nav-label">Einstellungen</span>
                         </span>
                     </button>
-                    <button class="project-item" id="nav-queue-dashboard" aria-label="Warteschlange anzeigen">
-                        <span class="project-item-name">
-                            <span class="nav-icon" aria-hidden="true">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
-                            </span>
-                            <span class="nav-label">Warteschlange</span>
-                        </span>
-                        <span id="queue-badge" class="badge hidden inline-style-8" >0</span>
-                    </button>
+
                     <button class="project-item" id="nav-faq" aria-label="Hilfe &amp; FAQ öffnen">
                         <span class="project-item-name">
                             <span class="nav-icon" aria-hidden="true">
@@ -425,7 +417,7 @@
                     
                     <!-- Optional online media input -->
                     <div class="hero-action-box">
-                        <input type="text" id="hero-yt-url" aria-label="Link für berechtigte Online-Medien eingeben" placeholder="Optionalen Medien-Link eingeben...">
+                        <input type="text" id="hero-yt-url" aria-label="Link für Video-Downloader eingeben" placeholder="Optionalen Medien-Link eingeben...">
                         <button class="btn btn-accent" id="btn-hero-yt-go" style="white-space: nowrap;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Vorschau generieren</button>
                         <button class="btn btn-primary fw-600" id="btn-hero-yt-abos" style="white-space: nowrap;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><rect width="20" height="15" x="2" y="3" rx="2"/><path d="M12 18v4"/><path d="m8 21 8-3"/></svg> Quellen verwalten</button>
                     </div>
@@ -1238,8 +1230,8 @@
 
 
                         <div class="form-group inline-style-117" >
-                            <span class="form-label-style">Eigene lokale Zielordner (Online-Medien):</span>
-                            <p class="inline-style-118">Diese Ordner erscheinen als Ziel in der Online-Medien-Ansicht unter „In lokalen Ordner speichern". Der Input- und Output-Ordner sind automatisch verfügbar.</p>
+                            <span class="form-label-style">Eigene lokale Zielordner (Video-Downloader):</span>
+                            <p class="inline-style-118">Diese Ordner erscheinen als Ziel in der Video-Downloader-Ansicht unter „In lokalen Ordner speichern". Der Input- und Output-Ordner sind automatisch verfügbar.</p>
                             <div id="settings-local-folders-container" class="inline-style-119">
                                 <!-- Dynamically populated -->
                             </div>
@@ -1691,7 +1683,7 @@
             <!-- STATE: YOUTUBE -->
             <div id="view-youtube" class="view-panel hidden">
                 <div class="card" id="yt-input-card">
-                    <h2>Online-Medien</h2>
+                    <h2>Video-Downloader</h2>
                     <p class="section-desc">Berechtigte YouTube- oder Mediathek-Inhalte verarbeiten, schneiden und automatisch taggen.</p>
                     
                     <div class="form-group inline-style-47" >
@@ -2232,7 +2224,7 @@ group_add:
     </div>
 
     <!-- Bottom Terminal Console Log -->
-    <footer class="app-console collapsed" id="app-console">
+    <footer class="app-console collapsed hidden-console" id="app-console">
         <div class="console-header" id="console-header-toggle">
             <div class="console-title">
                 <span class="console-icon">

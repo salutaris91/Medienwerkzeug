@@ -1132,6 +1132,7 @@ function createFallbackPoster(title, isTv, width, height) {
 
 window.AppCapabilities = {
     runtime: "desktop",
+    dev_mode: false,
     capabilities: {
         open_local_folder: true,
         mount_nas: true,
@@ -1260,6 +1261,23 @@ fetch('/api/system/capabilities')
                     
                     // Initial check
                     updateHwWarning();
+                }
+            }
+
+            // Dev Mode / Console visibility logic
+            const devModeActive = !!data.dev_mode;
+
+            if (typeof currentSettings !== "undefined" && currentSettings) {
+                applyConsoleVisibility(currentSettings.show_console || false);
+            } else {
+                applyConsoleVisibility(false);
+            }
+
+            const showConsoleCheckbox = document.getElementById("settings-show-console");
+            if (showConsoleCheckbox) {
+                const group = showConsoleCheckbox.closest('.form-group');
+                if (group) {
+                    group.style.display = devModeActive ? '' : 'none';
                 }
             }
         }
@@ -1946,6 +1964,9 @@ function initConsole() {
         // Prevent toggle if clicking on clear button
         if (e.target === clearBtn) return;
 
+        const devModeActive = window.AppCapabilities && window.AppCapabilities.dev_mode;
+        if (!devModeActive) return;
+
         if (appConsole.classList.contains("collapsed")) {
             appConsole.classList.remove("collapsed");
             appConsole.classList.add("expanded");
@@ -1976,7 +1997,9 @@ function applyConsoleVisibility(show) {
     const appConsole = document.getElementById("app-console");
     if (!appConsole) return;
 
-    if (show) {
+    const devModeActive = window.AppCapabilities && window.AppCapabilities.dev_mode;
+
+    if (show && devModeActive) {
         appConsole.classList.remove("hidden-console");
         if (appConsole.classList.contains("expanded")) {
             document.documentElement.style.setProperty('--console-height', '320px');
@@ -1990,6 +2013,10 @@ function applyConsoleVisibility(show) {
 }
 
 function expandConsole() {
+    const devModeActive = window.AppCapabilities && window.AppCapabilities.dev_mode;
+    if (!devModeActive) {
+        return;
+    }
     const showConsoleCheckbox = document.getElementById("settings-show-console");
     if (showConsoleCheckbox && !showConsoleCheckbox.checked) {
         return;
@@ -4775,8 +4802,9 @@ async function startYtPipeline() {
                 document.getElementById("yt-details-panel").classList.add("hidden");
 
                 // Switch to Queue panel automatically
-                const navQueue = document.getElementById("nav-queue-dashboard");
-                if (navQueue) navQueue.click();
+                if (typeof window.openQueue === "function") {
+                    window.openQueue();
+                }
             } else {
                 appendConsoleLog(`[System]: Fehler beim Starten des Merge-Jobs: ${data.error || 'Serverfehler'}`);
             }

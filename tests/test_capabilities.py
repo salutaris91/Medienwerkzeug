@@ -140,3 +140,21 @@ def test_is_path_allowed_symlink_breakout(mock_utils_load, mock_load, tmp_path):
         assert is_path_allowed(str(symlink_path)) is False
     except OSError:
         pytest.skip("Symlinks not supported on this OS/filesystem")
+
+def test_capabilities_dev_mode(monkeypatch):
+    # Default (unset) -> False
+    monkeypatch.delenv("MW_DEV_MODE", raising=False)
+    caps = get_runtime_capabilities()
+    assert caps["dev_mode"] is False
+
+    # True values
+    for val in ("true", "1", "yes", "on", "TRUE", "Yes", " true ", "  yes\n"):
+        monkeypatch.setenv("MW_DEV_MODE", val)
+        caps = get_runtime_capabilities()
+        assert caps["dev_mode"] is True
+
+    # False values
+    for val in ("false", "0", "no", "off", "anything"):
+        monkeypatch.setenv("MW_DEV_MODE", val)
+        caps = get_runtime_capabilities()
+        assert caps["dev_mode"] is False
