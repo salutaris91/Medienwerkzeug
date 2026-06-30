@@ -1151,6 +1151,16 @@ fetch('/api/system/capabilities')
             if (data.runtime === 'docker') {
                 document.body.classList.add('runtime-docker');
 
+                // Buttontexte für Docker-Modus anpassen
+                const btnOpenInbox = document.getElementById("btn-open-inbox");
+                if (btnOpenInbox) {
+                    btnOpenInbox.innerHTML = btnOpenInbox.innerHTML.replace("Öffnen", "Ansehen");
+                }
+                const btnOpenOutbox = document.getElementById("btn-open-outbox");
+                if (btnOpenOutbox) {
+                    btnOpenOutbox.innerHTML = btnOpenOutbox.innerHTML.replace("Öffnen", "Ansehen");
+                }
+
                 const headerBadge = document.getElementById("header-version-badge");
                 if (headerBadge) headerBadge.textContent = "v1.0 Docker/Server Edition";
 
