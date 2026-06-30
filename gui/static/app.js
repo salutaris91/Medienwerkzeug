@@ -324,9 +324,9 @@ async function fetchNasSeasons(requestId = null) {
             infoContainer.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; background: rgba(255, 179, 0, 0.05); padding: 8px; border-radius: 6px; border: 1px solid rgba(255, 179, 0, 0.2);">
                     <div>
-                        <span style="font-size:11px; color:var(--text-muted);">📂 Auf NAS vorhanden:</span><br>${badges}
+                        <span style="font-size:11px; color:var(--text-muted);">Auf NAS vorhanden:</span><br>${badges}
                     </div>
-                    <button class="btn btn-xs" style="background:var(--error); color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; flex-shrink: 0;" onclick="clearNasOverride()" title="Falsche NAS-Zuordnung trennen und Serie als neu anlegen">❌ Falscher NAS-Ordner?</button>
+                    <button class="btn btn-xs" style="background:var(--error); color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; flex-shrink: 0;" onclick="clearNasOverride()" title="Falsche NAS-Zuordnung trennen und Serie als neu anlegen">✕ Falscher NAS-Ordner?</button>
                 </div>
             `;
 
@@ -8295,7 +8295,7 @@ function renderStorageTargets() {
 
         const deleteBtn = document.createElement("button");
         deleteBtn.className = "btn btn-danger btn-xs";
-        deleteBtn.textContent = "❌ Ziel entfernen";
+        deleteBtn.textContent = "✕ Ziel entfernen";
         deleteBtn.onclick = (e) => {
             e.preventDefault();
             if (confirm(`Möchtest du das Speicherziel "${target.name || target.id}" wirklich entfernen?`)) {
@@ -8593,7 +8593,7 @@ function renderImportSources() {
 
         const removeBtn = document.createElement("button");
         removeBtn.className = "btn btn-danger";
-        removeBtn.textContent = "❌";
+        removeBtn.textContent = "✕";
         removeBtn.onclick = () => {
             currentSettings.import_sources.splice(index, 1);
             renderImportSources();
@@ -8686,7 +8686,7 @@ function renderLocalFolders() {
 
         const removeBtn = document.createElement("button");
         removeBtn.className = "btn btn-danger";
-        removeBtn.textContent = "❌";
+        removeBtn.textContent = "✕";
         removeBtn.onclick = () => {
             currentSettings.local_download_folders.splice(index, 1);
             renderLocalFolders();
@@ -8876,7 +8876,7 @@ function renderSyncCategories() {
 
         const removeBtn = document.createElement("button");
         removeBtn.className = "btn btn-danger";
-        removeBtn.textContent = "❌";
+        removeBtn.textContent = "✕";
         removeBtn.onclick = () => {
             currentSettings.sync_categories.splice(index, 1);
             renderSyncCategories();
@@ -9852,11 +9852,24 @@ function renderQueue(jobs) {
     // Sort so newest is at the top
     [...jobs].reverse().forEach(job => {
         let statusColor = "var(--text-muted)";
-        let icon = "⏳";
+        let icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--text-muted);"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+        let statusLabel = "Wartet";
 
-        if (job.status === "running") { statusColor = "var(--accent)"; icon = "🔄"; }
-        else if (job.status === "done") { statusColor = "#4caf50"; icon = "✅"; }
-        else if (job.status === "error") { statusColor = "#ff6b6b"; icon = "❌"; }
+        if (job.status === "running") {
+            statusColor = "var(--accent)";
+            icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--accent); animation: spin 2s linear infinite;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>`;
+            statusLabel = "Läuft";
+        }
+        else if (job.status === "done") {
+            statusColor = "var(--success)";
+            icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--success);"><polyline points="20 6 9 17 4 12"/></svg>`;
+            statusLabel = "Abgeschlossen";
+        }
+        else if (job.status === "error" || job.status === "failed") {
+            statusColor = "var(--danger)";
+            icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--danger);"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>`;
+            statusLabel = "Fehlgeschlagen";
+        }
 
         let progressHtml = "";
         if (job.status === "running" || job.status === "queued" || job.status === "done") {
@@ -9915,34 +9928,30 @@ function renderQueue(jobs) {
                 let borderStyle = "1px solid rgba(255,255,255,0.05)";
 
                 if (sData.status === "running") {
-                    stepColor = "rgba(0, 229, 255, 0.1)";
-                    stepIcon = "🔄 animate-spin";
-                    textColor = "#00e5ff";
-                    borderStyle = "1px solid rgba(0, 229, 255, 0.3)";
+                    stepColor = "rgba(59, 130, 246, 0.1)";
+                    stepIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; animation: spin 2s linear infinite;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>`;
+                    textColor = "var(--primary)";
+                    borderStyle = "1px solid rgba(59, 130, 246, 0.3)";
                 } else if (sData.status === "done") {
-                    stepColor = "rgba(76, 175, 80, 0.1)";
-                    stepIcon = "✅";
-                    textColor = "#4caf50";
-                    borderStyle = "1px solid rgba(76, 175, 80, 0.3)";
+                    stepColor = "rgba(16, 185, 129, 0.1)";
+                    stepIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block; vertical-align:middle;"><polyline points="20 6 9 17 4 12"/></svg>`;
+                    textColor = "var(--success)";
+                    borderStyle = "1px solid rgba(16, 185, 129, 0.3)";
                 } else if (sData.status === "error") {
-                    stepColor = "rgba(244, 67, 54, 0.1)";
-                    stepIcon = "❌";
-                    textColor = "#f44336";
-                    borderStyle = "1px solid rgba(244, 67, 54, 0.3)";
+                    stepColor = "rgba(239, 68, 68, 0.1)";
+                    stepIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x" style="display:inline-block; vertical-align:middle;"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>`;
+                    textColor = "var(--danger)";
+                    borderStyle = "1px solid rgba(239, 68, 68, 0.3)";
                 } else if (sData.status === "skipped") {
                     stepColor = "rgba(255, 255, 255, 0.02)";
-                    stepIcon = "➖";
+                    stepIcon = "—";
                     textColor = "rgba(255,255,255,0.15)";
                     borderStyle = "1px solid rgba(255,255,255,0.02)";
                 }
 
-                // Add spinning animation inline style for animate-spin
-                const isSpinning = stepIcon.includes("animate-spin") ? "animation: spin 2s linear infinite;" : "";
-                const cleanIcon = stepIcon.replace(" animate-spin", "");
-
                 pipelineHtml += `
                     <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px; border-radius: var(--radius-sm); background: ${stepColor}; border: ${borderStyle}; text-align: center; box-sizing: border-box;">
-                        <span style="font-size: 13px; line-height: 1; display: inline-block; ${isSpinning}">${cleanIcon}</span>
+                        <span style="font-size: 13px; line-height: 1; display: inline-flex; align-items: center; justify-content: center;">${stepIcon}</span>
                         <span style="font-size: 9px; font-weight: 500; color: ${textColor}; white-space: normal; line-height: 1.1; word-break: break-word; max-width: 100%; display: block;" title="${step.label}">${step.label}</span>
                         ${sData.status === "running" ? `<span style="font-size: 9px; color: ${textColor}; font-weight: bold; display: block;">${sData.progress}%</span>` : ""}
                     </div>
@@ -9963,21 +9972,21 @@ function renderQueue(jobs) {
             retryHtml = `
                 <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
                     <button class="queue-retry-btn btn-secondary" data-task-id="${job.id}" style="padding: 4px 10px; font-size: 11px; display: flex; align-items: center; gap: 4px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.2s;">
-                        🔄 Wiederholen
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Task wiederholen
                     </button>
                 </div>
             `;
         }
 
         const card = document.createElement("div");
-        card.style.cssText = "background: rgba(20,20,30,0.5); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); padding: 15px;";
+        card.style.cssText = "background: var(--bg-surface); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); padding: 15px;";
 
         card.innerHTML = `
-            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                <strong style="font-size:14px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:10px;">${icon} ${job.name}</strong>
-                <span style="font-size:12px; color:${statusColor}; text-transform:uppercase;">${job.status}</span>
+            <div style="display:flex; justify-content:space-between; margin-bottom:5px; align-items: center;">
+                <strong style="font-size:14px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:10px; display:inline-flex; align-items:center; gap: 6px;">${icon} ${job.name}</strong>
+                <span style="font-size:12px; color:${statusColor}; text-transform:uppercase; font-weight:600;">${statusLabel}</span>
             </div>
-            <div style="font-size:12px; color:var(--text-muted);">${job.message || ""}</div>
+            <div style="font-size:12px; color:var(--text-muted); margin-left: 20px;">${job.message || ""}</div>
             ${progressHtml}
             ${pipelineHtml}
             ${retryHtml}
@@ -12205,7 +12214,7 @@ function renderNormalizePlan(plan) {
 function updateNormalizeApplyCount() {
     const n = document.querySelectorAll(".normalize-item:checked").length;
     const btn = document.getElementById("btn-normalize-apply");
-    if (btn) { btn.textContent = `✅ ${n} Ausgewählte anwenden`; btn.disabled = n === 0; }
+    if (btn) { btn.textContent = `${n} Änderungen anwenden`; btn.disabled = n === 0; }
 }
 
 async function waitForQueueJob(taskId, { intervalMs = 2000, timeoutMs = 10 * 60 * 1000 } = {}) {
