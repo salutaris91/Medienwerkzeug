@@ -2321,6 +2321,7 @@ function updateProjectProcessingStatus(activeProjects) {
         const p = item.getAttribute("data-project") || "";
         const isProcessing = activeProjects.has(p);
         const btn = item.querySelector(".btn-select-smart");
+        const deleteBtn = item.querySelector(".btn-delete-smart");
 
         if (isProcessing) {
             item.style.border = "1px solid rgba(0, 229, 255, 0.3)";
@@ -2329,6 +2330,24 @@ function updateProjectProcessingStatus(activeProjects) {
             item.style.border = "1px solid var(--border-light)";
             item.style.background = "rgba(255,255,255,0.02)";
         }
+
+        if (deleteBtn) {
+            deleteBtn.disabled = isProcessing;
+            if (isProcessing) {
+                deleteBtn.style.opacity = "0.5";
+                deleteBtn.style.cursor = "not-allowed";
+                deleteBtn.onclick = null;
+            } else {
+                deleteBtn.style.opacity = "1";
+                deleteBtn.style.cursor = "pointer";
+                deleteBtn.onclick = () => {
+                    if (confirm(`Möchtest du das gesamte Inbox-Projekt "${p}" wirklich in die Quarantäne verschieben?`)) {
+                        deleteProject(p);
+                    }
+                };
+            }
+        }
+
         configureSmartInboxButton(btn, p, isProcessing);
     });
 }
@@ -11351,15 +11370,7 @@ async function updateHomepageData(statusData) {
         }
     }
 
-    // Helper to format bytes
-    const formatBytes = (bytes, decimals = 2) => {
-        if (!bytes || bytes === 0) return "0 GB";
-        const k = 1024;
-        const dm = decimals < 0 ? 0 : decimals;
-        const sizes = ["B", "KB", "MB", "GB", "TB", "PB"];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
-    };
+
 
     // 4. Fetch Stats for NAS capacity and space savings
     try {
