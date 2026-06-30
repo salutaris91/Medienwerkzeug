@@ -335,6 +335,8 @@ def handle_api_status():
     with METRICS_LOCK:
         inbox_size_gb = SYSTEM_METRICS.get('inbox_size_gb')
         outbox_size_gb = SYSTEM_METRICS.get('outbox_size_gb')
+        inbox_bytes = SYSTEM_METRICS.get('inbox_bytes')
+        outbox_bytes = SYSTEM_METRICS.get('outbox_bytes')
         metrics_loading = (SYSTEM_METRICS.get('last_updated', 0) == 0)
 
     # Use 0.0 as fallback for UI if None
@@ -351,6 +353,8 @@ def handle_api_status():
         "project_types": project_types,
         "inbox_size_gb": inbox_val,
         "outbox_size_gb": outbox_val,
+        "inbox_bytes": inbox_bytes if inbox_bytes is not None else 0,
+        "outbox_bytes": outbox_bytes if outbox_bytes is not None else 0,
         "metrics_loading": metrics_loading
     }
 

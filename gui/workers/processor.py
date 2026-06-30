@@ -489,6 +489,8 @@ STATUS_LOCK = threading.Lock()
 SYSTEM_METRICS = {
     'inbox_size_gb': None,
     'outbox_size_gb': None,
+    'inbox_bytes': None,
+    'outbox_bytes': None,
     'nas_info': None,
     'last_updated': 0
 }
@@ -3343,6 +3345,8 @@ def system_metrics_worker():
             with METRICS_LOCK:
                 SYSTEM_METRICS['inbox_size_gb'] = round(inbox_bytes / (1024**3), 2) if inbox_bytes is not None else None
                 SYSTEM_METRICS['outbox_size_gb'] = round(outbox_bytes / (1024**3), 2) if outbox_bytes is not None else None
+                SYSTEM_METRICS['inbox_bytes'] = inbox_bytes
+                SYSTEM_METRICS['outbox_bytes'] = outbox_bytes
 
             # 2. Berechne Speicherplatz (NAS/Cloud) mit 20s Timeout
             targets = [t for t in settings.get("storage_targets", []) if t.get("enabled", True)]
