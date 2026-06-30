@@ -426,12 +426,40 @@
                 <!-- Quick Stats Grid -->
 
                 <!-- Feature 1: Smart Inbox (ersetzt die frühere "Inbox & Projekte"-Kachel) -->
-                <div class="card" id="card-smart-inbox" style="margin-bottom: 24px; display: none;">
-                    <div class="card-hero-header">
-                        <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-inbox" style="vertical-align:middle;"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
-                        <h3 style="margin:0;">Erkannte Projekte in der Inbox</h3>
+                <div class="card" id="card-smart-inbox" style="margin-bottom: 24px;">
+                    <div class="card-hero-header" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-inbox" style="vertical-align:middle;"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
+                            <h3 style="margin:0;">Arbeitsbereich &amp; Inbox</h3>
+                        </div>
                     </div>
-                    <div id="smart-inbox-list" style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px;"></div>
+
+                    <!-- Sektion Arbeitsordner -->
+                    <div class="workspace-paths-container" style="margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border-bottom: 1px solid var(--border-light); padding-bottom: 16px;">
+                        <div class="workspace-path-item" style="display: flex; flex-direction: column; gap: 6px;">
+                            <span style="font-size: 0.85em; font-weight: 500; color: var(--text-muted);">Inbox (Input):</span>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <div style="font-family: monospace; font-size: 0.85em; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); border-radius: 6px; padding: 6px 10px; flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" id="inbox-path-display" title="Pfad">-</div>
+                                <button class="btn btn-secondary btn-sm" id="btn-open-inbox" style="white-space: nowrap;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="display:inline-block; vertical-align:middle; margin-right: 4px; height: 12px; width: 12px;"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg> Öffnen</button>
+                            </div>
+                        </div>
+                        <div class="workspace-path-item" style="display: flex; flex-direction: column; gap: 6px;">
+                            <span style="font-size: 0.85em; font-weight: 500; color: var(--text-muted);">Outbox (Output):</span>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <div style="font-family: monospace; font-size: 0.85em; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); border-radius: 6px; padding: 6px 10px; flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" id="outbox-path-display" title="Pfad">-</div>
+                                <button class="btn btn-secondary btn-sm" id="btn-open-outbox" style="white-space: nowrap;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="display:inline-block; vertical-align:middle; margin-right: 4px; height: 12px; width: 12px;"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg> Öffnen</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sektion Pfadbereinigung & Inbox-Projekte -->
+                    <div style="margin-top: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
+                            <h4 style="margin: 0; font-size: 0.95em; color: var(--text-main); font-weight: 600;">Erkannte Projekte in der Inbox</h4>
+                            <button class="btn btn-secondary btn-xs" id="btn-paths-clean-trigger" style="padding: 4px 10px; font-size: 11px;"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2" style="display:inline-block; vertical-align:middle; margin-right: 4px; height: 10px; width: 10px;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> Bereinigung prüfen</button>
+                        </div>
+                        <div id="smart-inbox-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
+                    </div>
                 </div>
                 <div class="grid-2col inline-style-11" >
                     <!-- Empfohlene Einstellungen (Conversion Intelligence) -->
@@ -1033,6 +1061,33 @@
                 <div style="margin-bottom: 20px;">
                     <h2><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="display:inline-block; vertical-align:middle; margin-right: 8px;"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg> Bibliothek &amp; Wartung</h2>
                     <p class="section-desc">Prüfe deine NAS-Bibliothek auf Pflegeprobleme und finde doppelte Episoden.</p>
+                </div>
+
+                <!-- Sektion: Medienpflege-Werkzeuge -->
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="card-hero-header">
+                        <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="color: var(--accent);"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
+                        <h3 style="margin:0;">Medienpflege-Werkzeuge</h3>
+                    </div>
+                    <p class="text-muted" style="margin: 6px 0 16px; font-size: 0.85em;">Führe manuelle Korrektur- und Sync-Aktionen für Ordner und Dateien durch.</p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;">
+                        <button class="btn btn-secondary card" id="lib-tool-btn-nfo-agent" style="padding: 14px 18px; display: flex; align-items: center; gap: 12px; text-align: left; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); margin: 0; width: 100%; border-radius: 8px; cursor: pointer; transition: all 0.2s;" aria-label="NFO Metadaten generieren">
+                            <span style="color: var(--accent); flex-shrink: 0; display: inline-flex; align-items: center;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" style="vertical-align:middle;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span>
+                            <div><strong style="font-size: 0.9em; display: block; color: var(--text-main);">NFO Agent</strong><small class="text-muted" style="font-size: 0.75em; display: block; margin-top: 2px;">Metadaten generieren</small></div>
+                        </button>
+                        <button class="btn btn-secondary card" id="lib-tool-btn-convert" style="padding: 14px 18px; display: flex; align-items: center; gap: 12px; text-align: left; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); margin: 0; width: 100%; border-radius: 8px; cursor: pointer; transition: all 0.2s;" aria-label="H.265 Batch-Konvertierung starten">
+                            <span style="color: var(--accent); flex-shrink: 0; display: inline-flex; align-items: center;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-video" style="vertical-align:middle;"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg></span>
+                            <div><strong style="font-size: 0.9em; display: block; color: var(--text-main);">H.265 Batch-Konvertierung</strong><small class="text-muted" style="font-size: 0.75em; display: block; margin-top: 2px;">Videos komprimieren</small></div>
+                        </button>
+                        <button class="btn btn-secondary card" id="lib-tool-btn-clean" style="padding: 14px 18px; display: flex; align-items: center; gap: 12px; text-align: left; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); margin: 0; width: 100%; border-radius: 8px; cursor: pointer; transition: all 0.2s;" aria-label="Zielordner bereinigen">
+                            <span style="color: var(--accent); flex-shrink: 0; display: inline-flex; align-items: center;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2" style="vertical-align:middle;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+                            <div><strong style="font-size: 0.9em; display: block; color: var(--text-main);">Ordner bereinigen</strong><small class="text-muted" style="font-size: 0.75em; display: block; margin-top: 2px;">Trash entfernen</small></div>
+                        </button>
+                        <button class="btn btn-secondary card" id="lib-tool-btn-manual-sync" style="padding: 14px 18px; display: flex; align-items: center; gap: 12px; text-align: left; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); margin: 0; width: 100%; border-radius: 8px; cursor: pointer; transition: all 0.2s;" aria-label="Manuelle Speichersynchronisation starten">
+                            <span style="color: var(--accent); flex-shrink: 0; display: inline-flex; align-items: center;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="vertical-align:middle;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg></span>
+                            <div><strong style="font-size: 0.9em; display: block; color: var(--text-main);">Speicherziel-Syncing</strong><small class="text-muted" style="font-size: 0.75em; display: block; margin-top: 2px;">Auf Speicherziele kopieren</small></div>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Feature 3: NAS Bibliotheks-Check -->
