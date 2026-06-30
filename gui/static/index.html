@@ -283,7 +283,7 @@
                 <span class="version" id="header-version-badge">v5.0 Native Edition</span>
             </div>
         </div>
-        
+
             <button class="btn btn-accent-outline inline-style-1" id="header-queue-btn" >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clipboard-list" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> Warteschlange
                 <span id="header-queue-badge" aria-live="polite" class="badge hidden inline-style-2" >0</span>
@@ -294,7 +294,7 @@
                 <span class="status-badge offline" id="nas-badge" aria-live="polite">Lade...</span>
                 <button class="btn btn-sm btn-secondary hidden" id="btn-connect-nas" type="button">Verbinden</button>
             </div>
-            
+
             <div class="status-item" id="streamfab-status-container">
                 <span class="status-label">Import-Quellen:</span>
                 <span class="status-badge" id="streamfab-badge" aria-live="polite">Prüfe...</span>
@@ -305,7 +305,7 @@
 
     <!-- Master-Detail Layout -->
     <div class="master-detail-layout">
-        
+
         <!-- ==================== LEFT SIDEBAR (MASTER) ==================== -->
         <nav class="master-sidebar" aria-label="Hauptnavigation">
             <button class="btn btn-primary inline-style-3"  id="master-btn-home" aria-label="Sendezentrale Startseite">
@@ -399,7 +399,7 @@
 
         <!-- ==================== RIGHT MAIN AREA (DETAIL) ==================== -->
         <main class="detail-content">
-            
+
             <div id="view-empty" class="view-panel active inline-style-9" >
                 <!-- Speicherplatz-Warnung Banner -->
                 <div id="folder-size-warning" class="alert alert-danger hidden" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 8px; padding: 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
@@ -414,7 +414,7 @@
                 <div class="homepage-hero">
                     <h2 class="hero-title">Willkommen in deiner Sendezentrale</h2>
                     <p class="hero-desc">Verwalte deine Projektordner, scrape Metadaten und synchronisiere deine Medienbibliothek.</p>
-                    
+
                     <!-- Optional online media input -->
                     <div class="hero-action-box">
                         <input type="text" id="hero-yt-url" aria-label="Link für Video-Downloader eingeben" placeholder="Optionalen Medien-Link eingeben...">
@@ -422,7 +422,7 @@
                         <button class="btn btn-primary fw-600" id="btn-hero-yt-abos" style="white-space: nowrap;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><rect width="20" height="15" x="2" y="3" rx="2"/><path d="M12 18v4"/><path d="m8 21 8-3"/></svg> Quellen verwalten</button>
                     </div>
                 </div>
-                
+
                 <!-- Quick Stats Grid -->
 
                 <!-- Feature 1: Smart Inbox (ersetzt die frühere "Inbox & Projekte"-Kachel) -->
@@ -496,7 +496,7 @@
                                 <button class="btn btn-xs btn-secondary" id="btn-hero-refresh-nas" style="display: none;" type="button"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Verbindung prüfen</button>
                             </div>
                         </div>
-                        
+
                         <div id="hero-hw-warning" style="margin-top: 15px; font-size: 0.85em; color: var(--warning); border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 10px; display: none;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--warning);"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg> NAS-Konvertierung ist ohne Hardware-Encoding sehr langsam; für Geschwindigkeit Hardware-Encoding einrichten.
                         </div>
@@ -511,7 +511,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Left 2: YouTube Abos -->
                     <div class="card interactive-card cursor-pointer" id="card-hero-abos" >
                         <div class="card-hero-header">
@@ -523,7 +523,7 @@
                             Lade Abonnements...
                         </div>
                     </div>
-                    
+
                     <!-- Right 2: Stats Ring / Savings -->
                     <div class="card interactive-card cursor-pointer" id="card-hero-stats" >
                         <div class="card-hero-header">
@@ -557,7 +557,7 @@
 
             <!-- STATE: FOLDER WORKFLOW -->
             <div id="view-folder" class="view-panel hidden">
-                
+
                 <!-- Dateiliste Card -->
                 <div class="card card-main mb-20" >
                     <div class="card-header-actions inline-style-20" >
@@ -568,14 +568,14 @@
                         </div>
                     </div>
                     <p class="text-muted inline-style-21" id="current-project-path" >Pfad: ...</p>
-                    
+
                     <div id="project-processing-warning" class="hidden" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ff6b6b; padding: 12px 16px; border-radius: var(--radius-md); margin-top: 15px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock" style="display:inline-block; vertical-align:middle; color: var(--danger);"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                         <div>
                             <strong>Verarbeitung läuft:</strong> Dieses Projekt wird derzeit im Hintergrund verarbeitet oder ist in der Warteschlange. Bitte nimm keine Änderungen vor und starte die Verarbeitung nicht erneut.
                         </div>
                     </div>
-                    
+
                     <div class="stats-panel d-none" id="project-stats-container" aria-live="polite" >
                         <div class="stats-badges inline-style-22" id="stats-badges-container" ></div>
                     </div>
@@ -659,7 +659,7 @@
                     <div class="selected-show-card hidden inline-style-35" id="selected-movie-panel" >
                         <h4 id="selected-movie-title">Ausgewählter Film</h4>
                         <p class="text-muted" id="selected-movie-provider-info"></p>
-                        
+
                         <!-- Film NFO Editier-Bereich -->
                         <details id="movie-nfo-details" class="inline-style-36">
                             <summary class="inline-style-37"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/></svg> Film-Metadaten (movie.nfo) bearbeiten</summary>
@@ -802,7 +802,7 @@
                         </div>
                         <p id="selected-show-seasons-info"></p>
                         <div id="selected-show-nas-seasons-info" class="inline-style-56"></div>
-                        
+
                         <!-- Serien NFO Editier-Bereich -->
                         <details id="series-nfo-details" class="inline-style-36">
                             <summary class="inline-style-37"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" style="display:inline-block; vertical-align:middle; margin-right: 6px; color: var(--accent);"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Serien-Metadaten (tvshow.nfo) bearbeiten</summary>
@@ -821,7 +821,7 @@
                                 </div>
                             </div>
                         </details>
-                        
+
                         <div class="form-group inline-style-57" >
                             <div class="inline-style-58">
                                 <label for="series-season-num">Staffel:</label>
@@ -903,7 +903,7 @@
                         </div>
                     </div>
                 </div>
-                
+
             </div>
 
             <!-- STATE: TOOLS DASHBOARD -->
@@ -913,7 +913,7 @@
                     <h2>Werkzeuge-Dashboard</h2>
                     <p class="section-desc mb-20" >Führe manuelle Aktionen punktuell aus. Bei Klick auf ein Werkzeug wirst du nach dem gewünschten Pfad gefragt.</p>
                 </div>
-                
+
                 <div class="tools-grid inline-style-9" >
                     <button class="btn btn-secondary card inline-style-72" id="tool-btn-pull-files" aria-label="Dateien aus Unterordnern hochziehen" >
                         <span class="inline-style-73"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="vertical-align:middle;"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg></span> <div><strong class="inline-style-74">Dateien hochziehen</strong><br><small class="text-muted">Unterordner auflösen</small></div>
@@ -943,117 +943,357 @@
             <!-- STATE: STATS DASHBOARD -->
             <div id="view-dashboard" class="view-panel hidden">
                 <div class="card inline-style-60" >
-                    <div class="inline-style-61"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bar-chart-3" style="color: var(--accent);"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></div>
-                    <h2>Statistik-Dashboard</h2>
-                    <p class="section-desc mb-20" >Visualisiere deine Speicherersparnis durch effizientes HEVC-Transkodieren und die aktuelle Belegung deines NAS-Speichers.</p>
-                </div>
-                
-                <div class="dashboard-grid">
-                    <!-- NAS STORAGE CARD -->
-                    <div class="card inline-style-86" >
-                        <span class="stat-label" id="dashboard-storage-label">NAS Speicherbelegung</span>
-                        <div class="inline-style-87">
-                            <svg width="140" height="140" class="nas-circle-svg">
-                                <circle cx="70" cy="70" r="58" class="nas-circle-bg"></circle>
-                                <circle cx="70" cy="70" r="58" class="nas-circle-progress" id="nas-usage-circle" stroke-dasharray="364.4" stroke-dashoffset="364.4"></circle>
-                            </svg>
-                            <div class="inline-style-88">
-                                <span id="nas-usage-percent-text" aria-live="polite" class="inline-style-89"Outfit';">0%</span>
-                                <span class="inline-style-90">Belegt</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div class="inline-style-61" style="margin: 0;"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bar-chart-3" style="color: var(--accent);"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></div>
+                            <div>
+                                <h2 style="margin: 0;">Dashboard-Cockpit</h2>
+                                <p class="section-desc mb-0" style="margin-top: 4px; margin-bottom: 0;">Visualisiere deine Speicherdaten, warte deine Medienbibliothek und behalte den Überblick über alle Dateifreigaben.</p>
                             </div>
                         </div>
-                        <div id="nas-usage-detail-text" aria-live="polite" class="inline-style-91">Scanne NAS...</div>
-                        <div id="nas-usage-path-text" class="inline-style-92">-</div>
+                        <button class="btn btn-secondary btn-sm" id="btn-customize-dashboard" style="display: inline-flex; align-items: center; gap: 6px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sliders-horizontal"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="10" y1="2" y2="6"/><line x1="8" x2="12" y1="10" y2="14"/><line x1="16" x2="12" y1="18" y2="22"/></svg>
+                            Cockpit anpassen
+                        </button>
                     </div>
-                    
-                    <!-- SAVINGS CARD -->
-                    <div class="card inline-style-93" >
+                </div>
+
+                <!-- Customization Panel -->
+                <div class="card hidden" id="dashboard-customize-panel" style="margin-top: 15px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 20px;">
+                    <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                        Sichtbare Widgets konfigurieren
+                    </h3>
+                    <p class="text-muted" style="font-size: 0.85em; margin: 4px 0 16px 0;">Wähle aus, welche Widgets auf deinem Arbeitscockpit angezeigt werden sollen. Deine Auswahl wird automatisch gespeichert.</p>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
                         <div>
-                            <span class="stat-label">Gesamte Ersparnis</span>
-                            <div id="stats-saved-space" class="stat-value">0 GB</div>
-                            <div class="inline-style-94">
-                                Reduktion um <span id="stats-saved-percent" class="inline-style-95">0%</span> des Speicherplatzes
-                            </div>
+                            <strong style="display: block; font-size: 0.8em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Überblick</strong>
+                            <label class="checkbox-container" style="font-size: 0.9em;">
+                                <input type="checkbox" id="widget-toggle-storage" checked>
+                                <span class="checkmark"></span> Speicherbelegung
+                            </label>
+                            <label class="checkbox-container" style="font-size: 0.9em; margin-top: 8px; display: block;">
+                                <input type="checkbox" id="widget-toggle-savings" checked>
+                                <span class="checkmark"></span> Speicherersparnis
+                            </label>
+                            <label class="checkbox-container" style="font-size: 0.9em; margin-top: 8px; display: block;">
+                                <input type="checkbox" id="widget-toggle-ratio" checked>
+                                <span class="checkmark"></span> Durchschnittliche Rate
+                            </label>
                         </div>
-                        
-                        <div class="mt-15">
-                            <div class="inline-style-96">
-                                <span>Vorher: <span id="stats-size-in">-</span></span>
-                                <span>Nachher: <span id="stats-size-out">-</span></span>
-                            </div>
-                            <div class="progress-bar-flat">
-                                <div id="stats-savings-bar" class="progress-fill-flat inline-style-97" ></div>
-                            </div>
-                        </div>
-                        
-                        <div class="stat-footer inline-style-98" >
-                            Durchgeführt für <span id="stats-total-files" class="highlight">0</span> Videodateien.
-                        </div>
-                    </div>
 
-                    <!-- RATIO CARD -->
-                    <div class="card inline-style-93" >
                         <div>
-                            <span class="stat-label">Durchschnittliche Rate</span>
-                            <div id="stats-average-ratio" class="stat-value">0.00x</div>
-                            <div class="inline-style-99">
-                                Jede Datei benötigt im Durchschnitt nur noch <span id="stats-average-ratio-percent" class="inline-style-100">0%</span> ihrer ursprünglichen Größe.
+                            <strong style="display: block; font-size: 0.8em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Arbeit &amp; Zustand</strong>
+                            <label class="checkbox-container" style="font-size: 0.9em;">
+                                <input type="checkbox" id="widget-toggle-health" checked>
+                                <span class="checkmark"></span> Bibliotheks-Check
+                            </label>
+                            <label class="checkbox-container" style="font-size: 0.9em; margin-top: 8px; display: block;">
+                                <input type="checkbox" id="widget-toggle-duplicates" checked>
+                                <span class="checkmark"></span> Duplikat-Erkennung
+                            </label>
+                        </div>
+
+                        <div>
+                            <strong style="display: block; font-size: 0.8em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Verlauf &amp; Statistik</strong>
+                            <label class="checkbox-container" style="font-size: 0.9em;">
+                                <input type="checkbox" id="widget-toggle-chart" checked>
+                                <span class="checkmark"></span> Konvertierungsdiagramm
+                            </label>
+                            <label class="checkbox-container" style="font-size: 0.9em; margin-top: 8px; display: block;">
+                                <input type="checkbox" id="widget-toggle-history" checked>
+                                <span class="checkmark"></span> Konvertierungsprotokoll
+                            </label>
+                        </div>
+
+                        <div>
+                            <strong style="display: block; font-size: 0.8em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Bibliothek &amp; Qualität</strong>
+                            <label class="checkbox-container" style="font-size: 0.9em;">
+                                <input type="checkbox" id="widget-toggle-normalize" checked>
+                                <span class="checkmark"></span> Filme normalisieren
+                            </label>
+                            <label class="checkbox-container" style="font-size: 0.9em; margin-top: 8px; display: block;">
+                                <input type="checkbox" id="widget-toggle-nas-renamer">
+                                <span class="checkmark"></span> NAS-Renaming-Tool
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 1: OVERVIEW -->
+                <div class="dashboard-section" id="section-overview" style="margin-top: 25px;">
+                    <h3 class="dashboard-section-title" style="margin-bottom: 15px; font-family: 'Outfit', sans-serif; font-size: 1.1em; color: var(--text-muted); border-bottom: 1px solid var(--border-light); padding-bottom: 6px;">Überblick</h3>
+                    <div class="dashboard-grid">
+                        <!-- NAS STORAGE CARD -->
+                        <div class="card inline-style-86" id="widget-storage">
+                            <span class="stat-label" id="dashboard-storage-label">NAS Speicherbelegung</span>
+                            <div class="inline-style-87">
+                                <svg width="140" height="140" class="nas-circle-svg">
+                                    <circle cx="70" cy="70" r="58" class="nas-circle-bg"></circle>
+                                    <circle cx="70" cy="70" r="58" class="nas-circle-progress" id="nas-usage-circle" stroke-dasharray="364.4" stroke-dashoffset="364.4"></circle>
+                                </svg>
+                                <div class="inline-style-88">
+                                    <span id="nas-usage-percent-text" aria-live="polite" class="inline-style-89"Outfit';">0%</span>
+                                    <span class="inline-style-90">Belegt</span>
+                                </div>
+                            </div>
+                            <div id="nas-usage-detail-text" aria-live="polite" class="inline-style-91">Scanne NAS...</div>
+                            <div id="nas-usage-path-text" class="inline-style-92">-</div>
+                        </div>
+
+                        <!-- SAVINGS CARD -->
+                        <div class="card inline-style-93" id="widget-savings">
+                            <div>
+                                <span class="stat-label">Gesamte Ersparnis</span>
+                                <div id="stats-saved-space" class="stat-value">0 GB</div>
+                                <div class="inline-style-94">
+                                    Reduktion um <span id="stats-saved-percent" class="inline-style-95">0%</span> des Speicherplatzes
+                                </div>
+                            </div>
+
+                            <div class="mt-15">
+                                <div class="inline-style-96">
+                                    <span>Vorher: <span id="stats-size-in">-</span></span>
+                                    <span>Nachher: <span id="stats-size-out">-</span></span>
+                                </div>
+                                <div class="progress-bar-flat">
+                                    <div id="stats-savings-bar" class="progress-fill-flat inline-style-97" ></div>
+                                </div>
+                            </div>
+
+                            <div class="stat-footer inline-style-98" >
+                                Durchgeführt für <span id="stats-total-files" class="highlight">0</span> Videodateien.
                             </div>
                         </div>
-                        <div class="inline-style-101">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--success);"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> <span class="inline-style-102">HEVC Hardware Beschleunigung</span> aktiv via VideoToolbox.
+
+                        <!-- RATIO CARD -->
+                        <div class="card inline-style-93" id="widget-ratio">
+                            <div>
+                                <span class="stat-label">Durchschnittliche Rate</span>
+                                <div id="stats-average-ratio" class="stat-value">0.00x</div>
+                                <div class="inline-style-99">
+                                    Jede Datei benötigt im Durchschnitt nur noch <span id="stats-average-ratio-percent" class="inline-style-100">0%</span> ihrer ursprünglichen Größe.
+                                </div>
+                            </div>
+                            <div class="inline-style-101">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--success);"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> <span class="inline-style-102">HEVC Hardware Beschleunigung</span> aktiv via VideoToolbox.
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- HISTORISCHE ENTWICKLUNG (BAR CHART) -->
-                <div class="card inline-style-60" >
-                    <div class="card-header-actions inline-style-103" >
-                        <h3 class="inline-style-104">Letzte Konvertierungen & Speicherplatzreduktion</h3>
-                        <span class="inline-style-105">Die letzten 15 Dateien</span>
-                    </div>
-                    
-                    <div id="dashboard-bar-chart" class="bar-chart-container">
-                        <!-- Bars dynamically loaded by JavaScript -->
-                    </div>
-                    
-                    <div class="inline-style-106">
-                        <div class="inline-style-107">
-                            <div class="inline-style-108"></div>
-                            Originalgröße
+                <!-- SECTION 2: WORK & STATE -->
+                <div class="dashboard-section" id="section-work-state">
+                    <h3 class="dashboard-section-title">Arbeit &amp; Zustand</h3>
+                    <div class="dashboard-grid" id="container-work-state">
+                        <!-- NAS Bibliotheks-Check -->
+                        <div class="card" id="widget-health" style="margin-top: 0;">
+                            <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity" style="display:inline-block; vertical-align:middle; color: var(--accent);"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+                                    <h3 style="margin:0;">NAS Bibliotheks-Check</h3>
+                                </div>
+                                <div style="display:flex; gap:8px;">
+                                    <button class="btn btn-secondary btn-sm" id="btn-health-scan"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Scan starten</button>
+                                    <button class="btn btn-danger btn-sm" id="btn-health-cancel" style="display:none;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><rect width="18" height="18" x="3" y="3" rx="2"/></svg> Abbrechen</button>
+                                </div>
+                            </div>
+                            <div style="margin-top:12px; display:flex; align-items:center; gap:8px;">
+                                <label class="checkbox-container" for="health-option-deep" style="font-size:0.9em; color:var(--text-muted); margin:0;">
+                                    <input type="checkbox" id="health-option-deep">
+                                    <span class="checkmark"></span> Tiefgehender Scan (erzwingt vollständige Überprüfung aller Dateien)
+                                </label>
+                            </div>
+                            <div style="margin-top:12px; display:flex; flex-direction:column; gap:6px;">
+                                <span style="font-size:0.85em; color:var(--text-muted); font-weight:500; display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="color: var(--accent);"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>Zu prüfende Kategorien:</span>
+                                <div id="health-categories-container" style="display:flex; flex-wrap:wrap; gap:12px; margin-top:4px;">
+                                    <!-- Checkboxen werden dynamisch via JavaScript geladen -->
+                                    <span style="font-size:0.85em; color:var(--text-muted); font-style:italic;">Lade Kategorien...</span>
+                                </div>
+                            </div>
+                            <div id="health-scan-status" class="text-muted" style="margin-top:12px;">Noch kein Scan durchgeführt.</div>
+                            <div id="health-progress-wrap" style="display:none; margin-top:10px;">
+                                <div style="height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+                                    <div id="health-progress-bar" style="width:0%; height:100%; background:var(--accent); transition:width 0.3s;"></div>
+                                </div>
+                            </div>
+                            <div id="health-stats" class="text-muted" style="margin-top:8px; font-size:0.85em; display:none;"></div>
+                            <div id="health-summary" style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;"></div>
+                            <div id="health-issues" style="margin-top:14px; display:flex; flex-direction:column; gap:8px;"></div>
                         </div>
-                        <div class="inline-style-107">
-                            <div class="inline-style-109"></div>
-                            Zielgröße (Nachher)
+
+                        <!-- NAS-weite Duplikat-Erkennung -->
+                        <div class="card" id="widget-duplicates" style="margin-top: 0;">
+                            <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy" style="display:inline-block; vertical-align:middle; color: var(--accent);"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1 0 2 .9 2 2"/></svg></span>
+                                    <h3 style="margin:0;">Duplikat-Erkennung</h3>
+                                </div>
+                                <button class="btn btn-secondary btn-sm" id="btn-duplicate-scan"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Scan starten</button>
+                            </div>
+                            <p class="text-muted" style="margin:6px 0 0; font-size:0.8em;">Durchsucht doppelte Serien-Episoden auf dem NAS (Speicherziel 1). Speicherziel 2 (pCloud) wird als Cloud-Remote nicht einbezogen.</p>
+                            <div id="duplicate-scan-status" class="text-muted" style="margin-top:12px;">Noch kein Scan durchgeführt.</div>
+                            <div id="duplicate-progress-wrap" style="display:none; margin-top:10px;">
+                                <div style="height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+                                    <div id="duplicate-progress-bar" style="width:0%; height:100%; background:var(--accent); transition:width 0.3s;"></div>
+                                </div>
+                            </div>
+                            <div id="duplicate-summary" style="margin-top:14px;"></div>
+                            <div id="duplicate-groups" style="margin-top:14px; display:flex; flex-direction:column; gap:10px;"></div>
                         </div>
                     </div>
                 </div>
 
-                <!-- TABLE OF RECENT CONVERSIONS -->
-                <div class="card inline-style-60" >
-                    <h3>Detailliertes Konvertierungsprotokoll</h3>
-                    <p class="section-desc mb-15" >Chronologische Liste aller durchgeführten Videokomprimierungen.</p>
-                    
-                    <div class="inline-style-110">
-                        <table class="files-table inline-style-111" >
-                            <thead>
-                                <tr>
-                                    <th scope="col" class="inline-style-112">Datum</th>
-                                    <th scope="col" class="inline-style-112">Codec/Qualität</th>
-                                    <th scope="col" class="inline-style-112">Größe Vorher</th>
-                                    <th scope="col" class="inline-style-112">Größe Nachher</th>
-                                    <th scope="col" class="inline-style-112">Ersparnis</th>
-                                    <th scope="col" class="inline-style-112">Verhältnis</th>
-                                </tr>
-                            </thead>
-                            <tbody id="dashboard-history-tbody">
-                                <tr>
-                                    <td colspan="6" class="text-center inline-style-113" >
-                                        Keine Verlaufsdaten vorhanden.
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                <!-- SECTION 3: HISTORY & STATS -->
+                <div class="dashboard-section" id="section-history-stats">
+                    <h3 class="dashboard-section-title">Verlauf &amp; Statistik</h3>
+                    <div class="dashboard-grid">
+                        <!-- HISTORISCHE ENTWICKLUNG (BAR CHART) -->
+                        <div class="card inline-style-60" id="widget-chart" style="margin-bottom: 0;">
+                            <div class="card-header-actions inline-style-103" >
+                                <h3 class="inline-style-104" style="margin-top: 0;">Letzte Konvertierungen &amp; Speicherplatzreduktion</h3>
+                                <span class="inline-style-105">Die letzten 15 Dateien</span>
+                            </div>
+
+                            <div id="dashboard-bar-chart" class="bar-chart-container">
+                                <!-- Bars dynamically loaded by JavaScript -->
+                            </div>
+
+                            <div class="inline-style-106">
+                                <div class="inline-style-107">
+                                    <div class="inline-style-108"></div>
+                                    Originalgröße
+                                </div>
+                                <div class="inline-style-107">
+                                    <div class="inline-style-109"></div>
+                                    Zielgröße (Nachher)
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TABLE OF RECENT CONVERSIONS -->
+                        <div class="card inline-style-60" id="widget-history" style="margin-bottom: 0;">
+                            <h3 style="margin-top: 0;">Detailliertes Konvertierungsprotokoll</h3>
+                            <p class="section-desc mb-15" >Chronologische Liste aller durchgeführten Videokomprimierungen.</p>
+
+                            <div class="inline-style-110">
+                                <table class="files-table inline-style-111" >
+                                    <thead>
+                                        <tr>
+                                            <th scope="col" class="inline-style-112">Datum</th>
+                                            <th scope="col" class="inline-style-112">Codec/Qualität</th>
+                                            <th scope="col" class="inline-style-112">Größe Vorher</th>
+                                            <th scope="col" class="inline-style-112">Größe Nachher</th>
+                                            <th scope="col" class="inline-style-112">Ersparnis</th>
+                                            <th scope="col" class="inline-style-112">Verhältnis</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dashboard-history-tbody">
+                                        <tr>
+                                            <td colspan="6" class="text-center inline-style-113" >
+                                                Keine Verlaufsdaten vorhanden.
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 4: LIBRARY & QUALITY -->
+                <div class="dashboard-section" id="section-library-quality">
+                    <h3 class="dashboard-section-title">Bibliothek &amp; Qualität</h3>
+                    <div class="dashboard-grid" id="container-library-quality">
+                        <!-- Filme normalisieren -->
+                        <div class="card" id="widget-normalize" style="margin-top: 0;">
+                            <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film" style="display:inline-block; vertical-align:middle; color: var(--accent);"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 17h4"/><path d="M17 17h3"/><path d="M17 7h3"/><path d="M3 12h18"/></svg></span>
+                                    <h3 style="margin:0;">Filme normalisieren</h3>
+                                </div>
+                                <button class="btn btn-secondary btn-sm" id="btn-normalize-preview"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Vorschau</button>
+                            </div>
+                            <p class="text-muted" style="margin:6px 0 0; font-size:0.8em;">Stellt die Zielstruktur her: löst Genre-Ordner auf (Filme/Genre/Film → Filme/Film) und packt lose Dateien in eigene Ordner. Verschiebt nichts ohne deine Bestätigung.</p>
+                            <div id="normalize-status" class="text-muted" style="margin-top:12px;">Noch keine Vorschau erstellt.</div>
+                            <div id="normalize-plan" style="margin-top:14px; display:flex; flex-direction:column; gap:6px;"></div>
+                            <div id="normalize-apply-wrap" style="display:none; margin-top:14px;">
+                                <button class="btn btn-primary btn-sm" id="btn-normalize-apply"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg> Ausgewählte anwenden</button>
+                            </div>
+                        </div>
+
+                        <!-- Angleichung an Metadatendienst (NAS-Renaming-Tool) -->
+                        <div class="card" id="widget-nas-renamer" style="margin-top: 0; display: none;">
+                            <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tag" style="vertical-align:middle;"><path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.29-7.29a1 1 0 0 0 0-1.41L12 2z"/><path d="m5 5 .01-.01"/></svg></span>
+                                    <h3 style="margin:0;">NAS-Renaming-Tool</h3>
+                                </div>
+                            </div>
+                            <p class="text-muted" style="margin:6px 0 16px; font-size:0.85em;">Vergleicht einen vorhandenen Serienordner auf dem NAS mit dem Metadatendienst (TMDB/TVDB) und benennt die Dateien einheitlich um.</p>
+
+                            <div class="form-group" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+                                <div style="flex: 1; min-width: 200px;">
+                                    <label for="renamer-nas-destination">Zielordner (NAS):</label>
+                                    <select id="renamer-nas-destination" class="form-select" style="width: 100%;">
+                                        <!-- Populate via JS -->
+                                    </select>
+                                </div>
+                                <div style="flex: 2; min-width: 250px; position: relative;">
+                                    <label for="renamer-nas-folder" style="display: flex; justify-content: space-between;">
+                                        Serienordner auf NAS:
+                                        <button class="btn btn-secondary btn-xs" id="btn-load-renamer-series" type="button">NAS laden</button>
+                                    </label>
+                                    <input type="text" id="renamer-nas-folder" placeholder="Ordnername (z.B. The Walking Dead)" autocomplete="off" style="width: 100%;">
+                                    <div id="renamer-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
+                                </div>
+                                <button class="btn btn-primary" id="btn-renamer-preview" style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="height: 14px; width: 14px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>Ordner scannen &amp; Preview anzeigen</button>
+                            </div>
+
+                            <div id="renamer-status" class="text-muted" style="margin-top:12px;"></div>
+
+                            <!-- Table for Preview -->
+                            <div id="renamer-preview-container" class="hidden" style="margin-top: 16px; border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden;">
+                                <div style="padding: 10px; background: var(--bg-surface-2); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-light);">
+                                    <strong>Vorschau der Änderungen</strong>
+                                    <div style="display: flex; gap: 10px;">
+                                        <button class="btn btn-secondary btn-sm" id="btn-renamer-select-all">Alle auswählen</button>
+                                        <button class="btn btn-secondary btn-sm" id="btn-renamer-deselect-all">Alle abwählen</button>
+                                    </div>
+                                </div>
+                                <div style="max-height: 400px; overflow-y: auto;">
+                                    <table class="files-table" style="width: 100%; border-collapse: collapse;">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 40px; text-align: center;">✓</th>
+                                                <th style="width: 120px;">Status</th>
+                                                <th style="width: 60px;">S / E</th>
+                                                <th>Aktueller Pfad</th>
+                                                <th>Vorgeschlagener Pfad</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="renamer-preview-tbody">
+                                            <!-- Populated via JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div style="padding: 15px; background: var(--bg-surface-2); border-top: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
+                                    <span id="renamer-selected-count" class="text-muted">0 Dateien ausgewählt</span>
+                                    <button class="btn btn-accent" id="btn-renamer-apply" disabled><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg> Ausgewählte umbenennen</button>
+                                </div>
+                            </div>
+
+                            <div id="renamer-rollback-container" style="margin-top: 16px; padding: 12px; background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px; display: none;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <strong style="color: var(--danger);">Letzte Umbenennung rückgängig machen</strong>
+                                        <div style="font-size: 0.85em; color: var(--text-muted);" id="renamer-last-transaction-info">Transaktions-ID: -</div>
+                                    </div>
+                                    <button class="btn btn-danger btn-sm" id="btn-renamer-rollback"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-undo-2" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg> Rollback ausführen</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1091,150 +1331,6 @@
                         </button>
                     </div>
                 </div>
-
-                <!-- Feature 3: NAS Bibliotheks-Check -->
-                <div class="card" id="dashboard-health">
-                    <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity" style="display:inline-block; vertical-align:middle; color: var(--accent);"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
-                            <h3 style="margin:0;">NAS Bibliotheks-Check</h3>
-                        </div>
-                        <div style="display:flex; gap:8px;">
-                            <button class="btn btn-secondary btn-sm" id="btn-health-scan"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Scan starten</button>
-                            <button class="btn btn-danger btn-sm" id="btn-health-cancel" style="display:none;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><rect width="18" height="18" x="3" y="3" rx="2"/></svg> Abbrechen</button>
-                        </div>
-                    </div>
-                    <div style="margin-top:12px; display:flex; align-items:center; gap:8px;">
-                        <label class="checkbox-container" for="health-option-deep" style="font-size:0.9em; color:var(--text-muted); margin:0;">
-                            <input type="checkbox" id="health-option-deep">
-                            <span class="checkmark"></span> Tiefgehender Scan (erzwingt vollständige Überprüfung aller Dateien)
-                        </label>
-                    </div>
-                    <div style="margin-top:12px; display:flex; flex-direction:column; gap:6px;">
-                        <span style="font-size:0.85em; color:var(--text-muted); font-weight:500; display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="color: var(--accent);"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>Zu prüfende Kategorien:</span>
-                        <div id="health-categories-container" style="display:flex; flex-wrap:wrap; gap:12px; margin-top:4px;">
-                            <!-- Checkboxen werden dynamisch via JavaScript geladen -->
-                            <span style="font-size:0.85em; color:var(--text-muted); font-style:italic;">Lade Kategorien...</span>
-                        </div>
-                    </div>
-                    <div id="health-scan-status" class="text-muted" style="margin-top:12px;">Noch kein Scan durchgeführt.</div>
-                    <div id="health-progress-wrap" style="display:none; margin-top:10px;">
-                        <div style="height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
-                            <div id="health-progress-bar" style="width:0%; height:100%; background:var(--accent); transition:width 0.3s;"></div>
-                        </div>
-                    </div>
-                    <div id="health-stats" class="text-muted" style="margin-top:8px; font-size:0.85em; display:none;"></div>
-                    <div id="health-summary" style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;"></div>
-                    <div id="health-issues" style="margin-top:14px; display:flex; flex-direction:column; gap:8px;"></div>
-                </div>
-
-                <!-- Feature 4: NAS-weite Duplikat-Erkennung -->
-                <div class="card" id="dashboard-duplicates" style="margin-top: 24px;">
-                    <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy" style="display:inline-block; vertical-align:middle; color: var(--accent);"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1 0 2 .9 2 2"/></svg></span>
-                            <h3 style="margin:0;">Duplikat-Erkennung</h3>
-                        </div>
-                        <button class="btn btn-secondary btn-sm" id="btn-duplicate-scan"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Scan starten</button>
-                    </div>
-                    <p class="text-muted" style="margin:6px 0 0; font-size:0.8em;">Durchsucht doppelte Serien-Episoden auf dem NAS (Speicherziel 1). Speicherziel 2 (pCloud) wird als Cloud-Remote nicht einbezogen.</p>
-                    <div id="duplicate-scan-status" class="text-muted" style="margin-top:12px;">Noch kein Scan durchgeführt.</div>
-                    <div id="duplicate-progress-wrap" style="display:none; margin-top:10px;">
-                        <div style="height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
-                            <div id="duplicate-progress-bar" style="width:0%; height:100%; background:var(--accent); transition:width 0.3s;"></div>
-                        </div>
-                    </div>
-                    <div id="duplicate-summary" style="margin-top:14px;"></div>
-                    <div id="duplicate-groups" style="margin-top:14px; display:flex; flex-direction:column; gap:10px;"></div>
-                </div>
-
-                <!-- Filme normalisieren: Genre-Ordner auflösen + lose Dateien einsammeln -->
-                <div class="card" id="dashboard-normalize" style="margin-top: 24px;">
-                    <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film" style="display:inline-block; vertical-align:middle; color: var(--accent);"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 17h4"/><path d="M17 17h3"/><path d="M17 7h3"/><path d="M3 12h18"/></svg></span>
-                            <h3 style="margin:0;">Filme normalisieren</h3>
-                        </div>
-                        <button class="btn btn-secondary btn-sm" id="btn-normalize-preview"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Vorschau</button>
-                    </div>
-                    <p class="text-muted" style="margin:6px 0 0; font-size:0.8em;">Stellt die Zielstruktur her: löst Genre-Ordner auf (Filme/Genre/Film → Filme/Film) und packt lose Dateien in eigene Ordner. Verschiebt nichts ohne deine Bestätigung.</p>
-                    <div id="normalize-status" class="text-muted" style="margin-top:12px;">Noch keine Vorschau erstellt.</div>
-                    <div id="normalize-plan" style="margin-top:14px; display:flex; flex-direction:column; gap:6px;"></div>
-                    <div id="normalize-apply-wrap" style="display:none; margin-top:14px;">
-                        <button class="btn btn-primary btn-sm" id="btn-normalize-apply"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg> Ausgewählte anwenden</button>
-                    </div>
-                </div>
-                <!-- Angleichung an Metadatendienst (NAS-Renaming-Tool) -->
-                <div class="card" id="dashboard-nas-renamer" style="margin-top: 24px; display: none;">
-                    <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tag" style="vertical-align:middle;"><path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.29-7.29a1 1 0 0 0 0-1.41L12 2z"/><path d="m5 5 .01-.01"/></svg></span>
-                            <h3 style="margin:0;">NAS-Renaming-Tool</h3>
-                        </div>
-                    </div>
-                    <p class="text-muted" style="margin:6px 0 16px; font-size:0.85em;">Vergleicht einen vorhandenen Serienordner auf dem NAS mit dem Metadatendienst (TMDB/TVDB) und benennt die Dateien einheitlich um.</p>
-                    
-                    <div class="form-group" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
-                        <div style="flex: 1; min-width: 200px;">
-                            <label for="renamer-nas-destination">Zielordner (NAS):</label>
-                            <select id="renamer-nas-destination" class="form-select" style="width: 100%;">
-                                <!-- Populate via JS -->
-                            </select>
-                        </div>
-                        <div style="flex: 2; min-width: 250px; position: relative;">
-                            <label for="renamer-nas-folder" style="display: flex; justify-content: space-between;">
-                                Serienordner auf NAS:
-                                <button class="btn btn-secondary btn-xs" id="btn-load-renamer-series" type="button">NAS laden</button>
-                            </label>
-                            <input type="text" id="renamer-nas-folder" placeholder="Ordnername (z.B. The Walking Dead)" autocomplete="off" style="width: 100%;">
-                            <div id="renamer-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
-                        </div>
-                        <button class="btn btn-primary" id="btn-renamer-preview" style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="height: 14px; width: 14px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>Ordner scannen & Preview anzeigen</button>
-                    </div>
-                    
-                    <div id="renamer-status" class="text-muted" style="margin-top:12px;"></div>
-                    
-                    <!-- Table for Preview -->
-                    <div id="renamer-preview-container" class="hidden" style="margin-top: 16px; border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden;">
-                        <div style="padding: 10px; background: var(--bg-surface-2); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-light);">
-                            <strong>Vorschau der Änderungen</strong>
-                            <div style="display: flex; gap: 10px;">
-                                <button class="btn btn-secondary btn-sm" id="btn-renamer-select-all">Alle auswählen</button>
-                                <button class="btn btn-secondary btn-sm" id="btn-renamer-deselect-all">Alle abwählen</button>
-                            </div>
-                        </div>
-                        <div style="max-height: 400px; overflow-y: auto;">
-                            <table class="files-table" style="width: 100%; border-collapse: collapse;">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 40px; text-align: center;">✓</th>
-                                        <th style="width: 120px;">Status</th>
-                                        <th style="width: 60px;">S / E</th>
-                                        <th>Aktueller Pfad</th>
-                                        <th>Vorgeschlagener Pfad</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="renamer-preview-tbody">
-                                    <!-- Populated via JS -->
-                                </tbody>
-                            </table>
-                        </div>
-                        <div style="padding: 15px; background: var(--bg-surface-2); border-top: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
-                            <span id="renamer-selected-count" class="text-muted">0 Dateien ausgewählt</span>
-                            <button class="btn btn-accent" id="btn-renamer-apply" disabled><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg> Ausgewählte umbenennen</button>
-                        </div>
-                    </div>
-                    
-                    <div id="renamer-rollback-container" style="margin-top: 16px; padding: 12px; background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px; display: none;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <strong style="color: var(--danger);">Letzte Umbenennung rückgängig machen</strong>
-                                <div style="font-size: 0.85em; color: var(--text-muted);" id="renamer-last-transaction-info">Transaktions-ID: -</div>
-                            </div>
-                            <button class="btn btn-danger btn-sm" id="btn-renamer-rollback"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-undo-2" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg> Rollback ausführen</button>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <!-- STATE: SETTINGS DASHBOARD -->
@@ -1243,7 +1339,7 @@
                     <div class="inline-style-61"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="color: var(--accent);"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></div>
                     <h2>Einstellungen</h2>
                     <p class="section-desc mb-20" id="settings-tab-desc">Passe die globalen Pfade für das Medienwerkzeug an. Diese Werte werden für das Importieren und Verschieben verwendet.</p>
-                    
+
                     <!-- Sub-Tabs Navigation -->
                     <div class="settings-tabs-nav">
                         <button class="settings-tab-btn active" data-settings-tab="tab-paths">Lokale Arbeitsordner</button>
@@ -1369,7 +1465,7 @@
                         <div class="form-group" style="margin-bottom: 20px;">
                             <span class="form-label-style">Hardware-Encoding Diagnose:</span>
                             <p style="font-size: 0.9em; color: var(--text-muted); margin-bottom: 10px;">Überprüft die Verfügbarkeit von VAAPI Hardware-Beschleunigung im aktuellen System.</p>
-                            
+
                             <div id="hardware-diagnostics-container" style="background: var(--bg-surface-2); border: 1px solid var(--border-light); border-radius: 6px; padding: 15px; margin-top: 10px;">
                                 <div style="display: flex; flex-direction: column; gap: 8px;" id="hardware-diagnostics-list">
                                     <div style="display: flex; align-items: center; gap: 10px;">
@@ -1453,7 +1549,7 @@
                                         <span class="inline-style-134">GB</span>
                                     </div>
                                 </div>
-                                
+
                                 <!-- Telegram -->
                                 <div class="inline-style-135">
                                     <div class="inline-style-136">
@@ -1478,7 +1574,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <!-- WhatsApp -->
                                 <div class="inline-style-135">
                                     <div class="inline-style-136">
@@ -1503,7 +1599,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <div class="inline-style-140">
                                     <label class="checkbox-container inline-style-34" for="settings-notify-only-end" >
                                         <input type="checkbox" id="settings-notify-only-end" checked>
@@ -1636,14 +1732,14 @@
                         <div class="form-group inline-style-120" id="settings-group-system-update">
                             <span class="form-label-style">System-Update:</span>
                             <p class="inline-style-121">Prüfe, ob eine Aktualisierung für die Medienwerkzeug-App bzw. das Docker-Image verfügbar ist.</p>
-                            
+
                             <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
                                 <button id="btn-check-app-update" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 6px;">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="height: 12px; width: 12px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>Auf Aktualisierung prüfen
                                 </button>
                                 <span id="app-update-status-badge" class="badge" style="display: none; padding: 4px 8px; border-radius: 4px; font-weight: 500; font-size: 0.85em;"></span>
                             </div>
-                            
+
                             <div id="app-update-details-area" style="display: none; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 15px; border-radius: 8px; font-size: 0.9em; line-height: 1.5; margin-bottom: 10px;">
                                 <div style="display: grid; grid-template-columns: 140px 1fr; gap: 8px;">
                                     <span style="color: var(--text-muted);">Installierte Version:</span>
@@ -1661,7 +1757,7 @@
                         <div class="form-group inline-style-120" >
                             <span class="form-label-style">Entwickler-Diagnose / Interne Tools:</span>
                             <p class="inline-style-121">Übersicht der internen System-Tools. (Bei Docker-Laufzeit sind diese fest im Image verbaut und werden über Container-Updates aktualisiert).</p>
-                            
+
                             <div class="inline-style-142">
                                 <label for="settings-check-dependency-updates" class="inline-style-82">
                                     <input type="checkbox" id="settings-check-dependency-updates" class="inline-style-81">
@@ -1671,7 +1767,7 @@
                                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="height: 12px; width: 12px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>Jetzt prüfen
                                 </button>
                             </div>
-                            
+
                             <!-- Status Grid Container -->
                             <div id="dependency-status-list" class="dependency-status-grid inline-style-144" >
                                 <!-- Dynamically populated -->
@@ -1742,7 +1838,7 @@
                 <div class="card" id="yt-input-card">
                     <h2>Video-Downloader</h2>
                     <p class="section-desc">Berechtigte YouTube- oder Mediathek-Inhalte verarbeiten, schneiden und automatisch taggen.</p>
-                    
+
                     <div class="form-group inline-style-47" >
                         <label for="yt-url">Video- oder Playlist-URL:</label>
                         <div class="search-input-group inline-style-22" >
@@ -1762,7 +1858,7 @@
                         <h3>Video Info</h3>
                         <div id="yt-video-info-preview"></div>
                         <hr class="inline-style-151">
-                        
+
                         <div id="yt-tagging-section">
                             <h3>Tagging Modus</h3>
                             <div class="form-group">
@@ -1927,7 +2023,7 @@
                     <p class="inline-style-168">
                         Wähle die berechtigten Teile aus, die du verarbeiten und zusammenfügen möchtest. Du kannst die Reihenfolge anpassen. Die Videos werden verlustfrei über den FFmpeg <code>concat</code>-Demuxer verschmolzen.
                     </p>
-                    
+
                     <div class="inline-style-169">
                         <strong>Suchbegriff für YouTube:</strong> <span id="yt-merge-query" class="inline-style-170"></span>
                     </div>
@@ -1936,7 +2032,7 @@
                     <div id="yt-merge-list" class="inline-style-172">
                         <!-- Dynamisch befüllt -->
                     </div>
-                    
+
                     <div class="mb-20">
                         <label class="inline-style-173">Name für die fertige Datei (ohne Endung):</label>
                         <input type="text" id="yt-merge-title" class="inline-style-40" placeholder="z.B. Die große Doku">
@@ -1969,7 +2065,7 @@
                             <select id="yt-merge-local-destination" class="form-select inline-style-40" ></select>
                         </div>
                     </div>
-                    
+
                     <div class="inline-style-176">
                         <button class="btn btn-secondary" id="btn-cancel-yt-merge">Abbrechen</button>
                         <button class="btn btn-accent" id="btn-start-yt-merge">Teile zusammenfügen & laden</button>
@@ -1987,7 +2083,7 @@
                     <p class="inline-style-178">
                         Die Episode existiert bereits auf dem NAS. Vergleiche die Eigenschaften unten, um zu entscheiden, ob du die existierende Datei mit der neuen, möglicherweise besseren Version ersetzen (Upgrade) oder beide Versionen behalten möchtest.
                     </p>
-                    
+
                     <div class="grid-2col inline-style-60" >
                         <!-- Neue Datei (Links) -->
                         <div class="inline-style-179">
@@ -2000,7 +2096,7 @@
                             <div class="inline-style-182"><strong>Bitrate:</strong> <span id="dup-new-bitrate">-</span></div>
                             <div class="inline-style-182"><strong>Dauer:</strong> <span id="dup-new-duration">-</span></div>
                         </div>
-                        
+
                         <!-- Existierende Datei (Rechts) -->
                         <div class="inline-style-183">
                             <h3 class="inline-style-184" style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-server" style="height: 16px; width: 16px; color: var(--accent);"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>Auf NAS vorhanden</h3>
@@ -2019,7 +2115,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Storage Targets Help Modal -->
             <div class="modal-overlay hidden inline-style-185" id="storage-help-modal" >
                 <div class="modal-card inline-style-186" >
@@ -2060,7 +2156,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Docker Folder View Modal -->
             <div class="modal-overlay hidden" id="modal-docker-folder-view" style="z-index: 10000; display: flex; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);">
                 <div class="modal-card" style="width: 800px; max-width: 95vw; max-height: 85vh; display: flex; flex-direction: column; background: var(--bg-card); border-radius: var(--radius-md); box-shadow: 0 10px 40px rgba(0,0,0,0.5); overflow: hidden;">
@@ -2071,12 +2167,12 @@
                         </h2>
                         <button id="btn-close-docker-folder-view" style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; padding: 0 5px;">&times;</button>
                     </div>
-                    
+
                     <div style="padding: 15px 20px; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
                         <div style="font-family: monospace; font-size: 0.85rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;" id="docker-folder-view-path" title="Pfad"></div>
                         <button class="btn btn-sm btn-secondary" id="btn-docker-folder-copy-path" style="white-space: nowrap;">📋 Pfad kopieren</button>
                     </div>
-                    
+
                     <div style="flex: 1; overflow-y: auto; padding: 0;">
                         <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
                             <thead style="position: sticky; top: 0; background: var(--bg-card); box-shadow: 0 1px 0 var(--border-color);">
@@ -2101,13 +2197,13 @@
                             Fehler beim Laden.
                         </div>
                     </div>
-                    
+
                     <div style="padding: 15px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; background: rgba(255,255,255,0.02);">
                         <button class="btn btn-secondary" id="btn-docker-folder-view-ok">Schließen</button>
                     </div>
                 </div>
             </div>
-            
+
             <!-- STATE: YOUTUBE ABOS -->
             <div id="view-youtube-abos" class="view-panel hidden">
                 <div class="card inline-style-60" >
@@ -2275,7 +2371,7 @@ group_add:
                     </div>
                 </div>
             </div>
-            
+
         </main>
     </div>
 
@@ -2317,22 +2413,22 @@ group_add:
 <!-- Preview Modal Overlay -->
 <div id="preview-modal-overlay" class="hidden inline-style-219" >
     <div id="preview-modal" class="inline-style-220">
-        
+
         <!-- Header -->
         <div class="inline-style-221">
             <h2 class="inline-style-222"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye" style="display:inline-block; vertical-align:middle; margin-right: 6px;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> Vorschau & Bereinigung</h2>
             <button id="btn-preview-close" class="btn inline-style-223"  aria-label="Vorschau schließen">&times;</button>
         </div>
-        
+
         <!-- Body -->
         <div class="inline-style-224">
-            
+
             <!-- Warning Box for Season Year Numbers -->
             <div id="preview-season-warning" class="hidden inline-style-225" >
                 <span class="inline-style-226" style="display: inline-flex; align-items: center;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="color:var(--warning);"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg></span>
                 <div class="inline-style-227" id="preview-season-warning-text"></div>
             </div>
-            
+
             <!-- Warning Box for Show Name Mismatch -->
             <div id="preview-show-name-mismatch" class="hidden" style="display: flex; gap: 12px; background: rgba(255, 179, 0, 0.08); border: 1px solid rgba(255, 179, 0, 0.25); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 20px; align-items: center; color: var(--text-main); font-size: 13px;">
                 <span style="flex-shrink: 0; display: inline-flex; align-items: center;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="color:#ffb300;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg></span>
@@ -2345,7 +2441,7 @@ group_add:
                     </div>
                 </div>
             </div>
-            
+
             <!-- Zielpfad -->
             <div class="inline-style-228">
                 <div class="inline-style-229">Zielverzeichnis (NAS/pCloud)</div>
@@ -2382,7 +2478,7 @@ group_add:
             </div>
 
         </div>
-        
+
         <!-- Footer -->
         <div class="inline-style-239">
             <button id="btn-preview-cancel" class="btn btn-secondary inline-style-240" >Abbrechen</button>
@@ -2425,7 +2521,7 @@ group_add:
             <h2 class="inline-style-246"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2" style="display:inline-block; vertical-align:middle; margin-right: 6px;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>Medienpfade bereinigen</h2>
             <button id="btn-paths-clean-close" class="btn inline-style-223"  aria-label="Medienpfade bereinigen schließen">&times;</button>
         </div>
-        
+
         <!-- Phase 1: Selector -->
         <div id="paths-clean-phase-select" class="inline-style-247">
             <p class="inline-style-248">Wähle die Medienpfade aus, die gescannt und bereinigt werden sollen:</p>
@@ -2448,13 +2544,13 @@ group_add:
                 <button id="btn-paths-clean-scan" class="btn btn-accent inline-style-255" ><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 6px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>Scan starten</button>
             </div>
         </div>
-        
+
         <!-- Phase 2: Preview -->
         <div id="paths-clean-phase-preview" class="hidden inline-style-217" >
             <div class="inline-style-43">
                 <p class="inline-style-256">Wähle die Dateien aus, die du in Quarantäne verschieben möchtest. Leere Unterordner werden automatisch entfernt.</p>
             </div>
-            
+
             <!-- Quick Selection Controls -->
             <div class="inline-style-257">
                 <span class="inline-style-258">Auswahl:</span>
@@ -2462,17 +2558,17 @@ group_add:
                 <button id="btn-paths-clean-select-none" class="btn btn-secondary btn-sm inline-style-259" >Keine</button>
                 <button id="btn-paths-clean-select-junk" class="btn btn-secondary btn-sm inline-style-259" >Nur Junk</button>
             </div>
-            
+
             <!-- File List Container -->
             <div id="paths-clean-list" class="inline-style-260">
             </div>
-            
+
             <!-- Deletion Warning and Action Buttons -->
             <div class="inline-style-261">
                 <span style="display: inline-flex; align-items: center;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="color:var(--warning);"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg></span>
                 <span>Die ausgewählten Dateien werden in Quarantäne verschoben. Leere Unterordner werden ebenfalls bereinigt.</span>
             </div>
-            
+
             <!-- Footer Actions for Phase 2 -->
             <div class="inline-style-262">
                 <button id="btn-paths-clean-back" class="btn btn-secondary inline-style-240" >Zurück</button>
@@ -2500,14 +2596,14 @@ group_add:
             <p class="inline-style-243">
                 Wähle die Kategorie und die Speicherziele aus, auf die das Projekt kopiert werden soll.
             </p>
-            
+
             <div class="form-group mb-20" >
                 <label for="sync-select-category" class="inline-style-63">Kategorie wählen:</label>
                 <select id="sync-select-category" class="inline-style-265">
                     <!-- Filled dynamically -->
                 </select>
             </div>
-            
+
             <div class="form-group mb-20" >
                 <label class="inline-style-266">Speicherziele aktivieren:</label>
                 <div class="inline-style-156" id="sync-targets-list">
@@ -2539,12 +2635,12 @@ group_add:
             <div style="margin-bottom: 18px;">
                 <p id="confirm-merge-text" style="color: var(--text-muted); font-size: 0.875rem; line-height: 1.45; margin: 0;"></p>
             </div>
-            
+
             <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 20px; font-size: 0.815rem; color: var(--text-muted); width: fit-content; user-select: none;">
                 <input type="checkbox" id="confirm-merge-skip-cb" style="accent-color: var(--accent); cursor: pointer; width: 14px; height: 14px;">
                 <span>Zukünftig nicht mehr fragen (immer zusammenführen)</span>
             </label>
-            
+
             <div style="display: flex; justify-content: flex-end; gap: 10px;">
                 <button id="btn-cancel-merge" class="btn btn-secondary" style="font-size: 0.815rem; padding: 6px 12px; border-radius: 4px;">Abbrechen</button>
                 <button id="btn-confirm-merge-execute" class="btn btn-primary" style="font-size: 0.815rem; padding: 6px 16px; border-radius: 4px;">Ja, zusammenführen</button>
@@ -2576,9 +2672,9 @@ group_add:
                 <h3 id="tool-modal-title" style="margin: 0; color: var(--text-main);">Werkzeug ausführen</h3>
                 <span class="close-modal" id="close-modal-tool-runner" style="cursor: pointer; font-size: 1.5em;">&times;</span>
             </div>
-            
+
             <p id="tool-modal-desc" class="text-muted" style="margin-top: 0; margin-bottom: 16px;">Bitte wähle den Zielordner für diese Aktion aus.</p>
-            
+
             <div id="tool-modal-path-container" class="form-group inline-style-62" style="margin-bottom: 16px;">
                 <label for="tool-modal-target-path" class="inline-style-63">Zielordner-Pfad:</label>
                 <div class="inline-style-64" style="margin-bottom: 8px;">
@@ -2591,12 +2687,12 @@ group_add:
                     <button id="btn-tool-modal-shortcut-outbox" class="btn btn-secondary btn-xs" type="button"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send" style="display:inline-block; vertical-align:middle; margin-right: 4px; height: 12px; width: 12px;"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Output-Ordner</button>
                 </div>
             </div>
-            
+
             <!-- Extra Options Container -->
             <div id="tool-modal-extra-options" style="margin-bottom: 16px; display: none;">
                 <!-- Dynamically injected via JS based on tool -->
             </div>
-            
+
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
                 <button id="btn-tool-modal-cancel" class="btn btn-secondary">Abbrechen</button>
                 <button id="btn-tool-modal-execute" class="btn btn-accent"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play" style="display:inline-block; vertical-align:middle; margin-right: 4px; height: 12px; width: 12px;"><polygon points="6 3 20 12 6 21 6 3"/></svg>Ausführen</button>
@@ -2611,13 +2707,13 @@ group_add:
                 <h3 style="margin: 0; color: var(--text-main);">Import-Vorschau</h3>
                 <span class="close-modal" id="close-modal-import-preview" style="cursor: pointer; font-size: 1.5em;" onclick="closeImportPreview()">&times;</span>
             </div>
-            
+
             <p class="text-muted" style="margin-top: 0; margin-bottom: 16px;">Wähle aus, welche Dateien aus deinen Import-Quellen in die Inbox verschoben werden sollen.</p>
-            
+
             <div id="import-preview-list" style="margin-bottom: 16px; max-height: 60vh; overflow-y: auto; background: var(--bg-dark); padding: 10px; border-radius: 8px;">
                 <!-- Dynamically populated -->
             </div>
-            
+
             <div class="form-actions" style="display: flex; justify-content: flex-end; gap: 8px;">
                 <button class="btn btn-secondary" onclick="closeImportPreview()">Abbrechen</button>
                 <button class="btn btn-accent" id="btn-import-preview-confirm" onclick="confirmImportPreview()">Auswahl Importieren</button>
@@ -2632,24 +2728,24 @@ group_add:
                 <h3 id="modal-folder-picker-title" style="margin: 0; color: var(--text-main); display: flex; align-items: center; gap: 6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="color: var(--accent);"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg>Ordner auswählen</h3>
                 <span class="close-modal" style="cursor: pointer; font-size: 1.5em;" onclick="closeFolderPicker()">&times;</span>
             </div>
-            
+
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
                 <button id="folder-picker-up-btn" class="btn btn-secondary btn-sm" style="padding: 4px 8px; display: inline-flex; align-items: center; gap: 4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up" style="height: 12px; width: 12px;"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>Nach oben</button>
                 <span id="folder-picker-current-path" style="font-family: monospace; font-size: 0.85em; word-break: break-all; color: var(--text-muted); flex: 1;">/media</span>
             </div>
-            
+
             <div id="folder-picker-loading" class="text-center py-4" style="padding: 20px; display: none;">
                 <span class="loading-spinner"></span> Lade Ordner...
             </div>
-            
+
             <div id="folder-picker-error" class="alert alert-danger hidden" style="color: #ef4444; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); padding: 8px; border-radius: 4px; margin-bottom: 12px; font-size: 0.9em;"></div>
-            
+
             <div id="folder-picker-list-wrapper" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 6px; background: var(--bg-dark); margin-bottom: 16px;">
                 <ul id="folder-picker-list" style="list-style: none; padding: 0; margin: 0;">
                     <!-- Dynamically populated -->
                 </ul>
             </div>
-            
+
             <div class="form-actions" style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
                 <button class="btn btn-secondary" onclick="closeFolderPicker()">Abbrechen</button>
                 <button class="btn btn-accent" id="folder-picker-select-btn">Auswählen</button>
