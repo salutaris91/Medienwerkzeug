@@ -1221,20 +1221,20 @@ fetch('/api/system/capabilities')
                     if (label) label.style.display = 'none';
                 }
             }
-            
+
             // Hardware Encoding Diagnostics
             if (data.hardware_encoding_diagnostics) {
                 const diag = data.hardware_encoding_diagnostics;
                 const diagList = document.getElementById("hardware-diagnostics-list");
                 if (diagList) {
                     let html = '';
-                    
+
                     if (diag.dri_exists) {
                         html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator active" style="background-color: var(--success);"></span><span>Render-Geräte (/dev/dri/renderD*) gefunden.</span></div>';
                     } else {
                         html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator error" style="background-color: var(--danger);"></span><span>Keine Render-Geräte (/dev/dri/renderD*) gefunden.</span></div>';
                     }
-                    
+
                     if (diag.dri_exists) {
                         if (diag.dri_writable && diag.device_path) {
                             html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator active" style="background-color: var(--success);"></span><span>Lese-/Schreibzugriff auf ' + diag.device_path + ' erfolgreich.</span></div>';
@@ -1242,7 +1242,7 @@ fetch('/api/system/capabilities')
                             html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator error" style="background-color: var(--danger);"></span><span>Fehlende Rechte auf /dev/dri. Bitte "devices" und "group_add" im Docker-Compose prüfen!</span></div>';
                         }
                     }
-                    
+
                     if (diag.dri_writable) {
                         if (diag.vaapi_probe_success) {
                             html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator active" style="background-color: var(--success);"></span><span>VAAPI Hardware-Encoding Probe erfolgreich. HEVC-Beschleunigung ist einsatzbereit. <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="display:inline-block; vertical-align:middle; margin-left: 4px; color: var(--success);"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span></div>';
@@ -1250,10 +1250,10 @@ fetch('/api/system/capabilities')
                             html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator error" style="background-color: var(--danger);"></span><span>VAAPI Probe fehlgeschlagen. Möglicherweise falsche Treiber (i915 vs xe) oder nicht unterstützte Hardware.</span></div>';
                         }
                     }
-                    
+
                     diagList.innerHTML = html;
                 }
-                
+
                 const hwWarning = document.getElementById("hero-hw-warning");
                 if (hwWarning && data.runtime === 'docker' && (!diag.dri_writable || !diag.vaapi_probe_success)) {
                     const updateHwWarning = () => {
@@ -1265,12 +1265,12 @@ fetch('/api/system/capabilities')
                             hwWarning.style.display = 'none';
                         }
                     };
-                    
+
                     const movieConv = document.getElementById("movie-option-convert");
                     const seriesConv = document.getElementById("series-option-convert");
                     if (movieConv) movieConv.addEventListener("change", updateHwWarning);
                     if (seriesConv) seriesConv.addEventListener("change", updateHwWarning);
-                    
+
                     // Initial check
                     updateHwWarning();
                 }
@@ -6967,12 +6967,12 @@ function initEventListeners() {
         folderPickerCallback = onSelect;
         folderPickerRootLimit = rootLimit || "";
         folderPickerTarget = target;
-        
+
         let path = startPath || rootLimit || "/media";
         if (rootLimit && !path.startsWith(rootLimit)) {
             path = rootLimit;
         }
-        
+
         const titleEl = document.getElementById("modal-folder-picker-title");
         if (titleEl) {
             titleEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="display:inline-block; vertical-align:middle; margin-right: 6px; color: var(--accent);"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg>${escapeHTML(title || "Ordner auswählen")}`;
@@ -6985,7 +6985,7 @@ function initEventListeners() {
     async function loadFolderPickerDir(path) {
         folderPickerCurrentPath = path;
         document.getElementById("folder-picker-current-path").textContent = path;
-        
+
         const upBtn = document.getElementById("folder-picker-up-btn");
         if (upBtn) {
             if (path === folderPickerRootLimit || path === "/" || path === "") {
@@ -7040,7 +7040,7 @@ function initEventListeners() {
                     nameSpan.textContent = sub;
                     li.appendChild(iconSpan);
                     li.appendChild(nameSpan);
-                    
+
                     li.addEventListener("mouseenter", () => {
                         li.style.background = "rgba(255, 255, 255, 0.03)";
                     });
@@ -7665,7 +7665,7 @@ function initEventListeners() {
             if(!category) {
                 alert("Bitte wähle eine gültige Kategorie."); return;
             }
-            
+
             const copyToTargets = {};
             if (currentSettings.storage_targets) {
                 currentSettings.storage_targets.forEach(t => {
@@ -7807,7 +7807,7 @@ async function checkAppUpdate() {
 
     btn.disabled = true;
     btn.innerHTML = `<span style="display: inline-block; animation: spin 1s linear infinite; margin-right: 6px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-2" style="height:12px; width:12px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg></span> Prüfe...`;
-    
+
     badge.style.display = "none";
     detailsArea.style.display = "none";
     instructionBox.style.display = "none";
@@ -7816,11 +7816,11 @@ async function checkAppUpdate() {
         const response = await fetch('/api/update-status');
         if (response.ok) {
             const data = await response.json();
-            
+
             currentVal.textContent = data.current_version || "N/A";
             latestVal.textContent = data.latest_version || "N/A";
             detailsArea.style.display = "block";
-            
+
             if (data.update_check_available === false) {
                 badge.textContent = "Updates nicht konfiguriert";
                 badge.style.backgroundColor = "var(--text-muted)";
@@ -7831,7 +7831,7 @@ async function checkAppUpdate() {
                 badge.style.backgroundColor = "var(--warning)";
                 badge.style.color = "#000";
                 badge.style.display = "inline-block";
-                
+
                 if (data.recommended_command) {
                     commandVal.textContent = data.recommended_command;
                     instructionBox.style.display = "block";
@@ -8225,7 +8225,7 @@ async function loadSettings() {
             // Trash Settings
             setCheckbox("settings-trash-auto-empty", !!currentSettings.trash_auto_empty);
             setInputVal("settings-trash-retention-days", currentSettings.trash_retention_days !== undefined ? currentSettings.trash_retention_days : 7);
-            
+
             // Stats loading
             loadTrashStats();
 
@@ -8913,14 +8913,14 @@ function renderSyncCategories() {
             const targetWrapper = document.createElement("div");
             const isCloud = target.id === "pcloud" || target.type === "pcloud" || target.type === "cloud";
             const isNas = target.id === "nas" || target.type === "nas";
-            
+
             // Normalize rclone remote to avoid double colons
             let remotePrefix = "";
             if (isCloud) {
                 const rawRemote = target.rclone_remote || "pcloud";
                 remotePrefix = rawRemote.endsWith(":") ? rawRemote : rawRemote + ":";
             }
-            
+
             targetWrapper.style.flex = isCloud ? "1.5" : "1";
             targetWrapper.style.display = "flex";
             targetWrapper.style.gap = "5px";
@@ -9953,7 +9953,7 @@ function initQueue() {
         clearBtn.addEventListener("click", async () => {
             if (confirm("Möchtest du die Warteschlange wirklich leeren? (Laufende Aufgaben werden nicht abgebrochen)")) {
                 try {
-                    const res = await fetch("/api/queue/clear", { 
+                    const res = await fetch("/api/queue/clear", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({})
@@ -12562,7 +12562,7 @@ function openToolRunnerModal(toolType, title, desc, hasQualitySlider = false) {
                 </div>
             `;
             extraOpt.style.display = "block";
-            
+
             const catSelect = document.getElementById("tool-modal-sync-category");
             if (currentSettings && currentSettings.sync_categories) {
                 currentSettings.sync_categories.forEach(c => {
@@ -12572,28 +12572,28 @@ function openToolRunnerModal(toolType, title, desc, hasQualitySlider = false) {
                     catSelect.appendChild(opt);
                 });
             }
-            
+
             const targetsDiv = document.getElementById("tool-modal-sync-targets");
             if (currentSettings && currentSettings.storage_targets) {
                 currentSettings.storage_targets.forEach(t => {
                     if (t.enabled === false) return;
-                    
+
                     const label = document.createElement("label");
                     label.className = "checkbox-container";
-                    
+
                     const input = document.createElement("input");
                     input.type = "checkbox";
                     input.id = `tool-sync-target-${t.id}`;
                     input.value = t.id;
                     input.checked = true;
-                    
+
                     const span = document.createElement("span");
                     span.className = "checkmark";
-                    
+
                     label.appendChild(input);
                     label.appendChild(span);
                     label.appendChild(document.createTextNode(" " + (t.name || t.id)));
-                    
+
                     targetsDiv.appendChild(label);
                 });
             }
@@ -12941,7 +12941,7 @@ let trashCleanupStartedAt = null;
 async function loadTrashStats() {
     const statsTextEl = document.getElementById("trash-stats-text");
     if (!statsTextEl) return;
-    
+
     try {
         const response = await fetch("/api/system/trash/stats");
         if (response.ok) {
@@ -12966,22 +12966,22 @@ async function probeTrash() {
     const previewListEl = document.getElementById("trash-preview-list");
     const retentionInput = document.getElementById("settings-trash-retention-days");
     const modal = document.getElementById("modal-trash-preview");
-    
+
     if (btnProbe) {
         btnProbe.disabled = true;
         btnProbe.innerHTML = '<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-2" style="animation: spin 1s linear infinite; height: 12px; width: 12px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Prüfe...</span>';
     }
-    
+
     const val = parseInt(retentionInput?.value, 10);
     const retentionDays = isNaN(val) ? 7 : val;
-    
+
     try {
         const response = await fetch("/api/system/trash/cleanup", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ dry_run: true, retention_days: retentionDays })
         });
-        
+
         if (response.ok) {
             const data = await response.json();
             if (data.deleted && data.deleted.length > 0) {
@@ -13011,33 +13011,33 @@ async function triggerTrashCleanup() {
     const retentionInput = document.getElementById("settings-trash-retention-days");
     const val = parseInt(retentionInput?.value, 10);
     const retentionDays = isNaN(val) ? 7 : val;
-    
+
     try {
         const response = await fetch("/api/system/trash/cleanup", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ dry_run: false, retention_days: retentionDays })
         });
-        
+
         if (response.status === 409) {
             alert("Ein Bereinigungslauf ist bereits aktiv.");
             return;
         }
-        
+
         if (response.ok) {
             // Start polling
             const progressDiv = document.getElementById("trash-cleanup-progress");
             if (progressDiv) progressDiv.classList.remove("hidden");
-            
+
             const btnCleanup = document.getElementById("btn-trash-cleanup");
             if (btnCleanup) btnCleanup.disabled = true;
-            
+
             document.getElementById("trash-cleanup-progress-bar").style.width = "0%";
             document.getElementById("trash-cleanup-status-info").textContent = "Löschvorgang gestartet...";
-            
+
             trashCleanupStartedAt = Date.now();
             document.getElementById("trash-stuck-warning").classList.add("hidden");
-            
+
             if (trashCleanupInterval) clearInterval(trashCleanupInterval);
             trashCleanupInterval = setInterval(pollTrashCleanupStatus, 2000);
         } else {
@@ -13055,7 +13055,7 @@ async function pollTrashCleanupStatus() {
         const response = await fetch("/api/system/trash/cleanup-status");
         if (response.ok) {
             const status = await response.json();
-            
+
             // Stuck warning check (after 5 minutes = 300 seconds)
             if (status.running) {
                 const elapsedSeconds = (Date.now() - trashCleanupStartedAt) / 1000;
@@ -13064,7 +13064,7 @@ async function pollTrashCleanupStatus() {
                 } else {
                     document.getElementById("trash-stuck-warning").classList.add("hidden");
                 }
-                
+
                 // Show simple progress indicator
                 document.getElementById("trash-cleanup-progress-bar").style.width = "50%";
                 document.getElementById("trash-cleanup-status-info").textContent = `${status.deleted_count || 0} Elemente gelöscht...`;
@@ -13072,20 +13072,20 @@ async function pollTrashCleanupStatus() {
                 // Done
                 clearInterval(trashCleanupInterval);
                 trashCleanupInterval = null;
-                
+
                 document.getElementById("trash-cleanup-progress-bar").style.width = "100%";
                 document.getElementById("trash-cleanup-status-info").textContent = `Fertig. ${status.deleted_count} gelöscht.`;
-                
+
                 if (status.last_error) {
                     alert("Bereinigung abgeschlossen mit Fehlern: " + status.last_error);
                 }
-                
+
                 setTimeout(() => {
                     document.getElementById("trash-cleanup-progress").classList.add("hidden");
                     const btnCleanup = document.getElementById("btn-trash-cleanup");
                     if (btnCleanup) btnCleanup.disabled = false;
                 }, 4000);
-                
+
                 loadTrashStats();
             }
         }
@@ -13099,7 +13099,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnProbe = document.getElementById("btn-trash-probe");
     const btnCleanup = document.getElementById("btn-trash-cleanup");
     const modal = document.getElementById("modal-trash-preview");
-    
+
     if (btnProbe) btnProbe.addEventListener("click", probeTrash);
     if (btnCleanup) {
         btnCleanup.addEventListener("click", () => {
@@ -13108,7 +13108,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
-    
+
     // Close Modal Bindings
     const closeModal = () => { if (modal) modal.classList.remove("active"); };
     document.getElementById("close-modal-trash-preview")?.addEventListener("click", closeModal);
@@ -13219,4 +13219,3 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 });
-

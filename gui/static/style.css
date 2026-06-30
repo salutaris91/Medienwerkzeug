@@ -8,7 +8,7 @@
     --bg-glass: #18181b;
     --border-glass: #27272a;
     --border-active: rgba(59, 130, 246, 0.4);
-    
+
     --primary: #3b82f6;
     --primary-rgb: 59, 130, 246;
     --accent: #2563eb;
@@ -16,24 +16,24 @@
     --accent-glow: transparent;
     --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
     --bg-main: var(--bg-surface);
-    
+
     --text-main: #f8fafc;
     --text-muted: #94a3b8;
     --text-dark: #475569;
-    
+
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
-    
+
     --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
     --shadow-md: 0 6px 12px rgba(0, 0, 0, 0.15);
     --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.2);
     --shadow-glass: 0 4px 12px rgba(0, 0, 0, 0.15);
-    
+
     --radius-lg: 10px;
     --radius-md: 6px;
     --radius-sm: 4px;
-    
+
     --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --font-mono: 'JetBrains Mono', sfmono-regular, Consolas, Menlo, monospace;
     --console-height: 40px;
@@ -170,7 +170,7 @@ body.theme-superfood-light {
 body {
     font-family: var(--font-sans);
     background-color: var(--bg-base);
-    background-image: 
+    background-image:
         radial-gradient(at 0% 0%, rgba(var(--primary-rgb, 236, 72, 153), 0.15) 0px, transparent 50%),
         radial-gradient(at 100% 100%, rgba(var(--accent-rgb, 139, 92, 246), 0.15) 0px, transparent 50%);
     background-attachment: fixed;
@@ -2325,14 +2325,14 @@ input[type="range"]::-moz-range-thumb:hover {
         min-height: 100vh;
         overflow-y: auto !important;
     }
-    
+
     .master-detail-layout {
         flex-direction: column !important;
         height: auto !important;
         min-height: none !important;
         margin-bottom: calc(var(--console-height, 40px) + 30px) !important;
     }
-    
+
     .master-sidebar {
         position: static !important;
         width: 100% !important;
@@ -2341,7 +2341,7 @@ input[type="range"]::-moz-range-thumb:hover {
         max-height: none !important;
         overflow-y: visible !important;
     }
-    
+
     .detail-content {
         width: 100% !important;
         height: auto !important;
@@ -2363,7 +2363,7 @@ input[type="range"]::-moz-range-thumb:hover {
         align-items: flex-start !important;
         padding: 10px 15px !important;
     }
-    
+
     .status-indicators {
         width: 100% !important;
         justify-content: flex-start !important;
@@ -3000,4 +3000,3 @@ body.runtime-docker .docker-only-info {
 #dashboard-customize-panel {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
