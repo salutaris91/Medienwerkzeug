@@ -2435,6 +2435,66 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             server.mw_metadata.fetch_tmdb_tv = orig_fetch
             utils._MOCK_SETTINGS = None
 
+    def test_false_positive_show_name_mismatch_with_different_years(self):
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+        import gui.core.series_helper as series_helper
+        nas_root = os.path.join(self.test_dir, "nas_find_id_avatar_test")
+        inbox_dir = os.path.join(self.test_dir, "inbox_find_id_avatar_test")
+        os.makedirs(nas_root, exist_ok=True)
+        os.makedirs(inbox_dir, exist_ok=True)
+        nas_show_dir_2005 = os.path.join(nas_root, "Serien", "Avatar - Der Herr der Elemente (2005)")
+        os.makedirs(nas_show_dir_2005, exist_ok=True)
+        with open(os.path.join(nas_show_dir_2005, "tvshow.nfo"), "w") as f:
+            f.write("<tvshow><tmdbid>246</tmdbid><title>Avatar - Der Herr der Elemente (2005)</title></tvshow>")
+        utils._MOCK_SETTINGS = {
+            "inbox_dir": inbox_dir,
+            "outbox_dir": os.path.join(self.test_dir, "outbox_find_id_avatar_test"),
+            "nas_root": nas_root,
+            "sync_categories": [
+                {"id": "2", "name": "Serien", "nas_sub": "/Serien"}
+            ]
+        }
+        orig_find_folder = series_helper.find_existing_series_folder_by_id
+        series_helper.find_existing_series_folder_by_id = lambda path, prov, sid: (
+            "Avatar - Der Herr der Elemente (2024)" if sid == "82452" else orig_find_folder(path, prov, sid)
+        )
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+        dummy = DummyHandler()
+        project_dir = os.path.join(inbox_dir, "Avatar")
+        os.makedirs(project_dir, exist_ok=True)
+        with open(os.path.join(project_dir, "ep1.mp4"), "w") as f:
+            f.write("content")
+        params = {
+            "media_type": "tv",
+            "project_name": "Avatar",
+            "show_name": "Avatar - Der Herr der Elemente (2024)",
+            "show_id": "82452",
+            "provider": "tmdb_tv",
+            "season": "2",
+            "copy_to_nas": True,
+            "mappings": {
+                "ep1.mp4": "1"
+            }
+        }
+        orig_fetch = server.mw_metadata.fetch_tmdb_tv
+        server.mw_metadata.fetch_tmdb_tv = lambda show_id, season, lang: {
+            "1": {"title": "First Episode"}
+        }
+        try:
+            GUIRequestHandler.handle_api_preview_process(dummy, params)
+            result = dummy.sent_json
+            self.assertIsNotNone(result)
+            self.assertNotIn("show_name_mismatch", result)
+        finally:
+            server.mw_metadata.fetch_tmdb_tv = orig_fetch
+            series_helper.find_existing_series_folder_by_id = orig_find_folder
+            utils._MOCK_SETTINGS = None
+
     def test_inconsistent_naming_health_check(self):
         from gui.core.health import _check_series_show
         from gui.core import artwork_validators
