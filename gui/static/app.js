@@ -6370,7 +6370,7 @@ async function runPathsCleanScan() {
                 groupHtml += `
                     <div style="margin-top: 14px; margin-bottom: 8px; padding-left: 2px;">
                         <span style="font-size: 12px; font-weight: 600; color: var(--text-main); display: flex; justify-content: space-between; align-items: center;">
-                            <span>📁 ${escapeHTML(groupName)}</span>
+                            <span><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="vertical-align:middle; margin-right: 4px; display: inline-block; color: var(--accent);"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>${escapeHTML(groupName)}</span>
                             <span style="color: var(--text-muted); font-weight: normal; font-size: 11px;">(${groupFiles.length} Datei(en), ${formatBytes(groupBytes)})</span>
                         </span>
                     </div>
@@ -6381,7 +6381,7 @@ async function runPathsCleanScan() {
                             return `
                                 <label class="paths-clean-item-label" style="display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; padding:6px 10px; background:rgba(255, 255, 255, 0.01); border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.02); transition:all 0.15s ease;">
                                     <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
-                                        <input type="checkbox" class="paths-clean-cb-item" data-source="${source}" data-file="${f.rel_path}" data-junk="${isJunk}" checked style="accent-color:#ff4757; width:16px; height:16px; flex-shrink:0;">
+                                        <input type="checkbox" class="paths-clean-cb-item" data-source="${source}" data-file="${escapeHTML(f.rel_path)}" data-junk="${isJunk}" checked style="accent-color:#ff4757; width:16px; height:16px; flex-shrink:0;">
                                         <span style="font-size:12px; color:var(--text-main); word-break:break-all; text-align:left;">${escapeHTML(displayPath)}</span>
                                     </div>
                                     <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
@@ -6398,7 +6398,7 @@ async function runPathsCleanScan() {
             return `
                 <div style="margin-bottom: 20px; background: rgba(255,255,255,0.01); padding: 14px; border-radius: 8px; border: 1px solid var(--border-light);">
                     <div style="font-size:13px; font-weight:bold; color:var(--accent); margin-bottom:10px; display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:6px;">
-                        <span>📂 ${title}</span>
+                        <span><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="vertical-align:middle; margin-right: 6px; display: inline-block; color: var(--accent);"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg>${title}</span>
                         <span style="color:var(--text-muted); font-weight:normal; font-size:12px;">Gesamt: ${formatBytes(totalBytes)}</span>
                     </div>
                     ${groupHtml}
