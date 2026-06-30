@@ -1151,6 +1151,16 @@ fetch('/api/system/capabilities')
             if (data.runtime === 'docker') {
                 document.body.classList.add('runtime-docker');
 
+                // Buttontexte für Docker-Modus anpassen
+                const btnOpenInbox = document.getElementById("btn-open-inbox");
+                if (btnOpenInbox) {
+                    btnOpenInbox.innerHTML = btnOpenInbox.innerHTML.replace("Öffnen", "Ansehen");
+                }
+                const btnOpenOutbox = document.getElementById("btn-open-outbox");
+                if (btnOpenOutbox) {
+                    btnOpenOutbox.innerHTML = btnOpenOutbox.innerHTML.replace("Öffnen", "Ansehen");
+                }
+
                 const headerBadge = document.getElementById("header-version-badge");
                 if (headerBadge) headerBadge.textContent = "v1.0 Docker/Server Edition";
 
@@ -6523,6 +6533,37 @@ async function runToolGeneric(toolType, logMsg, extraParams = {}) {
 // EVENT LISTENERS BINDINGS
 // ==========================================================================
 function initEventListeners() {
+    // Startseiten-Arbeitsbereich Buttons
+    document.getElementById("btn-open-inbox")?.addEventListener("click", () => {
+        if (currentSettings && currentSettings.inbox_dir) {
+            window.openFolder({ path: currentSettings.inbox_dir });
+        } else {
+            alert("Inbox-Pfad ist nicht konfiguriert!");
+        }
+    });
+    document.getElementById("btn-open-outbox")?.addEventListener("click", () => {
+        if (currentSettings && currentSettings.outbox_dir) {
+            window.openFolder({ path: currentSettings.outbox_dir });
+        } else {
+            alert("Outbox-Pfad ist nicht konfiguriert!");
+        }
+    });
+    document.getElementById("btn-paths-clean-trigger")?.addEventListener("click", openPathsCleanModal);
+
+    // Bibliotheks-Wartung Pflege-Werkzeuge
+    document.getElementById("lib-tool-btn-convert")?.addEventListener("click", () => {
+        openToolRunnerModal("tool_batch_convert", "H.265 Batch-Konvertierung", "Videos im gewählten Verzeichnis in das platzsparende H.265 (HEVC) Format konvertieren.", true);
+    });
+    document.getElementById("lib-tool-btn-nfo-agent")?.addEventListener("click", () => {
+        openToolRunnerModal("tool_nfo_agent", "NFO Agent", "Generiert NFO-Metadaten für alle Episoden/Filme im gewählten Ordner anhand der TMDb/TVDb IDs.");
+    });
+    document.getElementById("lib-tool-btn-clean")?.addEventListener("click", () => {
+        openToolRunnerModal("tool_clean", "Ordner bereinigen", "Entfernt leere Ordner und unerwünschte Junk-Dateien (z.B. txt, url, exe, ds_store, nfo, jpg, png).");
+    });
+    document.getElementById("lib-tool-btn-manual-sync")?.addEventListener("click", () => {
+        openToolRunnerModal("tool_manual_sync", "Speicherziel-Syncing", "Kopiert den gewählten Ordner auf das NAS-Speicherziel und optional in die pCloud.");
+    });
+
     const connectNasBtn = document.getElementById("btn-connect-nas");
     if (connectNasBtn) {
         connectNasBtn.addEventListener("click", async () => {
@@ -8012,6 +8053,19 @@ async function loadSettings() {
         const response = await fetch("/api/settings");
         if (response.ok) {
             currentSettings = await response.json();
+
+            // Startseite Pfadanzeigen befüllen
+            const inboxPathDisplay = document.getElementById("inbox-path-display");
+            const outboxPathDisplay = document.getElementById("outbox-path-display");
+            if (inboxPathDisplay) {
+                inboxPathDisplay.textContent = currentSettings.inbox_dir || "-";
+                inboxPathDisplay.title = currentSettings.inbox_dir || "";
+            }
+            if (outboxPathDisplay) {
+                outboxPathDisplay.textContent = currentSettings.outbox_dir || "-";
+                outboxPathDisplay.title = currentSettings.outbox_dir || "";
+            }
+
             const inboxEl = document.getElementById("settings-inbox-dir");
             if (inboxEl) inboxEl.value = currentSettings.inbox_dir || "";
             const outboxEl = document.getElementById("settings-outbox-dir");
@@ -11310,8 +11364,8 @@ async function updateHomepageData(statusData) {
         const smartInboxList = document.getElementById("smart-inbox-list");
         if (analyzeData && cardSmartInbox && smartInboxList) {
             const suggestions = analyzeData.suggestions || [];
+            cardSmartInbox.style.display = "block";
             if (suggestions.length > 0) {
-                cardSmartInbox.style.display = "block";
                 smartInboxList.innerHTML = "";
                 suggestions.forEach(item => {
                     let typeBadge = "";
@@ -11363,7 +11417,7 @@ async function updateHomepageData(statusData) {
                     smartInboxList.appendChild(itemDiv);
                 });
             } else {
-                cardSmartInbox.style.display = "none";
+                smartInboxList.innerHTML = `<div style="color:var(--text-muted); font-size:13px; text-align:center; padding:20px; background: rgba(255,255,255,0.01); border: 1px dashed var(--border-light); border-radius: 8px;">Keine verarbeitbaren Film- oder Serienprojekte in der Inbox gefunden.</div>`;
             }
         }
     } catch (e) {
