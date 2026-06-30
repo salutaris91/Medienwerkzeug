@@ -13133,14 +13133,14 @@ function applyDashboardWidgetsSichtbarkeit() {
         nas_renamer: false
     };
 
-    if (!window.currentSettings) {
-        window.currentSettings = {};
+    if (typeof currentSettings === 'undefined') {
+        currentSettings = {};
     }
-    if (!window.currentSettings.dashboard_widgets) {
-        window.currentSettings.dashboard_widgets = {};
+    if (!currentSettings.dashboard_widgets) {
+        currentSettings.dashboard_widgets = {};
     }
 
-    const widgets = { ...defaults, ...window.currentSettings.dashboard_widgets };
+    const widgets = { ...defaults, ...currentSettings.dashboard_widgets };
 
     for (const [key, enabled] of Object.entries(widgets)) {
         const toggle = document.getElementById(`widget-toggle-${key}`);
@@ -13175,13 +13175,13 @@ function applyDashboardWidgetsSichtbarkeit() {
 }
 
 async function saveDashboardWidgetSichtbarkeit(key, enabled) {
-    if (!window.currentSettings) {
-        window.currentSettings = {};
+    if (typeof currentSettings === 'undefined') {
+        currentSettings = {};
     }
-    if (!window.currentSettings.dashboard_widgets) {
-        window.currentSettings.dashboard_widgets = {};
+    if (!currentSettings.dashboard_widgets) {
+        currentSettings.dashboard_widgets = {};
     }
-    window.currentSettings.dashboard_widgets[key] = enabled;
+    currentSettings.dashboard_widgets[key] = enabled;
 
     applyDashboardWidgetsSichtbarkeit();
 
@@ -13191,7 +13191,7 @@ async function saveDashboardWidgetSichtbarkeit(key, enabled) {
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify(window.currentSettings)
+            body: JSON.stringify(currentSettings)
         });
     } catch (error) {
         console.error("Failed to save widget visibility settings:", error);
