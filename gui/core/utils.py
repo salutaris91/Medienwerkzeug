@@ -219,9 +219,13 @@ def get_runtime_capabilities():
         runtime = "desktop"
     
     is_docker = (runtime == "docker")
+
+    dev_val = os.environ.get("MW_DEV_MODE", "false").lower()
+    dev_mode = dev_val in ("true", "1", "yes", "on")
     
     return {
         "runtime": runtime,
+        "dev_mode": dev_mode,
         "capabilities": {
             "open_local_folder": not is_docker,
             "mount_nas": not is_docker,
