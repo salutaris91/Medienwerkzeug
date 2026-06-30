@@ -6270,13 +6270,13 @@ function closeCleanModal() {
 }
 
 // Medienpfade bereinigen (Clean Paths Tool)
-function openPathsCleanModal() {
+function openPathsCleanModal(selectInbox = true, selectOutput = true) {
     const overlay = document.getElementById("paths-clean-modal-overlay");
     const modal = document.getElementById("paths-clean-modal");
 
-    // Standardmäßig Phase 1 anzeigen und Checkboxen aktivieren
-    document.getElementById("paths-clean-opt-inbox").checked = true;
-    document.getElementById("paths-clean-opt-output").checked = true;
+    // Phase 1 anzeigen und Checkboxen entsprechend setzen
+    document.getElementById("paths-clean-opt-inbox").checked = selectInbox;
+    document.getElementById("paths-clean-opt-output").checked = selectOutput;
     document.getElementById("paths-clean-phase-select").classList.remove("hidden");
     document.getElementById("paths-clean-phase-preview").classList.add("hidden");
     document.getElementById("paths-clean-list").innerHTML = "";
@@ -6351,28 +6351,57 @@ async function runPathsCleanScan() {
         const renderSection = (title, files, source) => {
             if (files.length === 0) return "";
 
+            // Gruppiere Dateien nach Projektordner (erstes Segment des rel_path)
+            const groups = {};
+            files.forEach(f => {
+                const parts = f.rel_path.split('/');
+                const groupName = parts.length > 1 ? parts[0] : "Hauptverzeichnis";
+                if (!groups[groupName]) {
+                    groups[groupName] = [];
+                }
+                groups[groupName].push(f);
+            });
+
             const totalBytes = files.reduce((sum, f) => sum + (f.size_bytes || 0), 0);
 
-            return `
-                <div style="margin-bottom: 20px;">
-                    <div style="font-size:13px; font-weight:bold; color:var(--accent); margin-bottom:8px; display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;">
-                        <span>📂 ${title}</span>
-                        <span style="color:var(--text-muted); font-weight:normal;">(${files.length} Dateien, Gesamt: ${formatBytes(totalBytes)})</span>
+            let groupHtml = "";
+            for (const [groupName, groupFiles] of Object.entries(groups)) {
+                const groupBytes = groupFiles.reduce((sum, f) => sum + (f.size_bytes || 0), 0);
+                groupHtml += `
+                    <div style="margin-top: 14px; margin-bottom: 8px; padding-left: 2px;">
+                        <span style="font-size: 12px; font-weight: 600; color: var(--text-main); display: flex; justify-content: space-between; align-items: center;">
+                            <span>📁 ${escapeHTML(groupName)}</span>
+                            <span style="color: var(--text-muted); font-weight: normal; font-size: 11px;">(${groupFiles.length} Datei(en), ${formatBytes(groupBytes)})</span>
+                        </span>
                     </div>
-                    <div style="display:flex; flex-direction:column; gap:6px; padding-left:8px;">
-                        ${files.map(f => {
+                    <div style="display:flex; flex-direction:column; gap:6px; padding-left:10px; border-left: 2px solid rgba(255,255,255,0.03); margin-bottom: 12px;">
+                        ${groupFiles.map(f => {
                             const isJunk = ['.txt', '.url', '.nfo', '.db', '.ds_store'].some(ext => f.rel_path.toLowerCase().endsWith(ext)) || f.rel_path.toLowerCase().includes("ds_store");
+                            const displayPath = f.rel_path.includes('/') ? f.rel_path.substring(f.rel_path.indexOf('/') + 1) : f.rel_path;
                             return `
-                                <label style="display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; padding:6px 8px; background:rgba(255,255,255,0.01); border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.02); transition:background 0.2s;">
+                                <label class="paths-clean-item-label" style="display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; padding:6px 10px; background:rgba(255, 255, 255, 0.01); border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.02); transition:all 0.15s ease;">
                                     <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
                                         <input type="checkbox" class="paths-clean-cb-item" data-source="${source}" data-file="${f.rel_path}" data-junk="${isJunk}" checked style="accent-color:#ff4757; width:16px; height:16px; flex-shrink:0;">
-                                        <span style="font-size:12px; color:var(--text-main); word-break:break-all; text-align:left;">${f.rel_path}</span>
+                                        <span style="font-size:12px; color:var(--text-main); word-break:break-all; text-align:left;">${escapeHTML(displayPath)}</span>
                                     </div>
-                                    <span style="font-size:11px; color:var(--text-muted); flex-shrink:0;">${formatBytes(f.size_bytes)}</span>
+                                    <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
+                                        <span class="badge-quarantine" style="font-size:10px; padding:2px 8px; border-radius:4px; background:rgba(255, 71, 87, 0.12); color:#ff4757; border: 1px solid rgba(255, 71, 87, 0.25); font-weight:600; text-transform:uppercase; letter-spacing:0.3px; min-width:75px; text-align:center;">Quarantäne</span>
+                                        <span style="font-size:11px; color:var(--text-muted); min-width:55px; text-align:right;">${formatBytes(f.size_bytes)}</span>
+                                    </div>
                                 </label>
                             `;
                         }).join("")}
                     </div>
+                `;
+            }
+
+            return `
+                <div style="margin-bottom: 20px; background: rgba(255,255,255,0.01); padding: 14px; border-radius: 8px; border: 1px solid var(--border-light);">
+                    <div style="font-size:13px; font-weight:bold; color:var(--accent); margin-bottom:10px; display:flex; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:6px;">
+                        <span>📂 ${title}</span>
+                        <span style="color:var(--text-muted); font-weight:normal; font-size:12px;">Gesamt: ${formatBytes(totalBytes)}</span>
+                    </div>
+                    ${groupHtml}
                 </div>
             `;
         };
@@ -6386,6 +6415,32 @@ async function runPathsCleanScan() {
         }
 
         list.innerHTML = htmlContent;
+
+        // Event Listener für interaktive Badges registrieren
+        document.querySelectorAll(".paths-clean-cb-item").forEach(cb => {
+            cb.addEventListener("change", function() {
+                const label = this.closest(".paths-clean-item-label");
+                if (!label) return;
+                const badge = label.querySelector(".badge-quarantine");
+                if (!badge) return;
+
+                if (this.checked) {
+                    badge.style.background = "rgba(255, 71, 87, 0.12)";
+                    badge.style.color = "#ff4757";
+                    badge.style.borderColor = "rgba(255, 71, 87, 0.25)";
+                    badge.textContent = "Quarantäne";
+                    label.style.background = "rgba(255, 255, 255, 0.01)";
+                    label.style.borderColor = "rgba(255,255,255,0.02)";
+                } else {
+                    badge.style.background = "rgba(46, 213, 115, 0.12)";
+                    badge.style.color = "#2ed573";
+                    badge.style.borderColor = "rgba(46, 213, 115, 0.25)";
+                    badge.textContent = "Behalten";
+                    label.style.background = "rgba(255, 255, 255, 0.03)";
+                    label.style.borderColor = "rgba(46, 213, 115, 0.15)";
+                }
+            });
+        });
 
     } catch (e) {
         alert("Fehler beim Scannen: " + e.message);
@@ -6548,7 +6603,9 @@ function initEventListeners() {
             alert("Outbox-Pfad ist nicht konfiguriert!");
         }
     });
-    document.getElementById("btn-paths-clean-trigger")?.addEventListener("click", openPathsCleanModal);
+    document.getElementById("btn-paths-clean-trigger")?.addEventListener("click", () => openPathsCleanModal(true, true));
+    document.getElementById("btn-clean-inbox-trigger")?.addEventListener("click", () => openPathsCleanModal(true, false));
+    document.getElementById("btn-clean-outbox-trigger")?.addEventListener("click", () => openPathsCleanModal(false, true));
 
     // Bibliotheks-Wartung Pflege-Werkzeuge
     document.getElementById("lib-tool-btn-convert")?.addEventListener("click", () => {
@@ -11105,7 +11162,33 @@ document.addEventListener("DOMContentLoaded", () => {
 async function updateHomepageData(statusData) {
     if (!statusData) return;
 
-    // 0. Folder Size Warnings (Feature 5)
+    // 0. Update Workspace Folder Sizes
+    const inboxSizeDisplay = document.getElementById("inbox-size-display");
+    const outboxSizeDisplay = document.getElementById("outbox-size-display");
+    if (inboxSizeDisplay) {
+        if (statusData.metrics_loading) {
+            inboxSizeDisplay.textContent = "Berechne...";
+        } else {
+            const rawInboxBytes = statusData.inbox_bytes || 0;
+            inboxSizeDisplay.textContent = `Größe: ${formatBytes(rawInboxBytes)}`;
+        }
+    }
+    if (outboxSizeDisplay) {
+        if (statusData.metrics_loading) {
+            outboxSizeDisplay.textContent = "Berechne...";
+        } else {
+            const rawOutboxBytes = statusData.outbox_bytes || 0;
+            if (rawOutboxBytes > 0) {
+                outboxSizeDisplay.style.color = "var(--danger)";
+                outboxSizeDisplay.textContent = `Größe: ${formatBytes(rawOutboxBytes)} (nicht leer)`;
+            } else {
+                outboxSizeDisplay.style.color = "var(--text-muted)";
+                outboxSizeDisplay.textContent = `Größe: ${formatBytes(rawOutboxBytes)} (leer)`;
+            }
+        }
+    }
+
+    // 0.1 Folder Size Warnings (Feature 5)
     const warningBanner = document.getElementById("folder-size-warning");
     const warningText = document.getElementById("folder-size-warning-text");
     if (warningBanner && warningText) {
