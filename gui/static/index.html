@@ -312,7 +312,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-home" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> Sendezentrale
             </button>
 
-            <div class="sidebar-section collapsible-section" id="section-project-folders">
+            <div class="sidebar-section collapsible-section hidden" id="section-project-folders" style="display: none;">
                 <div class="section-header">
                     <div class="inline-style-4">
                         <span class="caret-icon">▶</span>
@@ -441,7 +441,6 @@
                             <div style="display: flex; gap: 8px; align-items: center;">
                                 <div style="font-family: monospace; font-size: 0.85em; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); border-radius: 6px; padding: 6px 10px; flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" id="inbox-path-display" title="Pfad">-</div>
                                 <button class="btn btn-secondary btn-sm" id="btn-open-inbox" style="white-space: nowrap;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="display:inline-block; vertical-align:middle; margin-right: 4px; height: 12px; width: 12px;"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg> Öffnen</button>
-                                <button class="btn btn-secondary btn-sm" id="btn-clean-inbox-trigger" style="white-space: nowrap;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2" style="display:inline-block; vertical-align:middle; margin-right: 4px; height: 12px; width: 12px;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> Bereinigen</button>
                             </div>
                             <span id="inbox-size-display" style="font-size: 0.80em; color: var(--text-muted); margin-top: 4px; display: inline-block;">Größe: -</span>
                         </div>
@@ -450,7 +449,6 @@
                             <div style="display: flex; gap: 8px; align-items: center;">
                                 <div style="font-family: monospace; font-size: 0.85em; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); border-radius: 6px; padding: 6px 10px; flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" id="outbox-path-display" title="Pfad">-</div>
                                 <button class="btn btn-secondary btn-sm" id="btn-open-outbox" style="white-space: nowrap;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="display:inline-block; vertical-align:middle; margin-right: 4px; height: 12px; width: 12px;"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg> Öffnen</button>
-                                <button class="btn btn-danger btn-sm" id="btn-clean-outbox-trigger" style="white-space: nowrap;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2" style="display:inline-block; vertical-align:middle; margin-right: 4px; height: 12px; width: 12px;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> Bereinigen</button>
                             </div>
                             <span id="outbox-size-display" style="font-size: 0.80em; color: var(--text-muted); margin-top: 4px; display: inline-block;">Größe: -</span>
                         </div>

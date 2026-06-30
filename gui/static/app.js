@@ -2161,6 +2161,7 @@ function renderProjectList(projects, projectTypes) {
     lastProjectListJson = currentJson;
     lastActiveProject = currentProject;
     const container = document.getElementById("project-list-container");
+    if (!container) return;
     const countEl = document.getElementById("project-folders-count");
     if (countEl) {
         countEl.textContent = projects.length;
@@ -6604,8 +6605,6 @@ function initEventListeners() {
         }
     });
     document.getElementById("btn-paths-clean-trigger")?.addEventListener("click", () => openPathsCleanModal(true, true));
-    document.getElementById("btn-clean-inbox-trigger")?.addEventListener("click", () => openPathsCleanModal(true, false));
-    document.getElementById("btn-clean-outbox-trigger")?.addEventListener("click", () => openPathsCleanModal(false, true));
 
     // Bibliotheks-Wartung Pflege-Werkzeuge
     document.getElementById("lib-tool-btn-convert")?.addEventListener("click", () => {
@@ -11488,7 +11487,12 @@ async function updateHomepageData(statusData) {
                                 ${reasonsHtml}
                             </div>
                         </div>
-                        <div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <button class="btn btn-danger btn-sm btn-delete-smart"
+                                    title="In Quarantäne verschieben"
+                                    ${isProcessing ? 'disabled style="padding: 6px 10px; font-size: 11px; white-space: nowrap; font-weight: 500; height: 32px; opacity: 0.5; cursor: not-allowed;"' : 'style="padding: 6px 10px; font-size: 11px; white-space: nowrap; font-weight: 500; height: 32px;"'}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>Quarantäne
+                            </button>
                             <button class="btn btn-select-smart"
                                     data-media-type="${escapeHTML(item.media_type || "")}"
                                     data-suggested-query="${escapeHTML(item.suggested_query || "")}"></button>
@@ -11497,6 +11501,18 @@ async function updateHomepageData(statusData) {
 
                     const btn = itemDiv.querySelector(".btn-select-smart");
                     configureSmartInboxButton(btn, item.project, isProcessing);
+
+                    if (!isProcessing) {
+                        const deleteBtn = itemDiv.querySelector(".btn-delete-smart");
+                        if (deleteBtn) {
+                            deleteBtn.onclick = () => {
+                                if (confirm(`Möchtest du das gesamte Inbox-Projekt "${item.project}" wirklich in die Quarantäne verschieben?`)) {
+                                    deleteProject(item.project);
+                                }
+                            };
+                        }
+                    }
+
                     smartInboxList.appendChild(itemDiv);
                 });
             } else {
