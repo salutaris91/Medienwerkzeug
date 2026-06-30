@@ -9865,6 +9865,26 @@ function renderQueue(jobs) {
             icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--success);"><polyline points="20 6 9 17 4 12"/></svg>`;
             statusLabel = "Abgeschlossen";
         }
+        else if (job.status === "warning") {
+            statusColor = "var(--warning)";
+            icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--warning);"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>`;
+            statusLabel = "Warnung";
+        }
+        else if (job.status === "conflict") {
+            statusColor = "var(--warning)";
+            icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-circle" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--warning);"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>`;
+            statusLabel = "Konflikt";
+        }
+        else if (job.status === "skipped") {
+            statusColor = "var(--text-muted)";
+            icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-minus" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--text-muted);"><line x1="5" x2="19" y1="12" y2="12"/></svg>`;
+            statusLabel = "Übersprungen";
+        }
+        else if (job.status === "partial") {
+            statusColor = "var(--warning)";
+            icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--warning);"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>`;
+            statusLabel = "Teilweise";
+        }
         else if (job.status === "error" || job.status === "failed") {
             statusColor = "var(--danger)";
             icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--danger);"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>`;
@@ -10002,7 +10022,7 @@ function renderQueue(jobs) {
 
             // Button deaktivieren und Lade-Status anzeigen
             e.currentTarget.disabled = true;
-            e.currentTarget.innerHTML = "🔄 Einreihen...";
+            e.currentTarget.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px; animation: spin 2s linear infinite;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Einreihen...`;
 
             try {
                 const res = await fetch("/api/queue/retry", {
@@ -10017,13 +10037,13 @@ function renderQueue(jobs) {
                     const data = await res.json();
                     alert(`Fehler beim Wiederholen: ${data.message || "Unbekannter Fehler"}`);
                     e.currentTarget.disabled = false;
-                    e.currentTarget.innerHTML = "🔄 Wiederholen";
+                    e.currentTarget.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Task wiederholen`;
                 }
             } catch (err) {
                 console.error("Fehler beim Wiederholen des Jobs:", err);
                 alert("Fehler beim Verbinden mit dem Server.");
                 e.currentTarget.disabled = false;
-                e.currentTarget.innerHTML = "🔄 Wiederholen";
+                e.currentTarget.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Task wiederholen`;
             }
         });
     });
