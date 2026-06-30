@@ -104,18 +104,18 @@ export function triggerQualityHintUpdates() {
 
 export function updateHintElement(el, currentVal, recInfo) {
     if (!recInfo) {
-        el.textContent = "💡 Noch keine historischen Daten für diesen Inhaltstyp vorhanden. Standardempfehlung ist CRF 60.";
+        el.textContent = "Noch keine historischen Daten für diesen Inhaltstyp vorhanden. Standardempfehlung ist CRF 60.";
         el.classList.remove("hidden");
         return;
     }
 
     const optimal = recInfo.optimal_quality;
     if (currentVal === optimal) {
-        el.textContent = `✅ Optimaler Wert für diesen Inhaltstyp basierend auf deiner Historie (CRF ${optimal}).`;
+        el.textContent = `Optimaler Wert für diesen Inhaltstyp basierend auf deiner Historie (CRF ${optimal}).`;
     } else if (currentVal > optimal) {
-        el.textContent = `💡 Deine Historie zeigt, dass dieser Inhaltstyp auch mit CRF ${optimal} ohne sichtbaren Qualitätsverlust gut komprimiert wird (spart mehr Platz).`;
+        el.textContent = `Deine Historie zeigt, dass dieser Inhaltstyp auch mit CRF ${optimal} ohne sichtbaren Qualitätsverlust gut komprimiert wird (spart mehr Platz).`;
     } else {
-        el.textContent = `⚠️ Dieser Wert liegt unter dem empfohlenen Optimum von CRF ${optimal}. Es könnte zu sichtbaren Kompressionsartefakten kommen.`;
+        el.textContent = `Dieser Wert liegt unter dem empfohlenen Optimum von CRF ${optimal}. Es könnte zu sichtbaren Kompressionsartefakten kommen.`;
     }
     el.classList.remove("hidden");
 }
