@@ -8285,6 +8285,7 @@ async function loadSettings() {
 
             checkDependencies(false);
             checkAppUpdate();
+            applyDashboardWidgetsSichtbarkeit();
         }
     } catch (e) {
         console.error("Error loading settings:", e);
@@ -13117,3 +13118,105 @@ document.addEventListener("DOMContentLoaded", () => {
         triggerTrashCleanup();
     });
 });
+
+// Dashboard Widget Visibility Management
+function applyDashboardWidgetsSichtbarkeit() {
+    const defaults = {
+        storage: true,
+        savings: true,
+        ratio: true,
+        chart: true,
+        history: true,
+        health: true,
+        duplicates: true,
+        normalize: true,
+        nas_renamer: false
+    };
+
+    if (!window.currentSettings) {
+        window.currentSettings = {};
+    }
+    if (!window.currentSettings.dashboard_widgets) {
+        window.currentSettings.dashboard_widgets = {};
+    }
+
+    const widgets = { ...defaults, ...window.currentSettings.dashboard_widgets };
+
+    for (const [key, enabled] of Object.entries(widgets)) {
+        const toggle = document.getElementById(`widget-toggle-${key}`);
+        if (toggle) toggle.checked = enabled;
+
+        const widgetEl = document.getElementById(`widget-${key}`);
+        if (widgetEl) {
+            if (enabled) {
+                widgetEl.style.display = "";
+            } else {
+                widgetEl.style.display = "none";
+            }
+        }
+    }
+
+    // Hide entire sections if all widgets inside are hidden
+    const checkSection = (sectionId, widgetKeys) => {
+        const section = document.getElementById(sectionId);
+        if (!section) return;
+        const anyVisible = widgetKeys.some(k => widgets[k] === true);
+        if (anyVisible) {
+            section.style.display = "";
+        } else {
+            section.style.display = "none";
+        }
+    };
+
+    checkSection("section-overview", ["storage", "savings", "ratio"]);
+    checkSection("section-work-state", ["health", "duplicates"]);
+    checkSection("section-history-stats", ["chart", "history"]);
+    checkSection("section-library-quality", ["normalize", "nas_renamer"]);
+}
+
+async function saveDashboardWidgetSichtbarkeit(key, enabled) {
+    if (!window.currentSettings) {
+        window.currentSettings = {};
+    }
+    if (!window.currentSettings.dashboard_widgets) {
+        window.currentSettings.dashboard_widgets = {};
+    }
+    window.currentSettings.dashboard_widgets[key] = enabled;
+
+    applyDashboardWidgetsSichtbarkeit();
+
+    try {
+        await fetch("/api/settings", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(window.currentSettings)
+        });
+    } catch (error) {
+        console.error("Failed to save widget visibility settings:", error);
+    }
+}
+
+// Bind Dashboard Customize Events
+document.addEventListener("DOMContentLoaded", () => {
+    const btnCustomize = document.getElementById("btn-customize-dashboard");
+    const panelCustomize = document.getElementById("dashboard-customize-panel");
+
+    if (btnCustomize && panelCustomize) {
+        btnCustomize.addEventListener("click", () => {
+            panelCustomize.classList.toggle("hidden");
+        });
+    }
+
+    const widgetKeys = ["storage", "savings", "ratio", "health", "duplicates", "chart", "history", "normalize", "nas_renamer"];
+    widgetKeys.forEach(key => {
+        const toggle = document.getElementById(`widget-toggle-${key}`);
+        if (toggle) {
+            toggle.addEventListener("change", (e) => {
+                saveDashboardWidgetSichtbarkeit(key, e.target.checked);
+            });
+        }
+    });
+});
+

@@ -212,6 +212,17 @@ DEFAULT_SETTINGS = {
     "telemetry_enabled": False,
     "newsletter_registration_status": "none",
     "newsletter_registered_at": None,
+    "dashboard_widgets": {
+        "storage": True,
+        "savings": True,
+        "ratio": True,
+        "chart": True,
+        "history": True,
+        "health": True,
+        "duplicates": True,
+        "normalize": True,
+        "nas_renamer": False
+    },
     "version": 1
 }
 

@@ -2982,3 +2982,22 @@ body.runtime-docker .docker-only-info {
         transform: none;
     }
 }
+
+/* Dashboard Cockpit & Customization Styles */
+.dashboard-section {
+    margin-top: 35px;
+}
+.dashboard-section-title {
+    margin-bottom: 15px;
+    font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+    font-size: 1.15rem;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 8px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+#dashboard-customize-panel {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+

@@ -112,9 +112,7 @@
     "tests_test_health_scan_cache_py"
   ],
   "Search API": [],
-  "Queue API": [
-    "gui_api_queue_api_py"
-  ],
+  "Queue API": [],
   "System API": [],
   "Utility Logic Tests": [
     "tests_test_utils_testmediawerkzeuglogic"
