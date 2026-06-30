@@ -13143,10 +13143,11 @@ function applyDashboardWidgetsSichtbarkeit() {
     const widgets = { ...defaults, ...currentSettings.dashboard_widgets };
 
     for (const [key, enabled] of Object.entries(widgets)) {
-        const toggle = document.getElementById(`widget-toggle-${key}`);
+        const domKey = key.replace(/_/g, "-");
+        const toggle = document.getElementById(`widget-toggle-${domKey}`);
         if (toggle) toggle.checked = enabled;
 
-        const widgetEl = document.getElementById(`widget-${key}`);
+        const widgetEl = document.getElementById(`widget-${domKey}`);
         if (widgetEl) {
             if (enabled) {
                 widgetEl.style.display = "";
@@ -13211,7 +13212,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const widgetKeys = ["storage", "savings", "ratio", "health", "duplicates", "chart", "history", "normalize", "nas_renamer"];
     widgetKeys.forEach(key => {
-        const toggle = document.getElementById(`widget-toggle-${key}`);
+        const domKey = key.replace(/_/g, "-");
+        const toggle = document.getElementById(`widget-toggle-${domKey}`);
         if (toggle) {
             toggle.addEventListener("change", (e) => {
                 saveDashboardWidgetSichtbarkeit(key, e.target.checked);
