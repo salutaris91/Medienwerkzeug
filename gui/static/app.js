@@ -5879,7 +5879,7 @@ async function handoffMergeToDownloader(sub, v) {
 
     const listContainer = document.getElementById("yt-merge-details-list");
     if (listContainer) {
-        listContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">🔍 Suche nach Teilen auf YouTube...</div>`;
+        listContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-2" style="display:inline-block; vertical-align:middle; margin-right: 6px; animation: spin 1s linear infinite; height: 14px; width: 14px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Suche nach Teilen auf YouTube...</div>`;
     }
 
     // Search parts
@@ -10783,7 +10783,7 @@ function openYtMergeModal(initialTitle, initialUrl, initialThumbnail, subId, vid
     document.getElementById("yt-merge-query").textContent = initialTitle;
 
     const listContainer = document.getElementById("yt-merge-list");
-    listContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">🔍 Suche nach Teilen auf YouTube...</div>`;
+    listContainer.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-2" style="display:inline-block; vertical-align:middle; margin-right: 6px; animation: spin 1s linear infinite; height: 14px; width: 14px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Suche nach Teilen auf YouTube...</div>`;
 
     fetch(`/api/youtube/search-parts?title=${encodeURIComponent(initialTitle)}`)
         .then(res => res.json())
