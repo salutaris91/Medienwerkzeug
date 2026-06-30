@@ -748,12 +748,12 @@ def handle_api_preview_process():
             preview["warning"] = "Abweichung der Nummerierung: Auf dem NAS existieren Standard-Staffeln (z.B. Staffel 1), aber die Vorschau ordnet die Episoden Jahreszahl-Staffeln (z.B. Staffel 2026) zu! Bitte passe die Staffeln in den Episoden-Details an."
         # Check for show name mismatch with existing NAS folder (matching show ID)
         if show_id and provider:
-            from gui.core.series_helper import find_existing_series_folder_by_id, resolve_series_folder_name
+            from gui.core.series_helper import find_existing_series_folder_by_id
             nas_match_folder = find_existing_series_folder_by_id(nas_serien, provider, show_id)
 
-            # The default name based on metadata (without ID fallback)
-            outbox_serien_path = os.path.join(outbox_root, os.path.relpath(nas_serien, nas_root))
-            metadata_show_name = resolve_series_folder_name(nas_serien, outbox_serien_path, None, None, show_name, log_reason=False)
+            # The default name based on metadata (without ID fallback and without fuzzy matching)
+            from gui.core.helpers import clean_series_name_for_fs
+            metadata_show_name = limit_filename_length(clean_series_name_for_fs(show_name))
 
             if nas_match_folder and nas_match_folder != metadata_show_name:
                 preview["show_name_mismatch"] = {
