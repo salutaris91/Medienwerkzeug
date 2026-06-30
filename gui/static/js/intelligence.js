@@ -30,11 +30,11 @@ export function renderIntelligenceDashboard(data) {
     let html = "";
     for (const [ct, info] of Object.entries(recs)) {
         let label = ct;
-        let icon = "🎥";
-        if (ct === "movie") { label = "Filme"; icon = "🎬"; }
-        else if (ct === "live_action") { label = "Serien"; icon = "📺"; }
-        else if (ct === "doku") { label = "Dokus"; icon = "🌿"; }
-        else if (ct === "anime") { label = "Animes"; icon = "🌸"; }
+        let icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-video" style="height:14px; width:14px; color:var(--text-muted);"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>`;
+        if (ct === "movie") { label = "Filme"; icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film" style="height:14px; width:14px; color:var(--accent);"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 17h4"/><path d="M17 17h4"/><path d="M17 7h4"/><path d="M7 12h10"/></svg>`; }
+        else if (ct === "live_action") { label = "Serien"; icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="height:14px; width:14px; color:var(--accent);"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>`; }
+        else if (ct === "doku") { label = "Dokus"; icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-leaf" style="height:14px; width:14px; color:#10b981;"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.3 5.45-6"/></svg>`; }
+        else if (ct === "anime") { label = "Animes"; icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles" style="height:14px; width:14px; color:#ec4899;"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>`; }
 
         html += `
             <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-light); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
@@ -104,18 +104,18 @@ export function triggerQualityHintUpdates() {
 
 export function updateHintElement(el, currentVal, recInfo) {
     if (!recInfo) {
-        el.textContent = "💡 Noch keine historischen Daten für diesen Inhaltstyp vorhanden. Standardempfehlung ist CRF 60.";
+        el.textContent = "Noch keine historischen Daten für diesen Inhaltstyp vorhanden. Standardempfehlung ist CRF 60.";
         el.classList.remove("hidden");
         return;
     }
 
     const optimal = recInfo.optimal_quality;
     if (currentVal === optimal) {
-        el.textContent = `✅ Optimaler Wert für diesen Inhaltstyp basierend auf deiner Historie (CRF ${optimal}).`;
+        el.textContent = `Optimaler Wert für diesen Inhaltstyp basierend auf deiner Historie (CRF ${optimal}).`;
     } else if (currentVal > optimal) {
-        el.textContent = `💡 Deine Historie zeigt, dass dieser Inhaltstyp auch mit CRF ${optimal} ohne sichtbaren Qualitätsverlust gut komprimiert wird (spart mehr Platz).`;
+        el.textContent = `Deine Historie zeigt, dass dieser Inhaltstyp auch mit CRF ${optimal} ohne sichtbaren Qualitätsverlust gut komprimiert wird (spart mehr Platz).`;
     } else {
-        el.textContent = `⚠️ Dieser Wert liegt unter dem empfohlenen Optimum von CRF ${optimal}. Es könnte zu sichtbaren Kompressionsartefakten kommen.`;
+        el.textContent = `Dieser Wert liegt unter dem empfohlenen Optimum von CRF ${optimal}. Es könnte zu sichtbaren Kompressionsartefakten kommen.`;
     }
     el.classList.remove("hidden");
 }
