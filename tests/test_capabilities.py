@@ -148,7 +148,7 @@ def test_capabilities_dev_mode(monkeypatch):
     assert caps["dev_mode"] is False
 
     # True values
-    for val in ("true", "1", "yes", "on", "TRUE", "Yes"):
+    for val in ("true", "1", "yes", "on", "TRUE", "Yes", " true ", "  yes\n"):
         monkeypatch.setenv("MW_DEV_MODE", val)
         caps = get_runtime_capabilities()
         assert caps["dev_mode"] is True

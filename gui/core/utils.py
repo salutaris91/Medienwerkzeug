@@ -220,7 +220,7 @@ def get_runtime_capabilities():
     
     is_docker = (runtime == "docker")
 
-    dev_val = os.environ.get("MW_DEV_MODE", "false").lower()
+    dev_val = os.environ.get("MW_DEV_MODE", "false").strip().lower()
     dev_mode = dev_val in ("true", "1", "yes", "on")
     
     return {
