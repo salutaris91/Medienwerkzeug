@@ -6336,7 +6336,7 @@ async function runPathsCleanScan() {
     }
 
     const list = document.getElementById("paths-clean-list");
-    list.innerHTML = `<div style="color:var(--text-muted); font-size:13px; text-align:center; padding:20px;">🔍 Scanne Medienpfade, bitte warten...</div>`;
+    list.innerHTML = `<div style="color:var(--text-muted); font-size:13px; text-align:center; padding:20px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-2" style="display:inline-block; vertical-align:middle; margin-right: 6px; animation: spin 1s linear infinite; height: 14px; width: 14px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Scanne Medienpfade, bitte warten...</div>`;
 
     // Zu Phase 2 wechseln
     document.getElementById("paths-clean-phase-select").classList.add("hidden");
@@ -10988,7 +10988,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const videoIdsToRemove = selectedItems.map(item => item.id);
 
             btnStart.disabled = true;
-            btnStart.textContent = "⌛ Starte Merge...";
+            btnStart.textContent = "Starte Merge...";
 
             const copyToNas = document.getElementById("yt-merge-option-copy-nas")?.checked ?? false;
             const copyToPcloud = document.getElementById("yt-merge-option-copy-pcloud")?.checked ?? false;
