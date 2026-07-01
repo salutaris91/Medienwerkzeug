@@ -4,6 +4,21 @@ Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert 
 
 ---
 
+## Stand am 01.07.2026 (Phase 2.5b – Bibliothekspflege: Wartungs-Cockpit & UI-Polish)
+
+- **Wartungs-Cockpit & Premium-Umbenennungs-Flow (Branch: feature/maintenance-cockpit):**
+  - **Drei Haupttabs in „Bibliothek pflegen“:** Die Bibliothekspflege wurde in die drei Top-Level-Tabs *Übersicht*, *Aufräumen* und *Werkzeuge* aufgeteilt. Umschalten erfolgt ohne Seitenreload.
+  - **Größere Tab-Navigation (UI-Polish):** Größere Schrift (`1.05rem`), erweitertes Padding (`12px 10px`) und 3px dicke aktive Akzent-Unterstreichung. Besserer Abstand zwischen den Tabs (`gap: 32px`).
+  - **Zähler-Badges an Untertabs:** Die Subtabs in *Aufräumen* (*Struktur*, *Filme & Serien*, *Duplikate*) haben nun dynamische Zähler-Badges (z. B. `Struktur (45)`), die sich nach jedem Scan befüllen und filterbar sind.
+  - **Fachlich präzise Bezeichnungen:** Umbenennung der Kartentitel im Aufräumen-Tab zu *Strukturprobleme*, *Auffälligkeiten in Filme & Serien* und *Doppelte Episoden*.
+  - **Scan-Steuerung auf Übersicht zentriert:** Alle Scan-Startbuttons, die Tiefenscan-Checkbox, Kategorienauswahl und Scan-Statusanzeigen wurden komplett aus dem Aufräumen-Tab entfernt und auf dem Übersicht-Tab gebündelt. Der Klick auf „Bibliothek prüfen“ startet den Scan und leitet den Benutzer nach 500ms automatisch auf das Aufräumen-Ergebnis weiter.
+  - **Premium-Umbenennungsdialog (`modal-health-rename`):** Dialog für sichere, direkte Einzelaktionen wie *Ordner an Dateiname anpassen*, *Dateiname an Ordner anpassen* und *Freien Namen vergeben*. Emojis wurden durch konsistente inline SVGs (`folder`, `file`, `search`) ersetzt.
+  - **Pfadausnutzung bei Videobefunden:** Klick auf „Öffnen“ bei einer Datei löst den Pfad im Backend automatisch auf den parent Ordner auf, um reibungslose Container-Navigation zu gewährleisten.
+  - **Zeilenumbrüche in Befundlisten:** Lange Pfade und Dateinamen nutzen nun `overflow-wrap: anywhere; word-break: break-word;`, um unschöne Ellipsen-Abschneidungen zu verhindern, während die Aktionsbuttons rechts stabil platziert bleiben.
+  - **Zustandssynchronisierung im Medien-Tab:** Spezifischer Empty State („Keine Auffälligkeiten für einzelne Medien...“) wird gerendert, falls in der Gesamtliste noch ungelöste Strukturfehler vorliegen.
+
+---
+
 ## Stand am 01.07.2026 (Phase 2.5a – Health Dashboard Fehlertyp-Gruppierung & Medienpflege-Konnektoren)
 
 - **Umschaltbare Gruppierung im NAS Bibliotheks-Check (Branch: feature/maintenance-cockpit):**
