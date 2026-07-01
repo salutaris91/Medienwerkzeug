@@ -8722,7 +8722,7 @@ function renderStorageTargets() {
             const backupIpField = createField("Backup-/Tailscale-IP:", target.nas_ip_backup, "z.B. 100.64.0.1", (val) => {
                 target.nas_ip_backup = val;
             });
-            const hostnameField = createField("Finder-Servername:", target.nas_hostname, "z.B. ALEXNAS91", (val) => {
+            const hostnameField = createField("Finder-Servername:", target.nas_hostname, "z.B. MEINNAS", (val) => {
                 target.nas_hostname = val;
             });
             const shareField = createField("SMB Share-Name:", target.nas_share, "z.B. share", (val) => {
