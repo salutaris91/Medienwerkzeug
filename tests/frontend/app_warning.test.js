@@ -252,3 +252,35 @@ test('renderHealthStatus - type grouping renders type groups, checkboxes and too
     // Sollte NFO-Agent-Tool-Button rendern
     assert.ok(issuesEl.innerHTML.includes('data-tool="tool_nfo_agent"'));
 });
+
+test('renderHealthStatus - only nested_duplicate / structure issues displays tab specific empty state on media tab', () => {
+    globalThis.window.healthGroupMode = "type";
+
+    const issuesEl = globalThis.document.getElementById("health-issues");
+    const structureIssuesEl = globalThis.document.getElementById("health-issues-structure");
+    const structureContainer = globalThis.document.getElementById("structure-health-issues-container");
+
+    issuesEl.innerHTML = "";
+    structureIssuesEl.innerHTML = "";
+    structureContainer.style.display = "none";
+
+    const data = {
+        status: "done",
+        message: "Scan abgeschlossen",
+        issues: [
+            { key: "1", type: "nested_duplicate", category: "Filme", severity: "warning", message: "Verschachtelter Ordner", path: "/path/to/movie" }
+        ],
+        finished_at: 1719816000
+    };
+
+    globalThis.renderHealthStatus(data);
+
+    // Der Medien-Sub-Tab darf keine globale Entwarnung anzeigen, sondern den Hinweis auf den Struktur-Tab
+    assert.ok(issuesEl.innerHTML.includes("Keine Auffälligkeiten für einzelne Medien. Strukturprobleme findest du im Tab Struktur."));
+    assert.ok(!issuesEl.innerHTML.includes("Keine Auffälligkeiten gefunden. 🎉"));
+
+    // Der Struktur-Sub-Tab sollte das Problem gerendert haben
+    assert.ok(structureIssuesEl.innerHTML.includes("Verschachtelter Ordner"));
+    // Der Struktur-Container sollte eingeblendet sein
+    assert.strictEqual(structureContainer.style.display, "block");
+});
