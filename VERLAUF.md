@@ -8,6 +8,7 @@ Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert 
 
 - **Ordnerstruktur auflösen (Branch: feature/nas-structure-fix):**
   - **Sicherheits- & Validierungslogik im Backend:** Die API prüft streng und unterscheidet präzise zwischen `nested_duplicate` und `genre_container`. Wenn ein Ordner kein Jahr im Namen hat, keine Videodateien direkt enthält und mindestens einen Unterordner mit Videos besitzt, wird er als `genre_container` eingestuft. Er wird in Serienkategorien blockiert. Vorhandene Dateien/Ordner am Zielort werden als Konflikte markiert.
+  - **Plausibilitätsprüfung für Unterordner:** Verhindert das Mitverschieben von nicht-medialen Nebenordnern (wie `Extras/`) durch eine strenge Prüfung: Jeder Unterordner muss entweder ein Video enthalten oder wie ein Filmordner aufgebaut sein (eine Jahreszahl im Namen tragen). Andernfalls wird ein Konflikt ausgegeben.
   - **Umfassendes Items-to-move-Konzept:** Unterstützt sowohl das Flachklopfen einzelner Dateien/Unterordner (für `nested_duplicate`) als auch das Verschieben ganzer Filmordner eine Ebene nach oben (für `genre_container`).
   - **UX- & Begrifflichkeiten-Glättung:** Vermeidung von „sicheren Strukturproblemen“ in der UI. Nutzung von klareren Bezeichnungen:
     - „Alle sicheren Strukturprobleme prüfen“ &rarr; „Ordnerstrukturen vorbereiten“
@@ -16,8 +17,8 @@ Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert 
     - Status „Konflikt“ &rarr; „Manuelle Prüfung nötig“
   - **Vorschau-Modal (`modal-structure-preview`):** Zeigt detaillierte, typspezifische Vorher/Nachher-Ansichten mit angepassten Titeln und neutralem Wording („Filmordner verschieben“ vs. „Datei verschieben“).
   - **Batch-Prüfer & Abarbeitung (`modal-structure-batch`):** Prüft alle Befunde im Hintergrund. Wenn keine Befunde automatisch auflösbar sind, wird eine rote, klare Fehlermeldung gerendert, anstatt stillschweigend nichts zu tun.
-  - **Quarantäne statt Löschen:** Leere Sammelordner und verschachtelte Unterordner werden sicher über `trash.send_to_trash(..., force=True)` in Quarantäne verschoben.
-  - **Hundertprozentige Testabdeckung:** 10 Python-Tests in `tests/test_nas_structure_fix.py` und 44 Frontend-Tests verifizieren alle Funktionalitäten, Fehlertypen und Konflikte fehlerfrei.
+  - **Quarantäne statt Löschen:** Leere Sammelordner und verschachtelte Unterordner werden sicher über `trash.send_to_trash(..., force=True)` in Quarantäne verschoben. Falls nach dem Verschieben noch nicht-mediale Dateien im Sammelordner verbleiben (z. B. `.txt` oder `.nfo`), bleibt der Ordner erhalten, und die API liefert eine präzise Warnmeldung an das Frontend zurück.
+  - **Hundertprozentige Testabdeckung:** 12 Python-Tests in `tests/test_nas_structure_fix.py` und 44 Frontend-Tests verifizieren alle Funktionalitäten, Fehlertypen, Warnungen und Konflikte fehlerfrei.
 
 ---
 

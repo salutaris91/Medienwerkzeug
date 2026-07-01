@@ -280,3 +280,51 @@ class TestNasStructureFix(unittest.TestCase):
         data = resp.get_json()
         self.assertFalse(data["ok"])
         self.assertIn("Sicherheitsprüfung fehlgeschlagen", data["message"])
+
+    def test_prevent_genre_fix_if_non_movie_subdir_exists(self):
+        # Setup: Filme/Action/Film A (2024)/Film A.mkv
+        # und zusätzlich ein nicht-medialer Unterordner Action/Extras
+        action_dir = os.path.join(self.movie_dir, "Action")
+        film_a_dir = os.path.join(action_dir, "Film A (2024)")
+        extras_dir = os.path.join(action_dir, "Extras")
+        os.makedirs(film_a_dir)
+        os.makedirs(extras_dir)
+
+        open(os.path.join(film_a_dir, "Film A.mkv"), 'w').close()
+
+        # Preview
+        resp = self.client.post('/api/nas/structure-fix/preview', json={"path": action_dir})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertFalse(data["safe"])
+        self.assertTrue(any("keine Videodateien" in c for c in data["conflicts"]))
+
+        # Apply must fail
+        resp = self.client.post('/api/nas/structure-fix/apply', json={"path": action_dir})
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertFalse(data["ok"])
+
+    def test_apply_genre_container_warning_if_not_empty(self):
+        # Setup: Filme/Action/Film A (2024)/Film A.mkv
+        # Und zusätzlich eine übrig bleibende Datei im Sammelordner: Filme/Action/readme.txt
+        action_dir = os.path.join(self.movie_dir, "Action")
+        film_a_dir = os.path.join(action_dir, "Film A (2024)")
+        os.makedirs(film_a_dir)
+        open(os.path.join(film_a_dir, "Film A.mkv"), 'w').close()
+
+        # readme.txt direkt im Sammelordner (kein Video, aber wir legen es an)
+        open(os.path.join(action_dir, "readme.txt"), 'w').close()
+
+        with patch('gui.api.nas_api.trash.send_to_trash') as mock_trash:
+            # Apply
+            resp = self.client.post('/api/nas/structure-fix/apply', json={"path": action_dir})
+            self.assertEqual(resp.status_code, 200)
+
+            data = resp.get_json()
+            self.assertTrue(data["ok"])
+            self.assertTrue(any("nicht in Quarantäne verschoben" in w for w in data["warnings"]))
+            self.assertIn("readme.txt", data["message"])
+
+            # Quarantäne sollte nicht aufgerufen worden sein, da readme.txt noch existiert
+            mock_trash.assert_not_called()

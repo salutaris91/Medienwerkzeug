@@ -1171,6 +1171,12 @@ def _get_structure_fix_preview(path: str):
             item_src = os.path.join(real_path, sd)
             item_dst = os.path.join(parent_path, sd)
 
+            # Plausibilitätsprüfung für Filmordner
+            has_video = dir_has_video(item_src)
+            has_year_in_subdir = bool(re.search(r'(19|20)\d{2}', sd))
+            if not has_video and not has_year_in_subdir:
+                conflicts.append(f"Unterordner '{sd}' enthält keine Videodateien und sieht nicht wie ein Filmordner aus (keine Jahreszahl im Namen).")
+
             items_to_move.append({
                 "src": item_src,
                 "dst": item_dst,
@@ -1294,15 +1300,18 @@ def handle_api_structure_fix_apply():
         # Quarantänisiere/Lösche den nun leeren Unterordner
         inner_path = data["folders_to_delete"][0]["path"]
         removed_folders = []
+        warnings = []
         try:
             remaining = [e for e in os.listdir(inner_path) if not e.startswith('.')]
             if not remaining:
                 trash.send_to_trash(inner_path, force=True)
                 removed_folders.append(data["folders_to_delete"][0]["rel_path"])
             else:
-                log_message(f"⚠️ [Structure-Fix] Unterordner nicht vollständig leer nach Verschieben: {inner_path}")
+                msg = f"Ordner wurde nicht in Quarantäne verschoben, da er noch andere Dateien enthält: {', '.join(remaining)}"
+                warnings.append(msg)
+                log_message(f"⚠️ [Structure-Fix] {msg}")
         except Exception as e:
-            log_message(f"⚠️ [Structure-Fix] Konnte leeren Ordner {inner_path} nicht in Quarantäne verschieben: {e}")
+            log_message(f"⚠️ [Structure-Fix] Konnte Ordner {inner_path} nicht in Quarantäne verschieben: {e}")
 
         # Update Health Issues im Cache
         import gui.core.health as health
@@ -1311,10 +1320,11 @@ def handle_api_structure_fix_apply():
         log_message(f"🔧 [Structure-Fix] Struktur aufgelöst ({data['type_id']}): {path}")
         return jsonify({
             "ok": True,
-            "message": "Struktur erfolgreich aufgelöst.",
+            "message": "Struktur erfolgreich aufgelöst." if not warnings else f"Struktur aufgelöst. Warnung: {warnings[0]}",
             "moved_files": moved_files,
             "skipped_files": skipped_files,
             "conflicts": [],
+            "warnings": warnings,
             "removed_folders": removed_folders
         })
 
