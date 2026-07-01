@@ -11367,6 +11367,9 @@ async function updateHomepageData(statusData) {
         if (statusData.nas_details && !statusData.nas_details.has_root) {
             nasBadge.textContent = "Nicht konfiguriert";
             nasBadge.classList.add("warning");
+        } else if (statusData.nas_status === "connected_but_no_library_paths") {
+            nasBadge.textContent = "Unvollständig";
+            nasBadge.classList.add("warning");
         } else if (statusData.nas_status === "connected") {
             nasBadge.textContent = "Verbunden";
             nasBadge.classList.add("online");
@@ -11403,6 +11406,18 @@ async function updateHomepageData(statusData) {
                 nasInfoMsg.style.color = "var(--text-muted)";
                 heroConnectBtn.textContent = "Einrichten";
                 heroConnectBtn.style.display = "inline-block";
+            } else if (details.status === "connected_but_no_library_paths") {
+                nasInfoMsg.innerHTML = '<span style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-circle" style="height:14px; width:14px;"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="12" y2="16"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>NAS verbunden, aber keine Bibliotheksordner gefunden.</span>';
+                nasInfoMsg.style.color = "var(--warning)";
+                if (details.error_message) {
+                    const subSpan = document.createElement("span");
+                    subSpan.style.opacity = "0.7";
+                    subSpan.style.fontSize = "0.9em";
+                    subSpan.style.display = "block";
+                    subSpan.style.marginTop = "4px";
+                    subSpan.textContent = details.error_message;
+                    nasInfoMsg.appendChild(subSpan);
+                }
             } else if (details.status === "connected") {
                 nasInfoMsg.innerHTML = '<span style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-circle" style="height:14px; width:14px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Netzlaufwerk ist eingehängt.</span>';
                 nasInfoMsg.style.color = "var(--success)";

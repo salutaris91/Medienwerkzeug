@@ -683,10 +683,45 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
         validator = artwork_validators.get_validator(server_type)
         cache_key = health_cache.get_cache_key(server_type)
         cache_mgr = health_cache.HealthCacheManager()
-        
+
+        # Detailliertes Debug-Logging
+        sync_cats = settings.get("sync_categories", [])
+        nas_root = settings.get("nas_root", "")
+        log_message(f"🔍 [Health-Scan] nas_root: '{nas_root}'")
+        log_message(f"🔍 [Health-Scan] Konfigurierte Kategorien: {len(sync_cats)}")
+
+        checked_paths = []
+        missing_paths = []
+        for cat in sync_cats:
+            nas_sub = cat.get("nas_sub")
+            if not nas_sub:
+                continue
+            cat_path = os.path.join(nas_root, nas_sub.lstrip("/"))
+            checked_paths.append(cat_path)
+
+            exists = os.path.exists(cat_path)
+            isdir = os.path.isdir(cat_path)
+            readable = os.access(cat_path, os.R_OK) if exists else False
+
+            log_message(f"  - Kategorie '{cat.get('id')}': path='{cat_path}', exists={exists}, isdir={isdir}, readable={readable}")
+
+            if not exists or not isdir or not readable:
+                missing_paths.append(nas_sub)
+
         shows = list(walk_nas_categories(settings, category_ids=category_ids))
         total = len(shows)
         log_message(f"🔍 [Health-Scan] Starte Prüfung von {total} Ordnern (deep_dive={deep_dive})...")
+
+        if total == 0:
+            msg = "Keine Bibliotheksordner gefunden. Prüfe NAS-Pfad und Kategoriepfade."
+            _set_state(
+                status="warning",
+                message=msg,
+                error="no_library_folders_found",
+                finished_at=time.time()
+            )
+            log_message(f"⚠️ [Health-Scan] {msg}")
+            return
  
         for idx, show in enumerate(shows):
             if _cancel_event.is_set():

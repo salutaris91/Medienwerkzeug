@@ -113,50 +113,8 @@ def _open_nas_in_finder(nas_host, nas_share):
         return False
 
 def check_nas_status():
-    settings = load_settings()
-    nas_target = next((t for t in settings.get("storage_targets", []) if t.get("id") == "nas"), None)
-    if nas_target:
-        nas_root = nas_target.get("root_path", "")
-        nas_host = nas_target.get("nas_ip", "")
-        nas_host_ts = nas_target.get("nas_ip_backup", "")
-        if not nas_target.get("enabled", True):
-            return "offline"
-    else:
-        nas_root = settings.get("nas_root", "")
-        nas_host = ""
-        nas_host_ts = ""
-    
-    if not nas_root:
-        return "offline"
-    
-    is_docker = get_runtime_capabilities()["runtime"] == "docker"
-    if is_docker:
-        return "connected" if os.path.isdir(nas_root) else "offline"
-    
-    # 1. Check if mounted
-    mounted = _is_nas_root_mounted(nas_root)
-        
-    # 2. Check ping/nc
-    pingable = False
-    for ip in [nas_host, nas_host_ts]:
-        if not ip:
-            continue
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(0.3)
-            s.connect((ip, 445))
-            s.close()
-            pingable = True
-            break
-        except Exception:
-            pass
-            
-    if mounted:
-        return "connected"
-    elif pingable:
-        return "available_not_mounted"
-    else:
-        return "offline"
+    details = check_nas_connection_details()
+    return details["status"]
 
 def check_nas_connection_details():
     settings = load_settings()
@@ -279,6 +237,36 @@ def check_nas_connection_details():
     if mounted:
         status = "connected"
         error_message = None
+        
+        # Härtungsprüfung für "connected"
+        try:
+            if not os.path.isdir(nas_root) or not os.access(nas_root, os.R_OK):
+                status = "offline"
+                error_message = f"Einhängepfad '{nas_root}' ist nicht lesbar oder kein Verzeichnis."
+            else:
+                sync_cats = settings.get("sync_categories", [])
+                if not sync_cats:
+                    status = "connected_but_no_library_paths"
+                    error_message = "Keine Sync-Kategorien konfiguriert."
+                else:
+                    valid_paths = 0
+                    missing_paths = []
+                    for cat in sync_cats:
+                        nas_sub = cat.get("nas_sub")
+                        if not nas_sub:
+                            continue
+                        cat_path = os.path.join(nas_root, nas_sub.lstrip("/"))
+                        if os.path.isdir(cat_path) and os.access(cat_path, os.R_OK):
+                            valid_paths += 1
+                        else:
+                            missing_paths.append(nas_sub)
+                    
+                    if valid_paths == 0:
+                        status = "connected_but_no_library_paths"
+                        error_message = f"Keiner der Kategoriepfade existiert oder ist lesbar (fehlt: {', '.join(missing_paths)})."
+        except Exception as e:
+            status = "offline"
+            error_message = f"Fehler bei der Lesbarkeitsprüfung von nas_root: {e}"
     elif reachable_ip:
         status = "available_not_mounted"
         diag_status, diag_msg = diagnose_nas_mount(nas_root)
@@ -316,7 +304,7 @@ def ensure_nas_mounted(allow_finder_fallback=False):
         return os.path.isdir(nas_root)
         
     status = check_nas_status()
-    if status == "connected":
+    if status in ["connected", "connected_but_no_library_paths"]:
         return True
         
     if status == "offline":
@@ -327,7 +315,7 @@ def ensure_nas_mounted(allow_finder_fallback=False):
         except Exception as e:
             log_message(f"⚠️ Tailscale-Start fehlgeschlagen: {e}")
             
-    if status == "connected":
+    if status in ["connected", "connected_but_no_library_paths"]:
         return True
         
     if status in ["available_not_mounted", "offline"]:

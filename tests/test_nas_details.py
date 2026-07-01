@@ -19,7 +19,14 @@ NAS_SETTINGS_ENABLED = {
         "nas_hostname": "MEDIENSERVER",
         "nas_share": "Kino",
         "enabled": True,
-    }]
+    }],
+    "sync_categories": [
+        {
+            "id": "movies",
+            "name": "Filme",
+            "nas_sub": "Filme"
+        }
+    ]
 }
 
 NAS_SETTINGS_DISABLED = {
@@ -87,7 +94,9 @@ class TestNasDetails(unittest.TestCase):
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
     @patch("gui.core.transfers._is_nas_root_mounted", return_value=True)
-    def test_details_when_connected(self, mock_mounted, mock_settings):
+    @patch("gui.core.transfers.os.path.isdir", return_value=True)
+    @patch("gui.core.transfers.os.access", return_value=True)
+    def test_details_when_connected(self, mock_access, mock_isdir, mock_mounted, mock_settings):
         with self._socket_mock():
             details = transfers.check_nas_connection_details()
         self.assertEqual(details["status"], "connected")
@@ -210,6 +219,49 @@ class TestNasDetails(unittest.TestCase):
     def test_status_docker_offline(self, mock_isdir, mock_caps, mock_settings):
         status = transfers.check_nas_status()
         self.assertEqual(status, "offline")
+
+    @patch("gui.core.transfers.load_settings")
+    @patch("gui.core.transfers._is_nas_root_mounted", return_value=True)
+    @patch("gui.core.transfers.os.path.isdir", return_value=True)
+    @patch("gui.core.transfers.os.access", return_value=True)
+    def test_details_connected_but_no_library_paths_missing_folder(self, mock_access, mock_isdir, mock_mounted, mock_settings):
+        # Alle Kategorieordner fehlen (isdir fuer Kategorien ist False)
+        mock_settings.return_value = NAS_SETTINGS_ENABLED
+        def isdir_mock(path):
+            if path == "/Volumes/Kino":
+                return True
+            return False  # Kategorieordner Filme existiert nicht
+        mock_isdir.side_effect = isdir_mock
+
+        with self._socket_mock():
+            details = transfers.check_nas_connection_details()
+        self.assertEqual(details["status"], "connected_but_no_library_paths")
+        self.assertIn("Keiner der Kategoriepfade existiert", details["error_message"])
+
+    @patch("gui.core.transfers.load_settings")
+    @patch("gui.core.transfers._is_nas_root_mounted", return_value=True)
+    @patch("gui.core.transfers.os.path.isdir", return_value=True)
+    @patch("gui.core.transfers.os.access", return_value=True)
+    def test_details_connected_but_no_categories_at_all(self, mock_access, mock_isdir, mock_mounted, mock_settings):
+        # Keine Kategorien konfiguriert
+        settings_no_cats = {
+            "storage_targets": [{
+                "id": "nas",
+                "root_path": "/Volumes/Kino",
+                "nas_ip": "192.168.1.100",
+                "nas_ip_backup": "100.64.0.1",
+                "nas_hostname": "MEDIENSERVER",
+                "nas_share": "Kino",
+                "enabled": True,
+            }],
+            "sync_categories": []
+        }
+        mock_settings.return_value = settings_no_cats
+
+        with self._socket_mock():
+            details = transfers.check_nas_connection_details()
+        self.assertEqual(details["status"], "connected_but_no_library_paths")
+        self.assertEqual(details["error_message"], "Keine Sync-Kategorien konfiguriert.")
 
 
 if __name__ == "__main__":
