@@ -418,17 +418,19 @@ document.addEventListener("DOMContentLoaded", () => {
         applyTheme(savedTheme);
     }
 
-    initViews();
-    initConsole();
-    initEventListeners();
-    initQueue();
+    loadCapabilities().then(() => {
+        initViews();
+        initConsole();
+        initEventListeners();
+        initQueue();
 
-    // Load settings and status immediately
-    loadSettings().then(() => {
-        triggerLaunchQuote();
-        if (typeof loadDashboard === "function") {
-            loadDashboard();
-        }
+        // Load settings and status immediately
+        loadSettings().then(() => {
+            triggerLaunchQuote();
+            if (typeof loadDashboard === "function") {
+                loadDashboard();
+            }
+        });
     });
 
     const themeSelect = document.getElementById("settings-app-theme");
@@ -1148,156 +1150,168 @@ window.AppCapabilities = {
     }
 };
 
-fetch('/api/system/capabilities')
-    .then(res => res.json())
-    .then(data => {
-        if (data.capabilities) {
-            window.AppCapabilities = data;
-            if (data.runtime === 'docker') {
-                document.body.classList.add('runtime-docker');
+function loadCapabilities() {
+    return fetch('/api/system/capabilities')
+        .then(res => res.json())
+        .then(data => {
+            if (data.capabilities) {
+                window.AppCapabilities = data;
+                if (data.runtime === 'docker') {
+                    document.body.classList.add('runtime-docker');
 
-                // Buttontexte für Docker-Modus anpassen
-                const btnOpenInbox = document.getElementById("btn-open-inbox");
-                if (btnOpenInbox) {
-                    btnOpenInbox.innerHTML = btnOpenInbox.innerHTML.replace("Öffnen", "Ansehen");
-                }
-                const btnOpenOutbox = document.getElementById("btn-open-outbox");
-                if (btnOpenOutbox) {
-                    btnOpenOutbox.innerHTML = btnOpenOutbox.innerHTML.replace("Öffnen", "Ansehen");
-                }
-
-                const headerBadge = document.getElementById("header-version-badge");
-                if (headerBadge) headerBadge.textContent = "v1.0 Docker/Server Edition";
-
-                const nasIpGroup = document.getElementById("onboarding-nas-ip-group");
-                if (nasIpGroup) nasIpGroup.classList.add("hidden");
-                const nasShareGroup = document.getElementById("onboarding-nas-share-group");
-                if (nasShareGroup) nasShareGroup.classList.add("hidden");
-                const nasHostnameGroup = document.getElementById("onboarding-nas-hostname-group");
-                if (nasHostnameGroup) nasHostnameGroup.classList.add("hidden");
-
-                const nasRootLabel = document.getElementById("onboarding-nas-root-label");
-                if (nasRootLabel) nasRootLabel.textContent = "Medien-Root im Container:";
-
-                const depDesc = document.getElementById("onboarding-dep-desc");
-                if (depDesc) depDesc.classList.add("hidden");
-                const dockerDepNote = document.getElementById("onboarding-docker-dep-note");
-                if (dockerDepNote) dockerDepNote.classList.remove("hidden");
-
-                const rootInput = document.getElementById("onboarding-nas-root");
-                if (rootInput && !rootInput.value) rootInput.value = "/media";
-                const testNasBtn = document.getElementById("btn-onboarding-test-nas");
-                if (testNasBtn) testNasBtn.textContent = "Medien-Root prüfen";
-                const inInput = document.getElementById("onboarding-inbox-dir");
-                if (inInput && !inInput.value) inInput.value = "/media/Input";
-                const outInput = document.getElementById("onboarding-outbox-dir");
-                if (outInput && !outInput.value) outInput.value = "/media/Output";
-
-                const finderElements = [
-                    "btn-open-nas-folder-series",
-                    "btn-settings-toggle-inbox",
-                    "btn-settings-toggle-outbox",
-                    "yt-open-losslesscut-container"
-                ];
-                finderElements.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.style.display = 'none';
-                });
-
-                const losslessCutCheck = document.getElementById("yt-open-losslesscut");
-                if (losslessCutCheck) losslessCutCheck.checked = false;
-                const outboxFinder = document.getElementById("settings-open-outbox-finder");
-                if (outboxFinder) {
-                    const group = outboxFinder.closest('.form-group');
-                    if (group) group.style.display = 'none';
-                }
-
-                const notifyMacos = document.getElementById("settings-notify-macos");
-                if (notifyMacos) {
-                    const group = notifyMacos.closest('.inline-style-130');
-                    if (group) group.style.display = 'none';
-                }
-
-                const monitorNotifyMacos = document.getElementById("set-monitor-notify-macos");
-                if (monitorNotifyMacos) {
-                    const label = monitorNotifyMacos.closest('label');
-                    if (label) label.style.display = 'none';
-                }
-            }
-
-            // Hardware Encoding Diagnostics
-            if (data.hardware_encoding_diagnostics) {
-                const diag = data.hardware_encoding_diagnostics;
-                const diagList = document.getElementById("hardware-diagnostics-list");
-                if (diagList) {
-                    let html = '';
-
-                    if (diag.dri_exists) {
-                        html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator active" style="background-color: var(--success);"></span><span>Render-Geräte (/dev/dri/renderD*) gefunden.</span></div>';
-                    } else {
-                        html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator error" style="background-color: var(--danger);"></span><span>Keine Render-Geräte (/dev/dri/renderD*) gefunden.</span></div>';
+                    // Buttontexte für Docker-Modus anpassen
+                    const btnOpenInbox = document.getElementById("btn-open-inbox");
+                    if (btnOpenInbox) {
+                        btnOpenInbox.innerHTML = btnOpenInbox.innerHTML.replace("Öffnen", "Ansehen");
+                    }
+                    const btnOpenOutbox = document.getElementById("btn-open-outbox");
+                    if (btnOpenOutbox) {
+                        btnOpenOutbox.innerHTML = btnOpenOutbox.innerHTML.replace("Öffnen", "Ansehen");
                     }
 
-                    if (diag.dri_exists) {
-                        if (diag.dri_writable && diag.device_path) {
-                            html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator active" style="background-color: var(--success);"></span><span>Lese-/Schreibzugriff auf ' + diag.device_path + ' erfolgreich.</span></div>';
+                    const headerBadge = document.getElementById("header-version-badge");
+                    if (headerBadge) headerBadge.textContent = "v1.0 Docker/Server Edition";
+
+                    const nasIpGroup = document.getElementById("onboarding-nas-ip-group");
+                    if (nasIpGroup) nasIpGroup.classList.add("hidden");
+                    const nasShareGroup = document.getElementById("onboarding-nas-share-group");
+                    if (nasShareGroup) nasShareGroup.classList.add("hidden");
+                    const nasHostnameGroup = document.getElementById("onboarding-nas-hostname-group");
+                    if (nasHostnameGroup) nasHostnameGroup.classList.add("hidden");
+
+                    const nasRootLabel = document.getElementById("onboarding-nas-root-label");
+                    if (nasRootLabel) nasRootLabel.textContent = "Medien-Root im Container:";
+
+                    const depDesc = document.getElementById("onboarding-dep-desc");
+                    if (depDesc) depDesc.classList.add("hidden");
+                    const dockerDepNote = document.getElementById("onboarding-docker-dep-note");
+                    if (dockerDepNote) dockerDepNote.classList.remove("hidden");
+
+                    const tooltipBox = document.querySelector(".tooltip-box");
+                    if (tooltipBox) {
+                        tooltipBox.textContent = "Der Container-Pfad, unter dem dein Medienordner im Docker-Container gemountet ist (z.B. /media).";
+                    }
+                    const rootInput = document.getElementById("onboarding-nas-root");
+                    if (rootInput) {
+                        rootInput.placeholder = "z.B. /media";
+                        if (!rootInput.value) rootInput.value = "/media";
+                    }
+                    const testNasBtn = document.getElementById("btn-onboarding-test-nas");
+                    if (testNasBtn) testNasBtn.textContent = "Medien-Root prüfen";
+                    const inInput = document.getElementById("onboarding-inbox-dir");
+                    if (inInput && !inInput.value) inInput.value = "/media/Input";
+                    const outInput = document.getElementById("onboarding-outbox-dir");
+                    if (outInput && !outInput.value) outInput.value = "/media/Output";
+
+                    const finderElements = [
+                        "btn-open-nas-folder-series",
+                        "btn-settings-toggle-inbox",
+                        "btn-settings-toggle-outbox",
+                        "yt-open-losslesscut-container"
+                    ];
+                    finderElements.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.style.display = 'none';
+                    });
+
+                    const losslessCutCheck = document.getElementById("yt-open-losslesscut");
+                    if (losslessCutCheck) losslessCutCheck.checked = false;
+
+                    const outboxFinder = document.getElementById("settings-open-outbox-finder");
+                    if (outboxFinder) {
+                        const group = outboxFinder.closest('.form-group');
+                        if (group) group.style.display = 'none';
+                    }
+
+                    const notifyMacos = document.getElementById("settings-notify-macos");
+                    if (notifyMacos) {
+                        const group = notifyMacos.closest('.inline-style-130');
+                        if (group) group.style.display = 'none';
+                    }
+
+                    const monitorNotifyMacos = document.getElementById("set-monitor-notify-macos");
+                    if (monitorNotifyMacos) {
+                        const label = monitorNotifyMacos.closest('label');
+                        if (label) label.style.display = 'none';
+                    }
+                }
+
+                // Hardware Encoding Diagnostics
+                if (data.hardware_encoding_diagnostics) {
+                    const diag = data.hardware_encoding_diagnostics;
+                    const diagList = document.getElementById("hardware-diagnostics-list");
+                    if (diagList) {
+                        let html = '';
+
+                        if (diag.dri_exists) {
+                            html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator active" style="background-color: var(--success);"></span><span>Render-Geräte (/dev/dri/renderD*) gefunden.</span></div>';
                         } else {
-                            html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator error" style="background-color: var(--danger);"></span><span>Fehlende Rechte auf /dev/dri. Bitte "devices" und "group_add" im Docker-Compose prüfen!</span></div>';
+                            html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator error" style="background-color: var(--danger);"></span><span>Keine Render-Geräte (/dev/dri/renderD*) gefunden.</span></div>';
                         }
+
+                        if (diag.dri_exists) {
+                            if (diag.dri_writable && diag.device_path) {
+                                html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator active" style="background-color: var(--success);"></span><span>Lese-/Schreibzugriff auf ' + diag.device_path + ' erfolgreich.</span></div>';
+                            } else {
+                                html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator error" style="background-color: var(--danger);"></span><span>Fehlende Rechte auf /dev/dri. Bitte "devices" und "group_add" im Docker-Compose prüfen!</span></div>';
+                            }
+                        }
+
+                        if (diag.dri_writable) {
+                            if (diag.vaapi_probe_success) {
+                                html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator active" style="background-color: var(--success);"></span><span>VAAPI Hardware-Encoding Probe erfolgreich. HEVC-Beschleunigung ist einsatzbereit. <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="display:inline-block; vertical-align:middle; margin-left: 4px; color: var(--success);"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span></div>';
+                            } else {
+                                html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator error" style="background-color: var(--danger);"></span><span>VAAPI Probe fehlgeschlagen. Möglicherweise falsche Treiber (i915 vs xe) oder nicht unterstützte Hardware.</span></div>';
+                            }
+                        }
+
+                        diagList.innerHTML = html;
                     }
 
-                    if (diag.dri_writable) {
-                        if (diag.vaapi_probe_success) {
-                            html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator active" style="background-color: var(--success);"></span><span>VAAPI Hardware-Encoding Probe erfolgreich. HEVC-Beschleunigung ist einsatzbereit. <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="display:inline-block; vertical-align:middle; margin-left: 4px; color: var(--success);"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span></div>';
-                        } else {
-                            html += '<div style="display: flex; align-items: center; gap: 10px;"><span class="status-indicator error" style="background-color: var(--danger);"></span><span>VAAPI Probe fehlgeschlagen. Möglicherweise falsche Treiber (i915 vs xe) oder nicht unterstützte Hardware.</span></div>';
-                        }
-                    }
+                    const hwWarning = document.getElementById("hero-hw-warning");
+                    if (hwWarning && data.runtime === 'docker' && (!diag.dri_writable || !diag.vaapi_probe_success)) {
+                        const updateHwWarning = () => {
+                            const movieConv = document.getElementById("movie-option-convert");
+                            const seriesConv = document.getElementById("series-option-convert");
+                            if ((movieConv && movieConv.checked) || (seriesConv && seriesConv.checked)) {
+                                hwWarning.style.display = 'block';
+                            } else {
+                                hwWarning.style.display = 'none';
+                            }
+                        };
 
-                    diagList.innerHTML = html;
-                }
-
-                const hwWarning = document.getElementById("hero-hw-warning");
-                if (hwWarning && data.runtime === 'docker' && (!diag.dri_writable || !diag.vaapi_probe_success)) {
-                    const updateHwWarning = () => {
                         const movieConv = document.getElementById("movie-option-convert");
                         const seriesConv = document.getElementById("series-option-convert");
-                        if ((movieConv && movieConv.checked) || (seriesConv && seriesConv.checked)) {
-                            hwWarning.style.display = 'block';
-                        } else {
-                            hwWarning.style.display = 'none';
-                        }
-                    };
+                        if (movieConv) movieConv.addEventListener("change", updateHwWarning);
+                        if (seriesConv) seriesConv.addEventListener("change", updateHwWarning);
 
-                    const movieConv = document.getElementById("movie-option-convert");
-                    const seriesConv = document.getElementById("series-option-convert");
-                    if (movieConv) movieConv.addEventListener("change", updateHwWarning);
-                    if (seriesConv) seriesConv.addEventListener("change", updateHwWarning);
+                        // Initial check
+                        updateHwWarning();
+                    }
+                }
 
-                    // Initial check
-                    updateHwWarning();
+                // Dev Mode / Console visibility logic
+                const devModeActive = !!data.dev_mode;
+
+                if (typeof currentSettings !== "undefined" && currentSettings) {
+                    applyConsoleVisibility(currentSettings.show_console || false);
+                } else {
+                    applyConsoleVisibility(false);
+                }
+
+                const showConsoleCheckbox = document.getElementById("settings-show-console");
+                if (showConsoleCheckbox) {
+                    const group = showConsoleCheckbox.closest('.form-group');
+                    if (group) {
+                        group.style.display = devModeActive ? '' : 'none';
+                    }
                 }
             }
-
-            // Dev Mode / Console visibility logic
-            const devModeActive = !!data.dev_mode;
-
-            if (typeof currentSettings !== "undefined" && currentSettings) {
-                applyConsoleVisibility(currentSettings.show_console || false);
-            } else {
-                applyConsoleVisibility(false);
-            }
-
-            const showConsoleCheckbox = document.getElementById("settings-show-console");
-            if (showConsoleCheckbox) {
-                const group = showConsoleCheckbox.closest('.form-group');
-                if (group) {
-                    group.style.display = devModeActive ? '' : 'none';
-                }
-            }
-        }
-    })
-    .catch(err => console.error("Failed to load capabilities", err));
+        })
+        .catch(err => {
+            console.error("Failed to load capabilities", err);
+        });
+}
 
 // Global variables Error Handler for CSS fallbacks
 window.addEventListener('error', function (e) {
@@ -7308,16 +7322,33 @@ function initEventListeners() {
 
     // Browse Tools Path
     const btnBrowseTools = document.getElementById("btn-browse-tools-path");
-    if(btnBrowseTools) {
+    if (btnBrowseTools) {
         btnBrowseTools.addEventListener("click", async () => {
-            try {
-                const response = await fetch("/api/browse-folder");
-                const data = await response.json();
-                if(data.status === "ok" && data.path) {
-                    document.getElementById("tools-target-path").value = data.path;
+            const caps = window.AppCapabilities;
+            const openLocalEnabled = caps && caps.capabilities && caps.capabilities.open_local_folder;
+            const inputEl = document.getElementById("tools-target-path");
+            if (!inputEl) return;
+
+            if (!openLocalEnabled) {
+                let dockerRoot = "/media";
+                const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
+                if (nasTarget && nasTarget.root_path) {
+                    dockerRoot = nasTarget.root_path;
                 }
-            } catch (e) {
-                console.error("Browse folder error:", e);
+                const val = inputEl.value;
+                window.openFolderPicker(val || dockerRoot, dockerRoot, null, "Ordner auswählen", (selectedPath) => {
+                    inputEl.value = selectedPath;
+                });
+            } else {
+                try {
+                    const response = await fetch("/api/browse-folder");
+                    const data = await response.json();
+                    if (data.status === "ok" && data.path) {
+                        inputEl.value = data.path;
+                    }
+                } catch (e) {
+                    console.error("Browse folder error:", e);
+                }
             }
         });
     }
@@ -8848,7 +8879,13 @@ function renderStorageTargets() {
                 guidedLabel.style.color = "var(--text-main)";
                 guidedLabel.style.marginBottom = "4px";
                 guidedLabel.style.display = "block";
-                guidedLabel.textContent = "Netzwerkadresse (smb://...) oder lokaler Mac-Pfad (/Volumes/...):";
+
+                const isDocker = window.AppCapabilities && window.AppCapabilities.runtime === "docker";
+                if (isDocker) {
+                    guidedLabel.textContent = "Container-Pfad im Docker-Setup (z.B. /media):";
+                } else {
+                    guidedLabel.textContent = "Netzwerkadresse (smb://...) oder lokaler Mac-Pfad (/Volumes/...):";
+                }
 
                 const guidedRow = document.createElement("div");
                 guidedRow.style.display = "flex";
@@ -8863,7 +8900,11 @@ function renderStorageTargets() {
                 guidedInput.style.border = "1px solid var(--border-glass)";
                 guidedInput.style.background = "var(--bg-surface)";
                 guidedInput.style.color = "var(--text-main)";
-                guidedInput.placeholder = "z.B. smb://192.168.2.208/media  oder  /Volumes/media";
+                if (isDocker) {
+                    guidedInput.placeholder = "z.B. /media  oder  /data/movies";
+                } else {
+                    guidedInput.placeholder = "z.B. smb://192.168.2.208/media  oder  /Volumes/media";
+                }
 
                 if (target.nas_ip && target.nas_share) {
                     guidedInput.value = `smb://${target.nas_ip}/${target.nas_share}`;
@@ -9070,7 +9111,11 @@ function renderStorageTargets() {
                         }
                         html += renderCheckLine(result.server_reachable, serverStatusText);
 
-                        html += renderCheckLine(result.share_specified, `Freigabe angegeben (${target.nas_share || 'fehlt'})`);
+                        let shareText = `Freigabe angegeben (${target.nas_share || 'fehlt'})`;
+                        if (result.share_required === false && !target.nas_share) {
+                            shareText = "Freigabe angegeben (Nicht erforderlich)";
+                        }
+                        html += renderCheckLine(result.share_specified, shareText);
                         html += renderCheckLine(result.local_path_exists, `Lokaler Pfad vorhanden (${target.root_path || 'fehlt'})`);
                         html += renderCheckLine(result.categories_found, `Kategoriepfade gefunden`);
 
@@ -9089,7 +9134,7 @@ function renderStorageTargets() {
                             if (!result.server_reachable) {
                                 html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Binde das Netzlaufwerk lokal auf deinem Mac im Finder ein oder trage eine gültige IP-Adresse ein.</div>`;
                             }
-                            if (!result.share_specified) {
+                            if (!result.share_specified && result.share_required) {
                                 html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Trage den Namen der Freigabe (z.B. <code>media</code> oder <code>Kino</code>) ein.</div>`;
                             }
                             if (!result.local_path_exists) {

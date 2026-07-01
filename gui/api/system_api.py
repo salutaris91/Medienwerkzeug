@@ -395,8 +395,14 @@ def handle_api_nas_test():
                 except Exception:
                     pass
 
-        # Test 2: Freigabe angegeben
-        share_specified = bool(nas_share)
+        # Test 2: Freigabe angegeben (unter Docker oder bei rein lokal gemountetem Pfad nicht erforderlich)
+        is_docker = get_runtime_capabilities()["runtime"] == "docker"
+        local_or_docker = (not nas_ip and not nas_ip_backup and local_path_exists) or (is_docker and local_path_exists)
+
+        if local_or_docker:
+            share_specified = True
+        else:
+            share_specified = bool(nas_share)
 
         # Test 4: Bibliotheksordner vorhanden & fehlende Kategorien ermitteln
         categories_found = False
@@ -444,6 +450,7 @@ def handle_api_nas_test():
             "server_reachable": server_reachable,
             "reachable_ip": reachable_ip,
             "share_specified": share_specified,
+            "share_required": not local_or_docker,
             "local_path_exists": local_path_exists,
             "categories_found": categories_found,
             "missing_categories": missing_categories,

@@ -168,14 +168,48 @@ def check_nas_connection_details():
     is_docker = get_runtime_capabilities()["runtime"] == "docker"
     if is_docker:
         if os.path.isdir(nas_root):
+            status = "connected"
+            error_message = None
+            try:
+                if not os.access(nas_root, os.R_OK):
+                    status = "offline"
+                    error_message = f"Einhängepfad '{nas_root}' ist nicht lesbar."
+                else:
+                    sync_cats = settings.get("sync_categories", [])
+                    if not sync_cats:
+                        status = "connected_but_no_library_paths"
+                        error_message = "Keine Sync-Kategorien konfiguriert."
+                    else:
+                        valid_paths = 0
+                        missing_paths = []
+                        for cat in sync_cats:
+                            nas_sub = cat.get("nas_sub")
+                            if not nas_sub:
+                                continue
+                            cat_path = os.path.join(nas_root, nas_sub.lstrip("/"))
+                            if os.path.isdir(cat_path) and os.access(cat_path, os.R_OK):
+                                valid_paths += 1
+                            else:
+                                missing_paths.append(nas_sub)
+
+                        if valid_paths == 0:
+                            status = "connected_but_no_library_paths"
+                            if missing_paths:
+                                error_message = f"Keiner der Kategoriepfade existiert oder ist lesbar (fehlt: {', '.join(missing_paths)})."
+                            else:
+                                error_message = "Keiner der Kategoriepfade ist lesbar oder konfiguriert."
+            except Exception as e:
+                status = "offline"
+                error_message = f"Fehler bei der Lesbarkeitsprüfung von nas_root: {e}"
+
             return {
-                "status": "connected",
+                "status": status,
                 "enabled": nas_enabled,
                 "has_root": has_root,
                 "checked_ips": [],
                 "reachable_ip": None,
                 "ip_details": [],
-                "error_message": None
+                "error_message": error_message
             }
         else:
             return {
