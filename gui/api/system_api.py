@@ -405,12 +405,12 @@ def handle_api_nas_connect():
             })
 
         if nas_status == "available_not_mounted":
-            message = (
+            message = nas_details.get("error_message") or (
                 "NAS ist erreichbar, konnte aber nicht eingebunden werden. "
                 "Bitte prüfe die SMB-Zugangsdaten im macOS-Schlüsselbund."
             )
         else:
-            message = (
+            message = nas_details.get("error_message") or (
                 "NAS konnte nicht erreicht werden. Bitte prüfe Netzwerk, "
                 "Tailscale und die SMB-Einstellungen."
             )
