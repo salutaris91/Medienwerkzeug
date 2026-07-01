@@ -13100,7 +13100,10 @@ function renderHealthStatus(data) {
             if (conflictsWrap) conflictsWrap.style.display = "none";
             if (confirmBtn) confirmBtn.disabled = true;
 
-            if (modal) modal.classList.remove("hidden");
+            if (modal) {
+                modal.classList.remove("hidden");
+                modal.classList.add("active");
+            }
 
             try {
                 const res = await fetch("/api/nas/structure-fix/preview", {
@@ -13178,7 +13181,10 @@ function renderHealthStatus(data) {
                 const data = await res.json();
                 if (data.ok) {
                     const modal = document.getElementById("modal-structure-preview");
-                    if (modal) modal.classList.add("hidden");
+                    if (modal) {
+                        modal.classList.remove("active");
+                        modal.classList.add("hidden");
+                    }
                     pollHealthStatus(false);
                 } else {
                     alert(data.message || "Fehler bei der Ausführung.");
@@ -13199,7 +13205,10 @@ function renderHealthStatus(data) {
             if (el) {
                 el.addEventListener("click", () => {
                     const modal = document.getElementById("modal-structure-preview");
-                    if (modal) modal.classList.add("hidden");
+                    if (modal) {
+                        modal.classList.remove("active");
+                        modal.classList.add("hidden");
+                    }
                 });
             }
         });
@@ -13260,7 +13269,10 @@ function renderHealthStatus(data) {
                 confirmBatchBtn.textContent = "Geprüfte Ordnerstrukturen auflösen";
             }
 
-            if (batchModal) batchModal.classList.remove("hidden");
+            if (batchModal) {
+                batchModal.classList.remove("hidden");
+                batchModal.classList.add("active");
+            }
 
             let processedCount = 0;
             let safePaths = [];
@@ -13405,7 +13417,10 @@ function renderHealthStatus(data) {
             if (el) {
                 el.addEventListener("click", () => {
                     const modal = document.getElementById("modal-structure-batch");
-                    if (modal) modal.classList.add("hidden");
+                    if (modal) {
+                        modal.classList.remove("active");
+                        modal.classList.add("hidden");
+                    }
                 });
             }
         });
