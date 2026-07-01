@@ -4,9 +4,9 @@ Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert 
 
 ---
 
-## Stand am 01.07.2026 (Phase 2.4a – Startseite & Medienwerkzeug-Übersicht)
+## Stand am 01.07.2026 (Phase 2.4a & Phase 2.4b – Startseite & Docker-NAS-Härtung)
 
-- **Startseite / Medienwerkzeug-Übersicht zusammengeführt (Branch: feature/phase2-home-overview):**
+- **Startseite / Medienwerkzeug-Übersicht zusammengeführt & nachbearbeitet (Branch: feature/phase2-home-overview):**
   - **Sendezentrale zu Medienwerkzeug:** Die Startseite (`view-empty`) heißt jetzt vollständig „Medienwerkzeug“. Der Hero-Text lautet einladend: „Willkommen in deinem Medienwerkzeug“.
   - **Dashboard-Konsolidierung:** Das bisherige separate Dashboard in der Sidebar wurde entfernt.
   - **Startseite gliedern:** Die Startseite ist nun in 5 logische Bereiche gegliedert:
@@ -14,10 +14,23 @@ Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert 
     2. **Speicher & Importquellen:** NAS-Speicherbelegung (kreisförmige Anzeige) und Import-Quellen-Status (mit optionalem manuellen Import-Trigger).
     3. **Konvertierungs-Verlauf & Statistiken:** Letzte Konvertierungen & Speicherplatzreduktion (Bar Chart) und die empfohlenen H.265-Zielqualitäten der Conversion Intelligence.
     4. **Detailliertes Konvertierungsprotokoll:** Chronologische Liste aller Videokomprimierungen.
-    5. **Bibliothekszustand:** Der allgemeine Zustand der Bibliothek (z. B. "Sehr gut" oder "Noch keine Diagnose durchgeführt") sowie die Anzahl der Filme, Serien und Episoden werden übersichtlich dargestellt. Fehlende oder nicht berechenbare Daten werden durch stille Platzhalter bzw. „Noch nicht verfügbar“ abgefangen.
+    5. **Bibliothekszustand:** Der allgemeine Zustand der Bibliothek (z. B. "Sehr gut" oder "Noch keine Diagnose durchgeführt") sowie die Anzahl der Filme, Serien und Episoden werden übersichtlich dargestellt.
   - **Bibliothek pflegen:** Die Bibliotheksseite (`view-library`) wurde in „Bibliothek pflegen“ umbenannt und enthält nun die 4 Haupt-Wartungskacheln (*NAS Bibliotheks-Check*, *Duplikat-Erkennung*, *Filme normalisieren* und *NAS-Renaming-Tool*) im Standard-Layout. Diese sind fest integriert und nicht mehr ausblendbar.
   - **JS & Event-Handling bereinigt:** Alle ungenutzten Sidebar-Klick-Handler für das Dashboard sowie die Widgets-Ausblend-Logiken wurden im JS sauber entfernt oder zu No-Ops migriert, um Fehlerfreiheit zu garantieren.
   - **Mobile Optimierung:** Flexible Grid-Systeme (`dashboard-grid`) und responsives Layout stellen sicher, dass alle Controls auch auf kleinen Displays und Smartphones überlauf- und fehlerfrei dargestellt werden.
+  - **UX- & Test-Nacharbeiten (Merge-Prüfung):**
+    - Die Fehlermeldungen im NAS-Verbindungstest wurden präzisiert (Vermeidung von leeren `fehlt:` Klammern, klarer Scroll-Link zu den Sync-Kategorien).
+    - Generator-Abbruch im NAS-Verbindungstest implementiert (`next(shows_gen)`), um extrem lange Ladezeiten bei großen Netzlaufwerken zu verhindern.
+    - Fehlerbehandlung bei der Duplikat-Erkennungs-Startphase optimiert (direkte Auswertung von `data.error` statt pauschalem „Ein Scan läuft bereits“).
+    - Korrekte Singular- und Plural-Unterteilung für Film-Normalisierungs-Vorschläge ("Vorschlag" / "Vorschläge").
+    - Umfassende Frontend-Testabdeckungen in `tests/frontend/app_warning.test.js` integriert und DOM-Mocks für querySelector(All) erweitert.
+
+- **Docker-NAS-Verbindungshärtung & Runtime-Awareness (Branch: feature/phase2-docker-nas-fixes):**
+  - **Docker-NAS-Härtung:** Im Docker-Betrieb reicht das bloße Vorhandensein des gemounteten Einhängepfades nicht mehr aus, um direkt "Verbunden" zu melden. Es werden nun wie im Desktop-Betrieb auch die Sync-Kategorien und Lesezugriffe auf die Unterordner geprüft und andernfalls der Warnstatus `connected_but_no_library_paths` zurückgegeben.
+  - **SMB-Freigabe-Pflicht gelockert:** Im NAS-Verbindungstest wird die Angabe einer SMB-Freigabe für Docker-Setups oder rein lokal gemountete Pfade nicht mehr als zwingend erachtet (`share_required: false`), so dass der Verbindungstest ohne rot zu werden grün anzeigt.
+  - **Settings-Bereich & Tooltips angepasst:** Platzhalter und Label-Beschreibungen wurden dynamisch an die Docker-Laufzeit angepasst (z. B. "Container-Pfad im Docker-Setup (z.B. /media)" statt macOS-spezifischem Text).
+  - **Web-Folder-Picker Fallback:** Der Folder-Browse-Button für die NAS-Tools wurde im Docker-Modus mit dem HTML5-Web-Folder-Picker (`window.openFolderPicker`) als Fallback ausgestattet, um unklare Ausfälle im Container-Betrieb zu verhindern.
+  - **Koppelung beim App-Start:** Das Laden der Capabilities (`loadCapabilities()`) steuert nun die gesamte Initialisierungskette der App, so dass die Settings und Storage-Targets niemals vorliegenden Capabilities-Daten rendern.
 
 ---
 
