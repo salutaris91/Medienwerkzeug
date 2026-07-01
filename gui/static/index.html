@@ -1107,6 +1107,15 @@
                         </div>
                         <div id="health-stats" class="text-muted" style="margin-top:8px; font-size:0.85em; display:none;"></div>
                         <div id="health-summary" style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;"></div>
+                        <div id="health-group-controls" style="margin-top:14px; display:none; align-items:center; justify-content:space-between; gap:12px; border-top:1px solid var(--border-light); padding-top:12px;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span style="font-size:0.85em; color:var(--text-muted); font-weight:500;">Gruppieren nach:</span>
+                                <div style="display:inline-flex; border-radius:6px; overflow:hidden; border:1px solid var(--border-light); background: rgba(255,255,255,0.02);">
+                                    <button class="btn btn-secondary btn-xs active" id="btn-health-group-severity" style="border:none; border-radius:0; padding:4px 8px; margin:0;" type="button">Schweregrad</button>
+                                    <button class="btn btn-secondary btn-xs" id="btn-health-group-type" style="border:none; border-radius:0; padding:4px 8px; margin:0;" type="button">Fehlertyp</button>
+                                </div>
+                            </div>
+                        </div>
                         <div id="health-issues" style="margin-top:14px; display:flex; flex-direction:column; gap:8px;"></div>
                     </div>
 
