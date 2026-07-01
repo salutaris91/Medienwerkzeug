@@ -4,6 +4,18 @@ Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert 
 
 ---
 
+## Stand am 01.07.2026 (Phase 2.5a – Health Dashboard Fehlertyp-Gruppierung & Medienpflege-Konnektoren)
+
+- **Umschaltbare Gruppierung im NAS Bibliotheks-Check (Branch: feature/maintenance-cockpit):**
+  - **Kategorien & Fehlertyp-Labels:** `HEALTH_TYPE_LABELS` und `HEALTH_RECOMMENDED_ACTIONS` in `gui/static/app.js` hinterlegt, um maschinenlesbare Fehlertypen in sprechende deutsche Beschreibungen und Handlungsempfehlungen zu übersetzen.
+  - **Umschaltbare Gruppierungs-Logik:** Im Dashboard kann nun nahtlos zwischen "Nach Schweregrad gruppieren" (Standard) und "Nach Fehlertyp gruppieren" gewechselt werden. Der ausgewählte Modus (`healthGroupMode`) bleibt bei Aktualisierungen des Scans erhalten.
+  - **Checkboxen-Logik für Sammel-Aktionen:** Im Fehlertyp-Modus wurden Sammel-Auswahl-Checkboxen ("Select All") pro Gruppe sowie Einzel-Checkboxen mit automatischer Berechnung des Indeterminate-Zustands implementiert.
+  - **Empfehlungen & Gruppen-Zähler:** Jede Fehlertyp-Gruppe zeigt nun direkt eine passende Empfehlung an, sowie die summierten Schweregrade (kritisch, Warnung, Hinweis) der enthaltenen Befunde.
+  - **Batch-Fixes (Phase 2.5b/c):** Visuelle Buttons für FSK-Zuweisung, Ordner-Flachklopfen, NFO Agent, H.265-Batch-Konvertierung und Ordner-Bereinigung integriert und mit Alerts für die nächste Phase verdrahtet.
+  - **Medienpflege-Konnektoren:** Direkte Verknüpfung der Gruppen mit den Medienwerkzeugen (`tool_nfo_agent`, `tool_batch_convert`, `tool_clean`) per `runContextTool` unter Übergabe des ersten ausgewählten Pfades (`presetPath` in `openToolRunnerModal`).
+
+---
+
 ## Stand am 01.07.2026 (Phase 2.4a & Phase 2.4b – Startseite & Docker-NAS-Härtung)
 
 - **Startseite / Medienwerkzeug-Übersicht zusammengeführt & nachbearbeitet (Branch: feature/phase2-home-overview):**

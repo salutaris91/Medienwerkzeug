@@ -203,3 +203,52 @@ test('renderNormalizePlan - 2 items renders Plural "Vorschläge"', () => {
     assert.ok(statusEl.textContent.includes("2 Vorschläge"));
     assert.ok(!statusEl.textContent.includes("Vorschlag "));
 });
+
+test('renderHealthStatus - severity grouping renders severity groups and no checkboxes', () => {
+    globalThis.window.healthGroupMode = "severity";
+    const issuesEl = globalThis.document.getElementById("health-issues");
+    issuesEl.innerHTML = "";
+
+    const data = {
+        status: "done",
+        message: "Scan abgeschlossen",
+        issues: [
+            { key: "1", type: "missing_nfo", category: "Filme", severity: "critical", message: "Fehlende NFO", path: "/path/to/movie" }
+        ],
+        finished_at: 1719816000
+    };
+
+    globalThis.renderHealthStatus(data);
+
+    // Sollte Details für Schweregrad rendern
+    assert.ok(issuesEl.innerHTML.includes('data-sev="critical"'));
+    // Sollte keinen Checkbox-Gruppenselector rendern
+    assert.ok(!issuesEl.innerHTML.includes('class="health-group-select-all"'));
+});
+
+test('renderHealthStatus - type grouping renders type groups, checkboxes and tool-connectors', () => {
+    globalThis.window.healthGroupMode = "type";
+    const issuesEl = globalThis.document.getElementById("health-issues");
+    issuesEl.innerHTML = "";
+
+    const data = {
+        status: "done",
+        message: "Scan abgeschlossen",
+        issues: [
+            { key: "1", type: "missing_nfo", category: "Filme", severity: "critical", message: "Fehlende NFO", path: "/path/to/movie" }
+        ],
+        finished_at: 1719816000
+    };
+
+    globalThis.renderHealthStatus(data);
+
+    // Sollte Details für Fehlertyp rendern
+    assert.ok(issuesEl.innerHTML.includes('data-type-id="missing_nfo"'));
+    // Sollte Checkboxen zur Sammel-Auswahl rendern
+    assert.ok(issuesEl.innerHTML.includes('class="health-group-select-all"'));
+    assert.ok(issuesEl.innerHTML.includes('class="health-item-select"'));
+    // Sollte Empfehlung anzeigen
+    assert.ok(issuesEl.innerHTML.includes("Empfehlung:"));
+    // Sollte NFO-Agent-Tool-Button rendern
+    assert.ok(issuesEl.innerHTML.includes('data-tool="tool_nfo_agent"'));
+});

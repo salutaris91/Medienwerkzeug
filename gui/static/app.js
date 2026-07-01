@@ -12264,6 +12264,47 @@ document.addEventListener("DOMContentLoaded", () => {
 // Feature 3: NAS Bibliotheks-Check (Health Dashboard)
 // ==========================================================================
 let healthPollTimer = null;
+window.healthGroupMode = "severity";
+
+const HEALTH_TYPE_LABELS = {
+    missing_age_rating: "Fehlende Altersfreigabe",
+    invalid_age_rating: "Ungültige Altersfreigabe",
+    nested_duplicate: "Verschachtelter Ordner (Doppelstruktur)",
+    bad_folder_name: "Ungültiges Ordner-Format",
+    name_mismatch: "Namensabweichung (Ordner vs. Videodatei)",
+    missing_nfo: "Fehlende NFO-Metadaten",
+    episode_gap: "Episodenlücke in Staffel",
+    empty_folder: "Leerer Ordner",
+    no_video: "Keine Videodatei im Ordner",
+    codec_inconsistency: "Uneinheitliche Codecs in Staffel",
+    small_file: "Verdächtig kleine Videodatei",
+    missing_season_poster: "Fehlendes Staffel-Poster",
+    missing_poster: "Fehlendes Poster",
+    missing_backdrop: "Fehlendes Backdrop (Hintergrundbild)",
+    missing_logo: "Fehlendes Logo",
+    missing_banner: "Fehlendes Banner",
+    inconsistent_naming: "Uneinheitliche Benennung in Serie"
+};
+
+const HEALTH_RECOMMENDED_ACTIONS = {
+    missing_age_rating: "Altersfreigabe (FSK-Stufe) über die NFO-Datei zuweisen.",
+    invalid_age_rating: "Altersfreigabe (FSK-Stufe) über die NFO-Datei korrigieren.",
+    nested_duplicate: "Verschachtelte Struktur auflösen (Unterordner flachklopfen).",
+    bad_folder_name: "Ordnername an das Standardformat (Name (Jahr)) angleichen.",
+    name_mismatch: "Ordnername und Videodateiname aneinander angleichen.",
+    missing_nfo: "NFO Agent starten, um Metadaten automatisch zu generieren.",
+    episode_gap: "Fehlende Episoden überprüfen oder NFO/Video-Mapping korrigieren.",
+    empty_folder: "Leeren Ordner löschen (über 'Ordner bereinigen').",
+    no_video: "Videodatei hinzufügen oder Ordner bereinigen.",
+    codec_inconsistency: "Videos in einheitliche Formate (H.265) transkodieren.",
+    small_file: "Dateigröße prüfen (Gefahr eines unvollständigen Downloads).",
+    missing_season_poster: "Poster über den NFO Agent oder ein Bild-Suchtool herunterladen.",
+    missing_poster: "Poster über den NFO Agent oder ein Bild-Suchtool herunterladen.",
+    missing_backdrop: "Hintergrundbild über den NFO Agent herunterladen.",
+    missing_logo: "Logo über den NFO Agent herunterladen.",
+    missing_banner: "Banner über den NFO Agent herunterladen.",
+    inconsistent_naming: "Seriendateien einheitlich benennen (Renaming-Tool nutzen)."
+};
 
 const HEALTH_SEVERITY = {
     critical: { label: "Kritisch", icon: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-circle" style="height:14px; width:14px; display:inline-block; vertical-align:middle; margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg>`, color: "#ef4444" },
@@ -12280,6 +12321,28 @@ function initHealthDashboard() {
     if (cancelBtn) {
         cancelBtn.addEventListener("click", cancelHealthScan);
     }
+
+    const btnSev = document.getElementById("btn-health-group-severity");
+    const btnType = document.getElementById("btn-health-group-type");
+    if (btnSev && btnType) {
+        btnSev.addEventListener("click", () => {
+            if (window.healthGroupMode !== "severity") {
+                window.healthGroupMode = "severity";
+                btnSev.classList.add("active");
+                btnType.classList.remove("active");
+                pollHealthStatus(false);
+            }
+        });
+        btnType.addEventListener("click", () => {
+            if (window.healthGroupMode !== "type") {
+                window.healthGroupMode = "type";
+                btnType.classList.add("active");
+                btnSev.classList.remove("active");
+                pollHealthStatus(false);
+            }
+        });
+    }
+
     // Lade Kategorien dynamisch
     loadHealthCategories();
     // Vorhandenes (gecachtes) Ergebnis laden
@@ -12441,6 +12504,16 @@ async function pollHealthStatus(keepPolling) {
     }
 }
 
+function runContextTool(toolType, path) {
+    if (toolType === "tool_nfo_agent") {
+        openToolRunnerModal("tool_nfo_agent", "NFO Agent", "Generiert NFO-Metadaten für alle Episoden/Filme im gewählten Ordner anhand der TMDb/TVDb IDs.", false, path);
+    } else if (toolType === "tool_batch_convert") {
+        openToolRunnerModal("tool_batch_convert", "H.265 Batch-Konvertierung", "Videos im gewählten Verzeichnis in das platzsparende H.265 (HEVC) Format konvertieren.", true, path);
+    } else if (toolType === "tool_clean") {
+        runToolClean(path);
+    }
+}
+
 function renderHealthStatus(data) {
     const statusEl = document.getElementById("health-scan-status");
     const progWrap = document.getElementById("health-progress-wrap");
@@ -12448,12 +12521,14 @@ function renderHealthStatus(data) {
     const statsEl = document.getElementById("health-stats");
     const summaryEl = document.getElementById("health-summary");
     const issuesEl = document.getElementById("health-issues");
+    const groupControls = document.getElementById("health-group-controls");
     if (!statusEl || !summaryEl || !issuesEl) return;
 
     if (data.status === "warning") {
         statusEl.textContent = `Warnung: ${data.message || "Warnung beim Scan"}`;
         if (statsEl) statsEl.style.display = "none";
         if (progWrap) progWrap.style.display = "none";
+        if (groupControls) groupControls.style.display = "none";
 
         let warningHtml = `<div class="alert alert-warning" style="margin:4px 0; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:#f59e0b; padding:10px; border-radius:var(--radius-sm); font-size:12px; display:flex; align-items:center; gap:8px;">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="height:16px; width:16px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -12466,12 +12541,15 @@ function renderHealthStatus(data) {
 
     // 1. Zustand sichern (geöffnete Gruppen und Scrollposition)
     const openSeverities = [];
+    const openTypes = [];
     const hadDetails = issuesEl.querySelector("details") !== null;
     if (hadDetails) {
         issuesEl.querySelectorAll("details").forEach(d => {
             if (d.open) {
                 const sev = d.getAttribute("data-sev");
                 if (sev) openSeverities.push(sev);
+                const typ = d.getAttribute("data-type-id");
+                if (typ) openTypes.push(typ);
             }
         });
     }
@@ -12527,62 +12605,286 @@ function renderHealthStatus(data) {
         summaryEl.innerHTML = "";
     }
 
-    // Issues gruppiert nach Schwere
-    if (data.issues && data.issues.length > 0) {
-        const order = ["critical", "warning", "info"];
-        const grouped = { critical: [], warning: [], info: [] };
-        data.issues.forEach(it => { (grouped[it.severity] || grouped.info).push(it); });
+    // Gruppierungs-Steuerung ein-/ausblenden
+    if (groupControls) {
+        groupControls.style.display = hasResult && data.issues && data.issues.length > 0 ? "flex" : "none";
+    }
 
+    // Issues gruppiert nach Schwere oder Fehlertyp
+    if (data.issues && data.issues.length > 0) {
         let html = "";
         let totalRendered = 0;
         const DOM_LIMIT = 500;
         let limitReached = false;
 
-        order.forEach(sev => {
-            const list = grouped[sev];
-            if (!list.length) return;
-            const m = HEALTH_SEVERITY[sev];
-            html += `<details data-sev="${sev}" ${sev === "critical" ? "open" : ""} style="border:1px solid var(--border-light); border-radius:8px; padding:8px 12px;">
-                        <summary style="cursor:pointer; color:${m.color}; font-weight:500;">${m.icon} ${m.label} (${list.length})</summary>
-                        <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">`;
+        if (window.healthGroupMode === "severity") {
+            const order = ["critical", "warning", "info"];
+            const grouped = { critical: [], warning: [], info: [] };
+            data.issues.forEach(it => { (grouped[it.severity] || grouped.info).push(it); });
 
-            for (let i = 0; i < list.length; i++) {
-                if (totalRendered >= DOM_LIMIT) {
-                    if (!limitReached) {
-                        html += `<div style="padding: 10px; text-align: center; color: var(--text-muted); font-style: italic; display:flex; align-items:center; justify-content:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-circle" style="height:12px; width:12px;"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>Anzeige-Limit erreicht. Es werden nur die ersten ${DOM_LIMIT} Befunde dargestellt.</div>`;
-                        limitReached = true;
+            order.forEach(sev => {
+                const list = grouped[sev];
+                if (!list.length) return;
+                const m = HEALTH_SEVERITY[sev];
+                const isOpen = openSeverities.includes(sev) || (sev === "critical" && openSeverities.length === 0);
+                html += `<details data-sev="${sev}" ${isOpen ? "open" : ""} style="border:1px solid var(--border-light); border-radius:8px; padding:8px 12px; margin-bottom:8px;">
+                            <summary style="cursor:pointer; color:${m.color}; font-weight:500;">${m.icon} ${m.label} (${list.length})</summary>
+                            <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">`;
+
+                for (let i = 0; i < list.length; i++) {
+                    if (totalRendered >= DOM_LIMIT) {
+                        if (!limitReached) {
+                            html += `<div style="padding: 10px; text-align: center; color: var(--text-muted); font-style: italic; display:flex; align-items:center; justify-content:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-circle" style="height:12px; width:12px;"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>Anzeige-Limit erreicht. Es werden nur die ersten ${DOM_LIMIT} Befunde dargestellt.</div>`;
+                            limitReached = true;
+                        }
+                        break;
                     }
-                    break;
+                    const it = list[i];
+                    totalRendered++;
+                    let fixBtns = "";
+                    if (it.type === "nested_duplicate") {
+                        fixBtns = `<button class="btn btn-secondary btn-sm health-fix-flatten" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height:12px; width:12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Auflösen</button>`;
+                    } else if (it.type === "name_mismatch" || it.type === "bad_folder_name") {
+                        fixBtns = `<button class="btn btn-secondary btn-sm health-fix-rename" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Umbenennen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit-3" style="height:12px; width:12px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Umbenennen</button>`;
+                    } else if (it.type === "missing_age_rating" || it.type === "invalid_age_rating") {
+                        fixBtns = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" title="FSK-Stufe setzen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>FSK setzen</button>`;
+                    }
+                    html += `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:0.9em; padding:4px 0; border-top:1px solid rgba(255,255,255,0.04);">
+                                <span>${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
+                                <span style="display:flex; gap:6px; white-space:nowrap;">
+                                    ${fixBtns}
+                                    <button class="btn btn-secondary btn-sm health-open-folder" data-path="${escapeHTML(it.path)}" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="height:12px; width:12px;"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>Öffnen</button>
+                                    <button class="btn btn-secondary btn-sm finding-ignore" data-key="${escapeHTML(it.key || "")}" title="Diesen Befund dauerhaft ausblenden" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ban" style="height:12px; width:12px;"><circle cx="12" cy="12" r="10"/><line x1="4.93" x2="19.07" y1="4.93" y2="19.07"/></svg>Ignorieren</button>
+                                </span>
+                             </div>`;
                 }
-                const it = list[i];
-                totalRendered++;
-                let fixBtns = "";
-                if (it.type === "nested_duplicate") {
-                    fixBtns = `<button class="btn btn-secondary btn-sm health-fix-flatten" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height:12px; width:12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Auflösen</button>`;
-                } else if (it.type === "name_mismatch" || it.type === "bad_folder_name") {
-                    fixBtns = `<button class="btn btn-secondary btn-sm health-fix-rename" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Umbenennen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit-3" style="height:12px; width:12px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Umbenennen</button>`;
-                } else if (it.type === "missing_age_rating" || it.type === "invalid_age_rating") {
-                    fixBtns = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" title="FSK-Stufe setzen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>FSK setzen</button>`;
+                html += `</div></details>`;
+            });
+        } else {
+            // Gruppierung nach Fehlertyp
+            const grouped = {};
+            data.issues.forEach(it => {
+                if (!grouped[it.type]) {
+                    grouped[it.type] = [];
                 }
-                html += `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:0.9em; padding:4px 0; border-top:1px solid rgba(255,255,255,0.04);">
-                            <span>${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
-                            <span style="display:flex; gap:6px; white-space:nowrap;">
-                                ${fixBtns}
-                                <button class="btn btn-secondary btn-sm health-open-folder" data-path="${escapeHTML(it.path)}" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="height:12px; width:12px;"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>Öffnen</button>
-                                <button class="btn btn-secondary btn-sm finding-ignore" data-key="${escapeHTML(it.key || "")}" title="Diesen Befund dauerhaft ausblenden" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ban" style="height:12px; width:12px;"><circle cx="12" cy="12" r="10"/><line x1="4.93" x2="19.07" y1="4.93" y2="19.07"/></svg>Ignorieren</button>
-                            </span>
-                         </div>`;
-            }
-            html += `</div></details>`;
-        });
+                grouped[it.type].push(it);
+            });
+
+            const typeKeys = Object.keys(grouped).sort((a, b) => {
+                const labelA = HEALTH_TYPE_LABELS[a] || a;
+                const labelB = HEALTH_TYPE_LABELS[b] || b;
+                return labelA.localeCompare(labelB);
+            });
+
+            typeKeys.forEach(typeId => {
+                const list = grouped[typeId];
+                if (!list.length) return;
+                const label = HEALTH_TYPE_LABELS[typeId] || typeId;
+                const recommendedAction = HEALTH_RECOMMENDED_ACTIONS[typeId] || "";
+
+                // Zähle Schweregrade innerhalb dieser Gruppe
+                const groupSummary = { critical: 0, warning: 0, info: 0 };
+                list.forEach(it => {
+                    groupSummary[it.severity] = (groupSummary[it.severity] || 0) + 1;
+                });
+
+                const summaryParts = [];
+                if (groupSummary.critical > 0) summaryParts.push(`<span style="color:#ef4444; font-weight:500; display:inline-flex; align-items:center; gap:2px;">${HEALTH_SEVERITY.critical.icon}${groupSummary.critical}</span>`);
+                if (groupSummary.warning > 0) summaryParts.push(`<span style="color:#f59e0b; font-weight:500; display:inline-flex; align-items:center; gap:2px;">${HEALTH_SEVERITY.warning.icon}${groupSummary.warning}</span>`);
+                if (groupSummary.info > 0) summaryParts.push(`<span style="color:#3b82f6; font-weight:500; display:inline-flex; align-items:center; gap:2px;">${HEALTH_SEVERITY.info.icon}${groupSummary.info}</span>`);
+                const summaryHtml = summaryParts.join(", ");
+
+                // Visuelle Vorbereitung für Batch-Aktionen
+                let batchBtnHtml = "";
+                if (typeId === "missing_age_rating" || typeId === "invalid_age_rating") {
+                    batchBtnHtml = `
+                        <div style="display:inline-flex; align-items:center; gap:6px;">
+                            <select class="form-select form-select-xs health-batch-fsk-select" style="padding:2px 4px; font-size:11px; width:auto; height:24px; background:var(--bg-surface-3); border-color:var(--border-light); color:var(--text-main);">
+                                <option value="">FSK wählen...</option>
+                                <option value="0">FSK 0</option>
+                                <option value="6">FSK 6</option>
+                                <option value="12">FSK 12</option>
+                                <option value="16">FSK 16</option>
+                                <option value="18">FSK 18</option>
+                            </select>
+                            <button class="btn btn-primary btn-xs health-batch-btn" data-type-id="${escapeHTML(typeId)}" data-action="set_fsk" style="padding:2px 8px; height:24px;" title="Für alle ausgewählten Elemente dieselbe FSK-Stufe setzen">FSK setzen</button>
+                        </div>
+                    `;
+                } else if (typeId === "nested_duplicate") {
+                    batchBtnHtml = `
+                        <button class="btn btn-primary btn-xs health-batch-btn" data-type-id="${escapeHTML(typeId)}" data-action="flatten" style="padding:2px 8px; height:24px;" title="Alle ausgewählten Verschachtelungen auflösen">Auflösen</button>
+                    `;
+                } else if (typeId === "missing_nfo") {
+                    batchBtnHtml = `
+                        <button class="btn btn-accent btn-xs health-batch-tool-btn" data-type-id="${escapeHTML(typeId)}" data-tool="tool_nfo_agent" style="padding:2px 8px; height:24px;" title="NFO Agent für das erste ausgewählte Verzeichnis starten">NFO Agent (1.)</button>
+                    `;
+                } else if (typeId === "codec_inconsistency") {
+                    batchBtnHtml = `
+                        <button class="btn btn-accent btn-xs health-batch-tool-btn" data-type-id="${escapeHTML(typeId)}" data-tool="tool_batch_convert" style="padding:2px 8px; height:24px;" title="H.265 Konvertierung für erstes ausgewähltes Verzeichnis öffnen">H.265 Konverter (1.)</button>
+                    `;
+                } else if (typeId === "empty_folder") {
+                    batchBtnHtml = `
+                        <button class="btn btn-accent btn-xs health-batch-tool-btn" data-type-id="${escapeHTML(typeId)}" data-tool="tool_clean" style="padding:2px 8px; height:24px;" title="Ordner bereinigen für erstes ausgewähltes Verzeichnis ausführen">Ordner bereinigen (1.)</button>
+                    `;
+                } else {
+                    batchBtnHtml = `
+                        <button class="btn btn-secondary btn-xs health-batch-btn-placeholder" disabled style="padding:2px 8px; height:24px; opacity:0.6;">Aktion (Phase 2.5b)</button>
+                    `;
+                }
+
+                const isOpen = openTypes.includes(typeId);
+
+                html += `<details data-type-id="${typeId}" ${isOpen ? "open" : ""} style="border:1px solid var(--border-light); border-radius:8px; padding:8px 12px; margin-bottom:8px;">
+                            <summary style="cursor:pointer; font-weight:500; display:flex; align-items:center; justify-content:space-between; gap:12px; list-style:none;">
+                                <div style="display:flex; align-items:center; gap:8px; flex:1;">
+                                    <input type="checkbox" class="health-group-select-all" data-type-id="${typeId}" style="margin:0; width:14px; height:14px; cursor:pointer;" onclick="event.stopPropagation();">
+                                    <span style="color:var(--text-main);">${escapeHTML(label)} (${list.length})</span>
+                                    <span style="font-size:0.8em; margin-left:8px;">(${summaryHtml})</span>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:10px;" onclick="event.stopPropagation();">
+                                    ${batchBtnHtml}
+                                </div>
+                            </summary>
+                            <div style="margin-top:8px; display:flex; flex-direction:column; gap:6px; border-top:1px solid var(--border-light); padding-top:8px;">`;
+
+                if (recommendedAction) {
+                    html += `<div style="font-size:0.8em; color:var(--text-muted); padding:4px 8px; background:rgba(255,255,255,0.02); border-left:3px solid var(--accent); border-radius:0 4px 4px 0; margin-bottom:4px; font-style:italic; display:inline-flex; align-items:center; gap:6px;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lightbulb" style="height:12px; width:12px; display:inline-block; vertical-align:middle; color:var(--accent);"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A5.5 5.5 0 0 0 7.5 8c0 1.3.5 2.6 1.5 3.5.8.8 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg><strong>Empfehlung:</strong> ${escapeHTML(recommendedAction)}
+                             </div>`;
+                }
+
+                for (let i = 0; i < list.length; i++) {
+                    if (totalRendered >= DOM_LIMIT) {
+                        if (!limitReached) {
+                            html += `<div style="padding: 10px; text-align: center; color: var(--text-muted); font-style: italic; display:flex; align-items:center; justify-content:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-circle" style="height:12px; width:12px;"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>Anzeige-Limit erreicht. Es werden nur die ersten ${DOM_LIMIT} Befunde dargestellt.</div>`;
+                            limitReached = true;
+                        }
+                        break;
+                    }
+                    const it = list[i];
+                    totalRendered++;
+                    let fixBtns = "";
+                    if (it.type === "nested_duplicate") {
+                        fixBtns = `<button class="btn btn-secondary btn-sm health-fix-flatten" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height:12px; width:12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Auflösen</button>`;
+                    } else if (it.type === "name_mismatch" || it.type === "bad_folder_name") {
+                        fixBtns = `<button class="btn btn-secondary btn-sm health-fix-rename" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Umbenennen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit-3" style="height:12px; width:12px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Umbenennen</button>`;
+                    } else if (it.type === "missing_age_rating" || it.type === "invalid_age_rating") {
+                        fixBtns = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" title="FSK-Stufe setzen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>FSK setzen</button>`;
+                    }
+
+                    const m = HEALTH_SEVERITY[it.severity];
+                    html += `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:0.9em; padding:4px 0; border-top:1px solid rgba(255,255,255,0.04);">
+                                <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
+                                    <input type="checkbox" class="health-item-select" data-type-id="${typeId}" data-path="${escapeHTML(it.path)}" style="margin:0; width:14px; height:14px; cursor:pointer;">
+                                    <span style="color:${m.color}; margin-right:4px;">${m.icon}</span>
+                                    <span style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
+                                </div>
+                                <span style="display:flex; gap:6px; white-space:nowrap; flex-shrink:0;">
+                                    ${fixBtns}
+                                    <button class="btn btn-secondary btn-sm health-open-folder" data-path="${escapeHTML(it.path)}" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="height:12px; width:12px;"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>Öffnen</button>
+                                    <button class="btn btn-secondary btn-sm finding-ignore" data-key="${escapeHTML(it.key || "")}" title="Diesen Befund dauerhaft ausblenden" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ban" style="height:12px; width:12px;"><circle cx="12" cy="12" r="10"/><line x1="4.93" x2="19.07" y1="4.93" y2="19.07"/></svg>Ignorieren</button>
+                                </span>
+                             </div>`;
+                }
+                html += `</div></details>`;
+            });
+        }
         html += renderIgnoredFooter(data.ignored_count);
         issuesEl.innerHTML = html;
 
         // 2. Zustand wiederherstellen
         if (hadDetails) {
             issuesEl.querySelectorAll("details").forEach(d => {
-                const sev = d.getAttribute("data-sev");
-                d.open = openSeverities.includes(sev);
+                if (window.healthGroupMode === "severity") {
+                    const sev = d.getAttribute("data-sev");
+                    d.open = openSeverities.includes(sev) || (sev === "critical" && openSeverities.length === 0);
+                } else {
+                    const typ = d.getAttribute("data-type-id");
+                    d.open = openTypes.includes(typ);
+                }
+            });
+        }
+
+        // Checkboxen-Logik & Batch-Steuerung (nur im Fehlertyp-Modus)
+        if (window.healthGroupMode === "type") {
+            issuesEl.querySelectorAll("details").forEach(detailsEl => {
+                const selectAllCb = detailsEl.querySelector(".health-group-select-all");
+                const itemCbs = detailsEl.querySelectorAll(".health-item-select");
+
+                if (selectAllCb) {
+                    selectAllCb.addEventListener("change", () => {
+                        const checked = selectAllCb.checked;
+                        itemCbs.forEach(cb => {
+                            cb.checked = checked;
+                        });
+                    });
+                }
+
+                itemCbs.forEach(cb => {
+                    cb.addEventListener("change", () => {
+                        const allChecked = Array.from(itemCbs).every(c => c.checked);
+                        const someChecked = Array.from(itemCbs).some(c => c.checked);
+                        if (selectAllCb) {
+                            selectAllCb.checked = allChecked;
+                            selectAllCb.indeterminate = someChecked && !allChecked;
+                        }
+                    });
+                });
+            });
+
+            // Batch-Buttons (Phase 2.5b/c Ankündigung)
+            issuesEl.querySelectorAll(".health-batch-btn").forEach(b => {
+                b.addEventListener("click", () => {
+                    const action = b.getAttribute("data-action");
+                    const detailsEl = b.closest("details");
+                    const checkedPaths = Array.from(detailsEl.querySelectorAll(".health-item-select:checked")).map(cb => cb.getAttribute("data-path"));
+
+                    if (checkedPaths.length === 0) {
+                        alert("Bitte wähle mindestens einen Befund aus.");
+                        return;
+                    }
+
+                    let extraMsg = "";
+                    if (action === "set_fsk") {
+                        const selectEl = detailsEl.querySelector(".health-batch-fsk-select");
+                        const fskVal = selectEl?.value;
+                        if (!fskVal) {
+                            alert("Bitte wähle eine FSK-Stufe aus.");
+                            return;
+                        }
+                        extraMsg = ` auf FSK ${fskVal}`;
+                    }
+
+                    alert(`Batch-Aktion [${action}] für ${checkedPaths.length} ausgewählte(s) Element(e)${extraMsg} vorgemerkt.\n\n(Diese Batch-Funktion wird in Phase 2.5b/c implementiert.)`);
+                });
+            });
+
+            // Kontextuelle Verknüpfung der Medienpflege-Werkzeuge
+            issuesEl.querySelectorAll(".health-batch-tool-btn").forEach(b => {
+                b.addEventListener("click", () => {
+                    const tool = b.getAttribute("data-tool");
+                    const detailsEl = b.closest("details");
+                    const checkedPaths = Array.from(detailsEl.querySelectorAll(".health-item-select:checked")).map(cb => cb.getAttribute("data-path"));
+
+                    if (checkedPaths.length === 0) {
+                        alert("Bitte wähle mindestens einen Befund aus.");
+                        return;
+                    }
+
+                    if (tool === "tool_nfo_agent") {
+                        if (confirm(`NFO Agent für das erste ausgewählte Verzeichnis ausführen?\n\nPfad: ${checkedPaths[0]}\n\n(Die Konsole wird geöffnet.)`)) {
+                            runContextTool("tool_nfo_agent", checkedPaths[0]);
+                        }
+                    } else if (tool === "tool_batch_convert") {
+                        if (confirm(`H.265 Batch-Konvertierung für das erste ausgewählte Verzeichnis öffnen?\n\nPfad: ${checkedPaths[0]}`)) {
+                            runContextTool("tool_batch_convert", checkedPaths[0]);
+                        }
+                    } else if (tool === "tool_clean") {
+                        if (confirm(`Ordner bereinigen für das erste ausgewählte Verzeichnis ausführen?\n\nPfad: ${checkedPaths[0]}`)) {
+                            runContextTool("tool_clean", checkedPaths[0]);
+                        }
+                    }
+                });
             });
         }
 
@@ -13138,7 +13440,7 @@ async function applyNormalize() {
     }
 }
 
-function openToolRunnerModal(toolType, title, desc, hasQualitySlider = false) {
+function openToolRunnerModal(toolType, title, desc, hasQualitySlider = false, presetPath = null) {
     window.currentActiveTool = toolType;
 
     const titleEl = document.getElementById("tool-modal-title");
@@ -13150,7 +13452,7 @@ function openToolRunnerModal(toolType, title, desc, hasQualitySlider = false) {
     if (titleEl) titleEl.textContent = title;
     if (descEl) descEl.textContent = desc;
     if (pathInput) {
-        pathInput.value = currentProject || (currentSettings ? currentSettings.inbox_dir : "");
+        pathInput.value = presetPath || currentProject || (currentSettings ? currentSettings.inbox_dir : "");
     }
 
     if (extraOpt) {
