@@ -12347,6 +12347,15 @@ window.switchLibraryTab = function(tabId) {
         activeBtn.style.borderBottomColor = "var(--accent)";
         activeBtn.style.color = "var(--text-main)";
     }
+
+    const subtabsContainer = document.getElementById("library-cleanup-subtabs");
+    if (subtabsContainer) {
+        if (tabId === "cleanup") {
+            subtabsContainer.classList.remove("hidden");
+        } else {
+            subtabsContainer.classList.add("hidden");
+        }
+    }
 };
 
 window.switchLibrarySubTab = function(subTabId) {
@@ -12371,29 +12380,9 @@ function initHealthDashboard() {
     const btn = document.getElementById("btn-health-scan");
     if (btn) {
         btn.addEventListener("click", () => {
-            // Setze die Statussymbole für die orchestrierten Scans (simuliert)
-            const healthStatus = document.getElementById("status-check-health");
-            const dupStatus = document.getElementById("status-check-duplicates");
-            const normStatus = document.getElementById("status-check-normalize");
-
-            if (healthStatus) {
-                healthStatus.innerHTML = `<span style="font-size:0.95em; color:#3b82f6;">läuft...</span>`;
-            }
-            if (dupStatus) {
-                dupStatus.innerHTML = `<span style="font-size:0.95em; color:var(--text-muted);">wartet</span>`;
-            }
-            if (normStatus) {
-                normStatus.innerHTML = `<span style="font-size:0.95em; color:var(--text-muted);">wartet</span>`;
-            }
-
-            // Starte echten Bibliothekscheck
+            // Starte echten Bibliothekscheck und Duplikate-Check parallel
             startHealthScan();
-
-            // Nach kurzem Delay zum Aufräumen -> Filme & Serien wechseln, um Fortschritt zu zeigen
-            setTimeout(() => {
-                window.switchLibraryTab("cleanup");
-                window.switchLibrarySubTab("media");
-            }, 500);
+            startDuplicateScan();
         });
     }
     const cancelBtn = document.getElementById("btn-health-cancel");
@@ -12616,7 +12605,6 @@ function renderHealthStatus(data) {
     const statusEl = document.getElementById("health-scan-status");
     const progWrap = document.getElementById("health-progress-wrap");
     const progBar = document.getElementById("health-progress-bar");
-    const statsEl = document.getElementById("health-stats");
     const summaryEl = document.getElementById("health-summary");
     const issuesEl = document.getElementById("health-issues");
     const groupControls = document.getElementById("health-group-controls");
@@ -12638,30 +12626,10 @@ function renderHealthStatus(data) {
         }
     }
 
-    // Status-Check Health in der Übersicht synchronisieren
-    const statusHealth = document.getElementById("status-check-health");
-    if (statusHealth) {
-        if (data.status === "running") {
-            statusHealth.innerHTML = `<span style="font-size:0.95em; color:#3b82f6;">läuft...</span>`;
-        } else if (data.status === "error") {
-            statusHealth.innerHTML = `<span style="font-size:0.95em; color:#ef4444;">Fehler</span>`;
-        } else if (data.status === "cancelled") {
-            statusHealth.innerHTML = `<span style="font-size:0.95em; color:var(--text-muted);">abgebrochen</span>`;
-        } else if (data.status === "done" || (data.issues && data.finished_at)) {
-            const hasWarn = (data.summary?.critical > 0) || (data.summary?.warning > 0);
-            if (hasWarn) {
-                statusHealth.innerHTML = `<span style="font-size:0.95em; color:#f59e0b;">Warnung</span>`;
-            } else {
-                statusHealth.innerHTML = `<span style="font-size:0.95em; color:#10b981;">fertig</span>`;
-            }
-        } else {
-            statusHealth.innerHTML = `<span style="font-size:0.95em; color:var(--text-muted);">bereit</span>`;
-        }
-    }
+
 
     if (data.status === "warning") {
         statusEl.textContent = `Warnung: ${data.message || "Warnung beim Scan"}`;
-        if (statsEl) statsEl.style.display = "none";
         if (progWrap) progWrap.style.display = "none";
         if (groupControls) groupControls.style.display = "none";
 
@@ -12697,9 +12665,9 @@ function renderHealthStatus(data) {
                 const m = HEALTH_SEVERITY[it.severity] || HEALTH_SEVERITY.warning;
                 const fixBtn = `<button class="btn btn-secondary btn-sm health-fix-flatten" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height:12px; width:12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Auflösen</button>`;
                 return `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; font-size:0.9em; padding:8px 0; border-top:1px solid rgba(255,255,255,0.04);">
-                            <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:250px; overflow-wrap:anywhere; word-break:break-word; color: var(--text-main); font-weight: 500;">
+                            <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0; color: var(--text-main); font-weight: 500;">
                                 <span style="color:${m.color}; margin-right:4px; display:inline-flex; align-items:center; flex-shrink:0;">${m.icon}</span>
-                                <span>${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
+                                <span style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
                             </div>
                             <span style="display:flex; gap:6px; flex-wrap:wrap; white-space:nowrap; flex-shrink:0;">
                                 ${fixBtn}
@@ -12756,34 +12724,18 @@ function renderHealthStatus(data) {
         statusEl.textContent = data.message || "Scan läuft...";
         if (progWrap) progWrap.style.display = "block";
         if (progBar) progBar.style.width = `${data.progress || 0}%`;
-        if (statsEl) statsEl.style.display = "none";
     } else {
         if (progWrap) progWrap.style.display = "none";
         if (data.status === "error") {
             statusEl.textContent = `Fehler: ${data.message || data.error || "Unbekannt"}`;
-            if (statsEl) statsEl.style.display = "none";
         } else if (data.status === "cancelled") {
             const when = data.finished_at ? new Date(data.finished_at * 1000).toLocaleString("de-DE") : "";
             statusEl.textContent = `Abgebrochen: ${data.message || "Vom Benutzer abgebrochen."}` + (when ? ` (${when})` : "");
-            if (statsEl) statsEl.style.display = "none";
         } else if (data.status === "done" || (data.issues && data.issues.length >= 0 && data.finished_at)) {
             const when = data.finished_at ? new Date(data.finished_at * 1000).toLocaleString("de-DE") : "";
             statusEl.textContent = data.message + (when ? ` (zuletzt: ${when})` : "");
-
-            if (statsEl && data.stats) {
-                const s = data.stats;
-                statsEl.innerHTML = `⚡ Cache-Statistik:
-                    <span style="color:var(--accent); font-weight:500;">${s.cache_hits || 0}</span> Treffer,
-                    <span style="color:#f59e0b; font-weight:500;">${s.cache_miss_modified || 0}</span> wegen Änderungen neu geprüft,
-                    <span style="color:#ef4444; font-weight:500;">${s.cache_miss_known_issues || 0}</span> wegen bekannter Fehler neu geprüft,
-                    <span style="color:#3b82f6; font-weight:500;">${s.cache_miss_new || 0}</span> neu erfasst.`;
-                statsEl.style.display = "block";
-            } else if (statsEl) {
-                statsEl.style.display = "none";
-            }
         } else {
             statusEl.textContent = "Noch kein Scan durchgeführt.";
-            if (statsEl) statsEl.style.display = "none";
         }
     }
 
@@ -12791,12 +12743,15 @@ function renderHealthStatus(data) {
     const summary = data.summary || { critical: 0, warning: 0, info: 0 };
     const hasResult = (data.issues && data.finished_at) || data.status === "done";
     if (hasResult) {
-        summaryEl.innerHTML = ["critical", "warning", "info"].map(sev => {
-            const m = HEALTH_SEVERITY[sev];
-            return `<span style="font-size:0.85em; padding:4px 10px; border-radius:12px; background:${m.color}22; color:${m.color}; border:1px solid ${m.color}55;">
-                        ${m.icon} ${summary[sev] || 0} ${m.label}
-                    </span>`;
-        }).join("");
+        summaryEl.innerHTML = `<div style="font-size:0.9em; font-weight:600; color:var(--text-muted); margin-bottom: 8px; width: 100%; text-align: center;">Ergebnis des Scans:</div>`
+            + `<div style="display:flex; justify-content:center; gap:10px; flex-wrap:wrap; width:100%;">`
+            + ["critical", "warning", "info"].map(sev => {
+                const m = HEALTH_SEVERITY[sev];
+                return `<span style="font-size:0.85em; padding:4px 10px; border-radius:12px; background:${m.color}22; color:${m.color}; border:1px solid ${m.color}55;">
+                            ${m.icon} ${summary[sev] || 0} ${m.label}
+                        </span>`;
+            }).join("")
+            + `</div>`;
     } else {
         summaryEl.innerHTML = "";
     }
@@ -12848,8 +12803,8 @@ function renderHealthStatus(data) {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-artwork-search" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Bild online suchen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image" style="height:12px; width:12px;"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>Bild suchen</button>`;
                     }
                     html += `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; font-size:0.9em; padding:8px 0; border-top:1px solid rgba(255,255,255,0.04);">
-                                <div style="flex:1; min-width:250px; overflow-wrap:anywhere; word-break:break-word; color:var(--text-main); font-weight:500;">
-                                    <span>${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
+                                <div style="flex:1; min-width:0; color:var(--text-main); font-weight:500;">
+                                    <span style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
                                 </div>
                                 <span style="display:flex; gap:6px; flex-wrap:wrap; white-space:nowrap; flex-shrink:0;">
                                     ${fixBtns}
@@ -12971,10 +12926,10 @@ function renderHealthStatus(data) {
 
                     const m = HEALTH_SEVERITY[it.severity];
                     html += `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; font-size:0.9em; padding:8px 0; border-top:1px solid rgba(255,255,255,0.04);">
-                                <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:250px; overflow-wrap:anywhere; word-break:break-word; color:var(--text-main); font-weight:500;">
+                                <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0; color:var(--text-main); font-weight:500;">
                                     <input type="checkbox" class="health-item-select" data-type-id="${typeId}" data-path="${escapeHTML(it.path)}" style="margin:0; width:14px; height:14px; cursor:pointer; flex-shrink:0;">
                                     <span style="color:${m.color}; margin-right:4px; display:inline-flex; align-items:center; flex-shrink:0;">${m.icon}</span>
-                                    <span>${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
+                                    <span style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
                                 </div>
                                 <span style="display:flex; gap:6px; flex-wrap:wrap; white-space:nowrap; flex-shrink:0;">
                                     ${fixBtns}
@@ -13346,44 +13301,27 @@ async function applyStorageTargetLabels() {
 }
 
 function initDuplicateDashboard() {
-    const btn = document.getElementById("btn-duplicate-scan");
-    if (btn) btn.addEventListener("click", startDuplicateScan);
     pollDuplicateStatus(false);
 }
 
 async function startDuplicateScan() {
-    const btn = document.getElementById("btn-duplicate-scan");
-    const statusEl = document.getElementById("duplicate-scan-status");
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = "Vorbereiten...";
-    }
-    if (statusEl) {
-        statusEl.textContent = "Scan wird vorbereitet. NAS und Kategoriepfade werden geprüft...";
-    }
     try {
         const res = await fetch("/api/nas/scan-duplicates", { method: "POST" });
-        const data = await res.json();
-        if (!res.ok || data.started === false) {
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            const statusEl = document.getElementById("duplicate-scan-status");
             if (statusEl) {
-                statusEl.textContent = data.error || data.message || "Ein Scan konnte nicht gestartet werden.";
+                statusEl.textContent = data.error || data.message || "Fehler beim Starten des Duplikat-Scans.";
             }
-            resetDuplicateScanButton();
             return;
         }
         pollDuplicateStatus(true);
     } catch (e) {
         console.error("Duplikat-Scan konnte nicht gestartet werden:", e);
-        if (statusEl) statusEl.textContent = "Fehler: Scan konnte nicht gestartet werden.";
-        resetDuplicateScanButton();
-    }
-}
-
-function resetDuplicateScanButton() {
-    const btn = document.getElementById("btn-duplicate-scan");
-    if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Scan starten`;
+        const statusEl = document.getElementById("duplicate-scan-status");
+        if (statusEl) {
+            statusEl.textContent = "Fehler: Netzwerkfehler beim Starten des Duplikat-Scans.";
+        }
     }
 }
 
@@ -13394,15 +13332,6 @@ async function pollDuplicateStatus() {
         const data = await res.json();
         renderDuplicateStatus(data);
         const running = data.status === "running";
-        const btn = document.getElementById("btn-duplicate-scan");
-        if (btn) {
-            if (running) {
-                btn.disabled = true;
-                btn.innerHTML = "Scan läuft...";
-            } else {
-                resetDuplicateScanButton();
-            }
-        }
         if (running) {
             clearTimeout(duplicatePollTimer);
             duplicatePollTimer = setTimeout(() => pollDuplicateStatus(true), 2000);
@@ -13462,11 +13391,6 @@ function renderDuplicateStatus(data) {
     const when = data.finished_at ? new Date(data.finished_at * 1000).toLocaleString("de-DE") : "";
     statusEl.textContent = data.message + (when ? ` (zuletzt: ${when})` : "");
 
-    const sum = data.summary || { groups: 0, reclaimable_bytes: 0 };
-    summaryEl.innerHTML = `<span style="font-size:0.9em;">
-        <strong>${sum.groups || 0}</strong> auffällige Gruppe(n) · rückgewinnbar:
-        <strong>${fmtSize(sum.reclaimable_bytes)}</strong></span>`;
-
     const groups = data.groups || [];
 
     const dupBadge = document.getElementById("badge-count-duplicates");
@@ -13481,11 +13405,16 @@ function renderDuplicateStatus(data) {
     }
 
     if (groups.length === 0) {
-        groupsEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Duplikate gefunden. 🎉</p>`
-            + renderIgnoredFooter(data.ignored_count);
-        wireRestoreAll(groupsEl);
+        summaryEl.innerHTML = "";
+        statusEl.textContent = "";
+        groupsEl.innerHTML = `<p class="text-muted" style="margin:4px 0; text-align: center;">Keine Duplikate gefunden.</p>`;
         return;
     }
+
+    const sum = data.summary || { groups: 0, reclaimable_bytes: 0 };
+    summaryEl.innerHTML = `<span style="font-size:0.9em;">
+        <strong>${sum.groups || 0}</strong> auffällige Gruppe(n) · rückgewinnbar:
+        <strong>${fmtSize(sum.reclaimable_bytes)}</strong></span>`;
 
     groupsEl.innerHTML = "";
     groups.forEach(g => {

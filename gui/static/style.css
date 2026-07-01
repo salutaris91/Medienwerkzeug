@@ -229,7 +229,7 @@ textarea:focus-visible {
     align-items: center;
     position: sticky;
     top: 0;
-    z-index: 100;
+    z-index: 150;
 }
 
 .header-logo {
@@ -2999,4 +2999,25 @@ body.runtime-docker .docker-only-info {
 }
 #dashboard-customize-panel {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Sticky Library Navigation Surface */
+.library-sticky-nav {
+    position: sticky;
+    top: 0;
+    z-index: 140;
+    background: var(--bg-main);
+    padding: 10px 24px 12px;
+    border-bottom: 1px solid var(--border-light);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+    margin-bottom: 25px;
+}
+
+@media (max-width: 768px) {
+    .library-sticky-nav {
+        position: static !important;
+        padding: 10px 15px !important;
+        box-shadow: none !important;
+        border-bottom: none !important;
+    }
 }
