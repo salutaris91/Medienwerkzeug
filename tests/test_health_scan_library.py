@@ -141,8 +141,9 @@ class TestHealthScanLibrary(unittest.TestCase):
         self.assertIn("Keine Bibliotheksordner gefunden.", res2.get_json()["message"])
 
     @patch("gui.api.system_api.os.path.isdir")
+    @patch("gui.api.system_api.os.access", return_value=True)
     @patch("gui.api.system_api.load_settings")
-    def test_nas_test_api_local_path(self, mock_load, mock_isdir):
+    def test_nas_test_api_local_path(self, mock_load, mock_access, mock_isdir):
         mock_isdir.return_value = True
         mock_load.return_value = {
             "sync_categories": [{"id": "movies", "name": "Filme", "nas_sub": "Filme"}]
@@ -162,9 +163,10 @@ class TestHealthScanLibrary(unittest.TestCase):
         self.assertTrue(data["local_path_exists"])
 
     @patch("gui.api.system_api.os.path.isdir")
+    @patch("gui.api.system_api.os.access", return_value=True)
     @patch("gui.api.system_api.load_settings")
     @patch("gui.api.system_api.get_runtime_capabilities")
-    def test_nas_test_api_docker_mode(self, mock_caps, mock_load, mock_isdir):
+    def test_nas_test_api_docker_mode(self, mock_caps, mock_load, mock_access, mock_isdir):
         mock_caps.return_value = {"runtime": "docker", "capabilities": {}}
         mock_isdir.return_value = True
         mock_load.return_value = {
@@ -188,9 +190,10 @@ class TestHealthScanLibrary(unittest.TestCase):
         self.assertTrue(data["local_path_exists"])
 
     @patch("gui.api.system_api.os.path.isdir")
+    @patch("gui.api.system_api.os.access", return_value=True)
     @patch("gui.api.system_api.load_settings")
     @patch("gui.api.system_api.get_runtime_capabilities")
-    def test_nas_test_api_docker_mode_with_old_ips(self, mock_caps, mock_load, mock_isdir):
+    def test_nas_test_api_docker_mode_with_old_ips(self, mock_caps, mock_load, mock_access, mock_isdir):
         mock_caps.return_value = {"runtime": "docker", "capabilities": {}}
         mock_isdir.return_value = True
         mock_load.return_value = {

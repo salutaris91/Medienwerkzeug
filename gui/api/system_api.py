@@ -371,8 +371,13 @@ def handle_api_nas_test():
         nas_share = data.get("nas_share", "").strip()
         root_path = data.get("root_path", "").strip()
 
-        # Test 3: Lokaler Pfad vorhanden
-        local_path_exists = os.path.isdir(root_path) if root_path else False
+        # Test 3: Lokaler Pfad vorhanden und lesbar
+        local_path_exists = False
+        if root_path and os.path.isdir(root_path):
+            try:
+                local_path_exists = os.access(root_path, os.R_OK)
+            except Exception:
+                pass
 
         # Test 1: Server erreichbar (Port 445 auf Primary oder Backup IP)
         server_reachable = False
