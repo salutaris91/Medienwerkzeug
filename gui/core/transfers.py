@@ -11,20 +11,80 @@ def _is_nas_root_mounted(nas_root):
     if not nas_root:
         return False
     try:
-        target_path = os.path.abspath(nas_root).rstrip("/")
+        target_path = os.path.realpath(os.path.abspath(nas_root))
         out = subprocess.check_output(["mount"], text=True)
         for line in out.splitlines():
             if " on " in line:
-                parts = line.split(" on ")
+                parts = line.split(" on ", 1)
                 if len(parts) >= 2:
-                    mount_point = parts[1].split(" (")[0].strip()
-                    mount_point = os.path.abspath(mount_point).rstrip("/")
-                    if target_path == mount_point or target_path.startswith(mount_point + "/"):
+                    m_point = parts[1].split(" (", 1)[0].strip()
+                    m_point_norm = os.path.realpath(os.path.abspath(m_point))
+                    if target_path == m_point_norm or target_path.startswith(m_point_norm + "/"):
                         if os.path.isdir(target_path):
                             return True
+                            
+        # Suffix-Prüfung (/Volumes/<Share>-1)
+        if target_path.startswith("/Volumes/"):
+            parts = target_path.split("/")
+            if len(parts) >= 3:
+                share_name = parts[2]
+                for line in out.splitlines():
+                    if " on " in line:
+                        parts_m = line.split(" on ", 1)
+                        if len(parts_m) >= 2:
+                            m_point = parts_m[1].split(" (", 1)[0].strip()
+                            m_point_norm = os.path.realpath(os.path.abspath(m_point))
+                            if m_point_norm.startswith(f"/Volumes/{share_name}-"):
+                                suffix_part = m_point_norm[len(f"/Volumes/{share_name}-"):]
+                                if suffix_part.isdigit():
+                                    relative_part = target_path[len(f"/Volumes/{share_name}"):]
+                                    actual_target_path = m_point_norm + relative_part
+                                    if os.path.isdir(actual_target_path):
+                                        return True
     except Exception as e:
         log_message(f"❌ NAS-Mount-Status konnte nicht gelesen werden: {e}")
     return False
+
+def diagnose_nas_mount(nas_root):
+    if not nas_root:
+        return 'not_mounted', "Kein Pfad konfiguriert."
+    target_path = os.path.realpath(os.path.abspath(nas_root))
+    try:
+        out = subprocess.check_output(["mount"], text=True)
+    except Exception as e:
+        return 'not_mounted', f"Fehler beim Lesen der Mount-Tabelle: {e}"
+        
+    mountpoints = []
+    for line in out.splitlines():
+        if " on " in line:
+            parts = line.split(" on ", 1)
+            if len(parts) >= 2:
+                m_point = parts[1].split(" (", 1)[0].strip()
+                mountpoints.append(os.path.realpath(os.path.abspath(m_point)))
+                
+    for m_point in mountpoints:
+        if target_path == m_point or target_path.startswith(m_point + "/"):
+            if os.path.isdir(target_path):
+                return 'connected', None
+            else:
+                return 'path_not_found', f"Das NAS-Laufwerk ist eingebunden, aber der konfigurierte Ordner '{nas_root}' existiert nicht auf dem Volume."
+
+    if target_path.startswith("/Volumes/"):
+        parts = target_path.split("/")
+        if len(parts) >= 3:
+            share_name = parts[2]
+            for m_point in mountpoints:
+                if m_point.startswith(f"/Volumes/{share_name}-"):
+                    suffix_part = m_point[len(f"/Volumes/{share_name}-"):]
+                    if suffix_part.isdigit():
+                        relative_part = target_path[len(f"/Volumes/{share_name}"):]
+                        actual_target_path = m_point + relative_part
+                        if os.path.isdir(actual_target_path):
+                            return 'mount_conflict_suffix', f"Das NAS wurde erfolgreich eingebunden, aber macOS hat es unter '{m_point}' (statt '/Volumes/{share_name}') gemountet. Bitte passe den Pfad in den Einstellungen entsprechend an."
+                        else:
+                            return 'path_not_found', f"Das NAS wurde unter '{m_point}' gemountet, aber der Ordner '{relative_part.lstrip('/')}' existiert dort nicht."
+
+    return 'not_mounted', "Das NAS ist erreichbar, konnte aber nicht eingebunden werden. Bitte prüfe die SMB-Zugangsdaten im macOS-Schlüsselbund."
 
 def _wait_for_nas_mount(nas_root, attempts, delay_seconds=1):
     for _ in range(attempts):
@@ -221,7 +281,8 @@ def check_nas_connection_details():
         error_message = None
     elif reachable_ip:
         status = "available_not_mounted"
-        error_message = "Laufwerk erreichbar, aber nicht eingehängt."
+        diag_status, diag_msg = diagnose_nas_mount(nas_root)
+        error_message = diag_msg
     else:
         status = "offline"
         error_message = "; ".join(errors) if errors else "Keine IP-Adressen konfiguriert."

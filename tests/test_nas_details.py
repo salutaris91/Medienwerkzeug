@@ -98,7 +98,8 @@ class TestNasDetails(unittest.TestCase):
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
     @patch("gui.core.transfers._is_nas_root_mounted", return_value=False)
-    def test_details_when_available_not_mounted(self, mock_mounted, mock_settings):
+    @patch("gui.core.transfers.diagnose_nas_mount", return_value=('not_mounted', "Laufwerk erreichbar, aber nicht eingehängt."))
+    def test_details_when_available_not_mounted(self, mock_diagnose, mock_mounted, mock_settings):
         # Socket mock connects successfully to first IP
         socket_mock = MagicMock()
         with self._socket_mock(socket_mock):

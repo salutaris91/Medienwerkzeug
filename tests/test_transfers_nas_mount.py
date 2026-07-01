@@ -116,5 +116,44 @@ class TestNasMountFallback(unittest.TestCase):
         mock_log.assert_any_call("⚠️ Automatisches SMB-Mounting fehlgeschlagen: AppleScript mount failed")
 
 
+class TestIsNasRootMounted(unittest.TestCase):
+    @patch("gui.core.transfers.subprocess.check_output")
+    @patch("gui.core.transfers.os.path.isdir")
+    def test_direct_mount_exact(self, mock_isdir, mock_check_output):
+        mock_check_output.return_value = "//alex@NAS/Kino on /Volumes/Kino (smbfs, nodev)"
+        mock_isdir.return_value = True
+        
+        self.assertTrue(transfers._is_nas_root_mounted("/Volumes/Kino"))
+        self.assertTrue(transfers._is_nas_root_mounted("/Volumes/Kino/"))
+
+    @patch("gui.core.transfers.subprocess.check_output")
+    @patch("gui.core.transfers.os.path.isdir")
+    def test_direct_mount_subdirectory(self, mock_isdir, mock_check_output):
+        mock_check_output.return_value = "//alex@NAS/Kino on /Volumes/Kino (smbfs, nodev)"
+        mock_isdir.return_value = True
+        
+        self.assertTrue(transfers._is_nas_root_mounted("/Volumes/Kino/Serien"))
+        self.assertTrue(transfers._is_nas_root_mounted("/Volumes/Kino/Serien/"))
+
+    @patch("gui.core.transfers.subprocess.check_output")
+    @patch("gui.core.transfers.os.path.isdir")
+    def test_suffix_mount_subdirectory(self, mock_isdir, mock_check_output):
+        mock_check_output.return_value = "//alex@NAS/Kino on /Volumes/Kino-1 (smbfs, nodev)"
+        
+        def isdir_mock(path):
+            return path == "/Volumes/Kino-1/Serien"
+        mock_isdir.side_effect = isdir_mock
+        
+        self.assertTrue(transfers._is_nas_root_mounted("/Volumes/Kino/Serien"))
+
+    @patch("gui.core.transfers.subprocess.check_output")
+    @patch("gui.core.transfers.os.path.isdir")
+    def test_no_false_match_with_similar_names(self, mock_isdir, mock_check_output):
+        mock_check_output.return_value = "//alex@NAS/Kino on /Volumes/Kino-1 (smbfs, nodev)"
+        mock_isdir.return_value = True
+        
+        self.assertFalse(transfers._is_nas_root_mounted("/Volumes/Kino2/Serien"))
+
+
 if __name__ == "__main__":
     unittest.main()
