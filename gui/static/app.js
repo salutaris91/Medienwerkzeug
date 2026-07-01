@@ -1874,6 +1874,15 @@ function initViews() {
         });
         const lib = document.getElementById("view-library");
         if (lib) { lib.classList.remove("hidden"); lib.classList.add("active"); }
+
+        // Reset tabs to Overview and Subtab to Structure
+        if (typeof window.switchLibraryTab === "function") {
+            window.switchLibraryTab("overview");
+        }
+        if (typeof window.switchLibrarySubTab === "function") {
+            window.switchLibrarySubTab("structure");
+        }
+
         // Gecachte Scan-Ergebnisse beim Öffnen aktualisieren
         if (typeof pollHealthStatus === "function") pollHealthStatus(false);
         if (typeof pollDuplicateStatus === "function") pollDuplicateStatus(false);
@@ -6687,16 +6696,26 @@ function initEventListeners() {
 
     // Bibliotheks-Wartung Pflege-Werkzeuge
     document.getElementById("lib-tool-btn-convert")?.addEventListener("click", () => {
-        openToolRunnerModal("tool_batch_convert", "H.265 Batch-Konvertierung", "Videos im gewählten Verzeichnis in das platzsparende H.265 (HEVC) Format konvertieren.", true);
+        const path = document.getElementById("lib-tools-manual-path")?.value.trim();
+        openToolRunnerModal("tool_batch_convert", "H.265 Batch-Konvertierung", "Videos im gewählten Verzeichnis in das platzsparende H.265 (HEVC) Format konvertieren.", true, path || undefined);
     });
     document.getElementById("lib-tool-btn-nfo-agent")?.addEventListener("click", () => {
-        openToolRunnerModal("tool_nfo_agent", "NFO Agent", "Generiert NFO-Metadaten für alle Episoden/Filme im gewählten Ordner anhand der TMDb/TVDb IDs.");
+        const path = document.getElementById("lib-tools-manual-path")?.value.trim();
+        openToolRunnerModal("tool_nfo_agent", "NFO Agent", "Generiert NFO-Metadaten für alle Episoden/Filme im gewählten Ordner anhand der TMDb/TVDb IDs.", false, path || undefined);
     });
     document.getElementById("lib-tool-btn-clean")?.addEventListener("click", () => {
-        openToolRunnerModal("tool_clean", "Ordner bereinigen", "Entfernt leere Ordner und unerwünschte Junk-Dateien (z.B. txt, url, exe, ds_store, nfo, jpg, png).");
+        const path = document.getElementById("lib-tools-manual-path")?.value.trim();
+        if (path) {
+            if (confirm(`Ordner bereinigen für dieses Verzeichnis ausführen?\n\nPfad: ${path}`)) {
+                runContextTool("tool_clean", path);
+            }
+        } else {
+            openToolRunnerModal("tool_clean", "Ordner bereinigen", "Entfernt leere Ordner und unerwünschte Junk-Dateien (z.B. txt, url, exe, ds_store, nfo, jpg, png).");
+        }
     });
     document.getElementById("lib-tool-btn-manual-sync")?.addEventListener("click", () => {
-        openToolRunnerModal("tool_manual_sync", "Speicherziel-Syncing", "Kopiert den gewählten Ordner auf das NAS-Speicherziel und optional in die pCloud.");
+        const path = document.getElementById("lib-tools-manual-path")?.value.trim();
+        openToolRunnerModal("tool_manual_sync", "Speicherziel-Syncing", "Kopiert den gewählten Ordner auf das NAS-Speicherziel und optional in die pCloud.", false, path || undefined);
     });
 
     const connectNasBtn = document.getElementById("btn-connect-nas");
@@ -12270,18 +12289,18 @@ const HEALTH_TYPE_LABELS = {
     missing_age_rating: "Fehlende Altersfreigabe",
     invalid_age_rating: "Ungültige Altersfreigabe",
     nested_duplicate: "Verschachtelter Ordner (Doppelstruktur)",
-    bad_folder_name: "Ungültiges Ordner-Format",
-    name_mismatch: "Namensabweichung (Ordner vs. Videodatei)",
+    bad_folder_name: "Ungültiger Ordnername",
+    name_mismatch: "Namensabweichung (Ordner vs. Datei)",
     missing_nfo: "Fehlende NFO-Metadaten",
     episode_gap: "Episodenlücke in Staffel",
     empty_folder: "Leerer Ordner",
     no_video: "Keine Videodatei im Ordner",
     codec_inconsistency: "Uneinheitliche Codecs in Staffel",
     small_file: "Verdächtig kleine Videodatei",
-    missing_season_poster: "Fehlendes Staffel-Poster",
-    missing_poster: "Fehlendes Poster",
-    missing_backdrop: "Fehlendes Backdrop (Hintergrundbild)",
-    missing_logo: "Fehlendes Logo",
+    missing_season_poster: "Fehlendes Staffelposter",
+    missing_poster: "Fehlendes Poster / Primärbild",
+    missing_backdrop: "Fehlendes Hintergrundbild / Backdrop",
+    missing_logo: "Fehlendes Logo / Clearlogo",
     missing_banner: "Fehlendes Banner",
     inconsistent_naming: "Uneinheitliche Benennung in Serie"
 };
@@ -12291,18 +12310,18 @@ const HEALTH_RECOMMENDED_ACTIONS = {
     invalid_age_rating: "Altersfreigabe (FSK-Stufe) über die NFO-Datei korrigieren.",
     nested_duplicate: "Verschachtelte Struktur auflösen (Unterordner flachklopfen).",
     bad_folder_name: "Ordnername an das Standardformat (Name (Jahr)) angleichen.",
-    name_mismatch: "Ordnername und Videodateiname aneinander angleichen.",
+    name_mismatch: "Ordnername und Dateiname aneinander angleichen.",
     missing_nfo: "NFO Agent starten, um Metadaten automatisch zu generieren.",
     episode_gap: "Fehlende Episoden überprüfen oder NFO/Video-Mapping korrigieren.",
     empty_folder: "Leeren Ordner löschen (über 'Ordner bereinigen').",
     no_video: "Videodatei hinzufügen oder Ordner bereinigen.",
     codec_inconsistency: "Videos in einheitliche Formate (H.265) transkodieren.",
     small_file: "Dateigröße prüfen (Gefahr eines unvollständigen Downloads).",
-    missing_season_poster: "Poster über den NFO Agent oder ein Bild-Suchtool herunterladen.",
-    missing_poster: "Poster über den NFO Agent oder ein Bild-Suchtool herunterladen.",
-    missing_backdrop: "Hintergrundbild über den NFO Agent herunterladen.",
-    missing_logo: "Logo über den NFO Agent herunterladen.",
-    missing_banner: "Banner über den NFO Agent herunterladen.",
+    missing_season_poster: "Staffelposter hinzufügen.",
+    missing_poster: "Filmplakat / Primärbild hinzufügen.",
+    missing_backdrop: "Hintergrundbild / Backdrop hinzufügen.",
+    missing_logo: "Logo / Clearlogo hinzufügen.",
+    missing_banner: "Banner hinzufügen.",
     inconsistent_naming: "Seriendateien einheitlich benennen (Renaming-Tool nutzen)."
 };
 
@@ -12312,10 +12331,70 @@ const HEALTH_SEVERITY = {
     info:     { label: "Hinweis",  icon: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info" style="height:14px; width:14px; display:inline-block; vertical-align:middle; margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>`, color: "#3b82f6" },
 };
 
+window.switchLibraryTab = function(tabId) {
+    document.querySelectorAll(".library-tab-content").forEach(el => el.classList.add("hidden"));
+    const tabEl = document.getElementById("library-tab-" + tabId);
+    if (tabEl) tabEl.classList.remove("hidden");
+
+    document.querySelectorAll("#view-library .btn-tab").forEach(btn => {
+        btn.classList.remove("active");
+        btn.style.borderBottomColor = "transparent";
+        btn.style.color = "var(--text-muted)";
+    });
+    const activeBtn = document.getElementById("tab-btn-" + tabId);
+    if (activeBtn) {
+        activeBtn.classList.add("active");
+        activeBtn.style.borderBottomColor = "var(--accent)";
+        activeBtn.style.color = "var(--text-main)";
+    }
+};
+
+window.switchLibrarySubTab = function(subTabId) {
+    document.querySelectorAll(".library-subtab-content-panel").forEach(el => el.classList.add("hidden"));
+    const subTabEl = document.getElementById("library-subtab-" + subTabId);
+    if (subTabEl) subTabEl.classList.remove("hidden");
+
+    document.querySelectorAll("#view-library .btn-subtab").forEach(btn => {
+        btn.classList.remove("active");
+        btn.style.background = "none";
+        btn.style.color = "var(--text-muted)";
+    });
+    const activeBtn = document.getElementById("subtab-btn-" + subTabId);
+    if (activeBtn) {
+        activeBtn.classList.add("active");
+        activeBtn.style.background = "var(--accent)";
+        activeBtn.style.color = "white";
+    }
+};
+
 function initHealthDashboard() {
     const btn = document.getElementById("btn-health-scan");
     if (btn) {
-        btn.addEventListener("click", startHealthScan);
+        btn.addEventListener("click", () => {
+            // Setze die Statussymbole für die orchestrierten Scans (simuliert)
+            const healthStatus = document.getElementById("status-check-health");
+            const dupStatus = document.getElementById("status-check-duplicates");
+            const normStatus = document.getElementById("status-check-normalize");
+
+            if (healthStatus) {
+                healthStatus.innerHTML = `<span style="font-size:0.95em; color:#3b82f6;">läuft...</span>`;
+            }
+            if (dupStatus) {
+                dupStatus.innerHTML = `<span style="font-size:0.95em; color:var(--text-muted);">wartet</span>`;
+            }
+            if (normStatus) {
+                normStatus.innerHTML = `<span style="font-size:0.95em; color:var(--text-muted);">wartet</span>`;
+            }
+
+            // Starte echten Bibliothekscheck
+            startHealthScan();
+
+            // Nach kurzem Delay zum Aufräumen -> Filme & Serien wechseln, um Fortschritt zu zeigen
+            setTimeout(() => {
+                window.switchLibraryTab("cleanup");
+                window.switchLibrarySubTab("media");
+            }, 500);
+        });
     }
     const cancelBtn = document.getElementById("btn-health-cancel");
     if (cancelBtn) {
@@ -12342,6 +12421,25 @@ function initHealthDashboard() {
             }
         });
     }
+
+    // Top-Level Tabs Klick-Handler
+    document.getElementById("tab-btn-overview")?.addEventListener("click", () => window.switchLibraryTab("overview"));
+    document.getElementById("tab-btn-cleanup")?.addEventListener("click", () => window.switchLibraryTab("cleanup"));
+    document.getElementById("tab-btn-tools")?.addEventListener("click", () => window.switchLibraryTab("tools"));
+
+    // Sub-Tabs Klick-Handler
+    document.getElementById("subtab-btn-structure")?.addEventListener("click", () => window.switchLibrarySubTab("structure"));
+    document.getElementById("subtab-btn-media")?.addEventListener("click", () => window.switchLibrarySubTab("media"));
+    document.getElementById("subtab-btn-duplicates")?.addEventListener("click", () => window.switchLibrarySubTab("duplicates"));
+
+    // Manuelle Werkzeuge Ordner-Picker
+    document.getElementById("btn-lib-tools-browse")?.addEventListener("click", () => {
+        const input = document.getElementById("lib-tools-manual-path");
+        const startPath = input ? input.value : "";
+        window.openFolderPicker(startPath, "", null, "Ordner für Werkzeuge auswählen", (selectedPath) => {
+            if (input) input.value = selectedPath;
+        });
+    });
 
     // Lade Kategorien dynamisch
     loadHealthCategories();
@@ -12441,7 +12539,7 @@ function resetHealthScanButton() {
     const btn = document.getElementById("btn-health-scan");
     if (btn) {
         btn.disabled = false;
-        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Scan starten`;
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 8px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Bibliothek prüfen`;
     }
 }
 
@@ -12449,7 +12547,7 @@ async function cancelHealthScan() {
     const cancelBtn = document.getElementById("btn-health-cancel");
     if (cancelBtn) {
         cancelBtn.disabled = true;
-        cancelBtn.textContent = "Abbruch...";
+        cancelBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square" style="display:inline-block; vertical-align:middle; margin-right: 8px;"><rect width="18" height="18" x="3" y="3" rx="2"/></svg> Abbruch...`;
     }
     try {
         const res = await fetch("/api/nas/health-cancel", { method: "POST" });
@@ -12490,7 +12588,7 @@ async function pollHealthStatus(keepPolling) {
             cancelBtn.style.display = running ? "inline-block" : "none";
             if (!running) {
                 cancelBtn.disabled = false;
-                cancelBtn.textContent = "⏹️ Abbrechen";
+                cancelBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square" style="display:inline-block; vertical-align:middle; margin-right: 8px;"><rect width="18" height="18" x="3" y="3" rx="2"/></svg> Abbrechen`;
             }
         }
 
@@ -12524,11 +12622,57 @@ function renderHealthStatus(data) {
     const groupControls = document.getElementById("health-group-controls");
     if (!statusEl || !summaryEl || !issuesEl) return;
 
+    // Synchronisiere Übersicht-Dashboard
+    const overviewLastScan = document.getElementById("overview-last-scan");
+    if (overviewLastScan) {
+        overviewLastScan.textContent = data.finished_at ? new Date(data.finished_at * 1000).toLocaleString("de-DE") : (data.status === "running" ? "Scan läuft..." : "Nie");
+    }
+    const overviewHealthSummary = document.getElementById("overview-health-summary");
+    if (overviewHealthSummary) {
+        if (data.summary) {
+            const criticalBadge = data.summary.critical > 0 ? `<span style="color:#ef4444; font-weight:600;">${data.summary.critical}</span> kritisch` : `0 kritisch`;
+            const warningBadge = data.summary.warning > 0 ? `<span style="color:#f59e0b; font-weight:600;">${data.summary.warning}</span> warnend` : `0 warnend`;
+            overviewHealthSummary.innerHTML = `${criticalBadge}, ${warningBadge}`;
+        } else {
+            overviewHealthSummary.textContent = "Keine Daten";
+        }
+    }
+
+    // Status-Check Health in der Übersicht synchronisieren
+    const statusHealth = document.getElementById("status-check-health");
+    if (statusHealth) {
+        if (data.status === "running") {
+            statusHealth.innerHTML = `<span style="font-size:0.95em; color:#3b82f6;">läuft...</span>`;
+        } else if (data.status === "error") {
+            statusHealth.innerHTML = `<span style="font-size:0.95em; color:#ef4444;">Fehler</span>`;
+        } else if (data.status === "cancelled") {
+            statusHealth.innerHTML = `<span style="font-size:0.95em; color:var(--text-muted);">abgebrochen</span>`;
+        } else if (data.status === "done" || (data.issues && data.finished_at)) {
+            const hasWarn = (data.summary?.critical > 0) || (data.summary?.warning > 0);
+            if (hasWarn) {
+                statusHealth.innerHTML = `<span style="font-size:0.95em; color:#f59e0b;">Warnung</span>`;
+            } else {
+                statusHealth.innerHTML = `<span style="font-size:0.95em; color:#10b981;">fertig</span>`;
+            }
+        } else {
+            statusHealth.innerHTML = `<span style="font-size:0.95em; color:var(--text-muted);">bereit</span>`;
+        }
+    }
+
     if (data.status === "warning") {
         statusEl.textContent = `Warnung: ${data.message || "Warnung beim Scan"}`;
         if (statsEl) statsEl.style.display = "none";
         if (progWrap) progWrap.style.display = "none";
         if (groupControls) groupControls.style.display = "none";
+
+        const structureBadge = document.getElementById("badge-count-structure");
+        if (structureBadge) structureBadge.style.display = "none";
+        const mediaBadge = document.getElementById("badge-count-media");
+        if (mediaBadge) mediaBadge.style.display = "none";
+        const overviewStructureSummary = document.getElementById("overview-structure-summary");
+        if (overviewStructureSummary) overviewStructureSummary.textContent = "Keine Daten";
+        const overviewHealthSummary = document.getElementById("overview-health-summary");
+        if (overviewHealthSummary) overviewHealthSummary.textContent = "Keine Daten";
 
         let warningHtml = `<div class="alert alert-warning" style="margin:4px 0; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:#f59e0b; padding:10px; border-radius:var(--radius-sm); font-size:12px; display:flex; align-items:center; gap:8px;">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="height:16px; width:16px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -12537,6 +12681,58 @@ function renderHealthStatus(data) {
         issuesEl.innerHTML = warningHtml;
         summaryEl.innerHTML = "";
         return;
+    }
+
+    // Filter nested_duplicate issues into the Cleanup-Structure tab
+    const allIssues = data.issues || [];
+    const structureIssues = allIssues.filter(it => it.type === "nested_duplicate");
+    const mediaIssues = allIssues.filter(it => it.type !== "nested_duplicate");
+
+    const structureContainer = document.getElementById("structure-health-issues-container");
+    const structureIssuesEl = document.getElementById("health-issues-structure");
+    if (structureContainer && structureIssuesEl) {
+        if (structureIssues.length > 0) {
+            structureContainer.style.display = "block";
+            structureIssuesEl.innerHTML = structureIssues.map(it => {
+                const m = HEALTH_SEVERITY[it.severity] || HEALTH_SEVERITY.warning;
+                const fixBtn = `<button class="btn btn-secondary btn-sm health-fix-flatten" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height:12px; width:12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Auflösen</button>`;
+                return `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; font-size:0.9em; padding:8px 0; border-top:1px solid rgba(255,255,255,0.04);">
+                            <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:250px; overflow-wrap:anywhere; word-break:break-word; color: var(--text-main); font-weight: 500;">
+                                <span style="color:${m.color}; margin-right:4px; display:inline-flex; align-items:center; flex-shrink:0;">${m.icon}</span>
+                                <span>${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
+                            </div>
+                            <span style="display:flex; gap:6px; flex-wrap:wrap; white-space:nowrap; flex-shrink:0;">
+                                ${fixBtn}
+                                <button class="btn btn-secondary btn-sm health-open-folder" data-path="${escapeHTML(it.path)}" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="height:12px; width:12px;"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>Öffnen</button>
+                                <button class="btn btn-secondary btn-sm finding-ignore" data-key="${escapeHTML(it.key || "")}" title="Diesen Befund dauerhaft ausblenden" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ban" style="height:12px; width:12px;"><circle cx="12" cy="12" r="10"/><line x1="4.93" x2="19.07" y1="4.93" y2="19.07"/></svg>Ignorieren</button>
+                            </span>
+                         </div>`;
+            }).join("");
+        } else {
+            structureContainer.style.display = "none";
+            structureIssuesEl.innerHTML = "";
+        }
+    }
+
+    // Assign mediaIssues back to data.issues for subsequent rendering in #health-issues
+    data.issues = mediaIssues;
+
+    // Update Sub-Tab Badges & visibility
+    const structureBadge = document.getElementById("badge-count-structure");
+    if (structureBadge) {
+        structureBadge.textContent = structureIssues.length;
+        structureBadge.style.display = structureIssues.length > 0 ? "inline" : "none";
+    }
+    const mediaBadge = document.getElementById("badge-count-media");
+    if (mediaBadge) {
+        mediaBadge.textContent = mediaIssues.length;
+        mediaBadge.style.display = mediaIssues.length > 0 ? "inline" : "none";
+    }
+
+    // Update Overview Tab Structure KPI
+    const overviewStructureSummary = document.getElementById("overview-structure-summary");
+    if (overviewStructureSummary) {
+        overviewStructureSummary.textContent = structureIssues.length > 0 ? `${structureIssues.length} Hinweise` : "Keine Auffälligkeiten";
     }
 
     // 1. Zustand sichern (geöffnete Gruppen und Scrollposition)
@@ -12648,10 +12844,14 @@ function renderHealthStatus(data) {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-fix-rename" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Umbenennen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit-3" style="height:12px; width:12px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Umbenennen</button>`;
                     } else if (it.type === "missing_age_rating" || it.type === "invalid_age_rating") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" title="FSK-Stufe setzen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>FSK setzen</button>`;
+                    } else if (it.type === "missing_poster" || it.type === "missing_backdrop" || it.type === "missing_logo" || it.type === "missing_banner" || it.type === "missing_season_poster") {
+                        fixBtns = `<button class="btn btn-secondary btn-sm health-artwork-search" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Bild online suchen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image" style="height:12px; width:12px;"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>Bild suchen</button>`;
                     }
-                    html += `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:0.9em; padding:4px 0; border-top:1px solid rgba(255,255,255,0.04);">
-                                <span>${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
-                                <span style="display:flex; gap:6px; white-space:nowrap;">
+                    html += `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; font-size:0.9em; padding:8px 0; border-top:1px solid rgba(255,255,255,0.04);">
+                                <div style="flex:1; min-width:250px; overflow-wrap:anywhere; word-break:break-word; color:var(--text-main); font-weight:500;">
+                                    <span>${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
+                                </div>
+                                <span style="display:flex; gap:6px; flex-wrap:wrap; white-space:nowrap; flex-shrink:0;">
                                     ${fixBtns}
                                     <button class="btn btn-secondary btn-sm health-open-folder" data-path="${escapeHTML(it.path)}" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="height:12px; width:12px;"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>Öffnen</button>
                                     <button class="btn btn-secondary btn-sm finding-ignore" data-key="${escapeHTML(it.key || "")}" title="Diesen Befund dauerhaft ausblenden" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ban" style="height:12px; width:12px;"><circle cx="12" cy="12" r="10"/><line x1="4.93" x2="19.07" y1="4.93" y2="19.07"/></svg>Ignorieren</button>
@@ -12698,16 +12898,11 @@ function renderHealthStatus(data) {
                 let batchBtnHtml = "";
                 if (typeId === "missing_age_rating" || typeId === "invalid_age_rating") {
                     batchBtnHtml = `
-                        <div style="display:inline-flex; align-items:center; gap:6px;">
-                            <select class="form-select form-select-xs health-batch-fsk-select" style="padding:2px 4px; font-size:11px; width:auto; height:24px; background:var(--bg-surface-3); border-color:var(--border-light); color:var(--text-main);">
-                                <option value="">FSK wählen...</option>
-                                <option value="0">FSK 0</option>
-                                <option value="6">FSK 6</option>
-                                <option value="12">FSK 12</option>
-                                <option value="16">FSK 16</option>
-                                <option value="18">FSK 18</option>
+                        <div style="display:inline-flex; align-items:center; gap:6px; opacity:0.7;" title="FSK-Stapelverarbeitung folgt in Phase 2.5c">
+                            <select disabled class="form-select form-select-xs health-batch-fsk-select" style="padding:2px 4px; font-size:11px; width:auto; height:24px; background:var(--bg-surface-3); border-color:var(--border-light); color:var(--text-muted); cursor:not-allowed;">
+                                <option value="">FSK...</option>
                             </select>
-                            <button class="btn btn-primary btn-xs health-batch-btn" data-type-id="${escapeHTML(typeId)}" data-action="set_fsk" style="padding:2px 8px; height:24px;" title="Für alle ausgewählten Elemente dieselbe FSK-Stufe setzen">FSK setzen</button>
+                            <button disabled class="btn btn-secondary btn-xs" style="padding:2px 8px; height:24px; cursor:not-allowed; opacity:0.8;">FSK Batch (2.5c)</button>
                         </div>
                     `;
                 } else if (typeId === "nested_duplicate") {
@@ -12770,16 +12965,18 @@ function renderHealthStatus(data) {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-fix-rename" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Umbenennen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit-3" style="height:12px; width:12px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Umbenennen</button>`;
                     } else if (it.type === "missing_age_rating" || it.type === "invalid_age_rating") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" title="FSK-Stufe setzen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>FSK setzen</button>`;
+                    } else if (it.type === "missing_poster" || it.type === "missing_backdrop" || it.type === "missing_logo" || it.type === "missing_banner" || it.type === "missing_season_poster") {
+                        fixBtns = `<button class="btn btn-secondary btn-sm health-artwork-search" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Bild online suchen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image" style="height:12px; width:12px;"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>Bild suchen</button>`;
                     }
 
                     const m = HEALTH_SEVERITY[it.severity];
-                    html += `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:0.9em; padding:4px 0; border-top:1px solid rgba(255,255,255,0.04);">
-                                <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
-                                    <input type="checkbox" class="health-item-select" data-type-id="${typeId}" data-path="${escapeHTML(it.path)}" style="margin:0; width:14px; height:14px; cursor:pointer;">
-                                    <span style="color:${m.color}; margin-right:4px;">${m.icon}</span>
-                                    <span style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
+                    html += `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; font-size:0.9em; padding:8px 0; border-top:1px solid rgba(255,255,255,0.04);">
+                                <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:250px; overflow-wrap:anywhere; word-break:break-word; color:var(--text-main); font-weight:500;">
+                                    <input type="checkbox" class="health-item-select" data-type-id="${typeId}" data-path="${escapeHTML(it.path)}" style="margin:0; width:14px; height:14px; cursor:pointer; flex-shrink:0;">
+                                    <span style="color:${m.color}; margin-right:4px; display:inline-flex; align-items:center; flex-shrink:0;">${m.icon}</span>
+                                    <span>${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
                                 </div>
-                                <span style="display:flex; gap:6px; white-space:nowrap; flex-shrink:0;">
+                                <span style="display:flex; gap:6px; flex-wrap:wrap; white-space:nowrap; flex-shrink:0;">
                                     ${fixBtns}
                                     <button class="btn btn-secondary btn-sm health-open-folder" data-path="${escapeHTML(it.path)}" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="height:12px; width:12px;"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>Öffnen</button>
                                     <button class="btn btn-secondary btn-sm finding-ignore" data-key="${escapeHTML(it.key || "")}" title="Diesen Befund dauerhaft ausblenden" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ban" style="height:12px; width:12px;"><circle cx="12" cy="12" r="10"/><line x1="4.93" x2="19.07" y1="4.93" y2="19.07"/></svg>Ignorieren</button>
@@ -12888,14 +13085,14 @@ function renderHealthStatus(data) {
             });
         }
 
-        issuesEl.querySelectorAll(".health-open-folder").forEach(b => {
+        document.querySelectorAll("#health-issues .health-open-folder, #health-issues-structure .health-open-folder").forEach(b => {
             b.addEventListener("click", () => {
                 const p = b.getAttribute("data-path");
                 window.openFolder({ path: p });
             });
         });
 
-        issuesEl.querySelectorAll(".health-fix-flatten").forEach(b => {
+        document.querySelectorAll("#health-issues .health-fix-flatten, #health-issues-structure .health-fix-flatten").forEach(b => {
             b.addEventListener("click", async () => {
                 const p = b.getAttribute("data-path");
                 if (!confirm(`Verschachtelung auflösen?\n\nInhalt des Unterordners wird eine Ebene nach oben verschoben.`)) return;
@@ -12913,50 +13110,114 @@ function renderHealthStatus(data) {
             });
         });
 
-        issuesEl.querySelectorAll(".health-fix-rename").forEach(b => {
+        document.querySelectorAll("#health-issues .health-fix-rename, #health-issues-structure .health-fix-rename").forEach(b => {
             b.addEventListener("click", async () => {
                 const p = b.getAttribute("data-path");
                 const issueType = b.getAttribute("data-type");
                 const folderName = p.split("/").filter(Boolean).pop();
-                let choices;
+
+                const modal = document.getElementById("modal-health-rename");
+                const pathEl = document.getElementById("health-rename-path");
+                const mismatchOptions = document.getElementById("health-rename-mismatch-options");
+                const customInput = document.getElementById("health-rename-custom-input");
+
+                if (!modal || !pathEl) return;
+
+                pathEl.textContent = p;
+                customInput.value = folderName || "";
+
+                // Mismatch-Optionen nur bei name_mismatch anzeigen
                 if (issueType === "name_mismatch") {
-                    choices = `Wie soll umbenannt werden?\n\n1 = Ordner an Datei angleichen\n2 = Datei an Ordner angleichen\n3 = Freien Namen eingeben\n\nBitte 1, 2 oder 3 eingeben:`;
+                    mismatchOptions.style.display = "flex";
+
+                    // Befülle die Details im Optionstext
+                    // Suche die Videodatei im Pfad (Ordnername vs Videodatei)
+                    const lblFolderTo = document.getElementById("lbl-rename-opt-folder-to-file");
+                    const lblFileTo = document.getElementById("lbl-rename-opt-file-to-folder");
+                    if (lblFolderTo) lblFolderTo.textContent = `Der Ordner wird an den Namen der Videodatei angepasst.`;
+                    if (lblFileTo) lblFileTo.textContent = `Die Videodatei wird an den aktuellen Ordnernamen „${folderName}“ angepasst.`;
                 } else {
-                    choices = `Ordner „${folderName}" umbenennen.\n\nNeuen Ordnernamen eingeben:`;
+                    mismatchOptions.style.display = "none";
                 }
-                const input = prompt(choices);
-                if (!input) return;
-                b.disabled = true;
-                try {
-                    let body;
-                    if (issueType === "name_mismatch") {
-                        if (input.trim() === "1") {
-                            body = { action: "rename_folder_to_file", path: p };
-                        } else if (input.trim() === "2") {
-                            body = { action: "rename_file_to_folder", path: p };
-                        } else if (input.trim() === "3") {
-                            const customName = prompt("Neuen Namen eingeben (ohne Dateiendung):");
-                            if (!customName) { b.disabled = false; return; }
-                            body = { action: "rename_both", path: p, new_name: customName.trim() };
-                        } else {
-                            body = { action: "rename_folder", path: p, new_name: input.trim() };
-                        }
-                    } else {
-                        body = { action: "rename_folder", path: p, new_name: input.trim() };
-                    }
-                    const res = await fetch("/api/nas/health-fix", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(body),
+
+                modal.classList.remove("hidden");
+
+                const cleanListeners = () => {
+                    const cloneAndReplace = (id) => {
+                        const el = document.getElementById(id);
+                        if (!el) return null;
+                        const clone = el.cloneNode(true);
+                        el.parentNode.replaceChild(clone, el);
+                        return clone;
+                    };
+
+                    return {
+                        customBtn: cloneAndReplace("btn-rename-opt-custom"),
+                        folderToBtn: cloneAndReplace("btn-rename-opt-folder-to-file"),
+                        fileToBtn: cloneAndReplace("btn-rename-opt-file-to-folder"),
+                        closeBtn: cloneAndReplace("btn-close-health-rename"),
+                        cancelBtn: cloneAndReplace("btn-close-health-rename-cancel")
+                    };
+                };
+
+                const btns = cleanListeners();
+
+                const closeModal = () => {
+                    modal.classList.add("hidden");
+                };
+
+                btns.closeBtn?.addEventListener("click", closeModal);
+                btns.cancelBtn?.addEventListener("click", closeModal);
+
+                const executeFix = async (body) => {
+                    b.disabled = true;
+                    closeModal();
+                    try {
+                        const res = await fetch("/api/nas/health-fix", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(body),
+                        });
+                        const data = await res.json();
+                        if (data.ok) { pollHealthStatus(false); }
+                        else { alert(data.message || "Fehler"); b.disabled = false; }
+                    } catch (e) { alert("Fehler: " + e); b.disabled = false; }
+                };
+
+                if (issueType === "name_mismatch") {
+                    btns.folderToBtn?.addEventListener("click", () => {
+                        executeFix({ action: "rename_folder_to_file", path: p });
                     });
-                    const data = await res.json();
-                    if (data.ok) { pollHealthStatus(false); }
-                    else { alert(data.message || "Fehler"); b.disabled = false; }
-                } catch (e) { alert("Fehler: " + e); b.disabled = false; }
+                    btns.fileToBtn?.addEventListener("click", () => {
+                        executeFix({ action: "rename_file_to_folder", path: p });
+                    });
+                }
+
+                btns.customBtn?.addEventListener("click", () => {
+                    const customName = customInput.value.trim();
+                    if (!customName) {
+                        alert("Bitte einen Namen eingeben.");
+                        return;
+                    }
+                    if (issueType === "name_mismatch") {
+                        executeFix({ action: "rename_both", path: p, new_name: customName });
+                    } else {
+                        executeFix({ action: "rename_folder", path: p, new_name: customName });
+                    }
+                });
             });
         });
 
-        issuesEl.querySelectorAll(".health-fix-fsk").forEach(b => {
+        document.querySelectorAll("#health-issues .health-artwork-search, #health-issues-structure .health-artwork-search").forEach(b => {
+            b.addEventListener("click", () => {
+                const p = b.getAttribute("data-path");
+                const type = b.getAttribute("data-type");
+                const typeLabel = HEALTH_TYPE_LABELS[type] || "Bild";
+                alert(`Bildsuche (Phase 2.5c)\n\nDie automatische Online-Bildsuche mit Vorschau und Auswahl für „${typeLabel}“ wird in Phase 2.5c umgesetzt.\n\nDu kannst das Bild bis dahin manuell im Ordner ablegen:\n${p}`);
+            });
+        });
+
+        document.querySelectorAll("#health-issues .health-fix-fsk, #health-issues-structure .health-fix-fsk").forEach(b => {
             b.addEventListener("click", async () => {
                 const p = b.getAttribute("data-path");
                 const input = prompt("Bitte FSK-Stufe eingeben (0, 6, 12, 16, 18):");
@@ -12983,10 +13244,14 @@ function renderHealthStatus(data) {
             });
         });
 
-        wireIgnoreButtons(issuesEl, () => pollHealthStatus(false));
-        wireRestoreAll(issuesEl);
+        wireIgnoreButtons(document.getElementById("view-library"), () => pollHealthStatus(false));
+        wireRestoreAll(document.getElementById("view-library"));
     } else if (hasResult) {
-        issuesEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Auffälligkeiten gefunden. 🎉</p>` + renderIgnoredFooter(data.ignored_count);
+        if (structureIssues && structureIssues.length > 0) {
+            issuesEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Auffälligkeiten für einzelne Medien. Strukturprobleme findest du im Tab Struktur.</p>` + renderIgnoredFooter(data.ignored_count);
+        } else {
+            issuesEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Auffälligkeiten gefunden. 🎉</p>` + renderIgnoredFooter(data.ignored_count);
+        }
         wireRestoreAll(issuesEl);
     } else {
         issuesEl.innerHTML = "";
@@ -13159,6 +13424,11 @@ function renderDuplicateStatus(data) {
         statusEl.textContent = `Warnung: ${data.message || "Warnung beim Scan"}`;
         if (progWrap) progWrap.style.display = "none";
 
+        const dupBadge = document.getElementById("badge-count-duplicates");
+        if (dupBadge) dupBadge.style.display = "none";
+        const overviewDuplicateSummary = document.getElementById("overview-duplicate-summary");
+        if (overviewDuplicateSummary) overviewDuplicateSummary.textContent = "Keine Daten";
+
         let warningHtml = `<div class="alert alert-warning" style="margin:4px 0; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:#f59e0b; padding:10px; border-radius:var(--radius-sm); font-size:12px; display:flex; align-items:center; gap:8px;">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="height:16px; width:16px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <span>Scan nicht aussagekräftig: keine Bibliotheksordner gefunden.</span>
@@ -13198,6 +13468,18 @@ function renderDuplicateStatus(data) {
         <strong>${fmtSize(sum.reclaimable_bytes)}</strong></span>`;
 
     const groups = data.groups || [];
+
+    const dupBadge = document.getElementById("badge-count-duplicates");
+    if (dupBadge) {
+        dupBadge.textContent = groups.length;
+        dupBadge.style.display = groups.length > 0 ? "inline" : "none";
+    }
+
+    const overviewDuplicateSummary = document.getElementById("overview-duplicate-summary");
+    if (overviewDuplicateSummary) {
+        overviewDuplicateSummary.textContent = groups.length > 0 ? `${groups.length} doppelte Episode(n)` : "Keine Auffälligkeiten";
+    }
+
     if (groups.length === 0) {
         groupsEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Duplikate gefunden. 🎉</p>`
             + renderIgnoredFooter(data.ignored_count);

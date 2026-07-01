@@ -108,9 +108,13 @@ def test_system_folder_contents_file_instead_of_dir(mock_utils_load, mock_helper
     test_file = tmp_path / "test.txt"
     test_file.write_text("hello")
     
+    # Durch die automatische Pfad-Auflösung für Dateien wird nun der Parent-Ordner geladen
     res = client.post('/api/system-folder-contents', json={"path": str(test_file)})
-    assert res.status_code == 400
-    assert "Pfad ist kein Ordner" in res.get_json()["error"]
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["success"] is True
+    assert len(data["files"]) == 1
+    assert data["files"][0]["name"] == "test.txt"
 
 @mock.patch('gui.core.helpers.load_settings')
 @mock.patch('gui.core.utils.load_settings')

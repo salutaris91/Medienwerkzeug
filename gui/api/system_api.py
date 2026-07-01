@@ -559,7 +559,10 @@ def resolve_folder_request_path(params):
     folder_path = None
 
     if path:
-        folder_path = path
+        if path and os.path.exists(path) and os.path.isfile(path):
+            folder_path = os.path.dirname(path)
+        else:
+            folder_path = path
     elif category_id:
         folder_name = params.get("folder_name") or ""
 
