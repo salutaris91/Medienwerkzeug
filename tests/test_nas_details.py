@@ -183,7 +183,8 @@ class TestNasDetails(unittest.TestCase):
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
     @patch("gui.core.transfers.get_runtime_capabilities", return_value={"runtime": "docker", "capabilities": {}})
     @patch("gui.core.transfers.os.path.isdir", return_value=True)
-    def test_details_docker_connected(self, mock_isdir, mock_caps, mock_settings):
+    @patch("gui.core.transfers.os.access", return_value=True)
+    def test_details_docker_connected(self, mock_access, mock_isdir, mock_caps, mock_settings):
         details = transfers.check_nas_connection_details()
         self.assertEqual(details["status"], "connected")
         self.assertTrue(details["enabled"])
@@ -192,6 +193,19 @@ class TestNasDetails(unittest.TestCase):
         self.assertEqual(details["checked_ips"], [])
         self.assertEqual(details["ip_details"], [])
         self.assertIsNone(details["error_message"])
+
+    @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
+    @patch("gui.core.transfers.get_runtime_capabilities", return_value={"runtime": "docker", "capabilities": {}})
+    @patch("gui.core.transfers.os.path.isdir")
+    @patch("gui.core.transfers.os.access", return_value=True)
+    def test_details_docker_warning_no_library_paths(self, mock_access, mock_isdir, mock_caps, mock_settings):
+        # /Volumes/Kino existiert, aber Unterordner existieren nicht
+        mock_isdir.side_effect = lambda path: path == "/Volumes/Kino"
+        details = transfers.check_nas_connection_details()
+        self.assertEqual(details["status"], "connected_but_no_library_paths")
+        self.assertTrue(details["enabled"])
+        self.assertTrue(details["has_root"])
+        self.assertIn("Keiner der Kategoriepfade existiert", details["error_message"])
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
     @patch("gui.core.transfers.get_runtime_capabilities", return_value={"runtime": "docker", "capabilities": {}})
@@ -209,7 +223,8 @@ class TestNasDetails(unittest.TestCase):
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS_ENABLED)
     @patch("gui.core.transfers.get_runtime_capabilities", return_value={"runtime": "docker", "capabilities": {}})
     @patch("gui.core.transfers.os.path.isdir", return_value=True)
-    def test_status_docker_connected(self, mock_isdir, mock_caps, mock_settings):
+    @patch("gui.core.transfers.os.access", return_value=True)
+    def test_status_docker_connected(self, mock_access, mock_isdir, mock_caps, mock_settings):
         status = transfers.check_nas_status()
         self.assertEqual(status, "connected")
 
