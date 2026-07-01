@@ -6704,6 +6704,21 @@ function initEventListeners() {
     const heroConnectNasBtn = document.getElementById("btn-hero-connect-nas");
     if (heroConnectNasBtn) {
         heroConnectNasBtn.addEventListener("click", async () => {
+            if (heroConnectNasBtn.textContent.trim() === "Einrichten") {
+                const navSettings = document.getElementById("nav-settings-dashboard");
+                if (navSettings) {
+                    navSettings.click();
+                    setTimeout(() => {
+                        const syncTabBtn = document.querySelector('.settings-tab-btn[data-settings-tab="tab-sync"]');
+                        if (syncTabBtn) syncTabBtn.click();
+                        setTimeout(() => {
+                            const targetEl = document.getElementById("settings-storage-targets-container");
+                            if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth' });
+                        }, 100);
+                    }, 150);
+                }
+                return;
+            }
             const originalText = heroConnectNasBtn.textContent;
             heroConnectNasBtn.disabled = true;
             heroConnectNasBtn.textContent = "Verbinde...";
@@ -8519,7 +8534,7 @@ function renderStorageTargets() {
         grid.style.marginBottom = "10px";
 
         // Helper to create form controls
-        const createField = (labelText, value, placeholder, onchange) => {
+        const createField = (labelText, value, placeholder, onchange, helpText = null) => {
             const wrap = document.createElement("div");
             wrap.style.display = "flex";
             wrap.style.flexDirection = "column";
@@ -8544,6 +8559,18 @@ function renderStorageTargets() {
 
             wrap.appendChild(label);
             wrap.appendChild(input);
+
+            if (helpText) {
+                const help = document.createElement("span");
+                help.style.fontSize = "10px";
+                help.style.color = "var(--text-muted)";
+                help.style.opacity = "0.7";
+                help.style.lineHeight = "1.3";
+                help.style.marginTop = "2px";
+                help.textContent = helpText;
+                wrap.appendChild(help);
+            }
+
             return { wrap, input };
         };
 
@@ -8584,7 +8611,7 @@ function renderStorageTargets() {
         typeSelect.style.color = "var(--text-main)";
         typeSelect.innerHTML = `
             <option value="nas" ${target.type === "nas" ? "selected" : ""}>NAS (Netzwerkordner)</option>
-            <option value="pcloud" ${target.type === "pcloud" ? "selected" : ""}>pCloud (Cloud)</option>
+            <option value="pcloud" ${target.type === "pcloud" ? "selected" : ""}>Cloud-Speicher (z.B. pCloud, GDrive via rclone)</option>
             <option value="cloud" ${target.type === "cloud" && target.id !== "pcloud" ? "selected" : ""}>Sonstige Cloud (rclone)</option>
         `;
         if (target.id === "nas" || target.id === "pcloud") {
@@ -8722,18 +8749,26 @@ function renderStorageTargets() {
             const backupIpField = createField("Backup-/Tailscale-IP:", target.nas_ip_backup, "z.B. 100.64.0.1", (val) => {
                 target.nas_ip_backup = val;
             });
-            const hostnameField = createField("Finder-Servername:", target.nas_hostname, "z.B. MEINNAS", (val) => {
+            const hostnameField = createField("Finder-Servername:", target.nas_hostname, "z.B. MEDIENSERVER", (val) => {
                 target.nas_hostname = val;
-            });
-            const shareField = createField("SMB Share-Name:", target.nas_share, "z.B. share", (val) => {
+            }, "Name oder IP des NAS, wie er in Finder > Mit Server verbinden verwendet wird. Beispiel: MEDIENSERVER oder 192.168.2.20");
+            const shareField = createField("SMB Share-Name:", target.nas_share, "z.B. media", (val) => {
                 target.nas_share = val;
-            });
+            }, "Name der SMB-Freigabe auf dem NAS. Bei smb://MEDIENSERVER/media ist 'media' der Share-Name.");
 
             smbGrid.appendChild(ipField.wrap);
             smbGrid.appendChild(backupIpField.wrap);
             smbGrid.appendChild(hostnameField.wrap);
             smbGrid.appendChild(shareField.wrap);
             card.appendChild(smbGrid);
+
+            const smbExample = document.createElement("div");
+            smbExample.style.fontSize = "10px";
+            smbExample.style.color = "var(--text-muted)";
+            smbExample.style.marginTop = "8px";
+            smbExample.style.fontStyle = "italic";
+            smbExample.textContent = "Beispielpfad: smb://MEDIENSERVER/media";
+            card.appendChild(smbExample);
         }
 
         container.appendChild(card);
@@ -8840,7 +8875,7 @@ function renderLocalFolders() {
         pathInput.style.border = "1px solid var(--border-glass)";
         pathInput.style.background = "var(--bg-surface)";
         pathInput.style.color = "var(--text-main)";
-        pathInput.placeholder = "Pfad (z.B. /Users/alex/Videos)";
+        pathInput.placeholder = "Pfad (z.B. /Users/benutzer/Videos)";
         pathInput.value = folder.path || "";
         pathInput.onchange = (e) => { currentSettings.local_download_folders[index].path = e.target.value; };
 
@@ -11285,7 +11320,10 @@ async function updateHomepageData(statusData) {
     const nasBadge = document.getElementById("hero-nas-badge");
     if (nasBadge) {
         nasBadge.className = "status-badge";
-        if (statusData.nas_status === "connected") {
+        if (statusData.nas_details && !statusData.nas_details.has_root) {
+            nasBadge.textContent = "Nicht konfiguriert";
+            nasBadge.classList.add("warning");
+        } else if (statusData.nas_status === "connected") {
             nasBadge.textContent = "Verbunden";
             nasBadge.classList.add("online");
         } else if (statusData.nas_status === "available_not_mounted") {
@@ -11317,8 +11355,10 @@ async function updateHomepageData(statusData) {
                 nasInfoMsg.innerHTML = '<span style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-circle" style="height:14px; width:14px;"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg>NAS-Verbindung in den Einstellungen deaktiviert.</span>';
                 nasInfoMsg.style.color = "var(--text-muted)";
             } else if (!details.has_root) {
-                nasInfoMsg.innerHTML = '<span style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-circle" style="height:14px; width:14px;"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="12" y2="16"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>Kein Einhängepfad (nas_root) in den Einstellungen konfiguriert.</span>';
-                nasInfoMsg.style.color = "var(--warning)";
+                nasInfoMsg.innerHTML = '<span style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-circle" style="height:14px; width:14px;"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="12" y2="16"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>Nicht konfiguriert (Einhängepfad fehlt).</span>';
+                nasInfoMsg.style.color = "var(--text-muted)";
+                heroConnectBtn.textContent = "Einrichten";
+                heroConnectBtn.style.display = "inline-block";
             } else if (details.status === "connected") {
                 nasInfoMsg.innerHTML = '<span style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-circle" style="height:14px; width:14px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Netzlaufwerk ist eingehängt.</span>';
                 nasInfoMsg.style.color = "var(--success)";

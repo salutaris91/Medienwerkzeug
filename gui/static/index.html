@@ -1119,7 +1119,7 @@
                             </div>
                             <button class="btn btn-secondary btn-sm" id="btn-duplicate-scan"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Scan starten</button>
                         </div>
-                        <p class="text-muted" style="margin:6px 0 0; font-size:0.8em;">Durchsucht doppelte Serien-Episoden auf dem NAS (Speicherziel 1). Speicherziel 2 (pCloud) wird als Cloud-Remote nicht einbezogen.</p>
+                        <p class="text-muted" style="margin:6px 0 0; font-size:0.8em;">Durchsucht doppelte Serien-Episoden auf dem NAS (Speicherziel 1). Speicherziel 2 (Cloud) wird als Cloud-Remote nicht einbezogen.</p>
                         <div id="duplicate-scan-status" class="text-muted" style="margin-top:12px;">Noch kein Scan durchgeführt.</div>
                         <div id="duplicate-progress-wrap" style="display:none; margin-top:10px;">
                             <div style="height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
@@ -1323,7 +1323,7 @@
                                 </label>
                                 <label class="checkbox-container" for="settings-open-pcloud-finder">
                                     <input type="checkbox" id="settings-open-pcloud-finder">
-                                    <span class="checkmark"></span> pCloud-Ordner öffnen
+                                    <span class="checkmark"></span> Cloud-Ordner öffnen
                                 </label>
                             </div>
                         </div>
@@ -1336,7 +1336,7 @@
                                 Speicherziele verwalten:
                                 <button id="btn-storage-help" class="help-icon"  title="Erklärung der Felder anzeigen" type="button" aria-label="Hilfe">?</button>
                             </span>
-                            <p class="inline-style-118">Konfiguriere deine primären und sekundären Speicherorte (z.B. NAS, pCloud, iCloud, Google Drive). Jedes Ziel besitzt einen Namen, einen lokalen Ordner (Mountpfad auf dem Mac) und optional ein rclone-Remote (z.B. <code>pcloud:</code>) für Fallback-Übertragungen. <span id="link-rclone-setup" class="inline-help-link" title="Klicken für rclone Schritt-für-Schritt-Anleitung"><span class="help-icon" aria-hidden="true">?</span><span>rclone einrichten</span></span></p>
+                            <p class="inline-style-118">Konfiguriere deine primären und sekundären Speicherorte (z.B. NAS, Cloud-Speicher). Jedes Ziel besitzt einen Namen, einen lokalen Ordner (Mountpfad auf dem Mac) und optional ein rclone-Remote (z.B. <code>pcloud:</code> oder <code>gdrive:</code>) für Fallback-Übertragungen. <span id="link-rclone-setup" class="inline-help-link" title="Klicken für rclone Schritt-für-Schritt-Anleitung"><span class="help-icon" aria-hidden="true">?</span><span>rclone einrichten</span></span></p>
                             <div id="settings-storage-targets-container" class="inline-style-119">
                                 <!-- Dynamically populated -->
                              </div>
@@ -2362,7 +2362,7 @@ group_add:
 
             <!-- Zielpfad -->
             <div class="inline-style-228">
-                <div class="inline-style-229">Zielverzeichnis (NAS/pCloud)</div>
+                <div class="inline-style-229">Zielverzeichnis (NAS/Cloud)</div>
                 <div id="preview-destination" class="inline-style-230">Lade...</div>
             </div>
 
