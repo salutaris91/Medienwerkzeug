@@ -12772,7 +12772,7 @@ function renderHealthStatus(data) {
     }
 
     // Issues gruppiert nach Schwere oder Fehlertyp
-    if (data.issues && data.issues.length > 0) {
+    if ((data.issues && data.issues.length > 0) || structureIssues.length > 0) {
         let html = "";
         let totalRendered = 0;
         const DOM_LIMIT = 500;
@@ -12955,6 +12955,9 @@ function renderHealthStatus(data) {
         }
         html += renderIgnoredFooter(data.ignored_count);
         issuesEl.innerHTML = html;
+        if ((!data.issues || data.issues.length === 0) && structureIssues.length > 0) {
+            issuesEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Auffälligkeiten für einzelne Medien. Strukturprobleme findest du im Tab Struktur.</p>` + renderIgnoredFooter(data.ignored_count);
+        }
 
         // 2. Zustand wiederherstellen
         if (hadDetails) {

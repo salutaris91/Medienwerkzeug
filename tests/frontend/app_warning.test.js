@@ -14,6 +14,7 @@ function createMockElement() {
         textContent: "",
         innerHTML: "",
         style: {},
+        __listeners: {},
         classList: {
             add: (c) => classSet.add(c),
             remove: (c) => classSet.delete(c),
@@ -25,7 +26,9 @@ function createMockElement() {
         querySelectorAll: () => [],
         querySelector: () => null,
         appendChild: () => {},
-        addEventListener: () => {},
+        addEventListener(type) {
+            this.__listeners[type] = (this.__listeners[type] || 0) + 1;
+        },
         cloneNode() {
             return createMockElement();
         },
@@ -294,4 +297,32 @@ test('renderHealthStatus - only nested_duplicate / structure issues displays tab
     assert.ok(structureIssuesEl.innerHTML.includes('class="btn btn-primary btn-sm health-structure-apply"'));
     // Alter Button darf nicht mehr gerendert werden
     assert.ok(!structureIssuesEl.innerHTML.includes('health-fix-flatten'));
+});
+
+test('renderHealthStatus - structure-only result wires structure batch button', () => {
+    globalThis.window.healthGroupMode = "type";
+
+    elements["btn-structure-batch-check"] = createMockElement();
+    const issuesEl = globalThis.document.getElementById("health-issues");
+    const structureIssuesEl = globalThis.document.getElementById("health-issues-structure");
+    const structureContainer = globalThis.document.getElementById("structure-health-issues-container");
+
+    issuesEl.innerHTML = "";
+    structureIssuesEl.innerHTML = "";
+    structureContainer.style.display = "none";
+
+    const data = {
+        status: "done",
+        message: "Scan abgeschlossen",
+        issues: [
+            { key: "1", type: "nested_duplicate", category: "Filme", severity: "warning", message: "Verschachtelter Ordner", path: "/path/to/movie-a" },
+            { key: "2", type: "genre_container", category: "Filme", severity: "warning", message: "Sammelordner", path: "/path/to/action" }
+        ],
+        finished_at: 1719816000
+    };
+
+    globalThis.renderHealthStatus(data);
+
+    const batchBtn = globalThis.document.getElementById("btn-structure-batch-check");
+    assert.ok(batchBtn.__listeners.click > 0);
 });
