@@ -7746,13 +7746,7 @@ function initEventListeners() {
         });
     }
 
-    const cardHeroStats = document.getElementById("card-hero-stats");
-    if (cardHeroStats) {
-        cardHeroStats.addEventListener("click", () => {
-            const navDashboard = document.getElementById("nav-dashboard");
-            if (navDashboard) navDashboard.click();
-        });
-    }
+
 
     const btnHeroYtGo = document.getElementById("btn-hero-yt-go");
     if (btnHeroYtGo) {
