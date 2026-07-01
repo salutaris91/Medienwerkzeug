@@ -746,6 +746,8 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
             elif _is_genre_container(show["path"]):
                 # Genre-Sammelordner (z. B. Filme/Action): nicht selbst als Film prüfen,
                 # sondern die enthaltenen Film-Unterordner einzeln.
+                _add_issue(issues, "warning", "genre_container", show["category"], show["path"],
+                           f"{show['name']}: Sammelordner/Genre-Struktur (Filme liegen in einem Unterordner)")
                 try:
                     subdirs = sorted(e for e in os.listdir(show["path"]) if not e.startswith('.'))
                 except OSError as e:

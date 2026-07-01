@@ -1037,94 +1037,179 @@ def _get_structure_fix_preview(path: str):
 
     subdirs = [e for e in entries if os.path.isdir(os.path.join(real_path, e))]
 
-    if len(subdirs) != 1:
-        return None, f"Ordner hat nicht genau einen Unterordner (gefunden: {len(subdirs)}).", 400
+    # 1. Bestimme, ob es eine Serienkategorie ist
+    is_series_dir = False
+    for cat in settings.get("sync_categories", []):
+        nas_sub = cat.get("nas_sub", "")
+        if not nas_sub: continue
+        cat_path = os.path.realpath(os.path.join(nas_root, nas_sub.lstrip("/")))
+        if real_path.startswith(cat_path + os.sep) or real_path == cat_path:
+            if "serie" in cat.get("name", "").lower():
+                is_series_dir = True
+                break
 
-    inner_name = subdirs[0]
-    inner_path = os.path.join(real_path, inner_name)
+    video_exts = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv', '.iso', '.img'}
+
+    def dir_has_video(dpath):
+        for dp, dn, filenames in os.walk(dpath):
+            if any(os.path.splitext(f)[1].lower() in video_exts for f in filenames):
+                return True
+        return False
+
     outer_name = os.path.basename(real_path)
+    has_year = bool(re.search(r'(19|20)\d{2}', outer_name))
+
+    outer_files = [e for e in entries if os.path.isfile(os.path.join(real_path, e))]
+    outer_media_files = [f for f in outer_files if os.path.splitext(f)[1].lower() in video_exts]
+
+    # Sammelordner-Bedingungen prüfen
+    looks_like_genre = not has_year and len(subdirs) > 0 and any(dir_has_video(os.path.join(real_path, sd)) for sd in subdirs)
+
+    type_id = None
+    if looks_like_genre:
+        type_id = "genre_container"
+    elif len(subdirs) == 1:
+        inner_name = subdirs[0]
+        if are_folder_names_equivalent(outer_name, inner_name):
+            type_id = "nested_duplicate"
+
+    if not type_id:
+        return None, "Der Ordner entspricht keiner automatisch auflösbaren Struktur (doppelte Verschachtelung oder Sammelordner).", 400
 
     conflicts = []
     warnings = []
-
-    if not are_folder_names_equivalent(outer_name, inner_name):
-        conflicts.append(f"Name des Unterordners ('{inner_name}') weicht zu stark vom Hauptordner ('{outer_name}') ab.")
-
-    video_exts = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv', '.iso', '.img'}
-    outer_files = [e for e in entries if os.path.isfile(os.path.join(real_path, e))]
-    outer_media_files = [f for f in outer_files if os.path.splitext(f)[1].lower() in video_exts]
-    if outer_media_files:
-        conflicts.append(f"Äußerer Ordner enthält bereits eigene Mediendateien: {', '.join(outer_media_files)}")
-
-    try:
-        inner_entries = os.listdir(inner_path)
-    except OSError as e:
-        return None, f"Unterordner kann nicht gelesen werden: {e}", 500
-
-    files_to_move = []
-    folders_to_delete = [{"path": inner_path, "rel_path": inner_name}]
-
-    for item in inner_entries:
-        if item.startswith('.'):
-            continue
-        item_src = os.path.join(inner_path, item)
-        item_dst = os.path.join(real_path, item)
-
-        files_to_move.append({
-            "src": item_src,
-            "dst": item_dst,
-            "rel_src": os.path.join(inner_name, item),
-            "rel_dst": item
-        })
-
-        if os.path.exists(item_dst):
-            conflicts.append(f"Zieldatei existiert bereits im Hauptordner: {item}")
-
-        real_src = os.path.realpath(item_src)
-        real_dst = os.path.realpath(item_dst)
-        if not real_src.startswith(nas_root + os.sep) or not real_dst.startswith(nas_root + os.sep):
-            conflicts.append(f"Datei liegt außerhalb des erlaubten NAS-Verzeichnisses: {item}")
-
-    # Ordnerbaum-Visualisierung
+    items_to_move = []
+    folders_to_delete = []
     current_tree = []
-    current_tree.append(inner_name + "/")
-    for dp, dn, fn in os.walk(real_path):
-        for d in dn:
-            if d.startswith('.'): continue
-            rp = os.path.relpath(os.path.join(dp, d), real_path)
-            if rp != inner_name:
-                current_tree.append(rp + "/")
-        for f in fn:
-            if f.startswith('.'): continue
-            rp = os.path.relpath(os.path.join(dp, f), real_path)
-            current_tree.append(rp)
-
     target_tree = []
-    for item in entries:
-        if item == inner_name or item.startswith('.'):
-            continue
-        if os.path.isdir(os.path.join(real_path, item)):
-            target_tree.append(item + "/")
-        else:
-            target_tree.append(item)
 
-    for item in inner_entries:
-        if item.startswith('.'):
-            continue
-        item_src = os.path.join(inner_path, item)
-        if os.path.isdir(item_src):
-            target_tree.append(item + "/")
-            for sub_dp, sub_dn, sub_fn in os.walk(item_src):
-                for sd in sub_dn:
-                    if sd.startswith('.'): continue
-                    rp = os.path.relpath(os.path.join(sub_dp, sd), inner_path)
-                    target_tree.append(rp + "/")
-                for sf in sub_fn:
-                    if sf.startswith('.'): continue
-                    rp = os.path.relpath(os.path.join(sub_dp, sf), inner_path)
-                    target_tree.append(rp)
-        else:
-            target_tree.append(item)
+    if type_id == "nested_duplicate":
+        inner_name = subdirs[0]
+        inner_path = os.path.join(real_path, inner_name)
+
+        if outer_media_files:
+            conflicts.append(f"Äußerer Ordner enthält bereits eigene Mediendateien: {', '.join(outer_media_files)}")
+
+        try:
+            inner_entries = os.listdir(inner_path)
+        except OSError as e:
+            return None, f"Unterordner kann nicht gelesen werden: {e}", 500
+
+        folders_to_delete = [{"path": inner_path, "rel_path": inner_name}]
+
+        for item in inner_entries:
+            if item.startswith('.'):
+                continue
+            item_src = os.path.join(inner_path, item)
+            item_dst = os.path.join(real_path, item)
+
+            items_to_move.append({
+                "src": item_src,
+                "dst": item_dst,
+                "rel_src": os.path.join(inner_name, item),
+                "rel_dst": item
+            })
+
+            if os.path.exists(item_dst):
+                conflicts.append(f"Zieldatei/-ordner existiert bereits im Hauptordner: {item}")
+
+            real_src = os.path.realpath(item_src)
+            real_dst = os.path.realpath(item_dst)
+            if not real_src.startswith(nas_root + os.sep) or not real_dst.startswith(nas_root + os.sep):
+                conflicts.append(f"Pfad liegt außerhalb des erlaubten NAS-Verzeichnisses: {item}")
+
+        current_tree.append(inner_name + "/")
+        for dp, dn, fn in os.walk(real_path):
+            for d in dn:
+                if d.startswith('.'): continue
+                rp = os.path.relpath(os.path.join(dp, d), real_path)
+                if rp != inner_name:
+                    current_tree.append(rp + "/")
+            for f in fn:
+                if f.startswith('.'): continue
+                rp = os.path.relpath(os.path.join(dp, f), real_path)
+                current_tree.append(rp)
+
+        for item in entries:
+            if item == inner_name or item.startswith('.'):
+                continue
+            if os.path.isdir(os.path.join(real_path, item)):
+                target_tree.append(item + "/")
+            else:
+                target_tree.append(item)
+
+        for item in inner_entries:
+            if item.startswith('.'):
+                continue
+            item_src = os.path.join(inner_path, item)
+            if os.path.isdir(item_src):
+                target_tree.append(item + "/")
+                for sub_dp, sub_dn, sub_fn in os.walk(item_src):
+                    for sd in sub_dn:
+                        if sd.startswith('.'): continue
+                        rp = os.path.relpath(os.path.join(sub_dp, sd), inner_path)
+                        target_tree.append(rp + "/")
+                    for sf in sub_fn:
+                        if sf.startswith('.'): continue
+                        rp = os.path.relpath(os.path.join(sub_dp, sf), inner_path)
+                        target_tree.append(rp)
+            else:
+                target_tree.append(item)
+
+    elif type_id == "genre_container":
+        parent_path = os.path.dirname(real_path)
+
+        if is_series_dir:
+            conflicts.append("Sammelordner-Strukturen werden in Serien-Kategorien nicht unterstützt.")
+
+        if outer_media_files:
+            conflicts.append(f"Sammelordner enthält eigene Mediendateien direkt im Hauptordner: {', '.join(outer_media_files)}")
+
+        folders_to_delete = [{"path": real_path, "rel_path": outer_name}]
+
+        for sd in subdirs:
+            item_src = os.path.join(real_path, sd)
+            item_dst = os.path.join(parent_path, sd)
+
+            items_to_move.append({
+                "src": item_src,
+                "dst": item_dst,
+                "rel_src": os.path.join(outer_name, sd),
+                "rel_dst": sd
+            })
+
+            if os.path.exists(item_dst):
+                conflicts.append(f"Zielordner '{sd}' existiert bereits in '{os.path.basename(parent_path)}'.")
+
+            real_src = os.path.realpath(item_src)
+            real_dst = os.path.realpath(item_dst)
+            if not real_src.startswith(nas_root + os.sep) or not real_dst.startswith(nas_root + os.sep) and real_dst != nas_root:
+                conflicts.append(f"Pfad liegt außerhalb des erlaubten NAS-Verzeichnisses: {sd}")
+
+        current_tree.append(outer_name + "/")
+        for sd in subdirs:
+            current_tree.append(f"{outer_name}/{sd}/")
+            for dp, dn, fn in os.walk(os.path.join(real_path, sd)):
+                for d in dn:
+                    if d.startswith('.'): continue
+                    rp = os.path.relpath(os.path.join(dp, d), real_path)
+                    current_tree.append(f"{outer_name}/{rp}/")
+                for f in fn:
+                    if f.startswith('.'): continue
+                    rp = os.path.relpath(os.path.join(dp, f), real_path)
+                    current_tree.append(f"{outer_name}/{rp}")
+
+        for sd in subdirs:
+            target_tree.append(sd + "/")
+            for dp, dn, fn in os.walk(os.path.join(real_path, sd)):
+                for d in dn:
+                    if d.startswith('.'): continue
+                    rp = os.path.relpath(os.path.join(dp, d), os.path.join(real_path, sd))
+                    target_tree.append(f"{sd}/{rp}/")
+                for f in fn:
+                    if f.startswith('.'): continue
+                    rp = os.path.relpath(os.path.join(dp, f), os.path.join(real_path, sd))
+                    target_tree.append(f"{sd}/{rp}")
 
     current_tree.sort()
     target_tree.sort()
@@ -1133,10 +1218,11 @@ def _get_structure_fix_preview(path: str):
 
     data = {
         "ok": True,
+        "type_id": type_id,
         "path": real_path,
         "outer_name": outer_name,
-        "inner_name": inner_name,
-        "files_to_move": files_to_move,
+        "items_to_move": items_to_move,
+        "files_to_move": items_to_move, # abwärtskompatibel
         "folders_to_delete": folders_to_delete,
         "current_tree": current_tree,
         "target_tree": target_tree,
@@ -1144,6 +1230,9 @@ def _get_structure_fix_preview(path: str):
         "warnings": warnings,
         "safe": safe
     }
+    if type_id == "nested_duplicate":
+        data["inner_name"] = subdirs[0]
+
     return data, None, 200
 
 
@@ -1217,9 +1306,9 @@ def handle_api_structure_fix_apply():
 
         # Update Health Issues im Cache
         import gui.core.health as health
-        health.remove_issue(path, "nested_duplicate")
+        health.remove_issue(path, data["type_id"])
 
-        log_message(f"🔧 [Structure-Fix] Verschachtelung aufgelöst: {path}")
+        log_message(f"🔧 [Structure-Fix] Struktur aufgelöst ({data['type_id']}): {path}")
         return jsonify({
             "ok": True,
             "message": "Struktur erfolgreich aufgelöst.",

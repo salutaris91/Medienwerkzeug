@@ -12288,7 +12288,8 @@ window.healthGroupMode = "severity";
 const HEALTH_TYPE_LABELS = {
     missing_age_rating: "Fehlende Altersfreigabe",
     invalid_age_rating: "Ungültige Altersfreigabe",
-    nested_duplicate: "Verschachtelter Ordner (Doppelstruktur)",
+    nested_duplicate: "Doppelte Ordnerstruktur",
+    genre_container: "Sammelordner",
     bad_folder_name: "Ungültiger Ordnername",
     name_mismatch: "Namensabweichung (Ordner vs. Datei)",
     missing_nfo: "Fehlende NFO-Metadaten",
@@ -12308,7 +12309,8 @@ const HEALTH_TYPE_LABELS = {
 const HEALTH_RECOMMENDED_ACTIONS = {
     missing_age_rating: "Altersfreigabe (FSK-Stufe) über die NFO-Datei zuweisen.",
     invalid_age_rating: "Altersfreigabe (FSK-Stufe) über die NFO-Datei korrigieren.",
-    nested_duplicate: "Verschachtelte Struktur auflösen (Unterordner flachklopfen).",
+    nested_duplicate: "Doppelte Ordnerverschachtelung auflösen.",
+    genre_container: "Sammelordner auflösen (Inhalte eine Ebene nach oben verschieben).",
     bad_folder_name: "Ordnername an das Standardformat (Name (Jahr)) angleichen.",
     name_mismatch: "Ordnername und Dateiname aneinander angleichen.",
     missing_nfo: "NFO Agent starten, um Metadaten automatisch zu generieren.",
@@ -12651,10 +12653,10 @@ function renderHealthStatus(data) {
         return;
     }
 
-    // Filter nested_duplicate issues into the Cleanup-Structure tab
+    // Filter nested_duplicate and genre_container issues into the Cleanup-Structure tab
     const allIssues = data.issues || [];
-    const structureIssues = allIssues.filter(it => it.type === "nested_duplicate");
-    const mediaIssues = allIssues.filter(it => it.type !== "nested_duplicate");
+    const structureIssues = allIssues.filter(it => it.type === "nested_duplicate" || it.type === "genre_container");
+    const mediaIssues = allIssues.filter(it => it.type !== "nested_duplicate" && it.type !== "genre_container");
 
     const structureContainer = document.getElementById("structure-health-issues-container");
     const structureIssuesEl = document.getElementById("health-issues-structure");
@@ -12664,7 +12666,7 @@ function renderHealthStatus(data) {
             let batchHeaderHtml = "";
             if (structureIssues.length > 1) {
                 batchHeaderHtml = `<div style="padding: 10px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; justify-content: flex-end;">
-                    <button class="btn btn-accent btn-sm" id="btn-structure-batch-check" style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers" style="height:14px; width:14px;"><polygon points="12 2 2 7 12 12 22 7 12 2Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>Alle sicheren Strukturprobleme prüfen</button>
+                    <button class="btn btn-accent btn-sm" id="btn-structure-batch-check" style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers" style="height:14px; width:14px;"><polygon points="12 2 2 7 12 12 22 7 12 2Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>Ordnerstrukturen vorbereiten</button>
                 </div>`;
             }
             structureIssuesEl.innerHTML = batchHeaderHtml + structureIssues.map(it => {
@@ -12869,9 +12871,9 @@ function renderHealthStatus(data) {
                             <button disabled class="btn btn-secondary btn-xs" style="padding:2px 8px; height:24px; cursor:not-allowed; opacity:0.8;">FSK Batch (2.5c)</button>
                         </div>
                     `;
-                } else if (typeId === "nested_duplicate") {
+                } else if (typeId === "nested_duplicate" || typeId === "genre_container") {
                     batchBtnHtml = `
-                        <button class="btn btn-primary btn-xs health-batch-btn" data-type-id="${escapeHTML(typeId)}" data-action="flatten" style="padding:2px 8px; height:24px;" title="Alle ausgewählten Verschachtelungen auflösen">Auflösen</button>
+                        <button class="btn btn-primary btn-xs health-batch-btn" data-type-id="${escapeHTML(typeId)}" data-action="flatten" style="padding:2px 8px; height:24px;" title="Alle ausgewählten Ordnerstrukturen auflösen">Auflösen</button>
                     `;
                 } else if (typeId === "missing_nfo") {
                     batchBtnHtml = `
@@ -13111,12 +13113,30 @@ function renderHealthStatus(data) {
                 if (treeCurrentEl) treeCurrentEl.innerHTML = renderTreeHtml(data.current_tree);
                 if (treeTargetEl) treeTargetEl.innerHTML = renderTreeHtml(data.target_tree);
 
+                // Passe Titel und Buttons je nach Typ an
+                const modalTitleEl = document.getElementById("structure-preview-modal-title");
+                if (modalTitleEl) {
+                    modalTitleEl.textContent = data.type_id === "genre_container" ? "Sammelordner auflösen: Vorschau" : "Ordnerstruktur auflösen: Vorschau";
+                }
+                if (confirmBtn) {
+                    confirmBtn.textContent = data.type_id === "genre_container" ? "Sammelordner auflösen" : "Struktur auflösen";
+                }
+
                 const actionsHtml = [];
-                data.files_to_move.forEach(f => {
-                    actionsHtml.push(`<li>Verschiebe <strong>${escapeHTML(f.rel_src)}</strong> &rarr; <strong>${escapeHTML(f.rel_dst)}</strong></li>`);
+                const moveItems = data.items_to_move || data.files_to_move || [];
+                moveItems.forEach(f => {
+                    if (data.type_id === "genre_container") {
+                        actionsHtml.push(`<li>Verschiebe Filmordner <strong>${escapeHTML(f.rel_src)}</strong> &rarr; <strong>${escapeHTML(f.rel_dst)}</strong></li>`);
+                    } else {
+                        actionsHtml.push(`<li>Verschiebe Datei/Ordner <strong>${escapeHTML(f.rel_src)}</strong> &rarr; <strong>${escapeHTML(f.rel_dst)}</strong></li>`);
+                    }
                 });
                 data.folders_to_delete.forEach(f => {
-                    actionsHtml.push(`<li>Leeren Ordner quarantänisieren: <strong>${escapeHTML(f.rel_path)}</strong></li>`);
+                    if (data.type_id === "genre_container") {
+                        actionsHtml.push(`<li>Leeren Sammelordner quarantänisieren: <strong>${escapeHTML(f.rel_path)}</strong></li>`);
+                    } else {
+                        actionsHtml.push(`<li>Leeren Unterordner quarantänisieren: <strong>${escapeHTML(f.rel_path)}</strong></li>`);
+                    }
                 });
                 if (actionsEl) actionsEl.innerHTML = actionsHtml.join("");
 
@@ -13250,7 +13270,7 @@ function renderHealthStatus(data) {
                 if (progressNum) progressNum.textContent = `0 / ${paths.length}`;
                 if (confirmBatchBtn) {
                     confirmBatchBtn.disabled = true;
-                    confirmBatchBtn.textContent = "Sichere auflösen";
+                    confirmBatchBtn.textContent = "Geprüfte Ordnerstrukturen auflösen";
                 }
 
                 if (batchModal) batchModal.classList.remove("hidden");
@@ -13275,10 +13295,10 @@ function renderHealthStatus(data) {
                         const data = await res.json();
                         if (data.ok) {
                             if (data.safe) {
-                                if (statusCol) statusCol.innerHTML = `<span style="color: #10b981; font-weight: 500;">✓ Sicher</span>`;
+                                if (statusCol) statusCol.innerHTML = `<span style="color: #10b981; font-weight: 500;">✓ Kann automatisch aufgelöst werden</span>`;
                                 safePaths.push(p);
                             } else {
-                                if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444; font-weight: 500;" title="${escapeHTML(data.conflicts.join(', '))}">⚠️ Konflikt</span>`;
+                                if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444; font-weight: 500;" title="${escapeHTML(data.conflicts.join(', '))}">⚠️ Manuelle Prüfung nötig</span>`;
                             }
                             if (previewBtn) {
                                 previewBtn.disabled = false;
@@ -13299,14 +13319,20 @@ function renderHealthStatus(data) {
                     if (progressNum) progressNum.textContent = `${processedCount} / ${paths.length}`;
                 }
 
-                if (progressTitle) progressTitle.textContent = "Prüfung abgeschlossen.";
+                if (progressTitle) {
+                    if (safePaths.length === 0) {
+                        progressTitle.innerHTML = `<span style="color: #ef4444; font-weight: 500;">Keine Ordnerstruktur automatisch auflösbar. Manuelle Prüfung bei allen Befunden nötig.</span>`;
+                    } else {
+                        progressTitle.textContent = "Prüfung abgeschlossen.";
+                    }
+                }
                 if (confirmBatchBtn) {
                     if (safePaths.length > 0) {
                         confirmBatchBtn.disabled = false;
-                        confirmBatchBtn.textContent = `${safePaths.length} sichere auflösen`;
+                        confirmBatchBtn.textContent = `${safePaths.length} geprüfte Ordnerstrukturen auflösen`;
                     } else {
                         confirmBatchBtn.disabled = true;
-                        confirmBatchBtn.textContent = "Sichere auflösen";
+                        confirmBatchBtn.textContent = "Geprüfte Ordnerstrukturen auflösen";
                     }
 
                     confirmBatchBtn.replaceWith(confirmBatchBtn.cloneNode(true));

@@ -2850,13 +2850,13 @@ group_add:
     <div id="modal-structure-preview" class="mw-modal-overlay">
         <div class="mw-modal" style="max-width: 800px; display: flex; flex-direction: column; padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-glass); background: rgba(30, 30, 45, 0.95); backdrop-filter: blur(10px); box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-light); padding-bottom: 12px; margin-bottom: 16px;">
-                <h3 style="margin: 0; color: var(--text-main); display: flex; align-items: center; gap: 8px;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-git-merge" style="color: var(--accent);"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 9v9a2 2 0 0 0 2 2h3"/><path d="M18 9V6a2 2 0 0 0-2-2h-3"/></svg>Doppelte Ordnerstruktur auflösen: Vorschau</h3>
+                <h3 style="margin: 0; color: var(--text-main); display: flex; align-items: center; gap: 8px;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-git-merge" style="color: var(--accent);"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 9v9a2 2 0 0 0 2 2h3"/><path d="M18 9V6a2 2 0 0 0-2-2h-3"/></svg><span id="structure-preview-modal-title">Ordnerstruktur auflösen: Vorschau</span></h3>
                 <span class="close-modal" id="close-modal-structure-preview" style="cursor: pointer; font-size: 1.5em; color: var(--text-muted);">&times;</span>
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 14px; text-align: left; overflow-y: auto; max-height: 70vh;">
                 <div>
-                    <span class="text-muted" style="font-size: 0.85em; font-weight: 500;">Pfad des Filmordners:</span>
+                    <span class="text-muted" style="font-size: 0.85em; font-weight: 500;">Pfad des Ordners:</span>
                     <div id="structure-preview-path" style="font-family: monospace; font-size: 0.85em; color: var(--text-main); background: rgba(0,0,0,0.25); padding: 8px 12px; border-radius: 6px; margin-top: 4px; word-break: break-all;"></div>
                 </div>
 
@@ -2898,13 +2898,13 @@ group_add:
     <div id="modal-structure-batch" class="mw-modal-overlay">
         <div class="mw-modal" style="max-width: 800px; display: flex; flex-direction: column; padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-glass); background: rgba(30, 30, 45, 0.95); backdrop-filter: blur(10px); box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-light); padding-bottom: 12px; margin-bottom: 16px;">
-                <h3 style="margin: 0; color: var(--text-main); display: flex; align-items: center; gap: 8px;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers" style="color: var(--accent);"><polygon points="12 2 2 7 12 12 22 7 12 2Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>Alle sicheren Strukturprobleme prüfen</h3>
+                <h3 style="margin: 0; color: var(--text-main); display: flex; align-items: center; gap: 8px;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers" style="color: var(--accent);"><polygon points="12 2 2 7 12 12 22 7 12 2Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>Ordnerstrukturen vorbereiten</h3>
                 <span class="close-modal" id="close-modal-structure-batch" style="cursor: pointer; font-size: 1.5em; color: var(--text-muted);">&times;</span>
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 14px; text-align: left;">
                 <p class="text-muted" style="margin: 0; font-size: 0.9em; line-height: 1.4;">
-                    Hier werden alle Befunde zur verschachtelten Ordnerstruktur im Hintergrund geprüft. Diejenigen ohne Konflikte können gesammelt aufgelöst werden.
+                    Hier werden alle Befunde zur Ordnerstruktur im Hintergrund geprüft. Diejenigen ohne Konflikte können gesammelt aufgelöst werden.
                 </p>
 
                 <!-- Status / Progress -->
@@ -2923,7 +2923,7 @@ group_add:
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.85em; text-align: left;">
                         <thead>
                             <tr style="border-bottom: 1px solid var(--border-light); background: rgba(255,255,255,0.02); color: var(--text-muted); font-weight: 600;">
-                                <th style="padding: 10px 12px; width: 45%;">Film / Pfad</th>
+                                <th style="padding: 10px 12px; width: 45%;">Ordner / Pfad</th>
                                 <th style="padding: 10px 12px; width: 35%;">Status / Konflikt</th>
                                 <th style="padding: 10px 12px; width: 20%; text-align: right;">Aktion</th>
                             </tr>
@@ -2939,7 +2939,7 @@ group_add:
 
             <div class="mw-modal-actions" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; border-top: 1px solid var(--border-light); padding-top: 14px;">
                 <button class="mw-modal-btn mw-modal-btn-cancel" id="btn-structure-batch-cancel" type="button">Schließen</button>
-                <button class="mw-modal-btn mw-modal-btn-confirm" id="btn-structure-batch-confirm" style="display: inline-flex; align-items: center; gap: 4px;" type="button">Sichere auflösen</button>
+                <button class="mw-modal-btn mw-modal-btn-confirm" id="btn-structure-batch-confirm" style="display: inline-flex; align-items: center; gap: 4px;" type="button">Geprüfte Ordnerstrukturen auflösen</button>
             </div>
         </div>
     </div>
