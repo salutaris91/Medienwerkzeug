@@ -124,6 +124,27 @@ class TestNasConnectApi(unittest.TestCase):
         self.assertIn("nas_details", data)
         self.assertEqual(data["nas_details"]["error_message"], "Some error")
 
+    @patch("gui.api.system_api.check_nas_connection_details")
+    @patch("gui.api.system_api.check_nas_status", return_value="connected_but_no_library_paths")
+    @patch("gui.api.system_api.ensure_nas_mounted", return_value=True)
+    def test_connect_reports_warning_for_missing_library_paths(self, mock_mount, mock_status, mock_details):
+        mock_details.return_value = {
+            "status": "connected_but_no_library_paths",
+            "enabled": True,
+            "has_root": True,
+            "checked_ips": ["192.168.1.100"],
+            "reachable_ip": "192.168.1.100",
+            "error_message": "Keiner der Kategoriepfade existiert oder ist lesbar."
+        }
+        response = self.client.post("/api/nas/connect")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data["ok"])
+        self.assertTrue(data["warning"])
+        self.assertEqual(data["nas_status"], "connected_but_no_library_paths")
+        self.assertIn("Kategoriepfade", data["message"])
+
 
 if __name__ == "__main__":
     unittest.main()

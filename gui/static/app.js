@@ -9024,7 +9024,14 @@ function renderStorageTargets() {
                     btnCheckNas.disabled = true;
                     btnCheckNas.innerHTML = "Prüfe...";
                     testResultContainer.classList.remove("hidden");
-                    testResultContainer.innerHTML = `<div style="color:var(--text-muted);">Verbindungstest läuft...</div>`;
+                    testResultContainer.innerHTML = `<div id="nas-test-status-msg" style="color:var(--text-muted);">Verbindungstest läuft...</div>`;
+
+                    const longWaitTimer = setTimeout(() => {
+                        const statusMsgEl = document.getElementById("nas-test-status-msg");
+                        if (statusMsgEl) {
+                            statusMsgEl.innerHTML = `Verbindungstest läuft...<br><span style="color:#f59e0b; font-size:11px;">Die Prüfung dauert länger, weil das Netzlaufwerk durchsucht wird. Bitte warten...</span>`;
+                        }
+                    }, 8000);
 
                     try {
                         const res = await fetch('/api/nas/test', {
@@ -9039,6 +9046,7 @@ function renderStorageTargets() {
                         });
 
                         const result = await res.json();
+                        clearTimeout(longWaitTimer);
                         btnCheckNas.disabled = false;
                         btnCheckNas.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>NAS-Verbindung prüfen`;
 
@@ -9087,16 +9095,28 @@ function renderStorageTargets() {
                             if (!result.local_path_exists) {
                                 html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Binde die Freigabe auf dem Mac unter dem passenden Pfad ein, damit <code>${target.root_path || '/Volumes/...'}</code> existiert.</div>`;
                             } else if (!result.categories_found) {
-                                html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Der Pfad existiert, aber Kategorie-Unterordner (wie <code>Filme</code>, <code>Serien</code>) fehlen darin. Bitte erstelle diese Ordner auf dem NAS oder passe die Kategorie-Einstellungen an.</div>`;
+                                html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Der Pfad existiert, aber Kategorie-Unterordner (wie <code>Filme</code>, <code>Serien</code>) fehlen darin. Bitte erstelle diese Ordner auf dem NAS oder passe die Kategorie-Zuordnungen weiter unten unter „Sync-Kategorien“ an. <a href="#" id="jump-to-categories-link" style="color:var(--accent); text-decoration:underline; font-weight:500;">Zu Sync-Kategorien springen</a></div>`;
                             } else if (!result.media_folders_found) {
                                 html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Es wurden keine Medienordner (Serien- oder Filmordner) gefunden. Bitte lege mindestens einen Medienordner an.</div>`;
                             }
                         }
 
                         testResultContainer.innerHTML = html;
+
+                        const jumpLink = document.getElementById("jump-to-categories-link");
+                        if (jumpLink) {
+                            jumpLink.addEventListener("click", (e) => {
+                                e.preventDefault();
+                                const catCard = document.getElementById("settings-sync-categories-section");
+                                if (catCard) {
+                                    catCard.scrollIntoView({ behavior: "smooth" });
+                                }
+                            });
+                        }
                     } catch (err) {
+                        clearTimeout(longWaitTimer);
                         btnCheckNas.disabled = false;
-                        btnCheckNas.innerHTML = `NAS-Verbindung prüfen`;
+                        btnCheckNas.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>NAS-Verbindung prüfen`;
                         testResultContainer.innerHTML = `<div style="color:var(--danger);">Fehler beim Aufruf der Test-API: ${err}</div>`;
                     }
                 });
@@ -12256,6 +12276,12 @@ async function startHealthScan() {
         payload.category_ids = categoryIds;
     }
 
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = "Vorbereiten...";
+    }
+    setHealthStatusText("Scan wird vorbereitet. NAS wird geprüft, bitte warten...");
+
     try {
         const res = await fetch("/api/nas/health-scan", {
             method: "POST",
@@ -12267,18 +12293,26 @@ async function startHealthScan() {
         const data = await res.json();
         if (!res.ok) {
             setHealthStatusText(data.error || data.message || `Fehler ${res.status}: Scan konnte nicht gestartet werden.`);
-            if (btn) btn.disabled = false;
+            resetHealthScanButton();
             return;
         }
         if (data.started === false) {
             // Läuft bereits -> einfach weiterpollen
             setHealthStatusText(data.message || "Ein Scan läuft bereits.");
         }
-        if (btn) btn.disabled = true;
         pollHealthStatus(true);
     } catch (e) {
         console.error("Health-Scan konnte nicht gestartet werden:", e);
         setHealthStatusText("Fehler: Scan konnte nicht gestartet werden.");
+        resetHealthScanButton();
+    }
+}
+
+function resetHealthScanButton() {
+    const btn = document.getElementById("btn-health-scan");
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Scan starten`;
     }
 }
 
@@ -12314,7 +12348,14 @@ async function pollHealthStatus(keepPolling) {
         const running = data.status === "running";
         const btn = document.getElementById("btn-health-scan");
         const cancelBtn = document.getElementById("btn-health-cancel");
-        if (btn) btn.disabled = running;
+        if (btn) {
+            if (running) {
+                btn.disabled = true;
+                btn.innerHTML = "Scan läuft...";
+            } else {
+                resetHealthScanButton();
+            }
+        }
 
         if (cancelBtn) {
             cancelBtn.style.display = running ? "inline-block" : "none";
@@ -12342,6 +12383,20 @@ function renderHealthStatus(data) {
     const summaryEl = document.getElementById("health-summary");
     const issuesEl = document.getElementById("health-issues");
     if (!statusEl || !summaryEl || !issuesEl) return;
+
+    if (data.status === "warning") {
+        statusEl.textContent = `Warnung: ${data.message || "Warnung beim Scan"}`;
+        if (statsEl) statsEl.style.display = "none";
+        if (progWrap) progWrap.style.display = "none";
+
+        let warningHtml = `<div class="alert alert-warning" style="margin:4px 0; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:#f59e0b; padding:10px; border-radius:var(--radius-sm); font-size:12px; display:flex; align-items:center; gap:8px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="height:16px; width:16px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>Scan nicht aussagekräftig: keine Bibliotheksordner gefunden.</span>
+        </div>`;
+        issuesEl.innerHTML = warningHtml;
+        summaryEl.innerHTML = "";
+        return;
+    }
 
     // 1. Zustand sichern (geöffnete Gruppen und Scrollposition)
     const openSeverities = [];
@@ -12665,15 +12720,37 @@ function initDuplicateDashboard() {
 
 async function startDuplicateScan() {
     const btn = document.getElementById("btn-duplicate-scan");
+    const statusEl = document.getElementById("duplicate-scan-status");
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = "Vorbereiten...";
+    }
+    if (statusEl) {
+        statusEl.textContent = "Scan wird vorbereitet. NAS und Kategoriepfade werden geprüft...";
+    }
     try {
         const res = await fetch("/api/nas/scan-duplicates", { method: "POST" });
         const data = await res.json();
-        const statusEl = document.getElementById("duplicate-scan-status");
-        if (data.started === false && statusEl) statusEl.textContent = data.message || "Ein Scan läuft bereits.";
-        if (btn) btn.disabled = true;
+        if (!res.ok || data.started === false) {
+            if (statusEl) {
+                statusEl.textContent = data.error || data.message || "Ein Scan konnte nicht gestartet werden.";
+            }
+            resetDuplicateScanButton();
+            return;
+        }
         pollDuplicateStatus(true);
     } catch (e) {
         console.error("Duplikat-Scan konnte nicht gestartet werden:", e);
+        if (statusEl) statusEl.textContent = "Fehler: Scan konnte nicht gestartet werden.";
+        resetDuplicateScanButton();
+    }
+}
+
+function resetDuplicateScanButton() {
+    const btn = document.getElementById("btn-duplicate-scan");
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Scan starten`;
     }
 }
 
@@ -12685,7 +12762,14 @@ async function pollDuplicateStatus() {
         renderDuplicateStatus(data);
         const running = data.status === "running";
         const btn = document.getElementById("btn-duplicate-scan");
-        if (btn) btn.disabled = running;
+        if (btn) {
+            if (running) {
+                btn.disabled = true;
+                btn.innerHTML = "Scan läuft...";
+            } else {
+                resetDuplicateScanButton();
+            }
+        }
         if (running) {
             clearTimeout(duplicatePollTimer);
             duplicatePollTimer = setTimeout(() => pollDuplicateStatus(true), 2000);
@@ -12702,6 +12786,19 @@ function renderDuplicateStatus(data) {
     const summaryEl = document.getElementById("duplicate-summary");
     const groupsEl = document.getElementById("duplicate-groups");
     if (!statusEl || !summaryEl || !groupsEl) return;
+
+    if (data.status === "warning") {
+        statusEl.textContent = `Warnung: ${data.message || "Warnung beim Scan"}`;
+        if (progWrap) progWrap.style.display = "none";
+
+        let warningHtml = `<div class="alert alert-warning" style="margin:4px 0; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:#f59e0b; padding:10px; border-radius:var(--radius-sm); font-size:12px; display:flex; align-items:center; gap:8px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="height:16px; width:16px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>Scan nicht aussagekräftig: keine Bibliotheksordner gefunden.</span>
+        </div>`;
+        groupsEl.innerHTML = warningHtml;
+        summaryEl.innerHTML = "";
+        return;
+    }
 
     if (data.status === "running") {
         statusEl.textContent = data.message || "Scan läuft...";
@@ -12858,6 +12955,16 @@ async function loadNormalizePreview() {
     try {
         const res = await fetch("/api/nas/normalize-films/preview", { method: "POST" });
         const data = await res.json();
+        if (!res.ok || data.error) {
+            if (statusEl) {
+                statusEl.innerHTML = `<span style="color:#f59e0b;">Warnung: ${escapeHTML(data.error || "Keine Bibliotheksordner gefunden.")}</span>`;
+            }
+            if (planEl) {
+                planEl.innerHTML = `<div class="alert alert-warning" style="margin:4px 0; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:#f59e0b; padding:10px; border-radius:var(--radius-sm); font-size:12px;">Scan nicht aussagekräftig: keine Bibliotheksordner gefunden.</div>`;
+            }
+            if (applyWrap) applyWrap.style.display = "none";
+            return;
+        }
         normalizePlan = data.plan || [];
         renderNormalizePlan(normalizePlan);
     } catch (e) {
@@ -12877,7 +12984,10 @@ function renderNormalizePlan(plan) {
         return;
     }
     const conflicts = plan.filter(p => p.conflict).length;
-    if (statusEl) statusEl.textContent = `${plan.length} Vorschlag(e)` + (conflicts ? ` · ${conflicts} mit Konflikt (übersprungen)` : "");
+    if (statusEl) {
+        const word = plan.length === 1 ? "Vorschlag" : "Vorschläge";
+        statusEl.textContent = `${plan.length} ${word}` + (conflicts ? ` · ${conflicts} mit Konflikt (übersprungen)` : "");
+    }
     planEl.innerHTML = plan.map((p, i) => {
         const attr = p.conflict ? "disabled" : "checked";
         const warn = p.conflict ? ` <span style="color:#ef4444;">(Ziel existiert bereits)</span>` : "";

@@ -9,6 +9,8 @@ from gui.api.nas_api import nas_api
 
 class TestHealthScanLibrary(unittest.TestCase):
     def setUp(self):
+        # Globalen Cancel-State zurücksetzen
+        health._cancel_event.clear()
         # Scan-Zustand zurücksetzen
         health._scan_state = {
             "status": "idle",

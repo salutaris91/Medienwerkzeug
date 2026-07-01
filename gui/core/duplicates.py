@@ -181,7 +181,7 @@ def _run_duplicate_scan():
         for idx, show in enumerate(series_shows):
             _set_state(
                 progress=int((idx / total) * 100) if total else 100,
-                message=f"Prüfe {show['name']} ({idx + 1}/{total})",
+                message=f"Scan läuft. Serien werden durchsucht ({show['name']}, {idx + 1}/{total})",
             )
             # Episoden sammeln und nach (Staffel, Episode) gruppieren
             by_ep = defaultdict(list)
@@ -239,7 +239,7 @@ def start_duplicate_scan():
         _scan_state.update({
             "status": "running",
             "progress": 0,
-            "message": "Scan wird gestartet...",
+            "message": "Scan wird vorbereitet. NAS und Kategoriepfade werden geprüft...",
             "started_at": time.time(),
             "finished_at": None,
             "groups": [],

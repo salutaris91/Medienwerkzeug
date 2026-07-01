@@ -263,7 +263,10 @@ def check_nas_connection_details():
 
                     if valid_paths == 0:
                         status = "connected_but_no_library_paths"
-                        error_message = f"Keiner der Kategoriepfade existiert oder ist lesbar (fehlt: {', '.join(missing_paths)})."
+                        if missing_paths:
+                            error_message = f"Keiner der Kategoriepfade existiert oder ist lesbar (fehlt: {', '.join(missing_paths)})."
+                        else:
+                            error_message = "Keiner der Kategoriepfade ist lesbar oder konfiguriert."
         except Exception as e:
             status = "offline"
             error_message = f"Fehler bei der Lesbarkeitsprüfung von nas_root: {e}"
@@ -1126,17 +1129,23 @@ def validate_nas_library_preflight(settings):
     if not sync_cats:
         return False, "Keine Sync-Kategorien in den Einstellungen konfiguriert."
 
+    valid_paths = 0
     missing_paths = []
     for cat in sync_cats:
         nas_sub = cat.get("nas_sub")
         if not nas_sub:
             continue
         cat_path = os.path.join(nas_root, nas_sub.lstrip("/"))
-        if not os.path.isdir(cat_path) or not os.access(cat_path, os.R_OK):
+        if os.path.isdir(cat_path) and os.access(cat_path, os.R_OK):
+            valid_paths += 1
+        else:
             missing_paths.append(nas_sub)
 
-    if len(missing_paths) == len(sync_cats):
-        return False, f"Keiner der Kategoriepfade existiert oder ist lesbar auf dem NAS (fehlt: {', '.join(missing_paths)})."
+    if valid_paths == 0:
+        if missing_paths:
+            return False, f"Keiner der Kategoriepfade existiert oder ist lesbar auf dem NAS (fehlt: {', '.join(missing_paths)})."
+        else:
+            return False, "Keiner der Kategoriepfade ist lesbar oder konfiguriert auf dem NAS."
 
     shows = list(walk_nas_categories(settings))
     if len(shows) == 0:

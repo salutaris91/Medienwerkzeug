@@ -433,8 +433,12 @@ def handle_api_nas_test():
                     target["nas_ip_backup"] = nas_ip_backup
                     target["nas_share"] = nas_share
             from gui.core.transfers import walk_nas_categories
-            shows = list(walk_nas_categories(temp_settings))
-            media_folders_found = len(shows) > 0
+            shows_gen = walk_nas_categories(temp_settings)
+            try:
+                next(shows_gen)
+                media_folders_found = True
+            except StopIteration:
+                media_folders_found = False
 
         return jsonify({
             "server_reachable": server_reachable,
@@ -490,6 +494,15 @@ def handle_api_nas_connect():
                 "nas_status": nas_status,
                 "nas_details": nas_details,
                 "message": "NAS wurde erfolgreich verbunden."
+            })
+
+        if nas_status == "connected_but_no_library_paths":
+            return jsonify({
+                "ok": True,
+                "warning": True,
+                "nas_status": nas_status,
+                "nas_details": nas_details,
+                "message": nas_details.get("error_message") or "NAS ist verbunden, aber es wurden keine Kategoriepfade gefunden."
             })
 
         if nas_status == "available_not_mounted":
