@@ -25,17 +25,18 @@ Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert 
     - Korrekte Singular- und Plural-Unterteilung für Film-Normalisierungs-Vorschläge ("Vorschlag" / "Vorschläge").
     - Umfassende Frontend-Testabdeckungen in `tests/frontend/app_warning.test.js` integriert und DOM-Mocks für querySelector(All) erweitert.
 
-- **Docker-NAS-Verbindungshärtung & Runtime-Awareness (Branch: feature/phase2-docker-nas-fixes & feature/phase2-docker-nas-header-fixes):**
+- **Docker-NAS-Verbindungshärtung & Runtime-Awareness (Branch: feature/phase2-docker-nas-fixes, feature/phase2-docker-nas-header-fixes & feature/phase2-docker-nas-read-access):**
   - **Docker-NAS-Härtung:** Im Docker-Betrieb reicht das bloße Vorhandensein des gemounteten Einhängepfades nicht mehr aus, um direkt "Verbunden" zu melden. Es werden nun wie im Desktop-Betrieb auch die Sync-Kategorien und Lesezugriffe auf die Unterordner geprüft und andernfalls der Warnstatus `connected_but_no_library_paths` zurückgegeben.
   - **SMB-Freigabe-Pflicht gelockert:** Im NAS-Verbindungstest wird die Angabe einer SMB-Freigabe für Docker-Setups oder rein lokal gemountete Pfade nicht mehr als zwingend erachtet (`share_required: false`), so dass der Verbindungstest ohne rot zu werden grün anzeigt.
   - **Settings-Bereich & Tooltips angepasst:** Platzhalter und Label-Beschreibungen wurden dynamisch an die Docker-Laufzeit angepasst (z. B. "Container-Pfad im Docker-Setup (z.B. /media)" statt macOS-spezifischem Text).
   - **Web-Folder-Picker Fallback:** Der Folder-Browse-Button für die NAS-Tools wurde im Docker-Modus mit dem HTML5-Web-Folder-Picker (`window.openFolderPicker`) als Fallback ausgestattet, um unklare Ausfälle im Container-Betrieb zu verhindern.
   - **Koppelung beim App-Start:** Das Laden der Capabilities (`loadCapabilities()`) steuert nun die gesamte Initialisierungskette der App, so dass die Settings und Storage-Targets niemals vorliegenden Capabilities-Daten rendern.
-  - **Follow-up-Fixes:**
+  - **Follow-up-Fixes & Lesbarkeitsprüfung:**
     - Globalen NAS-Header-Badge-Warnstatus korrigiert (behandelt nun `connected_but_no_library_paths` als *Unvollständig* mit gelber Farbe, um eine einheitliche Anzeige zur Startseiten-Kachel zu gewährleisten).
     - Erreichbarkeits-Meldung für Container-Setups in `"Container-Pfad erreichbar"` umbenannt.
     - Container-Pfad-Priorisierung implementiert: Ein existierender und lesbarer Pfad im Container gilt nun immer als primärer Anker für die Erreichbarkeit, unabhängig davon, ob alte SMB-IP-Werte in der Konfiguration vorhanden sind.
     - Geführtes NAS-Eingabefeld im Docker-Modus von der SMB-Vorbelegung befreit (zeigt nun standardmäßig den Container-Pfad an).
+    - Lesbarkeitsprüfung ergänzt: Im Verbindungstest (`/api/nas/test`) wird nun zusätzlich zu `os.path.isdir` auch `os.access(..., os.R_OK)` auf den lokalen Einhängepfad angewendet. Nur wenn Leserechte vorliegen, wird der Pfad als erfolgreich gewertet, andernfalls wird fälschliche Erreichbarkeit unterbunden.
 
 ---
 
