@@ -14,7 +14,7 @@ NAS_SETTINGS = {
         "root_path": "/Volumes/Kino",
         "nas_ip": "192.168.1.100",
         "nas_ip_backup": "100.64.0.1",
-        "nas_hostname": "ALEXNAS91",
+        "nas_hostname": "MEDIENSERVER",
         "nas_share": "Kino",
         "enabled": True,
     }]
@@ -67,7 +67,7 @@ class TestNasMountFallback(unittest.TestCase):
             self.assertTrue(transfers.ensure_nas_mounted(allow_finder_fallback=True))
 
         self.assertEqual(mock_run.call_args_list[1], call(
-            ["open", "smb://ALEXNAS91/Kino"],
+            ["open", "smb://192.168.1.100/Kino"],
             capture_output=True,
             text=True,
             timeout=5
@@ -96,7 +96,7 @@ class TestNasMountFallback(unittest.TestCase):
         with self._socket_mock():
             self.assertTrue(transfers.ensure_nas_mounted(allow_finder_fallback=True))
 
-        self.assertEqual(mock_run.call_args_list[1].args[0], ["open", "smb://ALEXNAS91/Kino"])
+        self.assertEqual(mock_run.call_args_list[1].args[0], ["open", "smb://192.168.1.100/Kino"])
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS)
     @patch("gui.core.transfers.check_nas_status", return_value="available_not_mounted")
@@ -114,6 +114,45 @@ class TestNasMountFallback(unittest.TestCase):
             self.assertFalse(transfers.ensure_nas_mounted())
 
         mock_log.assert_any_call("⚠️ Automatisches SMB-Mounting fehlgeschlagen: AppleScript mount failed")
+
+
+class TestIsNasRootMounted(unittest.TestCase):
+    @patch("gui.core.transfers.subprocess.check_output")
+    @patch("gui.core.transfers.os.path.isdir")
+    def test_direct_mount_exact(self, mock_isdir, mock_check_output):
+        mock_check_output.return_value = "//user@NAS/Kino on /Volumes/Kino (smbfs, nodev)"
+        mock_isdir.return_value = True
+
+        self.assertTrue(transfers._is_nas_root_mounted("/Volumes/Kino"))
+        self.assertTrue(transfers._is_nas_root_mounted("/Volumes/Kino/"))
+
+    @patch("gui.core.transfers.subprocess.check_output")
+    @patch("gui.core.transfers.os.path.isdir")
+    def test_direct_mount_subdirectory(self, mock_isdir, mock_check_output):
+        mock_check_output.return_value = "//user@NAS/Kino on /Volumes/Kino (smbfs, nodev)"
+        mock_isdir.return_value = True
+
+        self.assertTrue(transfers._is_nas_root_mounted("/Volumes/Kino/Serien"))
+        self.assertTrue(transfers._is_nas_root_mounted("/Volumes/Kino/Serien/"))
+
+    @patch("gui.core.transfers.subprocess.check_output")
+    @patch("gui.core.transfers.os.path.isdir")
+    def test_suffix_mount_subdirectory(self, mock_isdir, mock_check_output):
+        mock_check_output.return_value = "//user@NAS/Kino on /Volumes/Kino-1 (smbfs, nodev)"
+
+        def isdir_mock(path):
+            return path == "/Volumes/Kino-1/Serien"
+        mock_isdir.side_effect = isdir_mock
+
+        self.assertTrue(transfers._is_nas_root_mounted("/Volumes/Kino/Serien"))
+
+    @patch("gui.core.transfers.subprocess.check_output")
+    @patch("gui.core.transfers.os.path.isdir")
+    def test_no_false_match_with_similar_names(self, mock_isdir, mock_check_output):
+        mock_check_output.return_value = "//user@NAS/Kino on /Volumes/Kino-1 (smbfs, nodev)"
+        mock_isdir.return_value = True
+
+        self.assertFalse(transfers._is_nas_root_mounted("/Volumes/Kino2/Serien"))
 
 
 if __name__ == "__main__":

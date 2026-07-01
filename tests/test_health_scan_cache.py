@@ -22,6 +22,20 @@ class TestHealthScanCache(unittest.TestCase):
         self.cache_path = os.path.join(self.temp_dir.name, "health_folder_cache.json")
         self.cache_mgr = health_cache.HealthCacheManager(cache_path=self.cache_path)
         self.validator = artwork_validators.get_validator("emby")
+        # Globalen Cancel-State und Scan-Zustand explizit fuer jeden Test isolieren und zurücksetzen
+        health._cancel_event.clear()
+        health._scan_state = {
+            "status": "idle",
+            "progress": 0,
+            "message": "Scan bereit.",
+            "started_at": None,
+            "finished_at": None,
+            "issues": [],
+            "summary": {"critical": 0, "warning": 0, "info": 0},
+            "scanned": {"shows": 0, "files": 0},
+            "stats": {"cache_hits": 0, "cache_miss_modified": 0, "cache_miss_known_issues": 0, "cache_miss_new": 0},
+            "error": None,
+        }
         
     def tearDown(self):
         self.temp_dir.cleanup()
@@ -155,11 +169,12 @@ class TestHealthScanCache(unittest.TestCase):
         hash2 = self.cache_mgr.calculate_deep_hash(movie_path)
         self.assertNotEqual(hash1, hash2)
         
+    @unittest.mock.patch("gui.core.transfers.validate_nas_library_preflight", return_value=(True, ""))
     @unittest.mock.patch("gui.core.health.ensure_nas_mounted")
     @unittest.mock.patch("gui.core.health.walk_nas_categories")
     @unittest.mock.patch("gui.core.utils.load_settings")
     @unittest.mock.patch("gui.core.health.SMALL_FILE_BYTES", new=0)
-    def test_health_scan_caching_integration(self, mock_load_settings, mock_walk, mock_ensure_nas):
+    def test_health_scan_caching_integration(self, mock_load_settings, mock_walk, mock_ensure_nas, mock_preflight):
         mock_load_settings.return_value = {
             "media_server": "emby",
             "nas_root": self.temp_dir.name,
@@ -313,10 +328,11 @@ class TestHealthScanCache(unittest.TestCase):
         stopped_again = health.stop_health_scan()
         self.assertFalse(stopped_again)
 
+    @unittest.mock.patch("gui.core.transfers.validate_nas_library_preflight", return_value=(True, ""))
     @unittest.mock.patch("gui.core.health.ensure_nas_mounted")
     @unittest.mock.patch("gui.core.health.walk_nas_categories")
     @unittest.mock.patch("gui.core.utils.load_settings")
-    def test_health_scan_cancel_thread(self, mock_load_settings, mock_walk, mock_ensure_nas):
+    def test_health_scan_cancel_thread(self, mock_load_settings, mock_walk, mock_ensure_nas, mock_preflight):
         mock_load_settings.return_value = {
             "media_server": "emby",
             "nas_root": self.temp_dir.name,

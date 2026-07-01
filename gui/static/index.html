@@ -166,26 +166,26 @@
                 <p class="text-muted">Konfiguriere das primäre Ziel (deinen NAS-Server) und die Zugangsdaten.</p>
 
                 <div class="form-group" id="onboarding-nas-ip-group">
-                    <label for="onboarding-nas-ip">NAS IP-Adresse:</label>
-                    <input type="text" id="onboarding-nas-ip" placeholder="z.B. 192.168.1.100" class="form-input">
+                    <label for="onboarding-nas-ip">Lokale Serveradresse:</label>
+                    <input type="text" id="onboarding-nas-ip" placeholder="z.B. 192.168.2.208" class="form-input">
                 </div>
                 <div class="form-group mt-10" id="onboarding-nas-share-group">
-                    <label for="onboarding-nas-share">NAS Share-Name:</label>
-                    <input type="text" id="onboarding-nas-share" placeholder="z.B. Kino" class="form-input">
+                    <label for="onboarding-nas-share">Freigabename:</label>
+                    <input type="text" id="onboarding-nas-share" placeholder="z.B. media" class="form-input">
                 </div>
                 <div class="form-group mt-10">
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <label for="onboarding-nas-root" id="onboarding-nas-root-label">Lokaler Einhängepfad (nas_root):</label>
+                        <label for="onboarding-nas-root" id="onboarding-nas-root-label">Lokaler Einhängepfad:</label>
                         <div class="tooltip-container">
                             <button class="tooltip-trigger" type="button" aria-expanded="false" aria-label="Was ist der Einhängepfad?">?</button>
-                            <div class="tooltip-box" role="tooltip">Das Verzeichnis, unter dem dein NAS-Server auf deinem Mac gemountet ist (z.B. /Volumes/Kino).</div>
+                            <div class="tooltip-box" role="tooltip">Das Verzeichnis, unter dem dein NAS-Server auf deinem Mac gemountet ist (z.B. /Volumes/media).</div>
                         </div>
                     </div>
-                    <input type="text" id="onboarding-nas-root" placeholder="z.B. /Volumes/Kino" class="form-input">
+                    <input type="text" id="onboarding-nas-root" placeholder="z.B. /Volumes/media" class="form-input">
                 </div>
-                <div class="form-group mt-10" id="onboarding-nas-hostname-group">
-                    <label for="onboarding-nas-hostname">NAS Hostname (für Finder-Fallback):</label>
-                    <input type="text" id="onboarding-nas-hostname" placeholder="z.B. ALEXNAS91" class="form-input">
+                <div class="form-group mt-10 hidden" id="onboarding-nas-hostname-group" style="display: none;">
+                    <label for="onboarding-nas-hostname">NAS Hostname:</label>
+                    <input type="text" id="onboarding-nas-hostname" value="" class="form-input">
                 </div>
 
                 <div class="mt-15">
@@ -308,8 +308,8 @@
 
         <!-- ==================== LEFT SIDEBAR (MASTER) ==================== -->
         <nav class="master-sidebar" aria-label="Hauptnavigation">
-            <button class="btn btn-primary inline-style-3"  id="master-btn-home" aria-label="Sendezentrale Startseite">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-home" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> Sendezentrale
+            <button class="btn btn-primary inline-style-3"  id="master-btn-home" aria-label="Startseite öffnen">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-home" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> Startseite
             </button>
 
             <div class="sidebar-section collapsible-section hidden" id="section-project-folders" style="display: none;">
@@ -346,20 +346,12 @@
                             <span class="nav-label">Werkzeuge</span>
                         </span>
                     </button>
-                    <button class="project-item" id="nav-dashboard" aria-label="Statistik Dashboard öffnen">
-                        <span class="project-item-name">
-                            <span class="nav-icon" aria-hidden="true">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
-                            </span>
-                            <span class="nav-label">Dashboard</span>
-                        </span>
-                    </button>
-                    <button class="project-item" id="nav-library" aria-label="Bibliotheks-Wartung öffnen">
+                    <button class="project-item" id="nav-library" aria-label="Bibliothek pflegen öffnen">
                         <span class="project-item-name">
                             <span class="nav-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg>
                             </span>
-                            <span class="nav-label">Bibliotheks-Wartung</span>
+                            <span class="nav-label">Bibliothek pflegen</span>
                         </span>
                     </button>
                     <button class="project-item" id="nav-settings-dashboard" aria-label="Einstellungen öffnen">
@@ -400,20 +392,23 @@
         <!-- ==================== RIGHT MAIN AREA (DETAIL) ==================== -->
         <main class="detail-content">
 
-            <div id="view-empty" class="view-panel active inline-style-9" >
+            <!-- STATE: MEDIENWERKZEUG STARTSEITE -->
+            <div id="view-empty" class="view-panel active inline-style-9">
                 <!-- Speicherplatz-Warnung Banner -->
-                <div id="folder-size-warning" class="alert alert-danger hidden" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 8px; padding: 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="color: #ef4444; flex-shrink: 0;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-                    <div>
-                        <h4 style="margin: 0 0 4px 0; color: #ef4444;">Speicherplatz-Warnung</h4>
-                        <p id="folder-size-warning-text" style="margin: 0; font-size: 0.9em; color: #fca5a5;"></p>
+                <div class="card inline-style-10 hidden" id="folder-size-warning">
+                    <div style="display: flex; align-items: flex-start; gap: 10px;">
+                        <span style="color: #ef4444; flex-shrink: 0;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg></span>
+                        <div>
+                            <h4 style="margin: 0 0 4px 0; color: #ef4444;">Speicherplatz-Warnung</h4>
+                            <p id="folder-size-warning-text" style="margin: 0; font-size: 0.9em; color: #fca5a5;"></p>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Hero Section -->
-                <div class="homepage-hero">
-                    <h2 class="hero-title">Willkommen in deiner Sendezentrale</h2>
-                    <p class="hero-desc">Verwalte deine Projektordner, scrape Metadaten und synchronisiere deine Medienbibliothek.</p>
+                <div class="homepage-hero" style="margin-bottom: 24px;">
+                    <h2 class="hero-title">Willkommen in deinem Medienwerkzeug</h2>
+                    <p class="hero-desc">Verwalte deine Projektordner, optimiere deine Mediendateien und behalte die Speicherbelegung im Blick.</p>
 
                     <!-- Optional online media input -->
                     <div class="hero-action-box">
@@ -423,14 +418,12 @@
                     </div>
                 </div>
 
-                <!-- Quick Stats Grid -->
-
-                <!-- Feature 1: Smart Inbox (ersetzt die frühere "Inbox & Projekte"-Kachel) -->
+                <!-- BEREICH 1: Arbeitsbereich (Inbox & Outbox) -->
                 <div class="card" id="card-smart-inbox" style="margin-bottom: 24px;">
                     <div class="card-hero-header" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-inbox" style="vertical-align:middle;"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
-                            <h3 style="margin:0;">Arbeitsbereich &amp; Inbox</h3>
+                            <h3 style="margin:0;">Deine Projekte</h3>
                         </div>
                     </div>
 
@@ -462,94 +455,226 @@
                         </div>
                         <div id="smart-inbox-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
                     </div>
+
+                    <!-- Warteschlangen-Kompakt-Status -->
+                    <div id="dashboard-queue-compact" style="margin-top: 16px; padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); border-radius: 6px; display: none; align-items: center; justify-content: space-between; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="loading-spinner" id="queue-compact-spinner" style="width: 14px; height: 14px; border-width: 2px; margin: 0;"></span>
+                            <span id="queue-compact-status-text" style="font-size: 0.85em; color: var(--text-main);">Verarbeitung läuft...</span>
+                        </div>
+                        <button class="btn btn-secondary btn-xs" id="btn-queue-compact-open">Warteschlange anzeigen</button>
+                    </div>
                 </div>
-                <div class="grid-2col inline-style-11" >
-                    <!-- Empfohlene Einstellungen (Conversion Intelligence) -->
-                                        <div class="card" id="dashboard-intelligence">
-                        <div class="card-hero-header">
-                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lightbulb" style="vertical-align:middle;"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A5 5 0 0 0 8 8c0 1 .3 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg></span>
-                            <h3 style="margin:0;">Empfohlene Einstellungen</h3>
+
+                <!-- BEREINIGTE YOUTUBE ABONNEMENTS (Fakultativ, falls aktiv) -->
+                <div class="card hidden" id="card-hero-abos" style="margin-bottom: 24px;">
+                    <div class="card-hero-header">
+                        <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv"><rect width="20" height="15" x="2" y="3" rx="2"/><path d="M12 18v4"/><path d="m8 21 8-3"/></svg></span>
+                        <h3 style="margin:0;">YouTube-Abonnements</h3>
+                    </div>
+                    <div id="hero-abos-summary" class="mt-15" style="font-size: 0.9em; color: var(--text-muted);">
+                        Lade Abonnements...
+                    </div>
+                </div>
+
+                <!-- BEREICH 2: Medienbestand -->
+                <div class="card" id="card-media-library-stats" style="margin-bottom: 24px;">
+                    <div class="card-hero-header">
+                        <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 17h4"/><path d="M17 17h3"/><path d="M17 7h3"/><path d="M3 12h18"/></svg></span>
+                        <h3 style="margin:0;">Deine Medienbibliothek</h3>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-top: 16px;" id="media-stats-grid">
+                        <div class="media-stat-item" style="padding: 12px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-light); border-radius: 6px;">
+                            <span style="font-size: 0.8em; color: var(--text-muted); display: block;">Filme</span>
+                            <strong style="font-size: 1.4em; color: var(--text-main); display: block; margin-top: 4px;" id="media-stat-movies">–</strong>
                         </div>
-                        <div id="intelligence-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 16px;">
-                            <!-- Dynamically filled by JS -->
+                        <div class="media-stat-item" style="padding: 12px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-light); border-radius: 6px;">
+                            <span style="font-size: 0.8em; color: var(--text-muted); display: block;">Serien</span>
+                            <strong style="font-size: 1.4em; color: var(--text-main); display: block; margin-top: 4px;" id="media-stat-series">–</strong>
+                        </div>
+                        <div class="media-stat-item" style="padding: 12px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-light); border-radius: 6px;">
+                            <span style="font-size: 0.8em; color: var(--text-muted); display: block;">Episoden</span>
+                            <strong style="font-size: 1.4em; color: var(--text-main); display: block; margin-top: 4px;" id="media-stat-episodes">–</strong>
+                        </div>
+                        <div class="media-stat-item" style="padding: 12px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-light); border-radius: 6px;">
+                            <span style="font-size: 0.8em; color: var(--text-muted); display: block;">Gesamtgröße</span>
+                            <strong style="font-size: 1.4em; color: var(--text-main); display: block; margin-top: 4px;" id="media-stat-size">–</strong>
                         </div>
                     </div>
-<div class="card" id="card-hero-system">
-                        <div class="card-hero-header">
-                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="vertical-align:middle;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>
-                            <h3>Systemverbindungen</h3>
-                        </div>
-                        <div class="connection-status-row">
-                            <div class="connection-item">
-                                <span class="connection-label">NAS-Server:</span>
-                                <span class="status-badge offline" id="hero-nas-badge" aria-live="polite">Lade...</span>
+                    <div id="media-stats-footer" style="font-size: 0.8em; color: var(--text-muted); margin-top: 12px; border-top: 1px solid var(--border-light); padding-top: 8px;">
+                        Letzte Aktualisierung: <span id="media-stats-updated">Noch nicht erfasst</span> (Details über Bibliotheks-Prüfung)
+                    </div>
+                </div>
+
+                <!-- BEREICH 3: Speicher & Importquellen -->
+                <div class="card" id="card-storage-import-sources" style="margin-bottom: 24px;">
+                    <div class="card-hero-header">
+                        <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hard-drive"><rect width="20" height="8" x="2" y="3" rx="2"/><rect width="20" height="8" x="2" y="13" rx="2"/><line x1="6" x2="6.01" y1="7" y2="7"/><line x1="6" x2="6.01" y1="17" y2="17"/><line x1="10" x2="10.01" y1="7" y2="7"/><line x1="10" x2="10.01" y1="17" y2="17"/></svg></span>
+                        <h3 style="margin:0;">Speicher &amp; Importquellen</h3>
+                    </div>
+
+                    <div style="margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+                        <!-- NAS Storage Circular Progress -->
+                        <div class="card" id="widget-storage" style="margin-top: 0; background: rgba(255,255,255,0.01); border: 1px solid var(--border-light); padding: 15px; display: flex; flex-direction: column; align-items: center; text-align: center;">
+                            <span class="stat-label" id="dashboard-storage-label" style="font-size: 0.85em; font-weight: 500; color: var(--text-muted); margin-bottom: 12px;">NAS Speicherbelegung</span>
+                            <div style="position: relative; width: 140px; height: 140px;">
+                                <svg width="140" height="140" class="nas-circle-svg">
+                                    <circle cx="70" cy="70" r="58" class="nas-circle-bg" style="fill: none; stroke: rgba(255,255,255,0.04); stroke-width: 8;"></circle>
+                                    <circle cx="70" cy="70" r="58" class="nas-circle-progress" id="nas-usage-circle" stroke-dasharray="364.4" stroke-dashoffset="364.4" style="fill: none; stroke: var(--accent); stroke-width: 8; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset 0.5s ease;"></circle>
+                                </svg>
+                                <div class="nas-circle-text" style="position: absolute; top: 0; left: 0; width: 140px; height: 140px; display: flex; align-items: center; justify-content: center; font-size: 1.5em; font-weight: bold; color: var(--text-main);" id="nas-usage-percent-text">Lade...</div>
                             </div>
-                            <div class="connection-item mt-10" >
-                                <span class="connection-label">Import-Quellen:</span>
-                                <span class="status-badge" id="hero-streamfab-badge" aria-live="polite">Prüfe...</span>
+                            <div class="stat-desc mt-10" id="nas-usage-detail-text" style="font-size: 0.8em; color: var(--text-muted); margin-top: 8px;">Speicherplatz wird berechnet...</div>
+                            <div class="stat-path" id="nas-usage-path-text" style="font-size: 0.75em; color: var(--text-muted); opacity: 0.6; margin-top: 4px; font-family: monospace;">-</div>
+                        </div>
+
+                        <!-- Cloud/pCloud Storage / Importquellen -->
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            <!-- Connection Status / Importquellen Zusammenfassung -->
+                            <div class="card" style="margin-top: 0; background: rgba(255,255,255,0.01); border: 1px solid var(--border-light); padding: 15px;">
+                                <h4 style="margin: 0 0 10px 0; font-size: 0.9em; color: var(--text-main);">Verbindungen &amp; Quellen</h4>
+                                <div class="connection-status-row" style="display: flex; flex-direction: column; gap: 8px;">
+                                    <div class="connection-item" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="connection-label" style="font-size: 0.85em; color: var(--text-muted);">NAS-Verbindung:</span>
+                                        <span class="status-badge offline" id="hero-nas-badge" aria-live="polite">Lade...</span>
+                                    </div>
+                                    <div class="connection-item" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span class="connection-label" style="font-size: 0.85em; color: var(--text-muted);">Importquellen:</span>
+                                        <span class="status-badge" id="hero-streamfab-badge" aria-live="polite">Prüfe...</span>
+                                    </div>
+                                </div>
+                                <div id="hero-nas-connection-info" style="margin-top: 10px; font-size: 0.8em; color: var(--text-muted); border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; display: none;">
+                                    <p id="hero-nas-info-message" style="margin: 0; line-height: 1.4;"></p>
+                                    <div id="hero-nas-action-container" style="margin-top: 8px; display: flex; gap: 6px;">
+                                        <button class="btn btn-xs btn-accent" id="btn-hero-connect-nas" style="display: none;" type="button">NAS-Verbindung herstellen</button>
+                                        <button class="btn btn-xs btn-secondary" id="btn-hero-refresh-nas" style="display: none;" type="button">Verbindung prüfen</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- pCloud / Backup-Belegung -->
+                            <div class="card" style="margin-top: 0; background: rgba(255,255,255,0.01); border: 1px solid var(--border-light); padding: 15px; display: flex; flex-direction: column; justify-content: space-between; flex-grow: 1;">
+                                <h4 style="margin: 0 0 8px 0; font-size: 0.9em; color: var(--text-main);" id="backup-target-title">Backup Speicherziel (Cloud)</h4>
+                                <div id="backup-target-status" style="font-size: 0.85em; color: var(--text-muted);">
+                                    <span id="backup-target-desc">Keine Belegungsdaten erfasst / Backup-Sync inaktiv</span>
+                                </div>
+                                <div id="backup-target-capacity-row" style="margin-top: 10px; display: none;">
+                                    <div class="progress-bar-container" style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; margin-bottom: 6px;">
+                                        <div class="progress-bar" id="backup-target-progress" style="width: 0%; height: 100%; background: var(--accent);"></div>
+                                    </div>
+                                    <span id="backup-target-usage-text" style="font-size: 0.8em; color: var(--text-muted);">-</span>
+                                </div>
                             </div>
                         </div>
-                        <div id="hero-nas-connection-info" style="margin-top: 15px; font-size: 0.85em; color: var(--text-muted); border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 10px; display: none;">
-                            <p id="hero-nas-info-message" style="margin: 0; line-height: 1.4;"></p>
-                            <div id="hero-nas-action-container" style="margin-top: 10px; display: flex; gap: 8px;">
-                                <button class="btn btn-xs btn-accent" id="btn-hero-connect-nas" style="display: none;" type="button"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> NAS-Verbindung herstellen</button>
-                                <button class="btn btn-xs btn-secondary" id="btn-hero-refresh-nas" style="display: none;" type="button"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Verbindung prüfen</button>
+                    </div>
+                </div>
+
+                <!-- BEREICH 4: Konvertierung & Optimierung -->
+                <div class="card" id="card-conversion-stats" style="margin-bottom: 24px;">
+                    <div class="card-hero-header">
+                        <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bar-chart-3"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></span>
+                        <h3 style="margin:0;">Konvertierung &amp; Optimierung</h3>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
+                        <!-- Ersparnis & Intelligence -->
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            <!-- Savings Widget -->
+                            <div class="card" id="widget-savings" style="margin-top: 0; background: rgba(255,255,255,0.01); border: 1px solid var(--border-light); padding: 15px;">
+                                <span class="stat-label" style="font-size: 0.85em; font-weight: 500; color: var(--text-muted); display: block; margin-bottom: 6px;">Transkodierungs-Ersparnis</span>
+                                <div style="display: flex; align-items: baseline; gap: 8px;">
+                                    <strong style="font-size: 2em; color: var(--accent);" id="stats-saved-space">-</strong>
+                                    <span style="font-size: 1.1em; color: var(--text-main);" id="stats-saved-percent">(-%)</span>
+                                </div>
+                                <div class="progress-bar-container" style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; margin-top: 8px; margin-bottom: 8px;">
+                                    <div class="progress-bar" id="stats-savings-bar" style="width: 0%; height: 100%; background: var(--accent);"></div>
+                                </div>
+                                <span style="font-size: 0.8em; color: var(--text-muted);">
+                                    Eingangsdaten: <span id="stats-size-in">-</span> ➔ Ausgangsdaten: <span id="stats-size-out">-</span> (<span id="stats-total-files">-</span> Dateien verarbeitet)
+                                </span>
+                            </div>
+
+                            <!-- Conversion Ratio -->
+                            <div class="card" id="widget-ratio" style="margin-top: 0; background: rgba(255,255,255,0.01); border: 1px solid var(--border-light); padding: 15px;">
+                                <span class="stat-label" style="font-size: 0.85em; font-weight: 500; color: var(--text-muted); display: block; margin-bottom: 6px;">Durchschnittliches Kompressionsverhältnis</span>
+                                <strong style="font-size: 1.8em; color: var(--text-main);" id="stats-average-ratio">-</strong>
+                                <span style="font-size: 0.8em; color: var(--text-muted); display: block; margin-top: 4px;">
+                                    Entspricht einer Reduktion auf <span id="stats-average-ratio-percent">-</span> der Originalgröße.
+                                </span>
                             </div>
                         </div>
 
-                        <div id="hero-hw-warning" style="margin-top: 15px; font-size: 0.85em; color: var(--warning); border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 10px; display: none;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--warning);"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg> NAS-Konvertierung ist ohne Hardware-Encoding sehr langsam; für Geschwindigkeit Hardware-Encoding einrichten.
-                        </div>
-
-                        <div class="nas-capacity-widget inline-style-12" >
-                            <span class="form-label-style" id="hero-storage-label">NAS Speicherbelegung:</span>
-                            <div class="progress-bar-container inline-style-13" >
-                                <div class="progress-bar inline-style-14" id="hero-nas-progress" ></div>
+                        <!-- Letzte Konvertierungen Chart -->
+                        <div class="card" id="widget-chart" style="margin-top: 0; background: rgba(255,255,255,0.01); border: 1px solid var(--border-light); padding: 15px; display: flex; flex-direction: column; justify-content: space-between;">
+                            <h4 style="margin: 0 0 10px 0; font-size: 0.9em; color: var(--text-main);">Letzte Konvertierungen &amp; Speicherplatzreduktion</h4>
+                            <div id="dashboard-bar-chart" class="bar-chart-container" style="height: 120px; min-height: 120px; margin-top: 10px; margin-bottom: 10px;">
+                                <!-- Dynamically filled by JS -->
                             </div>
-                            <div class="inline-style-15">
-                                <span id="hero-nas-usage-text" aria-live="polite">Speicherplatz wird abgerufen...</span>
+                            <div style="display: flex; gap: 15px; justify-content: center; font-size: 0.75em; color: var(--text-muted);">
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <div style="width: 8px; height: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-light); border-radius: 2px;"></div>
+                                    Originalgröße
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <div style="width: 8px; height: 8px; background: var(--accent); border-radius: 2px;"></div>
+                                    Zielgröße (Nachher)
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Left 2: YouTube Abos -->
-                    <div class="card interactive-card cursor-pointer" id="card-hero-abos" >
-                        <div class="card-hero-header">
-                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="vertical-align:middle;"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg></span>
-                            <h3>YouTube Abonnements</h3>
-                        </div>
-                        <p class="card-hero-text">Automatische Überwachung deiner Lieblingskanäle im Hintergrund.</p>
-                        <div class="card-hero-footer" id="hero-abos-status-text" aria-live="polite">
-                            Lade Abonnements...
+
+
+                    <!-- Detailliertes Konvertierungsprotokoll -->
+                    <div class="card" id="widget-history" style="margin-top: 16px; background: rgba(255,255,255,0.01); border: 1px solid var(--border-light); padding: 15px; margin-bottom: 0;">
+                        <h3 style="margin-top: 0; font-size: 1.05em;">Detailliertes Konvertierungsprotokoll</h3>
+                        <p class="section-desc mb-15" style="font-size: 0.85em;">Chronologische Liste aller durchgeführten Videokomprimierungen.</p>
+
+                        <div class="inline-style-110" style="overflow-x: auto; max-height: 250px; overflow-y: auto;">
+                            <table class="files-table inline-style-111" style="width: 100%;">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" class="inline-style-112" style="font-size: 0.8em; padding: 8px;">Datum</th>
+                                        <th scope="col" class="inline-style-112" style="font-size: 0.8em; padding: 8px;">Codec/Qualität</th>
+                                        <th scope="col" class="inline-style-112" style="font-size: 0.8em; padding: 8px;">Größe Vorher</th>
+                                        <th scope="col" class="inline-style-112" style="font-size: 0.8em; padding: 8px;">Größe Nachher</th>
+                                        <th scope="col" class="inline-style-112" style="font-size: 0.8em; padding: 8px;">Ersparnis</th>
+                                        <th scope="col" class="inline-style-112" style="font-size: 0.8em; padding: 8px;">Verhältnis</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dashboard-history-tbody">
+                                    <tr>
+                                        <td colspan="6" class="text-center inline-style-113" style="padding: 15px;">
+                                            Keine Verlaufsdaten vorhanden.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Right 2: Stats Ring / Savings -->
-                    <div class="card interactive-card cursor-pointer" id="card-hero-stats" >
-                        <div class="card-hero-header">
-                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bar-chart-3" style="vertical-align:middle;"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></span>
-                            <h3>Speicherplatz-Ersparnis</h3>
-                        </div>
-                        <div class="inline-style-16">
-                            <div class="stats-big-number inline-style-17" id="hero-saved-space" >0 GB</div>
-                            <div class="text-muted inline-style-18"  id="hero-saved-desc">
-                                durch H.265-Transkodierung eingespart
+                <!-- BEREICH 5: Bibliothekszustand -->
+                <div class="card" id="card-library-health-state" style="margin-bottom: 24px;">
+                    <div class="card-hero-header">
+                        <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-circle"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+                        <h3 style="margin:0;">Bibliothekszustand</h3>
+                    </div>
+
+                    <div id="home-library-health-container" style="margin-top: 16px; padding: 16px; border-radius: 6px; border: 1px solid var(--border-light); background: rgba(255,255,255,0.01);">
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div id="home-library-health-icon" style="flex-shrink: 0; display: inline-flex; align-items: center;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-help-circle" style="color: var(--text-muted);"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+                                </div>
+                                <div>
+                                    <strong id="home-library-health-title" style="display: block; color: var(--text-main); font-size: 0.95em;">Noch kein Zustand erfasst</strong>
+                                    <span id="home-library-health-desc" style="display: block; color: var(--text-muted); font-size: 0.85em; margin-top: 2px;">Starte eine Bibliotheks-Prüfung im Bereich „Bibliothek pflegen“.</span>
+                                </div>
                             </div>
-                        </div>
-                        <div class="card-hero-footer inline-style-19" id="hero-converted-files-text" aria-live="polite" >
-                            Lade Statistik...
-                        </div>
-                    </div>
-
-                    <!-- Bibliothek & Wartung (öffnet eigenen Bereich) -->
-                    <div class="card interactive-card cursor-pointer" id="card-hero-library">
-                        <div class="card-hero-header">
-                            <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="vertical-align:middle;"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg></span>
-                            <h3>Bibliothek &amp; Wartung</h3>
-                        </div>
-                        <p class="card-hero-text">NAS-Bibliothek auf fehlende NFOs, Episodenlücken &amp; Co. prüfen und doppelte Episoden finden.</p>
-                        <div class="card-hero-footer" aria-live="polite">
-                            Bibliotheks-Check &amp; Duplikat-Erkennung öffnen →
+                            <button class="btn btn-primary" id="btn-home-open-library" type="button">
+                                Bibliothek pflegen öffnen →
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -940,369 +1065,162 @@
                 </div>
             </div>
 
-            <!-- STATE: STATS DASHBOARD -->
-            <div id="view-dashboard" class="view-panel hidden">
-                <div class="card inline-style-60" >
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <div class="inline-style-61" style="margin: 0;"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bar-chart-3" style="color: var(--accent);"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></div>
-                            <div>
-                                <h2 style="margin: 0;">Dashboard-Cockpit</h2>
-                                <p class="section-desc mb-0" style="margin-top: 4px; margin-bottom: 0;">Visualisiere deine Speicherdaten, warte deine Medienbibliothek und behalte den Überblick über alle Dateifreigaben.</p>
+            <!-- STATE: BIBLIOTHEK PFLEGEN -->
+            <div id="view-library" class="view-panel hidden">
+                <div style="margin-bottom: 20px;">
+                    <h2><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="display:inline-block; vertical-align:middle; margin-right: 8px;"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg> Bibliothek pflegen</h2>
+                    <p class="section-desc">Prüfe deine NAS-Bibliothek auf Pflegeprobleme und finde doppelte Episoden.</p>
+                </div>
+
+                <!-- Grid 1: Zustand & Pflege-Checks -->
+                <div class="dashboard-grid" style="margin-bottom: 24px;">
+                    <!-- NAS Bibliotheks-Check -->
+                    <div class="card" id="widget-health" style="margin-top: 0;">
+                        <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity" style="display:inline-block; vertical-align:middle; color: var(--accent);"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+                                <h3 style="margin:0;">NAS Bibliotheks-Check</h3>
+                            </div>
+                            <div style="display:flex; gap:8px;">
+                                <button class="btn btn-secondary btn-sm" id="btn-health-scan"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Scan starten</button>
+                                <button class="btn btn-danger btn-sm" id="btn-health-cancel" style="display:none;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><rect width="18" height="18" x="3" y="3" rx="2"/></svg> Abbrechen</button>
                             </div>
                         </div>
-                        <button class="btn btn-secondary btn-sm" id="btn-customize-dashboard" style="display: inline-flex; align-items: center; gap: 6px;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sliders-horizontal"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="10" y1="2" y2="6"/><line x1="8" x2="12" y1="10" y2="14"/><line x1="16" x2="12" y1="18" y2="22"/></svg>
-                            Cockpit anpassen
-                        </button>
+                        <div style="margin-top:12px; display:flex; align-items:center; gap:8px;">
+                            <label class="checkbox-container" for="health-option-deep" style="font-size:0.9em; color:var(--text-muted); margin:0;">
+                                <input type="checkbox" id="health-option-deep">
+                                <span class="checkmark"></span> Tiefgehender Scan (erzwingt vollständige Überprüfung aller Dateien)
+                            </label>
+                        </div>
+                        <div style="margin-top:12px; display:flex; flex-direction:column; gap:6px;">
+                            <span style="font-size:0.85em; color:var(--text-muted); font-weight:500; display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="color: var(--accent);"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>Zu prüfende Kategorien:</span>
+                            <div id="health-categories-container" style="display:flex; flex-wrap:wrap; gap:12px; margin-top:4px;">
+                                <!-- Checkboxen werden dynamisch via JavaScript geladen -->
+                                <span style="font-size:0.85em; color:var(--text-muted); font-style:italic;">Lade Kategorien...</span>
+                            </div>
+                        </div>
+                        <div id="health-scan-status" class="text-muted" style="margin-top:12px;">Noch kein Scan durchgeführt.</div>
+                        <div id="health-progress-wrap" style="display:none; margin-top:10px;">
+                            <div style="height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+                                <div id="health-progress-bar" style="width:0%; height:100%; background:var(--accent); transition:width 0.3s;"></div>
+                            </div>
+                        </div>
+                        <div id="health-stats" class="text-muted" style="margin-top:8px; font-size:0.85em; display:none;"></div>
+                        <div id="health-summary" style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;"></div>
+                        <div id="health-issues" style="margin-top:14px; display:flex; flex-direction:column; gap:8px;"></div>
+                    </div>
+
+                    <!-- NAS-weite Duplikat-Erkennung -->
+                    <div class="card" id="widget-duplicates" style="margin-top: 0;">
+                        <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy" style="display:inline-block; vertical-align:middle; color: var(--accent);"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1 0 2 .9 2 2"/></svg></span>
+                                <h3 style="margin:0;">Duplikat-Erkennung</h3>
+                            </div>
+                            <button class="btn btn-secondary btn-sm" id="btn-duplicate-scan"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Scan starten</button>
+                        </div>
+                        <p class="text-muted" style="margin:6px 0 0; font-size:0.8em;">Durchsucht aktuell nur Speicherziel 1 (NAS). Cloud-Speicher wird in dieser Version nicht geprüft.</p>
+                        <div id="duplicate-scan-status" class="text-muted" style="margin-top:12px;">Noch kein Scan durchgeführt.</div>
+                        <div id="duplicate-progress-wrap" style="display:none; margin-top:10px;">
+                            <div style="height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+                                <div id="duplicate-progress-bar" style="width:0%; height:100%; background:var(--accent); transition:width 0.3s;"></div>
+                            </div>
+                        </div>
+                        <div id="duplicate-summary" style="margin-top:14px;"></div>
+                        <div id="duplicate-groups" style="margin-top:14px; display:flex; flex-direction:column; gap:10px;"></div>
                     </div>
                 </div>
 
-                <!-- Customization Panel -->
-                <div class="card hidden" id="dashboard-customize-panel" style="margin-top: 15px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 20px;">
-                    <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                        Sichtbare Widgets konfigurieren
-                    </h3>
-                    <p class="text-muted" style="font-size: 0.85em; margin: 4px 0 16px 0;">Wähle aus, welche Widgets auf deinem Arbeitscockpit angezeigt werden sollen. Deine Auswahl wird automatisch gespeichert.</p>
-
-                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
-                        <div>
-                            <strong style="display: block; font-size: 0.8em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Überblick</strong>
-                            <label class="checkbox-container" style="font-size: 0.9em;">
-                                <input type="checkbox" id="widget-toggle-storage" checked>
-                                <span class="checkmark"></span> Speicherbelegung
-                            </label>
-                            <label class="checkbox-container" style="font-size: 0.9em; margin-top: 8px; display: block;">
-                                <input type="checkbox" id="widget-toggle-savings" checked>
-                                <span class="checkmark"></span> Speicherersparnis
-                            </label>
-                            <label class="checkbox-container" style="font-size: 0.9em; margin-top: 8px; display: block;">
-                                <input type="checkbox" id="widget-toggle-ratio" checked>
-                                <span class="checkmark"></span> Durchschnittliche Rate
-                            </label>
+                <!-- Grid 2: Struktur & Benennung -->
+                <div class="dashboard-grid" style="margin-bottom: 24px;">
+                    <!-- Filme normalisieren -->
+                    <div class="card" id="widget-normalize" style="margin-top: 0;">
+                        <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film" style="display:inline-block; vertical-align:middle; color: var(--accent);"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 17h4"/><path d="M17 17h3"/><path d="M17 7h3"/><path d="M3 12h18"/></svg></span>
+                                <h3 style="margin:0;">Filme normalisieren</h3>
+                            </div>
+                            <button class="btn btn-secondary btn-sm" id="btn-normalize-preview"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Vorschau</button>
                         </div>
-
-                        <div>
-                            <strong style="display: block; font-size: 0.8em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Arbeit &amp; Zustand</strong>
-                            <label class="checkbox-container" style="font-size: 0.9em;">
-                                <input type="checkbox" id="widget-toggle-health" checked>
-                                <span class="checkmark"></span> Bibliotheks-Check
-                            </label>
-                            <label class="checkbox-container" style="font-size: 0.9em; margin-top: 8px; display: block;">
-                                <input type="checkbox" id="widget-toggle-duplicates" checked>
-                                <span class="checkmark"></span> Duplikat-Erkennung
-                            </label>
-                        </div>
-
-                        <div>
-                            <strong style="display: block; font-size: 0.8em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Verlauf &amp; Statistik</strong>
-                            <label class="checkbox-container" style="font-size: 0.9em;">
-                                <input type="checkbox" id="widget-toggle-chart" checked>
-                                <span class="checkmark"></span> Konvertierungsdiagramm
-                            </label>
-                            <label class="checkbox-container" style="font-size: 0.9em; margin-top: 8px; display: block;">
-                                <input type="checkbox" id="widget-toggle-history" checked>
-                                <span class="checkmark"></span> Konvertierungsprotokoll
-                            </label>
-                        </div>
-
-                        <div>
-                            <strong style="display: block; font-size: 0.8em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Bibliothek &amp; Qualität</strong>
-                            <label class="checkbox-container" style="font-size: 0.9em;">
-                                <input type="checkbox" id="widget-toggle-normalize" checked>
-                                <span class="checkmark"></span> Filme normalisieren
-                            </label>
-                            <label class="checkbox-container" style="font-size: 0.9em; margin-top: 8px; display: block;">
-                                <input type="checkbox" id="widget-toggle-nas-renamer">
-                                <span class="checkmark"></span> NAS-Renaming-Tool
-                            </label>
+                        <p class="text-muted" style="margin:6px 0 0; font-size:0.8em;">Stellt die Zielstruktur her: löst Genre-Ordner auf (Filme/Genre/Film → Filme/Film) und packt lose Dateien in eigene Ordner. Verschiebt nichts ohne deine Bestätigung.</p>
+                        <div id="normalize-status" class="text-muted" style="margin-top:12px;">Noch keine Vorschau erstellt.</div>
+                        <div id="normalize-plan" style="margin-top:14px; display:flex; flex-direction:column; gap:6px;"></div>
+                        <div id="normalize-apply-wrap" style="display:none; margin-top:14px;">
+                            <button class="btn btn-primary btn-sm" id="btn-normalize-apply"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg> Ausgewählte anwenden</button>
                         </div>
                     </div>
-                </div>
 
-                <!-- SECTION 1: OVERVIEW -->
-                <div class="dashboard-section" id="section-overview" style="margin-top: 25px;">
-                    <h3 class="dashboard-section-title" style="margin-bottom: 15px; font-family: 'Outfit', sans-serif; font-size: 1.1em; color: var(--text-muted); border-bottom: 1px solid var(--border-light); padding-bottom: 6px;">Überblick</h3>
-                    <div class="dashboard-grid">
-                        <!-- NAS STORAGE CARD -->
-                        <div class="card inline-style-86" id="widget-storage">
-                            <span class="stat-label" id="dashboard-storage-label">NAS Speicherbelegung</span>
-                            <div class="inline-style-87">
-                                <svg width="140" height="140" class="nas-circle-svg">
-                                    <circle cx="70" cy="70" r="58" class="nas-circle-bg"></circle>
-                                    <circle cx="70" cy="70" r="58" class="nas-circle-progress" id="nas-usage-circle" stroke-dasharray="364.4" stroke-dashoffset="364.4"></circle>
-                                </svg>
-                                <div class="inline-style-88">
-                                    <span id="nas-usage-percent-text" aria-live="polite" class="inline-style-89"Outfit';">0%</span>
-                                    <span class="inline-style-90">Belegt</span>
-                                </div>
-                            </div>
-                            <div id="nas-usage-detail-text" aria-live="polite" class="inline-style-91">Scanne NAS...</div>
-                            <div id="nas-usage-path-text" class="inline-style-92">-</div>
-                        </div>
-
-                        <!-- SAVINGS CARD -->
-                        <div class="card inline-style-93" id="widget-savings">
-                            <div>
-                                <span class="stat-label">Gesamte Ersparnis</span>
-                                <div id="stats-saved-space" class="stat-value">0 GB</div>
-                                <div class="inline-style-94">
-                                    Reduktion um <span id="stats-saved-percent" class="inline-style-95">0%</span> des Speicherplatzes
-                                </div>
-                            </div>
-
-                            <div class="mt-15">
-                                <div class="inline-style-96">
-                                    <span>Vorher: <span id="stats-size-in">-</span></span>
-                                    <span>Nachher: <span id="stats-size-out">-</span></span>
-                                </div>
-                                <div class="progress-bar-flat">
-                                    <div id="stats-savings-bar" class="progress-fill-flat inline-style-97" ></div>
-                                </div>
-                            </div>
-
-                            <div class="stat-footer inline-style-98" >
-                                Durchgeführt für <span id="stats-total-files" class="highlight">0</span> Videodateien.
+                    <!-- Angleichung an Metadatendienst (NAS-Renaming-Tool) -->
+                    <div class="card" id="widget-nas-renamer" style="margin-top: 0;">
+                        <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tag" style="vertical-align:middle;"><path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.29-7.29a1 1 0 0 0 0-1.41L12 2z"/><path d="m5 5 .01-.01"/></svg></span>
+                                <h3 style="margin:0;">NAS-Renaming-Tool</h3>
                             </div>
                         </div>
+                        <p class="text-muted" style="margin:6px 0 16px; font-size:0.85em;">Vergleicht einen vorhandenen Serienordner auf dem NAS mit dem Metadatendienst (TMDB/TVDB) und benennt die Dateien einheitlich um.</p>
 
-                        <!-- RATIO CARD -->
-                        <div class="card inline-style-93" id="widget-ratio">
-                            <div>
-                                <span class="stat-label">Durchschnittliche Rate</span>
-                                <div id="stats-average-ratio" class="stat-value">0.00x</div>
-                                <div class="inline-style-99">
-                                    Jede Datei benötigt im Durchschnitt nur noch <span id="stats-average-ratio-percent" class="inline-style-100">0%</span> ihrer ursprünglichen Größe.
-                                </div>
+                        <div class="form-group" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <label for="renamer-nas-destination">Zielordner (NAS):</label>
+                                <select id="renamer-nas-destination" class="form-select" style="width: 100%;">
+                                    <!-- Populate via JS -->
+                                </select>
                             </div>
-                            <div class="inline-style-101">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--success);"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> <span class="inline-style-102">HEVC Hardware Beschleunigung</span> aktiv via VideoToolbox.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- SECTION 2: WORK & STATE -->
-                <div class="dashboard-section" id="section-work-state">
-                    <h3 class="dashboard-section-title">Arbeit &amp; Zustand</h3>
-                    <div class="dashboard-grid" id="container-work-state">
-                        <!-- NAS Bibliotheks-Check -->
-                        <div class="card" id="widget-health" style="margin-top: 0;">
-                            <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-                                <div style="display:flex; align-items:center; gap:10px;">
-                                    <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity" style="display:inline-block; vertical-align:middle; color: var(--accent);"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
-                                    <h3 style="margin:0;">NAS Bibliotheks-Check</h3>
-                                </div>
-                                <div style="display:flex; gap:8px;">
-                                    <button class="btn btn-secondary btn-sm" id="btn-health-scan"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Scan starten</button>
-                                    <button class="btn btn-danger btn-sm" id="btn-health-cancel" style="display:none;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><rect width="18" height="18" x="3" y="3" rx="2"/></svg> Abbrechen</button>
-                                </div>
-                            </div>
-                            <div style="margin-top:12px; display:flex; align-items:center; gap:8px;">
-                                <label class="checkbox-container" for="health-option-deep" style="font-size:0.9em; color:var(--text-muted); margin:0;">
-                                    <input type="checkbox" id="health-option-deep">
-                                    <span class="checkmark"></span> Tiefgehender Scan (erzwingt vollständige Überprüfung aller Dateien)
+                            <div style="flex: 2; min-width: 250px; position: relative;">
+                                <label for="renamer-nas-folder" style="display: flex; justify-content: space-between;">
+                                    Serienordner auf NAS:
+                                    <button class="btn btn-secondary btn-xs" id="btn-load-renamer-series" type="button">NAS laden</button>
                                 </label>
+                                <input type="text" id="renamer-nas-folder" placeholder="Ordnername (z.B. The Walking Dead)" autocomplete="off" style="width: 100%;">
+                                <div id="renamer-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
                             </div>
-                            <div style="margin-top:12px; display:flex; flex-direction:column; gap:6px;">
-                                <span style="font-size:0.85em; color:var(--text-muted); font-weight:500; display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="color: var(--accent);"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>Zu prüfende Kategorien:</span>
-                                <div id="health-categories-container" style="display:flex; flex-wrap:wrap; gap:12px; margin-top:4px;">
-                                    <!-- Checkboxen werden dynamisch via JavaScript geladen -->
-                                    <span style="font-size:0.85em; color:var(--text-muted); font-style:italic;">Lade Kategorien...</span>
-                                </div>
-                            </div>
-                            <div id="health-scan-status" class="text-muted" style="margin-top:12px;">Noch kein Scan durchgeführt.</div>
-                            <div id="health-progress-wrap" style="display:none; margin-top:10px;">
-                                <div style="height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
-                                    <div id="health-progress-bar" style="width:0%; height:100%; background:var(--accent); transition:width 0.3s;"></div>
-                                </div>
-                            </div>
-                            <div id="health-stats" class="text-muted" style="margin-top:8px; font-size:0.85em; display:none;"></div>
-                            <div id="health-summary" style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;"></div>
-                            <div id="health-issues" style="margin-top:14px; display:flex; flex-direction:column; gap:8px;"></div>
+                            <button class="btn btn-primary" id="btn-renamer-preview" style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="height: 14px; width: 14px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> scannen &amp; Preview</button>
                         </div>
 
-                        <!-- NAS-weite Duplikat-Erkennung -->
-                        <div class="card" id="widget-duplicates" style="margin-top: 0;">
-                            <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-                                <div style="display:flex; align-items:center; gap:10px;">
-                                    <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy" style="display:inline-block; vertical-align:middle; color: var(--accent);"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1 0 2 .9 2 2"/></svg></span>
-                                    <h3 style="margin:0;">Duplikat-Erkennung</h3>
-                                </div>
-                                <button class="btn btn-secondary btn-sm" id="btn-duplicate-scan"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Scan starten</button>
-                            </div>
-                            <p class="text-muted" style="margin:6px 0 0; font-size:0.8em;">Durchsucht doppelte Serien-Episoden auf dem NAS (Speicherziel 1). Speicherziel 2 (pCloud) wird als Cloud-Remote nicht einbezogen.</p>
-                            <div id="duplicate-scan-status" class="text-muted" style="margin-top:12px;">Noch kein Scan durchgeführt.</div>
-                            <div id="duplicate-progress-wrap" style="display:none; margin-top:10px;">
-                                <div style="height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
-                                    <div id="duplicate-progress-bar" style="width:0%; height:100%; background:var(--accent); transition:width 0.3s;"></div>
+                        <div id="renamer-status" class="text-muted" style="margin-top:12px;"></div>
+
+                        <!-- Table for Preview -->
+                        <div id="renamer-preview-container" class="hidden" style="margin-top: 16px; border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden;">
+                            <div style="padding: 10px; background: var(--bg-surface-2); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-light);">
+                                <strong>Vorschau der Änderungen</strong>
+                                <div style="display: flex; gap: 10px;">
+                                    <button class="btn btn-secondary btn-sm" id="btn-renamer-select-all">Alle auswählen</button>
+                                    <button class="btn btn-secondary btn-sm" id="btn-renamer-deselect-all">Alle abwählen</button>
                                 </div>
                             </div>
-                            <div id="duplicate-summary" style="margin-top:14px;"></div>
-                            <div id="duplicate-groups" style="margin-top:14px; display:flex; flex-direction:column; gap:10px;"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- SECTION 3: HISTORY & STATS -->
-                <div class="dashboard-section" id="section-history-stats">
-                    <h3 class="dashboard-section-title">Verlauf &amp; Statistik</h3>
-                    <div class="dashboard-grid">
-                        <!-- HISTORISCHE ENTWICKLUNG (BAR CHART) -->
-                        <div class="card inline-style-60" id="widget-chart" style="margin-bottom: 0;">
-                            <div class="card-header-actions inline-style-103" >
-                                <h3 class="inline-style-104" style="margin-top: 0;">Letzte Konvertierungen &amp; Speicherplatzreduktion</h3>
-                                <span class="inline-style-105">Die letzten 15 Dateien</span>
-                            </div>
-
-                            <div id="dashboard-bar-chart" class="bar-chart-container">
-                                <!-- Bars dynamically loaded by JavaScript -->
-                            </div>
-
-                            <div class="inline-style-106">
-                                <div class="inline-style-107">
-                                    <div class="inline-style-108"></div>
-                                    Originalgröße
-                                </div>
-                                <div class="inline-style-107">
-                                    <div class="inline-style-109"></div>
-                                    Zielgröße (Nachher)
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- TABLE OF RECENT CONVERSIONS -->
-                        <div class="card inline-style-60" id="widget-history" style="margin-bottom: 0;">
-                            <h3 style="margin-top: 0;">Detailliertes Konvertierungsprotokoll</h3>
-                            <p class="section-desc mb-15" >Chronologische Liste aller durchgeführten Videokomprimierungen.</p>
-
-                            <div class="inline-style-110">
-                                <table class="files-table inline-style-111" >
+                            <div style="max-height: 400px; overflow-y: auto;">
+                                <table class="files-table" style="width: 100%; border-collapse: collapse;">
                                     <thead>
                                         <tr>
-                                            <th scope="col" class="inline-style-112">Datum</th>
-                                            <th scope="col" class="inline-style-112">Codec/Qualität</th>
-                                            <th scope="col" class="inline-style-112">Größe Vorher</th>
-                                            <th scope="col" class="inline-style-112">Größe Nachher</th>
-                                            <th scope="col" class="inline-style-112">Ersparnis</th>
-                                            <th scope="col" class="inline-style-112">Verhältnis</th>
+                                            <th style="width: 40px; text-align: center;">✓</th>
+                                            <th style="width: 120px;">Status</th>
+                                            <th style="width: 60px;">S / E</th>
+                                            <th>Aktueller Pfad</th>
+                                            <th>Vorgeschlagener Pfad</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="dashboard-history-tbody">
-                                        <tr>
-                                            <td colspan="6" class="text-center inline-style-113" >
-                                                Keine Verlaufsdaten vorhanden.
-                                            </td>
-                                        </tr>
+                                    <tbody id="renamer-preview-tbody">
+                                        <!-- Populated via JS -->
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- SECTION 4: LIBRARY & QUALITY -->
-                <div class="dashboard-section" id="section-library-quality">
-                    <h3 class="dashboard-section-title">Bibliothek &amp; Qualität</h3>
-                    <div class="dashboard-grid" id="container-library-quality">
-                        <!-- Filme normalisieren -->
-                        <div class="card" id="widget-normalize" style="margin-top: 0;">
-                            <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-                                <div style="display:flex; align-items:center; gap:10px;">
-                                    <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film" style="display:inline-block; vertical-align:middle; color: var(--accent);"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 17h4"/><path d="M17 17h3"/><path d="M17 7h3"/><path d="M3 12h18"/></svg></span>
-                                    <h3 style="margin:0;">Filme normalisieren</h3>
-                                </div>
-                                <button class="btn btn-secondary btn-sm" id="btn-normalize-preview"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg> Vorschau</button>
-                            </div>
-                            <p class="text-muted" style="margin:6px 0 0; font-size:0.8em;">Stellt die Zielstruktur her: löst Genre-Ordner auf (Filme/Genre/Film → Filme/Film) und packt lose Dateien in eigene Ordner. Verschiebt nichts ohne deine Bestätigung.</p>
-                            <div id="normalize-status" class="text-muted" style="margin-top:12px;">Noch keine Vorschau erstellt.</div>
-                            <div id="normalize-plan" style="margin-top:14px; display:flex; flex-direction:column; gap:6px;"></div>
-                            <div id="normalize-apply-wrap" style="display:none; margin-top:14px;">
-                                <button class="btn btn-primary btn-sm" id="btn-normalize-apply"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg> Ausgewählte anwenden</button>
+                            <div style="padding: 15px; background: var(--bg-surface-2); border-top: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
+                                <span id="renamer-selected-count" class="text-muted">0 Dateien ausgewählt</span>
+                                <button class="btn btn-accent" id="btn-renamer-apply" disabled><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg> Ausgewählte umbenennen</button>
                             </div>
                         </div>
 
-                        <!-- Angleichung an Metadatendienst (NAS-Renaming-Tool) -->
-                        <div class="card" id="widget-nas-renamer" style="margin-top: 0; display: none;">
-                            <div class="card-hero-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-                                <div style="display:flex; align-items:center; gap:10px;">
-                                    <span class="card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tag" style="vertical-align:middle;"><path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.29-7.29a1 1 0 0 0 0-1.41L12 2z"/><path d="m5 5 .01-.01"/></svg></span>
-                                    <h3 style="margin:0;">NAS-Renaming-Tool</h3>
+                        <div id="renamer-rollback-container" style="margin-top: 16px; padding: 12px; background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px; display: none;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong style="color: var(--danger);">Letzte Umbenennung rückgängig machen</strong>
+                                    <div style="font-size: 0.85em; color: var(--text-muted);" id="renamer-last-transaction-info">Transaktions-ID: -</div>
                                 </div>
-                            </div>
-                            <p class="text-muted" style="margin:6px 0 16px; font-size:0.85em;">Vergleicht einen vorhandenen Serienordner auf dem NAS mit dem Metadatendienst (TMDB/TVDB) und benennt die Dateien einheitlich um.</p>
-
-                            <div class="form-group" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
-                                <div style="flex: 1; min-width: 200px;">
-                                    <label for="renamer-nas-destination">Zielordner (NAS):</label>
-                                    <select id="renamer-nas-destination" class="form-select" style="width: 100%;">
-                                        <!-- Populate via JS -->
-                                    </select>
-                                </div>
-                                <div style="flex: 2; min-width: 250px; position: relative;">
-                                    <label for="renamer-nas-folder" style="display: flex; justify-content: space-between;">
-                                        Serienordner auf NAS:
-                                        <button class="btn btn-secondary btn-xs" id="btn-load-renamer-series" type="button">NAS laden</button>
-                                    </label>
-                                    <input type="text" id="renamer-nas-folder" placeholder="Ordnername (z.B. The Walking Dead)" autocomplete="off" style="width: 100%;">
-                                    <div id="renamer-nas-folder-dropdown" class="autocomplete-dropdown hidden"></div>
-                                </div>
-                                <button class="btn btn-primary" id="btn-renamer-preview" style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="height: 14px; width: 14px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>Ordner scannen &amp; Preview anzeigen</button>
-                            </div>
-
-                            <div id="renamer-status" class="text-muted" style="margin-top:12px;"></div>
-
-                            <!-- Table for Preview -->
-                            <div id="renamer-preview-container" class="hidden" style="margin-top: 16px; border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden;">
-                                <div style="padding: 10px; background: var(--bg-surface-2); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-light);">
-                                    <strong>Vorschau der Änderungen</strong>
-                                    <div style="display: flex; gap: 10px;">
-                                        <button class="btn btn-secondary btn-sm" id="btn-renamer-select-all">Alle auswählen</button>
-                                        <button class="btn btn-secondary btn-sm" id="btn-renamer-deselect-all">Alle abwählen</button>
-                                    </div>
-                                </div>
-                                <div style="max-height: 400px; overflow-y: auto;">
-                                    <table class="files-table" style="width: 100%; border-collapse: collapse;">
-                                        <thead>
-                                            <tr>
-                                                <th style="width: 40px; text-align: center;">✓</th>
-                                                <th style="width: 120px;">Status</th>
-                                                <th style="width: 60px;">S / E</th>
-                                                <th>Aktueller Pfad</th>
-                                                <th>Vorgeschlagener Pfad</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="renamer-preview-tbody">
-                                            <!-- Populated via JS -->
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div style="padding: 15px; background: var(--bg-surface-2); border-top: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
-                                    <span id="renamer-selected-count" class="text-muted">0 Dateien ausgewählt</span>
-                                    <button class="btn btn-accent" id="btn-renamer-apply" disabled><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg> Ausgewählte umbenennen</button>
-                                </div>
-                            </div>
-
-                            <div id="renamer-rollback-container" style="margin-top: 16px; padding: 12px; background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px; display: none;">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <div>
-                                        <strong style="color: var(--danger);">Letzte Umbenennung rückgängig machen</strong>
-                                        <div style="font-size: 0.85em; color: var(--text-muted);" id="renamer-last-transaction-info">Transaktions-ID: -</div>
-                                    </div>
-                                    <button class="btn btn-danger btn-sm" id="btn-renamer-rollback"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-undo-2" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg> Rollback ausführen</button>
-                                </div>
+                                <button class="btn btn-danger btn-sm" id="btn-renamer-rollback"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-undo-2" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg> Rollback ausführen</button>
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <!-- STATE: NAS-BIBLIOTHEK & WARTUNG -->
-            <div id="view-library" class="view-panel hidden">
-                <div style="margin-bottom: 20px;">
-                    <h2><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="display:inline-block; vertical-align:middle; margin-right: 8px;"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg> Bibliothek &amp; Wartung</h2>
-                    <p class="section-desc">Prüfe deine NAS-Bibliothek auf Pflegeprobleme und finde doppelte Episoden.</p>
                 </div>
 
                 <!-- Sektion: Medienpflege-Werkzeuge -->
@@ -1405,7 +1323,7 @@
                                 </label>
                                 <label class="checkbox-container" for="settings-open-pcloud-finder">
                                     <input type="checkbox" id="settings-open-pcloud-finder">
-                                    <span class="checkmark"></span> pCloud-Ordner öffnen
+                                    <span class="checkmark"></span> Cloud-Ordner öffnen
                                 </label>
                             </div>
                         </div>
@@ -1418,7 +1336,7 @@
                                 Speicherziele verwalten:
                                 <button id="btn-storage-help" class="help-icon"  title="Erklärung der Felder anzeigen" type="button" aria-label="Hilfe">?</button>
                             </span>
-                            <p class="inline-style-118">Konfiguriere deine primären und sekundären Speicherorte (z.B. NAS, pCloud, iCloud, Google Drive). Jedes Ziel besitzt einen Namen, einen lokalen Ordner (Mountpfad auf dem Mac) und optional ein rclone-Remote (z.B. <code>pcloud:</code>) für Fallback-Übertragungen. <span id="link-rclone-setup" class="inline-help-link" title="Klicken für rclone Schritt-für-Schritt-Anleitung"><span class="help-icon" aria-hidden="true">?</span><span>rclone einrichten</span></span></p>
+                            <p class="inline-style-118">Konfiguriere deine primären und sekundären Speicherorte (z.B. NAS, Cloud-Speicher). Jedes Ziel besitzt einen Namen, einen lokalen Ordner (Mountpfad auf dem Mac) und optional ein rclone-Remote (z.B. <code>pcloud:</code> oder <code>gdrive:</code>) für Fallback-Übertragungen. <span id="link-rclone-setup" class="inline-help-link" title="Klicken für rclone Schritt-für-Schritt-Anleitung"><span class="help-icon" aria-hidden="true">?</span><span>rclone einrichten</span></span></p>
                             <div id="settings-storage-targets-container" class="inline-style-119">
                                 <!-- Dynamically populated -->
                              </div>
@@ -1436,7 +1354,7 @@
                             <button id="btn-settings-add-source" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus" style="height: 12px; width: 12px;"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Neue Quelle hinzufügen</button>
                         </div>
 
-                        <div class="form-group inline-style-126" >
+                        <div id="settings-sync-categories-section" class="form-group inline-style-126" >
                             <span class="form-label-style">Sync-Kategorien (Zuordnungen):</span>
                             <p class="inline-style-118">Lege die Unterordner für jede Medienkategorie fest. Die Spalten passen sich automatisch deinen aktivierten Speicherzielen an.</p>
                             <div id="settings-sync-categories-container" class="inline-style-127">
@@ -2444,7 +2362,7 @@ group_add:
 
             <!-- Zielpfad -->
             <div class="inline-style-228">
-                <div class="inline-style-229">Zielverzeichnis (NAS/pCloud)</div>
+                <div class="inline-style-229">Zielverzeichnis (NAS/Cloud)</div>
                 <div id="preview-destination" class="inline-style-230">Lade...</div>
             </div>
 

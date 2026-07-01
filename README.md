@@ -198,9 +198,9 @@ Pfade und Synchronisationseinstellungen werden in `data/settings.json` verwaltet
 Unter dem Einstellungs-Tab **"Speicher & Sync"** kannst du beliebig viele Speicherziele konfigurieren (z. B. dein lokales NAS oder Cloud-Anbieter wie pCloud, Google Drive etc.).
 
 #### Was bedeuten die Felder?
-* **Lokal-Pfad (Wurzelverzeichnis):** Der Pfad auf deinem Mac, unter dem das Speicherziel erreichbar ist (z. B. `/Volumes/Kino` für dein NAS oder `/Users/alex/pCloud Drive` für pCloud). Das Tool kopiert bevorzugt mit `rsync` an diesen lokalen Mount-Pfad.
+* **Lokal-Pfad (Wurzelverzeichnis):** Der Pfad auf deinem Mac, unter dem das Speicherziel erreichbar ist (z. B. `/Volumes/Kino` für dein NAS oder `/Users/benutzer/Cloud-Laufwerk` für den Cloud-Speicher). Das Tool kopiert bevorzugt mit `rsync` an diesen lokalen Mount-Pfad.
 * **rclone Remote (Optional):** Der Name der Verbindung in deiner rclone-Konfiguration (z. B. `pcloud:`). Dies dient als **automatisches Fallback**: Ist der lokale Mountpfad offline (weil die Sync-App geschlossen ist), lädt das Backend die Dateien per `rclone` direkt in die Cloud hoch.
-* **SMB Details (nur NAS):** Konfiguration der lokalen IP-Adresse, der Backup-/Tailscale-IP, des Finder-Servernamens und des SMB-Share-Namens. Der Finder-Fallback wird nur beim manuellen NAS-Verbinden geöffnet, nicht während automatischer Verarbeitungsläufe.
+* **SMB Details (nur NAS):** Konfiguration der lokalen Serveradresse, der alternativen IP-Adresse (Tailscale/VPN) und des Freigabennamens. Der Finder-Fallback wird nur beim manuellen NAS-Verbinden geöffnet, nicht während automatischer Verarbeitungsläufe.
 
 #### `rclone` konfigurieren (Kurzanleitung)
 1. **Installation:** Falls nicht installiert, installiere `rclone` über Homebrew im macOS Terminal:

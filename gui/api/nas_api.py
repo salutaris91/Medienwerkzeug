@@ -1004,6 +1004,12 @@ def handle_api_health_fix():
 def handle_api_normalize_films_preview():
     """Liefert den Verschiebe-Plan (verschiebt nichts)."""
     import gui.core.film_normalize as fn
+    from gui.core.transfers import validate_nas_library_preflight
+    from gui.core.utils import load_settings
+    settings = load_settings()
+    success, err_msg = validate_nas_library_preflight(settings)
+    if not success:
+        return jsonify({"plan": [], "error": err_msg}), 400
     try:
         return jsonify({"plan": fn.build_plan()})
     except Exception as e:
@@ -1015,6 +1021,13 @@ def handle_api_normalize_films_apply():
     """Führt die ausgewählten Verschiebungen aus – als Job in der Warteschlange."""
     import gui.core.film_normalize as fn
     import uuid, threading
+    from gui.core.transfers import validate_nas_library_preflight
+    from gui.core.utils import load_settings
+    settings = load_settings()
+    success, err_msg = validate_nas_library_preflight(settings)
+    if not success:
+        return jsonify({"ok": False, "message": err_msg}), 400
+
     try:
         params = request.get_json() or {}
     except Exception:

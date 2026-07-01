@@ -11,11 +11,80 @@ def _is_nas_root_mounted(nas_root):
     if not nas_root:
         return False
     try:
+        target_path = os.path.realpath(os.path.abspath(nas_root))
         out = subprocess.check_output(["mount"], text=True)
-        return f"on {nas_root}" in out
+        for line in out.splitlines():
+            if " on " in line:
+                parts = line.split(" on ", 1)
+                if len(parts) >= 2:
+                    m_point = parts[1].split(" (", 1)[0].strip()
+                    m_point_norm = os.path.realpath(os.path.abspath(m_point))
+                    if target_path == m_point_norm or target_path.startswith(m_point_norm + "/"):
+                        if os.path.isdir(target_path):
+                            return True
+
+        # Suffix-Prüfung (/Volumes/<Share>-1)
+        if target_path.startswith("/Volumes/"):
+            parts = target_path.split("/")
+            if len(parts) >= 3:
+                share_name = parts[2]
+                for line in out.splitlines():
+                    if " on " in line:
+                        parts_m = line.split(" on ", 1)
+                        if len(parts_m) >= 2:
+                            m_point = parts_m[1].split(" (", 1)[0].strip()
+                            m_point_norm = os.path.realpath(os.path.abspath(m_point))
+                            if m_point_norm.startswith(f"/Volumes/{share_name}-"):
+                                suffix_part = m_point_norm[len(f"/Volumes/{share_name}-"):]
+                                if suffix_part.isdigit():
+                                    relative_part = target_path[len(f"/Volumes/{share_name}"):]
+                                    actual_target_path = m_point_norm + relative_part
+                                    if os.path.isdir(actual_target_path):
+                                        return True
     except Exception as e:
         log_message(f"❌ NAS-Mount-Status konnte nicht gelesen werden: {e}")
-        return False
+    return False
+
+def diagnose_nas_mount(nas_root):
+    if not nas_root:
+        return 'not_mounted', "Kein Pfad konfiguriert."
+    target_path = os.path.realpath(os.path.abspath(nas_root))
+    try:
+        out = subprocess.check_output(["mount"], text=True)
+    except Exception as e:
+        return 'not_mounted', f"Fehler beim Lesen der Mount-Tabelle: {e}"
+
+    mountpoints = []
+    for line in out.splitlines():
+        if " on " in line:
+            parts = line.split(" on ", 1)
+            if len(parts) >= 2:
+                m_point = parts[1].split(" (", 1)[0].strip()
+                mountpoints.append(os.path.realpath(os.path.abspath(m_point)))
+
+    for m_point in mountpoints:
+        if target_path == m_point or target_path.startswith(m_point + "/"):
+            if os.path.isdir(target_path):
+                return 'connected', None
+            else:
+                return 'path_not_found', f"Das NAS-Laufwerk ist eingebunden, aber der konfigurierte Ordner '{nas_root}' existiert nicht auf dem Volume."
+
+    if target_path.startswith("/Volumes/"):
+        parts = target_path.split("/")
+        if len(parts) >= 3:
+            share_name = parts[2]
+            for m_point in mountpoints:
+                if m_point.startswith(f"/Volumes/{share_name}-"):
+                    suffix_part = m_point[len(f"/Volumes/{share_name}-"):]
+                    if suffix_part.isdigit():
+                        relative_part = target_path[len(f"/Volumes/{share_name}"):]
+                        actual_target_path = m_point + relative_part
+                        if os.path.isdir(actual_target_path):
+                            return 'mount_conflict_suffix', f"Das NAS wurde erfolgreich eingebunden, aber macOS hat es unter '{m_point}' (statt '/Volumes/{share_name}') gemountet. Bitte passe den Pfad in den Einstellungen entsprechend an."
+                        else:
+                            return 'path_not_found', f"Das NAS wurde unter '{m_point}' gemountet, aber der Ordner '{relative_part.lstrip('/')}' existiert dort nicht."
+
+    return 'not_mounted', "Das NAS ist erreichbar, konnte aber nicht eingebunden werden. Bitte prüfe die SMB-Zugangsdaten im macOS-Schlüsselbund."
 
 def _wait_for_nas_mount(nas_root, attempts, delay_seconds=1):
     for _ in range(attempts):
@@ -44,60 +113,18 @@ def _open_nas_in_finder(nas_host, nas_share):
         return False
 
 def check_nas_status():
-    settings = load_settings()
-    nas_target = next((t for t in settings.get("storage_targets", []) if t.get("id") == "nas"), None)
-    if nas_target:
-        nas_root = nas_target.get("root_path", "")
-        nas_host = nas_target.get("nas_ip", "")
-        nas_host_ts = nas_target.get("nas_ip_backup", "")
-        if not nas_target.get("enabled", True):
-            return "offline"
-    else:
-        nas_root = settings.get("nas_root", "")
-        nas_host = ""
-        nas_host_ts = ""
-    
-    if not nas_root:
-        return "offline"
-    
-    is_docker = get_runtime_capabilities()["runtime"] == "docker"
-    if is_docker:
-        return "connected" if os.path.isdir(nas_root) else "offline"
-    
-    # 1. Check if mounted
-    mounted = _is_nas_root_mounted(nas_root)
-        
-    # 2. Check ping/nc
-    pingable = False
-    for ip in [nas_host, nas_host_ts]:
-        if not ip:
-            continue
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(0.3)
-            s.connect((ip, 445))
-            s.close()
-            pingable = True
-            break
-        except Exception:
-            pass
-            
-    if mounted:
-        return "connected"
-    elif pingable:
-        return "available_not_mounted"
-    else:
-        return "offline"
+    details = check_nas_connection_details()
+    return details["status"]
 
 def check_nas_connection_details():
     settings = load_settings()
     nas_target = next((t for t in settings.get("storage_targets", []) if t.get("id") == "nas"), None)
-    
+
     nas_enabled = True
     nas_root = ""
     nas_host = ""
     nas_host_ts = ""
-    
+
     if nas_target:
         nas_root = nas_target.get("root_path", "")
         nas_host = nas_target.get("nas_ip", "")
@@ -105,17 +132,17 @@ def check_nas_connection_details():
         nas_enabled = nas_target.get("enabled", True)
     else:
         nas_root = settings.get("nas_root", "")
-        
+
     has_root = bool(nas_root)
-    
+
     ip_details = []
     if nas_host:
         ip_details.append({"address": nas_host, "role": "primary"})
     if nas_host_ts:
         ip_details.append({"address": nas_host_ts, "role": "backup"})
-        
+
     checked_ips = [info["address"] for info in ip_details]
-            
+
     if not nas_enabled:
         return {
             "status": "offline",
@@ -126,7 +153,7 @@ def check_nas_connection_details():
             "ip_details": ip_details,
             "error_message": "NAS-Verbindung in den Einstellungen deaktiviert."
         }
-        
+
     if not has_root:
         return {
             "status": "offline",
@@ -163,18 +190,18 @@ def check_nas_connection_details():
 
     # 1. Check if mounted
     mounted = _is_nas_root_mounted(nas_root)
-        
+
     # 2. Check ping/nc
     reachable_ip = None
     errors = []
-    
+
     for ip_info in ip_details:
         ip = ip_info["address"]
         if reachable_ip is not None:
             ip_info["reachable"] = False
             ip_info["error"] = None
             continue
-            
+
         s = None
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -206,17 +233,51 @@ def check_nas_connection_details():
         finally:
             if s:
                 s.close()
-            
+
     if mounted:
         status = "connected"
         error_message = None
+
+        # Härtungsprüfung für "connected"
+        try:
+            if not os.path.isdir(nas_root) or not os.access(nas_root, os.R_OK):
+                status = "offline"
+                error_message = f"Einhängepfad '{nas_root}' ist nicht lesbar oder kein Verzeichnis."
+            else:
+                sync_cats = settings.get("sync_categories", [])
+                if not sync_cats:
+                    status = "connected_but_no_library_paths"
+                    error_message = "Keine Sync-Kategorien konfiguriert."
+                else:
+                    valid_paths = 0
+                    missing_paths = []
+                    for cat in sync_cats:
+                        nas_sub = cat.get("nas_sub")
+                        if not nas_sub:
+                            continue
+                        cat_path = os.path.join(nas_root, nas_sub.lstrip("/"))
+                        if os.path.isdir(cat_path) and os.access(cat_path, os.R_OK):
+                            valid_paths += 1
+                        else:
+                            missing_paths.append(nas_sub)
+
+                    if valid_paths == 0:
+                        status = "connected_but_no_library_paths"
+                        if missing_paths:
+                            error_message = f"Keiner der Kategoriepfade existiert oder ist lesbar (fehlt: {', '.join(missing_paths)})."
+                        else:
+                            error_message = "Keiner der Kategoriepfade ist lesbar oder konfiguriert."
+        except Exception as e:
+            status = "offline"
+            error_message = f"Fehler bei der Lesbarkeitsprüfung von nas_root: {e}"
     elif reachable_ip:
         status = "available_not_mounted"
-        error_message = "Laufwerk erreichbar, aber nicht eingehängt."
+        diag_status, diag_msg = diagnose_nas_mount(nas_root)
+        error_message = diag_msg
     else:
         status = "offline"
         error_message = "; ".join(errors) if errors else "Keine IP-Adressen konfiguriert."
-        
+
     return {
         "status": status,
         "enabled": nas_enabled,
@@ -236,19 +297,19 @@ def ensure_nas_mounted(allow_finder_fallback=False):
             return False
     else:
         nas_root = settings.get("nas_root", "")
-        
+
     if not nas_root:
         return False
-        
+
     caps = get_runtime_capabilities()
     if not caps["capabilities"]["mount_nas"]:
         # Im Docker-Modus prüfen wir nur die Erreichbarkeit, kein automatisches Mounten!
         return os.path.isdir(nas_root)
-        
+
     status = check_nas_status()
-    if status == "connected":
+    if status in ["connected", "connected_but_no_library_paths"]:
         return True
-        
+
     if status == "offline":
         try:
             log_message("🌐 Starte Tailscale...")
@@ -256,10 +317,10 @@ def ensure_nas_mounted(allow_finder_fallback=False):
             status = check_nas_status()
         except Exception as e:
             log_message(f"⚠️ Tailscale-Start fehlgeschlagen: {e}")
-            
-    if status == "connected":
+
+    if status in ["connected", "connected_but_no_library_paths"]:
         return True
-        
+
     if status in ["available_not_mounted", "offline"]:
         if nas_target:
             nas_host = nas_target.get("nas_ip", "")
@@ -271,7 +332,7 @@ def ensure_nas_mounted(allow_finder_fallback=False):
             nas_host_ts = ""
             nas_share = ""
             nas_hostname = ""
-        
+
         chosen_ip = None
         for ip in [nas_host, nas_host_ts]:
             if not ip:
@@ -285,11 +346,11 @@ def ensure_nas_mounted(allow_finder_fallback=False):
                 break
             except Exception:
                 pass
-                
+
         if not chosen_ip:
             log_message("❌ NAS-Host ist offline oder nicht erreichbar.")
             return False
-            
+
         try:
             log_message(f"🔗 Mounte smb://{chosen_ip}/{nas_share}...")
             cmd = ["osascript", "-e", f'mount volume "smb://{chosen_ip}/{nas_share}"']
@@ -307,20 +368,20 @@ def ensure_nas_mounted(allow_finder_fallback=False):
             log_message("ℹ️ Finder-Fallback für NAS-Mount übersprungen.")
             return os.path.exists(nas_root)
 
-        finder_host = nas_hostname or chosen_ip
+        finder_host = chosen_ip
         if _open_nas_in_finder(finder_host, nas_share):
             if _wait_for_nas_mount(nas_root, attempts=10):
                 log_message("✅ NAS erfolgreich über Finder gemountet!")
                 return True
             log_message("❌ Finder wurde geöffnet, aber das NAS-Volume ist noch nicht eingebunden.")
-            
+
     return os.path.exists(nas_root)
 
 def get_rsync_progress_flag():
     global _rsync_progress_flag
     if _rsync_progress_flag is not None:
         return _rsync_progress_flag
-    
+
     import subprocess
     try:
         proc = subprocess.Popen(["rsync", "--help"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -378,7 +439,7 @@ def _quarantine_colliding_files(src, dst):
 def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
     import shutil
     import os
-    
+
     log_message(f"rsync nicht verfügbar. Verwende Python-Fallback zum Kopieren von {src} nach {dst}...")
     if protect_existing:
         try:
@@ -392,11 +453,11 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
         if os.path.isdir(src):
             # Target should be the destination directory (mirroring contents of src)
             os.makedirs(dst, exist_ok=True)
-            
+
             # Find all files/symlinks to copy recursively to calculate total size
             files_to_copy = []
             total_size = 0
-            
+
             for root, dirs, files in os.walk(src):
                 # Handle directory symlinks and modify dirs in-place to prevent recursing
                 for d in list(dirs):
@@ -413,7 +474,7 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
                         dirs.remove(d) # Prevent os.walk from entering this directory
                     else:
                         os.makedirs(dest_dir, exist_ok=True)
-                        
+
                 for f in files:
                     filepath = os.path.join(root, f)
                     relpath = os.path.relpath(filepath, src)
@@ -424,7 +485,7 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
                         size = os.path.getsize(filepath)
                         files_to_copy.append((filepath, relpath, size, False))
                         total_size += size
-            
+
             copied_size = 0
             # If directory has no files or symlinks, we still succeed (empty dirs are already created in walk)
             if not files_to_copy:
@@ -435,12 +496,12 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
                         from gui.core.jobs import update_job
                         update_job(task_id, progress=100, message="Übertragung: 100%")
                 return True
-                
+
             last_logged_pct = -1
             for filepath, relpath, size, is_symlink in files_to_copy:
                 dest_filepath = os.path.join(dst, relpath)
                 os.makedirs(os.path.dirname(dest_filepath), exist_ok=True)
-                
+
                 if is_symlink:
                     # Recreate symlink
                     if os.path.lexists(dest_filepath):
@@ -473,12 +534,12 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
                                     if percent % 10 == 0 and percent != last_logged_pct:
                                         log_message(msg)
                                         last_logged_pct = percent
-                    
+
                     try:
                         shutil.copystat(filepath, dest_filepath)
                     except Exception:
                         pass
-            
+
             if task_id:
                 if callable(task_id):
                     task_id(100, "Übertragung: 100%")
@@ -487,7 +548,7 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
                     update_job(task_id, progress=100, message="Übertragung: 100%")
             log_message("Übertragung: 100%")
             return True
-            
+
         else:
             # src is a file
             dest_file = dst
@@ -497,7 +558,7 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
                 dest_dir = os.path.dirname(dst)
                 if dest_dir:
                     os.makedirs(dest_dir, exist_ok=True)
-                    
+
             if os.path.islink(src):
                 # Recreate symlink at dest_file
                 if os.path.lexists(dest_file):
@@ -514,11 +575,11 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
                         update_job(task_id, progress=100, message="Übertragung: 100%")
                 log_message("Übertragung: 100%")
                 return True
-                
+
             total_size = os.path.getsize(src)
             copied_size = 0
             last_logged_pct = -1
-            
+
             with open(src, 'rb') as fsrc:
                 with open(dest_file, 'wb') as fdst:
                     while True:
@@ -541,12 +602,12 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
                             if percent % 10 == 0 and percent != last_logged_pct:
                                 log_message(msg)
                                 last_logged_pct = percent
-            
+
             try:
                 shutil.copystat(src, dest_file)
             except Exception:
                 pass
-                
+
             if task_id:
                 if callable(task_id):
                     task_id(100, "Übertragung: 100%")
@@ -555,7 +616,7 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
                     update_job(task_id, progress=100, message="Übertragung: 100%")
             log_message("Übertragung: 100%")
             return True
-            
+
     except Exception as e:
         log_message(f"❌ Fehler bei Python-Kopier-Fallback von {src} nach {dst}: {e}")
         return False
@@ -564,7 +625,7 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False, protect_existing
     import subprocess
     import re
     import shutil
-    
+
     if protect_existing:
         try:
             _quarantine_colliding_files(src, dst)
@@ -573,14 +634,14 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False, protect_existing
             return False
 
     os.makedirs(os.path.dirname(dst) if not os.path.isdir(dst) else dst, exist_ok=True)
-    
+
     cmd = ["rsync", "-a", "--inplace", "--no-owner", "--no-group", get_rsync_progress_flag()]
     src_path = src
     if os.path.isdir(src) and not src.endswith('/'):
         src_path += '/'
-        
+
     cmd.extend([src_path, dst])
-    
+
     try:
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
     except (FileNotFoundError, OSError) as e:
@@ -593,10 +654,10 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False, protect_existing
             except Exception as tr_err:
                 log_message(f"⚠️ Konnte Quellpfad {src} nach Fallback-Move nicht in Quarantäne verschieben: {tr_err}")
         return success
-        
+
     progress_pattern = re.compile(r'(\d+)%')
     speed_pattern = re.compile(r'(\d+\.?\d*\s*[kKMG]i?B/s)')
-    
+
     output_lines = []
     last_logged_pct = -1
     for line in read_lines_from_stream(process.stdout):
@@ -617,16 +678,16 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False, protect_existing
             if percent % 10 == 0 and percent != last_logged_pct:
                 log_message(msg)
                 last_logged_pct = percent
-                        
+
     process.wait()
     success = (process.returncode == 0)
-    
+
     if not success:
         log_message(f"❌ rsync Fehler (Code {process.returncode}):")
         for line in output_lines:
             if not progress_pattern.search(line) and line:
                 log_message(f"   rsync: {line}")
-                
+
     if success and move:
         import gui.core.trash as trash
         try:
@@ -635,19 +696,19 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False, protect_existing
             log_message(f"⚠️ TrashError für Quellpfad {src}: {e}")
         except Exception as e:
             log_message(f"⚠️ Konnte Quellpfad {src} nach Move nicht in Quarantäne verschieben: {e}")
-            
+
     return success
 
 def run_ffmpeg_with_progress(cmd, filepath, task_id=None, log_queue=None):
     import subprocess
     import re
-    
+
     duration = None
     try:
         duration = media.get_video_duration(filepath)
     except Exception as e:
         log_message(f"Fehler bei get_video_duration: {e}")
-        
+
     if not duration:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         for line in proc.stdout:
@@ -659,11 +720,11 @@ def run_ffmpeg_with_progress(cmd, filepath, task_id=None, log_queue=None):
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     time_pattern = re.compile(r'time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})')
     time_pattern_sec = re.compile(r'time=(\d+)\.(\d+)')
-    
+
     for line in proc.stdout:
         if log_queue:
             log_queue.put(line)
-        
+
         match = time_pattern.search(line)
         current_time = None
         if match:
@@ -674,7 +735,7 @@ def run_ffmpeg_with_progress(cmd, filepath, task_id=None, log_queue=None):
             if match_sec:
                 s, ms = match_sec.groups()
                 current_time = int(s) + int(ms) / 100.0
-                
+
         if current_time is not None and duration > 0:
             percent = min(99, int((current_time / duration) * 100))
             if task_id:
@@ -683,21 +744,21 @@ def run_ffmpeg_with_progress(cmd, filepath, task_id=None, log_queue=None):
                 else:
                     from gui.core.jobs import update_job
                     update_job(task_id, progress=percent, message=f"Konvertierung: {percent}%")
-                        
+
     proc.wait()
     return proc.returncode == 0
 
 def run_ytdlp_with_progress(cmd, task_id=None, log_queue=None):
     import subprocess
     import re
-    
+
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     progress_pattern = re.compile(r'\[download\]\s+(\d+(?:\.\d+)?)%')
-    
+
     for line in iter(proc.stdout.readline, ''):
         if log_queue:
             log_queue.put(line)
-            
+
         match = progress_pattern.search(line)
         if match:
             percent = int(float(match.group(1)))
@@ -705,7 +766,7 @@ def run_ytdlp_with_progress(cmd, task_id=None, log_queue=None):
                 from gui.core.jobs import update_job
                 update_job(task_id, progress=percent, message=f"Download: {percent}%",
                            pipeline_step="metadata", pipeline_status="running", pipeline_progress=percent)
-                        
+
     proc.wait()
     return proc.returncode == 0
 
@@ -716,7 +777,7 @@ def resolve_target_destination(target, rel_sub, media_type="movie"):
     settings = load_settings()
     t_id = target.get("id")
     t_type = target.get("type")
-    
+
     # 1. Look up sync category mapping
     sync_cats = settings.get("sync_categories", [])
     for cat in sync_cats:
@@ -736,7 +797,7 @@ def resolve_target_destination(target, rel_sub, media_type="movie"):
                 return os.path.join(target.get("root_path", ""), cat.get("nas_sub", rel_sub).lstrip("/"))
             else:
                 return cat.get("pcloud_remote", "")
-                
+
     # 2. Fallback if no sync category matches rel_sub
     if t_type == "nas" or t_id == "nas":
         return os.path.join(target.get("root_path", ""), rel_sub.lstrip("/"))
@@ -793,21 +854,21 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
     settings = load_settings()
     nas_target = next((t for t in settings.get("storage_targets", []) if t.get("id") == "nas"), None)
     nas_root = nas_target.get("root_path", "") if nas_target else settings.get("nas_root", "")
-    
+
     # Find the target configuration
     target = next((t for t in settings.get("storage_targets", []) if t.get("id") == target_id), None)
     if not target:
         log_message(f"❌ Ziel '{target_id}' nicht in Einstellungen gefunden.")
         return False
-        
+
     if not target.get("enabled", True):
         log_message(f"⚠️ Ziel '{target.get('name')}' ist deaktiviert. Überspringe Kopieren.")
         return True
-        
+
     pcloud_local = target.get("root_path", "")
     rclone_remote = target.get("rclone_remote", "")
     target_name = target.get("name", target_id)
-    
+
     if explicit_remote_base:
         remote_base = explicit_remote_base
     else:
@@ -822,7 +883,7 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
                     t_sub = cat.get("nas_sub", "")
                 else:
                     t_sub = cat.get("pcloud_remote", "")
-            
+
             nas_path = f"{nas_root}{cat['nas_sub']}"
             mapping[nas_path] = t_sub
 
@@ -843,9 +904,9 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
         remote_base = f"{rclone_remote.split(':')[0]}:{remote_base}"
 
     remote_target = f"{remote_base}/{folder_name}"
-    
+
     log_message(f"☁️ Upload nach {target_name} wird vorbereitet...")
-    
+
     fuse_ok = False
     if pcloud_local and os.path.isdir(pcloud_local):
         try:
@@ -853,7 +914,7 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
             fuse_ok = True
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
             log_message(f"⚠️ Lokaler Pfad {pcloud_local} antwortet nicht. Falle auf rclone zurück.")
-            
+
     if fuse_ok:
         prefix = rclone_remote
         if ":" in remote_target:
@@ -865,9 +926,9 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
             clean_remote_target = remote_target.replace(prefix, pcloud_local + "/")
         else:
             clean_remote_target = os.path.join(pcloud_local, remote_target.lstrip("/"))
-            
+
         local_target = os.path.abspath(clean_remote_target)
-        
+
         log_message(f"☁️ {target_name} (Lokal): Kopiere nach {local_target}")
         try:
             success = run_rsync_with_progress(source_dir, local_target, task_id)
@@ -878,17 +939,17 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
                 log_message(f"❌ {target_name} Fehler bei der Übertragung.")
         except Exception as e:
             log_message(f"❌ Fehler bei lokalem Kopieren nach {target_name}: {e}")
-            
+
     if rclone_remote:
         log_message(f"☁️ {target_name} (rclone Fallback): {remote_target}")
         if not shutil.which("rclone"):
             log_message("⚠️ Warnung: rclone nicht gefunden. Upload abgebrochen.")
             return False
-            
+
         cmd = ["rclone", "copy", source_dir, remote_target, "--transfers", "2", "--retries", "1", "--stats", "1s", "--stats-one-line"]
         rclone_pattern = re.compile(r'(\d+)%,')
         speed_pattern = re.compile(r'(\d+\.?\d*\s*[kKMG]i?B/s)')
-        
+
         last_logged_pct = [-1]
         def handle_line(line):
             match = rclone_pattern.search(line)
@@ -908,8 +969,8 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
                     last_logged_pct[0] = percent
 
         success = run_with_retries_and_timeout(
-            cmd, 
-            max_attempts=3, 
+            cmd,
+            max_attempts=3,
             timeout_sec=3600, # 1h default timeout for an upload, rclone might hang due to network
             line_callback=handle_line
         )
@@ -918,7 +979,7 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
             return True
         else:
             log_message(f"❌ {target_name} Rclone-Upload fehlgeschlagen nach allen Retrys.")
-            
+
     return False
 
 def copy_to_pcloud(source_dir, nas_target_dir, task_id=None, explicit_remote_base=None):
@@ -960,7 +1021,7 @@ def walk_nas_categories(settings=None, category_ids=None):
             filter_cats = {str(x) for x in category_ids}
         else:
             filter_cats = {str(category_ids)}
-        
+
         # If the set is empty, treat as None (no filtering)
         if not filter_cats:
             filter_cats = None
@@ -969,7 +1030,7 @@ def walk_nas_categories(settings=None, category_ids=None):
         cat_id = cat.get("id")
         if filter_cats is not None and str(cat_id) not in filter_cats:
             continue
-            
+
         nas_sub = cat.get("nas_sub")
         if not nas_sub or not nas_root:
             continue
@@ -1011,3 +1072,83 @@ def walk_nas_categories(settings=None, category_ids=None):
                 "name": entry,
                 "path": show_path,
             }
+
+def parse_nas_input(input_val):
+    """Zerlegt eine SMB-Adresse oder einen lokalen Pfad in host, share und root_path."""
+    val = input_val.strip()
+    while len(val) > 1 and val.endswith("/"):
+        val = val[:-1]
+
+    if val.lower().startswith("smb://"):
+        val = val[6:]
+        parts = val.split("/", 1)
+        host = parts[0]
+        share = parts[1] if len(parts) > 1 else ""
+        root_path = f"/Volumes/{share}" if share else ""
+        return {
+            "host": host,
+            "share": share,
+            "root_path": root_path
+        }
+    elif val.startswith("/"):
+        parts = [p for p in val.split("/") if p]
+        share = parts[-1] if parts else ""
+        return {
+            "host": "",
+            "share": share,
+            "root_path": val
+        }
+    return {
+        "host": "",
+        "share": "",
+        "root_path": val
+    }
+
+def validate_nas_library_preflight(settings):
+    """Führt einen einheitlichen Preflight-Check für alle Bibliothekswerkzeuge durch.
+
+    Gibt (success, error_message) zurück.
+    """
+    nas_target = next((t for t in settings.get("storage_targets", []) if t.get("id") == "nas"), None)
+    if not nas_target or not nas_target.get("enabled", True):
+        return False, "NAS-Verbindung ist deaktiviert oder nicht konfiguriert."
+
+    nas_root = nas_target.get("root_path", "")
+    if not nas_root:
+        return False, "NAS-Einhängepfad (Lokaler Pfad) ist nicht konfiguriert."
+
+    is_docker = get_runtime_capabilities()["runtime"] == "docker"
+    if is_docker:
+        if not os.path.isdir(nas_root) or not os.access(nas_root, os.R_OK):
+            return False, f"Einhängepfad '{nas_root}' ist im Docker-Container nicht verfügbar."
+    else:
+        if not _is_nas_root_mounted(nas_root):
+            return False, f"Netzlaufwerk ist nicht eingehängt (Einhängepfad: {nas_root}). Bitte zuerst verbinden."
+
+    sync_cats = settings.get("sync_categories", [])
+    if not sync_cats:
+        return False, "Keine Sync-Kategorien in den Einstellungen konfiguriert."
+
+    valid_paths = 0
+    missing_paths = []
+    for cat in sync_cats:
+        nas_sub = cat.get("nas_sub")
+        if not nas_sub:
+            continue
+        cat_path = os.path.join(nas_root, nas_sub.lstrip("/"))
+        if os.path.isdir(cat_path) and os.access(cat_path, os.R_OK):
+            valid_paths += 1
+        else:
+            missing_paths.append(nas_sub)
+
+    if valid_paths == 0:
+        if missing_paths:
+            return False, f"Keiner der Kategoriepfade existiert oder ist lesbar auf dem NAS (fehlt: {', '.join(missing_paths)})."
+        else:
+            return False, "Keiner der Kategoriepfade ist lesbar oder konfiguriert auf dem NAS."
+
+    shows = list(walk_nas_categories(settings))
+    if len(shows) == 0:
+        return False, "Keine Medienordner (Serien- oder Film-Verzeichnisse) in den Kategoriepfaden auf dem NAS gefunden."
+
+    return True, ""

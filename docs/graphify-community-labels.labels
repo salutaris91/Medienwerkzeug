@@ -2,9 +2,7 @@
   "Server Core": [
     "gui_server_py"
   ],
-  "Media Transfers Core": [
-    "gui_core_transfers_py"
-  ],
+  "Media Transfers Core": [],
 
   "Frontend Application State and Queue Dashboard": [
     "gui_static_app_js"

@@ -166,6 +166,13 @@ def _run_duplicate_scan():
             return
 
         settings = utils.load_settings()
+        from gui.core.transfers import validate_nas_library_preflight
+        success, err_msg = validate_nas_library_preflight(settings)
+        if not success:
+            _set_state(status="warning", message=err_msg,
+                       error="no_library_folders_found", finished_at=time.time())
+            log_message(f"⚠️ [Duplikat-Scan] Preflight fehlgeschlagen: {err_msg}")
+            return
         series_shows = [x for x in walk_nas_categories(settings) if x["type"] == "series"]
         total = len(series_shows)
         log_message(f"🔍 [Duplikat-Scan] Prüfe {total} Serien auf doppelte Episoden...")
@@ -174,7 +181,7 @@ def _run_duplicate_scan():
         for idx, show in enumerate(series_shows):
             _set_state(
                 progress=int((idx / total) * 100) if total else 100,
-                message=f"Prüfe {show['name']} ({idx + 1}/{total})",
+                message=f"Scan läuft. Serien werden durchsucht ({show['name']}, {idx + 1}/{total})",
             )
             # Episoden sammeln und nach (Staffel, Episode) gruppieren
             by_ep = defaultdict(list)
@@ -232,7 +239,7 @@ def start_duplicate_scan():
         _scan_state.update({
             "status": "running",
             "progress": 0,
-            "message": "Scan wird gestartet...",
+            "message": "Scan wird vorbereitet. NAS und Kategoriepfade werden geprüft...",
             "started_at": time.time(),
             "finished_at": None,
             "groups": [],
