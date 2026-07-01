@@ -2149,6 +2149,10 @@ async function loadStatus(forceNasCheck = false) {
             nasBadge.textContent = "Verbunden";
             nasBadge.classList.add("online");
             connectNasBtn?.classList.add("hidden");
+        } else if (data.nas_status === "connected_but_no_library_paths") {
+            nasBadge.textContent = "Unvollständig";
+            nasBadge.classList.add("warning");
+            connectNasBtn?.classList.add("hidden");
         } else if (data.nas_status === "available_not_mounted") {
             nasBadge.textContent = "Bereit (Nicht gemountet)";
             nasBadge.classList.add("warning");
@@ -8906,7 +8910,9 @@ function renderStorageTargets() {
                     guidedInput.placeholder = "z.B. smb://192.168.2.208/media  oder  /Volumes/media";
                 }
 
-                if (target.nas_ip && target.nas_share) {
+                if (isDocker) {
+                    guidedInput.value = target.root_path || "";
+                } else if (target.nas_ip && target.nas_share) {
                     guidedInput.value = `smb://${target.nas_ip}/${target.nas_share}`;
                 } else if (target.root_path) {
                     guidedInput.value = target.root_path;
@@ -9108,6 +9114,8 @@ function renderStorageTargets() {
                         let serverStatusText = `Server erreichbar (${result.reachable_ip || target.nas_ip || 'keine IP angegeben'})`;
                         if (result.reachable_ip === "Lokal gemountet (keine IP erforderlich)") {
                             serverStatusText = "Server erreichbar (Lokal gemountet, keine IP erforderlich)";
+                        } else if (result.reachable_ip === "Container-Pfad erreichbar") {
+                            serverStatusText = "Container-Pfad erreichbar";
                         }
                         html += renderCheckLine(result.server_reachable, serverStatusText);
 
@@ -9116,7 +9124,8 @@ function renderStorageTargets() {
                             shareText = "Freigabe angegeben (Nicht erforderlich)";
                         }
                         html += renderCheckLine(result.share_specified, shareText);
-                        html += renderCheckLine(result.local_path_exists, `Lokaler Pfad vorhanden (${target.root_path || 'fehlt'})`);
+                        let pathLabel = isDocker ? "Container-Pfad vorhanden" : "Lokaler Pfad vorhanden";
+                        html += renderCheckLine(result.local_path_exists, `${pathLabel} (${target.root_path || 'fehlt'})`);
                         html += renderCheckLine(result.categories_found, `Kategoriepfade gefunden`);
 
                         if (result.missing_categories && result.missing_categories.length > 0) {

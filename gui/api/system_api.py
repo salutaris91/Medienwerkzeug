@@ -377,7 +377,11 @@ def handle_api_nas_test():
         # Test 1: Server erreichbar (Port 445 auf Primary oder Backup IP)
         server_reachable = False
         reachable_ip = None
-        if not nas_ip and not nas_ip_backup and local_path_exists:
+        is_docker = get_runtime_capabilities()["runtime"] == "docker"
+        if is_docker and local_path_exists:
+            server_reachable = True
+            reachable_ip = "Container-Pfad erreichbar"
+        elif not nas_ip and not nas_ip_backup and local_path_exists:
             server_reachable = True
             reachable_ip = "Lokal gemountet (keine IP erforderlich)"
         else:
