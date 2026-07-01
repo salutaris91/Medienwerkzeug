@@ -161,6 +161,7 @@ class TestHealthScanLibrary(unittest.TestCase):
         self.assertTrue(data["server_reachable"])
         self.assertEqual(data["reachable_ip"], "Lokal gemountet (keine IP erforderlich)")
         self.assertTrue(data["local_path_exists"])
+        self.assertTrue(data["local_path_readable"])
 
     @patch("gui.api.system_api.os.path.isdir")
     @patch("gui.api.system_api.os.access", return_value=True)
@@ -188,6 +189,7 @@ class TestHealthScanLibrary(unittest.TestCase):
         self.assertTrue(data["share_specified"])
         self.assertFalse(data["share_required"])
         self.assertTrue(data["local_path_exists"])
+        self.assertTrue(data["local_path_readable"])
 
     @patch("gui.api.system_api.os.path.isdir")
     @patch("gui.api.system_api.os.access", return_value=True)
@@ -214,6 +216,33 @@ class TestHealthScanLibrary(unittest.TestCase):
         self.assertTrue(data["server_reachable"])
         self.assertEqual(data["reachable_ip"], "Container-Pfad erreichbar")
         self.assertTrue(data["local_path_exists"])
+        self.assertTrue(data["local_path_readable"])
+
+    @patch("gui.api.system_api.os.path.isdir")
+    @patch("gui.api.system_api.os.access", return_value=False)
+    @patch("gui.api.system_api.load_settings")
+    @patch("gui.api.system_api.get_runtime_capabilities")
+    def test_nas_test_api_docker_mode_not_readable(self, mock_caps, mock_load, mock_access, mock_isdir):
+        mock_caps.return_value = {"runtime": "docker", "capabilities": {}}
+        mock_isdir.return_value = True
+        mock_load.return_value = {
+            "sync_categories": [{"id": "movies", "name": "Filme", "nas_sub": "Filme"}]
+        }
+
+        # Unter Docker, Pfad existiert, ist aber nicht lesbar
+        res = self.client.post("/api/nas/test", json={
+            "nas_ip": "",
+            "nas_ip_backup": "",
+            "nas_share": "",
+            "root_path": "/media"
+        })
+
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        # Sollte nicht erreichbar sein, da nicht lesbar!
+        self.assertFalse(data["server_reachable"])
+        self.assertTrue(data["local_path_exists"])
+        self.assertFalse(data["local_path_readable"])
 
 if __name__ == "__main__":
     unittest.main()

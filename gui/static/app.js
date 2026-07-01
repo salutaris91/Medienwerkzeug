@@ -9126,6 +9126,8 @@ function renderStorageTargets() {
                         html += renderCheckLine(result.share_specified, shareText);
                         let pathLabel = isDocker ? "Container-Pfad vorhanden" : "Lokaler Pfad vorhanden";
                         html += renderCheckLine(result.local_path_exists, `${pathLabel} (${target.root_path || 'fehlt'})`);
+                        let readableLabel = isDocker ? "Container-Pfad lesbar" : "Lokaler Pfad lesbar";
+                        html += renderCheckLine(result.local_path_readable, readableLabel);
                         html += renderCheckLine(result.categories_found, `Kategoriepfade gefunden`);
 
                         if (result.missing_categories && result.missing_categories.length > 0) {
@@ -9134,7 +9136,7 @@ function renderStorageTargets() {
 
                         html += renderCheckLine(result.media_folders_found, `Bibliotheksordner (Serien/Filme) gefunden`);
 
-                        if (result.server_reachable && result.share_specified && result.local_path_exists && result.categories_found && result.media_folders_found) {
+                        if (result.server_reachable && result.share_specified && result.local_path_exists && result.local_path_readable && result.categories_found && result.media_folders_found) {
                             html += `<div style="color:var(--success); font-weight:bold; margin-top:6px;">✔ NAS ist voll funktionsfähig und bereit!</div>`;
                         } else {
                             html += `<div style="color:var(--danger); font-weight:bold; margin-top:6px; margin-bottom: 6px;">✘ NAS ist unvollständig konfiguriert.</div>`;
@@ -9147,7 +9149,17 @@ function renderStorageTargets() {
                                 html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Trage den Namen der Freigabe (z.B. <code>media</code> oder <code>Kino</code>) ein.</div>`;
                             }
                             if (!result.local_path_exists) {
-                                html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Binde die Freigabe auf dem Mac unter dem passenden Pfad ein, damit <code>${target.root_path || '/Volumes/...'}</code> existiert.</div>`;
+                                if (isDocker) {
+                                    html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Der angegebene Pfad <code>${target.root_path || '/media'}</code> existiert nicht im Container. Bitte überprüfe das Volume-Mapping in deiner docker-compose.yml.</div>`;
+                                } else {
+                                    html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Binde die Freigabe auf dem Mac unter dem passenden Pfad ein, damit <code>${target.root_path || '/Volumes/...'}</code> existiert.</div>`;
+                                }
+                            } else if (!result.local_path_readable) {
+                                if (isDocker) {
+                                    html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Der Pfad existiert, ist aber nicht lesbar. Bitte überprüfe die Benutzer- und Gruppenberechtigungen (UID/GID) für das gemountete Verzeichnis auf dem Host und im Docker-Container.</div>`;
+                                } else {
+                                    html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Der Pfad existiert, ist aber nicht lesbar. Bitte überprüfe die Zugriffsrechte des angemeldeten Mac-Benutzers auf diesen Ordner.</div>`;
+                                }
                             } else if (!result.categories_found) {
                                 html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Der Pfad existiert, aber Kategorie-Unterordner (wie <code>Filme</code>, <code>Serien</code>) fehlen darin. Bitte erstelle diese Ordner auf dem NAS oder passe die Kategorie-Zuordnungen weiter unten unter „Sync-Kategorien“ an. <a href="#" id="jump-to-categories-link" style="color:var(--accent); text-decoration:underline; font-weight:500;">Zu Sync-Kategorien springen</a></div>`;
                             } else if (!result.media_folders_found) {

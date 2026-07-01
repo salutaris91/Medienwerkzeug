@@ -371,11 +371,12 @@ def handle_api_nas_test():
         nas_share = data.get("nas_share", "").strip()
         root_path = data.get("root_path", "").strip()
 
-        # Test 3: Lokaler Pfad vorhanden und lesbar
-        local_path_exists = False
-        if root_path and os.path.isdir(root_path):
+        # Test 3: Lokaler Pfad vorhanden und lesbar (getrennt ermittelt)
+        local_path_exists = os.path.isdir(root_path) if root_path else False
+        local_path_readable = False
+        if local_path_exists:
             try:
-                local_path_exists = os.access(root_path, os.R_OK)
+                local_path_readable = os.access(root_path, os.R_OK)
             except Exception:
                 pass
 
@@ -383,10 +384,10 @@ def handle_api_nas_test():
         server_reachable = False
         reachable_ip = None
         is_docker = get_runtime_capabilities()["runtime"] == "docker"
-        if is_docker and local_path_exists:
+        if is_docker and local_path_exists and local_path_readable:
             server_reachable = True
             reachable_ip = "Container-Pfad erreichbar"
-        elif not nas_ip and not nas_ip_backup and local_path_exists:
+        elif not nas_ip and not nas_ip_backup and local_path_exists and local_path_readable:
             server_reachable = True
             reachable_ip = "Lokal gemountet (keine IP erforderlich)"
         else:
@@ -406,7 +407,7 @@ def handle_api_nas_test():
 
         # Test 2: Freigabe angegeben (unter Docker oder bei rein lokal gemountetem Pfad nicht erforderlich)
         is_docker = get_runtime_capabilities()["runtime"] == "docker"
-        local_or_docker = (not nas_ip and not nas_ip_backup and local_path_exists) or (is_docker and local_path_exists)
+        local_or_docker = (not nas_ip and not nas_ip_backup and local_path_exists and local_path_readable) or (is_docker and local_path_exists and local_path_readable)
 
         if local_or_docker:
             share_specified = True
@@ -420,7 +421,7 @@ def handle_api_nas_test():
         settings = load_settings()
         sync_cats = settings.get("sync_categories", [])
 
-        if local_path_exists and root_path and sync_cats:
+        if local_path_exists and local_path_readable and root_path and sync_cats:
             valid_cats = 0
             for cat in sync_cats:
                 nas_sub = cat.get("nas_sub")
@@ -461,6 +462,7 @@ def handle_api_nas_test():
             "share_specified": share_specified,
             "share_required": not local_or_docker,
             "local_path_exists": local_path_exists,
+            "local_path_readable": local_path_readable,
             "categories_found": categories_found,
             "missing_categories": missing_categories,
             "media_folders_found": media_folders_found
