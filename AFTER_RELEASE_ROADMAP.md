@@ -42,7 +42,7 @@ die aktive After-Release-Roadmap übernommen.
 | 33 | Automatischer TVDB-Fallback für fehlende TMDB-Plots | geplant | klein |
 | 34 | Altersfreigabe-Checks im UI deutlicher erklären | geplant | klein |
 | 35 | Premium-Umbenennungsdialog für Health-Fixes mit Metadaten-Lookup | geplant | klein–mittel |
-| 36 | Health-Dashboard: Gruppierung, Massen-Fixes (Batch) & Auto-Korrektur | geplant | mittel |
+| 36 | Health-Dashboard: Gruppierung, Massen-Fixes (Batch) & Auto-Korrektur | erledigt | mittel |
 | 37 | Docker-Schonmodus bei UI-Aktivität (Transfers drosseln) | geplant | klein–mittel |
 | 38 | Intelligente Pipeline-Parallelisierung bei langen Uploads | geplant | mittel |
 | 39 | Frontend-Resilienz: Double-Check bei vereinzelten 401-Fehlern | geplant | klein |
@@ -983,7 +983,9 @@ Klein–mittel: UI-Modal entwerfen, API um eine Bestätigungsvorschau erweitern 
 
 ---
 
-## 36. Health-Dashboard: Gruppierung, Massen-Fixes (Batch) & Auto-Korrektur
+## 36. Health-Dashboard: Gruppierung, Massen-Fixes (Batch) & Auto-Korrektur [ERLEDIGT]
+
+### Status: Erledigt (im Rahmen von Phase 2.5a & 2.5b / Wartungs-Cockpit-Refactoring)
 
 ### Ziel
 Bei großen Medienbibliotheken können Hunderte von Health-Warnungen auftreten. Die manuelle Behebung jedes einzelnen Befunds ist extrem zeitaufwendig. Das Dashboard soll durch Gruppierungsfunktionen, Massen-Bearbeitung (Batch-Actions) und eine intelligente Auto-Korrektur erweitert werden, um das Beheben von Massen-Issues drastisch zu beschleunigen.
@@ -1139,10 +1141,10 @@ Parallelitätsgrenzen.
 
 **Einordnung / Priorität:** Defense-in-Depth, niedrige Priorität. Die ursprünglich beobachteten "Phantom-Logouts" hatten eine Backend-Ursache (`session.clear()` schickte auf cookielosen Requests einen `Set-Cookie`-Lösch-Header und löschte so das gültige Login-Cookie). Diese Ursache ist mit #58 behoben. Dieser Eintrag adressiert nur noch die verbleibende Sprödigkeit im Frontend, nicht den eigentlichen Bug.
 
-**Problem:** 
+**Problem:**
 Der globale `fetch`-Interceptor in `gui/static/app.js` (siehe `response.status === 401`) ruft bei *jedem* 401 hart `showLoginScreen()` auf — auch wenn das Session-Cookie intakt ist und nur eine einzelne Hintergrundanfrage (Statistiken, Logs) abgewiesen wurde. Mögliche Auslöser für ein vereinzeltes 401 ohne echten Sessionverlust: ein `fetch()` ohne `credentials`, `SameSite`-Konflikte, Safari ITP oder ein abgelaufenes Cookie. (Ein VPN gehört ausdrücklich *nicht* dazu — es arbeitet auf Netzwerkebene und verändert keine HTTP-Header.)
 
-**Ziel:** 
+**Ziel:**
 Ein einzelnes 401 soll nicht mehr sofort zum Login-Screen führen, solange die Session laut Server noch gültig ist.
 
 **Lösungsskizze:**
