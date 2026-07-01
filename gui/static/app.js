@@ -8850,10 +8850,14 @@ function renderStorageTargets() {
                 guidedLabel.style.display = "block";
                 guidedLabel.textContent = "Netzwerkadresse (smb://...) oder lokaler Mac-Pfad (/Volumes/...):";
 
+                const guidedRow = document.createElement("div");
+                guidedRow.style.display = "flex";
+                guidedRow.style.gap = "8px";
+
                 const guidedInput = document.createElement("input");
                 guidedInput.type = "text";
                 guidedInput.className = "form-select";
-                guidedInput.style.width = "100%";
+                guidedInput.style.flex = "1";
                 guidedInput.style.padding = "8px 12px";
                 guidedInput.style.fontSize = "12px";
                 guidedInput.style.border = "1px solid var(--border-glass)";
@@ -8866,6 +8870,31 @@ function renderStorageTargets() {
                 } else if (target.root_path) {
                     guidedInput.value = target.root_path;
                 }
+                guidedRow.appendChild(guidedInput);
+
+                const caps = window.AppCapabilities;
+                const openLocalEnabled = caps && caps.capabilities && caps.capabilities.open_local_folder;
+                if (openLocalEnabled) {
+                    const guidedBrowseBtn = document.createElement("button");
+                    guidedBrowseBtn.type = "button";
+                    guidedBrowseBtn.className = "btn btn-secondary btn-sm";
+                    guidedBrowseBtn.style.whiteSpace = "nowrap";
+                    guidedBrowseBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="margin-right: 4px; height: 12px; width: 12px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>Ordner wählen';
+                    guidedBrowseBtn.onclick = async (e) => {
+                        e.preventDefault();
+                        try {
+                            const response = await fetch("/api/browse-folder");
+                            const data = await response.json();
+                            if (data.path) {
+                                guidedInput.value = data.path;
+                                guidedInput.dispatchEvent(new Event('input'));
+                            }
+                        } catch (err) {
+                            console.error("Browse error:", err);
+                        }
+                    };
+                    guidedRow.appendChild(guidedBrowseBtn);
+                }
 
                 const guidedHelp = document.createElement("span");
                 guidedHelp.style.fontSize = "10px";
@@ -8873,10 +8902,14 @@ function renderStorageTargets() {
                 guidedHelp.style.opacity = "0.8";
                 guidedHelp.style.marginTop = "4px";
                 guidedHelp.style.display = "block";
-                guidedHelp.textContent = "Trage die SMB-Adresse deines NAS oder den Mac-Pfad ein. Die App leitet alle technischen Einstellungen automatisch für dich ab.";
+                if (openLocalEnabled) {
+                    guidedHelp.textContent = "Trage die SMB-Adresse deines NAS oder den Mac-Pfad ein, oder klicke auf 'Ordner wählen'. Die App leitet alle technischen Einstellungen automatisch für dich ab.";
+                } else {
+                    guidedHelp.textContent = "Trage die SMB-Adresse deines NAS oder den Container-Pfad manuell ein. (Hinweis: Lokales Browsen im Docker-Modus deaktiviert; binde deinen NAS-Pfad im Docker-Compose als Volume ein, z.B. /media).";
+                }
 
                 guidedSection.appendChild(guidedLabel);
-                guidedSection.appendChild(guidedInput);
+                guidedSection.appendChild(guidedRow);
                 guidedSection.appendChild(guidedHelp);
                 card.appendChild(guidedSection);
 
@@ -8965,10 +8998,18 @@ function renderStorageTargets() {
                 guidedInput.addEventListener("input", (e) => {
                     const val = e.target.value.trim();
                     const parsed = parseNasInputJs(val);
-                    if (parsed.host) {
+
+                    // Lokaler Pfad: IP-Felder bewusst zurücksetzen
+                    if (val.startsWith("/")) {
+                        target.nas_ip = "";
+                        target.nas_ip_backup = "";
+                        if (ipField) ipField.input.value = "";
+                        if (backupIpField) backupIpField.input.value = "";
+                    } else if (parsed.host) {
                         target.nas_ip = parsed.host;
                         if (ipField) ipField.input.value = parsed.host;
                     }
+
                     if (parsed.share) {
                         target.nas_share = parsed.share;
                         if (shareField) shareField.input.value = parsed.share;
@@ -9014,7 +9055,13 @@ function renderStorageTargets() {
                             return `<div style="display:flex; align-items:center; margin-bottom:4px;">${icon}<span>${text}</span></div>`;
                         };
 
-                        html += renderCheckLine(result.server_reachable, `Server erreichbar (${result.reachable_ip || target.nas_ip || 'keine IP angegeben'})`);
+                        // Server erreichbar
+                        let serverStatusText = `Server erreichbar (${result.reachable_ip || target.nas_ip || 'keine IP angegeben'})`;
+                        if (result.reachable_ip === "Lokal gemountet (keine IP erforderlich)") {
+                            serverStatusText = "Server erreichbar (Lokal gemountet, keine IP erforderlich)";
+                        }
+                        html += renderCheckLine(result.server_reachable, serverStatusText);
+
                         html += renderCheckLine(result.share_specified, `Freigabe angegeben (${target.nas_share || 'fehlt'})`);
                         html += renderCheckLine(result.local_path_exists, `Lokaler Pfad vorhanden (${target.root_path || 'fehlt'})`);
                         html += renderCheckLine(result.categories_found, `Kategoriepfade gefunden`);
@@ -9028,7 +9075,22 @@ function renderStorageTargets() {
                         if (result.server_reachable && result.share_specified && result.local_path_exists && result.categories_found && result.media_folders_found) {
                             html += `<div style="color:var(--success); font-weight:bold; margin-top:6px;">✔ NAS ist voll funktionsfähig und bereit!</div>`;
                         } else {
-                            html += `<div style="color:var(--danger); font-weight:bold; margin-top:6px;">✘ NAS ist unvollständig konfiguriert. Bitte prüfe die obigen Punkte.</div>`;
+                            html += `<div style="color:var(--danger); font-weight:bold; margin-top:6px; margin-bottom: 6px;">✘ NAS ist unvollständig konfiguriert.</div>`;
+
+                            // Konkrete Handlungsempfehlungen für den Nutzer
+                            if (!result.server_reachable) {
+                                html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Binde das Netzlaufwerk lokal auf deinem Mac im Finder ein oder trage eine gültige IP-Adresse ein.</div>`;
+                            }
+                            if (!result.share_specified) {
+                                html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Trage den Namen der Freigabe (z.B. <code>media</code> oder <code>Kino</code>) ein.</div>`;
+                            }
+                            if (!result.local_path_exists) {
+                                html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Binde die Freigabe auf dem Mac unter dem passenden Pfad ein, damit <code>${target.root_path || '/Volumes/...'}</code> existiert.</div>`;
+                            } else if (!result.categories_found) {
+                                html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Der Pfad existiert, aber Kategorie-Unterordner (wie <code>Filme</code>, <code>Serien</code>) fehlen darin. Bitte erstelle diese Ordner auf dem NAS oder passe die Kategorie-Einstellungen an.</div>`;
+                            } else if (!result.media_folders_found) {
+                                html += `<div style="color:var(--text-muted); font-size:11px; margin-left:6px; margin-bottom:4px;">• <strong>Nächster Schritt:</strong> Es wurden keine Medienordner (Serien- oder Filmordner) gefunden. Bitte lege mindestens einen Medienordner an.</div>`;
+                            }
                         }
 
                         testResultContainer.innerHTML = html;

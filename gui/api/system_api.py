@@ -371,28 +371,32 @@ def handle_api_nas_test():
         nas_share = data.get("nas_share", "").strip()
         root_path = data.get("root_path", "").strip()
 
+        # Test 3: Lokaler Pfad vorhanden
+        local_path_exists = os.path.isdir(root_path) if root_path else False
+
         # Test 1: Server erreichbar (Port 445 auf Primary oder Backup IP)
         server_reachable = False
         reachable_ip = None
-        for ip in [nas_ip, nas_ip_backup]:
-            if not ip:
-                continue
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(0.3)
-                s.connect((ip, 445))
-                s.close()
-                server_reachable = True
-                reachable_ip = ip
-                break
-            except Exception:
-                pass
+        if not nas_ip and not nas_ip_backup and local_path_exists:
+            server_reachable = True
+            reachable_ip = "Lokal gemountet (keine IP erforderlich)"
+        else:
+            for ip in [nas_ip, nas_ip_backup]:
+                if not ip:
+                    continue
+                try:
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.settimeout(0.3)
+                    s.connect((ip, 445))
+                    s.close()
+                    server_reachable = True
+                    reachable_ip = ip
+                    break
+                except Exception:
+                    pass
 
         # Test 2: Freigabe angegeben
         share_specified = bool(nas_share)
-
-        # Test 3: Lokaler Pfad vorhanden
-        local_path_exists = os.path.isdir(root_path) if root_path else False
 
         # Test 4: Bibliotheksordner vorhanden & fehlende Kategorien ermitteln
         categories_found = False

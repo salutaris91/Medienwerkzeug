@@ -33,8 +33,10 @@ class TestHealthScanLibrary(unittest.TestCase):
             "error": None,
         }
 
+        from gui.api.system_api import system_api
         self.app = Flask(__name__)
         self.app.register_blueprint(nas_api, url_prefix="/api")
+        self.app.register_blueprint(system_api, url_prefix="/api")
         self.client = self.app.test_client()
 
     @patch("gui.core.health.ensure_nas_mounted", return_value=True)
@@ -135,6 +137,27 @@ class TestHealthScanLibrary(unittest.TestCase):
         res2 = self.client.post("/api/nas/normalize-films/apply", json={"items": ["some_item"]})
         self.assertEqual(res2.status_code, 400)
         self.assertIn("Keine Bibliotheksordner gefunden.", res2.get_json()["message"])
+
+    @patch("gui.api.system_api.os.path.isdir")
+    @patch("gui.api.system_api.load_settings")
+    def test_nas_test_api_local_path(self, mock_load, mock_isdir):
+        mock_isdir.return_value = True
+        mock_load.return_value = {
+            "sync_categories": [{"id": "movies", "name": "Filme", "nas_sub": "Filme"}]
+        }
+
+        res = self.client.post("/api/nas/test", json={
+            "nas_ip": "",
+            "nas_ip_backup": "",
+            "nas_share": "kino",
+            "root_path": "/Volumes/kino"
+        })
+
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["server_reachable"])
+        self.assertEqual(data["reachable_ip"], "Lokal gemountet (keine IP erforderlich)")
+        self.assertTrue(data["local_path_exists"])
 
 if __name__ == "__main__":
     unittest.main()
