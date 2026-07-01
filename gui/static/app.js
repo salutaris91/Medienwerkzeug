@@ -12661,16 +12661,24 @@ function renderHealthStatus(data) {
     if (structureContainer && structureIssuesEl) {
         if (structureIssues.length > 0) {
             structureContainer.style.display = "block";
-            structureIssuesEl.innerHTML = structureIssues.map(it => {
+            let batchHeaderHtml = "";
+            if (structureIssues.length > 1) {
+                batchHeaderHtml = `<div style="padding: 10px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; justify-content: flex-end;">
+                    <button class="btn btn-accent btn-sm" id="btn-structure-batch-check" style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers" style="height:14px; width:14px;"><polygon points="12 2 2 7 12 12 22 7 12 2Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>Alle sicheren Strukturprobleme prüfen</button>
+                </div>`;
+            }
+            structureIssuesEl.innerHTML = batchHeaderHtml + structureIssues.map(it => {
                 const m = HEALTH_SEVERITY[it.severity] || HEALTH_SEVERITY.warning;
-                const fixBtn = `<button class="btn btn-secondary btn-sm health-fix-flatten" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height:12px; width:12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Auflösen</button>`;
+                const previewBtn = `<button class="btn btn-secondary btn-sm health-structure-preview" data-path="${escapeHTML(it.path)}" title="Vorschau der Änderungen anzeigen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="height:12px; width:12px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>Vorschau</button>`;
+                const applyBtn = `<button class="btn btn-primary btn-sm health-structure-apply" data-path="${escapeHTML(it.path)}" title="Ordnerstruktur auflösen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height:12px; width:12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Auflösen</button>`;
                 return `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; font-size:0.9em; padding:8px 0; border-top:1px solid rgba(255,255,255,0.04);">
                             <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0; color: var(--text-main); font-weight: 500;">
                                 <span style="color:${m.color}; margin-right:4px; display:inline-flex; align-items:center; flex-shrink:0;">${m.icon}</span>
                                 <span style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
                             </div>
                             <span style="display:flex; gap:6px; flex-wrap:wrap; white-space:nowrap; flex-shrink:0;">
-                                ${fixBtn}
+                                ${previewBtn}
+                                ${applyBtn}
                                 <button class="btn btn-secondary btn-sm health-open-folder" data-path="${escapeHTML(it.path)}" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="height:12px; width:12px;"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>Öffnen</button>
                                 <button class="btn btn-secondary btn-sm finding-ignore" data-key="${escapeHTML(it.key || "")}" title="Diesen Befund dauerhaft ausblenden" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ban" style="height:12px; width:12px;"><circle cx="12" cy="12" r="10"/><line x1="4.93" x2="19.07" y1="4.93" y2="19.07"/></svg>Ignorieren</button>
                             </span>
@@ -12794,7 +12802,8 @@ function renderHealthStatus(data) {
                     totalRendered++;
                     let fixBtns = "";
                     if (it.type === "nested_duplicate") {
-                        fixBtns = `<button class="btn btn-secondary btn-sm health-fix-flatten" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height:12px; width:12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Auflösen</button>`;
+                        fixBtns = `<button class="btn btn-secondary btn-sm health-structure-preview" data-path="${escapeHTML(it.path)}" title="Vorschau anzeigen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="height:12px; width:12px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>Vorschau</button>
+                                   <button class="btn btn-primary btn-sm health-structure-apply" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height:12px; width:12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Auflösen</button>`;
                     } else if (it.type === "name_mismatch" || it.type === "bad_folder_name") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-fix-rename" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Umbenennen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit-3" style="height:12px; width:12px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Umbenennen</button>`;
                     } else if (it.type === "missing_age_rating" || it.type === "invalid_age_rating") {
@@ -12915,7 +12924,8 @@ function renderHealthStatus(data) {
                     totalRendered++;
                     let fixBtns = "";
                     if (it.type === "nested_duplicate") {
-                        fixBtns = `<button class="btn btn-secondary btn-sm health-fix-flatten" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height:12px; width:12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Auflösen</button>`;
+                        fixBtns = `<button class="btn btn-secondary btn-sm health-structure-preview" data-path="${escapeHTML(it.path)}" title="Vorschau anzeigen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="height:12px; width:12px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>Vorschau</button>
+                                   <button class="btn btn-primary btn-sm health-structure-apply" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height:12px; width:12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Auflösen</button>`;
                     } else if (it.type === "name_mismatch" || it.type === "bad_folder_name") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-fix-rename" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Umbenennen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit-3" style="height:12px; width:12px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Umbenennen</button>`;
                     } else if (it.type === "missing_age_rating" || it.type === "invalid_age_rating") {
@@ -13047,22 +13057,316 @@ function renderHealthStatus(data) {
             });
         });
 
-        document.querySelectorAll("#health-issues .health-fix-flatten, #health-issues-structure .health-fix-flatten").forEach(b => {
-            b.addEventListener("click", async () => {
-                const p = b.getAttribute("data-path");
-                if (!confirm(`Verschachtelung auflösen?\n\nInhalt des Unterordners wird eine Ebene nach oben verschoben.`)) return;
-                b.disabled = true;
-                try {
-                    const res = await fetch("/api/nas/health-fix", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ action: "flatten", path: p }),
-                    });
-                    const data = await res.json();
-                    if (data.ok) { pollHealthStatus(false); }
-                    else { alert(data.message || "Fehler"); b.disabled = false; }
-                } catch (e) { alert("Fehler: " + e); b.disabled = false; }
+        // ==========================================================================
+        // NEU: Doppelte Ordnerstruktur auflösen (Einzel & Batch)
+        // ==========================================================================
+
+        function renderTreeHtml(treeList) {
+            return treeList.map(line => {
+                const isDir = line.endsWith("/");
+                const icon = isDir ?
+                    `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder" style="height:14px; width:14px; color:var(--accent); display:inline-block; vertical-align:middle; margin-right:4px;"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>` :
+                    `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file" style="height:14px; width:14px; color:var(--text-muted); display:inline-block; vertical-align:middle; margin-right:4px;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>`;
+                const name = isDir ? line.slice(0, -1) : line;
+                const parts = name.split("/");
+                const indent = (parts.length - 1) * 16;
+                const baseName = parts.pop();
+                return `<div style="padding-left: ${indent}px; display: flex; align-items: center; gap: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHTML(line)}">${icon}${escapeHTML(baseName)}${isDir ? '/' : ''}</div>`;
+            }).join("");
+        }
+
+        let activeStructurePreviewPath = null;
+
+        async function openStructurePreview(path, options = {}) {
+            activeStructurePreviewPath = path;
+            const modal = document.getElementById("modal-structure-preview");
+            const pathEl = document.getElementById("structure-preview-path");
+            const treeCurrentEl = document.getElementById("structure-preview-tree-current");
+            const treeTargetEl = document.getElementById("structure-preview-tree-target");
+            const actionsEl = document.getElementById("structure-preview-actions-list");
+            const conflictsWrap = document.getElementById("structure-preview-conflicts-wrap");
+            const conflictsEl = document.getElementById("structure-preview-conflicts-list");
+            const confirmBtn = document.getElementById("btn-structure-preview-confirm");
+
+            if (pathEl) pathEl.textContent = path;
+            if (treeCurrentEl) treeCurrentEl.innerHTML = `<div style="padding: 10px; color: var(--text-muted);">Vorschau wird geladen...</div>`;
+            if (treeTargetEl) treeTargetEl.innerHTML = `<div style="padding: 10px; color: var(--text-muted);">Vorschau wird geladen...</div>`;
+            if (actionsEl) actionsEl.innerHTML = `<li>Lade...</li>`;
+            if (conflictsWrap) conflictsWrap.style.display = "none";
+            if (confirmBtn) confirmBtn.disabled = true;
+
+            if (modal) modal.classList.remove("hidden");
+
+            try {
+                const res = await fetch("/api/nas/structure-fix/preview", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ path: path })
+                });
+                const data = await res.json();
+                if (!data.ok) {
+                    throw new Error(data.message || "Vorschau konnte nicht geladen werden.");
+                }
+
+                if (treeCurrentEl) treeCurrentEl.innerHTML = renderTreeHtml(data.current_tree);
+                if (treeTargetEl) treeTargetEl.innerHTML = renderTreeHtml(data.target_tree);
+
+                const actionsHtml = [];
+                data.files_to_move.forEach(f => {
+                    actionsHtml.push(`<li>Verschiebe <strong>${escapeHTML(f.rel_src)}</strong> &rarr; <strong>${escapeHTML(f.rel_dst)}</strong></li>`);
+                });
+                data.folders_to_delete.forEach(f => {
+                    actionsHtml.push(`<li>Leeren Ordner quarantänisieren: <strong>${escapeHTML(f.rel_path)}</strong></li>`);
+                });
+                if (actionsEl) actionsEl.innerHTML = actionsHtml.join("");
+
+                if (data.conflicts && data.conflicts.length > 0) {
+                    if (conflictsWrap) conflictsWrap.style.display = "block";
+                    if (conflictsEl) conflictsEl.innerHTML = data.conflicts.map(c => `<li>${escapeHTML(c)}</li>`).join("");
+                    if (confirmBtn) confirmBtn.disabled = true;
+                } else {
+                    if (conflictsWrap) conflictsWrap.style.display = "none";
+                    if (confirmBtn) confirmBtn.disabled = false;
+                }
+
+                if (options.onLoaded) {
+                    options.onLoaded(data);
+                }
+
+            } catch (err) {
+                if (treeCurrentEl) treeCurrentEl.innerHTML = `<div style="color: #ef4444; padding: 10px;">Fehler: ${escapeHTML(err.message)}</div>`;
+                if (treeTargetEl) treeTargetEl.innerHTML = `<div style="color: #ef4444; padding: 10px;">Fehler: ${escapeHTML(err.message)}</div>`;
+                if (actionsEl) actionsEl.innerHTML = `<li style="color: #ef4444;">Fehler: ${escapeHTML(err.message)}</li>`;
+                if (confirmBtn) confirmBtn.disabled = true;
+            }
+        }
+
+        async function applyStructureFix(path, confirmBtn) {
+            if (confirmBtn) {
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = "Wird ausgeführt...";
+            }
+            try {
+                const res = await fetch("/api/nas/structure-fix/apply", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ path: path })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    const modal = document.getElementById("modal-structure-preview");
+                    if (modal) modal.classList.add("hidden");
+                    pollHealthStatus(false);
+                } else {
+                    alert(data.message || "Fehler bei der Ausführung.");
+                }
+            } catch (err) {
+                alert("Fehler bei der Ausführung: " + err);
+            } finally {
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = "Struktur auflösen";
+                }
+            }
+        }
+
+        // Einzel-Vorschau Handlers
+        document.querySelectorAll("#health-issues .health-structure-preview, #health-issues-structure .health-structure-preview").forEach(b => {
+            b.addEventListener("click", () => {
+                openStructurePreview(b.getAttribute("data-path"));
             });
+        });
+
+        document.querySelectorAll("#health-issues .health-structure-apply, #health-issues-structure .health-structure-apply").forEach(b => {
+            b.addEventListener("click", () => {
+                openStructurePreview(b.getAttribute("data-path"));
+            });
+        });
+
+        const closePreviewElements = ["close-modal-structure-preview", "btn-structure-preview-cancel"];
+        closePreviewElements.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener("click", () => {
+                    const modal = document.getElementById("modal-structure-preview");
+                    if (modal) modal.classList.add("hidden");
+                });
+            }
+        });
+
+        const btnStructurePreviewConfirm = document.getElementById("btn-structure-preview-confirm");
+        if (btnStructurePreviewConfirm) {
+            const newConfirmBtn = btnStructurePreviewConfirm.cloneNode(true);
+            btnStructurePreviewConfirm.replaceWith(newConfirmBtn);
+            newConfirmBtn.addEventListener("click", () => {
+                if (activeStructurePreviewPath) {
+                    applyStructureFix(activeStructurePreviewPath, newConfirmBtn);
+                }
+            });
+        }
+
+        // Batch Handlers
+        const btnBatchCheck = document.getElementById("btn-structure-batch-check");
+        if (btnBatchCheck) {
+            btnBatchCheck.addEventListener("click", async () => {
+                const paths = Array.from(document.querySelectorAll("#health-issues-structure .health-structure-preview")).map(b => b.getAttribute("data-path"));
+                if (paths.length === 0) return;
+
+                const batchModal = document.getElementById("modal-structure-batch");
+                const progressWrap = document.getElementById("structure-batch-progress-wrap");
+                const progressBar = document.getElementById("structure-batch-progress-bar");
+                const progressTitle = document.getElementById("structure-batch-progress-title");
+                const progressNum = document.getElementById("structure-batch-progress-num");
+                const tableBody = document.getElementById("structure-batch-list-body");
+                const confirmBatchBtn = document.getElementById("btn-structure-batch-confirm");
+
+                const findRowByPath = (path) => {
+                    if (!tableBody) return null;
+                    const rows = tableBody.querySelectorAll("tr");
+                    for (let r of rows) {
+                        if (r.getAttribute("data-batch-path") === path) {
+                            return r;
+                        }
+                    }
+                    return null;
+                };
+
+                if (tableBody) {
+                    tableBody.innerHTML = paths.map(p => {
+                        const name = p.split("/").pop();
+                        return `<tr data-batch-path="${escapeHTML(p)}" style="border-bottom: 1px solid var(--border-light);">
+                            <td style="padding: 10px 12px; font-weight: 500; color: var(--text-main); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHTML(p)}">${escapeHTML(name)}</td>
+                            <td class="batch-status-col" style="padding: 10px 12px; color: var(--text-muted);"><span style="color: var(--text-muted); opacity: 0.5;">Warte auf Prüfung...</span></td>
+                            <td style="padding: 10px 12px; text-align: right;">
+                                <button class="btn btn-secondary btn-xs batch-item-preview-btn" disabled data-path="${escapeHTML(p)}" style="padding: 2px 8px; font-size: 0.8em;">Vorschau</button>
+                            </td>
+                        </tr>`;
+                    }).join("");
+                }
+
+                if (progressWrap) progressWrap.style.display = "block";
+                if (progressBar) progressBar.style.width = "0%";
+                if (progressTitle) progressTitle.textContent = "Prüfe Befunde...";
+                if (progressNum) progressNum.textContent = `0 / ${paths.length}`;
+                if (confirmBatchBtn) {
+                    confirmBatchBtn.disabled = true;
+                    confirmBatchBtn.textContent = "Sichere auflösen";
+                }
+
+                if (batchModal) batchModal.classList.remove("hidden");
+
+                let processedCount = 0;
+                let safePaths = [];
+
+                for (let i = 0; i < paths.length; i++) {
+                    const p = paths[i];
+                    const row = findRowByPath(p);
+                    if (!row) continue;
+
+                    const statusCol = row.querySelector(".batch-status-col");
+                    const previewBtn = row.querySelector(".batch-item-preview-btn");
+
+                    try {
+                        const res = await fetch("/api/nas/structure-fix/preview", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ path: p })
+                        });
+                        const data = await res.json();
+                        if (data.ok) {
+                            if (data.safe) {
+                                if (statusCol) statusCol.innerHTML = `<span style="color: #10b981; font-weight: 500;">✓ Sicher</span>`;
+                                safePaths.push(p);
+                            } else {
+                                if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444; font-weight: 500;" title="${escapeHTML(data.conflicts.join(', '))}">⚠️ Konflikt</span>`;
+                            }
+                            if (previewBtn) {
+                                previewBtn.disabled = false;
+                                previewBtn.addEventListener("click", () => {
+                                    openStructurePreview(p);
+                                });
+                            }
+                        } else {
+                            if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444;">Fehler</span>`;
+                        }
+                    } catch (e) {
+                        if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444;">Fehler: ${escapeHTML(e.message)}</span>`;
+                    }
+
+                    processedCount++;
+                    const pct = Math.round((processedCount / paths.length) * 100);
+                    if (progressBar) progressBar.style.width = `${pct}%`;
+                    if (progressNum) progressNum.textContent = `${processedCount} / ${paths.length}`;
+                }
+
+                if (progressTitle) progressTitle.textContent = "Prüfung abgeschlossen.";
+                if (confirmBatchBtn) {
+                    if (safePaths.length > 0) {
+                        confirmBatchBtn.disabled = false;
+                        confirmBatchBtn.textContent = `${safePaths.length} sichere auflösen`;
+                    } else {
+                        confirmBatchBtn.disabled = true;
+                        confirmBatchBtn.textContent = "Sichere auflösen";
+                    }
+
+                    confirmBatchBtn.replaceWith(confirmBatchBtn.cloneNode(true));
+                    const newConfirmBatchBtn = document.getElementById("btn-structure-batch-confirm");
+                    if (newConfirmBatchBtn) {
+                        newConfirmBatchBtn.addEventListener("click", async () => {
+                            newConfirmBatchBtn.disabled = true;
+                            if (progressWrap) progressWrap.style.display = "block";
+                            if (progressBar) progressBar.style.width = "0%";
+                            if (progressTitle) progressTitle.textContent = "Löse Strukturen auf...";
+
+                            let executedCount = 0;
+                            for (let i = 0; i < safePaths.length; i++) {
+                                const p = safePaths[i];
+                                const row = tableBody ? findRowByPath(p) : null;
+                                if (!row) continue;
+
+                                const statusCol = row.querySelector(".batch-status-col");
+                                if (statusCol) statusCol.innerHTML = `<span style="color: var(--accent);">Löse auf...</span>`;
+
+                                try {
+                                    const res = await fetch("/api/nas/structure-fix/apply", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ path: p })
+                                    });
+                                    const data = await res.json();
+                                    if (data.ok) {
+                                        if (statusCol) statusCol.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ Gelöst</span>`;
+                                    } else {
+                                        if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444;">Fehler: ${escapeHTML(data.message)}</span>`;
+                                    }
+                                } catch (e) {
+                                    if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444;">Fehler</span>`;
+                                }
+
+                                executedCount++;
+                                const pct = Math.round((executedCount / safePaths.length) * 100);
+                                if (progressBar) progressBar.style.width = `${pct}%`;
+                                if (progressNum) progressNum.textContent = `${executedCount} / ${safePaths.length}`;
+                            }
+
+                            if (progressTitle) progressTitle.textContent = "Abarbeitung abgeschlossen.";
+                            newConfirmBatchBtn.textContent = "Fertig";
+                            pollHealthStatus(false);
+                        });
+                    }
+                }
+            });
+        }
+
+        const closeBatchElements = ["close-modal-structure-batch", "btn-structure-batch-cancel"];
+        closeBatchElements.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener("click", () => {
+                    const modal = document.getElementById("modal-structure-batch");
+                    if (modal) modal.classList.add("hidden");
+                });
+            }
         });
 
         document.querySelectorAll("#health-issues .health-fix-rename, #health-issues-structure .health-fix-rename").forEach(b => {

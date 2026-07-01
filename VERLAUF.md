@@ -4,6 +4,17 @@ Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert 
 
 ---
 
+## Stand am 01.07.2026 (Phase 2.5d – Verschachtelte/doppelte Ordnerstruktur auflösen)
+
+- **Verschachtelte/doppelte Ordnerstruktur auflösen (Branch: feature/nas-structure-fix):**
+  - **Sicherheits- & Validierungslogik im Backend:** Die API prüft beim Aufruf von `/api/nas/structure-fix/preview` und `/api/nas/structure-fix/apply` streng, ob der Pfad im NAS-Root liegt, ob genau ein Unterordner existiert, ob deren Namen äquivalent sind und ob keine Zieldatei überschrieben wird. Bei der Ausführung (`apply`) werden alle Bedingungen erneut verifiziert.
+  - **Vorschau-Modal (`modal-structure-preview`):** Einzel-Befunde zeigen nun vor der Bestätigung ein detailliertes Vorher/Nachher-Struktur-Modal mit virtueller Baumansicht der zu verschiebenden Dateien und leeren Ordnern.
+  - **Quarantäne statt Löschen:** Aufgelöste, leere Unterordner werden sicher über `trash.send_to_trash` in Quarantäne verschoben statt hart gelöscht.
+  - **Batch-Prüfer & Abarbeitung (`modal-structure-batch`):** Wenn mehrere verschachtelte Ordner vorliegen, kann über den Button „Alle sicheren Strukturprobleme prüfen“ ein Batch-Modal geöffnet werden, das im Hintergrund alle Befunde prüft, sichere Fälle kennzeichnet und das gesammelte Auflösen mit Fortschrittsanzeige ermöglicht.
+  - **Hundertprozentige Testabdeckung:** 5 neue Python-Tests in `tests/test_nas_structure_fix.py` und erweiterte Jest/Node-Mocks in `tests/frontend/app_warning.test.js` verifizieren die Funktionalitäten fehlerfrei.
+
+---
+
 ## Stand am 01.07.2026 (Phase 2.5b – Bibliothekspflege: Wartungs-Cockpit & UI-Polish)
 
 - **Wartungs-Cockpit & Premium-Umbenennungs-Flow (Branch: feature/maintenance-cockpit):**

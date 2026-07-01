@@ -30,21 +30,21 @@ def handle_api_check_nas_duplicate():
     show_name = params.get("show_name")
     nas_show_folder = params.get("nas_show_folder")
     nas_destination_id = params.get("nas_destination_id")
-    
+
     if ep_num is None or ep_season is None:
         return jsonify({"duplicate": None})
-    
+
     try:
         ep_num = int(ep_num)
         ep_season = int(ep_season)
     except (ValueError, TypeError):
         return jsonify({"duplicate": None})
-    
+
     settings = load_settings()
     nas_root = settings.get("nas_root", "")
     if not nas_root:
         return jsonify({"duplicate": None})
-    
+
     destination = None
     if nas_destination_id:
         sync_cats = settings.get("sync_categories", [])
@@ -54,11 +54,11 @@ def handle_api_check_nas_duplicate():
                 break
     if not destination:
         destination = os.path.join(nas_root, "Serien")
-    
+
     clean_show_name = clean_series_name_for_fs(nas_show_folder or show_name or "")
     if not clean_show_name:
         return jsonify({"duplicate": None})
-    
+
     # Also check outbox for matched series name
     outbox_root = settings.get("outbox_dir", "")
     if not outbox_root:
@@ -67,12 +67,12 @@ def handle_api_check_nas_duplicate():
     outbox_serien = os.path.join(outbox_root, rel_dest)
     from gui.core.series_helper import resolve_series_folder_name
     clean_show_name = resolve_series_folder_name(destination, outbox_serien, None, None, clean_show_name, log_reason=False)
-    
+
     show_dir = os.path.join(destination, clean_show_name)
-    
+
     if not os.path.exists(show_dir):
         return jsonify({"duplicate": None})
-    
+
     # Search for matching episode files
     pats = [
         f"s{ep_season:02d}e{ep_num:02d}",
@@ -118,7 +118,7 @@ def handle_api_check_nas_duplicate():
                 except Exception:
                     pass
                 return jsonify({"duplicate": details})
-    
+
     return jsonify({"duplicate": None})
 
 
@@ -135,7 +135,7 @@ def handle_api_streamfab_import():
         params = request.get_json() or {}
     except Exception:
         params = {}
-        
+
     import_items = params.get("import_items", {})
     delete_items = params.get("delete_items", [])
     count = execute_streamfab_import(import_items, delete_items)
@@ -154,17 +154,17 @@ def handle_api_nas_series():
     outbox_root = settings.get("outbox_dir", "")
     if not nas_root or not outbox_root:
         return jsonify([])
-    
+
     # Das Frontend ruft diesen Endpoint per GET mit ?destination_id=... auf, daher
     # zusätzlich die Query-Args lesen (nicht nur den JSON-Body).
     nas_destination_id = (params.get("nas_destination_id") or params.get("destination_id")
                           or query.get("nas_destination_id") or query.get("destination_id") or "2")
     if isinstance(nas_destination_id, list) and len(nas_destination_id) > 0:
         nas_destination_id = nas_destination_id[0]
-    
+
     sync_cats = settings.get("sync_categories", [])
     categories_to_scan = []
-    
+
     if nas_destination_id == "all":
         categories_to_scan = sync_cats
     else:
@@ -183,19 +183,19 @@ def handle_api_nas_series():
             categories_to_scan = [found_cat]
         else:
             categories_to_scan = [{"id": "2", "name": "Serien", "nas_sub": "/Serien"}]
-            
+
     connected = ensure_nas_mounted()
-    
+
     folders = set()
     folder_to_dest = {}
-    
+
     for cat in categories_to_scan:
         nas_sub = cat.get("nas_sub")
         if not nas_sub:
             continue
         destination = f"{nas_root}{nas_sub}"
         cat_folders = set()
-        
+
         if connected and os.path.exists(destination):
             try:
                 for entry in os.listdir(destination):
@@ -203,7 +203,7 @@ def handle_api_nas_series():
                         cat_folders.add(entry)
             except Exception as e:
                 print(f"Fehler beim Scannen von NAS {destination}: {e}")
-                
+
         rel_dest = os.path.relpath(destination, nas_root)
         outbox_dest = os.path.join(outbox_root, rel_dest)
         if os.path.exists(outbox_dest):
@@ -213,7 +213,7 @@ def handle_api_nas_series():
                         cat_folders.add(entry)
             except Exception as e:
                 print(f"Fehler beim Scannen von Outbox {outbox_dest}: {e}")
-                
+
         for folder in cat_folders:
             folder_clean = folder.strip()
             if not folder_clean:
@@ -221,7 +221,7 @@ def handle_api_nas_series():
             lower_folder = folder_clean.lower()
             folders.add(folder_clean)
             folder_to_dest[lower_folder] = destination
-                
+
     # Case-insensitive deduplication
     deduped = {}
     for entry in folders:
@@ -258,10 +258,10 @@ def handle_api_nas_seasons():
     folder_name = query.get("folder", [""])[0] if isinstance(query.get("folder"), list) else query.get("folder", "")
     destination_id = query.get("destination_id", [""])[0] if isinstance(query.get("destination_id"), list) else query.get("destination_id", "")
     exact_match = query.get("exact", "0") == "1"
-    
+
     if not folder_name:
         return jsonify({"seasons": [], "folder": folder_name, "connected": False})
-        
+
     settings = load_settings()
     nas_root = settings.get("nas_root", "")
     outbox_root = settings.get("outbox_dir", "")
@@ -269,11 +269,11 @@ def handle_api_nas_seasons():
         return jsonify({"seasons": [], "folder": folder_name, "connected": False})
     connected = ensure_nas_mounted()
     sync_cats = settings.get("sync_categories", [])
-    
+
     # Resolve which NAS destinations to scan
     destinations = []
     matched_dest_id = destination_id
-    
+
     if destination_id and destination_id != "all":
         for cat in sync_cats:
             if cat.get("id") == str(destination_id):
@@ -286,17 +286,17 @@ def handle_api_nas_seasons():
             nas_sub = cat.get("nas_sub", "")
             if nas_sub:
                 destinations.append(f"{nas_root}{nas_sub}")
-    
+
     if not destinations:
         destinations = [os.path.join(nas_root, "Serien")]
-        
+
     video_extensions = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv'}
-    
+
     def scan_dest(dest_path):
         local_seasons = []
         rel_dest = os.path.relpath(dest_path, nas_root)
         outbox_dest = os.path.join(outbox_root, rel_dest)
-        
+
         # Use fuzzy matching to resolve existing folder name, unless exact match requested
         clean_show = clean_series_name_for_fs(folder_name)
         if exact_match:
@@ -304,10 +304,10 @@ def handle_api_nas_seasons():
         else:
             from gui.core.series_helper import resolve_series_folder_name
             matched_folder = resolve_series_folder_name(dest_path, outbox_dest, None, None, clean_show, log_reason=False)
-        
+
         show_path = os.path.join(dest_path, matched_folder)
         outbox_show_path = os.path.join(outbox_dest, matched_folder)
-        
+
         for base_path in [show_path, outbox_show_path]:
             if not os.path.isdir(base_path):
                 continue
@@ -325,7 +325,7 @@ def handle_api_nas_seasons():
                                 ext = os.path.splitext(f)[1].lower()
                                 if ext in video_extensions and not f.startswith('.'):
                                     episode_count += 1
-                        
+
                         # Check if this season is already in our list
                         existing = next((s for s in local_seasons if s["name"] == entry), None)
                         if existing:
@@ -347,7 +347,7 @@ def handle_api_nas_seasons():
     seasons = []
     for dest in destinations:
         seasons.extend(scan_dest(dest))
-        
+
     # Check if empty or 0 episodes overall
     total_episodes = sum(s["episodes"] for s in seasons)
     if not seasons or total_episodes == 0:
@@ -355,7 +355,7 @@ def handle_api_nas_seasons():
         fallback_seasons = []
         fallback_best_episodes = -1
         fallback_cat_id = None
-        
+
         for cat in sync_cats:
             cat_id = cat.get("id")
             nas_sub = cat.get("nas_sub", "")
@@ -365,30 +365,30 @@ def handle_api_nas_seasons():
             # Skip if we already scanned this destination
             if cat_dest in destinations:
                 continue
-                
+
             cat_seasons = scan_dest(cat_dest)
             cat_episodes = sum(s["episodes"] for s in cat_seasons)
-            
+
             if cat_seasons:
                 # We prefer a category that has episodes, but any non-empty season structure is better than nothing
                 if cat_episodes > fallback_best_episodes:
                     fallback_seasons = cat_seasons
                     fallback_best_episodes = cat_episodes
                     fallback_cat_id = cat_id
-                    
+
         if fallback_seasons:
             seasons = fallback_seasons
             if fallback_cat_id:
                 matched_dest_id = fallback_cat_id
-    
+
     # Sort seasons naturally
     def season_sort_key(s):
         import re
         match = re.search(r'(\d+)', s["name"])
         return int(match.group(1)) if match else 999
-    
+
     seasons.sort(key=season_sort_key)
-    
+
     return jsonify({
         "connected": connected,
         "seasons": seasons,
@@ -407,30 +407,30 @@ def handle_api_media_compare():
     query = request.args
     new_paths = query.get("new_path", [])
     existing_paths = query.get("existing_path", [])
-    
+
     new_path = new_paths[0] if new_paths else ""
     existing_path = existing_paths[0] if existing_paths else ""
-    
+
     if not new_path or not existing_path:
         return jsonify({"error": "Missing new_path or existing_path"}), 400
-        
+
     # Security validation for paths
     settings = load_settings()
     inbox_root = settings.get("inbox_dir", "")
     nas_root = settings.get("nas_root", "")
     if not inbox_root or not nas_root:
         return jsonify({"error": "Inbox oder NAS-Root ist nicht konfiguriert."}), 400
-    
+
     # Ensure we only check files in allowed directories
     abs_new = os.path.abspath(new_path)
     abs_existing = os.path.abspath(existing_path)
-    
+
     if not (abs_new.startswith(os.path.abspath(inbox_root) + os.sep) or abs_new == os.path.abspath(inbox_root)):
         return jsonify({"error": "Forbidden new_path"}), 403
-        
+
     if not (abs_existing.startswith(os.path.abspath(nas_root) + os.sep) or abs_existing == os.path.abspath(nas_root)):
         return jsonify({"error": "Forbidden existing_path"}), 403
-        
+
     def get_media_compare_details(filepath):
         details = {
             "path": filepath,
@@ -454,7 +454,7 @@ def handle_api_media_compare():
                 details["size_readable"] = f"{size_bytes / (1024**2):.1f} MB"
             else:
                 details["size_readable"] = f"{size_bytes / 1024:.1f} KB"
-            
+
             cmd = [
                 "ffprobe", "-v", "error",
                 "-show_entries", "stream=width,height,codec_name,codec_type:format=duration,bit_rate",
@@ -476,7 +476,7 @@ def handle_api_media_compare():
                             details["resolution"] = f"{w}x{h}"
                     elif codec_type == "audio":
                         details["audio_codec"] = s.get("codec_name", "Unbekannt").upper()
-                
+
                 duration = format_info.get("duration")
                 if duration:
                     try:
@@ -489,7 +489,7 @@ def handle_api_media_compare():
                             details["duration_str"] = f"{mins}m {secs}s"
                     except Exception:
                         pass
-                
+
                 bitrate = format_info.get("bit_rate")
                 if bitrate:
                     try:
@@ -499,10 +499,10 @@ def handle_api_media_compare():
         except Exception:
             pass
         return details
-        
+
     new_details = get_media_compare_details(new_path)
     existing_details = get_media_compare_details(existing_path)
-    
+
     return jsonify({
         "new_file": new_details,
         "existing_file": existing_details
@@ -520,25 +520,25 @@ def handle_api_resolve_duplicate():
     action = params.get("action")
     new_path = params.get("new_path")
     existing_path = params.get("existing_path")
-    
+
     if not existing_path or not os.path.exists(existing_path):
         return jsonify({"error": "Invalid existing_path"}), 400
-        
+
     # Security validation for paths
     settings = load_settings()
     nas_root = settings.get("nas_root", "")
     if not nas_root:
         return jsonify({"error": "NAS-Root ist nicht konfiguriert."}), 400
     abs_existing = os.path.abspath(existing_path)
-    
+
     if not (abs_existing.startswith(os.path.abspath(nas_root) + os.sep) or abs_existing == os.path.abspath(nas_root)):
         return jsonify({"error": "Forbidden existing_path"}), 403
-        
+
     if action == "upgrade":
         try:
             trash.send_to_trash(existing_path, force=True)
             log_message(f"🗑️ [Dubletten-Upgrade] Existierende Datei auf NAS in Quarantäne verschoben: {existing_path}")
-            
+
             # Delete corresponding nfo / artwork if present
             base_path = os.path.splitext(existing_path)[0]
             from gui.core.artwork_validators import get_basename_sidecar_suffixes
@@ -550,7 +550,7 @@ def handle_api_resolve_duplicate():
                         log_message(f"  🗑️ Zugehörige Datei in Quarantäne verschoben: {art_file}")
                     except Exception as e:
                         log_message(f"⚠️ Zugehörige Datei konnte nicht in Quarantäne verschoben werden: {art_file} ({e})")
-                        
+
             return jsonify({"status": "success", "message": "Existierende Datei in Quarantäne verschoben. Bereit für Upgrade."})
         except trash.TrashError as e:
             return jsonify({"error": str(e)}), 500
@@ -584,7 +584,7 @@ def handle_api_nas_health_scan():
         deep_dive = params.get("deep", False)
         if not deep_dive:
             deep_dive = request.args.get("deep", "false").lower() == "true"
-            
+
         category_ids = params.get("category_ids", None)
         if category_ids is None:
             cat_ids_str = request.args.get("category_ids", "")
@@ -995,6 +995,242 @@ def handle_api_health_fix():
 
     except Exception as e:
         return jsonify({"ok": False, "message": f"Fehler: {e}"}), 500
+
+
+# ==========================================================================
+# Doppelte Verschachtelung auflösen (Vorschau & Anwenden)
+# ==========================================================================
+
+def are_folder_names_equivalent(name1: str, name2: str) -> bool:
+    n1 = name1.lower().strip()
+    n2 = name2.lower().strip()
+    if n1 == n2:
+        return True
+    import re
+    # Entferne Jahreszahl-Klammern wie (2025)
+    def clean(s):
+        s = re.sub(r'\(\d{4}\)', '', s)
+        s = re.sub(r'[\s\.\-\(\)\[\]_]', '', s)
+        return s.strip()
+    return clean(n1) == clean(n2)
+
+
+def _get_structure_fix_preview(path: str):
+    settings = load_settings()
+    nas_root = settings.get("nas_root", "")
+    if not nas_root:
+        return None, "NAS-Root ist nicht konfiguriert.", 400
+    nas_root = os.path.realpath(nas_root)
+    real_path = os.path.realpath(path)
+
+    if not os.path.exists(real_path):
+        return None, "Der angegebene Ordner existiert nicht.", 404
+    if not os.path.isdir(real_path):
+        return None, "Der Pfad ist kein Ordner.", 400
+    if not real_path.startswith(nas_root + os.sep) and real_path != nas_root:
+        return None, "Pfad liegt außerhalb des NAS.", 403
+
+    try:
+        entries = [e for e in os.listdir(real_path) if not e.startswith('.')]
+    except OSError as e:
+        return None, f"Ordner kann nicht gelesen werden: {e}", 500
+
+    subdirs = [e for e in entries if os.path.isdir(os.path.join(real_path, e))]
+
+    if len(subdirs) != 1:
+        return None, f"Ordner hat nicht genau einen Unterordner (gefunden: {len(subdirs)}).", 400
+
+    inner_name = subdirs[0]
+    inner_path = os.path.join(real_path, inner_name)
+    outer_name = os.path.basename(real_path)
+
+    conflicts = []
+    warnings = []
+
+    if not are_folder_names_equivalent(outer_name, inner_name):
+        conflicts.append(f"Name des Unterordners ('{inner_name}') weicht zu stark vom Hauptordner ('{outer_name}') ab.")
+
+    video_exts = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv', '.iso', '.img'}
+    outer_files = [e for e in entries if os.path.isfile(os.path.join(real_path, e))]
+    outer_media_files = [f for f in outer_files if os.path.splitext(f)[1].lower() in video_exts]
+    if outer_media_files:
+        conflicts.append(f"Äußerer Ordner enthält bereits eigene Mediendateien: {', '.join(outer_media_files)}")
+
+    try:
+        inner_entries = os.listdir(inner_path)
+    except OSError as e:
+        return None, f"Unterordner kann nicht gelesen werden: {e}", 500
+
+    files_to_move = []
+    folders_to_delete = [{"path": inner_path, "rel_path": inner_name}]
+
+    for item in inner_entries:
+        if item.startswith('.'):
+            continue
+        item_src = os.path.join(inner_path, item)
+        item_dst = os.path.join(real_path, item)
+
+        files_to_move.append({
+            "src": item_src,
+            "dst": item_dst,
+            "rel_src": os.path.join(inner_name, item),
+            "rel_dst": item
+        })
+
+        if os.path.exists(item_dst):
+            conflicts.append(f"Zieldatei existiert bereits im Hauptordner: {item}")
+
+        real_src = os.path.realpath(item_src)
+        real_dst = os.path.realpath(item_dst)
+        if not real_src.startswith(nas_root + os.sep) or not real_dst.startswith(nas_root + os.sep):
+            conflicts.append(f"Datei liegt außerhalb des erlaubten NAS-Verzeichnisses: {item}")
+
+    # Ordnerbaum-Visualisierung
+    current_tree = []
+    current_tree.append(inner_name + "/")
+    for dp, dn, fn in os.walk(real_path):
+        for d in dn:
+            if d.startswith('.'): continue
+            rp = os.path.relpath(os.path.join(dp, d), real_path)
+            if rp != inner_name:
+                current_tree.append(rp + "/")
+        for f in fn:
+            if f.startswith('.'): continue
+            rp = os.path.relpath(os.path.join(dp, f), real_path)
+            current_tree.append(rp)
+
+    target_tree = []
+    for item in entries:
+        if item == inner_name or item.startswith('.'):
+            continue
+        if os.path.isdir(os.path.join(real_path, item)):
+            target_tree.append(item + "/")
+        else:
+            target_tree.append(item)
+
+    for item in inner_entries:
+        if item.startswith('.'):
+            continue
+        item_src = os.path.join(inner_path, item)
+        if os.path.isdir(item_src):
+            target_tree.append(item + "/")
+            for sub_dp, sub_dn, sub_fn in os.walk(item_src):
+                for sd in sub_dn:
+                    if sd.startswith('.'): continue
+                    rp = os.path.relpath(os.path.join(sub_dp, sd), inner_path)
+                    target_tree.append(rp + "/")
+                for sf in sub_fn:
+                    if sf.startswith('.'): continue
+                    rp = os.path.relpath(os.path.join(sub_dp, sf), inner_path)
+                    target_tree.append(rp)
+        else:
+            target_tree.append(item)
+
+    current_tree.sort()
+    target_tree.sort()
+
+    safe = len(conflicts) == 0
+
+    data = {
+        "ok": True,
+        "path": real_path,
+        "outer_name": outer_name,
+        "inner_name": inner_name,
+        "files_to_move": files_to_move,
+        "folders_to_delete": folders_to_delete,
+        "current_tree": current_tree,
+        "target_tree": target_tree,
+        "conflicts": conflicts,
+        "warnings": warnings,
+        "safe": safe
+    }
+    return data, None, 200
+
+
+@nas_api.route('/nas/structure-fix/preview', methods=['POST'])
+def handle_api_structure_fix_preview():
+    """Generiert eine detaillierte Vorher/Nachher-Vorschau ohne Änderungen am Dateisystem."""
+    try:
+        params = request.get_json() or {}
+        path = params.get("path")
+        if not path:
+            return jsonify({"ok": False, "message": "Pfad fehlt."}), 400
+
+        data, err_msg, status_code = _get_structure_fix_preview(path)
+        if err_msg:
+            return jsonify({"ok": False, "message": err_msg}), status_code
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"ok": False, "message": f"Fehler bei der Vorschau: {e}"}), 500
+
+
+@nas_api.route('/nas/structure-fix/apply', methods=['POST'])
+def handle_api_structure_fix_apply():
+    """Führt das Auflösen der verschachtelten Struktur nach erneuter Validierung aus."""
+    try:
+        params = request.get_json() or {}
+        path = params.get("path")
+        if not path:
+            return jsonify({"ok": False, "message": "Pfad fehlt."}), 400
+
+        data, err_msg, status_code = _get_structure_fix_preview(path)
+        if err_msg:
+            return jsonify({"ok": False, "message": err_msg}), status_code
+
+        if not data["safe"]:
+            return jsonify({
+                "ok": False,
+                "message": "Sicherheitsprüfung fehlgeschlagen.",
+                "conflicts": data["conflicts"]
+            }), 400
+
+        moved_files = []
+        skipped_files = []
+
+        # Führe Moves aus
+        for f in data["files_to_move"]:
+            src = f["src"]
+            dst = f["dst"]
+            try:
+                shutil.move(src, dst)
+                moved_files.append(f["rel_dst"])
+            except Exception as e:
+                log_message(f"❌ [Structure-Fix] Fehler beim Verschieben von {src} nach {dst}: {e}")
+                return jsonify({
+                    "ok": False,
+                    "message": f"Fehler beim Verschieben einer Datei: {e}",
+                    "moved_files": moved_files
+                }), 500
+
+        # Quarantänisiere/Lösche den nun leeren Unterordner
+        inner_path = data["folders_to_delete"][0]["path"]
+        removed_folders = []
+        try:
+            remaining = [e for e in os.listdir(inner_path) if not e.startswith('.')]
+            if not remaining:
+                trash.send_to_trash(inner_path, force=True)
+                removed_folders.append(data["folders_to_delete"][0]["rel_path"])
+            else:
+                log_message(f"⚠️ [Structure-Fix] Unterordner nicht vollständig leer nach Verschieben: {inner_path}")
+        except Exception as e:
+            log_message(f"⚠️ [Structure-Fix] Konnte leeren Ordner {inner_path} nicht in Quarantäne verschieben: {e}")
+
+        # Update Health Issues im Cache
+        import gui.core.health as health
+        health.remove_issue(path, "nested_duplicate")
+
+        log_message(f"🔧 [Structure-Fix] Verschachtelung aufgelöst: {path}")
+        return jsonify({
+            "ok": True,
+            "message": "Struktur erfolgreich aufgelöst.",
+            "moved_files": moved_files,
+            "skipped_files": skipped_files,
+            "conflicts": [],
+            "removed_folders": removed_folders
+        })
+
+    except Exception as e:
+        return jsonify({"ok": False, "message": f"Fehler bei der Ausführung: {e}"}), 500
 
 
 # ==========================================================================

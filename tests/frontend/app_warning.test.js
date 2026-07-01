@@ -24,7 +24,12 @@ function createMockElement() {
         },
         querySelectorAll: () => [],
         querySelector: () => null,
-        appendChild: () => {}
+        appendChild: () => {},
+        addEventListener: () => {},
+        cloneNode() {
+            return createMockElement();
+        },
+        replaceWith() {}
     };
 }
 
@@ -283,4 +288,10 @@ test('renderHealthStatus - only nested_duplicate / structure issues displays tab
     assert.ok(structureIssuesEl.innerHTML.includes("Verschachtelter Ordner"));
     // Der Struktur-Container sollte eingeblendet sein
     assert.strictEqual(structureContainer.style.display, "block");
+
+    // Neue Buttons müssen gerendert werden
+    assert.ok(structureIssuesEl.innerHTML.includes('class="btn btn-secondary btn-sm health-structure-preview"'));
+    assert.ok(structureIssuesEl.innerHTML.includes('class="btn btn-primary btn-sm health-structure-apply"'));
+    // Alter Button darf nicht mehr gerendert werden
+    assert.ok(!structureIssuesEl.innerHTML.includes('health-fix-flatten'));
 });
