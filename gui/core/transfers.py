@@ -11,11 +11,20 @@ def _is_nas_root_mounted(nas_root):
     if not nas_root:
         return False
     try:
+        target_path = os.path.abspath(nas_root).rstrip("/")
         out = subprocess.check_output(["mount"], text=True)
-        return f"on {nas_root}" in out
+        for line in out.splitlines():
+            if " on " in line:
+                parts = line.split(" on ")
+                if len(parts) >= 2:
+                    mount_point = parts[1].split(" (")[0].strip()
+                    mount_point = os.path.abspath(mount_point).rstrip("/")
+                    if target_path == mount_point or target_path.startswith(mount_point + "/"):
+                        if os.path.isdir(target_path):
+                            return True
     except Exception as e:
         log_message(f"❌ NAS-Mount-Status konnte nicht gelesen werden: {e}")
-        return False
+    return False
 
 def _wait_for_nas_mount(nas_root, attempts, delay_seconds=1):
     for _ in range(attempts):

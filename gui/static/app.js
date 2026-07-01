@@ -12674,7 +12674,7 @@ async function loadProfilesInModal() {
                         <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${info}</div>
                     </div>
                     <div style="display: flex; gap: 8px;">
-                        <button class="btn btn-secondary btn-sm" onclick="loadProfileFromModal('${p.filename.replace(/'/g, "\\'")}', '${displayName.replace(/'/g, "\\'")}', ${p.data.show_id || null}, '${p.data.provider || ''}')" title="In Sendezentrale laden" style="padding: 4px 8px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px;">
+                        <button class="btn btn-secondary btn-sm" onclick="loadProfileFromModal('${p.filename.replace(/'/g, "\\'")}', '${displayName.replace(/'/g, "\\'")}', ${p.data.show_id || null}, '${p.data.provider || ''}')" title="Auf Startseite laden" style="padding: 4px 8px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="height:12px; width:12px;"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg>Laden
                         </button>
                         <button class="btn btn-danger btn-sm" onclick="deleteProfileFromModal('${p.filename.replace(/'/g, "\\'")}', '${displayName.replace(/'/g, "\\'")}')" title="Profil löschen" style="padding: 4px 8px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px;">
@@ -12720,7 +12720,7 @@ function loadProfileFromModal(filename, displayName, showId, provider) {
     const modal = document.getElementById("modal-profiles");
     if (modal) modal.classList.remove("active");
 
-    // Wechsle zum Home-Tab / Sendezentrale
+    // Wechsle zur Startseite
     const homeBtn = document.getElementById("master-btn-home");
     if (homeBtn) homeBtn.click();
 
