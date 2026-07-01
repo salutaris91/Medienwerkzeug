@@ -8757,15 +8757,49 @@ function renderStorageTargets() {
             smbGrid.style.gridTemplateColumns = "repeat(auto-fit, minmax(150px, 1fr))";
             smbGrid.style.gap = "10px";
 
-            const ipField = createField("Lokale Serveradresse:", target.nas_ip, "z.B. 192.168.2.208", (val) => {
-                target.nas_ip = val;
-            });
-            const backupIpField = createField("Alternative Serveradresse (Tailscale/VPN):", target.nas_ip_backup, "z.B. 100.74.187.125", (val) => {
-                target.nas_ip_backup = val;
-            });
-            const shareField = createField("Freigabename:", target.nas_share, "z.B. media", (val) => {
+            const cleanServerAddress = (inputVal) => {
+                let val = inputVal.trim();
+                if (val.toLowerCase().startsWith("smb://")) {
+                    val = val.substring(6);
+                    const parts = val.split("/");
+                    if (parts.length > 0) {
+                        const host = parts[0];
+                        const share = parts.slice(1).join("/");
+                        return { host, share: share || null };
+                    }
+                }
+                return { host: val, share: null };
+            };
+
+            let ipField, backupIpField, shareField;
+
+            ipField = createField("Lokale Serveradresse:", target.nas_ip, "z.B. 192.168.2.208", (val) => {
+                const cleaned = cleanServerAddress(val);
+                target.nas_ip = cleaned.host;
+                if (cleaned.host !== val) {
+                    ipField.input.value = cleaned.host;
+                }
+                if (cleaned.share) {
+                    target.nas_share = cleaned.share;
+                    if (shareField) shareField.input.value = cleaned.share;
+                }
+            }, "Nur IP oder Hostname eintragen, ohne smb:// und ohne Freigabename. Beispiel: 192.168.2.208");
+
+            backupIpField = createField("Alternative Serveradresse (Tailscale/VPN):", target.nas_ip_backup, "z.B. 100.74.187.125", (val) => {
+                const cleaned = cleanServerAddress(val);
+                target.nas_ip_backup = cleaned.host;
+                if (cleaned.host !== val) {
+                    backupIpField.input.value = cleaned.host;
+                }
+                if (cleaned.share) {
+                    target.nas_share = cleaned.share;
+                    if (shareField) shareField.input.value = cleaned.share;
+                }
+            }, "Optional. Nur IP oder Hostname eintragen, ohne smb:// und ohne Freigabename. Beispiel: 100.74.187.125");
+
+            shareField = createField("Freigabename:", target.nas_share, "z.B. media", (val) => {
                 target.nas_share = val;
-            }, "Der Freigabename ist der Teil nach der Serveradresse. Bei smb://192.168.2.208/media ist 'media' der Freigabename.");
+            }, "Name der SMB-Freigabe. Bei smb://192.168.2.208/media ist media der Freigabename.");
 
             smbGrid.appendChild(ipField.wrap);
             smbGrid.appendChild(backupIpField.wrap);
@@ -8777,7 +8811,7 @@ function renderStorageTargets() {
             smbExample.style.color = "var(--text-muted)";
             smbExample.style.marginTop = "8px";
             smbExample.style.fontStyle = "italic";
-            smbExample.textContent = "Beispielpfad: smb://192.168.2.208/media";
+            smbExample.textContent = "Aus diesen Angaben erzeugt die App z. B. smb://192.168.2.208/media";
             card.appendChild(smbExample);
         }
 
