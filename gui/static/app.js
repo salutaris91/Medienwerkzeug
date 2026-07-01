@@ -1656,7 +1656,10 @@ function initViews() {
         document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
 
         // Hide all views and show empty view (welcome homepage)
-        document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+        document.querySelectorAll(".view-panel").forEach(p => {
+            p.classList.add("hidden");
+            p.classList.remove("active");
+        });
         const emptyView = document.getElementById("view-empty");
         if (emptyView) {
             emptyView.classList.remove("hidden");
@@ -1769,8 +1772,15 @@ function initViews() {
             if(navDashboard) navDashboard.classList.remove("active");
 
             // Show only tools view
-            document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
-            document.getElementById("view-tools").classList.remove("hidden");
+            document.querySelectorAll(".view-panel").forEach(p => {
+                p.classList.add("hidden");
+                p.classList.remove("active");
+            });
+            const vt = document.getElementById("view-tools");
+            if (vt) {
+                vt.classList.remove("hidden");
+                vt.classList.add("active");
+            }
             scrollToDetailTop();
 
             // Auto-fill path if a project was selected
@@ -1788,7 +1798,10 @@ function initViews() {
             document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
             navYtDownloader.classList.add("active");
 
-            document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+            document.querySelectorAll(".view-panel").forEach(p => {
+                p.classList.add("hidden");
+                p.classList.remove("active");
+            });
             const ytView = document.getElementById("view-youtube");
             if (ytView) {
                 ytView.classList.remove("hidden");
@@ -1841,7 +1854,10 @@ function initViews() {
     function openLibraryView() {
         document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
         if (navLibrary) navLibrary.classList.add("active");
-        document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+        document.querySelectorAll(".view-panel").forEach(p => {
+            p.classList.add("hidden");
+            p.classList.remove("active");
+        });
         const lib = document.getElementById("view-library");
         if (lib) { lib.classList.remove("hidden"); lib.classList.add("active"); }
         // Gecachte Scan-Ergebnisse beim Öffnen aktualisieren
@@ -1853,6 +1869,8 @@ function initViews() {
     if (navLibrary) navLibrary.addEventListener("click", openLibraryView);
     const cardHeroLibrary = document.getElementById("card-hero-library");
     if (cardHeroLibrary) cardHeroLibrary.addEventListener("click", openLibraryView);
+    const btnHomeOpenLibrary = document.getElementById("btn-home-open-library");
+    if (btnHomeOpenLibrary) btnHomeOpenLibrary.addEventListener("click", openLibraryView);
 
     // Settings Dashboard Nav
     const navSettings = document.getElementById("nav-settings-dashboard");
@@ -1864,8 +1882,15 @@ function initViews() {
             if(navTools) navTools.classList.remove("active");
             if(navFaq) navFaq.classList.remove("active");
 
-            document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
-            document.getElementById("view-settings").classList.remove("hidden");
+            document.querySelectorAll(".view-panel").forEach(p => {
+                p.classList.add("hidden");
+                p.classList.remove("active");
+            });
+            const vs = document.getElementById("view-settings");
+            if (vs) {
+                vs.classList.remove("hidden");
+                vs.classList.add("active");
+            }
 
             loadSettings();
             scrollToDetailTop();
@@ -1882,7 +1907,10 @@ function initViews() {
             if(navTools) navTools.classList.remove("active");
             if(navSettings) navSettings.classList.remove("active");
 
-            document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+            document.querySelectorAll(".view-panel").forEach(p => {
+                p.classList.add("hidden");
+                p.classList.remove("active");
+            });
             const faqView = document.getElementById("view-faq");
             if (faqView) {
                 faqView.classList.remove("hidden");
@@ -2661,7 +2689,10 @@ async function scanProject(project) {
     const tbody = document.getElementById("files-table-body");
 
     // UI View Switching
-    document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+    document.querySelectorAll(".view-panel").forEach(p => {
+        p.classList.add("hidden");
+        p.classList.remove("active");
+    });
     document.getElementById("view-folder").classList.remove("hidden");
     document.getElementById("view-folder").classList.add("active");
     scrollToDetailTop();
@@ -2691,7 +2722,10 @@ async function scanProject(project) {
                     window.goHome();
                 } else {
                     document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
-                    document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+                    document.querySelectorAll(".view-panel").forEach(p => {
+                        p.classList.add("hidden");
+                        p.classList.remove("active");
+                    });
                     const emptyView = document.getElementById("view-empty");
                     if (emptyView) {
                         emptyView.classList.remove("hidden");
@@ -5740,8 +5774,10 @@ async function saveAllSubscriptions() {
 }
 
 async function sendVideoToDownloader(sub, v) {
-    // 1. Switch to Downloader tab
-    document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+    document.querySelectorAll(".view-panel").forEach(p => {
+        p.classList.add("hidden");
+        p.classList.remove("active");
+    });
     const viewYt = document.getElementById("view-youtube");
     if (viewYt) {
         viewYt.classList.remove("hidden");
@@ -5809,8 +5845,10 @@ async function sendVideoToDownloader(sub, v) {
 }
 
 async function handoffMergeToDownloader(sub, v) {
-    // 1. Switch to Downloader tab
-    document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+    document.querySelectorAll(".view-panel").forEach(p => {
+        p.classList.add("hidden");
+        p.classList.remove("active");
+    });
     const viewYt = document.getElementById("view-youtube");
     if (viewYt) {
         viewYt.classList.remove("hidden");
@@ -11586,7 +11624,10 @@ function handleHeroYtDownload() {
     heroInput.value = "";
 
     // Navigate to YouTube view
-    document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
+    document.querySelectorAll(".view-panel").forEach(p => {
+        p.classList.add("hidden");
+        p.classList.remove("active");
+    });
     const ytView = document.getElementById("view-youtube");
     if (ytView) {
         ytView.classList.remove("hidden");
