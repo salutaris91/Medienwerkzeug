@@ -14,6 +14,7 @@ function createMockElement() {
         textContent: "",
         innerHTML: "",
         style: {},
+        dataset: {},
         __listeners: {},
         classList: {
             add: (c) => classSet.add(c),
@@ -25,6 +26,7 @@ function createMockElement() {
         },
         querySelectorAll: () => [],
         querySelector: () => null,
+        contains: () => true,
         appendChild: () => {},
         addEventListener(type) {
             this.__listeners[type] = (this.__listeners[type] || 0) + 1;
@@ -303,13 +305,17 @@ test('renderHealthStatus - structure-only result wires structure batch button', 
     globalThis.window.healthGroupMode = "type";
 
     elements["btn-structure-batch-check"] = createMockElement();
+    elements["view-library"] = createMockElement();
     const issuesEl = globalThis.document.getElementById("health-issues");
     const structureIssuesEl = globalThis.document.getElementById("health-issues-structure");
     const structureContainer = globalThis.document.getElementById("structure-health-issues-container");
+    const libraryView = globalThis.document.getElementById("view-library");
 
     issuesEl.innerHTML = "";
     structureIssuesEl.innerHTML = "";
     structureContainer.style.display = "none";
+    libraryView.dataset = {};
+    libraryView.__listeners = {};
 
     const data = {
         status: "done",
@@ -323,6 +329,7 @@ test('renderHealthStatus - structure-only result wires structure batch button', 
 
     globalThis.renderHealthStatus(data);
 
-    const batchBtn = globalThis.document.getElementById("btn-structure-batch-check");
-    assert.ok(batchBtn.__listeners.click > 0);
+    assert.ok(structureIssuesEl.innerHTML.includes('id="btn-structure-batch-check"'));
+    assert.strictEqual(libraryView.dataset.structureFixDelegated, "true");
+    assert.ok(libraryView.__listeners.click > 0);
 });

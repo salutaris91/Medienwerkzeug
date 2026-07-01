@@ -12666,7 +12666,7 @@ function renderHealthStatus(data) {
             let batchHeaderHtml = "";
             if (structureIssues.length > 1) {
                 batchHeaderHtml = `<div style="padding: 10px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; justify-content: flex-end;">
-                    <button class="btn btn-accent btn-sm" id="btn-structure-batch-check" style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers" style="height:14px; width:14px;"><polygon points="12 2 2 7 12 12 22 7 12 2Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>Ordnerstrukturen vorbereiten</button>
+                    <button class="btn btn-accent btn-sm" id="btn-structure-batch-check" style="display:inline-flex; align-items:center; gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers" style="height:14px; width:14px;"><polygon points="12 2 2 7 12 12 22 7 12 2"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>Ordnerstrukturen vorbereiten</button>
                 </div>`;
             }
             structureIssuesEl.innerHTML = batchHeaderHtml + structureIssues.map(it => {
@@ -13193,19 +13193,6 @@ function renderHealthStatus(data) {
             }
         }
 
-        // Einzel-Vorschau Handlers
-        document.querySelectorAll("#health-issues .health-structure-preview, #health-issues-structure .health-structure-preview").forEach(b => {
-            b.addEventListener("click", () => {
-                openStructurePreview(b.getAttribute("data-path"));
-            });
-        });
-
-        document.querySelectorAll("#health-issues .health-structure-apply, #health-issues-structure .health-structure-apply").forEach(b => {
-            b.addEventListener("click", () => {
-                openStructurePreview(b.getAttribute("data-path"));
-            });
-        });
-
         const closePreviewElements = ["close-modal-structure-preview", "btn-structure-preview-cancel"];
         closePreviewElements.forEach(id => {
             const el = document.getElementById(id);
@@ -13228,161 +13215,186 @@ function renderHealthStatus(data) {
             });
         }
 
-        // Batch Handlers
-        const btnBatchCheck = document.getElementById("btn-structure-batch-check");
-        if (btnBatchCheck) {
-            btnBatchCheck.addEventListener("click", async () => {
-                const paths = Array.from(document.querySelectorAll("#health-issues-structure .health-structure-preview")).map(b => b.getAttribute("data-path"));
-                if (paths.length === 0) return;
+        async function startStructureBatchCheck() {
+            const paths = Array.from(document.querySelectorAll("#health-issues-structure .health-structure-preview")).map(b => b.getAttribute("data-path"));
+            if (paths.length === 0) return;
 
-                const batchModal = document.getElementById("modal-structure-batch");
-                const progressWrap = document.getElementById("structure-batch-progress-wrap");
-                const progressBar = document.getElementById("structure-batch-progress-bar");
-                const progressTitle = document.getElementById("structure-batch-progress-title");
-                const progressNum = document.getElementById("structure-batch-progress-num");
-                const tableBody = document.getElementById("structure-batch-list-body");
-                const confirmBatchBtn = document.getElementById("btn-structure-batch-confirm");
+            const batchModal = document.getElementById("modal-structure-batch");
+            const progressWrap = document.getElementById("structure-batch-progress-wrap");
+            const progressBar = document.getElementById("structure-batch-progress-bar");
+            const progressTitle = document.getElementById("structure-batch-progress-title");
+            const progressNum = document.getElementById("structure-batch-progress-num");
+            const tableBody = document.getElementById("structure-batch-list-body");
+            const confirmBatchBtn = document.getElementById("btn-structure-batch-confirm");
 
-                const findRowByPath = (path) => {
-                    if (!tableBody) return null;
-                    const rows = tableBody.querySelectorAll("tr");
-                    for (let r of rows) {
-                        if (r.getAttribute("data-batch-path") === path) {
-                            return r;
-                        }
+            const findRowByPath = (path) => {
+                if (!tableBody) return null;
+                const rows = tableBody.querySelectorAll("tr");
+                for (let r of rows) {
+                    if (r.getAttribute("data-batch-path") === path) {
+                        return r;
                     }
-                    return null;
-                };
+                }
+                return null;
+            };
 
-                if (tableBody) {
-                    tableBody.innerHTML = paths.map(p => {
-                        const name = p.split("/").pop();
-                        return `<tr data-batch-path="${escapeHTML(p)}" style="border-bottom: 1px solid var(--border-light);">
-                            <td style="padding: 10px 12px; font-weight: 500; color: var(--text-main); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHTML(p)}">${escapeHTML(name)}</td>
-                            <td class="batch-status-col" style="padding: 10px 12px; color: var(--text-muted);"><span style="color: var(--text-muted); opacity: 0.5;">Warte auf Prüfung...</span></td>
-                            <td style="padding: 10px 12px; text-align: right;">
-                                <button class="btn btn-secondary btn-xs batch-item-preview-btn" disabled data-path="${escapeHTML(p)}" style="padding: 2px 8px; font-size: 0.8em;">Vorschau</button>
-                            </td>
-                        </tr>`;
-                    }).join("");
+            if (tableBody) {
+                tableBody.innerHTML = paths.map(p => {
+                    const name = p.split("/").pop();
+                    return `<tr data-batch-path="${escapeHTML(p)}" style="border-bottom: 1px solid var(--border-light);">
+                        <td style="padding: 10px 12px; font-weight: 500; color: var(--text-main); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHTML(p)}">${escapeHTML(name)}</td>
+                        <td class="batch-status-col" style="padding: 10px 12px; color: var(--text-muted);"><span style="color: var(--text-muted); opacity: 0.5;">Warte auf Prüfung...</span></td>
+                        <td style="padding: 10px 12px; text-align: right;">
+                            <button class="btn btn-secondary btn-xs batch-item-preview-btn" disabled data-path="${escapeHTML(p)}" style="padding: 2px 8px; font-size: 0.8em;">Vorschau</button>
+                        </td>
+                    </tr>`;
+                }).join("");
+            }
+
+            if (progressWrap) progressWrap.style.display = "block";
+            if (progressBar) progressBar.style.width = "0%";
+            if (progressTitle) progressTitle.textContent = "Prüfe Befunde...";
+            if (progressNum) progressNum.textContent = `0 / ${paths.length}`;
+            if (confirmBatchBtn) {
+                confirmBatchBtn.disabled = true;
+                confirmBatchBtn.textContent = "Geprüfte Ordnerstrukturen auflösen";
+            }
+
+            if (batchModal) batchModal.classList.remove("hidden");
+
+            let processedCount = 0;
+            let safePaths = [];
+
+            for (let i = 0; i < paths.length; i++) {
+                const p = paths[i];
+                const row = findRowByPath(p);
+                if (!row) continue;
+
+                const statusCol = row.querySelector(".batch-status-col");
+                const previewBtn = row.querySelector(".batch-item-preview-btn");
+
+                try {
+                    const res = await fetch("/api/nas/structure-fix/preview", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ path: p })
+                    });
+                    const data = await res.json();
+                    if (data.ok) {
+                        if (data.safe) {
+                            if (statusCol) statusCol.innerHTML = `<span style="color: #10b981; font-weight: 500;">✓ Kann automatisch aufgelöst werden</span>`;
+                            safePaths.push(p);
+                        } else {
+                            if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444; font-weight: 500;" title="${escapeHTML(data.conflicts.join(', '))}">⚠️ Manuelle Prüfung nötig</span>`;
+                        }
+                        if (previewBtn) {
+                            previewBtn.disabled = false;
+                            previewBtn.addEventListener("click", () => {
+                                openStructurePreview(p);
+                            });
+                        }
+                    } else {
+                        if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444;">Fehler</span>`;
+                    }
+                } catch (e) {
+                    if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444;">Fehler: ${escapeHTML(e.message)}</span>`;
                 }
 
-                if (progressWrap) progressWrap.style.display = "block";
-                if (progressBar) progressBar.style.width = "0%";
-                if (progressTitle) progressTitle.textContent = "Prüfe Befunde...";
-                if (progressNum) progressNum.textContent = `0 / ${paths.length}`;
-                if (confirmBatchBtn) {
+                processedCount++;
+                const pct = Math.round((processedCount / paths.length) * 100);
+                if (progressBar) progressBar.style.width = `${pct}%`;
+                if (progressNum) progressNum.textContent = `${processedCount} / ${paths.length}`;
+            }
+
+            if (progressTitle) {
+                if (safePaths.length === 0) {
+                    progressTitle.innerHTML = `<span style="color: #ef4444; font-weight: 500;">Keine Ordnerstruktur automatisch auflösbar. Manuelle Prüfung bei allen Befunden nötig.</span>`;
+                } else {
+                    progressTitle.textContent = "Prüfung abgeschlossen.";
+                }
+            }
+            if (confirmBatchBtn) {
+                if (safePaths.length > 0) {
+                    confirmBatchBtn.disabled = false;
+                    confirmBatchBtn.textContent = `${safePaths.length} geprüfte Ordnerstrukturen auflösen`;
+                } else {
                     confirmBatchBtn.disabled = true;
                     confirmBatchBtn.textContent = "Geprüfte Ordnerstrukturen auflösen";
                 }
 
-                if (batchModal) batchModal.classList.remove("hidden");
+                confirmBatchBtn.replaceWith(confirmBatchBtn.cloneNode(true));
+                const newConfirmBatchBtn = document.getElementById("btn-structure-batch-confirm");
+                if (newConfirmBatchBtn) {
+                    newConfirmBatchBtn.addEventListener("click", async () => {
+                        newConfirmBatchBtn.disabled = true;
+                        if (progressWrap) progressWrap.style.display = "block";
+                        if (progressBar) progressBar.style.width = "0%";
+                        if (progressTitle) progressTitle.textContent = "Löse Strukturen auf...";
 
-                let processedCount = 0;
-                let safePaths = [];
+                        let executedCount = 0;
+                        for (let i = 0; i < safePaths.length; i++) {
+                            const p = safePaths[i];
+                            const row = tableBody ? findRowByPath(p) : null;
+                            if (!row) continue;
 
-                for (let i = 0; i < paths.length; i++) {
-                    const p = paths[i];
-                    const row = findRowByPath(p);
-                    if (!row) continue;
+                            const statusCol = row.querySelector(".batch-status-col");
+                            if (statusCol) statusCol.innerHTML = `<span style="color: var(--accent);">Löse auf...</span>`;
 
-                    const statusCol = row.querySelector(".batch-status-col");
-                    const previewBtn = row.querySelector(".batch-item-preview-btn");
-
-                    try {
-                        const res = await fetch("/api/nas/structure-fix/preview", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ path: p })
-                        });
-                        const data = await res.json();
-                        if (data.ok) {
-                            if (data.safe) {
-                                if (statusCol) statusCol.innerHTML = `<span style="color: #10b981; font-weight: 500;">✓ Kann automatisch aufgelöst werden</span>`;
-                                safePaths.push(p);
-                            } else {
-                                if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444; font-weight: 500;" title="${escapeHTML(data.conflicts.join(', '))}">⚠️ Manuelle Prüfung nötig</span>`;
-                            }
-                            if (previewBtn) {
-                                previewBtn.disabled = false;
-                                previewBtn.addEventListener("click", () => {
-                                    openStructurePreview(p);
+                            try {
+                                const res = await fetch("/api/nas/structure-fix/apply", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ path: p })
                                 });
-                            }
-                        } else {
-                            if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444;">Fehler</span>`;
-                        }
-                    } catch (e) {
-                        if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444;">Fehler: ${escapeHTML(e.message)}</span>`;
-                    }
-
-                    processedCount++;
-                    const pct = Math.round((processedCount / paths.length) * 100);
-                    if (progressBar) progressBar.style.width = `${pct}%`;
-                    if (progressNum) progressNum.textContent = `${processedCount} / ${paths.length}`;
-                }
-
-                if (progressTitle) {
-                    if (safePaths.length === 0) {
-                        progressTitle.innerHTML = `<span style="color: #ef4444; font-weight: 500;">Keine Ordnerstruktur automatisch auflösbar. Manuelle Prüfung bei allen Befunden nötig.</span>`;
-                    } else {
-                        progressTitle.textContent = "Prüfung abgeschlossen.";
-                    }
-                }
-                if (confirmBatchBtn) {
-                    if (safePaths.length > 0) {
-                        confirmBatchBtn.disabled = false;
-                        confirmBatchBtn.textContent = `${safePaths.length} geprüfte Ordnerstrukturen auflösen`;
-                    } else {
-                        confirmBatchBtn.disabled = true;
-                        confirmBatchBtn.textContent = "Geprüfte Ordnerstrukturen auflösen";
-                    }
-
-                    confirmBatchBtn.replaceWith(confirmBatchBtn.cloneNode(true));
-                    const newConfirmBatchBtn = document.getElementById("btn-structure-batch-confirm");
-                    if (newConfirmBatchBtn) {
-                        newConfirmBatchBtn.addEventListener("click", async () => {
-                            newConfirmBatchBtn.disabled = true;
-                            if (progressWrap) progressWrap.style.display = "block";
-                            if (progressBar) progressBar.style.width = "0%";
-                            if (progressTitle) progressTitle.textContent = "Löse Strukturen auf...";
-
-                            let executedCount = 0;
-                            for (let i = 0; i < safePaths.length; i++) {
-                                const p = safePaths[i];
-                                const row = tableBody ? findRowByPath(p) : null;
-                                if (!row) continue;
-
-                                const statusCol = row.querySelector(".batch-status-col");
-                                if (statusCol) statusCol.innerHTML = `<span style="color: var(--accent);">Löse auf...</span>`;
-
-                                try {
-                                    const res = await fetch("/api/nas/structure-fix/apply", {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ path: p })
-                                    });
-                                    const data = await res.json();
-                                    if (data.ok) {
-                                        if (statusCol) statusCol.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ Gelöst</span>`;
-                                    } else {
-                                        if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444;">Fehler: ${escapeHTML(data.message)}</span>`;
-                                    }
-                                } catch (e) {
-                                    if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444;">Fehler</span>`;
+                                const data = await res.json();
+                                if (data.ok) {
+                                    if (statusCol) statusCol.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ Gelöst</span>`;
+                                } else {
+                                    if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444;">Fehler: ${escapeHTML(data.message)}</span>`;
                                 }
-
-                                executedCount++;
-                                const pct = Math.round((executedCount / safePaths.length) * 100);
-                                if (progressBar) progressBar.style.width = `${pct}%`;
-                                if (progressNum) progressNum.textContent = `${executedCount} / ${safePaths.length}`;
+                            } catch (e) {
+                                if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444;">Fehler</span>`;
                             }
 
-                            if (progressTitle) progressTitle.textContent = "Abarbeitung abgeschlossen.";
-                            newConfirmBatchBtn.textContent = "Fertig";
-                            pollHealthStatus(false);
-                        });
-                    }
+                            executedCount++;
+                            const pct = Math.round((executedCount / safePaths.length) * 100);
+                            if (progressBar) progressBar.style.width = `${pct}%`;
+                            if (progressNum) progressNum.textContent = `${executedCount} / ${safePaths.length}`;
+                        }
+
+                        if (progressTitle) progressTitle.textContent = "Abarbeitung abgeschlossen.";
+                        newConfirmBatchBtn.textContent = "Fertig";
+                        pollHealthStatus(false);
+                    });
+                }
+            }
+        }
+
+        const libraryView = document.getElementById("view-library");
+        if (libraryView && !libraryView.dataset) {
+            libraryView.dataset = {};
+        }
+        if (libraryView && libraryView.dataset.structureFixDelegated !== "true") {
+            libraryView.dataset.structureFixDelegated = "true";
+            libraryView.addEventListener("click", (event) => {
+                const previewBtn = event.target.closest(".health-structure-preview");
+                if (previewBtn && libraryView.contains(previewBtn)) {
+                    event.preventDefault();
+                    openStructurePreview(previewBtn.getAttribute("data-path"));
+                    return;
+                }
+
+                const applyBtn = event.target.closest(".health-structure-apply");
+                if (applyBtn && libraryView.contains(applyBtn)) {
+                    event.preventDefault();
+                    openStructurePreview(applyBtn.getAttribute("data-path"));
+                    return;
+                }
+
+                const batchBtn = event.target.closest("#btn-structure-batch-check");
+                if (batchBtn && libraryView.contains(batchBtn)) {
+                    event.preventDefault();
+                    startStructureBatchCheck();
                 }
             });
         }
