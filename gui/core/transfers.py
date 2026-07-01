@@ -377,7 +377,7 @@ def ensure_nas_mounted(allow_finder_fallback=False):
             log_message("ℹ️ Finder-Fallback für NAS-Mount übersprungen.")
             return os.path.exists(nas_root)
 
-        finder_host = nas_hostname or chosen_ip
+        finder_host = chosen_ip
         if _open_nas_in_finder(finder_host, nas_share):
             if _wait_for_nas_mount(nas_root, attempts=10):
                 log_message("✅ NAS erfolgreich über Finder gemountet!")

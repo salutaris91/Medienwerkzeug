@@ -67,7 +67,7 @@ class TestNasMountFallback(unittest.TestCase):
             self.assertTrue(transfers.ensure_nas_mounted(allow_finder_fallback=True))
 
         self.assertEqual(mock_run.call_args_list[1], call(
-            ["open", "smb://ALEXNAS91/Kino"],
+            ["open", "smb://192.168.1.100/Kino"],
             capture_output=True,
             text=True,
             timeout=5
@@ -96,7 +96,7 @@ class TestNasMountFallback(unittest.TestCase):
         with self._socket_mock():
             self.assertTrue(transfers.ensure_nas_mounted(allow_finder_fallback=True))
 
-        self.assertEqual(mock_run.call_args_list[1].args[0], ["open", "smb://ALEXNAS91/Kino"])
+        self.assertEqual(mock_run.call_args_list[1].args[0], ["open", "smb://192.168.1.100/Kino"])
 
     @patch("gui.core.transfers.load_settings", return_value=NAS_SETTINGS)
     @patch("gui.core.transfers.check_nas_status", return_value="available_not_mounted")

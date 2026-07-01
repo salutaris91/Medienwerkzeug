@@ -8743,22 +8743,18 @@ function renderStorageTargets() {
             smbGrid.style.gridTemplateColumns = "repeat(auto-fit, minmax(150px, 1fr))";
             smbGrid.style.gap = "10px";
 
-            const ipField = createField("Lokale NAS-IP:", target.nas_ip, "z.B. 192.168.1.100", (val) => {
+            const ipField = createField("Lokale Serveradresse:", target.nas_ip, "z.B. 192.168.2.208", (val) => {
                 target.nas_ip = val;
             });
-            const backupIpField = createField("Backup-/Tailscale-IP:", target.nas_ip_backup, "z.B. 100.64.0.1", (val) => {
+            const backupIpField = createField("Alternative Serveradresse (Tailscale/VPN):", target.nas_ip_backup, "z.B. 100.74.187.125", (val) => {
                 target.nas_ip_backup = val;
             });
-            const hostnameField = createField("Finder-Servername:", target.nas_hostname, "z.B. MEDIENSERVER", (val) => {
-                target.nas_hostname = val;
-            }, "Name oder IP des NAS, wie er in Finder > Mit Server verbinden verwendet wird. Beispiel: MEDIENSERVER oder 192.168.2.20");
-            const shareField = createField("SMB Share-Name:", target.nas_share, "z.B. media", (val) => {
+            const shareField = createField("Freigabename:", target.nas_share, "z.B. media", (val) => {
                 target.nas_share = val;
-            }, "Name der SMB-Freigabe auf dem NAS. Bei smb://MEDIENSERVER/media ist 'media' der Share-Name.");
+            }, "Der Freigabename ist der Teil nach der Serveradresse. Bei smb://192.168.2.208/media ist 'media' der Freigabename.");
 
             smbGrid.appendChild(ipField.wrap);
             smbGrid.appendChild(backupIpField.wrap);
-            smbGrid.appendChild(hostnameField.wrap);
             smbGrid.appendChild(shareField.wrap);
             card.appendChild(smbGrid);
 
@@ -8767,7 +8763,7 @@ function renderStorageTargets() {
             smbExample.style.color = "var(--text-muted)";
             smbExample.style.marginTop = "8px";
             smbExample.style.fontStyle = "italic";
-            smbExample.textContent = "Beispielpfad: smb://MEDIENSERVER/media";
+            smbExample.textContent = "Beispielpfad: smb://192.168.2.208/media";
             card.appendChild(smbExample);
         }
 

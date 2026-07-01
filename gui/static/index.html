@@ -166,26 +166,26 @@
                 <p class="text-muted">Konfiguriere das primäre Ziel (deinen NAS-Server) und die Zugangsdaten.</p>
 
                 <div class="form-group" id="onboarding-nas-ip-group">
-                    <label for="onboarding-nas-ip">NAS IP-Adresse:</label>
-                    <input type="text" id="onboarding-nas-ip" placeholder="z.B. 192.168.1.100" class="form-input">
+                    <label for="onboarding-nas-ip">Lokale Serveradresse:</label>
+                    <input type="text" id="onboarding-nas-ip" placeholder="z.B. 192.168.2.208" class="form-input">
                 </div>
                 <div class="form-group mt-10" id="onboarding-nas-share-group">
-                    <label for="onboarding-nas-share">NAS Share-Name:</label>
-                    <input type="text" id="onboarding-nas-share" placeholder="z.B. Kino" class="form-input">
+                    <label for="onboarding-nas-share">Freigabename:</label>
+                    <input type="text" id="onboarding-nas-share" placeholder="z.B. media" class="form-input">
                 </div>
                 <div class="form-group mt-10">
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <label for="onboarding-nas-root" id="onboarding-nas-root-label">Lokaler Einhängepfad (nas_root):</label>
+                        <label for="onboarding-nas-root" id="onboarding-nas-root-label">Lokaler Einhängepfad:</label>
                         <div class="tooltip-container">
                             <button class="tooltip-trigger" type="button" aria-expanded="false" aria-label="Was ist der Einhängepfad?">?</button>
-                            <div class="tooltip-box" role="tooltip">Das Verzeichnis, unter dem dein NAS-Server auf deinem Mac gemountet ist (z.B. /Volumes/Kino).</div>
+                            <div class="tooltip-box" role="tooltip">Das Verzeichnis, unter dem dein NAS-Server auf deinem Mac gemountet ist (z.B. /Volumes/media).</div>
                         </div>
                     </div>
-                    <input type="text" id="onboarding-nas-root" placeholder="z.B. /Volumes/Kino" class="form-input">
+                    <input type="text" id="onboarding-nas-root" placeholder="z.B. /Volumes/media" class="form-input">
                 </div>
-                <div class="form-group mt-10" id="onboarding-nas-hostname-group">
-                    <label for="onboarding-nas-hostname">NAS Hostname (für Finder-Fallback):</label>
-                    <input type="text" id="onboarding-nas-hostname" placeholder="z.B. MEINNAS" class="form-input">
+                <div class="form-group mt-10 hidden" id="onboarding-nas-hostname-group" style="display: none;">
+                    <label for="onboarding-nas-hostname">NAS Hostname:</label>
+                    <input type="text" id="onboarding-nas-hostname" value="" class="form-input">
                 </div>
 
                 <div class="mt-15">
