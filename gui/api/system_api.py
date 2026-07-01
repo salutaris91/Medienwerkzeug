@@ -23,12 +23,12 @@ from gui.workers.processor import SYSTEM_STATUS
 @system_api.route('/system/capabilities', methods=['GET'])
 def handle_api_capabilities():
     caps = get_runtime_capabilities()
-    
+
     import glob
     import os
     import time
     import subprocess
-    
+
     # Cache hardware diagnostics for 60 seconds
     if not hasattr(handle_api_capabilities, "last_hw_diag") or time.time() - getattr(handle_api_capabilities, "last_hw_check", 0) > 60:
         devices = glob.glob('/dev/dri/renderD*')
@@ -36,13 +36,13 @@ def handle_api_capabilities():
         device_path = None
         dri_writable = False
         vaapi_probe_success = False
-        
+
         for dev in sorted(devices):
             if os.access(dev, os.R_OK | os.W_OK):
                 dri_writable = True
                 device_path = dev
                 break
-                
+
         if dri_writable and device_path:
             # Short FFmpeg probe (software decode of black frame -> VAAPI encode)
             try:
@@ -51,7 +51,7 @@ def handle_api_capabilities():
                 vaapi_probe_success = (res.returncode == 0)
             except Exception as e:
                 log_message(f"⚠️ VAAPI-Probe-Encoding fehlgeschlagen ({device_path}): {e}")
-                
+
         handle_api_capabilities.last_hw_diag = {
             "dri_exists": dri_exists,
             "dri_writable": dri_writable,
@@ -59,7 +59,7 @@ def handle_api_capabilities():
             "vaapi_probe_success": vaapi_probe_success
         }
         handle_api_capabilities.last_hw_check = time.time()
-        
+
     caps["hardware_encoding_diagnostics"] = handle_api_capabilities.last_hw_diag
     return jsonify(caps)
 
@@ -142,7 +142,7 @@ def handle_api_update_status():
     from gui.core.persistence import load_env_keys
     env_keys = load_env_keys()
     repo = os.environ.get("MW_UPDATE_REPO") or env_keys.get("MW_UPDATE_REPO", "")
-    
+
     if not repo:
         return jsonify({
             "update_check_available": False,
@@ -151,7 +151,7 @@ def handle_api_update_status():
             "update_available": False,
             "runtime": get_runtime_capabilities().get("runtime", "desktop")
         })
-        
+
     latest_version = fetch_latest_github_version(repo)
     if not latest_version:
         return jsonify({
@@ -162,7 +162,7 @@ def handle_api_update_status():
             "error": "Fehler beim Abrufen der neuesten Version von GitHub",
             "runtime": get_runtime_capabilities().get("runtime", "desktop")
         })
-        
+
     update_available = False
     try:
         from packaging import version
@@ -175,12 +175,12 @@ def handle_api_update_status():
             update_available = r_parts > l_parts
         except Exception:
             update_available = (latest_version.strip() != MW_APP_VERSION.strip())
-            
+
     runtime = get_runtime_capabilities().get("runtime", "desktop")
     recommended_command = ""
     if runtime == "docker":
         recommended_command = "docker compose pull && docker compose up -d"
-        
+
     return jsonify({
         "update_check_available": True,
         "current_version": MW_APP_VERSION,
@@ -266,12 +266,12 @@ def handle_api_system_restart():
         env = os.environ.copy()
         # Set PYTHONPATH to the parent directory of gui/
         project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".."))
-        
+
         existing_pythonpath = env.get("PYTHONPATH", "")
         pythonpath_parts = [project_root]
         if existing_pythonpath:
             pythonpath_parts.append(existing_pythonpath)
-            
+
         env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
 
         args = [sys.executable, main_py]
@@ -359,6 +359,90 @@ def handle_api_status():
     }
 
     return jsonify(status)
+
+
+@system_api.route('/nas/test', methods=['POST'])
+def handle_api_nas_test():
+    """Prüft die NAS-Verbindung live anhand der gesendeten (ungespeicherten) Konfigurationsdaten."""
+    try:
+        data = request.json or {}
+        nas_ip = data.get("nas_ip", "").strip()
+        nas_ip_backup = data.get("nas_ip_backup", "").strip()
+        nas_share = data.get("nas_share", "").strip()
+        root_path = data.get("root_path", "").strip()
+
+        # Test 1: Server erreichbar (Port 445 auf Primary oder Backup IP)
+        server_reachable = False
+        reachable_ip = None
+        for ip in [nas_ip, nas_ip_backup]:
+            if not ip:
+                continue
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(0.3)
+                s.connect((ip, 445))
+                s.close()
+                server_reachable = True
+                reachable_ip = ip
+                break
+            except Exception:
+                pass
+
+        # Test 2: Freigabe angegeben
+        share_specified = bool(nas_share)
+
+        # Test 3: Lokaler Pfad vorhanden
+        local_path_exists = os.path.isdir(root_path) if root_path else False
+
+        # Test 4: Bibliotheksordner vorhanden & fehlende Kategorien ermitteln
+        categories_found = False
+        missing_categories = []
+
+        settings = load_settings()
+        sync_cats = settings.get("sync_categories", [])
+
+        if local_path_exists and root_path and sync_cats:
+            valid_cats = 0
+            for cat in sync_cats:
+                nas_sub = cat.get("nas_sub")
+                if not nas_sub:
+                    continue
+                cat_path = os.path.join(root_path, nas_sub.lstrip("/"))
+                if os.path.isdir(cat_path) and os.access(cat_path, os.R_OK):
+                    valid_cats += 1
+                else:
+                    missing_categories.append(nas_sub)
+            if valid_cats > 0:
+                categories_found = True
+
+        # Prüfen, ob Medienordner vorhanden sind
+        media_folders_found = False
+        if categories_found:
+            # Wir patchen temporär das nas_root in den settings für den walk_nas_categories
+            temp_settings = dict(settings)
+            temp_settings["nas_root"] = root_path
+            # Finde nas-Ziel und update root_path
+            for target in temp_settings.get("storage_targets", []):
+                if target.get("id") == "nas":
+                    target["root_path"] = root_path
+                    target["nas_ip"] = nas_ip
+                    target["nas_ip_backup"] = nas_ip_backup
+                    target["nas_share"] = nas_share
+            from gui.core.transfers import walk_nas_categories
+            shows = list(walk_nas_categories(temp_settings))
+            media_folders_found = len(shows) > 0
+
+        return jsonify({
+            "server_reachable": server_reachable,
+            "reachable_ip": reachable_ip,
+            "share_specified": share_specified,
+            "local_path_exists": local_path_exists,
+            "categories_found": categories_found,
+            "missing_categories": missing_categories,
+            "media_folders_found": media_folders_found
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @system_api.route('/nas/connect', methods=['POST'])
@@ -555,7 +639,7 @@ def handle_api_system_folder_contents():
                     break
 
         entries.sort(key=lambda x: (not x.get("is_dir", False), x.get("name", "").lower()))
-        
+
         return jsonify({
             "success": True,
             "path": folder_path,
@@ -584,7 +668,7 @@ def handle_api_stats():
         with METRICS_LOCK:
             nas_info = SYSTEM_METRICS.get('nas_info')
             metrics_loading = (SYSTEM_METRICS.get('last_updated', 0) == 0)
-            
+
         if nas_info is None:
             targets = [t for t in settings.get("storage_targets", []) if t.get("enabled", True)]
             nas_info = {
@@ -888,16 +972,16 @@ def handle_api_trash_cleanup_status():
 def handle_api_trash_cleanup():
     from flask import request
     from gui.core.trash import empty_trash_async, TRASH_CLEANUP_STATUS, TrashError
-    
+
     # Concurrency check
     if TRASH_CLEANUP_STATUS["running"]:
         return jsonify({"status": "already_running", "message": "Ein Bereinigungslauf ist bereits aktiv."}), 409
-        
+
     try:
         params = request.get_json() or {}
     except Exception:
         params = {}
-        
+
     dry_run = params.get("dry_run", False)
     retention = params.get("retention_days")
     if retention is not None:
@@ -905,7 +989,7 @@ def handle_api_trash_cleanup():
             retention = int(retention)
         except ValueError:
             return jsonify({"error": "retention_days muss ein Integer sein"}), 400
-            
+
     try:
         result = empty_trash_async(retention_days=retention, dry_run=dry_run)
         return jsonify(result)

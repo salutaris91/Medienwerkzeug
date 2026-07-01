@@ -679,6 +679,13 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
             return
  
         settings = utils.load_settings()
+        from gui.core.transfers import validate_nas_library_preflight
+        success, err_msg = validate_nas_library_preflight(settings)
+        if not success:
+            _set_state(status="warning", message=err_msg,
+                       error="no_library_folders_found", finished_at=time.time())
+            log_message(f"⚠️ [Health-Scan] Preflight fehlgeschlagen: {err_msg}")
+            return
         server_type = settings.get("media_server", "emby")
         validator = artwork_validators.get_validator(server_type)
         cache_key = health_cache.get_cache_key(server_type)

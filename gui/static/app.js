@@ -8579,7 +8579,6 @@ function renderStorageTargets() {
             target.name = val;
             titleText.textContent = `Ziel: ${val || target.id}`;
         });
-        grid.appendChild(nameField.wrap);
 
         // ID field (locked for default ones, editable for custom ones)
         const idField = createField("Eindeutige ID (Schlüssel):", target.id, "z.B. nas_dokus", (val) => {
@@ -8591,7 +8590,6 @@ function renderStorageTargets() {
             idField.input.style.opacity = "0.5";
             idField.input.title = "Standard-IDs können nicht umbenannt werden.";
         }
-        grid.appendChild(idField.wrap);
 
         // Type select
         const typeWrap = document.createElement("div");
@@ -8638,7 +8636,6 @@ function renderStorageTargets() {
             typeWrap.appendChild(typeLabel);
             typeWrap.appendChild(typeSelect);
         }
-        grid.appendChild(typeWrap);
 
         // Enabled checkbox
         const enabledWrap = document.createElement("div");
@@ -8667,9 +8664,6 @@ function renderStorageTargets() {
 
         enabledWrap.appendChild(enabledCheckbox);
         enabledWrap.appendChild(enabledLabel);
-        grid.appendChild(enabledWrap);
-
-        card.appendChild(grid);
 
         // Local path field with Browse button
         const pathLabel = document.createElement("label");
@@ -8678,7 +8672,6 @@ function renderStorageTargets() {
         pathLabel.style.display = "block";
         pathLabel.style.marginBottom = "4px";
         pathLabel.textContent = "Lokal-Pfad (Wurzelverzeichnis auf dem Mac):";
-        card.appendChild(pathLabel);
 
         const pathRow = document.createElement("div");
         pathRow.style.display = "flex";
@@ -8694,10 +8687,38 @@ function renderStorageTargets() {
         pathInput.style.border = "1px solid var(--border-glass)";
         pathInput.style.background = "var(--bg-surface)";
         pathInput.style.color = "var(--text-main)";
-        pathInput.placeholder = "z.B. /Volumes/Media oder /mnt/nas";
+        pathInput.placeholder = "z.B. /Volumes/Kino";
         pathInput.value = target.root_path || "";
+
+        const parseNasInputJs = (inputVal) => {
+            let val = inputVal.trim();
+            while (val.length > 1 && val.endsWith("/")) {
+                val = val.substring(0, val.length - 1);
+            }
+            if (val.toLowerCase().startsWith("smb://")) {
+                val = val.substring(6);
+                const parts = val.split("/");
+                if (parts.length > 0) {
+                    const host = parts[0];
+                    const share = parts.slice(1).join("/");
+                    return { host, share, root_path: share ? `/Volumes/${share}` : "" };
+                }
+            } else if (val.startsWith("/")) {
+                const parts = val.split("/").filter(p => p);
+                const share = parts.length > 0 ? parts[parts.length - 1] : "";
+                return { host: "", share, root_path: val };
+            }
+            return { host: "", share: "", root_path: val };
+        };
+
         pathInput.addEventListener("input", (e) => {
-            target.root_path = e.target.value;
+            const val = e.target.value;
+            target.root_path = val;
+            const parsed = parseNasInputJs(val);
+            if (parsed.share && !target.nas_share) {
+                target.nas_share = parsed.share;
+                if (shareField) shareField.input.value = parsed.share;
+            }
         });
 
         const browseBtn = document.createElement("button");
@@ -8709,7 +8730,7 @@ function renderStorageTargets() {
             browseBtn.title = "Lokales Browsen unter Docker deaktiviert";
             browseBtn.onclick = (e) => {
                 e.preventDefault();
-                alert("Lokales Browsen unter Docker deaktiviert.\n\nBitte gib den Pfad manuell an:\n- Für den NAS-Server: Der Pfad im Container ist standardmäßig '/media'.\n- Für andere Speicherziele: Nutze das entsprechende Pfad-Mapping des Docker-Containers.");
+                alert("Lokales Browsen unter Docker deaktiviert.\n\nBitte gib den Pfad manuell an.");
             };
         } else {
             browseBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="height: 14px; width: 14px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>';
@@ -8721,6 +8742,7 @@ function renderStorageTargets() {
                     if (data.path) {
                         pathInput.value = data.path;
                         target.root_path = data.path;
+                        pathInput.dispatchEvent(new Event('input'));
                     }
                 } catch (err) {
                     console.error("Browse error:", err);
@@ -8730,14 +8752,12 @@ function renderStorageTargets() {
 
         pathRow.appendChild(pathInput);
         pathRow.appendChild(browseBtn);
-        card.appendChild(pathRow);
 
         // rclone remote field
         const rcloneField = createField("rclone Remote Name (Optional für Cloud-Fallbacks):", target.rclone_remote, "z.B. pcloud: oder gdrive:", (val) => {
             target.rclone_remote = val;
         });
         rcloneField.wrap.style.marginBottom = "12px";
-        card.appendChild(rcloneField.wrap);
 
         // If type is NAS, show SMB settings
         if (target.type === "nas") {
@@ -8749,8 +8769,7 @@ function renderStorageTargets() {
             smbTitle.style.marginBottom = "8px";
             smbTitle.style.borderBottom = "1px solid rgba(255,255,255,0.05)";
             smbTitle.style.paddingBottom = "4px";
-            smbTitle.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe" style="display:inline-block; vertical-align:middle; margin-right: 4px; height: 12px; width: 12px; color: var(--accent);"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>SMB-Netzwerk-Mounting Details (nur NAS)';
-            card.appendChild(smbTitle);
+            smbTitle.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe" style="display:inline-block; vertical-align:middle; margin-right: 4px; height: 12px; width: 12px; color: var(--accent);"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>SMB-Netzwerk-Mounting Details';
 
             const smbGrid = document.createElement("div");
             smbGrid.style.display = "grid";
@@ -8799,12 +8818,11 @@ function renderStorageTargets() {
 
             shareField = createField("Freigabename:", target.nas_share, "z.B. media", (val) => {
                 target.nas_share = val;
-            }, "Name der SMB-Freigabe. Bei smb://192.168.2.208/media ist media der Freigabename.");
+            }, "Name der SMB-Freigabe. Bei smb://192.168.2.208/kino ist kino der Freigabename.");
 
             smbGrid.appendChild(ipField.wrap);
             smbGrid.appendChild(backupIpField.wrap);
             smbGrid.appendChild(shareField.wrap);
-            card.appendChild(smbGrid);
 
             const smbExample = document.createElement("div");
             smbExample.style.fontSize = "10px";
@@ -8812,7 +8830,251 @@ function renderStorageTargets() {
             smbExample.style.marginTop = "8px";
             smbExample.style.fontStyle = "italic";
             smbExample.textContent = "Aus diesen Angaben erzeugt die App z. B. smb://192.168.2.208/media";
-            card.appendChild(smbExample);
+
+            if (target.id === "nas") {
+                // Geführte NAS-Einrichtung!
+                const guidedSection = document.createElement("div");
+                guidedSection.className = "nas-guided-setup";
+                guidedSection.style.marginTop = "10px";
+                guidedSection.style.padding = "12px";
+                guidedSection.style.background = "rgba(255,255,255,0.01)";
+                guidedSection.style.border = "1px dashed rgba(255,255,255,0.1)";
+                guidedSection.style.borderRadius = "var(--radius-sm)";
+                guidedSection.style.marginBottom = "12px";
+
+                const guidedLabel = document.createElement("label");
+                guidedLabel.style.fontSize = "11px";
+                guidedLabel.style.fontWeight = "bold";
+                guidedLabel.style.color = "var(--text-main)";
+                guidedLabel.style.marginBottom = "4px";
+                guidedLabel.style.display = "block";
+                guidedLabel.textContent = "Netzwerkadresse (smb://...) oder lokaler Mac-Pfad (/Volumes/...):";
+
+                const guidedInput = document.createElement("input");
+                guidedInput.type = "text";
+                guidedInput.className = "form-select";
+                guidedInput.style.width = "100%";
+                guidedInput.style.padding = "8px 12px";
+                guidedInput.style.fontSize = "12px";
+                guidedInput.style.border = "1px solid var(--border-glass)";
+                guidedInput.style.background = "var(--bg-surface)";
+                guidedInput.style.color = "var(--text-main)";
+                guidedInput.placeholder = "z.B. smb://192.168.2.208/media  oder  /Volumes/media";
+
+                if (target.nas_ip && target.nas_share) {
+                    guidedInput.value = `smb://${target.nas_ip}/${target.nas_share}`;
+                } else if (target.root_path) {
+                    guidedInput.value = target.root_path;
+                }
+
+                const guidedHelp = document.createElement("span");
+                guidedHelp.style.fontSize = "10px";
+                guidedHelp.style.color = "var(--text-muted)";
+                guidedHelp.style.opacity = "0.8";
+                guidedHelp.style.marginTop = "4px";
+                guidedHelp.style.display = "block";
+                guidedHelp.textContent = "Trage die SMB-Adresse deines NAS oder den Mac-Pfad ein. Die App leitet alle technischen Einstellungen automatisch für dich ab.";
+
+                guidedSection.appendChild(guidedLabel);
+                guidedSection.appendChild(guidedInput);
+                guidedSection.appendChild(guidedHelp);
+                card.appendChild(guidedSection);
+
+                // Button-Bereich
+                const testBtnSection = document.createElement("div");
+                testBtnSection.style.display = "flex";
+                testBtnSection.style.gap = "10px";
+                testBtnSection.style.marginTop = "10px";
+                testBtnSection.style.marginBottom = "12px";
+
+                const btnCheckNas = document.createElement("button");
+                btnCheckNas.type = "button";
+                btnCheckNas.className = "btn btn-secondary btn-sm";
+                btnCheckNas.style.display = "inline-flex";
+                btnCheckNas.style.alignItems = "center";
+                btnCheckNas.style.gap = "6px";
+                btnCheckNas.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>NAS-Verbindung prüfen`;
+
+                const testResultContainer = document.createElement("div");
+                testResultContainer.className = "nas-test-result-box hidden";
+                testResultContainer.style.marginTop = "10px";
+                testResultContainer.style.padding = "10px 14px";
+                testResultContainer.style.borderRadius = "var(--radius-sm)";
+                testResultContainer.style.fontSize = "12px";
+                testResultContainer.style.lineHeight = "1.5";
+                testResultContainer.style.background = "rgba(255,255,255,0.02)";
+                testResultContainer.style.border = "1px solid var(--border-glass)";
+
+                testBtnSection.appendChild(btnCheckNas);
+                card.appendChild(testBtnSection);
+                card.appendChild(testResultContainer);
+
+                // Erweitert-Bereich für NAS
+                const detailsEl = document.createElement("details");
+                detailsEl.style.marginTop = "15px";
+                detailsEl.style.border = "1px solid rgba(255,255,255,0.05)";
+                detailsEl.style.borderRadius = "var(--radius-sm)";
+                detailsEl.style.padding = "8px 12px";
+                detailsEl.style.background = "rgba(0,0,0,0.1)";
+
+                const summaryEl = document.createElement("summary");
+                summaryEl.style.fontSize = "11px";
+                summaryEl.style.fontWeight = "bold";
+                summaryEl.style.color = "var(--text-muted)";
+                summaryEl.style.cursor = "pointer";
+                summaryEl.style.outline = "none";
+                summaryEl.textContent = "Erweiterte technische Einstellungen";
+                detailsEl.appendChild(summaryEl);
+
+                const detailGrid = document.createElement("div");
+                detailGrid.style.marginTop = "10px";
+                detailGrid.style.display = "grid";
+                detailGrid.style.gridTemplateColumns = "repeat(auto-fit, minmax(200px, 1fr))";
+                detailGrid.style.gap = "12px";
+
+                // Enabled checkbox
+                const nasEnabledWrap = document.createElement("div");
+                nasEnabledWrap.style.display = "flex";
+                nasEnabledWrap.style.alignItems = "center";
+                nasEnabledWrap.style.gap = "8px";
+                nasEnabledWrap.appendChild(enabledCheckbox);
+                nasEnabledWrap.appendChild(enabledLabel);
+
+                detailGrid.appendChild(nameField.wrap);
+                detailGrid.appendChild(idField.wrap);
+                detailGrid.appendChild(typeWrap);
+                detailGrid.appendChild(nasEnabledWrap);
+
+                const pathWrapDiv = document.createElement("div");
+                pathWrapDiv.appendChild(pathLabel);
+                pathWrapDiv.appendChild(pathRow);
+                detailGrid.appendChild(pathWrapDiv);
+
+                detailGrid.appendChild(rcloneField.wrap);
+
+                const smbWrapDiv = document.createElement("div");
+                smbWrapDiv.appendChild(smbTitle);
+                smbWrapDiv.appendChild(smbGrid);
+                smbWrapDiv.appendChild(smbExample);
+                detailGrid.appendChild(smbWrapDiv);
+
+                detailsEl.appendChild(detailGrid);
+                card.appendChild(detailsEl);
+
+                // Handler für die guided Eingabe
+                guidedInput.addEventListener("input", (e) => {
+                    const val = e.target.value.trim();
+                    const parsed = parseNasInputJs(val);
+                    if (parsed.host) {
+                        target.nas_ip = parsed.host;
+                        if (ipField) ipField.input.value = parsed.host;
+                    }
+                    if (parsed.share) {
+                        target.nas_share = parsed.share;
+                        if (shareField) shareField.input.value = parsed.share;
+                    }
+                    if (parsed.root_path) {
+                        target.root_path = parsed.root_path;
+                        pathInput.value = parsed.root_path;
+                    }
+                });
+
+                btnCheckNas.addEventListener("click", async () => {
+                    btnCheckNas.disabled = true;
+                    btnCheckNas.innerHTML = "Prüfe...";
+                    testResultContainer.classList.remove("hidden");
+                    testResultContainer.innerHTML = `<div style="color:var(--text-muted);">Verbindungstest läuft...</div>`;
+
+                    try {
+                        const res = await fetch('/api/nas/test', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                nas_ip: target.nas_ip || "",
+                                nas_ip_backup: target.nas_ip_backup || "",
+                                nas_share: target.nas_share || "",
+                                root_path: target.root_path || ""
+                            })
+                        });
+
+                        const result = await res.json();
+                        btnCheckNas.disabled = false;
+                        btnCheckNas.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-activity"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>NAS-Verbindung prüfen`;
+
+                        if (result.error) {
+                            testResultContainer.innerHTML = `<div style="color:var(--danger); font-weight:bold;">Fehler beim Test: ${result.error}</div>`;
+                            return;
+                        }
+
+                        let html = `<div style="font-weight:bold; margin-bottom:6px; color:var(--accent);">Prüfungsergebnisse:</div>`;
+                        const renderCheckLine = (isOk, text) => {
+                            const icon = isOk
+                                ? `<span style="color:var(--success); margin-right:6px; font-weight:bold;">✔</span>`
+                                : `<span style="color:var(--danger); margin-right:6px; font-weight:bold;">✘</span>`;
+                            return `<div style="display:flex; align-items:center; margin-bottom:4px;">${icon}<span>${text}</span></div>`;
+                        };
+
+                        html += renderCheckLine(result.server_reachable, `Server erreichbar (${result.reachable_ip || target.nas_ip || 'keine IP angegeben'})`);
+                        html += renderCheckLine(result.share_specified, `Freigabe angegeben (${target.nas_share || 'fehlt'})`);
+                        html += renderCheckLine(result.local_path_exists, `Lokaler Pfad vorhanden (${target.root_path || 'fehlt'})`);
+                        html += renderCheckLine(result.categories_found, `Kategoriepfade gefunden`);
+
+                        if (result.missing_categories && result.missing_categories.length > 0) {
+                            html += `<div style="color:var(--warning); margin-left:20px; font-size:11px; margin-bottom:4px;">Geprüfte Kategorien fehlen auf dem NAS: ${result.missing_categories.join(', ')}</div>`;
+                        }
+
+                        html += renderCheckLine(result.media_folders_found, `Bibliotheksordner (Serien/Filme) gefunden`);
+
+                        if (result.server_reachable && result.share_specified && result.local_path_exists && result.categories_found && result.media_folders_found) {
+                            html += `<div style="color:var(--success); font-weight:bold; margin-top:6px;">✔ NAS ist voll funktionsfähig und bereit!</div>`;
+                        } else {
+                            html += `<div style="color:var(--danger); font-weight:bold; margin-top:6px;">✘ NAS ist unvollständig konfiguriert. Bitte prüfe die obigen Punkte.</div>`;
+                        }
+
+                        testResultContainer.innerHTML = html;
+                    } catch (err) {
+                        btnCheckNas.disabled = false;
+                        btnCheckNas.innerHTML = `NAS-Verbindung prüfen`;
+                        testResultContainer.innerHTML = `<div style="color:var(--danger);">Fehler beim Aufruf der Test-API: ${err}</div>`;
+                    }
+                });
+            } else {
+                // pcloud
+                const grid = document.createElement("div");
+                grid.style.display = "grid";
+                grid.style.gridTemplateColumns = "repeat(auto-fit, minmax(200px, 1fr))";
+                grid.style.gap = "12px";
+
+                grid.appendChild(nameField.wrap);
+                grid.appendChild(idField.wrap);
+                grid.appendChild(typeWrap);
+                grid.appendChild(enabledWrap);
+                card.appendChild(grid);
+
+                card.appendChild(pathLabel);
+                card.appendChild(pathRow);
+                card.appendChild(rcloneField.wrap);
+
+                card.appendChild(smbTitle);
+                card.appendChild(smbGrid);
+                card.appendChild(smbExample);
+            }
+        } else {
+            // Normales Speicherziel
+            const grid = document.createElement("div");
+            grid.style.display = "grid";
+            grid.style.gridTemplateColumns = "repeat(auto-fit, minmax(200px, 1fr))";
+            grid.style.gap = "12px";
+
+            grid.appendChild(nameField.wrap);
+            grid.appendChild(idField.wrap);
+            grid.appendChild(typeWrap);
+            grid.appendChild(enabledWrap);
+            card.appendChild(grid);
+
+            card.appendChild(pathLabel);
+            card.appendChild(pathRow);
+            card.appendChild(rcloneField.wrap);
         }
 
         container.appendChild(card);
