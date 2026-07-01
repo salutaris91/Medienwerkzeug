@@ -426,6 +426,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // Load settings and status immediately
     loadSettings().then(() => {
         triggerLaunchQuote();
+        if (typeof loadDashboard === "function") {
+            loadDashboard();
+        }
     });
 
     const themeSelect = document.getElementById("settings-app-theme");
@@ -1665,6 +1668,9 @@ function initViews() {
 
         // Refresh homepage data immediately
         loadStatus();
+        if (typeof loadDashboard === "function") {
+            loadDashboard();
+        }
 
         // Reset scroll position to top
         scrollToDetailTop();
@@ -1828,21 +1834,7 @@ function initViews() {
         btnHeroYtAbos.addEventListener("click", window.openYoutubeAbosPage);
     }
 
-    if(navDashboard) {
-        navDashboard.addEventListener("click", () => {
-            document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
-            navDashboard.classList.add("active");
-            if(navTools) navTools.classList.remove("active");
-            if(navSettings) navSettings.classList.remove("active");
 
-            document.querySelectorAll(".view-panel").forEach(p => p.classList.add("hidden"));
-            document.getElementById("view-dashboard").classList.remove("hidden");
-            document.getElementById("view-dashboard").classList.add("active");
-
-            loadDashboard();
-            scrollToDetailTop();
-        });
-    }
 
     // Bibliothek & Wartung Nav (NAS-Check + Duplikate)
     const navLibrary = document.getElementById("nav-library");
@@ -13121,103 +13113,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // Dashboard Widget Visibility Management
 function applyDashboardWidgetsSichtbarkeit() {
-    const defaults = {
-        storage: true,
-        savings: true,
-        ratio: true,
-        chart: true,
-        history: true,
-        health: true,
-        duplicates: true,
-        normalize: true,
-        nas_renamer: false
-    };
-
-    if (typeof currentSettings === 'undefined') {
-        currentSettings = {};
-    }
-    if (!currentSettings.dashboard_widgets) {
-        currentSettings.dashboard_widgets = {};
-    }
-
-    const widgets = { ...defaults, ...currentSettings.dashboard_widgets };
-
-    for (const [key, enabled] of Object.entries(widgets)) {
-        const domKey = key.replace(/_/g, "-");
-        const toggle = document.getElementById(`widget-toggle-${domKey}`);
-        if (toggle) toggle.checked = enabled;
-
-        const widgetEl = document.getElementById(`widget-${domKey}`);
-        if (widgetEl) {
-            if (enabled) {
-                widgetEl.style.display = "";
-            } else {
-                widgetEl.style.display = "none";
-            }
-        }
-    }
-
-    // Hide entire sections if all widgets inside are hidden
-    const checkSection = (sectionId, widgetKeys) => {
-        const section = document.getElementById(sectionId);
-        if (!section) return;
-        const anyVisible = widgetKeys.some(k => widgets[k] === true);
-        if (anyVisible) {
-            section.style.display = "";
-        } else {
-            section.style.display = "none";
-        }
-    };
-
-    checkSection("section-overview", ["storage", "savings", "ratio"]);
-    checkSection("section-work-state", ["health", "duplicates"]);
-    checkSection("section-history-stats", ["chart", "history"]);
-    checkSection("section-library-quality", ["normalize", "nas_renamer"]);
+    // Widgets sind jetzt fest in die jeweiligen Views integriert und nicht mehr ausblendbar.
 }
 
 async function saveDashboardWidgetSichtbarkeit(key, enabled) {
-    if (typeof currentSettings === 'undefined') {
-        currentSettings = {};
-    }
-    if (!currentSettings.dashboard_widgets) {
-        currentSettings.dashboard_widgets = {};
-    }
-    currentSettings.dashboard_widgets[key] = enabled;
-
-    applyDashboardWidgetsSichtbarkeit();
-
-    try {
-        await fetch("/api/settings", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(currentSettings)
-        });
-    } catch (error) {
-        console.error("Failed to save widget visibility settings:", error);
-    }
+    // Sichtbarkeits-Einstellungen werden nicht mehr verwendet.
 }
 
-// Bind Dashboard Customize Events
+// Bind Dashboard Customize Events (No-Op, da Widgets fest integriert)
 document.addEventListener("DOMContentLoaded", () => {
-    const btnCustomize = document.getElementById("btn-customize-dashboard");
-    const panelCustomize = document.getElementById("dashboard-customize-panel");
-
-    if (btnCustomize && panelCustomize) {
-        btnCustomize.addEventListener("click", () => {
-            panelCustomize.classList.toggle("hidden");
-        });
-    }
-
-    const widgetKeys = ["storage", "savings", "ratio", "health", "duplicates", "chart", "history", "normalize", "nas_renamer"];
-    widgetKeys.forEach(key => {
-        const domKey = key.replace(/_/g, "-");
-        const toggle = document.getElementById(`widget-toggle-${domKey}`);
-        if (toggle) {
-            toggle.addEventListener("change", (e) => {
-                saveDashboardWidgetSichtbarkeit(key, e.target.checked);
-            });
-        }
-    });
+    // Events fuer Customization Panel entfallen
 });

@@ -4,6 +4,23 @@ Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert 
 
 ---
 
+## Stand am 01.07.2026 (Phase 2.4a – Startseite & Medienwerkzeug-Übersicht)
+
+- **Startseite / Medienwerkzeug-Übersicht zusammengeführt (Branch: feature/phase2-home-overview):**
+  - **Sendezentrale zu Medienwerkzeug:** Die Startseite (`view-empty`) heißt jetzt vollständig „Medienwerkzeug“. Der Hero-Text lautet einladend: „Willkommen in deinem Medienwerkzeug“.
+  - **Dashboard-Konsolidierung:** Das bisherige separate Dashboard in der Sidebar wurde entfernt.
+  - **Startseite gliedern:** Die Startseite ist nun in 5 logische Bereiche gegliedert:
+    1. **Arbeitsbereich & Inbox:** Inbox/Outbox-Größen, Direktlinks zu Pfaden, Smart-Inbox Vorschläge, globaler `BEREINIGEN`-Button.
+    2. **Speicher & Importquellen:** NAS-Speicherbelegung (kreisförmige Anzeige) und Import-Quellen-Status (mit optionalem manuellen Import-Trigger).
+    3. **Konvertierungs-Verlauf & Statistiken:** Letzte Konvertierungen & Speicherplatzreduktion (Bar Chart) und die empfohlenen H.265-Zielqualitäten der Conversion Intelligence.
+    4. **Detailliertes Konvertierungsprotokoll:** Chronologische Liste aller Videokomprimierungen.
+    5. **Bibliothekszustand:** Der allgemeine Zustand der Bibliothek (z. B. "Sehr gut" oder "Noch keine Diagnose durchgeführt") sowie die Anzahl der Filme, Serien und Episoden werden übersichtlich dargestellt. Fehlende oder nicht berechenbare Daten werden durch stille Platzhalter bzw. „Noch nicht verfügbar“ abgefangen.
+  - **Bibliothek pflegen:** Die Bibliotheksseite (`view-library`) wurde in „Bibliothek pflegen“ umbenannt und enthält nun die 4 Haupt-Wartungskacheln (*NAS Bibliotheks-Check*, *Duplikat-Erkennung*, *Filme normalisieren* und *NAS-Renaming-Tool*) im Standard-Layout. Diese sind fest integriert und nicht mehr ausblendbar.
+  - **JS & Event-Handling bereinigt:** Alle ungenutzten Sidebar-Klick-Handler für das Dashboard sowie die Widgets-Ausblend-Logiken wurden im JS sauber entfernt oder zu No-Ops migriert, um Fehlerfreiheit zu garantieren.
+  - **Mobile Optimierung:** Flexible Grid-Systeme (`dashboard-grid`) und responsives Layout stellen sicher, dass alle Controls auch auf kleinen Displays und Smartphones überlauf- und fehlerfrei dargestellt werden.
+
+---
+
 ## Stand am 30.06.2026 (Phase 2.2e – Hauptflächen Emoji/UI-Polish)
 
 - **Emoji-Polish der primären Ansichten, YouTube-Module, FAQ und Einstellungen (Branch: feature/phase2-main-surface-emoji-polish):**
