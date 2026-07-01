@@ -182,8 +182,34 @@ class TestHealthScanLibrary(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
         self.assertTrue(data["server_reachable"])
+        self.assertEqual(data["reachable_ip"], "Container-Pfad erreichbar")
         self.assertTrue(data["share_specified"])
         self.assertFalse(data["share_required"])
+        self.assertTrue(data["local_path_exists"])
+
+    @patch("gui.api.system_api.os.path.isdir")
+    @patch("gui.api.system_api.load_settings")
+    @patch("gui.api.system_api.get_runtime_capabilities")
+    def test_nas_test_api_docker_mode_with_old_ips(self, mock_caps, mock_load, mock_isdir):
+        mock_caps.return_value = {"runtime": "docker", "capabilities": {}}
+        mock_isdir.return_value = True
+        mock_load.return_value = {
+            "sync_categories": [{"id": "movies", "name": "Filme", "nas_sub": "Filme"}]
+        }
+
+        # Unter Docker, mit alten IPs (die offline wären), aber existierendem Pfad
+        res = self.client.post("/api/nas/test", json={
+            "nas_ip": "192.168.2.208",
+            "nas_ip_backup": "10.0.0.1",
+            "nas_share": "media",
+            "root_path": "/media"
+        })
+
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        # Sollte dank existierendem Pfad trotzdem server_reachable sein!
+        self.assertTrue(data["server_reachable"])
+        self.assertEqual(data["reachable_ip"], "Container-Pfad erreichbar")
         self.assertTrue(data["local_path_exists"])
 
 if __name__ == "__main__":
