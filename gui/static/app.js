@@ -8602,28 +8602,42 @@ function renderStorageTargets() {
         typeLabel.style.fontSize = "11px";
         typeLabel.style.color = "var(--text-muted)";
         typeLabel.textContent = "Typ des Speichers:";
-        const typeSelect = document.createElement("select");
-        typeSelect.className = "form-select";
-        typeSelect.style.padding = "8px 12px";
-        typeSelect.style.fontSize = "12px";
-        typeSelect.style.border = "1px solid var(--border-glass)";
-        typeSelect.style.background = "var(--bg-surface)";
-        typeSelect.style.color = "var(--text-main)";
-        typeSelect.innerHTML = `
-            <option value="nas" ${target.type === "nas" ? "selected" : ""}>NAS (Netzwerkordner)</option>
-            <option value="pcloud" ${target.type === "pcloud" ? "selected" : ""}>Cloud-Speicher (z.B. pCloud, GDrive via rclone)</option>
-            <option value="cloud" ${target.type === "cloud" && target.id !== "pcloud" ? "selected" : ""}>Sonstige Cloud (rclone)</option>
-        `;
         if (target.id === "nas" || target.id === "pcloud") {
-            typeSelect.disabled = true;
-            typeSelect.style.opacity = "0.5";
+            const typeText = document.createElement("div");
+            typeText.style.padding = "10px 14px";
+            typeText.style.fontSize = "12px";
+            typeText.style.border = "1px solid var(--border-glass)";
+            typeText.style.background = "rgba(255,255,255,0.03)";
+            typeText.style.color = "var(--text-muted)";
+            typeText.style.borderRadius = "var(--radius-sm)";
+            typeText.style.fontWeight = "500";
+            if (target.type === "nas") {
+                typeText.textContent = "NAS (Netzwerkordner)";
+            } else {
+                typeText.textContent = "Cloud-Speicher";
+            }
+            typeWrap.appendChild(typeLabel);
+            typeWrap.appendChild(typeText);
+        } else {
+            const typeSelect = document.createElement("select");
+            typeSelect.className = "form-select";
+            typeSelect.style.padding = "8px 12px";
+            typeSelect.style.fontSize = "12px";
+            typeSelect.style.border = "1px solid var(--border-glass)";
+            typeSelect.style.background = "var(--bg-surface)";
+            typeSelect.style.color = "var(--text-main)";
+            typeSelect.innerHTML = `
+                <option value="nas" ${target.type === "nas" ? "selected" : ""}>NAS (Netzwerkordner)</option>
+                <option value="pcloud" ${target.type === "pcloud" ? "selected" : ""}>Cloud-Speicher (z.B. pCloud, GDrive via rclone)</option>
+                <option value="cloud" ${target.type === "cloud" && target.id !== "pcloud" ? "selected" : ""}>Sonstige Cloud (rclone)</option>
+            `;
+            typeSelect.addEventListener("change", (e) => {
+                target.type = e.target.value;
+                renderStorageTargets(); // Re-render to show/hide SMB settings
+            });
+            typeWrap.appendChild(typeLabel);
+            typeWrap.appendChild(typeSelect);
         }
-        typeSelect.addEventListener("change", (e) => {
-            target.type = e.target.value;
-            renderStorageTargets(); // Re-render to show/hide SMB settings
-        });
-        typeWrap.appendChild(typeLabel);
-        typeWrap.appendChild(typeSelect);
         grid.appendChild(typeWrap);
 
         // Enabled checkbox

@@ -22,7 +22,7 @@ def _is_nas_root_mounted(nas_root):
                     if target_path == m_point_norm or target_path.startswith(m_point_norm + "/"):
                         if os.path.isdir(target_path):
                             return True
-                            
+
         # Suffix-Prüfung (/Volumes/<Share>-1)
         if target_path.startswith("/Volumes/"):
             parts = target_path.split("/")
@@ -53,7 +53,7 @@ def diagnose_nas_mount(nas_root):
         out = subprocess.check_output(["mount"], text=True)
     except Exception as e:
         return 'not_mounted', f"Fehler beim Lesen der Mount-Tabelle: {e}"
-        
+
     mountpoints = []
     for line in out.splitlines():
         if " on " in line:
@@ -61,7 +61,7 @@ def diagnose_nas_mount(nas_root):
             if len(parts) >= 2:
                 m_point = parts[1].split(" (", 1)[0].strip()
                 mountpoints.append(os.path.realpath(os.path.abspath(m_point)))
-                
+
     for m_point in mountpoints:
         if target_path == m_point or target_path.startswith(m_point + "/"):
             if os.path.isdir(target_path):

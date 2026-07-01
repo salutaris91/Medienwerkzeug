@@ -16,7 +16,7 @@ NAS_SETTINGS_ENABLED = {
         "root_path": "/Volumes/Kino",
         "nas_ip": "192.168.1.100",
         "nas_ip_backup": "100.64.0.1",
-        "nas_hostname": "ALEXNAS91",
+        "nas_hostname": "MEDIENSERVER",
         "nas_share": "Kino",
         "enabled": True,
     }]
@@ -28,7 +28,7 @@ NAS_SETTINGS_DISABLED = {
         "root_path": "/Volumes/Kino",
         "nas_ip": "192.168.1.100",
         "nas_ip_backup": "100.64.0.1",
-        "nas_hostname": "ALEXNAS91",
+        "nas_hostname": "MEDIENSERVER",
         "nas_share": "Kino",
         "enabled": False,
     }]
@@ -40,7 +40,7 @@ NAS_SETTINGS_NO_ROOT = {
         "root_path": "",
         "nas_ip": "192.168.1.100",
         "nas_ip_backup": "100.64.0.1",
-        "nas_hostname": "ALEXNAS91",
+        "nas_hostname": "MEDIENSERVER",
         "nas_share": "Kino",
         "enabled": True,
     }]
