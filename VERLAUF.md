@@ -2,6 +2,39 @@
 
 Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 02.07.2026 (Phase 2.5d – UI/Preview-Fixes für Ordnerstrukturen)
+
+- **UI/Preview-Fixes (Branch: feature/nas-structure-fix):**
+  - **Vorschau-Modal im Vordergrund:** Das Vorschau-Modal (`#modal-structure-preview`) hat einen höheren z-index (`1000005`) erhalten, wodurch es sich nun zuverlässig vor dem Batch-Modal öffnet und bedienbar bleibt.
+  - **Vorher/Nachher-Baum bei nested_duplicate korrigiert:** Der linke Baum ("Aktuelle Ordnerstruktur") zeigt nun die doppelte Ordnerebene (`Dracula.../Dracula.../...`) an, und der rechte Baum ("Geplanter Zielzustand") visualisiert die flache, bereinigte Struktur direkt unter dem Filmordner. Beide Bäume sind nun konsistent mit dem äußeren Ordner (`outer_name`) als Root präfixiert.
+  - **Mehrfach verschachtelte identische Ordner:** Ketten wie `Film/Film/Film/datei.mkv` werden nun bis zum tiefsten Inhaltsordner erkannt. Dadurch entstehen keine falschen Zielkonflikte mehr, wenn der nächste gleichnamige Unterordner nur Teil der redundanten Verschachtelung ist. Nach dem Hochziehen werden leere Rest-Unterordner sicher in die Quarantäne verschoben.
+  - **NAS-Pfad-UX-Fix:** Die geführte NAS-Eingabe löscht vorhandene IP-Adressen nicht mehr, wenn ein lokaler Mac-Pfad wie `/Volumes/Kino` gewählt wird. Dadurch bleibt automatisches Verbinden möglich, auch wenn zusätzlich ein lokaler Mount-Pfad gepflegt wird.
+  - **Race-Condition im Vorschau-Dialog behoben:** Der aktive Vorschau-Pfad wird nun direkt am Modal gespeichert. Dadurch bleibt der Button „Struktur auflösen“ auch dann funktionsfähig, wenn währenddessen der Health-Status neu gerendert wird. Während der Batch-Prüfung bleiben Vorschauaktionen gesperrt, bis die Prüfung abgeschlossen ist.
+  - **Einzelaktion getrennt:** In den Struktur-Befunden öffnet „Vorschau“ weiterhin die Vorher/Nachher-Ansicht. „Auflösen“ startet nun direkt nach einer Sicherheitsbestätigung; diese Bestätigung kann über „zukünftig nicht mehr anzeigen“ lokal deaktiviert werden.
+  - **Batch-Abschluss repariert:** Nach erfolgreicher Sammelauflösung wird der Abschlussbutton zu einem echten „Fertig“-Button, der das Batch-Modal zuverlässig schließt.
+  - **Filmstruktur-Widget geglättet:** Der separate Vorschau-Button im Widget „Filmstruktur aufräumen“ wurde entfernt, weil die Analyse über den zentralen Bibliotheksscan läuft. Der leere Zustand lautet nun neutral „Keine Auffälligkeiten gefunden.“ statt „Noch keine Vorschau erstellt.“ oder „Alles sauber – nichts zu normalisieren.“.
+  - **Cache-Bust für Frontend-Fix:** `app.js` wurde auf `v=80` angehoben, damit Browser und Desktop-Runtime nach den Struktur-Fix-Nacharbeiten nicht versehentlich alte Event-Handler oder alte Vorschau-Logik weiterverwenden.
+  - **Qualitätssicherung:** Unit-Tests in `test_nas_structure_fix.py` angepasst, und alle Backend- und Frontend-Tests erfolgreich verifiziert.
+
+---
+
+## Stand am 01.07.2026 (Phase 2.5d – Verschachtelte/doppelte Ordnerstrukturen & Sammelordner auflösen)
+
+- **Ordnerstruktur auflösen (Branch: feature/nas-structure-fix):**
+  - **Sicherheits- & Validierungslogik im Backend:** Die API prüft streng und unterscheidet präzise zwischen `nested_duplicate` und `genre_container`. Wenn ein Ordner kein Jahr im Namen hat, keine Videodateien direkt enthält und mindestens einen Unterordner mit Videos besitzt, wird er als `genre_container` eingestuft. Er wird in Serienkategorien blockiert. Vorhandene Dateien/Ordner am Zielort werden als Konflikte markiert.
+  - **Plausibilitätsprüfung für Unterordner:** Verhindert das Mitverschieben von nicht-medialen Nebenordnern (wie `Extras/`) durch eine strenge Prüfung: Jeder Unterordner muss entweder ein Video enthalten oder wie ein Filmordner aufgebaut sein (eine Jahreszahl im Namen tragen). Andernfalls wird ein Konflikt ausgegeben.
+  - **Umfassendes Items-to-move-Konzept:** Unterstützt sowohl das Flachklopfen einzelner Dateien/Unterordner (für `nested_duplicate`) als auch das Verschieben ganzer Filmordner eine Ebene nach oben (für `genre_container`).
+  - **UX- & Begrifflichkeiten-Glättung:** Vermeidung von „sicheren Strukturproblemen“ in der UI. Nutzung von klareren Bezeichnungen:
+    - „Alle sicheren Strukturprobleme prüfen“ &rarr; „Ordnerstrukturen vorbereiten“
+    - „Sichere auflösen“ &rarr; „Geprüfte Ordnerstrukturen auflösen“
+    - Status „Sicher“ &rarr; „Kann automatisch aufgelöst werden“
+    - Status „Konflikt“ &rarr; „Manuelle Prüfung nötig“
+  - **Vorschau-Modal (`modal-structure-preview`):** Zeigt detaillierte, typspezifische Vorher/Nachher-Ansichten mit angepassten Titeln und neutralem Wording („Filmordner verschieben“ vs. „Datei verschieben“).
+  - **Batch-Prüfer & Abarbeitung (`modal-structure-batch`):** Prüft alle Befunde im Hintergrund. Wenn keine Befunde automatisch auflösbar sind, wird eine rote, klare Fehlermeldung gerendert, anstatt stillschweigend nichts zu tun.
+  - **Stabile Klickverkabelung für Strukturaktionen:** Die neuen Buttons „Vorschau“, „Auflösen“ und „Ordnerstrukturen vorbereiten“ nutzen nun Event-Delegation auf dem Bibliotheksbereich, damit sie nach Polling/Re-Render weiterhin reagieren. Die Struktur-Modals werden nun korrekt mit `active` geöffnet und mit `hidden` geschlossen; vorher kamen die Preview-Requests zwar im Backend an, aber das Modal blieb unsichtbar. `app.js` wurde auf `v=76` gebumpt, damit der Browser den Fix sicher neu lädt.
+  - **Quarantäne statt Löschen:** Leere Sammelordner und verschachtelte Unterordner werden sicher über `trash.send_to_trash(..., force=True)` in Quarantäne verschoben. Falls nach dem Verschieben noch nicht-mediale Dateien im Sammelordner verbleiben (z. B. `.txt` oder `.nfo`), bleibt der Ordner erhalten, und die API liefert eine präzise Warnmeldung an das Frontend zurück.
+  - **Hundertprozentige Testabdeckung:** 12 Python-Tests in `tests/test_nas_structure_fix.py`, 45 Frontend-Tests und die komplette Python-Suite verifizieren alle Funktionalitäten, Fehlertypen, Warnungen und Konflikte fehlerfrei.
+
 ---
 
 ## Stand am 01.07.2026 (Phase 2.5b – Bibliothekspflege: Wartungs-Cockpit & UI-Polish)

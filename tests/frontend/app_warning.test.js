@@ -14,6 +14,8 @@ function createMockElement() {
         textContent: "",
         innerHTML: "",
         style: {},
+        dataset: {},
+        __listeners: {},
         classList: {
             add: (c) => classSet.add(c),
             remove: (c) => classSet.delete(c),
@@ -24,7 +26,15 @@ function createMockElement() {
         },
         querySelectorAll: () => [],
         querySelector: () => null,
-        appendChild: () => {}
+        contains: () => true,
+        appendChild: () => {},
+        addEventListener(type) {
+            this.__listeners[type] = (this.__listeners[type] || 0) + 1;
+        },
+        cloneNode() {
+            return createMockElement();
+        },
+        replaceWith() {}
     };
 }
 
@@ -204,6 +214,20 @@ test('renderNormalizePlan - 2 items renders Plural "Vorschläge"', () => {
     assert.ok(!statusEl.textContent.includes("Vorschlag "));
 });
 
+test('renderNormalizePlan - empty plan renders neutral empty state without emoji', () => {
+    const statusEl = globalThis.document.getElementById("normalize-status");
+    const planEl = globalThis.document.getElementById("normalize-plan");
+    statusEl.textContent = "Alter Status";
+    planEl.innerHTML = "<div>Alter Plan</div>";
+
+    globalThis.renderNormalizePlan([]);
+
+    assert.equal(statusEl.textContent, "Keine Auffälligkeiten gefunden.");
+    assert.equal(planEl.innerHTML, "");
+    assert.ok(!statusEl.textContent.includes("🎉"));
+    assert.ok(!statusEl.textContent.includes("Alles sauber"));
+});
+
 test('renderHealthStatus - severity grouping renders severity groups and no checkboxes', () => {
     globalThis.window.healthGroupMode = "severity";
     const issuesEl = globalThis.document.getElementById("health-issues");
@@ -283,4 +307,43 @@ test('renderHealthStatus - only nested_duplicate / structure issues displays tab
     assert.ok(structureIssuesEl.innerHTML.includes("Verschachtelter Ordner"));
     // Der Struktur-Container sollte eingeblendet sein
     assert.strictEqual(structureContainer.style.display, "block");
+
+    // Neue Buttons müssen gerendert werden
+    assert.ok(structureIssuesEl.innerHTML.includes('class="btn btn-secondary btn-sm health-structure-preview"'));
+    assert.ok(structureIssuesEl.innerHTML.includes('class="btn btn-primary btn-sm health-structure-apply"'));
+    // Alter Button darf nicht mehr gerendert werden
+    assert.ok(!structureIssuesEl.innerHTML.includes('health-fix-flatten'));
+});
+
+test('renderHealthStatus - structure-only result wires structure batch button', () => {
+    globalThis.window.healthGroupMode = "type";
+
+    elements["btn-structure-batch-check"] = createMockElement();
+    elements["view-library"] = createMockElement();
+    const issuesEl = globalThis.document.getElementById("health-issues");
+    const structureIssuesEl = globalThis.document.getElementById("health-issues-structure");
+    const structureContainer = globalThis.document.getElementById("structure-health-issues-container");
+    const libraryView = globalThis.document.getElementById("view-library");
+
+    issuesEl.innerHTML = "";
+    structureIssuesEl.innerHTML = "";
+    structureContainer.style.display = "none";
+    libraryView.dataset = {};
+    libraryView.__listeners = {};
+
+    const data = {
+        status: "done",
+        message: "Scan abgeschlossen",
+        issues: [
+            { key: "1", type: "nested_duplicate", category: "Filme", severity: "warning", message: "Verschachtelter Ordner", path: "/path/to/movie-a" },
+            { key: "2", type: "genre_container", category: "Filme", severity: "warning", message: "Sammelordner", path: "/path/to/action" }
+        ],
+        finished_at: 1719816000
+    };
+
+    globalThis.renderHealthStatus(data);
+
+    assert.ok(structureIssuesEl.innerHTML.includes('id="btn-structure-batch-check"'));
+    assert.strictEqual(libraryView.dataset.structureFixDelegated, "true");
+    assert.ok(libraryView.__listeners.click > 0);
 });
