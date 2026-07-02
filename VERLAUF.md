@@ -10,6 +10,7 @@ Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert 
   - **Mehrfach verschachtelte identische Ordner:** Ketten wie `Film/Film/Film/datei.mkv` werden nun bis zum tiefsten Inhaltsordner erkannt. Dadurch entstehen keine falschen Zielkonflikte mehr, wenn der nächste gleichnamige Unterordner nur Teil der redundanten Verschachtelung ist. Nach dem Hochziehen werden leere Rest-Unterordner sicher in die Quarantäne verschoben.
   - **NAS-Pfad-UX-Fix:** Die geführte NAS-Eingabe löscht vorhandene IP-Adressen nicht mehr, wenn ein lokaler Mac-Pfad wie `/Volumes/Kino` gewählt wird. Dadurch bleibt automatisches Verbinden möglich, auch wenn zusätzlich ein lokaler Mount-Pfad gepflegt wird.
   - **Race-Condition im Vorschau-Dialog behoben:** Der aktive Vorschau-Pfad wird nun direkt am Modal gespeichert. Dadurch bleibt der Button „Struktur auflösen“ auch dann funktionsfähig, wenn währenddessen der Health-Status neu gerendert wird. Während der Batch-Prüfung bleiben Vorschauaktionen gesperrt, bis die Prüfung abgeschlossen ist.
+  - **Cache-Bust für Frontend-Fix:** `app.js` wurde auf `v=77` angehoben, damit Browser und Desktop-Runtime nach den Struktur-Fix-Nacharbeiten nicht versehentlich alte Event-Handler oder alte Vorschau-Logik weiterverwenden.
   - **Qualitätssicherung:** Unit-Tests in `test_nas_structure_fix.py` angepasst, und alle Backend- und Frontend-Tests erfolgreich verifiziert.
 
 ---
