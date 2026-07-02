@@ -13435,9 +13435,20 @@ function renderHealthStatus(data) {
                         }
 
                         if (progressTitle) progressTitle.textContent = "Abarbeitung abgeschlossen.";
-                        newConfirmBatchBtn.textContent = "Fertig";
                         window.structureBatchBusy = false;
                         pollHealthStatus(false);
+
+                        const doneBtn = newConfirmBatchBtn.cloneNode(true);
+                        doneBtn.disabled = false;
+                        doneBtn.textContent = "Fertig";
+                        newConfirmBatchBtn.replaceWith(doneBtn);
+                        doneBtn.addEventListener("click", () => {
+                            const modal = document.getElementById("modal-structure-batch");
+                            if (modal) {
+                                modal.classList.remove("active");
+                                modal.classList.add("hidden");
+                            }
+                        });
                     });
                 }
             }
