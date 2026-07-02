@@ -55,6 +55,7 @@ die aktive After-Release-Roadmap übernommen.
 | 46 | Profile-Dropdown: Frisch erstellte Serien-Profile sofort in der UI zur Verfügung stellen (ohne Page-Reload) | geplant | klein |
 | 47 | Mediathek-URL-Auflösung: Untertitel / Trennstrich-Titel mit übernehmen | geplant | klein |
 | 48 | Health-Scan: Qualitäts-, Bitrate- & Audiospur-Prüfung definieren und markieren | geplant | mittel |
+| 49 | Bibliotheks-Scan: Teilscan ohne Medienserver & dynamische Kategorieauswahl | geplant | klein–mittel |
 
 ---
 
@@ -1452,3 +1453,40 @@ Der Bibliotheks-Scan soll Mediendateien erfassen, deren Qualität/Bitrate unter 
 
 ### Aufwand (grob)
 Mittel: Erfordert die Erweiterung des Settings-Modells, Integration von `ffprobe`-Parsing für Audio- und Video-Streams, Anpassung des Health-Analyzers im Backend und Ausbau der Filtermöglichkeiten im Frontend.
+
+---
+
+## 49. Bibliotheks-Scan: Teilscan ohne Medienserver & dynamische Kategorieauswahl
+
+**Einordnung / Priorität:** Scan-UX, Settings-Verknüpfung und Fehlertoleranz.
+
+**Problem:**
+Der Bibliotheks-Scan bricht derzeit ab, wenn kein Medienserver ausgewählt oder konfiguriert ist. Das ist für medienserver-spezifische Prüfungen nachvollziehbar, blockiert aber auch Prüfungen, die unabhängig davon laufen könnten (z. B. Ordnerstruktur, fehlende NFOs, Artworks, Duplikate oder Normalisierungsbefunde). Außerdem ist die Fehlermeldung zu wenig handlungsleitend: Sie sagt nicht, in welchem Einstellungsbereich der Medienserver konfiguriert wird. Zusätzlich zeigt die Kategorieauswahl im Scan-UI offenbar weiterhin Standardkategorien an, obwohl in den Einstellungen nur bestimmte Kategorien aktiv bzw. konfiguriert sind.
+
+**Ziel:**
+Der Scan soll robust als Teilscan starten können. Prüfungen, die keinen Medienserver benötigen, laufen weiter. Medienserver-spezifische Checks werden übersprungen und klar als nicht ausgeführt markiert. Das UI erklärt direkt, wo die fehlende Konfiguration vorgenommen wird. Die Kategorien im Scan-UI spiegeln ausschließlich die aktuell gespeicherten und aktiven Sync-Kategorien wider.
+
+**Umsetzung:**
+1. **Scan-Orchestrierung entkoppeln:**
+   - Vor dem Scan zwischen medienserver-unabhängigen und medienserver-spezifischen Prüfungen unterscheiden.
+   - Wenn kein Medienserver konfiguriert ist, nur die betroffenen Prüfschritte überspringen, nicht den gesamten Scan abbrechen.
+   - Im Ergebnis anzeigen: "Medienserver-Prüfungen übersprungen – bitte unter Einstellungen > Medienserver konfigurieren" (genauer Tab-Name beim Umsetzen anhand der aktuellen UI prüfen).
+2. **Fehlermeldung handlungsleitend machen:**
+   - Fehlermeldung und Warnbox mit direktem Verweis auf den richtigen Einstellungs-Tab versehen.
+   - Falls technisch sinnvoll: Button "Medienserver einrichten" ergänzen, der den passenden Settings-Tab öffnet und dorthin scrollt.
+3. **Dynamische Kategorieauswahl:**
+   - Die Scan-Kategorien aus den gespeicherten `sync_categories` bzw. der aktuellen Settings-Struktur ableiten.
+   - Nicht konfigurierte oder deaktivierte Kategorien nicht mehr im Scan-UI anzeigen.
+   - Nach dem Speichern der Kategorien die Scan-UI ohne Page-Reload aktualisieren oder sichtbar einen Reload/Refresh der Kategorieauswahl auslösen.
+4. **Tests:**
+   - Backend-Test: Scan startet ohne Medienserver und liefert übersprungene Medienserver-Checks als Warnung.
+   - Frontend-Test: Kategorieauswahl rendert nur konfigurierte Kategorien.
+   - Frontend-Test: Fehlermeldung enthält den konkreten Settings-Ort bzw. den Button zur Konfiguration.
+
+### Risiken & Hinweise
+- Der genaue Umfang "medienserver-spezifischer Prüfungen" muss vor der Umsetzung im Code abgegrenzt werden, damit nicht versehentlich echte Bibliotheksfehler als übersprungen verschwinden.
+- Falls die Kategorieauswahl aktuell aus Defaults und nicht aus den gespeicherten Settings kommt, muss geprüft werden, ob das nur ein UI-Render-Problem ist oder ob auch der Backend-Scan mit veralteten Kategorien läuft.
+- Nach den Struktur-Fix-Nacharbeiten zusätzlich prüfen, dass der `Auflösen`-Button wirklich den neuen Direkt-Flow lädt (`app.js?v=78`) und nicht durch Browser-/Desktop-Cache weiter die Vorschau öffnet.
+
+### Aufwand (grob)
+Klein–mittel: vor allem Scan-Orchestrierung, Settings-UI-Verknüpfung und Tests. Die Kategoriefrage kann größer werden, falls Frontend und Backend unterschiedliche Quellen für aktive Kategorien verwenden.
