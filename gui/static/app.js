@@ -13196,6 +13196,56 @@ function renderHealthStatus(data) {
             }
         }
 
+        function confirmDirectStructureFix(path) {
+            const skipKey = "skipStructureFixDirectConfirm";
+            try {
+                if (localStorage.getItem(skipKey) === "true") {
+                    return Promise.resolve(true);
+                }
+            } catch (_) {
+                // localStorage can be unavailable in restricted browser contexts.
+            }
+
+            const modal = document.getElementById("modal-structure-direct-confirm");
+            const pathEl = document.getElementById("structure-direct-confirm-path");
+            const skipCheckbox = document.getElementById("structure-direct-confirm-skip");
+            const confirmBtn = document.getElementById("btn-structure-direct-confirm-apply");
+            const cancelBtn = document.getElementById("btn-structure-direct-confirm-cancel");
+            const closeBtn = document.getElementById("close-modal-structure-direct-confirm");
+
+            if (!modal || !confirmBtn || !cancelBtn || !closeBtn) {
+                return Promise.resolve(window.confirm("Ordnerstruktur ohne Vorschau auflösen? Dateien werden verschoben und leere Restordner werden in die Quarantäne verschoben."));
+            }
+
+            if (pathEl) pathEl.textContent = path;
+            if (skipCheckbox) skipCheckbox.checked = false;
+            modal.classList.remove("hidden");
+            modal.classList.add("active");
+
+            return new Promise(resolve => {
+                const finish = (confirmed) => {
+                    modal.classList.remove("active");
+                    modal.classList.add("hidden");
+                    confirmBtn.onclick = null;
+                    cancelBtn.onclick = null;
+                    closeBtn.onclick = null;
+
+                    if (confirmed && skipCheckbox && skipCheckbox.checked) {
+                        try {
+                            localStorage.setItem(skipKey, "true");
+                        } catch (_) {
+                            // Ignore persistence failures; the current confirmation still proceeds.
+                        }
+                    }
+                    resolve(confirmed);
+                };
+
+                confirmBtn.onclick = () => finish(true);
+                cancelBtn.onclick = () => finish(false);
+                closeBtn.onclick = () => finish(false);
+            });
+        }
+
         const closePreviewElements = ["close-modal-structure-preview", "btn-structure-preview-cancel"];
         closePreviewElements.forEach(id => {
             const el = document.getElementById(id);
@@ -13410,7 +13460,16 @@ function renderHealthStatus(data) {
                 const applyBtn = event.target.closest(".health-structure-apply");
                 if (applyBtn && libraryView.contains(applyBtn)) {
                     event.preventDefault();
-                    openStructurePreview(applyBtn.getAttribute("data-path"));
+                    if (window.structureBatchBusy) {
+                        alert("Die Ordnerstruktur-Prüfung läuft noch. Bitte warte, bis sie abgeschlossen ist.");
+                        return;
+                    }
+                    const path = applyBtn.getAttribute("data-path");
+                    confirmDirectStructureFix(path).then(confirmed => {
+                        if (confirmed) {
+                            applyStructureFix(path, applyBtn);
+                        }
+                    });
                     return;
                 }
 
