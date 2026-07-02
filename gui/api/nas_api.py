@@ -1118,43 +1118,43 @@ def _get_structure_fix_preview(path: str):
             if not real_src.startswith(nas_root + os.sep) or not real_dst.startswith(nas_root + os.sep):
                 conflicts.append(f"Pfad liegt außerhalb des erlaubten NAS-Verzeichnisses: {item}")
 
-        current_tree.append(inner_name + "/")
+        current_tree.append(outer_name + "/")
         for dp, dn, fn in os.walk(real_path):
             for d in dn:
                 if d.startswith('.'): continue
                 rp = os.path.relpath(os.path.join(dp, d), real_path)
-                if rp != inner_name:
-                    current_tree.append(rp + "/")
+                current_tree.append(f"{outer_name}/{rp}/")
             for f in fn:
                 if f.startswith('.'): continue
                 rp = os.path.relpath(os.path.join(dp, f), real_path)
-                current_tree.append(rp)
+                current_tree.append(f"{outer_name}/{rp}")
 
+        target_tree.append(outer_name + "/")
         for item in entries:
             if item == inner_name or item.startswith('.'):
                 continue
             if os.path.isdir(os.path.join(real_path, item)):
-                target_tree.append(item + "/")
+                target_tree.append(f"{outer_name}/{item}/")
             else:
-                target_tree.append(item)
+                target_tree.append(f"{outer_name}/{item}")
 
         for item in inner_entries:
             if item.startswith('.'):
                 continue
             item_src = os.path.join(inner_path, item)
             if os.path.isdir(item_src):
-                target_tree.append(item + "/")
+                target_tree.append(f"{outer_name}/{item}/")
                 for sub_dp, sub_dn, sub_fn in os.walk(item_src):
                     for sd in sub_dn:
                         if sd.startswith('.'): continue
                         rp = os.path.relpath(os.path.join(sub_dp, sd), inner_path)
-                        target_tree.append(rp + "/")
+                        target_tree.append(f"{outer_name}/{rp}/")
                     for sf in sub_fn:
                         if sf.startswith('.'): continue
                         rp = os.path.relpath(os.path.join(sub_dp, sf), inner_path)
-                        target_tree.append(rp)
+                        target_tree.append(f"{outer_name}/{rp}")
             else:
-                target_tree.append(item)
+                target_tree.append(f"{outer_name}/{item}")
 
     elif type_id == "genre_container":
         parent_path = os.path.dirname(real_path)

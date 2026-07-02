@@ -38,6 +38,11 @@
     .mw-modal-btn-cancel:hover { background: rgba(255,255,255,0.1); }
     .mw-modal-btn-confirm { background: var(--accent); color: white; }
     .mw-modal-btn-confirm:hover { background: var(--accent-hover); }
+    
+    /* Ensure individual preview modal is always in front of batch modal */
+    #modal-structure-preview {
+        z-index: 1000005;
+    }
     </style>
 
 </head>

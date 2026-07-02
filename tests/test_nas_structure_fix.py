@@ -69,8 +69,8 @@ class TestNasStructureFix(unittest.TestCase):
 
         # Check trees
         self.assertIn("Afterburn (2025)/", data["current_tree"])
-        self.assertIn("Afterburn (2025)/Afterburn.mkv", data["current_tree"])
-        self.assertIn("Afterburn.mkv", data["target_tree"])
+        self.assertIn("Afterburn (2025)/Afterburn (2025)/Afterburn.mkv", data["current_tree"])
+        self.assertIn("Afterburn (2025)/Afterburn.mkv", data["target_tree"])
 
     def test_apply_simple_success(self):
         # Setup: Filme/Afterburn (2025)/Afterburn (2025)/Afterburn.mkv
