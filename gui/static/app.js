@@ -13074,10 +13074,7 @@ function renderHealthStatus(data) {
             }).join("");
         }
 
-        let activeStructurePreviewPath = null;
-
         async function openStructurePreview(path, options = {}) {
-            activeStructurePreviewPath = path;
             const modal = document.getElementById("modal-structure-preview");
             const pathEl = document.getElementById("structure-preview-path");
             const treeCurrentEl = document.getElementById("structure-preview-tree-current");
@@ -13095,6 +13092,7 @@ function renderHealthStatus(data) {
             if (confirmBtn) confirmBtn.disabled = true;
 
             if (modal) {
+                modal.dataset.structurePreviewPath = path;
                 modal.classList.remove("hidden");
                 modal.classList.add("active");
             }
@@ -13144,6 +13142,11 @@ function renderHealthStatus(data) {
                     if (conflictsWrap) conflictsWrap.style.display = "block";
                     if (conflictsEl) conflictsEl.innerHTML = data.conflicts.map(c => `<li>${escapeHTML(c)}</li>`).join("");
                     if (confirmBtn) confirmBtn.disabled = true;
+                } else if (window.structureBatchBusy) {
+                    if (confirmBtn) {
+                        confirmBtn.disabled = true;
+                        confirmBtn.textContent = "Prüfung läuft...";
+                    }
                 } else {
                     if (conflictsWrap) conflictsWrap.style.display = "none";
                     if (confirmBtn) confirmBtn.disabled = false;
@@ -13212,8 +13215,10 @@ function renderHealthStatus(data) {
             const newConfirmBtn = btnStructurePreviewConfirm.cloneNode(true);
             btnStructurePreviewConfirm.replaceWith(newConfirmBtn);
             newConfirmBtn.addEventListener("click", () => {
-                if (activeStructurePreviewPath) {
-                    applyStructureFix(activeStructurePreviewPath, newConfirmBtn);
+                const modal = document.getElementById("modal-structure-preview");
+                const activePath = modal && modal.dataset ? modal.dataset.structurePreviewPath : "";
+                if (activePath) {
+                    applyStructureFix(activePath, newConfirmBtn);
                 }
             });
         }
@@ -13221,6 +13226,7 @@ function renderHealthStatus(data) {
         async function startStructureBatchCheck() {
             const paths = Array.from(document.querySelectorAll("#health-issues-structure .health-structure-preview")).map(b => b.getAttribute("data-path"));
             if (paths.length === 0) return;
+            window.structureBatchBusy = true;
 
             const batchModal = document.getElementById("modal-structure-batch");
             const progressWrap = document.getElementById("structure-batch-progress-wrap");
@@ -13294,7 +13300,7 @@ function renderHealthStatus(data) {
                             if (statusCol) statusCol.innerHTML = `<span style="color: #ef4444; font-weight: 500;" title="${escapeHTML(data.conflicts.join(', '))}">⚠️ Manuelle Prüfung nötig</span>`;
                         }
                         if (previewBtn) {
-                            previewBtn.disabled = false;
+                            previewBtn.dataset.previewReady = "true";
                             previewBtn.addEventListener("click", () => {
                                 openStructurePreview(p);
                             });
@@ -13310,6 +13316,15 @@ function renderHealthStatus(data) {
                 const pct = Math.round((processedCount / paths.length) * 100);
                 if (progressBar) progressBar.style.width = `${pct}%`;
                 if (progressNum) progressNum.textContent = `${processedCount} / ${paths.length}`;
+            }
+
+            window.structureBatchBusy = false;
+            if (tableBody) {
+                tableBody.querySelectorAll(".batch-item-preview-btn").forEach(btn => {
+                    if (btn.dataset && btn.dataset.previewReady === "true") {
+                        btn.disabled = false;
+                    }
+                });
             }
 
             if (progressTitle) {
@@ -13332,6 +13347,7 @@ function renderHealthStatus(data) {
                 const newConfirmBatchBtn = document.getElementById("btn-structure-batch-confirm");
                 if (newConfirmBatchBtn) {
                     newConfirmBatchBtn.addEventListener("click", async () => {
+                        window.structureBatchBusy = true;
                         newConfirmBatchBtn.disabled = true;
                         if (progressWrap) progressWrap.style.display = "block";
                         if (progressBar) progressBar.style.width = "0%";
@@ -13370,6 +13386,7 @@ function renderHealthStatus(data) {
 
                         if (progressTitle) progressTitle.textContent = "Abarbeitung abgeschlossen.";
                         newConfirmBatchBtn.textContent = "Fertig";
+                        window.structureBatchBusy = false;
                         pollHealthStatus(false);
                     });
                 }
