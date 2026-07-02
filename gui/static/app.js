@@ -13998,7 +13998,7 @@ function renderNormalizePlan(plan) {
     const applyWrap = document.getElementById("normalize-apply-wrap");
     if (!planEl) return;
     if (!plan.length) {
-        if (statusEl) statusEl.textContent = "Alles sauber – nichts zu normalisieren. 🎉";
+        if (statusEl) statusEl.textContent = "Keine Auffälligkeiten gefunden.";
         planEl.innerHTML = "";
         if (applyWrap) applyWrap.style.display = "none";
         return;

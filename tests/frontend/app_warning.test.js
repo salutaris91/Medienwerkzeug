@@ -214,6 +214,20 @@ test('renderNormalizePlan - 2 items renders Plural "Vorschläge"', () => {
     assert.ok(!statusEl.textContent.includes("Vorschlag "));
 });
 
+test('renderNormalizePlan - empty plan renders neutral empty state without emoji', () => {
+    const statusEl = globalThis.document.getElementById("normalize-status");
+    const planEl = globalThis.document.getElementById("normalize-plan");
+    statusEl.textContent = "Alter Status";
+    planEl.innerHTML = "<div>Alter Plan</div>";
+
+    globalThis.renderNormalizePlan([]);
+
+    assert.equal(statusEl.textContent, "Keine Auffälligkeiten gefunden.");
+    assert.equal(planEl.innerHTML, "");
+    assert.ok(!statusEl.textContent.includes("🎉"));
+    assert.ok(!statusEl.textContent.includes("Alles sauber"));
+});
+
 test('renderHealthStatus - severity grouping renders severity groups and no checkboxes', () => {
     globalThis.window.healthGroupMode = "severity";
     const issuesEl = globalThis.document.getElementById("health-issues");

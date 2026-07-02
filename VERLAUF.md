@@ -12,7 +12,8 @@ Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert 
   - **Race-Condition im Vorschau-Dialog behoben:** Der aktive Vorschau-Pfad wird nun direkt am Modal gespeichert. Dadurch bleibt der Button „Struktur auflösen“ auch dann funktionsfähig, wenn währenddessen der Health-Status neu gerendert wird. Während der Batch-Prüfung bleiben Vorschauaktionen gesperrt, bis die Prüfung abgeschlossen ist.
   - **Einzelaktion getrennt:** In den Struktur-Befunden öffnet „Vorschau“ weiterhin die Vorher/Nachher-Ansicht. „Auflösen“ startet nun direkt nach einer Sicherheitsbestätigung; diese Bestätigung kann über „zukünftig nicht mehr anzeigen“ lokal deaktiviert werden.
   - **Batch-Abschluss repariert:** Nach erfolgreicher Sammelauflösung wird der Abschlussbutton zu einem echten „Fertig“-Button, der das Batch-Modal zuverlässig schließt.
-  - **Cache-Bust für Frontend-Fix:** `app.js` wurde auf `v=79` angehoben, damit Browser und Desktop-Runtime nach den Struktur-Fix-Nacharbeiten nicht versehentlich alte Event-Handler oder alte Vorschau-Logik weiterverwenden.
+  - **Filmstruktur-Widget geglättet:** Der separate Vorschau-Button im Widget „Filmstruktur aufräumen“ wurde entfernt, weil die Analyse über den zentralen Bibliotheksscan läuft. Der leere Zustand lautet nun neutral „Keine Auffälligkeiten gefunden.“ statt „Noch keine Vorschau erstellt.“ oder „Alles sauber – nichts zu normalisieren.“.
+  - **Cache-Bust für Frontend-Fix:** `app.js` wurde auf `v=80` angehoben, damit Browser und Desktop-Runtime nach den Struktur-Fix-Nacharbeiten nicht versehentlich alte Event-Handler oder alte Vorschau-Logik weiterverwenden.
   - **Qualitätssicherung:** Unit-Tests in `test_nas_structure_fix.py` angepasst, und alle Backend- und Frontend-Tests erfolgreich verifiziert.
 
 ---
