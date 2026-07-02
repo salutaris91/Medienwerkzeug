@@ -1090,23 +1090,35 @@ def _get_structure_fix_preview(path: str):
         if outer_media_files:
             conflicts.append(f"Äußerer Ordner enthält bereits eigene Mediendateien: {', '.join(outer_media_files)}")
 
-        try:
-            inner_entries = os.listdir(inner_path)
-        except OSError as e:
-            return None, f"Unterordner kann nicht gelesen werden: {e}", 500
+        move_source_path = inner_path
+        move_source_rel_parts = [inner_name]
+        while True:
+            try:
+                source_entries = [e for e in os.listdir(move_source_path) if not e.startswith('.')]
+            except OSError as e:
+                return None, f"Unterordner kann nicht gelesen werden: {e}", 500
+
+            source_subdirs = [e for e in source_entries if os.path.isdir(os.path.join(move_source_path, e))]
+            if len(source_entries) == 1 and len(source_subdirs) == 1 and are_folder_names_equivalent(outer_name, source_subdirs[0]):
+                next_inner = source_subdirs[0]
+                move_source_path = os.path.join(move_source_path, next_inner)
+                move_source_rel_parts.append(next_inner)
+                continue
+            break
 
         folders_to_delete = [{"path": inner_path, "rel_path": inner_name}]
 
-        for item in inner_entries:
+        for item in source_entries:
             if item.startswith('.'):
                 continue
-            item_src = os.path.join(inner_path, item)
+            item_src = os.path.join(move_source_path, item)
             item_dst = os.path.join(real_path, item)
+            rel_src = os.path.join(*move_source_rel_parts, item)
 
             items_to_move.append({
                 "src": item_src,
                 "dst": item_dst,
-                "rel_src": os.path.join(inner_name, item),
+                "rel_src": rel_src,
                 "rel_dst": item
             })
 
@@ -1138,20 +1150,20 @@ def _get_structure_fix_preview(path: str):
             else:
                 target_tree.append(f"{outer_name}/{item}")
 
-        for item in inner_entries:
+        for item in source_entries:
             if item.startswith('.'):
                 continue
-            item_src = os.path.join(inner_path, item)
+            item_src = os.path.join(move_source_path, item)
             if os.path.isdir(item_src):
                 target_tree.append(f"{outer_name}/{item}/")
                 for sub_dp, sub_dn, sub_fn in os.walk(item_src):
                     for sd in sub_dn:
                         if sd.startswith('.'): continue
-                        rp = os.path.relpath(os.path.join(sub_dp, sd), inner_path)
+                        rp = os.path.relpath(os.path.join(sub_dp, sd), move_source_path)
                         target_tree.append(f"{outer_name}/{rp}/")
                     for sf in sub_fn:
                         if sf.startswith('.'): continue
-                        rp = os.path.relpath(os.path.join(sub_dp, sf), inner_path)
+                        rp = os.path.relpath(os.path.join(sub_dp, sf), move_source_path)
                         target_tree.append(f"{outer_name}/{rp}")
             else:
                 target_tree.append(f"{outer_name}/{item}")
@@ -1301,9 +1313,16 @@ def handle_api_structure_fix_apply():
         inner_path = data["folders_to_delete"][0]["path"]
         removed_folders = []
         warnings = []
+
+        def has_visible_files(folder_path):
+            for _, _, filenames in os.walk(folder_path):
+                if any(not filename.startswith('.') for filename in filenames):
+                    return True
+            return False
+
         try:
             remaining = [e for e in os.listdir(inner_path) if not e.startswith('.')]
-            if not remaining:
+            if not remaining or not has_visible_files(inner_path):
                 trash.send_to_trash(inner_path, force=True)
                 removed_folders.append(data["folders_to_delete"][0]["rel_path"])
             else:
@@ -1407,5 +1426,3 @@ def handle_api_normalize_films_apply():
 
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"ok": True, "task_id": task_id, "message": "In Warteschlange eingereiht."})
-
-

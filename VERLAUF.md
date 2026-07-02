@@ -7,6 +7,8 @@ Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert 
 - **UI/Preview-Fixes (Branch: feature/nas-structure-fix):**
   - **Vorschau-Modal im Vordergrund:** Das Vorschau-Modal (`#modal-structure-preview`) hat einen höheren z-index (`1000005`) erhalten, wodurch es sich nun zuverlässig vor dem Batch-Modal öffnet und bedienbar bleibt.
   - **Vorher/Nachher-Baum bei nested_duplicate korrigiert:** Der linke Baum ("Aktuelle Ordnerstruktur") zeigt nun die doppelte Ordnerebene (`Dracula.../Dracula.../...`) an, und der rechte Baum ("Geplanter Zielzustand") visualisiert die flache, bereinigte Struktur direkt unter dem Filmordner. Beide Bäume sind nun konsistent mit dem äußeren Ordner (`outer_name`) als Root präfixiert.
+  - **Mehrfach verschachtelte identische Ordner:** Ketten wie `Film/Film/Film/datei.mkv` werden nun bis zum tiefsten Inhaltsordner erkannt. Dadurch entstehen keine falschen Zielkonflikte mehr, wenn der nächste gleichnamige Unterordner nur Teil der redundanten Verschachtelung ist. Nach dem Hochziehen werden leere Rest-Unterordner sicher in die Quarantäne verschoben.
+  - **NAS-Pfad-UX-Fix:** Die geführte NAS-Eingabe löscht vorhandene IP-Adressen nicht mehr, wenn ein lokaler Mac-Pfad wie `/Volumes/Kino` gewählt wird. Dadurch bleibt automatisches Verbinden möglich, auch wenn zusätzlich ein lokaler Mount-Pfad gepflegt wird.
   - **Qualitätssicherung:** Unit-Tests in `test_nas_structure_fix.py` angepasst, und alle Backend- und Frontend-Tests erfolgreich verifiziert.
 
 ---

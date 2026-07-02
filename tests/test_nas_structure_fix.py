@@ -98,6 +98,46 @@ class TestNasStructureFix(unittest.TestCase):
             # Der innere Ordner sollte quarantänisiert worden sein
             mock_trash.assert_called_once_with(inner_dir, force=True)
 
+    def test_preview_repeated_nested_duplicate_chain_is_safe(self):
+        # Setup: Filme/Movie/Movie/Movie/Movie.mkv
+        outer_dir = os.path.join(self.movie_dir, "Movie (2025)")
+        inner_dir = os.path.join(outer_dir, "Movie (2025)")
+        deepest_dir = os.path.join(inner_dir, "Movie (2025)")
+        os.makedirs(deepest_dir)
+        open(os.path.join(deepest_dir, "Movie.mkv"), 'w').close()
+
+        resp = self.client.post('/api/nas/structure-fix/preview', json={"path": outer_dir})
+        self.assertEqual(resp.status_code, 200)
+
+        data = resp.get_json()
+        self.assertTrue(data["ok"])
+        self.assertTrue(data["safe"])
+        self.assertEqual(data["conflicts"], [])
+        self.assertIn("Movie (2025)/Movie (2025)/Movie (2025)/Movie.mkv", data["current_tree"])
+        self.assertIn("Movie (2025)/Movie.mkv", data["target_tree"])
+
+        rel_srcs = [f["rel_src"] for f in data["files_to_move"]]
+        rel_dsts = [f["rel_dst"] for f in data["files_to_move"]]
+        self.assertIn(os.path.join("Movie (2025)", "Movie (2025)", "Movie.mkv"), rel_srcs)
+        self.assertIn("Movie.mkv", rel_dsts)
+
+    def test_apply_repeated_nested_duplicate_chain_success(self):
+        outer_dir = os.path.join(self.movie_dir, "Movie (2025)")
+        inner_dir = os.path.join(outer_dir, "Movie (2025)")
+        deepest_dir = os.path.join(inner_dir, "Movie (2025)")
+        os.makedirs(deepest_dir)
+        open(os.path.join(deepest_dir, "Movie.mkv"), 'w').close()
+
+        with patch('gui.api.nas_api.trash.send_to_trash') as mock_trash:
+            resp = self.client.post('/api/nas/structure-fix/apply', json={"path": outer_dir})
+            self.assertEqual(resp.status_code, 200)
+
+            data = resp.get_json()
+            self.assertTrue(data["ok"])
+            self.assertEqual(data["moved_files"], ["Movie.mkv"])
+            self.assertTrue(os.path.exists(os.path.join(outer_dir, "Movie.mkv")))
+            mock_trash.assert_called_once_with(inner_dir, force=True)
+
     def test_prevent_fix_if_target_file_exists(self):
         # Setup: Filme/Afterburn (2025)/Afterburn (2025)/Afterburn.mkv
         # Aber im äußeren Ordner existiert Afterburn.mkv bereits!

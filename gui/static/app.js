@@ -9065,13 +9065,7 @@ function renderStorageTargets() {
                     const val = e.target.value.trim();
                     const parsed = parseNasInputJs(val);
 
-                    // Lokaler Pfad: IP-Felder bewusst zurücksetzen
-                    if (val.startsWith("/")) {
-                        target.nas_ip = "";
-                        target.nas_ip_backup = "";
-                        if (ipField) ipField.input.value = "";
-                        if (backupIpField) backupIpField.input.value = "";
-                    } else if (parsed.host) {
+                    if (parsed.host) {
                         target.nas_ip = parsed.host;
                         if (ipField) ipField.input.value = parsed.host;
                     }
