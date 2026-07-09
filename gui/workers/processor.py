@@ -60,6 +60,21 @@ def _update_transfer_progress(target_id, file_idx, percent, msg, target_progress
                     active_jobs[task_id]["pipeline"][target_id]["progress"] = int(avg_val)
                 else:
                     active_jobs[task_id]["pipeline"][target_id]["progress"] = percent
+                active_jobs[task_id]["pipeline"][target_id]["message"] = msg
+
+def _set_transfer_pipeline_step(task_id, target_id, status=None, progress=None, message=None, job_message=None):
+    if not task_id:
+        return
+
+    from gui.core.jobs import update_job
+    update_job(
+        task_id,
+        message=job_message,
+        pipeline_step=target_id,
+        pipeline_status=status,
+        pipeline_progress=progress,
+        pipeline_message=message
+    )
 
 def _handle_transfer_task(
     task,
@@ -94,6 +109,14 @@ def _handle_transfer_task(
             clean_title = task["clean_title"]
 
             log_message(f"[Transfer Thread]: Starte NAS-Kopieren für {final_filename} auf {target_id}...")
+            _set_transfer_pipeline_step(
+                task_id,
+                target_id,
+                status="running",
+                progress=0,
+                message="Kopieren auf NAS gestartet...",
+                job_message="Kopieren auf NAS gestartet..."
+            )
             os.makedirs(dest_dir_nas, exist_ok=True)
             success = run_rsync_with_progress(
                 os.path.join(dest_dir_outbox, final_filename),
@@ -115,12 +138,27 @@ def _handle_transfer_task(
                     if f.startswith(clean_title) and f != final_filename:
                         shutil.copy(os.path.join(dest_dir_outbox, f), os.path.join(dest_dir_nas, f))
                 log_message(f"[Transfer Thread]: Kopieren auf {target_id} fertig für {final_filename}.")
+                _set_transfer_pipeline_step(
+                    task_id,
+                    target_id,
+                    status="done",
+                    progress=100,
+                    message="Auf NAS gespeichert"
+                )
 
         else:  # movie_nas_transfer
             dest_movie_dir_outbox = task["dest_movie_dir_outbox"]
             dest_movie_dir_nas = task["dest_movie_dir_nas"]
 
             log_message(f"[Transfer Thread]: Starte NAS-Kopieren für {final_filename} auf {target_id}...")
+            _set_transfer_pipeline_step(
+                task_id,
+                target_id,
+                status="running",
+                progress=0,
+                message="Kopieren auf NAS gestartet...",
+                job_message="Kopieren auf NAS gestartet..."
+            )
             os.makedirs(dest_movie_dir_nas, exist_ok=True)
 
             success = run_rsync_with_progress(
@@ -133,6 +171,13 @@ def _handle_transfer_task(
                 log_message(f"[Transfer Thread]: Kopieren auf {target_id} fertig für {final_filename}.")
                 with progress_lock:
                     target_progresses[target_id][file_idx] = 100
+                _set_transfer_pipeline_step(
+                    task_id,
+                    target_id,
+                    status="done",
+                    progress=100,
+                    message="Auf NAS gespeichert"
+                )
             else:
                 log_message(f"⚠️ [Transfer Thread]: Fehler beim Kopieren von {final_filename} auf {target_id}.")
                 with active_jobs_lock:
@@ -196,6 +241,16 @@ def _handle_transfer_task(
                 N, task_id, update_global_job_progress
             )
 
+        start_message = f"Upload nach {target_name} gestartet..."
+        _set_transfer_pipeline_step(
+            task_id,
+            target_id,
+            status="running",
+            progress=0,
+            message=start_message,
+            job_message=start_message
+        )
+
         if task_type in ["pcloud_transfer", "cloud_transfer"]:
             dest_show_dir_outbox = task["dest_show_dir_outbox"]
             nas_serien = task["nas_serien"]
@@ -237,6 +292,7 @@ def _handle_transfer_task(
                     if target_id in active_jobs[task_id]["pipeline"]:
                         active_jobs[task_id]["pipeline"][target_id]["status"] = "done"
                         active_jobs[task_id]["pipeline"][target_id]["progress"] = 100
+                        active_jobs[task_id]["pipeline"][target_id]["message"] = f"Upload nach {target_name} abgeschlossen"
         else:
             log_message(f"[Transfer Thread]: ❌ Upload nach {name_log} fehlgeschlagen.")
             with active_jobs_lock:
@@ -260,6 +316,9 @@ def _mark_convert_step_done(task_id):
             if active_jobs[task_id]["pipeline"]["convert"]["status"] == "running":
                 active_jobs[task_id]["pipeline"]["convert"]["status"] = "done"
                 active_jobs[task_id]["pipeline"]["convert"]["progress"] = 100
+
+def _calculate_average_progress(progress_values, total_count):
+    return int(sum(progress_values) / total_count) if total_count > 0 else 0
 
 def _mark_remaining_steps_done(task_id):
     from gui.core.jobs import active_jobs, active_jobs_lock
@@ -1356,6 +1415,18 @@ def process_worker(params):
                         conv_pct[file_idx] = 100
                     else:
                         temp_output = os.path.join(current_dir, f"{clean_title}_neu.mkv")
+                        convert_message = f"Konvertierung gestartet: {final_filename}"
+                        current_convert_progress = _calculate_average_progress(conv_pct, N)
+                        if task_id:
+                            from gui.core.jobs import update_job
+                            update_job(
+                                task_id,
+                                message=convert_message,
+                                pipeline_step="convert",
+                                pipeline_status="running",
+                                pipeline_progress=current_convert_progress,
+                                pipeline_message=convert_message
+                            )
                         def ffmpeg_progress_cb(percent, msg):
                             conv_pct[file_idx] = percent
                             update_global_job_progress()
@@ -1364,6 +1435,8 @@ def process_worker(params):
                                     active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
                                     avg_conv = sum(conv_pct) / N
                                     active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
+                                    active_jobs[task_id]["pipeline"]["convert"]["message"] = msg
+                                    active_jobs[task_id]["message"] = msg
 
                         conv_success, conv_file = media.execute_video_conversion(
                             target_filepath=target_filepath,
@@ -1804,6 +1877,18 @@ def process_worker(params):
                 final_filepath = target_filepath
                 if convert:
                     temp_output = os.path.join(current_dir, f"{clean_movie_name}_neu.mkv")
+                    convert_message = f"Konvertierung gestartet: {target_filename}"
+                    current_convert_progress = _calculate_average_progress(conv_pct, N)
+                    if task_id:
+                        from gui.core.jobs import update_job
+                        update_job(
+                            task_id,
+                            message=convert_message,
+                            pipeline_step="convert",
+                            pipeline_status="running",
+                            pipeline_progress=current_convert_progress,
+                            pipeline_message=convert_message
+                        )
                     def ffmpeg_progress_cb(percent, msg):
                         conv_pct[file_idx] = percent
                         update_global_job_progress()
@@ -1812,6 +1897,8 @@ def process_worker(params):
                                 active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
                                 avg_conv = sum(conv_pct) / N
                                 active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
+                                active_jobs[task_id]["pipeline"]["convert"]["message"] = msg
+                                active_jobs[task_id]["message"] = msg
 
                     conv_success, conv_file = media.execute_video_conversion(
                         target_filepath=target_filepath,

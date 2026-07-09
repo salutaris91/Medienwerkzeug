@@ -110,6 +110,7 @@ globalThis.renderHealthStatus = renderHealthStatus;
 globalThis.renderDuplicateStatus = renderDuplicateStatus;
 globalThis.loadNormalizePreview = loadNormalizePreview;
 globalThis.renderNormalizePlan = renderNormalizePlan;
+globalThis.renderQueue = renderQueue;
 `;
 
 eval(cleanAppJs);
@@ -226,6 +227,39 @@ test('renderNormalizePlan - empty plan renders neutral empty state without emoji
     assert.equal(planEl.innerHTML, "");
     assert.ok(!statusEl.textContent.includes("🎉"));
     assert.ok(!statusEl.textContent.includes("Alles sauber"));
+});
+
+test('renderQueue - pipeline step message uses existing HTML escaping helper', () => {
+    const listEl = globalThis.document.getElementById("queue-list");
+    const badgeEl = globalThis.document.getElementById("queue-badge");
+    const headerBadgeEl = globalThis.document.getElementById("header-queue-badge");
+    listEl.innerHTML = "";
+    listEl.appendChild = (child) => {
+        listEl.innerHTML += child.innerHTML || "";
+    };
+    badgeEl.textContent = "";
+    headerBadgeEl.textContent = "";
+
+    const jobs = [{
+        id: "job-queue-message",
+        name: "Queue Message Movie",
+        type: "movie",
+        status: "running",
+        progress: 42,
+        message: "Upload läuft",
+        pipeline: {
+            metadata: { status: "done", progress: 100 },
+            convert: { status: "done", progress: 100 },
+            nas: { status: "done", progress: 100, message: "Auf NAS gespeichert" },
+            pcloud: { status: "running", progress: 0, message: '<script>alert("x")</script>' }
+        }
+    }];
+
+    assert.doesNotThrow(() => globalThis.renderQueue(jobs));
+    assert.ok(listEl.innerHTML.includes("alert"));
+    assert.ok(listEl.innerHTML.includes("script"));
+    assert.ok(!listEl.innerHTML.includes("<script"));
+    assert.ok(!listEl.innerHTML.includes('<script>alert("x")</script>'));
 });
 
 test('renderHealthStatus - severity grouping renders severity groups and no checkboxes', () => {
