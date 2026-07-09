@@ -283,3 +283,140 @@ def test_empty_trash_core_zero_days_retention(tmp_path):
         assert not fresh_file.exists()
         assert not fresh_folder.exists()
 
+
+class _StatWithCtime:
+    """Reicht ein echtes stat-Ergebnis durch und überschreibt nur st_ctime, damit
+    os.path.islink & Co. (die st_mode brauchen) weiter korrekt funktionieren."""
+    def __init__(self, real_st, ctime):
+        self._real = real_st
+        self.st_ctime = ctime
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+def _fake_lstat_factory(old_paths, age_days=30):
+    """Baut ein os.lstat-Ersatz, der für die angegebenen Pfade eine alte ctime
+    vortäuscht und für alle anderen an das echte os.lstat delegiert. Nötig, weil
+    sich die ctime (Alterskriterium für flache Einträge) nicht per os.utime
+    setzen lässt."""
+    real_lstat = os.lstat
+    old_ct = time.time() - age_days * 86400
+    old_set = {os.path.abspath(p) for p in old_paths}
+
+    def fake_lstat(path, *args, **kwargs):
+        real_st = real_lstat(path, *args, **kwargs)
+        if os.path.abspath(path) in old_set:
+            return _StatWithCtime(real_st, old_ct)
+        return real_st
+
+    return fake_lstat
+
+
+def test_empty_trash_core_flat_entry_deleted_when_expired(tmp_path):
+    """Testfall: prüft, dass eine flach (ohne Timestamp-Ordner) abgelegte Datei
+    und ein flacher Ordner, die älter als retention_days sind, gelöscht werden –
+    und dass der Trash-Ordner selbst bestehen bleibt."""
+    trash_dir = tmp_path / "mock-trash"
+    trash_dir.mkdir()
+
+    flat_file = trash_dir / "orphan_movie.mp4"
+    flat_file.write_text("old orphan file")
+
+    flat_dir = trash_dir / "orphan_folder"
+    flat_dir.mkdir()
+    (flat_dir / "inner.mp4").write_text("inner content")
+
+    fake_lstat = _fake_lstat_factory([str(flat_file), str(flat_dir)], age_days=30)
+    with patch("gui.core.trash.get_trash_dirs", return_value=[str(trash_dir)]), \
+         patch("gui.core.trash.os.lstat", side_effect=fake_lstat):
+        deleted, errors = _empty_trash_core(retention_days=7, dry_run=False)
+
+    assert len(errors) == 0
+    assert str(flat_file) in deleted
+    assert not flat_file.exists()
+    assert not flat_dir.exists()
+    # Der Quarantäne-Ordner selbst darf nie gelöscht werden.
+    assert trash_dir.exists()
+
+
+def test_empty_trash_core_flat_entry_kept_when_young(tmp_path):
+    """Testfall: prüft, dass eine gerade erst (flach) abgelegte Datei, die jünger
+    als retention_days ist, NICHT gelöscht wird."""
+    trash_dir = tmp_path / "mock-trash"
+    trash_dir.mkdir()
+
+    fresh_flat = trash_dir / "fresh_orphan.mp4"
+    fresh_flat.write_text("fresh orphan")
+
+    with patch("gui.core.trash.get_trash_dirs", return_value=[str(trash_dir)]):
+        deleted, errors = _empty_trash_core(retention_days=7, dry_run=False)
+
+    assert len(errors) == 0
+    assert str(fresh_flat) not in deleted
+    assert fresh_flat.exists()
+
+
+def test_empty_trash_core_flat_and_timestamp_coexist(tmp_path):
+    """Testfall: prüft, dass die bestehende Timestamp-Ordner-Logik unverändert
+    weiterläuft und der neue flache Durchlauf additiv danebensteht: alter
+    Timestamp-Ordner UND alte flache Datei weg, frische flache Datei bleibt."""
+    trash_dir = tmp_path / "mock-trash"
+    trash_dir.mkdir()
+
+    # Bestehende Struktur: alter Timestamp-Ordner (Alter über Ordnernamen).
+    ts_folder = trash_dir / "2026-06-12_12-00-00"
+    ts_folder.mkdir()
+    ts_file = ts_folder / "structured.mp4"
+    ts_file.write_text("structured old")
+
+    # Neu: alte flache Datei (Alter über ctime).
+    flat_old = trash_dir / "flat_old.mp4"
+    flat_old.write_text("flat old")
+
+    # Neu: frische flache Datei bleibt erhalten.
+    flat_fresh = trash_dir / "flat_fresh.mp4"
+    flat_fresh.write_text("flat fresh")
+
+    fake_lstat = _fake_lstat_factory([str(flat_old)], age_days=30)
+    with patch("gui.core.trash.get_trash_dirs", return_value=[str(trash_dir)]), \
+         patch("gui.core.trash.os.lstat", side_effect=fake_lstat):
+        deleted, errors = _empty_trash_core(retention_days=7, dry_run=False)
+
+    assert len(errors) == 0
+    # Timestamp-Logik unverändert.
+    assert not ts_file.exists()
+    assert not ts_folder.exists()
+    # Neue Logik greift für alte flache Datei.
+    assert not flat_old.exists()
+    # Frische flache Datei bleibt.
+    assert flat_fresh.exists()
+
+
+def test_empty_trash_core_flat_symlink_safety(tmp_path):
+    """Testfall: prüft, dass die Guards auch für flache Einträge greifen – ein
+    flacher Symlink im Trash-Root wird nur entfernt, sein Ziel außerhalb bleibt."""
+    trash_dir = tmp_path / "mock-trash"
+    trash_dir.mkdir()
+
+    outside_dir = tmp_path / "outside_victim"
+    outside_dir.mkdir()
+    outside_file = outside_dir / "victim.mp4"
+    outside_file.write_text("DO NOT DELETE")
+
+    # Flacher Symlink (kein Timestamp-Name) direkt im Trash-Root, zeigt nach außen.
+    flat_symlink = trash_dir / "orphan_link.mp4"
+    flat_symlink.symlink_to(outside_file)
+
+    fake_lstat = _fake_lstat_factory([str(flat_symlink)], age_days=30)
+    with patch("gui.core.trash.get_trash_dirs", return_value=[str(trash_dir)]), \
+         patch("gui.core.trash.os.lstat", side_effect=fake_lstat):
+        deleted, errors = _empty_trash_core(retention_days=7, dry_run=False)
+
+    assert len(errors) == 0
+    # Symlink selbst ist weg ...
+    assert not os.path.lexists(str(flat_symlink))
+    # ... das Ziel außerhalb bleibt unangetastet.
+    assert outside_file.exists()
+    assert outside_file.read_text() == "DO NOT DELETE"
+

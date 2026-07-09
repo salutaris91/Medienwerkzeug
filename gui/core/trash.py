@@ -268,6 +268,94 @@ def _empty_trash_thread_run(retention_days):
         except Exception:
             pass
 
+def _secure_delete_entry(entry_path, trash_dir, dry_run, deleted_paths, errors):
+    """Löscht einen einzelnen Top-Level-Eintrag (Datei, Ordner oder Symlink),
+    der direkt in trash_dir liegt, sicher und rekursiv.
+
+    Verwendet dieselben Pfad- und Symlink-Guards wie die Timestamp-Bereinigung
+    in _empty_trash_core: Ein Symlink im Trash-Root wird nur entfernt, niemals
+    verfolgt; für reale Einträge muss sowohl der scheinbare als auch der
+    aufgelöste Pfad innerhalb des Trash-Ordners liegen. Ergebnisse werden an die
+    übergebenen Listen deleted_paths / errors angehängt.
+    """
+    abs_trash = os.path.abspath(trash_dir)
+    real_trash = os.path.realpath(trash_dir)
+
+    # Symlink direkt im Trash-Root: nur den Link entfernen, niemals hineinlaufen.
+    if os.path.islink(entry_path):
+        abs_item = os.path.abspath(entry_path)
+        try:
+            if os.path.commonpath([abs_item, abs_trash]) != abs_trash or abs_item == abs_trash:
+                errors.append((entry_path, "Sicherheits-Check fehlgeschlagen: Symlink liegt außerhalb des Trash-Ordners."))
+                return
+        except ValueError:
+            errors.append((entry_path, "Sicherheits-Check fehlgeschlagen: Symlink-Partitionen weichen ab."))
+            return
+
+        if dry_run:
+            deleted_paths.append(entry_path)
+        else:
+            try:
+                os.unlink(entry_path)
+                deleted_paths.append(entry_path)
+            except Exception as e:
+                errors.append((entry_path, str(e)))
+        return
+
+    # Reale Datei oder reales Verzeichnis: gleiche Walkthrough-Logik wie bei
+    # den Timestamp-Ordnern (längste Pfade zuerst, Kinder vor Eltern).
+    items_to_delete = []
+    if os.path.isdir(entry_path):
+        for root, dirs, files in os.walk(entry_path, followlinks=False):
+            for d in dirs:
+                full_p = os.path.join(root, d)
+                items_to_delete.append((full_p, True if os.path.islink(full_p) else False))
+            for f in files:
+                full_p = os.path.join(root, f)
+                items_to_delete.append((full_p, True if os.path.islink(full_p) else False))
+    items_to_delete.append((entry_path, False))
+    items_to_delete.sort(key=lambda x: len(x[0]), reverse=True)
+
+    for item_path, is_symlink in items_to_delete:
+        # Security Check 1: Scheinbarer Pfad muss innerhalb des Trash-Ordners liegen.
+        abs_item = os.path.abspath(item_path)
+        try:
+            if os.path.commonpath([abs_item, abs_trash]) != abs_trash or abs_item == abs_trash:
+                errors.append((item_path, "Sicherheits-Check fehlgeschlagen: Pfad liegt außerhalb des Trash-Ordners."))
+                continue
+        except ValueError:
+            errors.append((item_path, "Sicherheits-Check fehlgeschlagen: Pfad-Partitionen weichen ab."))
+            continue
+
+        # Security Check 2: Aufgelöster Pfad muss innerhalb liegen (nur wenn kein Symlink).
+        if not is_symlink and not os.path.islink(item_path):
+            real_item = os.path.realpath(item_path)
+            try:
+                if os.path.commonpath([real_item, real_trash]) != real_trash or real_item == real_trash:
+                    errors.append((item_path, "Sicherheits-Check fehlgeschlagen: Realer Pfad liegt außerhalb des Trash-Ordners."))
+                    continue
+            except ValueError:
+                errors.append((item_path, "Sicherheits-Check fehlgeschlagen: Pfad-Partitionen weichen ab."))
+                continue
+
+        if dry_run:
+            deleted_paths.append(item_path)
+        else:
+            try:
+                if is_symlink or os.path.islink(item_path):
+                    os.unlink(item_path)
+                elif os.path.isdir(item_path):
+                    try:
+                        os.rmdir(item_path)
+                    except OSError:
+                        shutil.rmtree(item_path)
+                else:
+                    os.remove(item_path)
+                deleted_paths.append(item_path)
+            except Exception as e:
+                errors.append((item_path, str(e)))
+
+
 def _empty_trash_core(retention_days, dry_run=False):
     import datetime
     deleted_paths = []
@@ -392,7 +480,29 @@ def _empty_trash_core(retention_days, dry_run=False):
                             errors.append((item_path, str(e)))
             except Exception as e:
                 errors.append((subdir_path, f"Fehler beim Traversieren von {subdir_path}: {e}"))
-                
+
+        # Sicherheitsnetz: flach oder mit fremdem Namen abgelegte Einträge.
+        # Die Schleife oben fasst ausschließlich YYYY-MM-DD_HH-MM-SS-Ordner an;
+        # alles andere (Altlasten früherer Trash-Versionen, unterbrochene
+        # Ablagen) bliebe sonst unbegrenzt liegen. Das Alter wird hier über die
+        # ctime bestimmt (≈ Zeitpunkt des Verschiebens in den Trash), da es
+        # keinen Timestamp im Namen gibt.
+        for name in subdirs:
+            if timestamp_pattern.match(name):
+                continue  # Timestamp-Ordner wurden oben bereits behandelt.
+
+            item_path = os.path.join(trash_dir, name)
+            try:
+                age_days = (time.time() - os.lstat(item_path).st_ctime) / 86400.0
+            except Exception as e:
+                errors.append((item_path, f"Kann Alter von {item_path} nicht bestimmen: {e}"))
+                continue
+
+            if age_days < retention_days:
+                continue
+
+            _secure_delete_entry(item_path, trash_dir, dry_run, deleted_paths, errors)
+
     return deleted_paths, errors
 
 
