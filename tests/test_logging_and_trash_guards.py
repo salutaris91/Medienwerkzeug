@@ -634,3 +634,69 @@ def test_movie_cloud_transfer_is_visible_before_progress_callback(tmp_path, monk
 
     with jobs.active_jobs_lock:
         jobs.active_jobs.pop(job_id, None)
+
+
+def test_show_nas_transfer_marks_pipeline_step_done(tmp_path, monkeypatch):
+    # Serien-Pendant zum Film-NAS-Test: der nas_transfer-Branch nutzt eigenen Code
+    # (Einzeldatei-Kopie + Begleitdatei-Kopie), daher separat abgesichert.
+    import gui.core.jobs as jobs
+    import gui.workers.processor as processor
+    from gui.workers.processor import _handle_transfer_task
+    from unittest.mock import MagicMock
+
+    job_id = "test-show-nas-done"
+    monkeypatch.setattr(jobs, "save_jobs_to_disk", lambda: True)
+    monkeypatch.setattr(processor, "run_rsync_with_progress", lambda *args, **kwargs: True)
+
+    with jobs.active_jobs_lock:
+        jobs.active_jobs[job_id] = {
+            "id": job_id,
+            "status": "running",
+            "progress": 0,
+            "message": "Verarbeitung läuft...",
+            "pipeline": {
+                "nas": {"status": "pending", "progress": 0},
+                "pcloud": {"status": "pending", "progress": 0}
+            }
+        }
+
+    clean_title = "Serengeti - S01E01"
+    final_filename = f"{clean_title}.mkv"
+
+    outbox_dir = tmp_path / "outbox" / "Serengeti"
+    outbox_dir.mkdir(parents=True)
+    # Hauptdatei plus Begleitdatei (NFO), die der Serien-Branch mitkopieren muss.
+    (outbox_dir / final_filename).write_text("video")
+    (outbox_dir / f"{clean_title}.nfo").write_text("<nfo/>")
+
+    nas_dir = tmp_path / "nas" / "Serengeti"
+
+    _handle_transfer_task(
+        task={
+            "type": "nas_transfer",
+            "target_id": "nas",
+            "file_idx": 0,
+            "dest_dir_outbox": str(outbox_dir),
+            "dest_dir_nas": str(nas_dir),
+            "clean_title": clean_title,
+            "final_filename": final_filename
+        },
+        task_id=job_id,
+        target_progresses={"nas": [0]},
+        target_speeds={"nas": [""]},
+        progress_lock=threading.RLock(),
+        N=1,
+        log_message=MagicMock(),
+        update_global_job_progress=MagicMock()
+    )
+
+    job = jobs.get_job(job_id)
+    assert job["pipeline"]["nas"]["status"] == "done"
+    assert job["pipeline"]["nas"]["progress"] == 100
+    assert job["pipeline"]["nas"]["message"] == "Auf NAS gespeichert"
+    assert job["pipeline"]["pcloud"]["status"] == "pending"
+    # Begleitdatei wurde in den NAS-Zielordner kopiert (serien-spezifischer Zweig).
+    assert (nas_dir / f"{clean_title}.nfo").exists()
+
+    with jobs.active_jobs_lock:
+        jobs.active_jobs.pop(job_id, None)
