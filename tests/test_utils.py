@@ -824,6 +824,75 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             "S02E05": {"title": "TmdbS2E5", "date": "2020-02-02"}
         })
 
+    @unittest.mock.patch('urllib.request.urlopen')
+    def test_tvdb_search_relevance(self, mock_urlopen):
+        import json
+
+        def side_effect(req, *args, **kwargs):
+            url = req.full_url if hasattr(req, 'full_url') else req
+
+            class MockResponse:
+                def __init__(self, data):
+                    self.data = json.dumps(data).encode('utf-8')
+                def read(self):
+                    return self.data
+                def __enter__(self):
+                    return self
+                def __exit__(self, exc_type, exc_val, exc_tb):
+                    pass
+
+            if "login" in url:
+                return MockResponse({"data": {"token": "mock_token"}})
+            elif "api4.thetvdb.com/v4/search" in url:
+                items = []
+                # First 10 noise/fan projects
+                for i in range(10):
+                    items.append({
+                        "tvdb_id": f"fan_{i}",
+                        "name": f"Dragon Ball Fan Project {i}",
+                        "year": "2020",
+                        "country": "USA",
+                        "translations": {}
+                    })
+                # 11th item (index 10) is the official Japanese series with German translation
+                items.append({
+                    "tvdb_id": "76666",
+                    "name": "ドラゴンボール",
+                    "year": "1986",
+                    "country": "JPN",
+                    "translations": {
+                        "deu": "Dragon Ball"
+                    }
+                })
+                # Additional trailing items
+                for i in range(5):
+                    items.append({
+                        "tvdb_id": f"other_{i}",
+                        "name": f"Other DB Show {i}",
+                        "year": "2021",
+                        "country": "USA",
+                        "translations": {}
+                    })
+                return MockResponse({"data": items})
+            elif "api.themoviedb.org" in url:
+                return MockResponse({"results": []})
+            elif "api.tvmaze.com" in url:
+                return MockResponse([])
+            return MockResponse({})
+
+        mock_urlopen.side_effect = side_effect
+
+        # Run search
+        results = mw_metadata.search_all_db("Dragon Ball")
+
+        # Must find the official series
+        self.assertTrue(len(results) > 0)
+        first_result = results[0]
+        self.assertEqual(first_result["id"], "76666")
+        self.assertEqual(first_result["provider"], "tvdb")
+        self.assertIn("Dragon Ball (1986)", first_result["name"])
+        self.assertIn("[TVDB]", first_result["name"])
+
     def test_manual_mode_metadata(self):
         # Test generate_tvshow_nfo in manual mode
         import xml.etree.ElementTree as ET

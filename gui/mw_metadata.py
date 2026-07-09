@@ -181,7 +181,7 @@ def search_tvdb(query, lang="deu"):
         with urllib.request.urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode())
             results = []
-            for item in data.get('data', [])[:8]:
+            for item in data.get('data', [])[:25]:
                 year = item.get('year', '????')
                 title = item.get('name', '')
                 trans = item.get('translations', {})
