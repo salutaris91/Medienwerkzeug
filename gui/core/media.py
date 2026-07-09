@@ -55,14 +55,9 @@ def get_historical_ratio(quality, codec="hevc_libx265"):
     else:
         return 0.80
 
-def build_hevc_ffmpeg_cmd(input_path, output_path, quality, start_sec=None, duration=None, force_software=False):
+def resolve_encoder_and_quality(quality, force_software=False):
     """
-    Erstellt das passende FFmpeg-Kommando zur H.265 (HEVC)-Konvertierung basierend auf der Plattform.
-    
-    - Unter macOS Desktop (darwin & kein Docker): caffeinate + hevc_videotoolbox (Hardware-Beschleunigung)
-    - Andere Plattformen (Docker, Linux):
-      - Falls Hardware (/dev/dri/renderD*) vorhanden und force_software=False: VAAPI Hardware-Encoding
-      - Sonst: libx265 (Software-Encoding) mit Qualitäts-Mapping
+    Ermittelt den zu verwendenden Encoder und den konkreten Parameterwert (QP, CRF, q:v).
     """
     import sys
     import glob
@@ -79,6 +74,64 @@ def build_hevc_ffmpeg_cmd(input_path, output_path, quality, start_sec=None, dura
                 vaapi_device = dev
                 break
                 
+    try:
+        q_val = float(quality)
+    except (ValueError, TypeError):
+        q_val = 60.0
+
+    if use_mac_hw:
+        return {
+            "encoder": "hevc_videotoolbox",
+            "param_name": "q:v",
+            "param_value": int(q_val),
+            "vaapi_device": None
+        }
+    elif vaapi_device:
+        if q_val >= 100:
+            qp = 18
+        elif q_val >= 60:
+            qp = 28 - int((q_val - 60) * (10 / 40))
+        elif q_val >= 50:
+            qp = 30 - int((q_val - 50) * (2 / 10))
+        elif q_val >= 30:
+            qp = 34 - int((q_val - 30) * (4 / 20))
+        else:
+            qp = 34 + int((30 - q_val) * (4 / 30))
+        return {
+            "encoder": "hevc_vaapi",
+            "param_name": "QP",
+            "param_value": int(qp),
+            "vaapi_device": vaapi_device
+        }
+    else:
+        crf = round(38.0 - (q_val * 0.2))
+        crf = max(10, min(45, crf))
+        return {
+            "encoder": "libx265",
+            "param_name": "CRF",
+            "param_value": int(crf),
+            "vaapi_device": None
+        }
+
+def get_quality_mapping_info(quality):
+    """Gibt Details über den für einen Qualitätswert genutzten Encoder-Parameter zurück."""
+    return resolve_encoder_and_quality(quality)
+
+def build_hevc_ffmpeg_cmd(input_path, output_path, quality, start_sec=None, duration=None, force_software=False):
+    """
+    Erstellt das passende FFmpeg-Kommando zur H.265 (HEVC)-Konvertierung basierend auf der Plattform.
+
+    - Unter macOS Desktop (darwin & kein Docker): caffeinate + hevc_videotoolbox (Hardware-Beschelung)
+    - Andere Plattformen (Docker, Linux):
+      - Falls Hardware (/dev/dri/renderD*) vorhanden und force_software=False: VAAPI Hardware-Encoding
+      - Sonst: libx265 (Software-Encoding) mit Qualitäts-Mapping
+    """
+    res = resolve_encoder_and_quality(quality, force_software=force_software)
+    encoder = res["encoder"]
+    param_value = res["param_value"]
+    vaapi_device = res["vaapi_device"]
+    use_mac_hw = (encoder == "hevc_videotoolbox")
+
     cmd = []
     if use_mac_hw:
         cmd.extend(["caffeinate", "-i", "-s"])
@@ -97,47 +150,23 @@ def build_hevc_ffmpeg_cmd(input_path, output_path, quality, start_sec=None, dura
     if duration is not None:
         cmd.extend(["-t", str(duration)])
         
-    if use_mac_hw:
+    if encoder == "hevc_videotoolbox":
         cmd.extend([
             "-c:v", "hevc_videotoolbox",
             "-tag:v", "hvc1",
-            "-q:v", str(quality)
+            "-q:v", str(param_value)
         ])
-    elif vaapi_device:
-        try:
-            q_val = float(quality)
-        except (ValueError, TypeError):
-            q_val = 60.0
-            
-        if q_val >= 100:
-            qp = 22
-        elif q_val >= 60:
-            qp = 28 - int((q_val - 60) * (6 / 40))
-        elif q_val >= 50:
-            qp = 30 - int((q_val - 50) * (2 / 10))
-        elif q_val >= 30:
-            qp = 34 - int((q_val - 30) * (4 / 20))
-        else:
-            qp = 34 + int((30 - q_val) * (4 / 30))
-            
+    elif encoder == "hevc_vaapi":
         cmd.extend([
             "-vf", "format=nv12,hwupload",
             "-c:v", "hevc_vaapi",
-            "-qp", str(int(qp))
+            "-qp", str(param_value)
         ])
     else:
-        try:
-            q_val = float(quality)
-        except (ValueError, TypeError):
-            q_val = 60.0
-            
-        crf = round(38.0 - (q_val * 0.2))
-        crf = max(10, min(45, crf))
-        
         cmd.extend([
             "-c:v", "libx265",
             "-tag:v", "hvc1",
-            "-crf", str(crf)
+            "-crf", str(param_value)
         ])
         
     cmd.extend(["-c:a", "copy"])

@@ -20,6 +20,18 @@ from gui.workers.processor import SYSTEM_STATUS
 
 
 
+@system_api.route('/system/quality-info', methods=['GET'])
+def handle_api_quality_info():
+    """Liefert die Zuordnung von Qualitätswert zu Encoder-Parameter."""
+    quality = request.args.get("quality", "60")
+    try:
+        from gui.core.media import get_quality_mapping_info
+        info = get_quality_mapping_info(quality)
+        return jsonify(info)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @system_api.route('/system/capabilities', methods=['GET'])
 def handle_api_capabilities():
     caps = get_runtime_capabilities()

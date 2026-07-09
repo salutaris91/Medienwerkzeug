@@ -258,6 +258,47 @@ function debounce(func, wait) {
     };
 }
 
+const qualityInfoCache = {};
+const lastQualityRequestIds = {};
+function updateQualityIndicator(quality, valElId) {
+    const el = document.getElementById(valElId);
+    if (!el) return;
+
+    const qVal = parseInt(quality, 10);
+    if (isNaN(qVal)) {
+        el.textContent = quality;
+        return;
+    }
+
+    // Immer sofort die Request-ID für dieses Element erhöhen, um ältere Inflight-Requests zu entwerten
+    const requestId = (lastQualityRequestIds[valElId] || 0) + 1;
+    lastQualityRequestIds[valElId] = requestId;
+
+    if (qualityInfoCache[qVal]) {
+        el.textContent = `${qVal} (${qualityInfoCache[qVal]})`;
+        return;
+    }
+
+    el.textContent = qVal; // Sofortiger Fallback
+
+    fetch(`/api/system/quality-info?quality=${qVal}`)
+        .then(res => {
+            if (!res.ok) throw new Error("API error");
+            return res.json();
+        })
+        .then(data => {
+            if (requestId !== lastQualityRequestIds[valElId]) return; // Veralteten Request verwerfen
+            if (data && data.param_name && data.param_value !== undefined) {
+                const text = `${data.param_name} ${data.param_value}`;
+                qualityInfoCache[qVal] = text;
+                el.textContent = `${qVal} (${text})`;
+            }
+        })
+        .catch(err => {
+            console.error("Fehler beim Laden des Qualitäts-Mappings:", err);
+        });
+}
+
 function getCatIdBySub(sub, fallbackId) {
     const cats = (typeof currentSettings !== "undefined" && currentSettings.sync_categories) || [];
     const found = cats.find(c => c.nas_sub === sub);
@@ -10200,7 +10241,7 @@ function loadConversionSettings() {
             const valEl = document.getElementById(valElId);
             if (slider && val !== undefined) {
                 slider.value = val;
-                if (valEl) valEl.textContent = val;
+                if (valEl) updateQualityIndicator(val, valElId);
             }
         };
 
@@ -10270,7 +10311,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const movieVal = document.getElementById("movie-quality-val");
     if (movieSlider && movieVal) {
         movieSlider.addEventListener("input", () => {
-            movieVal.textContent = movieSlider.value;
+            updateQualityIndicator(movieSlider.value, "movie-quality-val");
             triggerQualityHintUpdates();
         });
         movieSlider.addEventListener("change", saveAndEstMovie);
@@ -10282,7 +10323,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const seriesVal = document.getElementById("series-quality-val");
     if (seriesSlider && seriesVal) {
         seriesSlider.addEventListener("input", () => {
-            seriesVal.textContent = seriesSlider.value;
+            updateQualityIndicator(seriesSlider.value, "series-quality-val");
             triggerQualityHintUpdates();
         });
         seriesSlider.addEventListener("change", saveAndEstSeries);
@@ -10295,7 +10336,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const toolVal = document.getElementById("tool-quality-val");
     if (toolSlider && toolVal) {
         toolSlider.addEventListener("input", () => {
-            toolVal.textContent = toolSlider.value;
+            updateQualityIndicator(toolSlider.value, "tool-quality-val");
         });
         toolSlider.addEventListener("change", () => {
             saveConversionSettings();
@@ -14154,7 +14195,7 @@ function openToolRunnerModal(toolType, title, desc, hasQualitySlider = false, pr
             extraOpt.innerHTML = `
                 <div class="quality-slider-container form-group" style="margin-top: 15px;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <label for="tool-modal-quality-slider" style="font-weight: 500;">Konvertierungs-Qualität (CRF):</label>
+                        <label for="tool-modal-quality-slider" style="font-weight: 500;">Konvertierungs-Qualität (Qualitätswert):</label>
                         <span id="tool-modal-quality-val" style="font-weight: bold; color: var(--accent);">60</span>
                     </div>
                     <input type="range" id="tool-modal-quality-slider" min="10" max="100" value="60" step="1" style="width: 100%; margin-top: 5px;">
@@ -14168,8 +14209,10 @@ function openToolRunnerModal(toolType, title, desc, hasQualitySlider = false, pr
             const slider = document.getElementById("tool-modal-quality-slider");
             const valText = document.getElementById("tool-modal-quality-val");
             if (slider && valText) {
+                // Initialen Wert setzen
+                updateQualityIndicator(slider.value, "tool-modal-quality-val");
                 slider.addEventListener("input", () => {
-                    valText.textContent = slider.value;
+                    updateQualityIndicator(slider.value, "tool-modal-quality-val");
                 });
             }
         } else if (toolType === "tool_manual_sync") {
