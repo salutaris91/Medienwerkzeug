@@ -995,6 +995,11 @@ class TestMovieProcessingFixes(unittest.TestCase):
         self.assertEqual(history[0]["content_type"], "movie")
         self.assertEqual(history[0]["filename"], "Converted Movie (2026).mp4")
 
+    def test_average_progress_preserves_multi_file_convert_progress(self):
+        self.assertEqual(processor._calculate_average_progress([100, 0, 0], 3), 33)
+        self.assertEqual(processor._calculate_average_progress([100, 50, 0], 3), 50)
+        self.assertEqual(processor._calculate_average_progress([], 0), 0)
+
     def test_jellyfin_artwork_sorting_preference(self):
         """Wenn media_server=jellyfin und fanart.jpg plus backdrop.jpg vorhanden sind, bleibt backdrop.jpg erhalten und fanart.jpg wird entfernt."""
         # Save original media_server settings and temporarily set it to jellyfin

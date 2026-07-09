@@ -317,6 +317,9 @@ def _mark_convert_step_done(task_id):
                 active_jobs[task_id]["pipeline"]["convert"]["status"] = "done"
                 active_jobs[task_id]["pipeline"]["convert"]["progress"] = 100
 
+def _calculate_average_progress(progress_values, total_count):
+    return int(sum(progress_values) / total_count) if total_count > 0 else 0
+
 def _mark_remaining_steps_done(task_id):
     from gui.core.jobs import active_jobs, active_jobs_lock
     with active_jobs_lock:
@@ -1413,6 +1416,7 @@ def process_worker(params):
                     else:
                         temp_output = os.path.join(current_dir, f"{clean_title}_neu.mkv")
                         convert_message = f"Konvertierung gestartet: {final_filename}"
+                        current_convert_progress = _calculate_average_progress(conv_pct, N)
                         if task_id:
                             from gui.core.jobs import update_job
                             update_job(
@@ -1420,7 +1424,7 @@ def process_worker(params):
                                 message=convert_message,
                                 pipeline_step="convert",
                                 pipeline_status="running",
-                                pipeline_progress=0,
+                                pipeline_progress=current_convert_progress,
                                 pipeline_message=convert_message
                             )
                         def ffmpeg_progress_cb(percent, msg):
@@ -1874,6 +1878,7 @@ def process_worker(params):
                 if convert:
                     temp_output = os.path.join(current_dir, f"{clean_movie_name}_neu.mkv")
                     convert_message = f"Konvertierung gestartet: {target_filename}"
+                    current_convert_progress = _calculate_average_progress(conv_pct, N)
                     if task_id:
                         from gui.core.jobs import update_job
                         update_job(
@@ -1881,7 +1886,7 @@ def process_worker(params):
                             message=convert_message,
                             pipeline_step="convert",
                             pipeline_status="running",
-                            pipeline_progress=0,
+                            pipeline_progress=current_convert_progress,
                             pipeline_message=convert_message
                         )
                     def ffmpeg_progress_cb(percent, msg):

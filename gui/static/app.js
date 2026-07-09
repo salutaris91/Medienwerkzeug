@@ -10713,7 +10713,7 @@ function renderQueue(jobs) {
                     borderStyle = "1px solid rgba(255,255,255,0.02)";
                 }
                 const stepMessageHtml = sData.message
-                    ? `<span style="font-size: 8px; color: ${textColor}; opacity: 0.85; line-height: 1.1; display: block; max-width: 100%; word-break: break-word;" title="${escapeHtml(sData.message)}">${escapeHtml(sData.message)}</span>`
+                    ? `<span style="font-size: 8px; color: ${textColor}; opacity: 0.85; line-height: 1.1; display: block; max-width: 100%; word-break: break-word;" title="${escapeHTML(sData.message)}">${escapeHTML(sData.message)}</span>`
                     : "";
 
                 pipelineHtml += `
