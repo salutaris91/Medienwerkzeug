@@ -8379,6 +8379,7 @@ async function loadSettings() {
             checkDependencies(false);
             checkAppUpdate();
             applyDashboardWidgetsSichtbarkeit();
+            loadHealthCategories();
         }
     } catch (e) {
         console.error("Error loading settings:", e);
@@ -12442,10 +12443,27 @@ async function loadHealthCategories() {
             return;
         }
         const settings = await res.json();
-        const categories = settings.sync_categories || [];
+        const categories = (settings.sync_categories || []).filter(cat => cat.nas_sub && cat.nas_sub.trim() !== "");
+        const btn = document.getElementById("btn-health-scan");
+
         if (categories.length === 0) {
-            container.innerHTML = `<span style="font-size:0.85em; color:var(--text-muted); font-style:italic;">Keine Kategorien konfiguriert.</span>`;
+            container.innerHTML = `
+                <div style="grid-column: 1 / -1; display:flex; flex-direction:column; align-items:center; gap:8px; padding:20px; background:rgba(255,255,255,0.02); border:1px dashed var(--border-light); border-radius:6px; text-align:center; width:100%;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" style="color:var(--text-muted);"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg>
+                    <span style="font-size:0.9rem; color:var(--text-muted); font-weight:500;">Keine Sync-Kategorien konfiguriert</span>
+                    <span style="font-size:0.8rem; color:var(--text-muted); max-width:320px;">Du hast noch keine Kategorien mit einem NAS-Pfad hinterlegt. Richte sie unter <a href="#" onclick="document.getElementById('nav-settings-dashboard')?.click(); setTimeout(() => { document.querySelector('[data-settings-tab=tab-sync]')?.click(); document.getElementById('settings-sync-categories-section')?.scrollIntoView({ behavior: 'smooth' }); }, 100); return false;" style="color:var(--color-primary); text-decoration:underline;">Einstellungen > Speicher & Sync</a> ein.</span>
+                </div>
+            `.trim();
+            if (btn) {
+                btn.disabled = true;
+                btn.title = "Bitte konfiguriere zuerst mindestens eine Sync-Kategorie mit NAS-Pfad.";
+            }
             return;
+        }
+
+        if (btn && btn.disabled && btn.title === "Bitte konfiguriere zuerst mindestens eine Sync-Kategorie mit NAS-Pfad." && !btn.innerHTML.includes("Scan läuft")) {
+            btn.disabled = false;
+            btn.title = "";
         }
 
         container.innerHTML = categories.map(cat => {
@@ -12471,6 +12489,11 @@ async function startHealthScan() {
 
     // Ausgewählte Kategorien auslesen
     const checkboxes = document.querySelectorAll(".health-category-checkbox");
+    if (checkboxes.length === 0) {
+        setHealthStatusText("Keine Sync-Kategorien konfiguriert. Bitte richte diese unter Einstellungen > Speicher & Sync ein.");
+        return;
+    }
+
     const categoryIds = [];
     checkboxes.forEach(cb => {
         if (cb.checked) {
@@ -12478,7 +12501,7 @@ async function startHealthScan() {
         }
     });
 
-    if (checkboxes.length > 0 && categoryIds.length === 0) {
+    if (categoryIds.length === 0) {
         setHealthStatusText("Bitte mindestens eine Kategorie auswählen.");
         return;
     }
@@ -12523,7 +12546,14 @@ async function startHealthScan() {
 function resetHealthScanButton() {
     const btn = document.getElementById("btn-health-scan");
     if (btn) {
-        btn.disabled = false;
+        const checkboxes = document.querySelectorAll(".health-category-checkbox");
+        if (checkboxes.length === 0) {
+            btn.disabled = true;
+            btn.title = "Bitte konfiguriere zuerst mindestens eine Sync-Kategorie mit NAS-Pfad.";
+        } else {
+            btn.disabled = false;
+            btn.title = "";
+        }
         btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="display:inline-block; vertical-align:middle; margin-right: 8px;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Bibliothek prüfen`;
     }
 }
@@ -12605,6 +12635,16 @@ function renderHealthStatus(data) {
     const issuesEl = document.getElementById("health-issues");
     const groupControls = document.getElementById("health-group-controls");
     if (!statusEl || !summaryEl || !issuesEl) return;
+
+    let bannerHtml = "";
+    if (data.media_server_skipped === true) {
+        bannerHtml = `
+            <div class="alert alert-warning" style="margin-bottom:12px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); color:#f59e0b; padding:10px; border-radius:var(--radius-sm); font-size:12px; display:flex; align-items:center; gap:8px; width:100%;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="height:16px; width:16px; flex-shrink:0;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span><strong>Medienserver-Prüfung übersprungen</strong> (Poster, Fanart, Banner, ClearLogos und Staffel-Poster). Du kannst den Medienserver unter <a href="#" onclick="document.getElementById('nav-settings-dashboard')?.click(); setTimeout(() => { document.querySelector('[data-settings-tab=tab-sync]')?.click(); document.getElementById('settings-sync-categories-section')?.scrollIntoView({ behavior: 'smooth' }); }, 100); return false;" style="color:#f59e0b; text-decoration:underline; font-weight:600;">Einstellungen > Speicher & Sync</a> konfigurieren.</span>
+            </div>
+        `.trim();
+    }
 
     // Synchronisiere Übersicht-Dashboard
     const overviewLastScan = document.getElementById("overview-last-scan");
@@ -12948,9 +12988,9 @@ function renderHealthStatus(data) {
             });
         }
         html += renderIgnoredFooter(data.ignored_count);
-        issuesEl.innerHTML = html;
+        issuesEl.innerHTML = bannerHtml + html;
         if ((!data.issues || data.issues.length === 0) && structureIssues.length > 0) {
-            issuesEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Auffälligkeiten für einzelne Medien. Strukturprobleme findest du im Tab Struktur.</p>` + renderIgnoredFooter(data.ignored_count);
+            issuesEl.innerHTML = bannerHtml + `<p class="text-muted" style="margin:4px 0;">Keine Auffälligkeiten für einzelne Medien. Strukturprobleme findest du im Tab Struktur.</p>` + renderIgnoredFooter(data.ignored_count);
         }
 
         // 2. Zustand wiederherstellen
@@ -13644,11 +13684,13 @@ function renderHealthStatus(data) {
         wireRestoreAll(document.getElementById("view-library"));
     } else if (hasResult) {
         if (structureIssues && structureIssues.length > 0) {
-            issuesEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Auffälligkeiten für einzelne Medien. Strukturprobleme findest du im Tab Struktur.</p>` + renderIgnoredFooter(data.ignored_count);
+            issuesEl.innerHTML = bannerHtml + `<p class="text-muted" style="margin:4px 0;">Keine Auffälligkeiten für einzelne Medien. Strukturprobleme findest du im Tab Struktur.</p>` + renderIgnoredFooter(data.ignored_count);
         } else {
-            issuesEl.innerHTML = `<p class="text-muted" style="margin:4px 0;">Keine Auffälligkeiten gefunden. 🎉</p>` + renderIgnoredFooter(data.ignored_count);
+            issuesEl.innerHTML = bannerHtml + `<p class="text-muted" style="margin:4px 0;">Keine Auffälligkeiten gefunden. 🎉</p>` + renderIgnoredFooter(data.ignored_count);
         }
         wireRestoreAll(issuesEl);
+    } else if (bannerHtml) {
+        issuesEl.innerHTML = bannerHtml;
     } else {
         issuesEl.innerHTML = "";
     }
