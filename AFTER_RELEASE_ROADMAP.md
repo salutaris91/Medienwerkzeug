@@ -50,12 +50,12 @@ die aktive After-Release-Roadmap übernommen.
 | 41 | Explizites Umbenennen bestehender NAS-Serienordner | geplant | mittel |
 | 42 | Absolute Nummerierung: Episoden einschieben und nachfolgende Folgen verschieben | geplant | mittel |
 | 43 | Film-Überschreibschutz auf dem NAS (Warnung & Quarantäne-Absicherung) | erledigt | klein–mittel |
-| 44 | VAAPI-High-Quality-Modus bis QP 18 | geplant | klein |
+| 44 | VAAPI-High-Quality-Modus bis QP 18 | erledigt | klein |
 | 45 | Startseite: Inbox/Outbox aufräumen, Speicherbelegung & Quarantäne-Onboarding | geplant | klein–mittel |
 | 46 | Profile-Dropdown: Frisch erstellte Serien-Profile sofort in der UI zur Verfügung stellen (ohne Page-Reload) | geplant | klein |
 | 47 | Mediathek-URL-Auflösung: Untertitel / Trennstrich-Titel mit übernehmen | geplant | klein |
 | 48 | Health-Scan: Qualitäts-, Bitrate- & Audiospur-Prüfung definieren und markieren | geplant | mittel |
-| 49 | Bibliotheks-Scan: Teilscan ohne Medienserver & dynamische Kategorieauswahl | geplant | klein–mittel |
+| 49 | Bibliotheks-Scan: Teilscan ohne Medienserver & dynamische Kategorieauswahl | erledigt | klein–mittel |
 
 ---
 
@@ -1290,7 +1290,7 @@ Klein-Mittel: FFmpeg/ffprobe Metadaten-Extraktion, transfers.py Härtung, get_cl
 
 ---
 
-## 44. VAAPI-High-Quality-Modus bis QP 18
+## 44. VAAPI-High-Quality-Modus bis QP 18 (erledigt)
 
 **Einordnung / Priorität:** Qualitätsverbesserung für Docker-/NAS-Installationen
 mit VAAPI-Hardware-Encoding.
@@ -1456,7 +1456,7 @@ Mittel: Erfordert die Erweiterung des Settings-Modells, Integration von `ffprobe
 
 ---
 
-## 49. Bibliotheks-Scan: Teilscan ohne Medienserver & dynamische Kategorieauswahl
+## 49. Bibliotheks-Scan: Teilscan ohne Medienserver & dynamische Kategorieauswahl (erledigt)
 
 **Einordnung / Priorität:** Scan-UX, Settings-Verknüpfung und Fehlertoleranz.
 

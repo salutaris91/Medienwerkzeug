@@ -356,5 +356,20 @@ class TestEndpoints(unittest.TestCase):
         else:
             os.environ.pop("MW_UPDATE_REPO", None)
 
+    @patch("gui.core.media.get_quality_mapping_info")
+    def test_quality_info_endpoint(self, mock_get_info):
+        mock_get_info.return_value = {
+            "encoder": "libx265",
+            "param_name": "CRF",
+            "param_value": 26
+        }
+        res = self.client.get("/api/system/quality-info?quality=60")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["encoder"], "libx265")
+        self.assertEqual(data["param_name"], "CRF")
+        self.assertEqual(data["param_value"], 26)
+        mock_get_info.assert_called_once_with("60")
+
 if __name__ == "__main__":
     unittest.main()

@@ -192,9 +192,13 @@ def test_quality_mapping_qp_ranges():
          patch.dict(os.environ, {"MW_RUNTIME": "docker"}), \
          patch("glob.glob", return_value=["/dev/dri/renderD128"]), \
          patch("os.access", return_value=True):
-            # q=100 -> QP 22
+            # q=100 -> QP 18
             cmd_100 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 100)
-            assert cmd_100[cmd_100.index("-qp") + 1] == "22"
+            assert cmd_100[cmd_100.index("-qp") + 1] == "18"
+
+            # q=80 -> QP 23
+            cmd_80 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 80)
+            assert cmd_80[cmd_80.index("-qp") + 1] == "23"
             
             # q=60 -> QP 28
             cmd_60 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 60)
@@ -203,3 +207,34 @@ def test_quality_mapping_qp_ranges():
             # q=0 -> QP 38
             cmd_0 = build_hevc_ffmpeg_cmd("in.mp4", "out.mkv", 0)
             assert cmd_0[cmd_0.index("-qp") + 1] == "38"
+
+def test_resolve_encoder_and_quality():
+    """Test resolve_encoder_and_quality resolves correct parameters."""
+    from gui.core.media import resolve_encoder_and_quality
+
+    # 1. Force software (libx265)
+    res_sw = resolve_encoder_and_quality(60, force_software=True)
+    assert res_sw["encoder"] == "libx265"
+    assert res_sw["param_name"] == "CRF"
+    assert res_sw["param_value"] == 26
+
+    res_sw_100 = resolve_encoder_and_quality(100, force_software=True)
+    assert res_sw_100["param_value"] == 18
+
+    # 2. Simulated Mac (hevc_videotoolbox)
+    with patch("sys.platform", "darwin"), \
+         patch("gui.core.utils.get_runtime_capabilities", return_value={"runtime": "desktop", "capabilities": {"mount_nas": False, "open_local_folder": False}}):
+        res_mac = resolve_encoder_and_quality(75)
+        assert res_mac["encoder"] == "hevc_videotoolbox"
+        assert res_mac["param_name"] == "q:v"
+        assert res_mac["param_value"] == 75
+
+    # 3. Simulated Linux VAAPI (hevc_vaapi)
+    with patch("sys.platform", "linux"), \
+         patch("gui.core.utils.get_runtime_capabilities", return_value={"runtime": "docker", "capabilities": {"mount_nas": False, "open_local_folder": False}}):
+        with patch("glob.glob", return_value=["/dev/dri/renderD128"]), \
+             patch("os.access", return_value=True):
+            res_vaapi = resolve_encoder_and_quality(100)
+            assert res_vaapi["encoder"] == "hevc_vaapi"
+            assert res_vaapi["param_name"] == "QP"
+            assert res_vaapi["param_value"] == 18

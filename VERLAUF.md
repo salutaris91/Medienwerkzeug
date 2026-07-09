@@ -2,6 +2,17 @@
 
 Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 09.07.2026 (Phase 2.6b – Konvertierungsqualität / Archivqualität)
+
+- **Qualitätsverbesserung & Archivmodus (Branch: feature/conversion-quality-polish):**
+  - **VAAPI QP 18 für Archivqualität:** Die maximale VAAPI-Encodingqualität (`quality=100`) wurde von QP 22 auf QP 18 angehoben, um einen echten visuell verlustfreien Archivierungs-Modus bereitzustellen.
+  - **Single Source of Truth:** Extraktion der kompletten Encoder- und Qualitätsmapping-Entscheidungslogik in eine gemeinsame Funktion `resolve_encoder_and_quality(quality, force_software=False) -> dict` in `gui/core/media.py`. Sowohl `build_hevc_ffmpeg_cmd` als auch die API nutzen diese gemeinsame Funktion, wodurch jeglicher Drift zwischen UI und FFMPEG-Befehlsausführung verhindert wird.
+  - **Backend API:** Neuer GET-Endpunkt `/api/system/quality-info` liefert die encoder-spezifische Parametrisierung (`{encoder, param_name, param_value}`) für einen Qualitätswert zurück.
+  - **Frontend-UX & Dynamischer Nomenklatur-Hinweis:** Vorkommen von "CRF" im UI-Code (auch in den Conversion Intelligence Texten) wurden durch den verständlichen Begriff "Qualität" oder "Qualitätswert" ersetzt. Im Frontend zeigt die Funktion `updateQualityIndicator` nun asynchron und Slider-spezifisch den tatsächlichen Encoder-Parameter an (z. B. `60 (libx265 CRF 26)` bzw. `100 (hevc_vaapi QP 18)`).
+  - **Asynchroner Race-Guard & Cache:** Schutz vor Race-Conditions bei schnellen Bewegungen der Slider über `lastQualityRequestIds[valElId]`. Ein clientseitiger Cache (`qualityInfoCache`) schont die API.
+  - **Testsuite:** Alle 10 Tests in `test_docker_conversion.py` (inkl. neuem `test_resolve_encoder_and_quality`) und der plattformunabhängig gemockte API-Test in `test_endpoints.py` laufen erfolgreich durch (365/365 Backend-Tests bestanden, 46/46 Frontend-Tests bestanden).
+  - **Roadmap-Updates:** Die Tickets #44 (VAAPI QP 18) und #49 (Bibliotheks-Scan ohne Medienserver) in `AFTER_RELEASE_ROADMAP.md` wurden als `erledigt` markiert.
+
 ## Stand am 09.07.2026 (Phase 2.6a – Bibliotheksscan-Konfiguration und verständliche Preflight-Hinweise glätten)
 
 - **Scan-Robustheit bei fehlendem Medienserver (Branch: feature/library-scan-config-polish):**

@@ -41,7 +41,7 @@ export function renderIntelligenceDashboard(data) {
                 <span style="font-size: 0.95em; display: flex; align-items: center; gap: 6px;">
                     <span>${icon}</span> <strong>${label}</strong>
                 </span>
-                <span style="font-size: 0.9em; color: var(--text-main);">Optimal: CRF <strong>${info.optimal_quality}</strong></span>
+                <span style="font-size: 0.9em; color: var(--text-main);">Optimal: Qualität <strong>${info.optimal_quality}</strong></span>
                 <span style="font-size: 0.8em; color: var(--text-muted);">Ersparnis: <strong>${Math.round((1 - info.avg_ratio) * 100)}%</strong></span>
                 <span style="font-size: 0.7em; color: var(--text-muted); opacity: 0.7; margin-top: 2px;">Basis: ${info.sample_count} Datei(en)</span>
             </div>
@@ -104,18 +104,18 @@ export function triggerQualityHintUpdates() {
 
 export function updateHintElement(el, currentVal, recInfo) {
     if (!recInfo) {
-        el.textContent = "Noch keine historischen Daten für diesen Inhaltstyp vorhanden. Standardempfehlung ist CRF 60.";
+        el.textContent = "Noch keine historischen Daten für diesen Inhaltstyp vorhanden. Standardempfehlung ist Qualität 60.";
         el.classList.remove("hidden");
         return;
     }
 
     const optimal = recInfo.optimal_quality;
     if (currentVal === optimal) {
-        el.textContent = `Optimaler Wert für diesen Inhaltstyp basierend auf deiner Historie (CRF ${optimal}).`;
+        el.textContent = `Optimaler Wert für diesen Inhaltstyp basierend auf deiner Historie (Qualität ${optimal}).`;
     } else if (currentVal > optimal) {
-        el.textContent = `Deine Historie zeigt, dass dieser Inhaltstyp auch mit CRF ${optimal} ohne sichtbaren Qualitätsverlust gut komprimiert wird (spart mehr Platz).`;
+        el.textContent = `Deine Historie zeigt, dass dieser Inhaltstyp auch mit Qualität ${optimal} ohne sichtbaren Qualitätsverlust gut komprimiert wird (spart mehr Platz).`;
     } else {
-        el.textContent = `Dieser Wert liegt unter dem empfohlenen Optimum von CRF ${optimal}. Es könnte zu sichtbaren Kompressionsartefakten kommen.`;
+        el.textContent = `Dieser Wert liegt unter dem empfohlenen Optimum von Qualität ${optimal}. Es könnte zu sichtbaren Kompressionsartefakten kommen.`;
     }
     el.classList.remove("hidden");
 }
