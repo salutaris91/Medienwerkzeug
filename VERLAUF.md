@@ -2,6 +2,21 @@
 
 Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 09.07.2026 (Nachkorrektur – TVDB-Suchlimit erhöht)
+
+- **TVDB-Suchlimit erhöht (Branch: `fix/tvdb-search-limit`):**
+  - **Anhebung des Limits:** In `gui/mw_metadata.py` (`search_tvdb`) das API-Schnittlimit von `[:8]` auf `[:25]` erhöht. Damit kommen auch tiefer platzierte offizielle Suchtreffer wie "Dragon Ball (1986)" an Position 11 durch und werden nicht vor dem Relevanz-Ranking verworfen.
+  - **Spezifischer Relevanz-Test:** Ein neuer Test `test_tvdb_search_relevance` in `tests/test_utils.py` mockt eine TVDB-Suche mit 20 Ergebnissen, bei der der beste Treffer erst auf Platz 11 (hinter 10 Fan-Projekten) liegt. Der Test stellt sicher, dass das Limit die Serie durchlässt und das Relevanz-Ranking (`calculate_match_score`) sie korrekt an Index 0 platziert.
+  - **Deduplizierung & API-Sauberkeit:** Der Test mockt die anderen Provider (TMDb, TVmaze) als leer, um eventuelle Nebeneffekte auszuschließen.
+  - **Testsuite:** Alle 48 Tests in `test_utils.py` sowie die 21 Endpunkt-Tests laufen erfolgreich durch.
+
+## Stand am 09.07.2026 (Nachkorrektur – NAS-Quarantäne geleert & Cleaner-Fix)
+
+- **NAS-Quarantäne und Trash-Cleaner-Verbesserungen:**
+  - **NAS-Quarantäne geleert:** 115 Einträge / 19 GB entfernt. SMB-Verzeichnis-Cache-Fehler behoben; restliche Lock-Dateien per POSIX-`unlink` direkt auf dem NAS gelöscht.
+  - **Cleaner-Fix (PR #109, `fbe1507`):** `_empty_trash_core` fasst nun flach/fremd abgelegte Einträge nach `retention_days` an, gesichert durch denselben `_secure_delete_entry`-Guard. 4 neue Tests hinzugefügt.
+  - **Doku-Fix (PR #110, `352ed9a`):** NAS-Bereitstellungspfad in CLAUDE.md/AGENTS.md auf `docker compose pull && up -d` korrigiert.
+
 ## Stand am 09.07.2026 (Nachkorrektur – Konvertierungsfortschritt sichtbar machen)
 
 - **Queue-UX während H.265-Konvertierungen (Branch: fix/conversion-progress-visibility):**
