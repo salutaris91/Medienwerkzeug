@@ -58,6 +58,7 @@ _scan_state = {
     "scanned": {"shows": 0, "files": 0},
     "stats": {"cache_hits": 0, "cache_miss_modified": 0, "cache_miss_known_issues": 0, "cache_miss_new": 0},
     "error": None,
+    "media_server_skipped": False,
 }
 
 
@@ -305,21 +306,22 @@ def _check_season(issues, category, show_name, season_path, validator):
                        f"{label}: uneinheitliche Codecs in Stichprobe ({', '.join(sorted(codecs))})")
 
     # Season poster check
-    season_folder = os.path.basename(season_path).lower()
-    season_num = 1
-    if "specials" in season_folder:
-        season_num = 0
-    else:
-        m = re.search(r'\d+', season_folder)
-        if m:
-            season_num = int(m.group(0))
+    if validator is not None:
+        season_folder = os.path.basename(season_path).lower()
+        season_num = 1
+        if "specials" in season_folder:
+            season_num = 0
+        else:
+            m = re.search(r'\d+', season_folder)
+            if m:
+                season_num = int(m.group(0))
 
-    show_path = os.path.dirname(season_path)
-    has_season_poster = validator.has_artwork_file(show_path, validator.get_season_poster_names(season_num))
-    if not has_season_poster:
-        preferred = validator.get_preferred_season_poster_name(season_num)
-        _add_issue(issues, "warning", "missing_season_poster", category, season_path,
-                   f"{label}: Season-Poster fehlt — ggf. manuell als '{preferred}' im Serienordner ablegen")
+        show_path = os.path.dirname(season_path)
+        has_season_poster = validator.has_artwork_file(show_path, validator.get_season_poster_names(season_num))
+        if not has_season_poster:
+            preferred = validator.get_preferred_season_poster_name(season_num)
+            _add_issue(issues, "warning", "missing_season_poster", category, season_path,
+                       f"{label}: Season-Poster fehlt — ggf. manuell als '{preferred}' im Serienordner ablegen")
 
     return len(videos)
 
@@ -356,39 +358,40 @@ def _check_series_show(issues, category, show_path, validator):
     provider = _get_provider_from_nfo(os.path.join(show_path, "tvshow.nfo"))
     show_dir_name = os.path.basename(show_path)
 
-    # 1. Poster check
-    has_poster = validator.has_artwork_file(show_path, validator.get_series_poster_names())
-    if not has_poster:
-        preferred = validator.get_preferred_series_poster_name()
-        _add_issue(issues, "warning", "missing_poster", category, show_path,
-                   f"{show_dir_name}: Serienposter fehlt — ggf. manuell als '{preferred}' ablegen")
+    if validator is not None:
+        # 1. Poster check
+        has_poster = validator.has_artwork_file(show_path, validator.get_series_poster_names())
+        if not has_poster:
+            preferred = validator.get_preferred_series_poster_name()
+            _add_issue(issues, "warning", "missing_poster", category, show_path,
+                       f"{show_dir_name}: Serienposter fehlt — ggf. manuell als '{preferred}' ablegen")
 
-    # 2. Fanart/Backdrop check
-    has_backdrop = validator.has_artwork_file(show_path, validator.get_series_backdrop_names())
-    if not has_backdrop:
-        preferred = validator.get_preferred_series_backdrop_name()
-        _add_issue(issues, "warning", "missing_backdrop", category, show_path,
-                   f"{show_dir_name}: Hintergrundbild fehlt — ggf. manuell als '{preferred}' ablegen")
+        # 2. Fanart/Backdrop check
+        has_backdrop = validator.has_artwork_file(show_path, validator.get_series_backdrop_names())
+        if not has_backdrop:
+            preferred = validator.get_preferred_series_backdrop_name()
+            _add_issue(issues, "warning", "missing_backdrop", category, show_path,
+                       f"{show_dir_name}: Hintergrundbild fehlt — ggf. manuell als '{preferred}' ablegen")
 
-    # 3. Logo check
-    if validator.supports_logos:
-        has_logo = validator.has_artwork_file(show_path, validator.get_series_logo_names())
-        if not has_logo:
-            preferred = validator.get_preferred_series_logo_name()
-            msg = f"{show_dir_name}: ClearLogo fehlt — ggf. manuell als '{preferred}' ablegen"
-            if provider in ("mediathek", "ytdlp", "manual"):
-                msg += f" (Metadatendienst '{provider}' unterstützt keine Logos)"
-            _add_issue(issues, "info", "missing_logo", category, show_path, msg)
+        # 3. Logo check
+        if validator.supports_logos:
+            has_logo = validator.has_artwork_file(show_path, validator.get_series_logo_names())
+            if not has_logo:
+                preferred = validator.get_preferred_series_logo_name()
+                msg = f"{show_dir_name}: ClearLogo fehlt — ggf. manuell als '{preferred}' ablegen"
+                if provider in ("mediathek", "ytdlp", "manual"):
+                    msg += f" (Metadatendienst '{provider}' unterstützt keine Logos)"
+                _add_issue(issues, "info", "missing_logo", category, show_path, msg)
 
-    # 4. Banner check
-    if validator.supports_banners:
-        has_banner = validator.has_artwork_file(show_path, validator.get_series_banner_names())
-        if not has_banner:
-            preferred = validator.get_preferred_series_banner_name()
-            msg = f"{show_dir_name}: Banner fehlt — ggf. manuell als '{preferred}' ablegen"
-            if provider in ("mediathek", "ytdlp", "manual"):
-                msg += f" (Metadatendienst '{provider}' unterstützt keine Banner)"
-            _add_issue(issues, "info", "missing_banner", category, show_path, msg)
+        # 4. Banner check
+        if validator.supports_banners:
+            has_banner = validator.has_artwork_file(show_path, validator.get_series_banner_names())
+            if not has_banner:
+                preferred = validator.get_preferred_series_banner_name()
+                msg = f"{show_dir_name}: Banner fehlt — ggf. manuell als '{preferred}' ablegen"
+                if provider in ("mediathek", "ytdlp", "manual"):
+                    msg += f" (Metadatendienst '{provider}' unterstützt keine Banner)"
+                _add_issue(issues, "info", "missing_banner", category, show_path, msg)
 
     # Staffeln
     season_dirs = [e for e in sorted(entries)
@@ -489,44 +492,45 @@ def _check_movie(issues, category, movie_path, validator):
         if nfo_path:
             _check_fsk(issues, category, movie_path, nfo_path)
 
-    # Artwork checks using validator
-    video_filename = videos[0][1] if videos else f"{name}.mkv"
-    video_stem = os.path.splitext(video_filename)[0]
-    provider = _get_provider_from_nfo(os.path.join(movie_path, f"{video_stem}.nfo"))
+    if validator is not None:
+        # Artwork checks using validator
+        video_filename = videos[0][1] if videos else f"{name}.mkv"
+        video_stem = os.path.splitext(video_filename)[0]
+        provider = _get_provider_from_nfo(os.path.join(movie_path, f"{video_stem}.nfo"))
 
-    # 1. Poster check
-    has_poster = validator.has_artwork_file(movie_path, validator.get_movie_poster_names(video_filename))
-    if not has_poster:
-        preferred = validator.get_preferred_movie_poster_name(video_filename)
-        _add_issue(issues, "warning", "missing_poster", category, movie_path,
-                   f"{name}: Filmplakat (Poster) fehlt — ggf. manuell als '{preferred}' ablegen")
+        # 1. Poster check
+        has_poster = validator.has_artwork_file(movie_path, validator.get_movie_poster_names(video_filename))
+        if not has_poster:
+            preferred = validator.get_preferred_movie_poster_name(video_filename)
+            _add_issue(issues, "warning", "missing_poster", category, movie_path,
+                       f"{name}: Filmplakat (Poster) fehlt — ggf. manuell als '{preferred}' ablegen")
 
-    # 2. Fanart/Backdrop check
-    has_backdrop = validator.has_artwork_file(movie_path, validator.get_movie_backdrop_names(video_filename))
-    if not has_backdrop:
-        preferred = validator.get_preferred_movie_backdrop_name(video_filename)
-        _add_issue(issues, "warning", "missing_backdrop", category, movie_path,
-                   f"{name}: Hintergrundbild fehlt — ggf. manuell als '{preferred}' ablegen")
+        # 2. Fanart/Backdrop check
+        has_backdrop = validator.has_artwork_file(movie_path, validator.get_movie_backdrop_names(video_filename))
+        if not has_backdrop:
+            preferred = validator.get_preferred_movie_backdrop_name(video_filename)
+            _add_issue(issues, "warning", "missing_backdrop", category, movie_path,
+                       f"{name}: Hintergrundbild fehlt — ggf. manuell als '{preferred}' ablegen")
 
-    # 3. Logo check
-    if validator.supports_logos:
-        has_logo = validator.has_artwork_file(movie_path, validator.get_movie_logo_names(video_filename))
-        if not has_logo:
-            preferred = validator.get_preferred_movie_logo_name(video_filename)
-            msg = f"{name}: ClearLogo fehlt — ggf. manuell als '{preferred}' ablegen"
-            if provider in ("mediathek", "ytdlp", "manual"):
-                msg += f" (Metadatendienst '{provider}' unterstützt keine Logos)"
-            _add_issue(issues, "info", "missing_logo", category, movie_path, msg)
+        # 3. Logo check
+        if validator.supports_logos:
+            has_logo = validator.has_artwork_file(movie_path, validator.get_movie_logo_names(video_filename))
+            if not has_logo:
+                preferred = validator.get_preferred_movie_logo_name(video_filename)
+                msg = f"{name}: ClearLogo fehlt — ggf. manuell als '{preferred}' ablegen"
+                if provider in ("mediathek", "ytdlp", "manual"):
+                    msg += f" (Metadatendienst '{provider}' unterstützt keine Logos)"
+                _add_issue(issues, "info", "missing_logo", category, movie_path, msg)
 
-    # 4. Banner check
-    if validator.supports_banners:
-        has_banner = validator.has_artwork_file(movie_path, validator.get_movie_banner_names(video_filename))
-        if not has_banner:
-            preferred = validator.get_preferred_movie_banner_name(video_filename)
-            msg = f"{name}: Banner fehlt — ggf. manuell als '{preferred}' ablegen"
-            if provider in ("mediathek", "ytdlp", "manual"):
-                msg += f" (Metadatendienst '{provider}' unterstützt keine Banner)"
-            _add_issue(issues, "info", "missing_banner", category, movie_path, msg)
+        # 4. Banner check
+        if validator.supports_banners:
+            has_banner = validator.has_artwork_file(movie_path, validator.get_movie_banner_names(video_filename))
+            if not has_banner:
+                preferred = validator.get_preferred_movie_banner_name(video_filename)
+                msg = f"{name}: Banner fehlt — ggf. manuell als '{preferred}' ablegen"
+                if provider in ("mediathek", "ytdlp", "manual"):
+                    msg += f" (Metadatendienst '{provider}' unterstützt keine Banner)"
+                _add_issue(issues, "info", "missing_banner", category, movie_path, msg)
 
     # Kleine Dateien
     small = []
@@ -578,14 +582,14 @@ def _check_movie_cached(issues, category, movie_path, validator, cache_mgr, key,
     # Cache-Miss, Änderung oder bekannte Issues -> Vollständiger Scan
     temp_issues = []
     files_checked = _check_movie(temp_issues, category, movie_path, validator)
-    
+
     if deep_dive:
         current_deep = cache_mgr.calculate_deep_hash(movie_path)
         cache_mgr.set_cached_entry(movie_path, key, temp_issues, deep_hash=current_deep, files_checked=files_checked)
     else:
         current_hybrid = cache_mgr.calculate_hybrid_state(movie_path, validator, is_movie=True)
         cache_mgr.set_cached_entry(movie_path, key, temp_issues, hybrid_state=current_hybrid, files_checked=files_checked)
-        
+
     issues.extend(temp_issues)
     return files_checked
 
@@ -625,14 +629,14 @@ def _check_series_cached(issues, category, show_path, validator, cache_mgr, key,
     # Cache-Miss, Änderung oder bekannte Issues -> Vollständiger Scan
     temp_issues = []
     files_checked = _check_series_show(temp_issues, category, show_path, validator)
-    
+
     if deep_dive:
         current_deep = cache_mgr.calculate_deep_hash(show_path)
         cache_mgr.set_cached_entry(show_path, key, temp_issues, deep_hash=current_deep, files_checked=files_checked)
     else:
         current_hybrid = cache_mgr.calculate_hybrid_state(show_path, validator, is_movie=False)
         cache_mgr.set_cached_entry(show_path, key, temp_issues, hybrid_state=current_hybrid, files_checked=files_checked)
-        
+
     issues.extend(temp_issues)
     return files_checked
 
@@ -645,7 +649,7 @@ def _handle_cancel(shows_scanned, files_checked, issues, stats, cache_mgr):
     summary = {"critical": 0, "warning": 0, "info": 0}
     for it in issues:
         summary[it["severity"]] = summary.get(it["severity"], 0) + 1
-        
+
     result = {
         "status": "cancelled",
         "progress": 100,
@@ -677,7 +681,7 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
                        error="nas_unavailable", finished_at=time.time())
             log_message("❌ [Health-Scan] NAS nicht verfügbar.")
             return
- 
+
         settings = utils.load_settings()
         from gui.core.transfers import validate_nas_library_preflight
         success, err_msg = validate_nas_library_preflight(settings)
@@ -686,9 +690,17 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
                        error="no_library_folders_found", finished_at=time.time())
             log_message(f"⚠️ [Health-Scan] Preflight fehlgeschlagen: {err_msg}")
             return
-        server_type = settings.get("media_server", "emby")
-        validator = artwork_validators.get_validator(server_type)
-        cache_key = health_cache.get_cache_key(server_type)
+        server_type = settings.get("media_server", "").strip()
+        if server_type:
+            validator = artwork_validators.get_validator(server_type)
+            cache_key = health_cache.get_cache_key(server_type)
+            media_server_skipped = False
+        else:
+            validator = None
+            cache_key = health_cache.get_cache_key("none")
+            media_server_skipped = True
+
+        _set_state(media_server_skipped=media_server_skipped)
         cache_mgr = health_cache.HealthCacheManager()
 
         # Detailliertes Debug-Logging
@@ -729,7 +741,7 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
             )
             log_message(f"⚠️ [Health-Scan] {msg}")
             return
- 
+
         for idx, show in enumerate(shows):
             if _cancel_event.is_set():
                 _handle_cancel(idx, files_checked, issues, stats, cache_mgr)
@@ -762,28 +774,29 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
                         files_checked += _check_movie_cached(issues, show["category"], sp, validator, cache_mgr, cache_key, deep_dive, stats)
             else:
                 files_checked += _check_movie_cached(issues, show["category"], show["path"], validator, cache_mgr, cache_key, deep_dive, stats)
- 
+
             if (idx + 1) % 25 == 0:
                 log_message(f"🔍 [Health-Scan] {idx + 1}/{total} Ordner geprüft, "
                             f"{len(issues)} Auffälligkeiten bisher...")
- 
+
         # Speicher-Cache dauerhaft auf Festplatte schreiben
         cache_mgr.flush()
 
         summary = {"critical": 0, "warning": 0, "info": 0}
         for it in issues:
             summary[it["severity"]] = summary.get(it["severity"], 0) + 1
- 
+
         result = {
             "status": "done",
             "progress": 100,
-            "message": f"Scan abgeschlossen: {len(issues)} Auffälligkeiten in {total} Ordnern.",
+            "message": f"Scan abgeschlossen: {len(issues)} Auffälligkeiten in {total} Ordnern." if not media_server_skipped else f"Scan abgeschlossen (Medienserver-Prüfung übersprungen): {len(issues)} Auffälligkeiten in {total} Ordnern.",
             "finished_at": time.time(),
             "issues": issues,
             "summary": summary,
             "scanned": {"shows": total, "files": files_checked},
             "stats": stats,
             "error": None,
+            "media_server_skipped": media_server_skipped,
         }
         _set_state(**result)
         _write_cache()
@@ -791,15 +804,15 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
                     f"{summary['warning']} Warnungen, {summary['info']} Hinweise. "
                     f"Cache-Hits: {stats['cache_hits']}, Modifiziert: {stats['cache_miss_modified']}, "
                     f"Bekannte Fehler: {stats['cache_miss_known_issues']}, Neu: {stats['cache_miss_new']}")
- 
+
     except Exception as e:
         import traceback
         traceback.print_exc()
         _set_state(status="error", message=f"Fehler beim Scan: {e}",
                    error=str(e), finished_at=time.time())
         log_message(f"❌ [Health-Scan] Fehler: {e}")
- 
- 
+
+
 def start_health_scan(deep_dive: bool = False, category_ids: Optional[list] = None):
     """Startet den Scan im Hintergrund. Gibt False zurück, wenn bereits einer läuft."""
     with _state_lock:
@@ -817,6 +830,7 @@ def start_health_scan(deep_dive: bool = False, category_ids: Optional[list] = No
             "scanned": {"shows": 0, "files": 0},
             "stats": {"cache_hits": 0, "cache_miss_modified": 0, "cache_miss_known_issues": 0, "cache_miss_new": 0},
             "error": None,
+            "media_server_skipped": False,
         })
     threading.Thread(target=_run_health_scan, args=(deep_dive, category_ids), daemon=True).start()
     return True

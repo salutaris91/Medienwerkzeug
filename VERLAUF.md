@@ -2,6 +2,18 @@
 
 Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 09.07.2026 (Phase 2.6a – Bibliotheksscan-Konfiguration und verständliche Preflight-Hinweise glätten)
+
+- **Scan-Robustheit bei fehlendem Medienserver (Branch: feature/library-scan-config-polish):**
+  - **Optionaler Medienserver:** Der Bibliotheksscan bricht bei fehlendem Medienserver nicht mehr ab. Medienserver-spezifische Artwork-Prüfungen (Poster, Fanart, Logo, Banner, Staffelposter) werden übersprungen, während die datei- und ordnerbasierten Strukturchecks weiterhin laufen.
+  - **Cache-Härtung:** `calculate_hybrid_state` in `health_cache.py` fängt `validator=None` sauber ab. Bei Serien ohne Validator wird über einen rekursiven `os.walk` eine Erfassung aller Videodateien (`mtime` und `size`, als Listen serialisiert für JSON-Stabilität bei Roundtrips) und NFO-Dateien (`mtime`) durchgeführt.
+  - **Backend API:** `/api/nas/health-scan` bricht nicht mehr mit HTTP 400 ab, wenn kein Medienserver konfiguriert ist, sondern startet den Scan regulär.
+  - **Warnbanner im Frontend:** Wenn die Medienserver-Prüfung übersprungen wurde, zeigt das Dashboard über den Befunden ein gelbes Info-Warnbanner an mit direktem Navigationslink zu den Einstellungen (`Einstellungen > Speicher & Sync` bzw. `#nav-settings-dashboard`), um den Benutzer anzuleiten.
+  - **Symmetrische Scanstart-Sperre:** Das Frontend filtert in `loadHealthCategories` unvollständige Sync-Kategorien (ohne NAS-Pfad `nas_sub`) aus. Gibt es 0 gültige Kategorien, wird ein Empty State mit Link zu den Einstellungen gerendert, der Button „Bibliothek prüfen“ wird deaktiviert und mit einem erklärenden Tooltip versehen. `resetHealthScanButton` prüft ebenfalls das Vorhandensein, damit Polling-Events den gesperrten Button nicht fälschlicherweise wieder aktivieren.
+  - **Frontend-Sicherheitscheck:** In `startHealthScan` bricht das Frontend sofort ab, wenn keine Kategorien selektiert oder vorhanden sind, um Fehlstarts zu verhindern.
+  - **Testsuite:** Aktualisierung des API-Tests in `test_health_scan_cache.py` und Ergänzung zweier neuer Unittests in `test_artwork_validation.py` für Filme und Serien ohne Validator. Im Serientest wird `os.path.isdir` gemockt, um den echten Pfad zu `_check_season` und deren validatorfreie Ausführung zu verifizieren.
+  - **Code-Qualität:** Whitespace-Fehler auf Commit-Ebene vollständig bereinigt.
+
 ## Stand am 02.07.2026 (Phase 2.5d – UI/Preview-Fixes für Ordnerstrukturen)
 
 - **UI/Preview-Fixes (Branch: feature/nas-structure-fix):**

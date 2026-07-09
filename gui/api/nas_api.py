@@ -570,12 +570,6 @@ def handle_api_nas_health_scan():
     try:
         from gui.core import utils
         settings = utils.load_settings()
-        media_server = settings.get("media_server", "").strip()
-        if not media_server:
-            return jsonify({
-                "started": False,
-                "error": "Bitte wähle zuerst einen Medienserver (Emby/Jellyfin/Plex) in den Einstellungen aus."
-            }), 400
 
         if not ensure_nas_mounted():
             return jsonify({"started": False, "error": "NAS ist offline"}), 503
