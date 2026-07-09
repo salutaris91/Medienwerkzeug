@@ -7,9 +7,11 @@ Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert 
 - **Queue-UX während H.265-Konvertierungen (Branch: fix/conversion-progress-visibility):**
   - **Sofort sichtbarer Konvertierungsstart:** `process_worker` setzt vor dem eigentlichen FFMPEG-Aufruf nun den Job-Hauptstatus und den Pipeline-Step `convert` auf `Konvertierung gestartet: ...`. Dadurch bleibt die Queue-Karte nicht mehr bei „Verarbeitung gestartet...“ stehen, wenn FFMPEG noch keine Prozentwerte ausgegeben hat.
   - **Fortlaufende Step-Meldungen:** FFMPEG-Progress-Callbacks spiegeln ihre Meldungen zusätzlich in `pipeline.convert.message` und `job.message`, damit die UI den aktuellen Konvertierungszustand ohne Entwicklerkonsole anzeigen kann.
+  - **NAS-Transferabschluss korrigiert:** Erfolgreiche NAS-Transfers setzen ihren Pipeline-Step nun explizit auf `done` und `100`, damit die Kachel nach abgeschlossenem Kopieren nicht weiter blau als laufend angezeigt wird.
+  - **pCloud-/Cloud-Start sichtbar:** Cloud-Uploads setzen ihren Pipeline-Step bereits vor dem ersten Progress-Callback auf `running` mit Startmeldung. Dadurch sieht der Nutzer nach dem NAS-Transfer sofort, dass Speicherziel 2 begonnen hat.
   - **Frontend-Anzeige:** `renderQueue` rendert Step-spezifische Pipeline-Messages direkt in den Prozesskacheln. Lange Meldungen werden umbrochen und als Tooltip vollständig verfügbar gemacht.
-  - **Regressionstest:** `test_movie_processing_with_convert` prüft jetzt den kritischen Zwischenzustand vor dem ersten FFMPEG-Progress: Status `running`, Progress `0` und sichtbare Konvertierungsnachricht.
-  - **Qualitätssicherung:** `python3 -m pytest` (365 passed), `npm run test:frontend` (46 passed), `git diff --check` (sauber) und `./scripts/refresh_graphify.sh` erfolgreich ausgeführt.
+  - **Regressionstests:** `test_movie_processing_with_convert` prüft den kritischen Zwischenzustand vor dem ersten FFMPEG-Progress. Zusätzlich prüfen `test_movie_nas_transfer_marks_pipeline_step_done` und `test_movie_cloud_transfer_is_visible_before_progress_callback` den NAS-Abschluss und den sichtbaren pCloud-Start.
+  - **Qualitätssicherung:** `python3 -m pytest` (367 passed), `npm run test:frontend` (46 passed), `git diff --check` (sauber) und `./scripts/refresh_graphify.sh` erfolgreich ausgeführt.
 
 ## Stand am 09.07.2026 (Phase 2.6b – Konvertierungsqualität / Archivqualität)
 
