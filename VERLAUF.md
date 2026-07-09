@@ -2,6 +2,15 @@
 
 Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 09.07.2026 (Nachkorrektur – Konvertierungsfortschritt sichtbar machen)
+
+- **Queue-UX während H.265-Konvertierungen (Branch: fix/conversion-progress-visibility):**
+  - **Sofort sichtbarer Konvertierungsstart:** `process_worker` setzt vor dem eigentlichen FFMPEG-Aufruf nun den Job-Hauptstatus und den Pipeline-Step `convert` auf `Konvertierung gestartet: ...`. Dadurch bleibt die Queue-Karte nicht mehr bei „Verarbeitung gestartet...“ stehen, wenn FFMPEG noch keine Prozentwerte ausgegeben hat.
+  - **Fortlaufende Step-Meldungen:** FFMPEG-Progress-Callbacks spiegeln ihre Meldungen zusätzlich in `pipeline.convert.message` und `job.message`, damit die UI den aktuellen Konvertierungszustand ohne Entwicklerkonsole anzeigen kann.
+  - **Frontend-Anzeige:** `renderQueue` rendert Step-spezifische Pipeline-Messages direkt in den Prozesskacheln. Lange Meldungen werden umbrochen und als Tooltip vollständig verfügbar gemacht.
+  - **Regressionstest:** `test_movie_processing_with_convert` prüft jetzt den kritischen Zwischenzustand vor dem ersten FFMPEG-Progress: Status `running`, Progress `0` und sichtbare Konvertierungsnachricht.
+  - **Qualitätssicherung:** `python3 -m pytest` (365 passed), `npm run test:frontend` (46 passed), `git diff --check` (sauber) und `./scripts/refresh_graphify.sh` erfolgreich ausgeführt.
+
 ## Stand am 09.07.2026 (Phase 2.6b – Konvertierungsqualität / Archivqualität)
 
 - **Qualitätsverbesserung & Archivmodus (Branch: feature/conversion-quality-polish):**

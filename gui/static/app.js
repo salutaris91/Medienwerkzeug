@@ -10712,12 +10712,16 @@ function renderQueue(jobs) {
                     textColor = "rgba(255,255,255,0.15)";
                     borderStyle = "1px solid rgba(255,255,255,0.02)";
                 }
+                const stepMessageHtml = sData.message
+                    ? `<span style="font-size: 8px; color: ${textColor}; opacity: 0.85; line-height: 1.1; display: block; max-width: 100%; word-break: break-word;" title="${escapeHtml(sData.message)}">${escapeHtml(sData.message)}</span>`
+                    : "";
 
                 pipelineHtml += `
                     <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px; border-radius: var(--radius-sm); background: ${stepColor}; border: ${borderStyle}; text-align: center; box-sizing: border-box;">
                         <span style="font-size: 13px; line-height: 1; display: inline-flex; align-items: center; justify-content: center;">${stepIcon}</span>
                         <span style="font-size: 9px; font-weight: 500; color: ${textColor}; white-space: normal; line-height: 1.1; word-break: break-word; max-width: 100%; display: block;" title="${step.label}">${step.label}</span>
                         ${sData.status === "running" ? `<span style="font-size: 9px; color: ${textColor}; font-weight: bold; display: block;">${sData.progress}%</span>` : ""}
+                        ${stepMessageHtml}
                     </div>
                 `;
 

@@ -936,9 +936,29 @@ class TestMovieProcessingFixes(unittest.TestCase):
             "explicit_subs": [],
             "explicit_junk": []
         }
+        task_id = "test-convert-progress"
+        params["task_id"] = task_id
+
+        import gui.core.jobs as jobs
+        with jobs.active_jobs_lock:
+            jobs.active_jobs.pop(task_id, None)
+            jobs._jobs_loaded = True
+        pipeline = processor.build_job_pipeline(params, has_metadata=False, convert=True)
+        jobs.create_job(
+            task_id,
+            "Converted Movie (2026)",
+            "movie",
+            params,
+            pipeline=pipeline,
+            status="running"
+        )
+        observed_running_state = {}
 
         # Mock run_ffmpeg_with_progress to actually write a dummy .mkv file so os.rename and checks pass
         def mock_ffmpeg(cmd, filepath, task_id=None, log_queue=None):
+            job = jobs.get_job("test-convert-progress")
+            observed_running_state["message"] = job["message"]
+            observed_running_state["convert"] = job["pipeline"]["convert"].copy()
             # The output filename is the last element of the command
             temp_out = cmd[-1]
             with open(temp_out, "w") as f_out:
@@ -952,6 +972,11 @@ class TestMovieProcessingFixes(unittest.TestCase):
 
         # Run process_worker
         processor.process_worker(params)
+
+        self.assertIn("Konvertierung gestartet", observed_running_state["message"])
+        self.assertEqual(observed_running_state["convert"]["status"], "running")
+        self.assertEqual(observed_running_state["convert"]["progress"], 0)
+        self.assertIn("Konvertierung gestartet", observed_running_state["convert"]["message"])
 
         # Output folder check
         dest_movie_dir = os.path.join(self.outbox_dir, "Filme", "Converted Movie (2026)")
