@@ -158,10 +158,11 @@ Projekt- und personenbezogene Deployment-Pfade, Hostnamen, Volumes und
 Betriebsnotizen gehören in lokale, gitignorierte Übergabe- oder Deployment-Notizen.
 
 ### Live-Update auf dem NAS
-Um Änderungen auf dem NAS im Livebetrieb zu aktualisieren und neu zu starten, folgendes konsolidierte Kommando ausführen:
+Das NAS hat **kein Git** und baut nichts lokal — es zieht ein per CI vorgebautes Image aus der Registry. Nach einem Merge nach `main` baut GitHub Actions (`.github/workflows/docker-build.yml`, Job "Docker Build and Publish") das Image. Sobald dieser Build grün ist (mit `gh run list --branch main` prüfen), auf dem NAS ausführen:
 ```bash
-cd /home/Alex/medienwerkzeug && git checkout main && git pull && docker compose down && docker compose up --build -d
+cd ~/medienwerkzeug && docker compose pull && docker compose up -d
 ```
+`docker compose up -d` erstellt nur die Container mit geändertem Image neu — kein `git`, kein `--build`, kein vorheriges `down` nötig.
 
 ---
 
