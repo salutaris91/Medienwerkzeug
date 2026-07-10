@@ -4328,26 +4328,33 @@ async function executeSeriesWorkflow() {
 
     // Collect NFO overrides
     const nfoOverrides = {
-        show: {
-            title: document.getElementById("series-nfo-title")?.value?.trim() || "",
-            year: document.getElementById("series-nfo-year")?.value?.trim() || "",
-            plot: document.getElementById("series-nfo-plot")?.value?.trim() || ""
-        },
+        show: {},
         episodes: {}
     };
+    const showTitle = document.getElementById("series-nfo-title")?.value?.trim();
+    const showYear = document.getElementById("series-nfo-year")?.value?.trim();
+    const showPlot = document.getElementById("series-nfo-plot")?.value?.trim();
+    if (showTitle) nfoOverrides.show.title = showTitle;
+    if (showYear) nfoOverrides.show.year = showYear;
+    if (showPlot) nfoOverrides.show.plot = showPlot;
+
     if (!isManualSeriesMode) {
         rows.forEach((row, index) => {
             const file = row.getAttribute("data-file");
             const select = document.getElementById(`match-select-${index}`);
             if (select && select.value !== "skip") {
-                const epTitle = document.getElementById(`episode-nfo-title-${index}`)?.value?.trim() || "";
-                const epAired = document.getElementById(`episode-nfo-aired-${index}`)?.value?.trim() || "";
-                const epPlot = document.getElementById(`episode-nfo-plot-${index}`)?.value?.trim() || "";
-                nfoOverrides.episodes[file] = {
-                    title: epTitle,
-                    aired: epAired,
-                    plot: epPlot
-                };
+                const epTitle = document.getElementById(`episode-nfo-title-${index}`)?.value?.trim();
+                const epAired = document.getElementById(`episode-nfo-aired-${index}`)?.value?.trim();
+                const epPlot = document.getElementById(`episode-nfo-plot-${index}`)?.value?.trim();
+                
+                const epOverrides = {};
+                if (epTitle) epOverrides.title = epTitle;
+                if (epAired) epOverrides.aired = epAired;
+                if (epPlot) epOverrides.plot = epPlot;
+                
+                if (Object.keys(epOverrides).length > 0) {
+                    nfoOverrides.episodes[file] = epOverrides;
+                }
             }
         });
     }
@@ -4403,12 +4410,14 @@ async function executeMovieWorkflow() {
 
     // Collect NFO overrides
     const nfoOverrides = {
-        movie: {
-            title: document.getElementById("movie-nfo-title")?.value?.trim() || "",
-            year: document.getElementById("movie-nfo-year")?.value?.trim() || "",
-            plot: document.getElementById("movie-nfo-plot")?.value?.trim() || ""
-        }
+        movie: {}
     };
+    const movieTitle = document.getElementById("movie-nfo-title")?.value?.trim();
+    const movieYear = document.getElementById("movie-nfo-year")?.value?.trim();
+    const moviePlot = document.getElementById("movie-nfo-plot")?.value?.trim();
+    if (movieTitle) nfoOverrides.movie.title = movieTitle;
+    if (movieYear) nfoOverrides.movie.year = movieYear;
+    if (moviePlot) nfoOverrides.movie.plot = moviePlot;
     payload.nfo_overrides = nfoOverrides;
 
     openPreviewModal(payload);

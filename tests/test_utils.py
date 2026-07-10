@@ -893,6 +893,80 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         self.assertIn("Dragon Ball (1986)", first_result["name"])
         self.assertIn("[TVDB]", first_result["name"])
 
+    @unittest.mock.patch('urllib.request.urlopen')
+    @unittest.mock.patch('tempfile.gettempdir')
+    def test_tvdb_episode_nfo_empty_overrides(self, mock_gettempdir, mock_urlopen):
+        import xml.etree.ElementTree as ET
+        mock_gettempdir.return_value = self.test_dir
+        mw_metadata.tvdb_token = None
+
+        def side_effect(req, *args, **kwargs):
+            url = req.full_url if hasattr(req, 'full_url') else req
+
+            class MockResponse:
+                def __init__(self, data):
+                    self.data = json.dumps(data).encode('utf-8')
+                def read(self):
+                    return self.data
+                def __enter__(self):
+                    return self
+                def __exit__(self, exc_type, exc_val, exc_tb):
+                    pass
+
+            if "login" in url:
+                return MockResponse({"data": {"token": "mocked_tvdb_token"}})
+            elif "episodes/default/deu" in url:
+                return MockResponse({
+                    "data": {
+                        "episodes": [
+                            {
+                                "id": 123456,
+                                "name": "Soll-Titel auf Deutsch",
+                                "overview": "Soll-Plot auf Deutsch",
+                                "seasonNumber": 1,
+                                "number": 1,
+                                "aired": "1986-02-26",
+                                "score": 8.5
+                            }
+                        ]
+                    }
+                })
+            return MockResponse({})
+
+        mock_urlopen.side_effect = side_effect
+
+        nfo_overrides = {
+            "title": "",
+            "plot": "",
+            "aired": ""
+        }
+
+        res = mw_metadata.generate_episode_nfo(
+            provider="tvdb",
+            show_id="76666",
+            season=1,
+            episode=1,
+            target_folder=self.test_dir,
+            filename_base="Dragon Ball - S01E01",
+            nfo_overrides=nfo_overrides
+        )
+
+        self.assertTrue(res["nfo"])
+
+        nfo_path = os.path.join(self.test_dir, "Dragon Ball - S01E01.nfo")
+        self.assertTrue(os.path.exists(nfo_path))
+
+        tree = ET.parse(nfo_path)
+        root = tree.getroot()
+
+        title_el = root.find("title")
+        plot_el = root.find("plot")
+        aired_el = root.find("aired")
+
+        self.assertEqual(title_el.text, "Soll-Titel auf Deutsch")
+        self.assertEqual(plot_el.text, "Soll-Plot auf Deutsch")
+        self.assertEqual(aired_el.text, "1986-02-26")
+
     def test_manual_mode_metadata(self):
         # Test generate_tvshow_nfo in manual mode
         import xml.etree.ElementTree as ET

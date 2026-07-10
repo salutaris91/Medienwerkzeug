@@ -2,6 +2,14 @@
 
 Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 10.07.2026 (NFO Overwrite Bug behoben)
+
+- **Behebung des NFO-Overwrite-Bugs bei leeren Overrides (Branch: `fix/nfo-overwrite-empty`):**
+  - **Backend-Härtung:** In `gui/mw_metadata.py` an allen 16 Stellen (Filme, Serien und Episoden) die Prüfung von `"field" in nfo_overrides` auf `nfo_overrides.get("field")` umgestellt. Dadurch werden leere Overrides ignoriert.
+  - **Frontend-Payload-Hygiene:** In `gui/static/app.js` leere Override-Felder vor dem Absenden aus dem Payload entfernt, um unnötige Datenübertragungen zu vermeiden.
+  - **Unit-Test:** Neuen Regressionstest `test_tvdb_episode_nfo_empty_overrides` hinzugefügt. Dieser prüft, dass leere Overrides die online abgerufenen Metadaten nicht überschreiben, und verwendet ein temporäres Verzeichnis (via `tempfile.gettempdir` Patch) zur Vermeidung von Cache-Seiteneffekten.
+  - **Testsuite:** Die gesamte Testsuite mit 375 Tests läuft erfolgreich durch.
+
 ## Stand am 09.07.2026 (Nachkorrektur – TVDB-Suchlimit erhöht)
 
 - **TVDB-Suchlimit erhöht (Branch: `fix/tvdb-search-limit`):**
