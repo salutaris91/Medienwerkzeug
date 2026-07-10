@@ -950,9 +950,9 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             plot = ""
             year = ""
             if nfo_overrides:
-                if "title" in nfo_overrides: title = nfo_overrides["title"]
-                if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
-                if "year" in nfo_overrides: year = nfo_overrides["year"]
+                if nfo_overrides.get("title"): title = nfo_overrides["title"]
+                if nfo_overrides.get("plot"): plot = nfo_overrides["plot"]
+                if nfo_overrides.get("year"): year = nfo_overrides["year"]
 
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<movie>\n  <lockdata>true</lockdata>\n'
@@ -979,9 +979,9 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             year = meta.get("year", "")
             plot = meta.get("plot", "")
             if nfo_overrides:
-                if "title" in nfo_overrides: title = nfo_overrides["title"]
-                if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
-                if "year" in nfo_overrides: year = nfo_overrides["year"]
+                if nfo_overrides.get("title"): title = nfo_overrides["title"]
+                if nfo_overrides.get("plot"): plot = nfo_overrides["plot"]
+                if nfo_overrides.get("year"): year = nfo_overrides["year"]
 
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<movie>\n  <lockdata>true</lockdata>\n'
@@ -1018,9 +1018,9 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
                     year = str(entry.get("release_year"))
 
             if nfo_overrides:
-                if "title" in nfo_overrides: title = nfo_overrides["title"]
-                if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
-                if "year" in nfo_overrides: year = nfo_overrides["year"]
+                if nfo_overrides.get("title"): title = nfo_overrides["title"]
+                if nfo_overrides.get("plot"): plot = nfo_overrides["plot"]
+                if nfo_overrides.get("year"): year = nfo_overrides["year"]
 
             if needs_nfo:
                 xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
@@ -1087,9 +1087,9 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
         title = data.get('title', '')
 
         if nfo_overrides:
-            if "title" in nfo_overrides: title = nfo_overrides["title"]
-            if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
-            if "year" in nfo_overrides: year = nfo_overrides["year"]
+            if nfo_overrides.get("title"): title = nfo_overrides["title"]
+            if nfo_overrides.get("plot"): plot = nfo_overrides["plot"]
+            if nfo_overrides.get("year"): year = nfo_overrides["year"]
 
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<movie>\n  <lockdata>true</lockdata>\n'
@@ -1516,9 +1516,9 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
         plot = meta.get("plot", "")
         year = meta.get("year", "")
         if nfo_overrides:
-            if "title" in nfo_overrides: title = nfo_overrides["title"]
-            if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
-            if "year" in nfo_overrides: year = nfo_overrides["year"]
+            if nfo_overrides.get("title"): title = nfo_overrides["title"]
+            if nfo_overrides.get("plot"): plot = nfo_overrides["plot"]
+            if nfo_overrides.get("year"): year = nfo_overrides["year"]
 
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
@@ -1543,9 +1543,9 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
         plot = ""
         year = ""
         if nfo_overrides:
-            if "title" in nfo_overrides: title = nfo_overrides["title"]
-            if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
-            if "year" in nfo_overrides: year = nfo_overrides["year"]
+            if nfo_overrides.get("title"): title = nfo_overrides["title"]
+            if nfo_overrides.get("plot"): plot = nfo_overrides["plot"]
+            if nfo_overrides.get("year"): year = nfo_overrides["year"]
 
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
@@ -1575,9 +1575,9 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
             title = entries[0].get("playlist_title") or entries[0].get("playlist") or entries[0].get("title") or "YouTube/Mediathek Serie"
             plot = entries[0].get("description") or ""
         if nfo_overrides:
-            if "title" in nfo_overrides: title = nfo_overrides["title"]
-            if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
-            if "year" in nfo_overrides: year = nfo_overrides["year"]
+            if nfo_overrides.get("title"): title = nfo_overrides["title"]
+            if nfo_overrides.get("plot"): plot = nfo_overrides["plot"]
+            if nfo_overrides.get("year"): year = nfo_overrides["year"]
 
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
@@ -1659,9 +1659,9 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
             year = data.get('firstAired', '')[:4] if data.get('firstAired') else ''
 
             if nfo_overrides:
-                if "title" in nfo_overrides: title = nfo_overrides["title"]
-                if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
-                if "year" in nfo_overrides: year = nfo_overrides["year"]
+                if nfo_overrides.get("title"): title = nfo_overrides["title"]
+                if nfo_overrides.get("plot"): plot = nfo_overrides["plot"]
+                if nfo_overrides.get("year"): year = nfo_overrides["year"]
 
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
@@ -1773,9 +1773,9 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
         plot = data.get('overview', '')
 
         if nfo_overrides:
-            if "title" in nfo_overrides: data['name'] = nfo_overrides["title"]
-            if "plot" in nfo_overrides: plot = nfo_overrides["plot"]
-            if "year" in nfo_overrides: year = nfo_overrides["year"]
+            if nfo_overrides.get("title"): data['name'] = nfo_overrides["title"]
+            if nfo_overrides.get("plot"): plot = nfo_overrides["plot"]
+            if nfo_overrides.get("year"): year = nfo_overrides["year"]
 
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<tvshow>\n  <lockdata>true</lockdata>\n'
@@ -1878,9 +1878,9 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             ep_num = force_episode
 
         if nfo_overrides:
-            if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
-            if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
-            if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
+            if nfo_overrides.get("title"): ep_title = nfo_overrides["title"]
+            if nfo_overrides.get("plot"): ep_plot = nfo_overrides["plot"]
+            if nfo_overrides.get("aired"): ep_aired = nfo_overrides["aired"]
 
         if needs_nfo:
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
@@ -1906,9 +1906,9 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
             ep_plot = ep_data.get("plot", "")
             ep_aired = ""
             if nfo_overrides:
-                if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
-                if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
-                if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
+                if nfo_overrides.get("title"): ep_title = nfo_overrides["title"]
+                if nfo_overrides.get("plot"): ep_plot = nfo_overrides["plot"]
+                if nfo_overrides.get("aired"): ep_aired = nfo_overrides["aired"]
 
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
             xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
@@ -1960,9 +1960,9 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                         ep_aired = f"{d[:4]}-{d[4:6]}-{d[6:8]}"
 
             if nfo_overrides:
-                if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
-                if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
-                if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
+                if nfo_overrides.get("title"): ep_title = nfo_overrides["title"]
+                if nfo_overrides.get("plot"): ep_plot = nfo_overrides["plot"]
+                if nfo_overrides.get("aired"): ep_aired = nfo_overrides["aired"]
 
             if needs_nfo:
                 xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
@@ -2053,9 +2053,9 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                     ep_plot = "Automatischer Fallback: Episode online bei TVDB nicht gefunden."
                     ep_aired = ""
                     if nfo_overrides:
-                        if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
-                        if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
-                        if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
+                        if nfo_overrides.get("title"): ep_title = nfo_overrides["title"]
+                        if nfo_overrides.get("plot"): ep_plot = nfo_overrides["plot"]
+                        if nfo_overrides.get("aired"): ep_aired = nfo_overrides["aired"]
 
                     xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                     xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
@@ -2093,9 +2093,9 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                     break
 
         if nfo_overrides:
-            if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
-            if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
-            if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
+            if nfo_overrides.get("title"): ep_title = nfo_overrides["title"]
+            if nfo_overrides.get("plot"): ep_plot = nfo_overrides["plot"]
+            if nfo_overrides.get("aired"): ep_aired = nfo_overrides["aired"]
 
         if needs_nfo:
             xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
@@ -2131,9 +2131,9 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                 ep_plot = f"Automatischer Fallback: Details konnten nicht geladen werden ({str(e)})."
                 ep_aired = ""
                 if nfo_overrides:
-                    if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
-                    if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
-                    if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
+                    if nfo_overrides.get("title"): ep_title = nfo_overrides["title"]
+                    if nfo_overrides.get("plot"): ep_plot = nfo_overrides["plot"]
+                    if nfo_overrides.get("aired"): ep_aired = nfo_overrides["aired"]
 
                 xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
@@ -2157,9 +2157,9 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
         ep_plot = data.get('overview', '')
         ep_aired = data.get('air_date', '')
         if nfo_overrides:
-            if "title" in nfo_overrides: ep_title = nfo_overrides["title"]
-            if "plot" in nfo_overrides: ep_plot = nfo_overrides["plot"]
-            if "aired" in nfo_overrides: ep_aired = nfo_overrides["aired"]
+            if nfo_overrides.get("title"): ep_title = nfo_overrides["title"]
+            if nfo_overrides.get("plot"): ep_plot = nfo_overrides["plot"]
+            if nfo_overrides.get("aired"): ep_aired = nfo_overrides["aired"]
 
         xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         xml += '<episodedetails>\n  <lockdata>true</lockdata>\n'
