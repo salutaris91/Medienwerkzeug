@@ -8,6 +8,9 @@ Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert 
   - **Exklusiver Metadaten-Job:** Der NFO-Agent läuft jetzt über einen eigenen Job-Typ `tool_nfo_agent` mit einer minimalen, einstufigen Pipeline (`metadata`), wodurch Konvertierungen, Dateiverschiebungen oder Löschungen strukturell ausgeschlossen sind.
   - **Sicherheits-Pfad-Gate:** Der NFO-Agent prüft den Zielpfad aktiv über `is_path_allowed`, bevor Metadaten geschrieben werden, und bricht bei unerlaubten Pfaden sofort ab.
   - **Eigenes Modal-Interface:** `#modal-nfo-agent` in `index.html` bietet eine vollständige, gethemte Such- und Review-Maske inklusive Episoden-Mappings, Titel-/Plot-Overrides für Shows/Movies/Episoden und einem integrierten Live-Logstream.
+  - **Datenschutz & Härtung:**
+    - Show- und Movie-Overrides werden nur übermittelt, wenn der Benutzer sie in der UI wirklich geändert hat, was das ungewollte Überschreiben intakter Serien-/Film-NFOs verhindert.
+    - Die Episodennummern und Staffeln werden im Backend zu Integern gecastet, was Formatierungs-Crashes bei unvorhergesehenen Zeichenketten im Mapping-Zweig strukturell ausschließt.
   - **Auto-Close & Scan-Refresh:** Nach erfolgreichem Abschluss schließt sich das Modal nach 1,5 Sekunden selbst und stößt im Hintergrund einen neuen Bibliotheks-Scan (`startHealthScan`) an.
   - **Tests & Verifikation:** 3 neue Tests in `tests/test_utils.py` decken Serien- und Filmverarbeitung sowie den unzulässigen Pfad-Abbruch ab. Die gesamte Testsuite läuft fehlerfrei durch.
 
