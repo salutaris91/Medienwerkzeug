@@ -14940,15 +14940,15 @@ function openNfoAgentModal(path) {
                 fetch(`/api/profile?show_name=${encodeURIComponent(showNameQuery)}`)
                     .then(r => r.ok ? r.json() : null)
                     .then(prof => {
-                        if (prof && prof.data) {
+                        if (prof && !prof.error) {
                             if (!document.getElementById("nfo-agent-provider").value) {
-                                document.getElementById("nfo-agent-provider").value = prof.data.provider || "";
+                                document.getElementById("nfo-agent-provider").value = prof.provider || "";
                             }
                             if (!document.getElementById("nfo-agent-metadata-id").value) {
-                                document.getElementById("nfo-agent-metadata-id").value = prof.data.show_id || "";
+                                document.getElementById("nfo-agent-metadata-id").value = prof.show_id || "";
                             }
                             if (!document.getElementById("nfo-agent-show-title").value) {
-                                const newName = prof.data.show_name || "";
+                                const newName = prof.show_name || "";
                                 document.getElementById("nfo-agent-show-title").value = newName;
                                 if (!document.getElementById("nfo-agent-search-title").value) {
                                     document.getElementById("nfo-agent-search-title").value = newName;
@@ -15036,6 +15036,15 @@ function searchNfoAgentMetadata() {
             let resProvider = bestResult.provider;
             if (queryType === "movie" && resProvider === "tmdb") {
                 resProvider = "tmdb_movie";
+            }
+            if (queryType === "tv") {
+                if (resProvider === "tmdb_tv_en") {
+                    resProvider = "tmdb_tv";
+                }
+                // Fallback to tvdb if unrecognized tv provider (e.g. tvmaze)
+                if (resProvider !== "tvdb" && resProvider !== "tmdb_tv" && resProvider !== "manual") {
+                    resProvider = "tvdb";
+                }
             }
             
             document.getElementById("nfo-agent-metadata-id").value = bestResult.id;
