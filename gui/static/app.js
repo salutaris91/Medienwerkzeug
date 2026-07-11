@@ -12951,6 +12951,8 @@ function renderHealthStatus(data) {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" title="FSK-Stufe setzen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>FSK setzen</button>`;
                     } else if (it.type === "missing_poster" || it.type === "missing_backdrop" || it.type === "missing_logo" || it.type === "missing_banner" || it.type === "missing_season_poster") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-artwork-search" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Bild online suchen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image" style="height:12px; width:12px;"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>Bild suchen</button>`;
+                    } else if (it.type === "missing_nfo" || it.type === "incomplete_nfo") {
+                        fixBtns = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(it.path)}" title="NFO Agent für diesen Ordner öffnen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" style="height:12px; width:12px;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>NFO Agent</button>`;
                     }
                     html += `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; font-size:0.9em; padding:8px 0; border-top:1px solid rgba(255,255,255,0.04);">
                                 <div style="flex:1; min-width:0; color:var(--text-main); font-weight:500;">
@@ -13015,9 +13017,9 @@ function renderHealthStatus(data) {
                         <button class="btn btn-primary btn-xs health-batch-btn" data-type-id="${escapeHTML(typeId)}" data-action="flatten" style="padding:2px 8px; height:24px;" title="Alle ausgewählten Ordnerstrukturen auflösen">Auflösen</button>
                     `;
                 } else if (typeId === "missing_nfo" || typeId === "incomplete_nfo") {
-                    batchBtnHtml = `
-                        <button class="btn btn-accent btn-xs health-batch-tool-btn" data-type-id="${escapeHTML(typeId)}" data-tool="tool_nfo_agent" style="padding:2px 8px; height:24px;" title="NFO Agent für das erste ausgewählte Verzeichnis starten">NFO Agent (1.)</button>
-                    `;
+                    // NFO Agent is offered per finding (health-nfo-agent button on each issue),
+                    // since every series needs its own metadata source/ID — no batch action here.
+                    batchBtnHtml = "";
                 } else if (typeId === "codec_inconsistency") {
                     batchBtnHtml = `
                         <button class="btn btn-accent btn-xs health-batch-tool-btn" data-type-id="${escapeHTML(typeId)}" data-tool="tool_batch_convert" style="padding:2px 8px; height:24px;" title="H.265 Konvertierung für erstes ausgewähltes Verzeichnis öffnen">H.265 Konverter (1.)</button>
@@ -13073,6 +13075,8 @@ function renderHealthStatus(data) {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" title="FSK-Stufe setzen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>FSK setzen</button>`;
                     } else if (it.type === "missing_poster" || it.type === "missing_backdrop" || it.type === "missing_logo" || it.type === "missing_banner" || it.type === "missing_season_poster") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-artwork-search" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Bild online suchen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image" style="height:12px; width:12px;"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>Bild suchen</button>`;
+                    } else if (it.type === "missing_nfo" || it.type === "incomplete_nfo") {
+                        fixBtns = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(it.path)}" title="NFO Agent für diesen Ordner öffnen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" style="height:12px; width:12px;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>NFO Agent</button>`;
                     }
 
                     const m = HEALTH_SEVERITY[it.severity];
@@ -13193,6 +13197,13 @@ function renderHealthStatus(data) {
                 });
             });
         }
+
+        document.querySelectorAll("#health-issues .health-nfo-agent, #health-issues-structure .health-nfo-agent").forEach(b => {
+            b.addEventListener("click", () => {
+                const p = b.getAttribute("data-path");
+                if (p) openNfoAgentModal(p);
+            });
+        });
 
         document.querySelectorAll("#health-issues .health-open-folder, #health-issues-structure .health-open-folder").forEach(b => {
             b.addEventListener("click", () => {
@@ -14905,7 +14916,15 @@ function openNfoAgentModal(path) {
     document.getElementById("nfo-agent-log-container").textContent = "";
     document.getElementById("btn-nfo-agent-submit").disabled = false;
     document.getElementById("btn-nfo-agent-submit").style.opacity = "1";
-    
+    document.getElementById("btn-nfo-agent-submit").style.display = "inline-flex";
+    const doneBtnReset = document.getElementById("btn-nfo-agent-done");
+    if (doneBtnReset) doneBtnReset.style.display = "none";
+
+    // Stop any lingering job poll and reset the log stream from a previous run
+    if (nfoAgentLogInterval) clearInterval(nfoAgentLogInterval);
+    const logReset = document.getElementById("nfo-agent-log-container");
+    if (logReset) { logReset.style.display = "none"; logReset.textContent = ""; }
+
     // Reset search results list container and advanced details block
     const resultsContainer = document.getElementById("nfo-agent-search-results");
     if (resultsContainer) {
@@ -15454,54 +15473,53 @@ function submitNfoAgentJob() {
         });
 }
 
+function showNfoAgentDone() {
+    // Do NOT auto-close: reveal the "Fertig" button so the user returns to the health check on click.
+    const submitBtn = document.getElementById("btn-nfo-agent-submit");
+    if (submitBtn) submitBtn.style.display = "none";
+    const doneBtn = document.getElementById("btn-nfo-agent-done");
+    if (doneBtn) doneBtn.style.display = "inline-flex";
+}
+
 function startNfoAgentLogStreaming(taskId) {
     if (nfoAgentLogInterval) clearInterval(nfoAgentLogInterval);
     const logContainer = document.getElementById("nfo-agent-log-container");
-    
+
     nfoAgentLogInterval = setInterval(() => {
-        fetch(`/api/jobs/logs?id=${taskId}`)
+        // /api/queue returns { jobs: [{ id, status, progress, message, pipeline, ... }] }
+        fetch("/api/queue")
             .then(res => res.json())
-            .then(logsData => {
-                if (logsData.logs) {
-                    logContainer.textContent = logsData.logs;
+            .then(queueData => {
+                const jobs = queueData.jobs || [];
+                const job = jobs.find(j => j.id === taskId);
+
+                if (!job) {
+                    // Job vanished from the queue -> treat as finished.
+                    clearInterval(nfoAgentLogInterval);
+                    logContainer.textContent += "\n=== Job abgeschlossen ===\n";
                     logContainer.scrollTop = logContainer.scrollHeight;
+                    showNfoAgentDone();
+                    return;
                 }
-                
-                // Check if job is finished
-                fetch("/api/queue")
-                    .then(res => res.json())
-                    .then(queueData => {
-                        const activeList = queueData.active || [];
-                        const completedList = queueData.completed || [];
-                        
-                        const completedJob = completedList.find(j => j.id === taskId);
-                        const activeJob = activeList.find(j => j.id === taskId);
-                        
-                        if (completedJob) {
-                            clearInterval(nfoAgentLogInterval);
-                            logContainer.textContent += `\n=== JOB BEENDET (Status: ${completedJob.status.toUpperCase()}) ===\n`;
-                            logContainer.scrollTop = logContainer.scrollHeight;
-                            
-                            // Enable button again
-                            document.getElementById("btn-nfo-agent-submit").disabled = false;
-                            document.getElementById("btn-nfo-agent-submit").style.opacity = "1";
-                            
-                            // Post-completion behavior: close modal and auto-refresh library scan
-                            setTimeout(() => {
-                                closeNfoAgentModal();
-                                if (typeof startHealthScan === "function") {
-                                    startHealthScan();
-                                }
-                            }, 1500);
-                        } else if (!activeJob && !completedJob) {
-                            // Safety fallback if job vanished
-                            clearInterval(nfoAgentLogInterval);
-                            document.getElementById("btn-nfo-agent-submit").disabled = false;
-                            document.getElementById("btn-nfo-agent-submit").style.opacity = "1";
-                        }
-                    });
+
+                const meta = (job.pipeline && job.pipeline.metadata) ? job.pipeline.metadata : null;
+                const prog = meta && typeof meta.progress === "number" ? meta.progress : (job.progress || 0);
+                logContainer.textContent = `NFO Agent läuft… ${prog}%` + (job.message ? `\n${job.message}` : "");
+                logContainer.scrollTop = logContainer.scrollHeight;
+
+                if (job.status === "done") {
+                    clearInterval(nfoAgentLogInterval);
+                    logContainer.textContent += "\n=== ✅ NFO Agent abgeschlossen ===\n";
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                    showNfoAgentDone();
+                } else if (job.status === "error") {
+                    clearInterval(nfoAgentLogInterval);
+                    logContainer.textContent += `\n=== ❌ Fehler: ${job.message || "unbekannt"} ===\n`;
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                    showNfoAgentDone();
+                }
             })
-            .catch(err => console.error("Error fetching logs", err));
+            .catch(err => console.error("Error polling queue for NFO Agent job", err));
     }, 1000);
 }
 
@@ -15518,6 +15536,10 @@ function closeNfoAgentModal() {
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("close-modal-nfo-agent")?.addEventListener("click", closeNfoAgentModal);
     document.getElementById("btn-nfo-agent-cancel")?.addEventListener("click", closeNfoAgentModal);
+    document.getElementById("btn-nfo-agent-done")?.addEventListener("click", () => {
+        closeNfoAgentModal();
+        if (typeof startHealthScan === "function") startHealthScan();
+    });
     document.getElementById("btn-nfo-agent-submit")?.addEventListener("click", submitNfoAgentJob);
     document.getElementById("btn-nfo-agent-search")?.addEventListener("click", searchNfoAgentMetadata);
     document.getElementById("nfo-agent-media-type")?.addEventListener("change", triggerNfoAgentMediaTypeChange);

@@ -307,8 +307,10 @@ test('renderHealthStatus - type grouping renders type groups, checkboxes and too
     assert.ok(issuesEl.innerHTML.includes('class="health-item-select"'));
     // Sollte Empfehlung anzeigen
     assert.ok(issuesEl.innerHTML.includes("Empfehlung:"));
-    // Sollte NFO-Agent-Tool-Button rendern
-    assert.ok(issuesEl.innerHTML.includes('data-tool="tool_nfo_agent"'));
+    // Sollte pro Befund einen NFO-Agent-Button rendern (kein Batch-Button mehr,
+    // da jede Serie eine eigene Metadatenquelle/ID braucht)
+    assert.ok(issuesEl.innerHTML.includes('health-nfo-agent'));
+    assert.ok(!issuesEl.innerHTML.includes('data-tool="tool_nfo_agent"'));
 });
 
 test('renderHealthStatus - only nested_duplicate / structure issues displays tab specific empty state on media tab', () => {
