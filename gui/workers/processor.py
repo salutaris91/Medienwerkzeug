@@ -3177,11 +3177,20 @@ def process_worker(params):
                         
                     ep_title = ""
                     ep_num = 1
-                    ep_season = season
+                    try:
+                        ep_season = int(season)
+                    except (ValueError, TypeError):
+                        ep_season = 1
                     
                     if isinstance(ep_num_val, dict):
-                        ep_num = ep_num_val.get("episode", 1)
-                        ep_season = ep_num_val.get("season", season)
+                        try:
+                            ep_num = int(ep_num_val.get("episode", 1))
+                        except (ValueError, TypeError):
+                            ep_num = 1
+                        try:
+                            ep_season = int(ep_num_val.get("season", season))
+                        except (ValueError, TypeError):
+                            pass
                         ep_title = ep_num_val.get("title", "")
                         meta_ep = ep_num_val.get("metadata_ep_num")
                         if meta_ep:
@@ -3207,7 +3216,10 @@ def process_worker(params):
                             ep_season = int(match.group(1))
                             ep_num = int(match.group(2))
                         else:
-                            ep_num = ep_num_val
+                            try:
+                                ep_num = int(ep_num_val)
+                            except (ValueError, TypeError):
+                                ep_num = 1
                             
                     ep_title = sanitize_filename(ep_title)
                     filename_base = os.path.splitext(filename)[0]

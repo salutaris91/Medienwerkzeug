@@ -15195,17 +15195,31 @@ function submitNfoAgentJob() {
     const showYear = document.getElementById("nfo-agent-show-year").value.trim();
     const showPlot = document.getElementById("nfo-agent-show-plot").value.trim();
     
+    const showOverrides = {};
+    const movieOverrides = {};
+    
+    if (nfoAgentScanData) {
+        if (showTitle !== (nfoAgentScanData.metadata_name || "")) {
+            showOverrides.title = showTitle;
+            movieOverrides.title = showTitle;
+        }
+        if (showYear !== (nfoAgentScanData.metadata_year || "").toString()) {
+            showOverrides.year = showYear;
+            movieOverrides.year = showYear;
+        }
+        if (showPlot !== (nfoAgentScanData.metadata_plot || "")) {
+            showOverrides.plot = showPlot;
+            movieOverrides.plot = showPlot;
+        }
+    } else {
+        if (showTitle) { showOverrides.title = showTitle; movieOverrides.title = showTitle; }
+        if (showYear) { showOverrides.year = showYear; movieOverrides.year = showYear; }
+        if (showPlot) { showOverrides.plot = showPlot; movieOverrides.plot = showPlot; }
+    }
+    
     const nfoOverrides = {
-        show: {
-            title: showTitle,
-            year: showYear,
-            plot: showPlot
-        },
-        movie: {
-            title: showTitle,
-            year: showYear,
-            plot: showPlot
-        },
+        show: showOverrides,
+        movie: movieOverrides,
         episodes: episodesOverrides
     };
     
