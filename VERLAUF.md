@@ -2,6 +2,17 @@
 
 Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 11.07.2026 (UI-Integration des NFO-Agenten & NFO-Vollständigkeitsscan)
+
+- **UI-Integration des NFO-Agenten (Branch: `feature/nfo-backfill-review`):**
+  - **Review-UI Integration:** Klicks auf „NFO Agent“ (Dashboard oder Health-Befunde) öffnen nun direkt das interaktive Review- und Editier-Interface (Inbox-Workflow) für den jeweiligen NAS-Ordner, anstatt die stumme Terminal-Konsole zu öffnen.
+  - **Sichere Überschreib-Politik:** Für jede Videodatei wird der NFO-Zustand (`exists` und `complete`) ermittelt. Im Review-Interface werden bereits vollständige NFOs standardmäßig im Mappings-Dropdown auf **„skip“** gesetzt, um handgepflegte Daten vor ungewolltem Überschreiben zu schützen. Nur unvollständige oder fehlende NFOs werden standardmäßig zur Generierung vorausgewählt.
+  - **Option A (Konsistenter Haupt-NFO-Schutz):** Im Backend (`processor.py`) werden `tvshow.nfo` und Film-NFOs nur dann überschrieben, wenn sie unvollständig/beschädigt sind, fehlen oder der Benutzer explizit manuelle Metadaten-Änderungen in der UI vorgenommen hat (was das Vorhandensein von Overrides bewirkt).
+  - **Auto-Load & Provider-Fallbacks:** Das `/api/scan-project` parst bei absoluten Pfaden (NAS-Ordnern) die vorhandene `tvshow.nfo` oder Film-NFO, liest Provider und IDs aus (inklusive Fallbacks auf `<tmdbid>` für Filme) und lädt diese Metadaten und die Episoden-Mappings vollautomatisch im Review-UI.
+  - **Health-Scan Erweiterung:** Der Health-Scan prüft existierende NFOs auf Vollständigkeit (Severity `critical` bei fehlendem Titel/Plot, Severity `warning` bei fehlendem Produktionsjahr/Ausstrahlungsdatum) und meldet `incomplete_nfo` mit passenden Labels und Zähler-Einhängung im Dashboard.
+  - **Unit-Tests:** 4 neue Testmethoden in `tests/test_utils.py` decken die absolute Pfad-Prüfung, die Sicherheits-Validierung, den Vollständigkeitsscan, das Überschreib-Schutzmodell und das Overwrite-Bypass-Verhalten im NFO-Generator ab. Cache-Tests wurden an die neue Vollständigkeitsprüfung angepasst.
+  - **Testsuite:** Alle 379 Tests laufen erfolgreich durch.
+
 ## Stand am 10.07.2026 (NFO Overwrite Bug behoben)
 
 - **Behebung des NFO-Overwrite-Bugs bei leeren Overrides (Branch: `fix/nfo-overwrite-empty`):**

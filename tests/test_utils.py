@@ -1111,6 +1111,142 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         self.assertEqual(root_movie.find("plot").text, "Custom Movie Plot")
         self.assertEqual(root_movie.find("year").text, "2023")
 
+    def test_scan_project_absolute_path(self):
+        import xml.etree.ElementTree as ET
+        from gui.api.project_api import handle_api_scan_project
+        from flask import Flask
+        
+        app = Flask(__name__)
+        
+        nas_dir = os.path.join(self.test_dir, "mock_nas_folder")
+        os.makedirs(nas_dir, exist_ok=True)
+        
+        nfo_content = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <tvshow>
+            <title>Mock Show</title>
+            <plot>Mock Plot</plot>
+            <mw_provider>tvdb</mw_provider>
+            <mw_showid>76666</mw_showid>
+        </tvshow>"""
+        with open(os.path.join(nas_dir, "tvshow.nfo"), "w", encoding="utf-8") as f:
+            f.write(nfo_content)
+            
+        video_path = os.path.join(nas_dir, "Mock Show - S01E01.mp4")
+        with open(video_path, "w") as f:
+            f.write("")
+            
+        ep_nfo_content = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <episodedetails>
+            <title>Episode Title</title>
+            <plot>Episode Plot</plot>
+        </episodedetails>"""
+        with open(os.path.join(nas_dir, "Mock Show - S01E01.nfo"), "w", encoding="utf-8") as f:
+            f.write(ep_nfo_content)
+            
+        from unittest.mock import patch
+        with app.test_request_context(query_string=f"project={nas_dir}"):
+            with patch("gui.api.project_api.is_path_allowed", return_value=True):
+                with patch("gui.api.project_api.load_settings", return_value={"inbox_dir": self.test_dir}):
+                    resp = handle_api_scan_project()
+                    data = json.loads(resp.get_data(as_text=True))
+                    
+                    self.assertEqual(data["metadata_provider"], "tvdb")
+                    self.assertEqual(data["metadata_id"], "76666")
+                    self.assertEqual(data["metadata_name"], "Mock Show")
+                    self.assertIn("Mock Show - S01E01.mp4", data["file_nfo_statuses"])
+                    self.assertTrue(data["file_nfo_statuses"]["Mock Show - S01E01.mp4"]["exists"])
+                    self.assertTrue(data["file_nfo_statuses"]["Mock Show - S01E01.mp4"]["complete"])
+
+    def test_scan_project_absolute_path_denied(self):
+        from gui.api.project_api import handle_api_scan_project
+        from flask import Flask
+        
+        app = Flask(__name__)
+        
+        from unittest.mock import patch
+        with app.test_request_context(query_string="project=/etc"):
+            with patch("gui.api.project_api.load_settings", return_value={"inbox_dir": "/tmp/inbox"}):
+                resp = handle_api_scan_project()
+                self.assertEqual(resp[1], 403)
+                data = json.loads(resp[0].get_data(as_text=True))
+                self.assertIn("error", data)
+                self.assertIn("Access Denied", data["error"])
+
+    def test_nfo_incomplete_detection(self):
+        from gui.core.health import _check_nfo_incomplete
+        
+        nfo_path = os.path.join(self.test_dir, "complete.nfo")
+        with open(nfo_path, "w", encoding="utf-8") as f:
+            f.write("<movie><title>Test Title</title><plot>Test Plot</plot><year>2026</year></movie>")
+        is_inc, sev, reason = _check_nfo_incomplete(nfo_path, "movie")
+        self.assertFalse(is_inc)
+        
+        nfo_path_inc = os.path.join(self.test_dir, "incomplete.nfo")
+        with open(nfo_path_inc, "w", encoding="utf-8") as f:
+            f.write("<movie><title></title><plot>Test Plot</plot></movie>")
+        is_inc, sev, reason = _check_nfo_incomplete(nfo_path_inc, "movie")
+        self.assertTrue(is_inc)
+        self.assertEqual(sev, "critical")
+        self.assertIn("Titel", reason)
+        
+        nfo_path_warn = os.path.join(self.test_dir, "warn.nfo")
+        with open(nfo_path_warn, "w", encoding="utf-8") as f:
+            f.write("<movie><title>Test Title</title><plot>Test Plot</plot><year></year></movie>")
+        is_inc, sev, reason = _check_nfo_incomplete(nfo_path_warn, "movie")
+        self.assertTrue(is_inc)
+        self.assertEqual(sev, "warning")
+        self.assertIn("Produktionsjahr", reason)
+
+    def test_nfo_generation_overwrite_parameter(self):
+        ep_meta = {"title": "Test Ep", "episode": 1, "plot": "Test Plot"}
+        nfo_path = os.path.join(self.test_dir, "ep_overwrite_test.nfo")
+        if os.path.exists(nfo_path):
+            os.remove(nfo_path)
+            
+        res = mw_metadata.generate_episode_nfo("manual", "unused", 1, ep_meta, self.test_dir, "ep_overwrite_test")
+        self.assertTrue(res["nfo"])
+        self.assertTrue(os.path.exists(nfo_path))
+        
+        with open(nfo_path, "w", encoding="utf-8") as f:
+            f.write("<episodedetails><title>Handgepflegt</title><plot>Plot</plot></episodedetails>")
+            
+        res2 = mw_metadata.generate_episode_nfo("manual", "unused", 1, ep_meta, self.test_dir, "ep_overwrite_test", overwrite=False)
+        self.assertFalse(res2["nfo"])
+        with open(nfo_path, "r", encoding="utf-8") as f:
+            self.assertIn("Handgepflegt", f.read())
+            
+        res3 = mw_metadata.generate_episode_nfo("manual", "unused", 1, ep_meta, self.test_dir, "ep_overwrite_test", overwrite=True)
+        self.assertTrue(res3["nfo"])
+        with open(nfo_path, "r", encoding="utf-8") as f:
+            self.assertNotIn("Handgepflegt", f.read())
+
+    def test_show_and_movie_nfo_overwrite_protection(self):
+        from gui.core.health import should_overwrite_nfo
+        
+        nfo_path = os.path.join(self.test_dir, "tvshow.nfo")
+        if os.path.exists(nfo_path):
+            os.remove(nfo_path)
+            
+        # 1. overwrite_nfo = False -> always False
+        self.assertFalse(should_overwrite_nfo(False, {}, nfo_path, "tvshow"))
+        self.assertFalse(should_overwrite_nfo(False, {"title": "New"}, nfo_path, "tvshow"))
+        
+        # 2. overwrite_nfo = True, missing file -> True
+        self.assertTrue(should_overwrite_nfo(True, {}, nfo_path, "tvshow"))
+        
+        # 3. overwrite_nfo = True, existing but incomplete file -> True
+        with open(nfo_path, "w", encoding="utf-8") as f:
+            f.write("<tvshow><title></title><plot>Plot</plot></tvshow>")
+        self.assertTrue(should_overwrite_nfo(True, {}, nfo_path, "tvshow"))
+        
+        # 4. overwrite_nfo = True, existing complete file, no overrides -> False
+        with open(nfo_path, "w", encoding="utf-8") as f:
+            f.write("<tvshow><title>Good Show</title><plot>Plot</plot><year>2026</year></tvshow>")
+        self.assertFalse(should_overwrite_nfo(True, {}, nfo_path, "tvshow"))
+        
+        # 5. overwrite_nfo = True, existing complete file, has overrides -> True
+        self.assertTrue(should_overwrite_nfo(True, {"title": "New Title"}, nfo_path, "tvshow"))
+
     def test_import_streamfab_files_grouping(self):
         from gui import server
         orig_load_settings = endpoints.load_settings

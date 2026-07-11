@@ -2630,8 +2630,33 @@ async function updateSizeEstimation(mediaType) {
 // ==========================================================================
 // INBOX FILES SCANNING
 // ==========================================================================
-function selectProject(projectName) {
+function selectProject(projectName, isDir = true, isNfoAgent = false) {
     currentProject = projectName;
+    window.isNfoAgentMode = isNfoAgent;
+
+    if (window.isNfoAgentMode) {
+        const seriesConvert = document.getElementById("series-option-convert");
+        const seriesCopy = document.getElementById("series-option-copy-nas");
+        if (seriesConvert) {
+            seriesConvert.checked = false;
+            seriesConvert.dispatchEvent(new Event('change'));
+        }
+        if (seriesCopy) {
+            seriesCopy.checked = false;
+            seriesCopy.dispatchEvent(new Event('change'));
+        }
+        
+        const movieConvert = document.getElementById("movie-option-convert");
+        const movieCopy = document.getElementById("movie-option-copy-nas");
+        if (movieConvert) {
+            movieConvert.checked = false;
+            movieConvert.dispatchEvent(new Event('change'));
+        }
+        if (movieCopy) {
+            movieCopy.checked = false;
+            movieCopy.dispatchEvent(new Event('change'));
+        }
+    }
 
     window.nasFolderSelected = null;
     window.ytNasFolderSelected = null;
@@ -2812,8 +2837,38 @@ async function scanProject(project) {
         const data = await response.json();
         path.textContent = `Pfad: ${data.current_dir}`;
         projectFiles = data.files || [];
+        window.currentProjectFileNfoStatuses = data.file_nfo_statuses || {};
         currentProjectIsDoku = data.is_doku || false;
         currentProjectSuggestedQuery = data.suggested_query || "";
+
+        // Auto load existing metadata provider and id if found
+        if (data.metadata_provider && data.metadata_id) {
+            let mediaType = "series";
+            if (data.metadata_provider.startsWith("tmdb_movie") || data.metadata_provider === "ytdlp_movie") {
+                mediaType = "movie";
+            }
+            
+            setTimeout(() => {
+                const modeCard = document.getElementById(mediaType === "series" ? "mode-series" : "mode-movie");
+                if (modeCard) {
+                    modeCard.click();
+                }
+                
+                const metaObj = {
+                    id: data.metadata_id,
+                    provider: data.metadata_provider,
+                    name: data.metadata_name || data.suggested_query || project
+                };
+                
+                setTimeout(() => {
+                    if (mediaType === "series") {
+                        selectShow(metaObj);
+                    } else {
+                        selectMovie(metaObj);
+                    }
+                }, 100);
+            }, 100);
+        }
 
         applySmartConversionDefault(data.has_inefficient_video || false);
 
@@ -3741,14 +3796,23 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     <div style="display: flex; gap: 8px; width: 100%;">
                         <input type="text" class="match-search-input" id="match-search-${index}" placeholder="Filtern..." style="flex: 0 0 35%; min-width: 80px;">
                         <select class="match-select" id="match-select-${index}" style="flex: 1; min-width: 0;">
-                            <option value="skip">-- Überspringen --</option>
+                            ${(() => {
+                                const fileStatus = window.currentProjectFileNfoStatuses ? window.currentProjectFileNfoStatuses[file] : null;
+                                const shouldSkip = fileStatus && fileStatus.exists && fileStatus.complete;
+                                return `<option value="skip" ${shouldSkip ? 'selected' : ''}>-- Überspringen --</option>`;
+                            })()}
                             ${Object.entries(episodesData).map(([num, ep]) => {
                                 const title = typeof ep === 'object' ? ep.title : ep;
+                                const fileStatus = window.currentProjectFileNfoStatuses ? window.currentProjectFileNfoStatuses[file] : null;
+                                const shouldSkip = fileStatus && fileStatus.exists && fileStatus.complete;
+                                
                                 let isSelected = false;
-                                if (isAllSeasons) {
-                                    isSelected = (guessedEp === num);
-                                } else {
-                                    isSelected = (guessedEp === parseInt(num, 10) || String(guessedEp) === String(num));
+                                if (!shouldSkip) {
+                                    if (isAllSeasons) {
+                                        isSelected = (guessedEp === num);
+                                    } else {
+                                        isSelected = (guessedEp === parseInt(num, 10) || String(guessedEp) === String(num));
+                                    }
                                 }
 
                                 let label = `Episode ${num}: ${title}`;
@@ -4320,7 +4384,8 @@ async function executeSeriesWorkflow() {
         nas_destination_id: nasDestId,
         pcloud_destination_id: pcloudDestId,
         force_absolute_season_1: forceAbsoluteSeason1,
-        is_anime: document.getElementById("series-is-anime")?.checked || false
+        is_anime: document.getElementById("series-is-anime")?.checked || false,
+        overwrite_nfo: window.isNfoAgentMode || false
     };
     if (nasShowFolder) {
         payload.nas_show_folder = nasShowFolder;
@@ -4405,7 +4470,8 @@ async function executeMovieWorkflow() {
         copy_to_pcloud: copyPcloud,
         destination_id: nasDestId,
         nas_destination_id: nasDestId,
-        pcloud_destination_id: pcloudDestId
+        pcloud_destination_id: pcloudDestId,
+        overwrite_nfo: window.isNfoAgentMode || false
     };
 
     // Collect NFO overrides
@@ -12342,6 +12408,7 @@ const HEALTH_TYPE_LABELS = {
     bad_folder_name: "Ungültiger Ordnername",
     name_mismatch: "Namensabweichung (Ordner vs. Datei)",
     missing_nfo: "Fehlende NFO-Metadaten",
+    incomplete_nfo: "Unvollständige NFO-Metadaten",
     episode_gap: "Episodenlücke in Staffel",
     empty_folder: "Leerer Ordner",
     no_video: "Keine Videodatei im Ordner",
@@ -12363,6 +12430,7 @@ const HEALTH_RECOMMENDED_ACTIONS = {
     bad_folder_name: "Ordnername an das Standardformat (Name (Jahr)) angleichen.",
     name_mismatch: "Ordnername und Dateiname aneinander angleichen.",
     missing_nfo: "NFO Agent starten, um Metadaten automatisch zu generieren.",
+    incomplete_nfo: "NFO Agent starten, um Metadaten über die Review-UI neu zu generieren.",
     episode_gap: "Fehlende Episoden überprüfen oder NFO/Video-Mapping korrigieren.",
     empty_folder: "Leeren Ordner löschen (über 'Ordner bereinigen').",
     no_video: "Videodatei hinzufügen oder Ordner bereinigen.",
@@ -12673,7 +12741,7 @@ async function pollHealthStatus(keepPolling) {
 
 function runContextTool(toolType, path) {
     if (toolType === "tool_nfo_agent") {
-        openToolRunnerModal("tool_nfo_agent", "NFO Agent", "Generiert NFO-Metadaten für alle Episoden/Filme im gewählten Ordner anhand der TMDb/TVDb IDs.", false, path);
+        selectProject(path, true, true);
     } else if (toolType === "tool_batch_convert") {
         openToolRunnerModal("tool_batch_convert", "H.265 Batch-Konvertierung", "Videos im gewählten Verzeichnis in das platzsparende H.265 (HEVC) Format konvertieren.", true, path);
     } else if (toolType === "tool_clean") {
@@ -12963,7 +13031,7 @@ function renderHealthStatus(data) {
                     batchBtnHtml = `
                         <button class="btn btn-primary btn-xs health-batch-btn" data-type-id="${escapeHTML(typeId)}" data-action="flatten" style="padding:2px 8px; height:24px;" title="Alle ausgewählten Ordnerstrukturen auflösen">Auflösen</button>
                     `;
-                } else if (typeId === "missing_nfo") {
+                } else if (typeId === "missing_nfo" || typeId === "incomplete_nfo") {
                     batchBtnHtml = `
                         <button class="btn btn-accent btn-xs health-batch-tool-btn" data-type-id="${escapeHTML(typeId)}" data-tool="tool_nfo_agent" style="padding:2px 8px; height:24px;" title="NFO Agent für das erste ausgewählte Verzeichnis starten">NFO Agent (1.)</button>
                     `;
@@ -13127,7 +13195,7 @@ function renderHealthStatus(data) {
                     }
 
                     if (tool === "tool_nfo_agent") {
-                        if (confirm(`NFO Agent für das erste ausgewählte Verzeichnis ausführen?\n\nPfad: ${checkedPaths[0]}\n\n(Die Konsole wird geöffnet.)`)) {
+                        if (confirm(`NFO Agent für das erste ausgewählte Verzeichnis starten (Review-Modus)?\n\nPfad: ${checkedPaths[0]}`)) {
                             runContextTool("tool_nfo_agent", checkedPaths[0]);
                         }
                     } else if (tool === "tool_batch_convert") {

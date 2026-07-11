@@ -152,9 +152,83 @@ def _get_provider_from_nfo(nfo_path):
             m = re.search(r'<mw_provider>(.*?)</mw_provider>', content)
             if m:
                 return m.group(1).strip()
+            
+            # Fallbacks
+            if '<tmdbid>' in content:
+                if 'tvshow.nfo' in nfo_path.lower():
+                    return 'tmdb_tv'
+                try:
+                    import xml.etree.ElementTree as ET
+                    root = ET.fromstring(content)
+                    if root.tag == 'movie':
+                        return 'tmdb_movie'
+                    elif root.tag == 'tvshow':
+                        return 'tmdb_tv'
+                except Exception:
+                    pass
+                return 'tmdb_movie'
+                
+            if '<tvdbid>' in content:
+                return 'tvdb'
     except Exception as e:
         log_message(f"⚠️ [Bibliothek-Check] NFO nicht lesbar: {nfo_path} ({e})")
     return None
+
+
+def _check_nfo_incomplete(nfo_path, nfo_type="episode"):
+    """
+    Check if an NFO file is incomplete (e.g. missing title or plot).
+    Returns (is_incomplete, severity, reason)
+    """
+    if not os.path.exists(nfo_path):
+        return False, None, None
+    try:
+        import xml.etree.ElementTree as ET
+        tree = ET.parse(nfo_path)
+        root = tree.getroot()
+        
+        title_el = root.find("title")
+        plot_el = root.find("plot")
+        
+        title_missing = title_el is None or not title_el.text or not title_el.text.strip()
+        plot_missing = plot_el is None or not plot_el.text or not plot_el.text.strip()
+        
+        if title_missing or plot_missing:
+            missing_fields = []
+            if title_missing: missing_fields.append("Titel")
+            if plot_missing: missing_fields.append("Plot")
+            return True, "critical", f"NFO unvollständig (fehlende Felder: {', '.join(missing_fields)})"
+            
+        # Optional warnings
+        if nfo_type == "episode":
+            aired_el = root.find("aired")
+            aired_missing = aired_el is None or not aired_el.text or not aired_el.text.strip()
+            if aired_missing:
+                return True, "warning", "NFO unvollständig (fehlendes Feld: Ausstrahlungsdatum)"
+        elif nfo_type in ("tvshow", "movie"):
+            year_el = root.find("year")
+            year_missing = year_el is None or not year_el.text or not year_el.text.strip()
+            if year_missing:
+                return True, "warning", "NFO unvollständig (fehlendes Feld: Produktionsjahr)"
+                
+    except Exception as e:
+        return True, "critical", f"NFO beschädigt oder unlesbar: {str(e)}"
+        
+    return False, None, None
+
+
+def should_overwrite_nfo(overwrite_nfo, overrides, nfo_path, nfo_type):
+    """
+    Determine if an NFO file should be overwritten.
+    """
+    if not overwrite_nfo:
+        return False
+    if overrides:
+        return True
+    if not os.path.exists(nfo_path):
+        return True
+    is_inc, _, _ = _check_nfo_incomplete(nfo_path, nfo_type)
+    return is_inc
 
 
 def find_primary_nfo(folder_path, is_movie=False):
@@ -266,6 +340,15 @@ def _check_season(issues, category, show_name, season_path, validator):
     if missing_nfo:
         _add_issue(issues, "warning", "missing_nfo", category, season_path,
                    f"{label}: {len(missing_nfo)} von {len(videos)} Episoden ohne NFO")
+                   
+    # Check if existing episode NFOs are incomplete
+    for full, fn in videos:
+        ep_nfo_path = os.path.splitext(full)[0] + ".nfo"
+        if os.path.exists(ep_nfo_path):
+            is_inc, sev, reason = _check_nfo_incomplete(ep_nfo_path, "episode")
+            if is_inc:
+                _add_issue(issues, sev, "incomplete_nfo", category, season_path,
+                           f"{show_name} · {fn}: {reason}")
 
     # Episodenlücken: Nummern aus Dateinamen UND Ordnernamen (ein Ordner kann existieren,
     # auch wenn das Video noch fehlt -> sonst falsche "Episode fehlt"-Meldungen).
@@ -353,6 +436,11 @@ def _check_series_show(issues, category, show_path, validator):
     else:
         nfo_path = find_primary_nfo(show_path, is_movie=False)
         _check_fsk(issues, category, show_path, nfo_path)
+        if nfo_path:
+            is_inc, sev, reason = _check_nfo_incomplete(nfo_path, "tvshow")
+            if is_inc:
+                _add_issue(issues, sev, "incomplete_nfo", category, show_path,
+                           f"{os.path.basename(show_path)}: {reason}")
 
     # Fetch provider from tvshow.nfo if it exists
     provider = _get_provider_from_nfo(os.path.join(show_path, "tvshow.nfo"))
@@ -491,6 +579,10 @@ def _check_movie(issues, category, movie_path, validator):
         nfo_path = find_primary_nfo(movie_path, is_movie=True)
         if nfo_path:
             _check_fsk(issues, category, movie_path, nfo_path)
+            is_inc, sev, reason = _check_nfo_incomplete(nfo_path, "movie")
+            if is_inc:
+                _add_issue(issues, sev, "incomplete_nfo", category, movie_path,
+                           f"{name}: {reason}")
 
     if validator is not None:
         # Artwork checks using validator
