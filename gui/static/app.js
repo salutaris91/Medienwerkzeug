@@ -2630,33 +2630,9 @@ async function updateSizeEstimation(mediaType) {
 // ==========================================================================
 // INBOX FILES SCANNING
 // ==========================================================================
-function selectProject(projectName, isDir = true, isNfoAgent = false) {
+function selectProject(projectName, isDir = true) {
     currentProject = projectName;
-    window.isNfoAgentMode = isNfoAgent;
-
-    if (window.isNfoAgentMode) {
-        const seriesConvert = document.getElementById("series-option-convert");
-        const seriesCopy = document.getElementById("series-option-copy-nas");
-        if (seriesConvert) {
-            seriesConvert.checked = false;
-            seriesConvert.dispatchEvent(new Event('change'));
-        }
-        if (seriesCopy) {
-            seriesCopy.checked = false;
-            seriesCopy.dispatchEvent(new Event('change'));
-        }
-        
-        const movieConvert = document.getElementById("movie-option-convert");
-        const movieCopy = document.getElementById("movie-option-copy-nas");
-        if (movieConvert) {
-            movieConvert.checked = false;
-            movieConvert.dispatchEvent(new Event('change'));
-        }
-        if (movieCopy) {
-            movieCopy.checked = false;
-            movieCopy.dispatchEvent(new Event('change'));
-        }
-    }
+    window.isNfoAgentMode = false;
 
     window.nasFolderSelected = null;
     window.ytNasFolderSelected = null;
@@ -4385,7 +4361,7 @@ async function executeSeriesWorkflow() {
         pcloud_destination_id: pcloudDestId,
         force_absolute_season_1: forceAbsoluteSeason1,
         is_anime: document.getElementById("series-is-anime")?.checked || false,
-        overwrite_nfo: window.isNfoAgentMode || false
+        overwrite_nfo: false
     };
     if (nasShowFolder) {
         payload.nas_show_folder = nasShowFolder;
@@ -4471,7 +4447,7 @@ async function executeMovieWorkflow() {
         destination_id: nasDestId,
         nas_destination_id: nasDestId,
         pcloud_destination_id: pcloudDestId,
-        overwrite_nfo: window.isNfoAgentMode || false
+        overwrite_nfo: false
     };
 
     // Collect NFO overrides
@@ -6817,7 +6793,11 @@ function initEventListeners() {
     });
     document.getElementById("lib-tool-btn-nfo-agent")?.addEventListener("click", () => {
         const path = document.getElementById("lib-tools-manual-path")?.value.trim();
-        openToolRunnerModal("tool_nfo_agent", "NFO Agent", "Generiert NFO-Metadaten für alle Episoden/Filme im gewählten Ordner anhand der TMDb/TVDb IDs.", false, path || undefined);
+        if (!path) {
+            alert("Bitte gib zuerst ein zu scannendes Verzeichnis ein.");
+            return;
+        }
+        openNfoAgentModal(path);
     });
     document.getElementById("lib-tool-btn-clean")?.addEventListener("click", () => {
         const path = document.getElementById("lib-tools-manual-path")?.value.trim();
@@ -7712,7 +7692,10 @@ function initEventListeners() {
     });
 
     document.getElementById("tool-btn-nfo-agent")?.addEventListener("click", () => {
-        openToolRunnerModal("tool_nfo_agent", "NFO Agent", "Generiert NFO-Metadaten für alle Episoden/Filme im gewählten Ordner anhand der TMDb/TVDb IDs.");
+        const path = prompt("Bitte gib das zu scannende Verzeichnis für den NFO Agenten ein:");
+        if (path && path.trim()) {
+            openNfoAgentModal(path.trim());
+        }
     });
     document.getElementById("tool-btn-nfo-batch")?.addEventListener("click", () => {
         const fskEl = document.getElementById("tool-fsk-value");
@@ -12741,7 +12724,7 @@ async function pollHealthStatus(keepPolling) {
 
 function runContextTool(toolType, path) {
     if (toolType === "tool_nfo_agent") {
-        selectProject(path, true, true);
+        openNfoAgentModal(path);
     } else if (toolType === "tool_batch_convert") {
         openToolRunnerModal("tool_batch_convert", "H.265 Batch-Konvertierung", "Videos im gewählten Verzeichnis in das platzsparende H.265 (HEVC) Format konvertieren.", true, path);
     } else if (toolType === "tool_clean") {
@@ -14877,4 +14860,473 @@ async function saveDashboardWidgetSichtbarkeit(key, enabled) {
 // Bind Dashboard Customize Events (No-Op, da Widgets fest integriert)
 document.addEventListener("DOMContentLoaded", () => {
     // Events fuer Customization Panel entfallen
+});
+
+
+// --- NFO Agent Dedicated Modal Controller ---
+let nfoAgentCurrentPath = null;
+let nfoAgentScanData = null;
+let nfoAgentLogInterval = null;
+
+function openNfoAgentModal(path) {
+    if (!path) {
+        alert("Bitte gib einen Pfad an.");
+        return;
+    }
+    nfoAgentCurrentPath = path;
+    const modal = document.getElementById("modal-nfo-agent");
+    if (!modal) return;
+    
+    // Clear / reset UI
+    modal.classList.add("active");
+    modal.classList.remove("hidden");
+    document.getElementById("nfo-agent-current-path").textContent = path;
+    document.getElementById("nfo-agent-search-title").value = "";
+    document.getElementById("nfo-agent-metadata-id").value = "";
+    document.getElementById("nfo-agent-show-title").value = "";
+    document.getElementById("nfo-agent-show-year").value = "";
+    document.getElementById("nfo-agent-show-plot").value = "";
+    document.getElementById("nfo-agent-episodes-list").innerHTML = "";
+    document.getElementById("nfo-agent-log-container").style.display = "none";
+    document.getElementById("nfo-agent-log-container").textContent = "";
+    document.getElementById("btn-nfo-agent-submit").disabled = false;
+    document.getElementById("btn-nfo-agent-submit").style.opacity = "1";
+    
+    // Call scan project to preload values
+    const searchBtn = document.getElementById("btn-nfo-agent-search");
+    if (searchBtn) {
+        searchBtn.disabled = true;
+        searchBtn.textContent = "Scanne...";
+    }
+    
+    fetch(`/api/scan-project?project=${encodeURIComponent(path)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                alert(`Fehler beim Scannen: ${data.error}`);
+                return;
+            }
+            nfoAgentScanData = data;
+            
+            // Set type
+            const mediaTypeSelect = document.getElementById("nfo-agent-media-type");
+            mediaTypeSelect.value = data.type === "movie" ? "movie" : "tvshow";
+            triggerNfoAgentMediaTypeChange();
+            
+            // Set search input to show/movie name or path basename
+            const titleInput = document.getElementById("nfo-agent-search-title");
+            titleInput.value = data.metadata_name || data.project || "";
+            
+            // Set provider & ID
+            if (data.metadata_provider) {
+                document.getElementById("nfo-agent-provider").value = data.metadata_provider;
+            }
+            if (data.metadata_id) {
+                document.getElementById("nfo-agent-metadata-id").value = data.metadata_id;
+            }
+            
+            // Render details (Show or Movie)
+            if (data.metadata_name) {
+                document.getElementById("nfo-agent-show-title").value = data.metadata_name;
+                document.getElementById("nfo-agent-show-year").value = data.metadata_year || "";
+                document.getElementById("nfo-agent-show-plot").value = data.metadata_plot || "";
+            }
+            
+            // Render files list
+            renderNfoAgentFiles(data);
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Fehler beim Scannen des Ordners.");
+        })
+        .finally(() => {
+            if (searchBtn) {
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Suchen`;
+            }
+        });
+}
+
+function triggerNfoAgentMediaTypeChange() {
+    const type = document.getElementById("nfo-agent-media-type").value;
+    const providerSelect = document.getElementById("nfo-agent-provider");
+    const seasonContainer = document.getElementById("nfo-agent-season-container");
+    const epSection = document.getElementById("nfo-agent-episodes-section");
+    
+    // Clear and build options based on type
+    providerSelect.innerHTML = "";
+    if (type === "tvshow") {
+        providerSelect.innerHTML = `
+            <option value="tvdb">TVDB</option>
+            <option value="tmdb_tv">TMDb Serie</option>
+            <option value="manual">Manuell</option>
+        `;
+        seasonContainer.style.display = "block";
+        epSection.style.display = "block";
+    } else {
+        providerSelect.innerHTML = `
+            <option value="tmdb_movie">TMDb Film</option>
+            <option value="ofdb">OFDb</option>
+            <option value="manual">Manuell</option>
+        `;
+        seasonContainer.style.display = "none";
+        epSection.style.display = "none";
+    }
+}
+
+function searchNfoAgentMetadata() {
+    const title = document.getElementById("nfo-agent-search-title").value.trim();
+    const type = document.getElementById("nfo-agent-media-type").value;
+    const provider = document.getElementById("nfo-agent-provider").value;
+    const season = document.getElementById("nfo-agent-season").value;
+    
+    if (!title) {
+        alert("Bitte gib einen Suchbegriff ein.");
+        return;
+    }
+    
+    const searchBtn = document.getElementById("btn-nfo-agent-search");
+    searchBtn.disabled = true;
+    searchBtn.textContent = "Suche...";
+    
+    // 1. Search for ID
+    fetch(`/api/metadata/search?q=${encodeURIComponent(title)}&provider=${provider}`)
+        .then(res => res.json())
+        .then(results => {
+            if (!results || results.length === 0) {
+                alert("Keine Treffer gefunden. Bitte gib die ID manuell ein.");
+                return;
+            }
+            // Take first result
+            const bestResult = results[0];
+            document.getElementById("nfo-agent-metadata-id").value = bestResult.id;
+            
+            // 2. Fetch full details using the found ID
+            loadNfoAgentDetails(bestResult.id, provider, type, season);
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Fehler bei der Metadatensuche.");
+        })
+        .finally(() => {
+            searchBtn.disabled = false;
+            searchBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Suchen`;
+        });
+}
+
+function loadNfoAgentDetails(id, provider, type, season) {
+    fetch(`/api/metadata/fetch?id=${id}&provider=${provider}&season=${season}`)
+        .then(res => res.json())
+        .then(meta => {
+            // Populate Show / Movie details
+            document.getElementById("nfo-agent-show-title").value = meta.name || "";
+            document.getElementById("nfo-agent-show-year").value = meta.year || "";
+            document.getElementById("nfo-agent-show-plot").value = meta.plot || "";
+            
+            // If series, rebuild the files list with the loaded episode metadata
+            if (type === "tvshow" && nfoAgentScanData) {
+                renderNfoAgentFiles(nfoAgentScanData, meta.episodes || {});
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Fehler beim Laden der Details.");
+        });
+}
+
+function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
+    const listBody = document.getElementById("nfo-agent-episodes-list");
+    listBody.innerHTML = "";
+    
+    const files = scanData.files || [];
+    const nfoStatuses = scanData.file_nfo_statuses || {};
+    
+    if (files.length === 0) {
+        listBody.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 12px;">Keine Videodateien in diesem Verzeichnis gefunden.</div>`;
+        return;
+    }
+    
+    files.forEach(file => {
+        const basename = file;
+        const status = nfoStatuses[basename] || { exists: false, complete: false };
+        
+        // Auto-detect season and episode numbers from filename
+        let match = basename.match(/S(\d+)E(\d+)/i) || basename.match(/E(\d+)/i);
+        let epNum = "";
+        if (match) {
+            epNum = match[2] ? `S${parseInt(match[1])}E${parseInt(match[2])}` : `E${parseInt(match[1])}`;
+        }
+        
+        // Get metadata title if loaded
+        let metaTitle = "";
+        let metaPlot = "";
+        
+        if (epNum) {
+            let epKey = epNum;
+            if (!epKey.startsWith("S")) {
+                const curSeason = document.getElementById("nfo-agent-season").value;
+                epKey = `S${parseInt(curSeason).toString().padStart(2, "0")}${epKey}`;
+            }
+            // Check if epKey is in format SxxExx and find it in loadedEpisodes
+            const formatMatch = epKey.match(/S(\d+)E(\d+)/i);
+            if (formatMatch) {
+                const s = parseInt(formatMatch[1]);
+                const e = parseInt(formatMatch[2]);
+                const standardKey = `S${s}E${e}`;
+                const altKey = `${s}x${e}`;
+                // Search by standard or exact key
+                const epObj = loadedEpisodes[standardKey] || loadedEpisodes[altKey] || loadedEpisodes[e] || {};
+                if (typeof epObj === "object") {
+                    metaTitle = epObj.title || "";
+                    metaPlot = epObj.plot || "";
+                } else {
+                    metaTitle = String(epObj);
+                }
+            }
+        }
+        
+        // Default dropdown value: skip if NFO exists and is complete
+        const defaultSelectValue = (status.exists && status.complete) ? "skip" : (epNum || "skip");
+        
+        const row = document.createElement("div");
+        row.className = "nfo-episode-row";
+        row.style = "display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--border-light); padding: 10px; border-radius: 6px; background: rgba(255,255,255,0.01); text-align: left;";
+        row.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                <div style="font-weight: 500; font-size: 0.9em; word-break: break-all; color: var(--text-main); flex: 1;">
+                    ${escapeHTML(basename)}
+                    ${status.exists ? 
+                        (status.complete ? 
+                            '<span style="color:#10b981; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO vorhanden]</span>' : 
+                            '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO unvollständig]</span>') : 
+                        '<span style="color:#ef4444; font-size:0.8em; margin-left:6px; font-weight:600;">[Keine NFO]</span>'
+                    }
+                </div>
+                <div style="width: 140px;">
+                    <select class="nfo-agent-ep-mapping-select" data-file="${escapeHTML(basename)}" style="width: 100%; padding: 6px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(30,30,45,1); color: var(--text-main);">
+                        <option value="skip" ${defaultSelectValue === "skip" ? "selected" : ""}>⏭️ Überspringen</option>
+                        ${buildEpisodeOptionsHTML(scanData.files.length, defaultSelectValue)}
+                    </select>
+                </div>
+            </div>
+            <div class="nfo-agent-ep-override-container" style="display: ${defaultSelectValue === "skip" ? "none" : "flex"}; flex-direction: column; gap: 8px; border-top: 1px dashed var(--border-light); padding-top: 8px; margin-top: 4px;">
+                <div style="display: flex; gap: 8px;">
+                    <div style="flex: 1;">
+                        <label style="display: block; font-size: 0.75em; margin-bottom: 2px; color: var(--text-muted);">Episodentitel:</label>
+                        <input type="text" class="nfo-agent-ep-override-title" data-file="${escapeHTML(basename)}" value="${escapeHTML(metaTitle)}" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.1); color: var(--text-main);">
+                    </div>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 0.75em; margin-bottom: 2px; color: var(--text-muted);">Beschreibung (Episoden-Plot):</label>
+                    <textarea class="nfo-agent-ep-override-plot" data-file="${escapeHTML(basename)}" rows="2" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.1); color: var(--text-main); font-family: inherit; resize: vertical;">${escapeHTML(metaPlot)}</textarea>
+                </div>
+            </div>
+        `;
+        listBody.appendChild(row);
+        
+        // Setup listener on mapping dropdown to show/hide overrides
+        const select = row.querySelector(".nfo-agent-ep-mapping-select");
+        const container = row.querySelector(".nfo-agent-ep-override-container");
+        select.addEventListener("change", () => {
+            if (select.value === "skip") {
+                container.style.display = "none";
+            } else {
+                container.style.display = "flex";
+            }
+        });
+    });
+}
+
+function buildEpisodeOptionsHTML(fileCount, selectedVal) {
+    let html = "";
+    const seasonVal = parseInt(document.getElementById("nfo-agent-season").value) || 1;
+    // Render up to fileCount * 2 or at least 30 options
+    const maxVal = Math.max(fileCount + 5, 30);
+    for (let i = 1; i <= maxVal; i++) {
+        const epStr = `S${seasonVal.toString().padStart(2, "0")}E${i.toString().padStart(2, "0")}`;
+        const optionVal = `S${seasonVal}E${i}`;
+        const isSelected = selectedVal === optionVal || selectedVal === `E${i}` || selectedVal === epStr;
+        html += `<option value="${optionVal}" ${isSelected ? "selected" : ""}>${epStr}</option>`;
+    }
+    return html;
+}
+
+function submitNfoAgentJob() {
+    if (!nfoAgentCurrentPath) return;
+    
+    const provider = document.getElementById("nfo-agent-provider").value;
+    const mediaType = document.getElementById("nfo-agent-media-type").value;
+    const showId = document.getElementById("nfo-agent-metadata-id").value.trim();
+    const movieId = showId;
+    const season = parseInt(document.getElementById("nfo-agent-season").value) || 1;
+    const overwriteNfo = document.getElementById("nfo-agent-overwrite-nfo").checked;
+    
+    if (provider !== "manual" && !showId) {
+        alert("Bitte gib eine Show- oder Movie-ID an.");
+        return;
+    }
+    
+    // Build mappings & overrides
+    const mappings = {};
+    const episodesOverrides = {};
+    
+    const mappingSelects = document.querySelectorAll(".nfo-agent-ep-mapping-select");
+    mappingSelects.forEach(select => {
+        const file = select.getAttribute("data-file");
+        const val = select.value;
+        if (val !== "skip") {
+            mappings[file] = val;
+        }
+    });
+    
+    const epTitleInputs = document.querySelectorAll(".nfo-agent-ep-override-title");
+    epTitleInputs.forEach(input => {
+        const file = input.getAttribute("data-file");
+        const title = input.value.trim();
+        const plotTextarea = document.querySelector(`.nfo-agent-ep-override-plot[data-file="${CSS.escape(file)}"]`);
+        const plot = plotTextarea ? plotTextarea.value.trim() : "";
+        
+        if (title || plot) {
+            episodesOverrides[file] = { title, plot };
+        }
+    });
+    
+    const showTitle = document.getElementById("nfo-agent-show-title").value.trim();
+    const showYear = document.getElementById("nfo-agent-show-year").value.trim();
+    const showPlot = document.getElementById("nfo-agent-show-plot").value.trim();
+    
+    const nfoOverrides = {
+        show: {
+            title: showTitle,
+            year: showYear,
+            plot: showPlot
+        },
+        movie: {
+            title: showTitle,
+            year: showYear,
+            plot: showPlot
+        },
+        episodes: episodesOverrides
+    };
+    
+    const payload = {
+        project_name: nfoAgentCurrentPath,
+        media_type: "tool_nfo_agent",
+        nfo_type: mediaType,
+        provider: provider,
+        show_id: showId,
+        movie_id: movieId,
+        season: season,
+        overwrite_nfo: overwriteNfo,
+        mappings: mappings,
+        nfo_overrides: nfoOverrides
+    };
+    
+    const submitBtn = document.getElementById("btn-nfo-agent-submit");
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = "0.5";
+    
+    const logContainer = document.getElementById("nfo-agent-log-container");
+    logContainer.style.display = "block";
+    logContainer.textContent = "Starte NFO Agent Job...\n";
+    
+    fetch("/api/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === "started" && data.task_id) {
+                logContainer.textContent += `Job erfolgreich gestartet (Task ID: ${data.task_id}). Warte auf Logs...\n`;
+                startNfoAgentLogStreaming(data.task_id);
+            } else {
+                alert(`Fehler beim Starten des Jobs: ${data.error || "Unbekannter Fehler"}`);
+                submitBtn.disabled = false;
+                submitBtn.style.opacity = "1";
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Netzwerkfehler beim Starten des NFO Agenten.");
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = "1";
+        });
+}
+
+function startNfoAgentLogStreaming(taskId) {
+    if (nfoAgentLogInterval) clearInterval(nfoAgentLogInterval);
+    const logContainer = document.getElementById("nfo-agent-log-container");
+    
+    nfoAgentLogInterval = setInterval(() => {
+        fetch(`/api/jobs/logs?id=${taskId}`)
+            .then(res => res.json())
+            .then(logsData => {
+                if (logsData.logs) {
+                    logContainer.textContent = logsData.logs;
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                }
+                
+                // Check if job is finished
+                fetch("/api/queue")
+                    .then(res => res.json())
+                    .then(queueData => {
+                        const activeList = queueData.active || [];
+                        const completedList = queueData.completed || [];
+                        
+                        const completedJob = completedList.find(j => j.id === taskId);
+                        const activeJob = activeList.find(j => j.id === taskId);
+                        
+                        if (completedJob) {
+                            clearInterval(nfoAgentLogInterval);
+                            logContainer.textContent += `\n=== JOB BEENDET (Status: ${completedJob.status.toUpperCase()}) ===\n`;
+                            logContainer.scrollTop = logContainer.scrollHeight;
+                            
+                            // Enable button again
+                            document.getElementById("btn-nfo-agent-submit").disabled = false;
+                            document.getElementById("btn-nfo-agent-submit").style.opacity = "1";
+                            
+                            // Post-completion behavior: close modal and auto-refresh library scan
+                            setTimeout(() => {
+                                closeNfoAgentModal();
+                                if (typeof startHealthScan === "function") {
+                                    startHealthScan();
+                                }
+                            }, 1500);
+                        } else if (!activeJob && !completedJob) {
+                            // Safety fallback if job vanished
+                            clearInterval(nfoAgentLogInterval);
+                            document.getElementById("btn-nfo-agent-submit").disabled = false;
+                            document.getElementById("btn-nfo-agent-submit").style.opacity = "1";
+                        }
+                    });
+            })
+            .catch(err => console.error("Error fetching logs", err));
+    }, 1000);
+}
+
+function closeNfoAgentModal() {
+    if (nfoAgentLogInterval) clearInterval(nfoAgentLogInterval);
+    const modal = document.getElementById("modal-nfo-agent");
+    if (modal) {
+        modal.classList.remove("active");
+        modal.classList.add("hidden");
+    }
+}
+
+// Bind DOM Events for NFO Agent Modal
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("close-modal-nfo-agent")?.addEventListener("click", closeNfoAgentModal);
+    document.getElementById("btn-nfo-agent-cancel")?.addEventListener("click", closeNfoAgentModal);
+    document.getElementById("btn-nfo-agent-submit")?.addEventListener("click", submitNfoAgentJob);
+    document.getElementById("btn-nfo-agent-search")?.addEventListener("click", searchNfoAgentMetadata);
+    document.getElementById("nfo-agent-media-type")?.addEventListener("change", triggerNfoAgentMediaTypeChange);
+    
+    // Bind Enter key inside search box
+    document.getElementById("nfo-agent-search-title")?.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            searchNfoAgentMetadata();
+        }
+    });
 });
