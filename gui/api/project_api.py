@@ -34,6 +34,17 @@ def is_efficient_video_codec(codec):
     return normalized in EFFICIENT_VIDEO_CODECS
 
 
+def get_clean_search_name(folder_name):
+    if not folder_name:
+        return ""
+    import re
+    cleaned = re.sub(r'\s*\[(tvdb|tmdb|tmdb_tv|tmdb_movie|ofdb|manual)\]', '', folder_name, flags=re.IGNORECASE)
+    cleaned = re.sub(r'(?i)\s*(staffel|season|episodes?|folgen?)\s*\d+.*$', '', cleaned)
+    cleaned = re.sub(r'(?i)\s*s\d+.*$', '', cleaned)
+    cleaned = cleaned.strip(" -._")
+    return cleaned
+
+
 
 @project_api.route('/browse-folder', methods=['GET', 'POST'])
 def handle_api_browse_folder():
@@ -277,10 +288,24 @@ def handle_api_scan_project():
     metadata_plot = None
     file_nfo_statuses = {}
     
+    metadata_source = None
+
     # TV Show
     nfo_file = next((f for f in all_files if os.path.basename(f).lower() == "tvshow.nfo"), None)
+    nfo_path = None
     if nfo_file:
         nfo_path = os.path.join(target_dir, nfo_file)
+    else:
+        target_basename = os.path.basename(target_dir)
+        is_season_folder = bool(re.search(r'(staffel|season|^s\d+$)', target_basename, re.IGNORECASE))
+        if is_season_folder:
+            parent_dir = os.path.dirname(target_dir)
+            if is_path_allowed(parent_dir):
+                parent_nfo_path = os.path.join(parent_dir, "tvshow.nfo")
+                if os.path.exists(parent_nfo_path):
+                    nfo_path = parent_nfo_path
+
+    if nfo_path:
         if os.path.exists(nfo_path):
             try:
                 import xml.etree.ElementTree as ET
@@ -316,6 +341,7 @@ def handle_api_scan_project():
                 plot_el = root.find("plot")
                 if plot_el is not None and plot_el.text:
                     metadata_plot = plot_el.text.strip()
+                metadata_source = "nfo"
             except Exception as e:
                 log_message(f"Fehler beim Parsen von tvshow.nfo: {e}")
                 
@@ -352,9 +378,43 @@ def handle_api_scan_project():
                     plot_el = root.find("plot")
                     if plot_el is not None and plot_el.text:
                         metadata_plot = plot_el.text.strip()
+                    metadata_source = "nfo"
             except Exception as e:
                 log_message(f"Fehler beim Parsen von movie.nfo: {e}")
                 
+    # Profile Fallback for TV Shows if no NFO was found
+    if not metadata_id:
+        target_basename = os.path.basename(target_dir)
+        is_season_folder = bool(re.search(r'(staffel|season|^s\d+$)', target_basename, re.IGNORECASE))
+        profile_name = os.path.basename(os.path.dirname(target_dir)) if is_season_folder else target_basename
+        profile_name = get_clean_search_name(profile_name)
+        if profile_name:
+            profile = load_show_profile(profile_name)
+            if profile and not profile.get("error") and profile.get("show_id"):
+                metadata_provider = profile.get("provider")
+                metadata_id = profile.get("show_id")
+                metadata_name = profile.get("show_name")
+                metadata_source = "profile"
+
+    # Determine suggested search name
+    suggested_search_name = None
+    if metadata_name:
+        suggested_search_name = metadata_name
+        if metadata_year and metadata_year not in metadata_name:
+            suggested_search_name = f"{metadata_name} ({metadata_year})"
+    else:
+        target_basename = os.path.basename(target_dir)
+        is_season_folder = bool(re.search(r'(staffel|season|^s\d+$)', target_basename, re.IGNORECASE))
+        if is_season_folder:
+            parent_dir = os.path.dirname(target_dir)
+            folder_name_to_clean = os.path.basename(parent_dir)
+        else:
+            folder_name_to_clean = target_basename
+        suggested_search_name = get_clean_search_name(folder_name_to_clean)
+        
+    if suggested_search_name:
+        suggested_search_name = suggested_search_name.strip()
+
     # Check each video file's NFO status
     for f in all_files:
         if os.path.splitext(f)[1].lower() in video_extensions:
@@ -390,6 +450,8 @@ def handle_api_scan_project():
         "metadata_name": metadata_name,
         "metadata_year": metadata_year,
         "metadata_plot": metadata_plot,
+        "metadata_source": metadata_source,
+        "suggested_search_name": suggested_search_name,
         "file_nfo_statuses": file_nfo_statuses
     })
 

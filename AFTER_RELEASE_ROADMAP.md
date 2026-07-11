@@ -57,6 +57,7 @@ die aktive After-Release-Roadmap übernommen.
 | 48 | Health-Scan: Qualitäts-, Bitrate- & Audiospur-Prüfung definieren und markieren | geplant | mittel |
 | 49 | Bibliotheks-Scan: Teilscan ohne Medienserver & dynamische Kategorieauswahl | erledigt | klein–mittel |
 | 50 | NFO-Agent: Mapping- und Review-Editor extrahieren (Ansatz C) | geplant | mittel |
+| 51 | NFO-Agent Vollständigkeit: FSK/Genre/Artwork | geplant | klein–mittel |
 
 ---
 
@@ -1511,4 +1512,25 @@ Die gemeinsamen Kernkomponenten der Metadaten-Editierung und des Episoden-Mappin
 
 ### Aufwand (grob)
 Mittel: UI-Refactoring und manuelle Regressionstests, ca. 1–2 Tage.
+
+---
+
+## 51. NFO-Agent Vollständigkeit: FSK/Genre/Artwork
+
+**Einordnung / Priorität:** Funktionserweiterung, Metadaten-Vollständigkeit.
+
+**Problem:**
+Der NFO-Agent deckt aktuell nur Titel, Plot und das Erscheinungsjahr ab. Weitere Kernfelder wie FSK (Altersfreigabe), Genres, Studios, Regisseure, Darsteller sowie Artworks (Poster/Fanart) können über das Modal nicht kontrolliert, editiert oder generiert werden. Dadurch sind manuell generierte NFOs noch unvollständig und erfordern eine Nachpflege.
+
+**Ziel:**
+Erweiterung des NFO-Agenten um die Möglichkeit, auch FSK-Freigaben, Genres, Studios, Darsteller und Artworks zu laden, im Modal anzuzeigen und in die Haupt-NFO zu schreiben.
+
+**Umsetzung:**
+1. **Frontend-Erweiterung:** Hinzufügen von Eingabefeldern/Dropdowns für FSK-Freigabe, Genres und Studios im NFO-Agent-Modal.
+2. **Artwork-Vorschau:** Anzeigen von gefundenen Poster- und Fanart-URLs mit Option zum Auswählen/Abwählen des Downloads.
+3. **Backend-Erweiterung:** Anpassung des `tool_nfo_agent`-Workers im Backend, um diese zusätzlichen Metadaten-Felder entgegenzunehmen und in die `tvshow.nfo` bzw. Film-NFO einzubetten.
+4. **Tests:** Hinzufügen von Testfällen, die prüfen, dass diese zusätzlichen Felder im NFO-Agent-Workflow korrekt verarbeitet und geschrieben werden.
+
+### Aufwand (grob)
+Klein–mittel: UI-Erweiterung im Modal und Backend-Anpassung zur NFO-Erzeugung.
 

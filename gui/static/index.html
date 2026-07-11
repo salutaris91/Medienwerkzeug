@@ -2993,30 +2993,17 @@ group_add:
             </div>
 
             <!-- Search / Provider Selection -->
-            <div style="display: flex; gap: 12px; margin-bottom: 16px; align-items: flex-end; flex-wrap: wrap;">
+            <div style="display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-end; flex-wrap: wrap;">
                 <div style="flex: 1; min-width: 200px;">
                     <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Name der Serie / des Films:</label>
                     <input type="text" id="nfo-agent-search-title" placeholder="z.B. Dragon Ball" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-light); background: rgba(0,0,0,0.2); color: var(--text-main);">
                 </div>
-                <div style="width: 130px;">
+                <div style="width: 120px;">
                     <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Typ:</label>
                     <select id="nfo-agent-media-type" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-light); background: rgba(30,30,45,1); color: var(--text-main);">
                         <option value="tvshow">Serie</option>
                         <option value="movie">Film</option>
                     </select>
-                </div>
-                <div style="width: 150px;">
-                    <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Provider:</label>
-                    <select id="nfo-agent-provider" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-light); background: rgba(30,30,45,1); color: var(--text-main);">
-                        <option value="tvdb">TVDB</option>
-                        <option value="tmdb_tv">TMDb Serie</option>
-                        <option value="tmdb_movie">TMDb Film</option>
-                        <option value="manual">Manuell</option>
-                    </select>
-                </div>
-                <div style="flex: 1; min-width: 180px;">
-                    <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Show / Movie ID (wird autom. gefüllt):</label>
-                    <input type="text" id="nfo-agent-metadata-id" placeholder="z.B. 76666" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-light); background: rgba(0,0,0,0.2); color: var(--text-main);">
                 </div>
                 <div style="width: 80px;" id="nfo-agent-season-container">
                     <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Staffel:</label>
@@ -3027,6 +3014,30 @@ group_add:
                     Suchen
                 </button>
             </div>
+
+            <!-- Search Results Panel -->
+            <div id="nfo-agent-search-results" style="display: none; margin-bottom: 16px; max-height: 150px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 4px; background: rgba(0,0,0,0.15); padding: 8px;">
+            </div>
+
+            <!-- Advanced Settings (ID / Provider) -->
+            <details id="nfo-agent-advanced-details" style="margin-bottom: 16px; border: 1px solid var(--border-light); border-radius: 4px; padding: 8px 12px; background: rgba(255,255,255,0.01);">
+                <summary style="cursor: pointer; font-size: 0.85em; font-weight: 500; color: var(--text-muted); user-select: none;">Erweiterte Einstellungen (ID / Provider manuell eingeben)</summary>
+                <div style="display: flex; gap: 12px; margin-top: 10px; align-items: flex-end; flex-wrap: wrap;">
+                    <div style="width: 150px;">
+                        <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Provider:</label>
+                        <select id="nfo-agent-provider" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-light); background: rgba(30,30,45,1); color: var(--text-main);">
+                            <option value="tvdb">TVDB</option>
+                            <option value="tmdb_tv">TMDb Serie</option>
+                            <option value="tmdb_movie">TMDb Film</option>
+                            <option value="manual">Manuell</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1; min-width: 180px;">
+                        <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Show / Movie ID:</label>
+                        <input type="text" id="nfo-agent-metadata-id" placeholder="z.B. 76666" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-light); background: rgba(0,0,0,0.2); color: var(--text-main);">
+                    </div>
+                </div>
+            </details>
 
             <!-- Overwrite Master toggle / Option A info -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 0.85em; background: rgba(255,255,255,0.01); border: 1px solid var(--border-light); padding: 8px 12px; border-radius: 4px;">
