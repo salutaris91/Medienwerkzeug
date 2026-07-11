@@ -2,6 +2,17 @@
 
 Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 11.07.2026 (NFO-Agent: UX-Polish, Staffel-Ermittlung & Cache-Invalidierung)
+
+- **UX-Polish & Polish (Branches `fix/nfo-agent-modal-ux` & `fix/nfo-agent-polish`):**
+  * **Modal-Verhalten & done-Button:** Modal-Höhe ist nun auf `90vh` begrenzt; das Metadaten-Formular scrollt flexibel, damit die Buttons im Footer sichtbar bleiben. Ein neuer done-Button (kein Auto-Close) schließt das Modal erst auf Benutzer-Klick und triggert den Health-Scan neu.
+  * **Polling über `/api/queue`:** Pollt nun den Fortschritt und Status direkt über die Queue-API `/api/queue` (Pipeline-Schritt `metadata`), was den nicht-existierenden `/api/jobs/logs`-Endpunkt vollständig ersetzt.
+  * **NFO-Agent pro Einzelbefund:** Der obere Batch-Button wurde entfernt. Der NFO-Agent wird nun exklusiv per-Befund über einen `NFO Agent`-Button aufgerufen, da jedes Verzeichnis ein individuelles Mapping benötigt.
+  * **Staffel-Ermittlung:** Erkennt die Staffelnummer automatisch aus dem Ordnernamen (z.B. `Staffel 2` oder `S03`) und befüllt das Staffel-Feld zur passenden Filterung der Episodenauswahl.
+  * **Cache-Invalidierung:** Löscht bei erfolgreichem NFO-Agent-Lauf den Cache-Eintrag des Verzeichnisses und dessen Elternverzeichnisses (`HealthCacheManager.invalidate_entry`), damit korrigierte Befunde sofort nach dem Scan aus der Health-Liste verschwinden.
+  * **Vergrößertes Log-Fenster:** Log-Fenster auf `200px` vergrößert.
+  * **Unit-Tests:** Zusätzlicher Unit-Test `test_health_cache_invalidate_entry` hinzugefügt.
+
 ## Stand am 11.07.2026 (NFO-Agent: Auto-Suche & Metadaten-Vorbefüllung)
 
 - **Auto-Suche & Metadaten-Vorbefüllung (Branch `feature/nfo-agent-autosearch`):**
