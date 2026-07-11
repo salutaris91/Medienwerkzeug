@@ -15456,7 +15456,6 @@ function submitNfoAgentJob() {
     
     const logContainer = document.getElementById("nfo-agent-log-container");
     logContainer.style.display = "block";
-    logContainer.style.height = "200px";
     logContainer.textContent = "Starte NFO Agent Job...\n";
     
     fetch("/api/process", {
