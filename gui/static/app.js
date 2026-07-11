@@ -14959,7 +14959,16 @@ function openNfoAgentModal(path) {
             const mediaTypeSelect = document.getElementById("nfo-agent-media-type");
             mediaTypeSelect.value = data.type === "movie" ? "movie" : "tvshow";
             triggerNfoAgentMediaTypeChange();
-            
+
+            // Derive the season number from the folder name (e.g. "Staffel 2" -> 2) so the
+            // episode dropdown options match the files in a season subfolder.
+            const seasonBase = (path || "").split("/").filter(Boolean).pop() || "";
+            const seasonMatch = seasonBase.match(/^(?:staffel|season)\s*(\d+)$|^s(\d+)$/i);
+            if (seasonMatch) {
+                const seasonNum = seasonMatch[1] || seasonMatch[2];
+                if (seasonNum) document.getElementById("nfo-agent-season").value = parseInt(seasonNum, 10);
+            }
+
             // Set search input to the suggested search name
             const titleInput = document.getElementById("nfo-agent-search-title");
             titleInput.value = data.suggested_search_name || "";
@@ -15447,6 +15456,7 @@ function submitNfoAgentJob() {
     
     const logContainer = document.getElementById("nfo-agent-log-container");
     logContainer.style.display = "block";
+    logContainer.style.height = "200px";
     logContainer.textContent = "Starte NFO Agent Job...\n";
     
     fetch("/api/process", {
