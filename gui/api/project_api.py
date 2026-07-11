@@ -37,7 +37,6 @@ def is_efficient_video_codec(codec):
 def get_clean_search_name(folder_name):
     if not folder_name:
         return ""
-    import re
     cleaned = re.sub(r'\s*\[(tvdb|tmdb|tmdb_tv|tmdb_movie|ofdb|manual)\]', '', folder_name, flags=re.IGNORECASE)
     cleaned = re.sub(r'(?i)\s*(staffel|season|episodes?|folgen?)\s*\d+.*$', '', cleaned)
     cleaned = re.sub(r'(?i)\s*s\d+.*$', '', cleaned)

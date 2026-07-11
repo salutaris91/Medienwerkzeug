@@ -3272,6 +3272,17 @@ def process_worker(params):
                     
                 update_job(task_id, pipeline_step="metadata", pipeline_status="done", pipeline_progress=100)
                 
+            # Invalidate the health-scan cache so repaired NFOs drop out of the health check
+            # on the next scan. Season findings are cached at the show (parent) level, so we
+            # invalidate both the folder itself and its parent.
+            try:
+                from gui.core.health_cache import HealthCacheManager
+                _hc = HealthCacheManager()
+                _hc.invalidate_entry(current_dir)
+                _hc.invalidate_entry(os.path.dirname(current_dir))
+            except Exception as cache_err:
+                log_message(f"[NFO Agent] Cache-Invalidierung übersprungen: {cache_err}")
+
             log_message("✅ NFO Agent erfolgreich abgeschlossen.")
             update_job(task_id, pipeline_step="metadata", pipeline_status="done", pipeline_progress=100)
             

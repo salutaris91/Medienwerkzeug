@@ -83,6 +83,15 @@ class HealthCacheManager:
             "timestamp": time.time()
         }
 
+    def invalidate_entry(self, folder_path: str) -> bool:
+        """Entfernt den Cache-Eintrag für einen Ordner, damit er beim nächsten Scan neu geprüft wird."""
+        abs_path = os.path.realpath(folder_path)
+        if abs_path in self._cache:
+            del self._cache[abs_path]
+            self._save_cache(self._cache)
+            return True
+        return False
+
     def flush(self):
         """Schreibt den aktuellen Speicher-Cache dauerhaft auf die Festplatte."""
         self._save_cache(self._cache)

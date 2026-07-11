@@ -1230,6 +1230,20 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                         self.assertEqual(data["metadata_source"], "profile")
                         self.assertEqual(data["suggested_search_name"], "Mock Profile Show")
 
+    def test_health_cache_invalidate_entry(self):
+        from gui.core.health_cache import HealthCacheManager
+        cache_path = os.path.join(self.test_dir, "hc_test.json")
+        mgr = HealthCacheManager(cache_path=cache_path)
+        folder = os.path.join(self.test_dir, "Mock Show Cache")
+        os.makedirs(folder, exist_ok=True)
+        mgr.set_cached_entry(folder, "2:emby", [{"type": "missing_nfo"}], hybrid_state={})
+        self.assertIsNotNone(mgr.get_cached_entry(folder, "2:emby"))
+        # Invalidation drops the entry so the next scan re-checks the folder
+        self.assertTrue(mgr.invalidate_entry(folder))
+        self.assertIsNone(mgr.get_cached_entry(folder, "2:emby"))
+        # Invalidating a non-existent entry is a no-op
+        self.assertFalse(mgr.invalidate_entry(os.path.join(self.test_dir, "Nonexistent")))
+
     def test_nfo_incomplete_detection(self):
         from gui.core.health import _check_nfo_incomplete
         
