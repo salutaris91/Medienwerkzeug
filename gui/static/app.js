@@ -14917,23 +14917,54 @@ function openNfoAgentModal(path) {
             const titleInput = document.getElementById("nfo-agent-search-title");
             titleInput.value = data.metadata_name || data.project || "";
             
-            // Set provider & ID
-            if (data.metadata_provider) {
-                document.getElementById("nfo-agent-provider").value = data.metadata_provider;
-            }
-            if (data.metadata_id) {
-                document.getElementById("nfo-agent-metadata-id").value = data.metadata_id;
-            }
+            // NFO values have priority
+            let providerVal = data.metadata_provider || "";
+            let idVal = data.metadata_id || "";
+            let nameVal = data.metadata_name || "";
             
-            // Render details (Show or Movie)
-            if (data.metadata_name) {
-                document.getElementById("nfo-agent-show-title").value = data.metadata_name;
+            // Set UI inputs
+            if (providerVal) {
+                document.getElementById("nfo-agent-provider").value = providerVal;
+            }
+            if (idVal) {
+                document.getElementById("nfo-agent-metadata-id").value = idVal;
+            }
+            if (nameVal) {
+                document.getElementById("nfo-agent-show-title").value = nameVal;
                 document.getElementById("nfo-agent-show-year").value = data.metadata_year || "";
                 document.getElementById("nfo-agent-show-plot").value = data.metadata_plot || "";
             }
             
-            // Render files list
-            renderNfoAgentFiles(data);
+            const showNameQuery = data.metadata_name || data.project || "";
+            if (data.type !== "movie" && showNameQuery) {
+                fetch(`/api/profile?show_name=${encodeURIComponent(showNameQuery)}`)
+                    .then(r => r.ok ? r.json() : null)
+                    .then(prof => {
+                        if (prof && prof.data) {
+                            if (!document.getElementById("nfo-agent-provider").value) {
+                                document.getElementById("nfo-agent-provider").value = prof.data.provider || "";
+                            }
+                            if (!document.getElementById("nfo-agent-metadata-id").value) {
+                                document.getElementById("nfo-agent-metadata-id").value = prof.data.show_id || "";
+                            }
+                            if (!document.getElementById("nfo-agent-show-title").value) {
+                                const newName = prof.data.show_name || "";
+                                document.getElementById("nfo-agent-show-title").value = newName;
+                                if (!document.getElementById("nfo-agent-search-title").value) {
+                                    document.getElementById("nfo-agent-search-title").value = newName;
+                                }
+                            }
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Error fetching profile for prefilling:", err);
+                    })
+                    .finally(() => {
+                        renderNfoAgentFiles(data);
+                    });
+            } else {
+                renderNfoAgentFiles(data);
+            }
         })
         .catch(err => {
             console.error(err);
@@ -14977,7 +15008,6 @@ function triggerNfoAgentMediaTypeChange() {
 function searchNfoAgentMetadata() {
     const title = document.getElementById("nfo-agent-search-title").value.trim();
     const type = document.getElementById("nfo-agent-media-type").value;
-    const provider = document.getElementById("nfo-agent-provider").value;
     const season = document.getElementById("nfo-agent-season").value;
     
     if (!title) {
@@ -14989,20 +15019,30 @@ function searchNfoAgentMetadata() {
     searchBtn.disabled = true;
     searchBtn.textContent = "Suche...";
     
-    // 1. Search for ID
-    fetch(`/api/metadata/search?q=${encodeURIComponent(title)}&provider=${provider}`)
+    // 1. Search for ID using the unified search endpoint
+    const queryType = type === 'tvshow' ? 'tv' : 'movie';
+    fetch(`/api/search?type=${queryType}&q=${encodeURIComponent(title)}`)
         .then(res => res.json())
         .then(results => {
             if (!results || results.length === 0) {
                 alert("Keine Treffer gefunden. Bitte gib die ID manuell ein.");
                 return;
             }
+            
             // Take first result
             const bestResult = results[0];
+            
+            // Map movie provider 'tmdb' to 'tmdb_movie' as expected by backend/dropdown
+            let resProvider = bestResult.provider;
+            if (queryType === "movie" && resProvider === "tmdb") {
+                resProvider = "tmdb_movie";
+            }
+            
             document.getElementById("nfo-agent-metadata-id").value = bestResult.id;
+            document.getElementById("nfo-agent-provider").value = resProvider;
             
             // 2. Fetch full details using the found ID
-            loadNfoAgentDetails(bestResult.id, provider, type, season);
+            loadNfoAgentDetails(bestResult.id, resProvider, type, season);
         })
         .catch(err => {
             console.error(err);
@@ -15015,7 +15055,14 @@ function searchNfoAgentMetadata() {
 }
 
 function loadNfoAgentDetails(id, provider, type, season) {
-    fetch(`/api/metadata/fetch?id=${id}&provider=${provider}&season=${season}`)
+    let url = "";
+    if (type === "tvshow") {
+        url = `/api/metadata/fetch?media_type=tv&provider=${provider}&show_id=${id}`;
+    } else {
+        url = `/api/metadata/fetch?media_type=movie&provider=${provider}&movie_id=${id}`;
+    }
+    
+    fetch(url)
         .then(res => res.json())
         .then(meta => {
             // Populate Show / Movie details
@@ -15124,14 +15171,53 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
         `;
         listBody.appendChild(row);
         
-        // Setup listener on mapping dropdown to show/hide overrides
         const select = row.querySelector(".nfo-agent-ep-mapping-select");
         const container = row.querySelector(".nfo-agent-ep-override-container");
+        
+        // Dynamic episode metadata fetch helper
+        const loadEpMetadata = async (val) => {
+            if (val === "skip") return;
+            const prov = document.getElementById("nfo-agent-provider").value;
+            const shId = document.getElementById("nfo-agent-metadata-id").value.trim();
+            if (prov === "manual" || !shId) return;
+            
+            const matchFormat = val.match(/S(\d+)E(\d+)/i);
+            if (!matchFormat) return;
+            const s = matchFormat[1];
+            const e = matchFormat[2];
+            
+            const titleInput = row.querySelector(".nfo-agent-ep-override-title");
+            const plotTextarea = row.querySelector(".nfo-agent-ep-override-plot");
+            
+            if (plotTextarea) plotTextarea.placeholder = "Lade Metadaten...";
+            
+            try {
+                const response = await fetch(`/api/metadata/fetch?media_type=episode&provider=${encodeURIComponent(prov)}&show_id=${encodeURIComponent(shId)}&season=${encodeURIComponent(s)}&episode=${encodeURIComponent(e)}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (select.value === val) {
+                        if (titleInput) titleInput.value = data.title || "";
+                        if (plotTextarea) plotTextarea.value = data.plot || "";
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching episode metadata for NFO Agent:", err);
+            } finally {
+                if (plotTextarea) plotTextarea.placeholder = "";
+            }
+        };
+
+        // If mapping is selected, and we don't have cached/preloaded details, fetch them now
+        if (defaultSelectValue !== "skip" && !metaTitle) {
+            loadEpMetadata(defaultSelectValue);
+        }
+
         select.addEventListener("change", () => {
             if (select.value === "skip") {
                 container.style.display = "none";
             } else {
                 container.style.display = "flex";
+                loadEpMetadata(select.value);
             }
         });
     });

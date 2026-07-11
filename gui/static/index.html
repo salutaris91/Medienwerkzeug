@@ -3014,8 +3014,8 @@ group_add:
                         <option value="manual">Manuell</option>
                     </select>
                 </div>
-                <div style="width: 120px;">
-                    <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Show / Movie ID:</label>
+                <div style="flex: 1; min-width: 180px;">
+                    <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Show / Movie ID (wird autom. gefüllt):</label>
                     <input type="text" id="nfo-agent-metadata-id" placeholder="z.B. 76666" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-light); background: rgba(0,0,0,0.2); color: var(--text-main);">
                 </div>
                 <div style="width: 80px;" id="nfo-agent-season-container">
@@ -3032,7 +3032,7 @@ group_add:
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 0.85em; background: rgba(255,255,255,0.01); border: 1px solid var(--border-light); padding: 8px 12px; border-radius: 4px;">
                 <span class="text-muted" style="display: inline-flex; align-items: center; gap: 4px;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield-check" style="color:var(--accent);"><path d="M20 13c0 5-3.5 7.5-7.66 9.7a1 1 0 0 1-.68 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.8 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
-                    Schutz aktiver Metadaten (Option A) greift: skip bei intakten NFOs.
+                    Fertige NFOs werden übersprungen. Zum Reparieren leerer/kaputter NFOs „überschreiben“ anhaken.
                 </span>
                 <label style="display: inline-flex; align-items: center; gap: 6px; font-weight: 500; cursor: pointer; color: var(--text-main);">
                     <input type="checkbox" id="nfo-agent-overwrite-nfo" checked style="cursor: pointer;">
