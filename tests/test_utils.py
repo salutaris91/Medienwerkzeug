@@ -1125,6 +1125,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         <tvshow>
             <title>Mock Show</title>
             <plot>Mock Plot</plot>
+            <year>1986</year>
             <mw_provider>tvdb</mw_provider>
             <mw_showid>76666</mw_showid>
         </tvshow>"""
@@ -1153,6 +1154,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                     self.assertEqual(data["metadata_provider"], "tvdb")
                     self.assertEqual(data["metadata_id"], "76666")
                     self.assertEqual(data["metadata_name"], "Mock Show")
+                    self.assertEqual(data["metadata_year"], "1986")
+                    self.assertEqual(data["metadata_plot"], "Mock Plot")
                     self.assertIn("Mock Show - S01E01.mp4", data["file_nfo_statuses"])
                     self.assertTrue(data["file_nfo_statuses"]["Mock Show - S01E01.mp4"]["exists"])
                     self.assertTrue(data["file_nfo_statuses"]["Mock Show - S01E01.mp4"]["complete"])

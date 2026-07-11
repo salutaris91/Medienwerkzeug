@@ -273,6 +273,8 @@ def handle_api_scan_project():
     metadata_provider = None
     metadata_id = None
     metadata_name = None
+    metadata_year = None
+    metadata_plot = None
     file_nfo_statuses = {}
     
     # TV Show
@@ -307,6 +309,13 @@ def handle_api_scan_project():
                         
                 if title_el is not None and title_el.text:
                     metadata_name = title_el.text.strip()
+
+                year_el = root.find("year")
+                if year_el is not None and year_el.text:
+                    metadata_year = year_el.text.strip()
+                plot_el = root.find("plot")
+                if plot_el is not None and plot_el.text:
+                    metadata_plot = plot_el.text.strip()
             except Exception as e:
                 log_message(f"Fehler beim Parsen von tvshow.nfo: {e}")
                 
@@ -336,6 +345,13 @@ def handle_api_scan_project():
                         
                     if title_el is not None and title_el.text:
                         metadata_name = title_el.text.strip()
+
+                    year_el = root.find("year")
+                    if year_el is not None and year_el.text:
+                        metadata_year = year_el.text.strip()
+                    plot_el = root.find("plot")
+                    if plot_el is not None and plot_el.text:
+                        metadata_plot = plot_el.text.strip()
             except Exception as e:
                 log_message(f"Fehler beim Parsen von movie.nfo: {e}")
                 
@@ -372,6 +388,8 @@ def handle_api_scan_project():
         "metadata_provider": metadata_provider,
         "metadata_id": metadata_id,
         "metadata_name": metadata_name,
+        "metadata_year": metadata_year,
+        "metadata_plot": metadata_plot,
         "file_nfo_statuses": file_nfo_statuses
     })
 
