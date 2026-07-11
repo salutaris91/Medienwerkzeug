@@ -900,7 +900,7 @@ def fetch_tmdb_images(media_type, tmdb_id):
         return {}
 
 
-def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, nfo_overrides=None):
+def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, nfo_overrides=None, overwrite=False):
 
     import os
     nfo_path = os.path.join(folder_path, f"{filename_base}.nfo")
@@ -936,8 +936,8 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             if os.path.exists(os.path.join(folder_path, f"{filename_base}-backdrop{ext}")): return True
         return False
 
-    needs_nfo = not os.path.exists(nfo_path)
-    if not needs_nfo:
+    needs_nfo = overwrite or not os.path.exists(nfo_path)
+    if not needs_nfo and not overwrite:
         log_message(f"[NFO] {nfo_path}: skipped (already exists)")
     needs_poster = not has_movie_poster()
     needs_fanart = not has_movie_fanart()
@@ -1453,7 +1453,7 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
             return {"title": f"Folge {episode}", "plot": f"Fehler: {e}", "aired": ""}
     return {"title": f"Folge {episode}", "plot": "", "aired": ""}
 
-def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, source_url=None, resolved_topic=None):
+def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, source_url=None, resolved_topic=None, overwrite=False):
     import os
 
     def build_mw_data_xml(provider, show_id, title=None, source_url=None, resolved_topic=None):
@@ -1510,7 +1510,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
             meta = {"title": show_id or "Manuelle Serie", "plot": "", "year": ""}
 
         nfo_path = os.path.join(target_folder, "tvshow.nfo")
-        if os.path.exists(nfo_path):
+        if not overwrite and os.path.exists(nfo_path):
             return {"nfo": False, "poster": False, "fanart": False, "msg": "tvshow.nfo existiert bereits"}
         title = meta.get("title", "Manuelle Serie")
         plot = meta.get("plot", "")
@@ -1537,7 +1537,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
 
     if provider == "mediathek":
         nfo_path = os.path.join(target_folder, "tvshow.nfo")
-        if os.path.exists(nfo_path):
+        if not overwrite and os.path.exists(nfo_path):
             return {"nfo": False, "poster": False, "fanart": False, "msg": "tvshow.nfo existiert bereits"}
         title = show_id
         plot = ""
@@ -1565,7 +1565,7 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
 
     if provider == "ytdlp":
         nfo_path = os.path.join(target_folder, "tvshow.nfo")
-        if os.path.exists(nfo_path):
+        if not overwrite and os.path.exists(nfo_path):
             return {"nfo": False, "poster": False, "fanart": False, "msg": "tvshow.nfo existiert bereits"}
         entries = fetch_ytdlp_url_metadata(show_id)
         title = "YouTube/Mediathek Serie"
@@ -1614,8 +1614,8 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
     logo_path = os.path.join(target_folder, logo_filename)
     banner_path = os.path.join(target_folder, banner_filename)
 
-    needs_nfo = not os.path.exists(nfo_path)
-    if not needs_nfo:
+    needs_nfo = overwrite or not os.path.exists(nfo_path)
+    if not needs_nfo and not overwrite:
         log_message(f"[NFO] {nfo_path}: skipped (already exists)")
     needs_poster = not validator.has_artwork_file(target_folder, validator.get_series_poster_names())
     needs_fanart = not validator.has_artwork_file(target_folder, validator.get_series_backdrop_names())
@@ -1851,13 +1851,13 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
 
     return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart, "logo": not needs_logo, "banner": not needs_banner}
 
-def generate_episode_nfo(provider, show_id, season, episode, target_folder, filename_base, force_season=None, force_episode=None, nfo_overrides=None):
+def generate_episode_nfo(provider, show_id, season, episode, target_folder, filename_base, force_season=None, force_episode=None, nfo_overrides=None, overwrite=False):
     import os
     nfo_path = os.path.join(target_folder, f"{filename_base}.nfo")
     thumb_path = os.path.join(target_folder, f"{filename_base}-thumb.jpg")
 
-    needs_nfo = not os.path.exists(nfo_path)
-    if not needs_nfo:
+    needs_nfo = overwrite or not os.path.exists(nfo_path)
+    if not needs_nfo and not overwrite:
         log_message(f"[NFO] {nfo_path}: skipped (already exists)")
     needs_thumb = not os.path.exists(thumb_path)
 

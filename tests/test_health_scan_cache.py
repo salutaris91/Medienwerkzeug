@@ -184,9 +184,8 @@ class TestHealthScanCache(unittest.TestCase):
 
         show_path = os.path.join(self.temp_dir.name, "Test Show")
         os.makedirs(show_path)
-
         with open(os.path.join(show_path, "tvshow.nfo"), "w") as f:
-            f.write("<tvshow><mw_provider>tmdb</mw_provider><mpaa>FSK 12</mpaa></tvshow>")
+            f.write("<tvshow><title>Test Show</title><plot>Test Plot</plot><year>2026</year><mw_provider>tmdb</mw_provider><mpaa>FSK 12</mpaa></tvshow>")
         with open(os.path.join(show_path, "poster.jpg"), "w") as f:
             f.write("poster")
         with open(os.path.join(show_path, "fanart.jpg"), "w") as f:
@@ -195,19 +194,19 @@ class TestHealthScanCache(unittest.TestCase):
             f.write("logo")
         with open(os.path.join(show_path, "banner.jpg"), "w") as f:
             f.write("banner")
-
+    
         season_path = os.path.join(show_path, "Staffel 01")
         os.makedirs(season_path)
-
+    
         with open(os.path.join(show_path, "season01.jpg"), "w") as f:
             f.write("season poster")
-
+    
         ep_dir = os.path.join(season_path, "Test Show S01E01")
         os.makedirs(ep_dir)
         with open(os.path.join(ep_dir, "Test Show S01E01.mkv"), "w") as f:
             f.write("video content" * 5000)
         with open(os.path.join(ep_dir, "Test Show S01E01.nfo"), "w") as f:
-            f.write("<episode></episode>")
+            f.write("<episode><title>Episode 1</title><plot>Plot 1</plot><aired>2026-07-11</aired></episode>")
 
         mock_walk.return_value = [{
             "category": "Serien",

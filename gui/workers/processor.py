@@ -780,6 +780,7 @@ def process_worker(params):
     pcloud_destination_id = params.get("pcloud_destination_id") or params.get("destination_id")
     task_id = params.get("task_id")
     nfo_overrides = params.get("nfo_overrides", {})
+    overwrite_nfo = params.get("overwrite_nfo", False)
 
     settings = load_settings()
     inbox_root = settings.get("inbox_dir", "")
@@ -1017,7 +1018,18 @@ def process_worker(params):
                 log_message("Generiere tvshow.nfo und lade Poster/Fanart...")
                 try:
                     show_overrides = nfo_overrides.get("show")
-                    res = mw_metadata.generate_tvshow_nfo(provider, show_id, current_dir, nfo_overrides=show_overrides)
+                    should_overwrite_show = False
+                    if overwrite_nfo:
+                        if show_overrides:
+                            should_overwrite_show = True
+                        else:
+                            from gui.core.health import _check_nfo_incomplete
+                            nfo_path = os.path.join(current_dir, "tvshow.nfo")
+                            is_inc, _, _ = _check_nfo_incomplete(nfo_path, "tvshow")
+                            if is_inc or not os.path.exists(nfo_path):
+                                should_overwrite_show = True
+                                
+                    res = mw_metadata.generate_tvshow_nfo(provider, show_id, current_dir, nfo_overrides=show_overrides, overwrite=should_overwrite_show)
                     log_message(f"tvshow.nfo Status: {res}")
                 except Exception as e:
                     log_message(f"Fehler bei tvshow.nfo: {e}")
@@ -1385,7 +1397,8 @@ def process_worker(params):
                                 ep_overrides = nfo_overrides["episodes"].get(filename) or nfo_overrides["episodes"].get(os.path.join(current_dir, filename))
                             res = mw_metadata.generate_episode_nfo(
                                 provider, show_id, orig_season, orig_episode, current_dir, clean_title,
-                                force_season=ep_season, force_episode=ep_num, nfo_overrides=ep_overrides
+                                force_season=ep_season, force_episode=ep_num, nfo_overrides=ep_overrides,
+                                overwrite=overwrite_nfo
                             )
                             log_message(f"Episode NFO Status: {res}")
                         except Exception as e:
@@ -1862,10 +1875,24 @@ def process_worker(params):
                     log_message("Generiere NFO und lade Poster/Fanart...")
                     try:
                         movie_overrides = nfo_overrides.get("movie")
+                        should_overwrite_movie = False
+                        if overwrite_nfo:
+                            if movie_overrides:
+                                should_overwrite_movie = True
+                            else:
+                                from gui.core.health import _check_nfo_incomplete, find_primary_nfo
+                                nfo_path = find_primary_nfo(current_dir, is_movie=True)
+                                if not nfo_path:
+                                    should_overwrite_movie = True
+                                else:
+                                    is_inc, _, _ = _check_nfo_incomplete(nfo_path, "movie")
+                                    if is_inc:
+                                        should_overwrite_movie = True
+                                        
                         if provider == "ofdb":
                             res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
                         else:
-                            res = mw_metadata.generate_movie_nfo(movie_id, current_dir, clean_movie_name, nfo_overrides=movie_overrides)
+                            res = mw_metadata.generate_movie_nfo(movie_id, current_dir, clean_movie_name, nfo_overrides=movie_overrides, overwrite=should_overwrite_movie)
                         log_message(f"Movie NFO Status: {res}")
                     except Exception as e:
                         log_message(f"Fehler bei NFO-Erstellung: {e}")

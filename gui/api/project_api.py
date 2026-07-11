@@ -139,9 +139,15 @@ def handle_api_scan_project():
         return jsonify({"error": "Inbox-Verzeichnis ist nicht konfiguriert."}), 400
         
     is_recursive_inbox = (project == "__inbox_recursive__")
-    if project and not is_recursive_inbox:
+    if project and os.path.isabs(project):
+        target_dir = os.path.abspath(project)
+    elif project and not is_recursive_inbox:
+        if not inbox_root:
+            return jsonify({"error": "Inbox-Verzeichnis ist nicht konfiguriert."}), 400
         target_dir = os.path.abspath(os.path.join(inbox_root, project))
     else:
+        if not inbox_root:
+            return jsonify({"error": "Inbox-Verzeichnis ist nicht konfiguriert."}), 400
         target_dir = os.path.abspath(inbox_root)
         
     if not is_path_allowed(target_dir):
@@ -263,6 +269,97 @@ def handle_api_scan_project():
                     else:
                         suggested_query = normalized
     
+    # Parse tvshow.nfo or movie NFO for existing metadata
+    metadata_provider = None
+    metadata_id = None
+    metadata_name = None
+    file_nfo_statuses = {}
+    
+    # TV Show
+    nfo_file = next((f for f in all_files if os.path.basename(f).lower() == "tvshow.nfo"), None)
+    if nfo_file:
+        nfo_path = os.path.join(target_dir, nfo_file)
+        if os.path.exists(nfo_path):
+            try:
+                import xml.etree.ElementTree as ET
+                tree = ET.parse(nfo_path)
+                root = tree.getroot()
+                
+                provider_el = root.find("mw_provider")
+                showid_el = root.find("mw_showid")
+                title_el = root.find("title")
+                
+                if provider_el is not None and provider_el.text:
+                    metadata_provider = provider_el.text.strip()
+                else:
+                    if root.find("tvdbid") is not None:
+                        metadata_provider = "tvdb"
+                    elif root.find("tmdbid") is not None:
+                        metadata_provider = "tmdb_tv"
+                
+                if showid_el is not None and showid_el.text:
+                    metadata_id = showid_el.text.strip()
+                else:
+                    if metadata_provider == "tvdb" and root.find("tvdbid") is not None:
+                        metadata_id = root.find("tvdbid").text.strip()
+                    elif metadata_provider == "tmdb_tv" and root.find("tmdbid") is not None:
+                        metadata_id = root.find("tmdbid").text.strip()
+                        
+                if title_el is not None and title_el.text:
+                    metadata_name = title_el.text.strip()
+            except Exception as e:
+                log_message(f"Fehler beim Parsen von tvshow.nfo: {e}")
+                
+    # Movie
+    movie_nfo = next((f for f in all_files if os.path.basename(f).lower() == "movie.nfo" or (f.lower().endswith(".nfo") and os.path.basename(f).lower() != "tvshow.nfo")), None)
+    if movie_nfo and not metadata_id:
+        nfo_path = os.path.join(target_dir, movie_nfo)
+        if os.path.exists(nfo_path):
+            try:
+                import xml.etree.ElementTree as ET
+                tree = ET.parse(nfo_path)
+                root = tree.getroot()
+                if root.tag == "movie":
+                    tmdb_el = root.find("tmdbid")
+                    title_el = root.find("title")
+                    provider_el = root.find("mw_provider")
+                    
+                    if provider_el is not None and provider_el.text:
+                        metadata_provider = provider_el.text.strip()
+                    else:
+                        metadata_provider = "tmdb_movie"
+                        
+                    if tmdb_el is not None and tmdb_el.text:
+                        metadata_id = tmdb_el.text.strip()
+                    elif root.find("uniqueid") is not None:
+                        metadata_id = root.find("uniqueid").text.strip()
+                        
+                    if title_el is not None and title_el.text:
+                        metadata_name = title_el.text.strip()
+            except Exception as e:
+                log_message(f"Fehler beim Parsen von movie.nfo: {e}")
+                
+    # Check each video file's NFO status
+    for f in all_files:
+        if os.path.splitext(f)[1].lower() in video_extensions:
+            nfo_rel = os.path.splitext(f)[0] + ".nfo"
+            nfo_path = os.path.join(target_dir, nfo_rel)
+            exists = os.path.exists(nfo_path)
+            complete = False
+            if exists:
+                try:
+                    import xml.etree.ElementTree as ET
+                    tree = ET.parse(nfo_path)
+                    root = tree.getroot()
+                    title_el = root.find("title")
+                    plot_el = root.find("plot")
+                    title_missing = title_el is None or not title_el.text or not title_el.text.strip()
+                    plot_missing = plot_el is None or not plot_el.text or not plot_el.text.strip()
+                    complete = not (title_missing or plot_missing)
+                except Exception:
+                    complete = False
+            file_nfo_statuses[f] = {"exists": exists, "complete": complete}
+            
     return jsonify({
         "current_dir": target_dir,
         "files": file_list,
@@ -271,7 +368,11 @@ def handle_api_scan_project():
         "is_doku": is_doku,
         "has_inefficient_video": has_inefficient_video,
         "suggested_query": suggested_query,
-        "is_single_file": is_single_file
+        "is_single_file": is_single_file,
+        "metadata_provider": metadata_provider,
+        "metadata_id": metadata_id,
+        "metadata_name": metadata_name,
+        "file_nfo_statuses": file_nfo_statuses
     })
 
 
