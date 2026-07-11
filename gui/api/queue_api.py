@@ -785,6 +785,8 @@ def handle_api_process():
         name = params.get("show_name")
     elif media_type == "youtube":
         name = "YouTube Download"
+    elif media_type == "tool_nfo_agent":
+        name = f"NFO Agent: {name}"
 
     convert = params.get("convert", False)
     copy_to_nas = params.get("copy_to_nas", True)

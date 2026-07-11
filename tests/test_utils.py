@@ -1125,6 +1125,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         <tvshow>
             <title>Mock Show</title>
             <plot>Mock Plot</plot>
+            <year>1986</year>
             <mw_provider>tvdb</mw_provider>
             <mw_showid>76666</mw_showid>
         </tvshow>"""
@@ -1153,6 +1154,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                     self.assertEqual(data["metadata_provider"], "tvdb")
                     self.assertEqual(data["metadata_id"], "76666")
                     self.assertEqual(data["metadata_name"], "Mock Show")
+                    self.assertEqual(data["metadata_year"], "1986")
+                    self.assertEqual(data["metadata_plot"], "Mock Plot")
                     self.assertIn("Mock Show - S01E01.mp4", data["file_nfo_statuses"])
                     self.assertTrue(data["file_nfo_statuses"]["Mock Show - S01E01.mp4"]["exists"])
                     self.assertTrue(data["file_nfo_statuses"]["Mock Show - S01E01.mp4"]["complete"])
@@ -2930,6 +2933,145 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             }
             path_empty_target = resolve_category_target_path("4", "pcloud", "tv")
             self.assertEqual(path_empty_target, "pcloud:04a_Dokus")
+
+    def test_nfo_agent_job_series(self):
+        # Create temp folder for project
+        proj_dir = os.path.join(self.test_dir, "nfo_agent_series_project")
+        os.makedirs(proj_dir, exist_ok=True)
+        
+        # Create mock episode file
+        ep_file = "Show - S01E01.mp4"
+        with open(os.path.join(proj_dir, ep_file), "w") as f:
+            f.write("mock video content")
+            
+        params = {
+            "media_type": "tool_nfo_agent",
+            "nfo_type": "tvshow",
+            "project_name": proj_dir,
+            "provider": "manual",
+            "show_id": "manual",
+            "season": 1,
+            "mappings": {
+                ep_file: "S01E01"
+            },
+            "nfo_overrides": {
+                "show": {
+                    "title": "NFO Agent Show",
+                    "year": "2026",
+                    "plot": "Show Plot Override"
+                },
+                "episodes": {
+                    ep_file: {
+                        "title": "Ep 1 Override",
+                        "plot": "Ep 1 Plot Override"
+                    }
+                }
+            },
+            "overwrite_nfo": True
+        }
+        
+        from gui.workers.processor import process_worker
+        from unittest.mock import patch
+        
+        # Patch load_settings and is_path_allowed
+        with patch("gui.workers.processor.load_settings", return_value={
+            "inbox_dir": self.test_dir,
+            "nas_root": os.path.join(self.test_dir, "nas_root"),
+            "outbox_dir": os.path.join(self.test_dir, "outbox_dir")
+        }):
+            with patch("gui.core.helpers.is_path_allowed", return_value=True):
+                process_worker(params)
+                
+        # Asserts: NFOs generated
+        show_nfo = os.path.join(proj_dir, "tvshow.nfo")
+        ep_nfo = os.path.join(proj_dir, "Show - S01E01.nfo")
+        self.assertTrue(os.path.exists(show_nfo))
+        self.assertTrue(os.path.exists(ep_nfo))
+        
+        # Verify content
+        import xml.etree.ElementTree as ET
+        tree_show = ET.parse(show_nfo)
+        self.assertEqual(tree_show.find("title").text, "NFO Agent Show")
+        self.assertEqual(tree_show.find("plot").text, "Show Plot Override")
+        
+        tree_ep = ET.parse(ep_nfo)
+        self.assertEqual(tree_ep.find("title").text, "Ep 1 Override")
+        self.assertEqual(tree_ep.find("plot").text, "Ep 1 Plot Override")
+        
+        # Safety asserts: NO files moved/deleted/converted
+        # The video file must still exist in proj_dir
+        self.assertTrue(os.path.exists(os.path.join(proj_dir, ep_file)))
+        # No files should exist in outbox or nas
+        nas_root = os.path.join(self.test_dir, "nas_root")
+        self.assertFalse(os.path.exists(nas_root))
+
+    def test_nfo_agent_job_movie(self):
+        proj_dir = os.path.join(self.test_dir, "nfo_agent_movie_project")
+        os.makedirs(proj_dir, exist_ok=True)
+        
+        movie_file = "Movie (2026).mp4"
+        with open(os.path.join(proj_dir, movie_file), "w") as f:
+            f.write("mock video content")
+            
+        params = {
+            "media_type": "tool_nfo_agent",
+            "nfo_type": "movie",
+            "project_name": proj_dir,
+            "provider": "manual",
+            "movie_id": "manual",
+            "nfo_overrides": {
+                "movie": {
+                    "title": "NFO Agent Movie",
+                    "year": "2026",
+                    "plot": "Movie Plot Override"
+                }
+            },
+            "overwrite_nfo": True
+        }
+        
+        from gui.workers.processor import process_worker
+        from unittest.mock import patch
+        
+        with patch("gui.workers.processor.load_settings", return_value={
+            "inbox_dir": self.test_dir,
+            "nas_root": os.path.join(self.test_dir, "nas_root"),
+            "outbox_dir": os.path.join(self.test_dir, "outbox_dir")
+        }):
+            with patch("gui.core.helpers.is_path_allowed", return_value=True):
+                process_worker(params)
+                
+        # Asserts: movie NFO generated in proj_dir
+        movie_nfo = os.path.join(proj_dir, "nfo_agent_movie_project.nfo")
+        self.assertTrue(os.path.exists(movie_nfo))
+        
+        import xml.etree.ElementTree as ET
+        tree = ET.parse(movie_nfo)
+        self.assertEqual(tree.find("title").text, "NFO Agent Movie")
+        self.assertEqual(tree.find("plot").text, "Movie Plot Override")
+        
+        # Safety asserts: video file still in project dir, not moved/converted
+        self.assertTrue(os.path.exists(os.path.join(proj_dir, movie_file)))
+
+    def test_nfo_agent_job_path_denied(self):
+        from gui.workers.processor import process_worker
+        from unittest.mock import patch
+        
+        params = {
+            "media_type": "tool_nfo_agent",
+            "nfo_type": "tvshow",
+            "project_name": "/forbidden_path",
+            "provider": "manual"
+        }
+        
+        with patch("gui.workers.processor.load_settings", return_value={
+            "inbox_dir": self.test_dir,
+            "nas_root": os.path.join(self.test_dir, "nas_root"),
+            "outbox_dir": os.path.join(self.test_dir, "outbox_dir")
+        }):
+            with patch("gui.core.helpers.is_path_allowed", return_value=False):
+                with self.assertRaises(RuntimeError) as context:
+                    process_worker(params)
+                self.assertIn("Access Denied", str(context.exception))
 
 if __name__ == "__main__":
     unittest.main()

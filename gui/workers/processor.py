@@ -561,6 +561,10 @@ active_yt_tasks_lock = threading.Lock()
 
 from gui.core.jobs import active_jobs, active_jobs_lock
 def build_job_pipeline(params, has_metadata, convert):
+    if params.get("media_type") == "tool_nfo_agent":
+        return {
+            "metadata": {"status": "pending", "progress": 0}
+        }
     pipeline = {
         "metadata": {"status": "pending" if has_metadata else "skipped", "progress": 0},
         "convert": {"status": "pending" if convert else "skipped", "progress": 0}
@@ -841,7 +845,10 @@ def process_worker(params):
 
     is_single_file = False
     if project_name:
-        current_dir = os.path.join(inbox_root, project_name)
+        if os.path.isabs(project_name):
+            current_dir = os.path.abspath(project_name)
+        else:
+            current_dir = os.path.join(inbox_root, project_name)
         if os.path.isfile(current_dir):
             is_single_file = True
             current_dir = os.path.dirname(current_dir)
@@ -3105,8 +3112,173 @@ def process_worker(params):
 
     elif media_type == "tool_nfo_agent":
         log_message(f"=== STARTE NFO AGENT IN: {current_dir} ===")
-        log_message("💡 Tipp: Nutze den Inbox-Workflow, suche den Film/Serie, und deaktiviere 'Konvertieren' und 'Auf das NAS verschieben'.")
-        log_message("Dies generiert NFO und Bilder direkt im aktuellen Ordner, ohne Dateien zu verschieben.")
+        
+        # 1. Pfad-Gate check
+        from gui.core.helpers import is_path_allowed
+        if not is_path_allowed(current_dir):
+            log_message("❌ [NFO Agent] Access Denied: Pfad ist nicht erlaubt.")
+            raise RuntimeError("Access Denied: Pfad ist nicht erlaubt.")
+            
+        try:
+            nfo_type = params.get("nfo_type", "tvshow")
+            provider = params.get("provider")
+            overwrite_nfo = params.get("overwrite_nfo", False)
+            nfo_overrides = params.get("nfo_overrides") or {}
+            
+            # Start job status
+            from gui.core.jobs import update_job
+            update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=10)
+            
+            if nfo_type == "tvshow":
+                show_id = params.get("show_id")
+                season = params.get("season", 1)
+                mappings = params.get("mappings") or {}
+                
+                # A. Generate show NFO
+                if show_id and provider:
+                    show_overrides = nfo_overrides.get("show")
+                    from gui.core.health import should_overwrite_nfo
+                    should_overwrite_show = should_overwrite_nfo(
+                        overwrite_nfo,
+                        show_overrides,
+                        os.path.join(current_dir, "tvshow.nfo"),
+                        "tvshow"
+                    )
+                    log_message(f"Prüfe tvshow.nfo (overwrite: {should_overwrite_show})...")
+                    res_show = mw_metadata.generate_tvshow_nfo(
+                        provider, show_id, current_dir, 
+                        nfo_overrides=show_overrides, 
+                        overwrite=should_overwrite_show
+                    )
+                    log_message(f"tvshow.nfo Generierungs-Ergebnis: {res_show}")
+                
+                update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=30)
+                
+                # B. Fetch episodes list from metadata service
+                log_message("Rufe Episoden-Metadaten für Mappings ab...")
+                episodes = {}
+                try:
+                    if provider == "tvdb":
+                        episodes = mw_metadata.fetch_tvdb(show_id, season, "deu")
+                    elif provider == "tmdb_tv":
+                        episodes = mw_metadata.fetch_tmdb_tv(show_id, season, "de")
+                except Exception as e:
+                    log_message(f"⚠️ Fehler beim Abrufen der Episoden-Metadaten: {e}")
+                    
+                # C. Generate episode NFOs
+                mapping_items = list(mappings.items())
+                N = len(mapping_items)
+                log_message(f"Verarbeite {N} Episoden-Mappings...")
+                
+                for idx, (filename, ep_num_val) in enumerate(mapping_items):
+                    if not ep_num_val or ep_num_val == "skip":
+                        log_message(f"Skip-Auswahl für '{filename}'. NFO wird nicht generiert.")
+                        continue
+                        
+                    ep_title = ""
+                    ep_num = 1
+                    try:
+                        ep_season = int(season)
+                    except (ValueError, TypeError):
+                        ep_season = 1
+                    
+                    if isinstance(ep_num_val, dict):
+                        try:
+                            ep_num = int(ep_num_val.get("episode", 1))
+                        except (ValueError, TypeError):
+                            ep_num = 1
+                        try:
+                            ep_season = int(ep_num_val.get("season", season))
+                        except (ValueError, TypeError):
+                            pass
+                        ep_title = ep_num_val.get("title", "")
+                        meta_ep = ep_num_val.get("metadata_ep_num")
+                        if meta_ep:
+                            ep_data = episodes.get(str(meta_ep), {})
+                            if isinstance(ep_data, dict):
+                                ep_title = ep_data.get("title", ep_title)
+                            else:
+                                ep_title = str(ep_data) or ep_title
+                                
+                            match = re.match(r"^S(\d+)E(\d+)$", str(meta_ep), re.IGNORECASE)
+                            if match:
+                                ep_season = int(match.group(1))
+                                ep_num = int(match.group(2))
+                    else:
+                        ep_data = episodes.get(str(ep_num_val), {})
+                        if isinstance(ep_data, dict):
+                            ep_title = ep_data.get("title", "")
+                        else:
+                            ep_title = str(ep_data)
+                            
+                        match = re.match(r"^S(\d+)E(\d+)$", str(ep_num_val), re.IGNORECASE)
+                        if match:
+                            ep_season = int(match.group(1))
+                            ep_num = int(match.group(2))
+                        else:
+                            try:
+                                ep_num = int(ep_num_val)
+                            except (ValueError, TypeError):
+                                ep_num = 1
+                            
+                    ep_title = sanitize_filename(ep_title)
+                    filename_base = os.path.splitext(filename)[0]
+                    
+                    # Generate episode NFO
+                    log_message(f"Generiere NFO für '{filename}' (S{ep_season:02d}E{ep_num:02d}: {ep_title})...")
+                    try:
+                        ep_overrides = nfo_overrides.get("episodes", {}).get(filename, {})
+                        res_ep = mw_metadata.generate_episode_nfo(
+                            provider=provider,
+                            show_id=show_id,
+                            season=ep_season,
+                            episode=ep_num,
+                            target_folder=current_dir,
+                            filename_base=filename_base,
+                            nfo_overrides=ep_overrides,
+                            overwrite=overwrite_nfo
+                        )
+                        log_message(f"Ergebnis für '{filename}': {res_ep}")
+                    except Exception as e:
+                        log_message(f"❌ Fehler bei Episode '{filename}': {e}")
+                        
+                    progress = 30 + int(70 * (idx + 1) / max(1, N))
+                    update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=progress)
+                    
+            elif nfo_type == "movie":
+                movie_id = params.get("movie_id")
+                movie_overrides = nfo_overrides.get("movie")
+                
+                if movie_id and provider:
+                    from gui.core.health import should_overwrite_nfo, find_primary_nfo
+                    nfo_path = find_primary_nfo(current_dir, is_movie=True)
+                    should_overwrite_movie = should_overwrite_nfo(
+                        overwrite_nfo,
+                        movie_overrides,
+                        nfo_path or os.path.join(current_dir, f"{os.path.basename(current_dir)}.nfo"),
+                        "movie"
+                    )
+                    log_message(f"Prüfe movie NFO (overwrite: {should_overwrite_movie})...")
+                    
+                    if provider == "ofdb":
+                        res_movie = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, os.path.basename(current_dir))
+                    else:
+                        res_movie = mw_metadata.generate_movie_nfo(
+                            movie_id, current_dir, os.path.basename(current_dir),
+                            nfo_overrides=movie_overrides,
+                            overwrite=should_overwrite_movie
+                        )
+                    log_message(f"Movie NFO Generierungs-Ergebnis: {res_movie}")
+                    
+                update_job(task_id, pipeline_step="metadata", pipeline_status="done", pipeline_progress=100)
+                
+            log_message("✅ NFO Agent erfolgreich abgeschlossen.")
+            update_job(task_id, pipeline_step="metadata", pipeline_status="done", pipeline_progress=100)
+            
+        except Exception as e:
+            log_message(f"❌ NFO Agent Fehler: {e}")
+            update_job(task_id, pipeline_step="metadata", pipeline_status="failed", pipeline_progress=100)
+            raise e
 
 
     elif media_type == "tool_manual_sync":

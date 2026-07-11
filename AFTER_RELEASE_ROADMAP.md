@@ -56,6 +56,7 @@ die aktive After-Release-Roadmap übernommen.
 | 47 | Mediathek-URL-Auflösung: Untertitel / Trennstrich-Titel mit übernehmen | geplant | klein |
 | 48 | Health-Scan: Qualitäts-, Bitrate- & Audiospur-Prüfung definieren und markieren | geplant | mittel |
 | 49 | Bibliotheks-Scan: Teilscan ohne Medienserver & dynamische Kategorieauswahl | erledigt | klein–mittel |
+| 50 | NFO-Agent: Mapping- und Review-Editor extrahieren (Ansatz C) | geplant | mittel |
 
 ---
 
@@ -1490,3 +1491,24 @@ Der Scan soll robust als Teilscan starten können. Prüfungen, die keinen Medien
 
 ### Aufwand (grob)
 Klein–mittel: vor allem Scan-Orchestrierung, Settings-UI-Verknüpfung und Tests. Die Kategoriefrage kann größer werden, falls Frontend und Backend unterschiedliche Quellen für aktive Kategorien verwenden.
+
+---
+
+## 50. NFO-Agent: Mapping- und Review-Editor extrahieren (Ansatz C)
+
+**Einordnung / Priorität:** Refactoring, Code-Qualität und Wiederverwendbarkeit.
+
+**Problem:**
+Für den NFO-Agenten haben wir in Phase A ein dediziertes Modal und einen separaten Job implementiert. Allerdings enthält dieses Modal viel doppelten Code, der dem des regulären Verarbeitungs- und Review-Dialogs (Inbox-Workflow) ähnelt (z. B. das Rendern von Episodenzeilen, das Einpflegen von Titel-/Plot-Overrides und das Verknüpfen von Dateinamen mit SxxExx-Mappings).
+
+**Ziel:**
+Die gemeinsamen Kernkomponenten der Metadaten-Editierung und des Episoden-Mappings sollen aus dem Inbox-Workflow und dem NFO-Agenten in eine einzige, wiederverwendbare Frontend-Komponente (z. B. `MetadataEditor` oder eine Reihe wiederverwendbarer Modul-Funktionen in `app.js` / einem separaten JS-Modul) extrahiert werden.
+
+**Umsetzung:**
+1. **Extraktion der Rendering-Logik:** Zusammenfassen der Funktionen, die die Tabelle der Mappings (Dateiname, Dropdown, Overrides) aufbauen, in eine wiederverwendbare Render-Funktion.
+2. **Kombinierte Zustandshaltung:** Vereinheitlichen der Struktur für Overrides und Mappings-Payloads auf Client-Seite.
+3. **Dokumentation:** Pflegen der API-Schnittstelle im JavaScript für zukünftige Metadaten-Werkzeuge (z. B. für das geplante NAS-Renaming-Tool mit Metadaten-Lookup aus #35).
+
+### Aufwand (grob)
+Mittel: UI-Refactoring und manuelle Regressionstests, ca. 1–2 Tage.
+
