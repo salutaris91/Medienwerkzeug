@@ -1018,16 +1018,13 @@ def process_worker(params):
                 log_message("Generiere tvshow.nfo und lade Poster/Fanart...")
                 try:
                     show_overrides = nfo_overrides.get("show")
-                    should_overwrite_show = False
-                    if overwrite_nfo:
-                        if show_overrides:
-                            should_overwrite_show = True
-                        else:
-                            from gui.core.health import _check_nfo_incomplete
-                            nfo_path = os.path.join(current_dir, "tvshow.nfo")
-                            is_inc, _, _ = _check_nfo_incomplete(nfo_path, "tvshow")
-                            if is_inc or not os.path.exists(nfo_path):
-                                should_overwrite_show = True
+                    from gui.core.health import should_overwrite_nfo
+                    should_overwrite_show = should_overwrite_nfo(
+                        overwrite_nfo,
+                        show_overrides,
+                        os.path.join(current_dir, "tvshow.nfo"),
+                        "tvshow"
+                    )
                                 
                     res = mw_metadata.generate_tvshow_nfo(provider, show_id, current_dir, nfo_overrides=show_overrides, overwrite=should_overwrite_show)
                     log_message(f"tvshow.nfo Status: {res}")
@@ -1875,19 +1872,14 @@ def process_worker(params):
                     log_message("Generiere NFO und lade Poster/Fanart...")
                     try:
                         movie_overrides = nfo_overrides.get("movie")
-                        should_overwrite_movie = False
-                        if overwrite_nfo:
-                            if movie_overrides:
-                                should_overwrite_movie = True
-                            else:
-                                from gui.core.health import _check_nfo_incomplete, find_primary_nfo
-                                nfo_path = find_primary_nfo(current_dir, is_movie=True)
-                                if not nfo_path:
-                                    should_overwrite_movie = True
-                                else:
-                                    is_inc, _, _ = _check_nfo_incomplete(nfo_path, "movie")
-                                    if is_inc:
-                                        should_overwrite_movie = True
+                        from gui.core.health import should_overwrite_nfo, find_primary_nfo
+                        nfo_path = find_primary_nfo(current_dir, is_movie=True)
+                        should_overwrite_movie = should_overwrite_nfo(
+                            overwrite_nfo,
+                            movie_overrides,
+                            nfo_path or os.path.join(current_dir, f"{clean_movie_name}.nfo"),
+                            "movie"
+                        )
                                         
                         if provider == "ofdb":
                             res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)

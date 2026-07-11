@@ -217,6 +217,20 @@ def _check_nfo_incomplete(nfo_path, nfo_type="episode"):
     return False, None, None
 
 
+def should_overwrite_nfo(overwrite_nfo, overrides, nfo_path, nfo_type):
+    """
+    Determine if an NFO file should be overwritten.
+    """
+    if not overwrite_nfo:
+        return False
+    if overrides:
+        return True
+    if not os.path.exists(nfo_path):
+        return True
+    is_inc, _, _ = _check_nfo_incomplete(nfo_path, nfo_type)
+    return is_inc
+
+
 def find_primary_nfo(folder_path, is_movie=False):
     """Sucht die primäre NFO-Datei für einen Ordner (Filme oder Serien).
     Gibt bei mehrdeutigen Zuordnungen None zurück."""

@@ -1157,6 +1157,21 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                     self.assertTrue(data["file_nfo_statuses"]["Mock Show - S01E01.mp4"]["exists"])
                     self.assertTrue(data["file_nfo_statuses"]["Mock Show - S01E01.mp4"]["complete"])
 
+    def test_scan_project_absolute_path_denied(self):
+        from gui.api.project_api import handle_api_scan_project
+        from flask import Flask
+        
+        app = Flask(__name__)
+        
+        from unittest.mock import patch
+        with app.test_request_context(query_string="project=/etc"):
+            with patch("gui.api.project_api.load_settings", return_value={"inbox_dir": "/tmp/inbox"}):
+                resp = handle_api_scan_project()
+                self.assertEqual(resp[1], 403)
+                data = json.loads(resp[0].get_data(as_text=True))
+                self.assertIn("error", data)
+                self.assertIn("Access Denied", data["error"])
+
     def test_nfo_incomplete_detection(self):
         from gui.core.health import _check_nfo_incomplete
         
@@ -1206,46 +1221,31 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertNotIn("Handgepflegt", f.read())
 
     def test_show_and_movie_nfo_overwrite_protection(self):
+        from gui.core.health import should_overwrite_nfo
+        
         nfo_path = os.path.join(self.test_dir, "tvshow.nfo")
         if os.path.exists(nfo_path):
             os.remove(nfo_path)
             
-        overwrite_nfo = True
-        show_overrides = {}
-        from gui.core.health import _check_nfo_incomplete
-        should_overwrite_show = False
-        if overwrite_nfo:
-            if show_overrides:
-                should_overwrite_show = True
-            else:
-                is_inc, _, _ = _check_nfo_incomplete(nfo_path, "tvshow")
-                if is_inc or not os.path.exists(nfo_path):
-                    should_overwrite_show = True
-        self.assertTrue(should_overwrite_show)
+        # 1. overwrite_nfo = False -> always False
+        self.assertFalse(should_overwrite_nfo(False, {}, nfo_path, "tvshow"))
+        self.assertFalse(should_overwrite_nfo(False, {"title": "New"}, nfo_path, "tvshow"))
         
+        # 2. overwrite_nfo = True, missing file -> True
+        self.assertTrue(should_overwrite_nfo(True, {}, nfo_path, "tvshow"))
+        
+        # 3. overwrite_nfo = True, existing but incomplete file -> True
         with open(nfo_path, "w", encoding="utf-8") as f:
-            f.write("<tvshow><title>Good Show</title><plot>Plot</plot><year>2024</year></tvshow>")
-            
-        should_overwrite_show = False
-        if overwrite_nfo:
-            if show_overrides:
-                should_overwrite_show = True
-            else:
-                is_inc, _, _ = _check_nfo_incomplete(nfo_path, "tvshow")
-                if is_inc or not os.path.exists(nfo_path):
-                    should_overwrite_show = True
-        self.assertFalse(should_overwrite_show)
+            f.write("<tvshow><title></title><plot>Plot</plot></tvshow>")
+        self.assertTrue(should_overwrite_nfo(True, {}, nfo_path, "tvshow"))
         
-        show_overrides = {"title": "New Title"}
-        should_overwrite_show = False
-        if overwrite_nfo:
-            if show_overrides:
-                should_overwrite_show = True
-            else:
-                is_inc, _, _ = _check_nfo_incomplete(nfo_path, "tvshow")
-                if is_inc or not os.path.exists(nfo_path):
-                    should_overwrite_show = True
-        self.assertTrue(should_overwrite_show)
+        # 4. overwrite_nfo = True, existing complete file, no overrides -> False
+        with open(nfo_path, "w", encoding="utf-8") as f:
+            f.write("<tvshow><title>Good Show</title><plot>Plot</plot><year>2026</year></tvshow>")
+        self.assertFalse(should_overwrite_nfo(True, {}, nfo_path, "tvshow"))
+        
+        # 5. overwrite_nfo = True, existing complete file, has overrides -> True
+        self.assertTrue(should_overwrite_nfo(True, {"title": "New Title"}, nfo_path, "tvshow"))
 
     def test_import_streamfab_files_grouping(self):
         from gui import server
