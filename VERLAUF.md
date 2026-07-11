@@ -2,6 +2,21 @@
 
 Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 11.07.2026 (NFO-Agent: Auto-Suche & Metadaten-Vorbefüllung)
+
+- **Auto-Suche & Metadaten-Vorbefüllung (Branch `feature/nfo-agent-autosearch`):**
+  * **Backend-Namensbereinigung:** `get_clean_search_name` entfernt Provider-Tags (z.B. `[TVDB]`) und Staffel-Suffixe aus dem Pfadnamen, behält aber Jahreszahlen zur präzisen Suche.
+  * **Parent-NFO-Lookup:** Sucht bei Staffelordnern im übergeordneten Elternverzeichnis nach `tvshow.nfo` und parst diese. Setzt `metadata_source = "nfo"`.
+  * **Profil-Fallback:** Liefert Provider & ID aus dem Serienprofil, falls keine NFO existiert. Setzt `metadata_source = "profile"`.
+  * **Frontend-Erweiterungen:**
+    * Führt beim Öffnen des Modals automatisch die Metadaten-Suche mit dem bereinigten Namen aus.
+    * Zeigt die Suchergebnisse in einer klickbaren Trefferliste an.
+    * Kennzeichnet Treffer mit Badges (`aus tvshow.nfo`, `aus Serienprofil`, `Profil abweichend`) basierend auf normalisiertem Provider-Vergleich.
+    * ID-Eingabe und Provider-Auswahl sind standardmäßig in eine einklappbare `<details>`-Box ausgelagert.
+    * Blendet Fehlermeldungs-Alerts aus und öffnet stattdessen das Detail-Panel bei leeren oder fehlgeschlagenen Suchen.
+  * **Videofilter-Bugfix:** Filtert in der Dateiliste Nicht-Video-Dateien (z.B. JPGs) zuverlässig heraus.
+  * **Unit-Tests:** Zwei neue Backend-Tests in `test_utils.py` decken Parent-NFO-Lookup und Profil-Fallback ab.
+
 ## Stand am 11.07.2026 (NFO-Agent: Modal-Suche repariert & vorbefüllt)
 
 - **Modal-Suche reparieren & vorbefüllen (Branch `fix/nfo-agent-modal-search`):**

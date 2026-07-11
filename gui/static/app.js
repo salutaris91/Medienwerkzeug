@@ -14868,6 +14868,20 @@ let nfoAgentCurrentPath = null;
 let nfoAgentScanData = null;
 let nfoAgentLogInterval = null;
 
+let nfoAgentProfileId = "";
+let nfoAgentProfileProvider = "";
+
+function normalizeProvider(prov) {
+    if (!prov) return "";
+    let p = prov.toLowerCase();
+    if (p === "tmdb") {
+        const type = document.getElementById("nfo-agent-media-type").value;
+        return type === "movie" ? "tmdb_movie" : "tmdb_tv";
+    }
+    if (p === "tmdb_tv_en") return "tmdb_tv";
+    return p;
+}
+
 function openNfoAgentModal(path) {
     if (!path) {
         alert("Bitte gib einen Pfad an.");
@@ -14892,6 +14906,20 @@ function openNfoAgentModal(path) {
     document.getElementById("btn-nfo-agent-submit").disabled = false;
     document.getElementById("btn-nfo-agent-submit").style.opacity = "1";
     
+    // Reset search results list container and advanced details block
+    const resultsContainer = document.getElementById("nfo-agent-search-results");
+    if (resultsContainer) {
+        resultsContainer.innerHTML = "";
+        resultsContainer.style.display = "none";
+    }
+    const advancedDetails = document.getElementById("nfo-agent-advanced-details");
+    if (advancedDetails) {
+        advancedDetails.removeAttribute("open");
+    }
+    
+    nfoAgentProfileId = "";
+    nfoAgentProfileProvider = "";
+
     // Call scan project to preload values
     const searchBtn = document.getElementById("btn-nfo-agent-search");
     if (searchBtn) {
@@ -14913,57 +14941,51 @@ function openNfoAgentModal(path) {
             mediaTypeSelect.value = data.type === "movie" ? "movie" : "tvshow";
             triggerNfoAgentMediaTypeChange();
             
-            // Set search input to show/movie name or path basename
+            // Set search input to the suggested search name
             const titleInput = document.getElementById("nfo-agent-search-title");
-            titleInput.value = data.metadata_name || data.project || "";
+            titleInput.value = data.suggested_search_name || "";
             
-            // NFO values have priority
-            let providerVal = data.metadata_provider || "";
-            let idVal = data.metadata_id || "";
-            let nameVal = data.metadata_name || "";
-            
-            // Set UI inputs
-            if (providerVal) {
-                document.getElementById("nfo-agent-provider").value = providerVal;
+            // Populate backend-resolved ID/provider/name (priority: NFO -> Profile)
+            if (data.metadata_provider) {
+                document.getElementById("nfo-agent-provider").value = data.metadata_provider;
             }
-            if (idVal) {
-                document.getElementById("nfo-agent-metadata-id").value = idVal;
+            if (data.metadata_id) {
+                document.getElementById("nfo-agent-metadata-id").value = data.metadata_id;
             }
-            if (nameVal) {
-                document.getElementById("nfo-agent-show-title").value = nameVal;
+            if (data.metadata_name) {
+                document.getElementById("nfo-agent-show-title").value = data.metadata_name;
                 document.getElementById("nfo-agent-show-year").value = data.metadata_year || "";
                 document.getElementById("nfo-agent-show-plot").value = data.metadata_plot || "";
             }
             
+            // Fetch series profile in background (only for badge comparison "Profil abweichend")
             const showNameQuery = data.metadata_name || data.project || "";
             if (data.type !== "movie" && showNameQuery) {
                 fetch(`/api/profile?show_name=${encodeURIComponent(showNameQuery)}`)
                     .then(r => r.ok ? r.json() : null)
                     .then(prof => {
-                        if (prof && !prof.error) {
-                            if (!document.getElementById("nfo-agent-provider").value) {
-                                document.getElementById("nfo-agent-provider").value = prof.provider || "";
-                            }
-                            if (!document.getElementById("nfo-agent-metadata-id").value) {
-                                document.getElementById("nfo-agent-metadata-id").value = prof.show_id || "";
-                            }
-                            if (!document.getElementById("nfo-agent-show-title").value) {
-                                const newName = prof.show_name || "";
-                                document.getElementById("nfo-agent-show-title").value = newName;
-                                if (!document.getElementById("nfo-agent-search-title").value) {
-                                    document.getElementById("nfo-agent-search-title").value = newName;
-                                }
-                            }
+                        if (prof && !prof.error && prof.show_id) {
+                            nfoAgentProfileId = prof.show_id;
+                            nfoAgentProfileProvider = prof.provider || "";
                         }
                     })
                     .catch(err => {
-                        console.error("Error fetching profile for prefilling:", err);
+                        console.error("Error fetching profile for verification:", err);
                     })
                     .finally(() => {
+                        // Render files list
                         renderNfoAgentFiles(data);
+                        // Trigger auto-search when project is scanned
+                        if (titleInput.value) {
+                            searchNfoAgentMetadata();
+                        }
                     });
             } else {
                 renderNfoAgentFiles(data);
+                // Trigger auto-search when project is scanned
+                if (titleInput.value) {
+                    searchNfoAgentMetadata();
+                }
             }
         })
         .catch(err => {
@@ -15024,38 +15046,107 @@ function searchNfoAgentMetadata() {
     fetch(`/api/search?type=${queryType}&q=${encodeURIComponent(title)}`)
         .then(res => res.json())
         .then(results => {
+            const resultsContainer = document.getElementById("nfo-agent-search-results");
+            resultsContainer.innerHTML = "";
+            
             if (!results || results.length === 0) {
-                alert("Keine Treffer gefunden. Bitte gib die ID manuell ein.");
+                resultsContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 8px; font-size: 0.85em;">Keine Treffer gefunden. Bitte gib die ID manuell in den erweiterten Einstellungen ein.</div>`;
+                resultsContainer.style.display = "block";
+                
+                const advDetails = document.getElementById("nfo-agent-advanced-details");
+                if (advDetails) {
+                    advDetails.open = true;
+                }
                 return;
             }
             
-            // Take first result
-            const bestResult = results[0];
+            resultsContainer.style.display = "block";
             
-            // Map movie provider 'tmdb' to 'tmdb_movie' as expected by backend/dropdown
-            let resProvider = bestResult.provider;
-            if (queryType === "movie" && resProvider === "tmdb") {
-                resProvider = "tmdb_movie";
-            }
-            if (queryType === "tv") {
-                if (resProvider === "tmdb_tv_en") {
-                    resProvider = "tmdb_tv";
+            results.forEach((item, index) => {
+                const itemDiv = document.createElement("div");
+                itemDiv.className = "search-result-item";
+                itemDiv.style = "display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid var(--border-light); cursor: pointer; font-size: 0.85em; transition: background 0.2s;";
+                itemDiv.addEventListener("mouseenter", () => { itemDiv.style.background = "rgba(255,255,255,0.05)"; });
+                itemDiv.addEventListener("mouseleave", () => { itemDiv.style.background = "transparent"; });
+                
+                // Determine badges
+                let badgeHTML = "";
+                const normItemProv = normalizeProvider(item.provider);
+                const normScanProv = normalizeProvider(nfoAgentScanData ? nfoAgentScanData.metadata_provider : "");
+                const scanId = nfoAgentScanData ? nfoAgentScanData.metadata_id : "";
+                
+                // 1. Check NFO / Profile match
+                if (scanId && String(item.id) === String(scanId) && normItemProv === normScanProv) {
+                    if (nfoAgentScanData && nfoAgentScanData.metadata_source === "nfo") {
+                        badgeHTML += `<span style="background: var(--accent); color: white; font-size: 0.75em; padding: 2px 6px; border-radius: 10px; font-weight: 600; margin-left: 6px;">aus tvshow.nfo</span>`;
+                    } else if (nfoAgentScanData && nfoAgentScanData.metadata_source === "profile") {
+                        badgeHTML += `<span style="background: #3b82f6; color: white; font-size: 0.75em; padding: 2px 6px; border-radius: 10px; font-weight: 600; margin-left: 6px;">aus Serienprofil</span>`;
+                    }
                 }
-                // Fallback to tvdb if unrecognized tv provider (e.g. tvmaze)
-                if (resProvider !== "tvdb" && resProvider !== "tmdb_tv" && resProvider !== "manual") {
-                    resProvider = "tvdb";
+                
+                // 2. Check Profile discrepant match
+                const normProfProv = normalizeProvider(nfoAgentProfileProvider);
+                if (nfoAgentProfileId && String(item.id) === String(nfoAgentProfileId) && normItemProv === normProfProv) {
+                    // Only show discrepant profile badge if NFO took priority and profile differs
+                    if (nfoAgentScanData && nfoAgentScanData.metadata_source === "nfo" && String(scanId) !== String(nfoAgentProfileId)) {
+                        badgeHTML += `<span style="background: #f59e0b; color: white; font-size: 0.75em; padding: 2px 6px; border-radius: 10px; font-weight: 600; margin-left: 6px;">Profil abweichend</span>`;
+                    }
                 }
-            }
-            
-            document.getElementById("nfo-agent-metadata-id").value = bestResult.id;
-            document.getElementById("nfo-agent-provider").value = resProvider;
-            
-            // 2. Fetch full details using the found ID
-            loadNfoAgentDetails(bestResult.id, resProvider, type, season);
+                
+                itemDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 8px; color: var(--text-main); flex: 1;">
+                        <strong style="color: var(--accent); font-size: 0.8em; text-transform: uppercase;">[${escapeHTML(item.provider || "Manual")}]</strong>
+                        <span>${escapeHTML(item.name)}</span>
+                        ${badgeHTML}
+                    </div>
+                `;
+                
+                itemDiv.addEventListener("click", () => {
+                    // Set inputs
+                    let mappedProv = item.provider;
+                    if (queryType === "movie" && mappedProv === "tmdb") {
+                        mappedProv = "tmdb_movie";
+                    }
+                    if (queryType === "tv") {
+                        if (mappedProv === "tmdb_tv_en") mappedProv = "tmdb_tv";
+                        if (mappedProv !== "tvdb" && mappedProv !== "tmdb_tv" && mappedProv !== "manual") {
+                            mappedProv = "tvdb";
+                        }
+                    }
+                    document.getElementById("nfo-agent-provider").value = mappedProv;
+                    document.getElementById("nfo-agent-metadata-id").value = item.id;
+                    
+                    // Highlight selected item by setting border-left
+                    resultsContainer.querySelectorAll(".search-result-item").forEach(el => {
+                        el.style.borderLeft = "none";
+                        el.style.background = "transparent";
+                    });
+                    itemDiv.style.borderLeft = "4px solid var(--accent)";
+                    itemDiv.style.background = "rgba(255,255,255,0.02)";
+                    
+                    // Fetch full details
+                    loadNfoAgentDetails(item.id, mappedProv, type, season);
+                });
+                
+                resultsContainer.appendChild(itemDiv);
+                
+                // Auto-select/highlight the best matching item
+                if (scanId && String(item.id) === String(scanId) && normItemProv === normScanProv) {
+                    itemDiv.style.borderLeft = "4px solid var(--accent)";
+                    itemDiv.style.background = "rgba(255,255,255,0.02)";
+                }
+            });
         })
         .catch(err => {
             console.error(err);
-            alert("Fehler bei der Metadatensuche.");
+            const resultsContainer = document.getElementById("nfo-agent-search-results");
+            resultsContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 8px; font-size: 0.85em;">Metadatensuche fehlgeschlagen. Bitte gib die ID manuell in den erweiterten Einstellungen ein.</div>`;
+            resultsContainer.style.display = "block";
+            
+            const advDetails = document.getElementById("nfo-agent-advanced-details");
+            if (advDetails) {
+                advDetails.open = true;
+            }
         })
         .finally(() => {
             searchBtn.disabled = false;
@@ -15094,8 +15185,8 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
     const listBody = document.getElementById("nfo-agent-episodes-list");
     listBody.innerHTML = "";
     
-    const files = scanData.files || [];
     const nfoStatuses = scanData.file_nfo_statuses || {};
+    const files = (scanData.files || []).filter(file => nfoStatuses[file]);
     
     if (files.length === 0) {
         listBody.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 12px;">Keine Videodateien in diesem Verzeichnis gefunden.</div>`;

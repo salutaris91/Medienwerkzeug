@@ -1175,6 +1175,61 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                 self.assertIn("error", data)
                 self.assertIn("Access Denied", data["error"])
 
+    def test_scan_project_season_parent_nfo(self):
+        from gui.api.project_api import handle_api_scan_project
+        from flask import Flask
+        app = Flask(__name__)
+        
+        parent_dir = os.path.join(self.test_dir, "Mock Show Parent (1986)")
+        season_dir = os.path.join(parent_dir, "Staffel 1")
+        os.makedirs(season_dir, exist_ok=True)
+        
+        nfo_content = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <tvshow>
+            <title>Mock Show Parent</title>
+            <plot>Mock Plot Parent</plot>
+            <year>1986</year>
+            <mw_provider>tvdb</mw_provider>
+            <mw_showid>99999</mw_showid>
+        </tvshow>"""
+        with open(os.path.join(parent_dir, "tvshow.nfo"), "w", encoding="utf-8") as f:
+            f.write(nfo_content)
+            
+        from unittest.mock import patch
+        with app.test_request_context(query_string=f"project={season_dir}"):
+            with patch("gui.api.project_api.is_path_allowed", return_value=True):
+                with patch("gui.api.project_api.load_settings", return_value={"inbox_dir": self.test_dir}):
+                    resp = handle_api_scan_project()
+                    data = json.loads(resp.get_data(as_text=True))
+                    
+                    self.assertEqual(data["metadata_provider"], "tvdb")
+                    self.assertEqual(data["metadata_id"], "99999")
+                    self.assertEqual(data["metadata_name"], "Mock Show Parent")
+                    self.assertEqual(data["metadata_source"], "nfo")
+                    self.assertEqual(data["suggested_search_name"], "Mock Show Parent (1986)")
+
+    def test_scan_project_profile_fallback(self):
+        from gui.api.project_api import handle_api_scan_project
+        from flask import Flask
+        app = Flask(__name__)
+        
+        project_dir = os.path.join(self.test_dir, "Mock Show Profile Fallback")
+        os.makedirs(project_dir, exist_ok=True)
+        
+        from unittest.mock import patch
+        with app.test_request_context(query_string=f"project={project_dir}"):
+            with patch("gui.api.project_api.is_path_allowed", return_value=True):
+                with patch("gui.api.project_api.load_settings", return_value={"inbox_dir": self.test_dir}):
+                    with patch("gui.api.project_api.load_show_profile", return_value={"provider": "tmdb_tv", "show_id": "88888", "show_name": "Mock Profile Show"}):
+                        resp = handle_api_scan_project()
+                        data = json.loads(resp.get_data(as_text=True))
+                        
+                        self.assertEqual(data["metadata_provider"], "tmdb_tv")
+                        self.assertEqual(data["metadata_id"], "88888")
+                        self.assertEqual(data["metadata_name"], "Mock Profile Show")
+                        self.assertEqual(data["metadata_source"], "profile")
+                        self.assertEqual(data["suggested_search_name"], "Mock Profile Show")
+
     def test_nfo_incomplete_detection(self):
         from gui.core.health import _check_nfo_incomplete
         
