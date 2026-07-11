@@ -15076,7 +15076,7 @@ function searchNfoAgentMetadata() {
                 const scanId = nfoAgentScanData ? nfoAgentScanData.metadata_id : "";
                 
                 // 1. Check NFO / Profile match
-                if (scanId && item.id === scanId && normItemProv === normScanProv) {
+                if (scanId && String(item.id) === String(scanId) && normItemProv === normScanProv) {
                     if (nfoAgentScanData && nfoAgentScanData.metadata_source === "nfo") {
                         badgeHTML += `<span style="background: var(--accent); color: white; font-size: 0.75em; padding: 2px 6px; border-radius: 10px; font-weight: 600; margin-left: 6px;">aus tvshow.nfo</span>`;
                     } else if (nfoAgentScanData && nfoAgentScanData.metadata_source === "profile") {
@@ -15086,9 +15086,9 @@ function searchNfoAgentMetadata() {
                 
                 // 2. Check Profile discrepant match
                 const normProfProv = normalizeProvider(nfoAgentProfileProvider);
-                if (nfoAgentProfileId && item.id === nfoAgentProfileId && normItemProv === normProfProv) {
+                if (nfoAgentProfileId && String(item.id) === String(nfoAgentProfileId) && normItemProv === normProfProv) {
                     // Only show discrepant profile badge if NFO took priority and profile differs
-                    if (nfoAgentScanData && nfoAgentScanData.metadata_source === "nfo" && scanId !== nfoAgentProfileId) {
+                    if (nfoAgentScanData && nfoAgentScanData.metadata_source === "nfo" && String(scanId) !== String(nfoAgentProfileId)) {
                         badgeHTML += `<span style="background: #f59e0b; color: white; font-size: 0.75em; padding: 2px 6px; border-radius: 10px; font-weight: 600; margin-left: 6px;">Profil abweichend</span>`;
                     }
                 }
@@ -15131,7 +15131,7 @@ function searchNfoAgentMetadata() {
                 resultsContainer.appendChild(itemDiv);
                 
                 // Auto-select/highlight the best matching item
-                if (scanId && item.id === scanId && normItemProv === normScanProv) {
+                if (scanId && String(item.id) === String(scanId) && normItemProv === normScanProv) {
                     itemDiv.style.borderLeft = "4px solid var(--accent)";
                     itemDiv.style.background = "rgba(255,255,255,0.02)";
                 }

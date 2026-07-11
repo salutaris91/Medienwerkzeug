@@ -1,4 +1,4 @@
-import os, sys, json, time, shutil, subprocess, urllib, threading
+import os, sys, json, time, shutil, subprocess, urllib, threading, re
 from flask import Blueprint, request, jsonify, Response, send_from_directory
 from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history, get_runtime_capabilities
 from gui.core.helpers import *
