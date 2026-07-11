@@ -2,7 +2,20 @@
 
 Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 11.07.2026 (NFO-Agent: Modal-Suche repariert & vorbefüllt)
+
+- **Modal-Suche reparieren & vorbefüllen (Branch `fix/nfo-agent-modal-search`):**
+  * **Endpunkte korrigiert:** Die Suche nutzt nun den existierenden Endpunkt `/api/search?type=tv|movie&q=...`. Details werden korrekt über `/api/metadata/fetch?media_type=tv|movie` abgerufen.
+  * **Film-Provider-Mapping:** Mappt den Such-Provider `tmdb` bei Filmen automatisch auf `tmdb_movie`, damit die Dropdowns und das Backend die API-Anfragen korrekt zuordnen können.
+  * **Profil-Vorbefüllung:** Nach dem Scan wird bei Serien optional ein Abruf über `/api/profile?show_name=...` gestartet. Fehlen Werte (ID, Name, Provider) in der NFO, befüllt das Profil diese Lücken automatisch (NFO hat Vorrang).
+  * **Dynamic Episode Fetching:** Wählt der Benutzer ein Episoden-Mapping aus (oder ist eines vorgeladen), werden dessen Episoden-Metadaten (Titel, Plot) on-demand via `/api/metadata/fetch?media_type=episode...` geladen, um Daten-Redundanz zu vermeiden.
+  * **UI-Klarstellungen:**
+    * ID-Eingabefeld-Label zu „Show / Movie ID (wird autom. gefüllt)“ geändert.
+    * Master-Überschreibschutz-Balken präzisiert zu: „Fertige NFOs werden übersprungen. Zum Reparieren leerer/kaputter NFOs ‚überschreiben‘ anhaken.“
+  * **Verifikation:** Sämtliche backend-seitigen und frontend-seitigen Tests (`npm run test:frontend`) laufen fehlerfrei durch.
+
 ## Stand am 11.07.2026 (NFO-Agent: Dedizierter Metadaten-Job & Modal-Umbau - Ansatz A)
+
 
 - **NFO Agent: Dedizierter Metadaten-Job & Modal-Umbau (Ansatz A - Revidiert):**
   - **Exklusiver Metadaten-Job:** Der NFO-Agent läuft jetzt über einen eigenen Job-Typ `tool_nfo_agent` mit einer minimalen, einstufigen Pipeline (`metadata`), wodurch Konvertierungen, Dateiverschiebungen oder Löschungen strukturell ausgeschlossen sind.
