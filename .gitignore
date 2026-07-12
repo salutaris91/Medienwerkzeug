@@ -21,6 +21,9 @@ STAND.md
 # Local deployment walkthroughs / notes
 DOCKER_DEPLOYMENT_GUIDE.md
 
+# Disposable local container acceptance runtime
+/.runtime-test/
+
 # Generated knowledge graph output
 graphify-out/
 
