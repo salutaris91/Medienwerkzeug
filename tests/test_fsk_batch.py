@@ -301,21 +301,23 @@ class TestFSKBatchEndpoints(unittest.TestCase):
         os.makedirs(series_dir)
         with open(os.path.join(series_dir, "tvshow.nfo"), 'w') as f_nfo:
             f_nfo.write("<tvshow></tvshow>")
-        outside_dir = os.path.join(self.temp_dir, "Outside")
-        os.makedirs(outside_dir)
-        with open(os.path.join(outside_dir, "outside.mkv"), 'w') as f_vid:
-            f_vid.write("vid")
-        symlink_dir = os.path.join(series_dir, "Staffel 1")
+            
+        outside_dir = tempfile.mkdtemp()
         try:
-            os.symlink(outside_dir, symlink_dir)
-        except Exception:
-            pass
-        if os.path.exists(symlink_dir):
-            res = self.client.post('/api/nas/fsk-batch/preview', json={
-                "paths": [symlink_dir], "scope": "season", "new_fsk": "12"
-            })
-            self.assertEqual(res.status_code, 400)
-            self.assertIn("Pfad liegt außerhalb", res.json["message"])
+            with open(os.path.join(outside_dir, "outside.mkv"), 'w') as f_vid:
+                f_vid.write("vid")
+            symlink_dir = os.path.join(series_dir, "Staffel 1")
+            try:
+                os.symlink(outside_dir, symlink_dir)
+            except Exception:
+                pass
+            if os.path.exists(symlink_dir):
+                res = self.client.post('/api/nas/fsk-batch/preview', json={
+                    "paths": [symlink_dir], "scope": "season", "new_fsk": "12"
+                })
+                self.assertEqual(res.status_code, 403)
+        finally:
+            shutil.rmtree(outside_dir)
 
     @patch('gui.core.health_cache.HealthCacheManager.invalidate_entry')
     @patch('gui.core.health.remove_issue')

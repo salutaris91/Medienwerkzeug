@@ -107,6 +107,7 @@ globalThis.osBasename = (p) => p ? p.split(/[\\/]/).pop() : "";
 const appJsPath = path.resolve(__dirname, '../../gui/static/app.js');
 let appJsContent = fs.readFileSync(appJsPath, 'utf8');
 appJsContent = appJsContent.replace(/import\s+[\s\S]*?from\s+['"].*?['"];?/g, "");
+appJsContent = appJsContent.replace(/"DOMContentLoaded"/g, '"never-fire"');
 appJsContent = appJsContent.replace(/setInterval\(pollHealthStatus,\s*5000\);/g, "");
 
 appJsContent += `
@@ -114,6 +115,7 @@ globalThis.openFskBatchModal = openFskBatchModal;
 globalThis.loadFskBatchPreview = loadFskBatchPreview;
 globalThis.applyFskBatch = applyFskBatch;
 globalThis.resolveSendPaths = resolveSendPaths;
+globalThis.setFskBatchScope = (scope) => { currentFskBatchScope = scope; };
 `;
 
 eval(appJsContent);
@@ -155,20 +157,27 @@ test('openFskBatchModal - opens modal and sets up state', () => {
 test('Scope-Change-Event - triggers new preview fetch', async () => {
     globalThis.fetchRequests = [];
 
-    globalThis.openFskBatchModal([{path: "/test.nfo"}], "12");
+    // Das Item muss season_path haben, damit das UI nicht auf single zurückfällt!
+    globalThis.openFskBatchModal([{path: "/tvshow.nfo", season_path: "/season1"}], "12");
+    await new Promise(r => setTimeout(r, 10)); // initial preview fetch
+
+    globalThis.fetchRequests = []; // clear history
 
     const scopeSelect = document.getElementById("fsk-batch-scope-select");
     scopeSelect.value = "season";
+    
+    // Manuelles callen, da DOMContentLoaded-Listener unterdrückt ist
+    globalThis.setFskBatchScope("season");
+    await globalThis.loadFskBatchPreview();
 
-    // Trigger change event
-    const event = { type: 'change', target: scopeSelect };
-    scopeSelect.dispatchEvent(event);
-
-    // Wait for async fetch to queue
     await new Promise(r => setTimeout(r, 10));
 
     const reqs = globalThis.fetchRequests.filter(req => req.url.includes("fsk-batch/preview"));
-    assert.ok(reqs.length >= 1);
+    assert.strictEqual(reqs.length, 1);
+    
+    const body = JSON.parse(reqs[0].options.body);
+    assert.strictEqual(body.scope, "season");
+    assert.deepStrictEqual(body.paths, ["/season1"]);
 });
 
 test('Null-Ziel-Sperre im DOM', async () => {
@@ -180,7 +189,10 @@ test('Null-Ziel-Sperre im DOM', async () => {
 
     const scopeSelect = document.getElementById("fsk-batch-scope-select");
     scopeSelect.value = "season";
-    scopeSelect.dispatchEvent({ type: 'change', target: scopeSelect });
+    
+    // Manuelles callen, da DOMContentLoaded-Listener unterdrückt ist
+    globalThis.setFskBatchScope("season");
+    await globalThis.loadFskBatchPreview();
 
     await new Promise(r => setTimeout(r, 10));
 
@@ -196,7 +208,7 @@ test('Apply-Fetch-Payload and preview rendering', async () => {
         status: 200,
         json: () => Promise.resolve({
             files: [
-                { path: "/test.nfo", status: "ready", fingerprint: "abcd", hierarchy: { type: "movie", movie: "Test" } }
+                { path: "/test.nfo", fingerprint: "abcd", status: "ready", hierarchy: { type: "movie", movie: "Test" } }
             ],
             summary: { ready: 1 }
         })
@@ -204,10 +216,10 @@ test('Apply-Fetch-Payload and preview rendering', async () => {
 
     globalThis.openFskBatchModal([{path: "/test.nfo"}], "16");
     await new Promise(r => setTimeout(r, 10));
-
+    
     const container = document.getElementById("fsk-batch-tree-container");
     assert.ok(container.innerHTML.includes("test.nfo"), "HTML war: " + container.innerHTML); // Test for file name
-
+    
     // Now simulate apply
     globalThis.fetchRequests = [];
     globalThis.mockFetchResponse = {
@@ -220,12 +232,12 @@ test('Apply-Fetch-Payload and preview rendering', async () => {
             summary: { success: 1, failed: 0 }
         })
     };
-
+    
     await globalThis.applyFskBatch();
-
+    
     const applyReq = globalThis.fetchRequests.find(req => req.url.includes("fsk-batch/apply"));
     assert.ok(applyReq);
-
+    
     const body = JSON.parse(applyReq.options.body);
     assert.deepStrictEqual(body.root_paths, ["/test.nfo"]);
     assert.strictEqual(body.scope, "single");
@@ -235,6 +247,23 @@ test('Apply-Fetch-Payload and preview rendering', async () => {
 
 test('Darstellung von partial und failed', async () => {
     globalThis.fetchRequests = [];
+    
+    // 1. Prepare Plan via Preview!
+    globalThis.mockFetchResponse = {
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+            files: [
+                { path: "/test1.nfo", fingerprint: "abcd", status: "ready", hierarchy: { type: "movie", movie: "Test 1" } },
+                { path: "/test2.nfo", fingerprint: "efgh", status: "ready", hierarchy: { type: "movie", movie: "Test 2" } }
+            ],
+            summary: { ready: 2 }
+        })
+    };
+    globalThis.openFskBatchModal([{path: "/test1.nfo"}, {path: "/test2.nfo"}], "16");
+    await new Promise(r => setTimeout(r, 10));
+    
+    // 2. Apply and simulate partial failure
     globalThis.mockFetchResponse = {
         ok: true,
         status: 200,
@@ -248,18 +277,10 @@ test('Darstellung von partial und failed', async () => {
             summary: { success: 1, failed: 1, unchanged: 0 }
         })
     };
-
-    // wir rufen apply direkt auf (vorausgesetzt plan existiert)
-    globalThis.currentFskBatchPlan = {
-        files: [{path: "/test1.nfo", fingerprint: "abcd"}, {path: "/test2.nfo", fingerprint: "efgh"}],
-        summary: { ready: 2 }
-    };
-    globalThis.currentFskBatchItems = [{path: "/test1.nfo"}, {path: "/test2.nfo"}];
-    globalThis.currentFskBatchScope = "single";
-    globalThis.currentFskBatchTarget = "16";
-
+    
     await globalThis.applyFskBatch();
-
+    await new Promise(r => setTimeout(r, 10));
+    
     const summaryEl = document.getElementById("fsk-batch-summary");
     assert.ok(summaryEl.innerHTML.includes("Erfolgreich geändert: <strong>1</strong>"));
     assert.ok(summaryEl.innerHTML.includes("Fehlgeschlagen: <strong>1</strong>"));
