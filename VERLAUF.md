@@ -2,6 +2,15 @@
 
 Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 11.07.2026 (NFO-Agent: Kanonische Pfadauflösung & Health-Scan Ladeanzeige)
+
+- **UX-Refinements & Ladeanzeige (Branch `feature/nfo-agent-refinements`):**
+  * **Kanonischer tvshow.nfo Pfad:** Sowohl `/scan-project` als auch der NFO-Agent-Worker nutzen nun `resolve_series_root` für eine einheitliche Pfadauflösung (Elternordner bei Staffeln/Specials).
+  * **Sicherheits-Härtung:** NFO-Agent validiert nun sowohl `current_dir` als auch den kanonischen Serienhauptordner `show_dir` per `is_path_allowed`.
+  * **Optionales tvshow.nfo Schreiben:** Das Modal bietet für Serien eine optionale Kopfzeile (`⚙️ Verarbeiten` vs. `⏭️ Überspringen`) mit Statusbadges (`[Keine NFO]`, `[NFO fehlerhaft]`, `[NFO unvollständig]`, `[NFO vorhanden]`). Bei "skip" wird `write_show_nfo: false` übermittelt.
+  * **Health-Scan Ladeanzeige:** Die Health-Tabelle fängt den Ladezustand nach Klick auf "Fertig" durch einen Lade-Spinner und einen Begleittext ("Health-Scan wird aktualisiert ...") ab. Suchparameter und KPIs werden ausgeblendet, bis der Scan abgeschlossen ist.
+  * **Integrationstests & Review-Fixes:** Integrationstests decken die Cache-Invalidierung, das Patchen des DATA_DIR, den echten Workerpfad mit `write_show_nfo: false` sowie die API-Zustandsmatrix über den `/scan-project`-Response ab. Frontend-Tests verifizieren den sequenziellen `running -> warning` Übergang (Ausblenden des Spinners und Aktualisierung der Dashboard-Metadaten) und alle vier Statusbadges samt Payload-Semantik im NFO-Agenten. Alle 390 Backend- und 50 Frontend-Tests sind vollständig grün und Whitespace-bereinigt (`git diff --check` bestanden).
+
 ## Stand am 11.07.2026 (NFO-Agent: UX-Polish, Staffel-Ermittlung & Cache-Invalidierung)
 
 - **UX-Polish & Polish (Branches `fix/nfo-agent-modal-ux` & `fix/nfo-agent-polish`):**

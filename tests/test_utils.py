@@ -1241,22 +1241,213 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         # Invalidation drops the entry so the next scan re-checks the folder
         self.assertTrue(mgr.invalidate_entry(folder))
         self.assertIsNone(mgr.get_cached_entry(folder, "2:emby"))
-        # Invalidating a non-existent entry is a no-op
         self.assertFalse(mgr.invalidate_entry(os.path.join(self.test_dir, "Nonexistent")))
 
+    def test_resolve_series_root(self):
+        from gui.core.helpers import resolve_series_root
+
+        # Positive cases
+        self.assertEqual(resolve_series_root("/media/Serien/Show/Staffel 1"), "/media/Serien/Show")
+        self.assertEqual(resolve_series_root("/media/Serien/Show/Season 02 (2024)"), "/media/Serien/Show")
+        self.assertEqual(resolve_series_root("/media/Serien/Show/S03"), "/media/Serien/Show")
+        self.assertEqual(resolve_series_root("/media/Serien/Show/Specials"), "/media/Serien/Show")
+        self.assertEqual(resolve_series_root("/media/Serien/Show/Staffel 1/"), "/media/Serien/Show")
+
+        # Negative cases
+        self.assertEqual(resolve_series_root("/media/Serien/Show/Staffelung"), "/media/Serien/Show/Staffelung")
+        self.assertEqual(resolve_series_root("/media/Serien/Show/Seasonal Specials"), "/media/Serien/Show/Seasonal Specials")
+        self.assertEqual(resolve_series_root("/media/Serien/Show/Meine Staffel Sammlung"), "/media/Serien/Show/Meine Staffel Sammlung")
+        self.assertEqual(resolve_series_root("/media/Serien/Show/Staffel 1 Bonusmaterial"), "/media/Serien/Show/Staffel 1 Bonusmaterial")
+        self.assertEqual(resolve_series_root("/media/Serien/Show/Season 02 beliebiger Text"), "/media/Serien/Show/Season 02 beliebiger Text")
+        self.assertEqual(resolve_series_root("/media/Serien/Show/S03 Extras"), "/media/Serien/Show/S03 Extras")
+        self.assertEqual(resolve_series_root("/media/Serien/Show/Specials Backup"), "/media/Serien/Show/Specials Backup")
+        self.assertEqual(resolve_series_root("/media/Serien/Show/Season 02 ()"), "/media/Serien/Show/Season 02 ()")
+        self.assertEqual(resolve_series_root("/media/Serien/Show/Season 02 (())"), "/media/Serien/Show/Season 02 (())")
+
+    def test_scan_project_show_nfo_status_matrix(self):
+        from gui.api.project_api import handle_api_scan_project
+        from flask import Flask
+        from unittest.mock import patch
+
+        app = Flask(__name__)
+
+        # Set up a target folder to scan
+        target_dir = os.path.normpath(os.path.join(self.test_dir, "Matrix_Show_Project"))
+        os.makedirs(target_dir, exist_ok=True)
+
+        # Helper to invoke the scan API
+        def scan_api(project_path):
+            with app.test_request_context(query_string=f"project={project_path}"):
+                with patch("gui.api.project_api.is_path_allowed", return_value=True):
+                    with patch("gui.api.project_api.load_settings", return_value={"inbox_dir": self.test_dir}):
+                        resp = handle_api_scan_project()
+                        return resp.get_json()
+
+        # 1. Datei fehlt
+        res = scan_api(target_dir)
+        status = res.get("show_nfo_status")
+        self.assertIsNotNone(status)
+        self.assertEqual(status["exists"], False)
+        self.assertEqual(status["parseable"], False)
+        self.assertEqual(status["complete"], False)
+
+        # 2. Ungültiges XML
+        nfo_path = os.path.join(target_dir, "tvshow.nfo")
+        with open(nfo_path, "w", encoding="utf-8") as f:
+            f.write("<tvshow><title>Invalid XML")
+        res = scan_api(target_dir)
+        status = res.get("show_nfo_status")
+        self.assertIsNotNone(status)
+        self.assertEqual(status["exists"], True)
+        self.assertEqual(status["parseable"], False)
+        self.assertEqual(status["complete"], False)
+
+        # 3. Titel/Plot fehlt
+        with open(nfo_path, "w", encoding="utf-8") as f:
+            f.write("<tvshow><title></title><plot>Plot</plot></tvshow>")
+        res = scan_api(target_dir)
+        status = res.get("show_nfo_status")
+        self.assertIsNotNone(status)
+        self.assertEqual(status["exists"], True)
+        self.assertEqual(status["parseable"], True)
+        self.assertEqual(status["complete"], False)
+
+        # 4. Jahr fehlt (unvollständig für tvshow)
+        with open(nfo_path, "w", encoding="utf-8") as f:
+            f.write("<tvshow><title>Title</title><plot>Plot</plot><year></year></tvshow>")
+        res = scan_api(target_dir)
+        status = res.get("show_nfo_status")
+        self.assertIsNotNone(status)
+        self.assertEqual(status["exists"], True)
+        self.assertEqual(status["parseable"], True)
+        self.assertEqual(status["complete"], False)
+
+        # 5. Alle Felder vorhanden
+        with open(nfo_path, "w", encoding="utf-8") as f:
+            f.write("<tvshow><title>Title</title><plot>Plot</plot><year>2026</year></tvshow>")
+        res = scan_api(target_dir)
+        status = res.get("show_nfo_status")
+        self.assertIsNotNone(status)
+        self.assertEqual(status["exists"], True)
+        self.assertEqual(status["parseable"], True)
+        self.assertEqual(status["complete"], True)
+
+        # 6. Staffel-Ordner: greift auf Elternordner-NFO zu
+        season_dir = os.path.join(target_dir, "Staffel 1")
+        os.makedirs(season_dir, exist_ok=True)
+        res_season = scan_api(season_dir)
+        status_season = res_season.get("show_nfo_status")
+        self.assertIsNotNone(status_season)
+        self.assertEqual(status_season["exists"], True)
+        self.assertEqual(status_season["complete"], True)
+
+    def test_health_scan_cache_invalidation_flow(self):
+        from gui.core.health_cache import HealthCacheManager
+        from gui.core.health import _run_health_scan
+        from gui.core import utils
+        from unittest.mock import patch
+
+        # Set up show and season directory inside the temp test_dir under a "Serien" category path
+        show_dir = os.path.normpath(os.path.join(self.test_dir, "Serien", "Test Show Invalidation"))
+        season_dir = os.path.join(show_dir, "Staffel 1")
+        os.makedirs(season_dir, exist_ok=True)
+
+        # Put one episode in the season folder
+        ep_path = os.path.join(season_dir, "Test Show Invalidation - S01E01.mkv")
+        with open(ep_path, "w") as f:
+            f.write("")
+
+        # Configure allowed paths in settings
+        from gui.core.utils import save_settings
+        settings = {
+            "inbox_dir": self.test_dir,
+            "outbox_dir": self.test_dir,
+            "nas_root": self.test_dir,
+            "sync_categories": [{"id": "cat1", "nas_sub": "Serien", "name": "Serien"}]
+        }
+        save_settings(settings)
+
+        with patch("gui.core.health.ensure_nas_mounted", return_value=True), \
+             patch("gui.core.transfers.validate_nas_library_preflight", return_value=(True, "")):
+            # Phase 1 (Initialer Health-Scan)
+            _run_health_scan(deep_dive=False, category_ids=["cat1"])
+
+            # Phase 2 (Cache Assertions)
+            expected_cache_key = "2:none"
+            cache_manager = HealthCacheManager()
+            normalized_show_dir = os.path.realpath(show_dir)
+            self.assertIn(normalized_show_dir, cache_manager._cache)
+
+            entry = cache_manager.get_cached_entry(show_dir, expected_cache_key)
+            self.assertIsNotNone(entry)
+            self.assertEqual(entry["cache_key"], expected_cache_key)
+            self.assertEqual(entry["issues"][0]["path"], show_dir)
+            self.assertEqual(entry["issues"][0]["key"], f"health:missing_nfo:{show_dir}")
+
+            # Phase 3 (NFO Agent ausführen über den echten process_worker)
+            ep_file = "Test Show Invalidation - S01E01.mkv"
+            params = {
+                "media_type": "tool_nfo_agent",
+                "nfo_type": "tvshow",
+                "project_name": season_dir,
+                "provider": "manual",
+                "show_id": "manual",
+                "season": 1,
+                "write_show_nfo": True,
+                "mappings": {
+                    ep_file: "S01E01"
+                },
+                "nfo_overrides": {
+                    "show": {
+                        "title": "Test Show",
+                        "year": "2026",
+                        "plot": "Test Plot"
+                    },
+                    "episodes": {
+                        ep_file: {
+                            "title": "Episode 1 Title",
+                            "plot": "Episode 1 Plot"
+                        }
+                    }
+                },
+                "overwrite_nfo": True
+            }
+
+            from gui.workers.processor import process_worker
+            with patch("gui.workers.processor.load_settings", return_value=settings), \
+                 patch("gui.core.helpers.is_path_allowed", return_value=True):
+                process_worker(params)
+
+            # Phase 4 (Invalidierung über reloaded Cache-Manager prüfen)
+            reloaded_manager = HealthCacheManager()
+            self.assertIsNone(reloaded_manager.get_cached_entry(show_dir, expected_cache_key))
+
+            # Phase 5 (Erneuter Health Scan)
+            _run_health_scan(deep_dive=False, category_ids=["cat1"])
+
+            # Phase 6 (Resultat über reloaded Cache-Manager verifizieren)
+            final_manager = HealthCacheManager()
+            final_entry = final_manager.get_cached_entry(show_dir, expected_cache_key)
+            self.assertIsNotNone(final_entry)
+
+            # Verify missing_nfo issue for the show directory (tvshow.nfo) is gone!
+            final_issues = final_entry.get("issues", [])
+            missing_show_nfo = next((i for i in final_issues if i["type"] == "missing_nfo" and i["path"] == show_dir), None)
+            self.assertIsNone(missing_show_nfo)
+
     def test_nfo_incomplete_detection(self):
-        from gui.core.health import _check_nfo_incomplete
+        from gui.core.health import check_nfo_incomplete
         
         nfo_path = os.path.join(self.test_dir, "complete.nfo")
         with open(nfo_path, "w", encoding="utf-8") as f:
             f.write("<movie><title>Test Title</title><plot>Test Plot</plot><year>2026</year></movie>")
-        is_inc, sev, reason = _check_nfo_incomplete(nfo_path, "movie")
+        is_inc, sev, reason = check_nfo_incomplete(nfo_path, "movie")
         self.assertFalse(is_inc)
         
         nfo_path_inc = os.path.join(self.test_dir, "incomplete.nfo")
         with open(nfo_path_inc, "w", encoding="utf-8") as f:
             f.write("<movie><title></title><plot>Test Plot</plot></movie>")
-        is_inc, sev, reason = _check_nfo_incomplete(nfo_path_inc, "movie")
+        is_inc, sev, reason = check_nfo_incomplete(nfo_path_inc, "movie")
         self.assertTrue(is_inc)
         self.assertEqual(sev, "critical")
         self.assertIn("Titel", reason)
@@ -1264,10 +1455,59 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         nfo_path_warn = os.path.join(self.test_dir, "warn.nfo")
         with open(nfo_path_warn, "w", encoding="utf-8") as f:
             f.write("<movie><title>Test Title</title><plot>Test Plot</plot><year></year></movie>")
-        is_inc, sev, reason = _check_nfo_incomplete(nfo_path_warn, "movie")
+        is_inc, sev, reason = check_nfo_incomplete(nfo_path_warn, "movie")
         self.assertTrue(is_inc)
         self.assertEqual(sev, "warning")
         self.assertIn("Produktionsjahr", reason)
+
+    def test_nfo_agent_job_skip_show_nfo(self):
+        from gui.workers.processor import process_worker
+        from unittest.mock import patch, MagicMock
+
+        proj_dir = os.path.normpath(os.path.join(self.test_dir, "skip_show_nfo_project"))
+        os.makedirs(proj_dir, exist_ok=True)
+
+        ep_file = "Episode1.mkv"
+        with open(os.path.join(proj_dir, ep_file), "w") as f:
+            f.write("")
+
+        params = {
+            "media_type": "tool_nfo_agent",
+            "nfo_type": "tvshow",
+            "project_name": proj_dir,
+            "provider": "manual",
+            "show_id": "manual",
+            "season": 1,
+            "write_show_nfo": False,  # skip tvshow.nfo!
+            "mappings": {
+                ep_file: "S01E01"
+            },
+            "nfo_overrides": {
+                "show": {
+                    "title": "Should Not Write",
+                },
+                "episodes": {
+                    ep_file: {
+                        "title": "Ep Title",
+                        "plot": "Ep Plot"
+                    }
+                }
+            },
+            "overwrite_nfo": True
+        }
+
+        # Mock generate_tvshow_nfo and generate_episode_nfo
+        with patch("gui.workers.processor.load_settings", return_value={"inbox_dir": self.test_dir, "outbox_dir": self.test_dir}), \
+             patch("gui.core.helpers.is_path_allowed", return_value=True), \
+             patch("gui.mw_metadata.generate_tvshow_nfo") as mock_gen_show, \
+             patch("gui.mw_metadata.generate_episode_nfo", return_value=True) as mock_gen_ep:
+
+            process_worker(params)
+
+            # Assert generate_tvshow_nfo was NOT called
+            mock_gen_show.assert_not_called()
+            # Assert generate_episode_nfo WAS called
+            mock_gen_ep.assert_called_once()
 
     def test_nfo_generation_overwrite_parameter(self):
         ep_meta = {"title": "Test Ep", "episode": 1, "plot": "Test Plot"}

@@ -175,7 +175,7 @@ def _get_provider_from_nfo(nfo_path):
     return None
 
 
-def _check_nfo_incomplete(nfo_path, nfo_type="episode"):
+def check_nfo_incomplete(nfo_path, nfo_type="episode"):
     """
     Check if an NFO file is incomplete (e.g. missing title or plot).
     Returns (is_incomplete, severity, reason)
@@ -227,7 +227,7 @@ def should_overwrite_nfo(overwrite_nfo, overrides, nfo_path, nfo_type):
         return True
     if not os.path.exists(nfo_path):
         return True
-    is_inc, _, _ = _check_nfo_incomplete(nfo_path, nfo_type)
+    is_inc, _, _ = check_nfo_incomplete(nfo_path, nfo_type)
     return is_inc
 
 
@@ -345,7 +345,7 @@ def _check_season(issues, category, show_name, season_path, validator):
     for full, fn in videos:
         ep_nfo_path = os.path.splitext(full)[0] + ".nfo"
         if os.path.exists(ep_nfo_path):
-            is_inc, sev, reason = _check_nfo_incomplete(ep_nfo_path, "episode")
+            is_inc, sev, reason = check_nfo_incomplete(ep_nfo_path, "episode")
             if is_inc:
                 _add_issue(issues, sev, "incomplete_nfo", category, season_path,
                            f"{show_name} · {fn}: {reason}")
@@ -437,7 +437,7 @@ def _check_series_show(issues, category, show_path, validator):
         nfo_path = find_primary_nfo(show_path, is_movie=False)
         _check_fsk(issues, category, show_path, nfo_path)
         if nfo_path:
-            is_inc, sev, reason = _check_nfo_incomplete(nfo_path, "tvshow")
+            is_inc, sev, reason = check_nfo_incomplete(nfo_path, "tvshow")
             if is_inc:
                 _add_issue(issues, sev, "incomplete_nfo", category, show_path,
                            f"{os.path.basename(show_path)}: {reason}")
@@ -579,7 +579,7 @@ def _check_movie(issues, category, movie_path, validator):
         nfo_path = find_primary_nfo(movie_path, is_movie=True)
         if nfo_path:
             _check_fsk(issues, category, movie_path, nfo_path)
-            is_inc, sev, reason = _check_nfo_incomplete(nfo_path, "movie")
+            is_inc, sev, reason = check_nfo_incomplete(nfo_path, "movie")
             if is_inc:
                 _add_issue(issues, sev, "incomplete_nfo", category, movie_path,
                            f"{name}: {reason}")
