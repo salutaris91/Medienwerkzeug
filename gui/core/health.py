@@ -154,7 +154,7 @@ def _get_provider_from_nfo(nfo_path):
             m = re.search(r'<mw_provider>(.*?)</mw_provider>', content)
             if m:
                 return m.group(1).strip()
-            
+
             # Fallbacks
             if '<tmdbid>' in content:
                 if 'tvshow.nfo' in nfo_path.lower():
@@ -169,7 +169,7 @@ def _get_provider_from_nfo(nfo_path):
                 except Exception:
                     pass
                 return 'tmdb_movie'
-                
+
             if '<tvdbid>' in content:
                 return 'tvdb'
     except Exception as e:
@@ -188,19 +188,19 @@ def check_nfo_incomplete(nfo_path, nfo_type="episode"):
         import xml.etree.ElementTree as ET
         tree = ET.parse(nfo_path)
         root = tree.getroot()
-        
+
         title_el = root.find("title")
         plot_el = root.find("plot")
-        
+
         title_missing = title_el is None or not title_el.text or not title_el.text.strip()
         plot_missing = plot_el is None or not plot_el.text or not plot_el.text.strip()
-        
+
         if title_missing or plot_missing:
             missing_fields = []
             if title_missing: missing_fields.append("Titel")
             if plot_missing: missing_fields.append("Plot")
             return True, "critical", f"NFO unvollständig (fehlende Felder: {', '.join(missing_fields)})"
-            
+
         # Optional warnings
         if nfo_type == "episode":
             aired_el = root.find("aired")
@@ -212,10 +212,10 @@ def check_nfo_incomplete(nfo_path, nfo_type="episode"):
             year_missing = year_el is None or not year_el.text or not year_el.text.strip()
             if year_missing:
                 return True, "warning", "NFO unvollständig (fehlendes Feld: Produktionsjahr)"
-                
+
     except Exception as e:
         return True, "critical", f"NFO beschädigt oder unlesbar: {str(e)}"
-        
+
     return False, None, None
 
 
@@ -342,7 +342,7 @@ def _check_season(issues, category, show_name, season_path, validator):
     if missing_nfo:
         _add_issue(issues, "warning", "missing_nfo", category, season_path,
                    f"{label}: {len(missing_nfo)} von {len(videos)} Episoden ohne NFO")
-                   
+
     # Check if existing episode NFOs are incomplete
     for full, fn in videos:
         ep_nfo_path = os.path.splitext(full)[0] + ".nfo"
@@ -351,7 +351,7 @@ def _check_season(issues, category, show_name, season_path, validator):
             if is_inc:
                 _add_issue(issues, sev, "incomplete_nfo", category, season_path,
                            f"{show_name} · {fn}: {reason}")
-            
+
             # FSK-Check für Episode (dateibasiert über den NFO-Pfad)
             series_path = os.path.dirname(season_path)
             season_name = os.path.basename(season_path)
