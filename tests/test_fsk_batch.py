@@ -147,6 +147,8 @@ class TestFSKBatchEndpoints(unittest.TestCase):
         nfo_path = os.path.join(movie_dir, "movie.nfo")
         with open(nfo_path, 'w') as f:
             f.write("<movie><mpaa>FSK 12</mpaa></movie>")
+        with open(os.path.join(movie_dir, "Avatar (2009).mkv"), 'w') as f:
+            f.write("dummy video")
             
         # 1. Vorschau anfordern, um Fingerprints zu bekommen
         preview_res = self.client.post('/api/nas/fsk-batch/preview', json={

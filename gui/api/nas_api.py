@@ -912,6 +912,9 @@ def handle_api_health_fix():
             if not nfo_path or not os.path.exists(nfo_path):
                 return jsonify({"ok": False, "message": "NFO-Datei konnte nicht bestimmt werden oder existiert nicht."}), 400
 
+            if not is_valid_media_nfo(nfo_path, settings):
+                return jsonify({"ok": False, "message": "NFO-Datei ist unzulässig (Sidecar-Kopplung fehlt oder falsch)."}), 400
+
             # FSK in NFO schreiben
             ok, msg = write_fsk_to_nfo(nfo_path, fsk_str)
             if not ok:
@@ -1138,10 +1141,62 @@ def is_valid_series_root(path: str, settings: dict) -> bool:
         return True
     # Oder besitzt mindestens einen Staffelordner
     try:
-        if any(os.path.isdir(os.path.join(real_path, e)) and (e.lower().startswith("staffel ") or e.lower().startswith("season ") or e.lower().startswith("specials")) for e in os.listdir(real_path)):
+        if any(os.path.isdir(os.path.join(real_path, e)) and bool(re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", e, re.IGNORECASE)) for e in os.listdir(real_path)):
             return True
     except OSError:
         pass
+    return False
+
+def is_valid_media_nfo(nfo_path: str, settings: dict) -> bool:
+    """Prüft, ob eine NFO-Datei eine gültige Medien-NFO (Film, Serie, Episode) ist."""
+    real_path = os.path.realpath(nfo_path)
+    if not os.path.isfile(real_path) or not real_path.lower().endswith(".nfo"):
+        return False
+
+    cat, cat_path = find_category_for_path(real_path, settings)
+    if not cat:
+        return False
+
+    basename = os.path.basename(real_path).lower()
+    parent_dir = os.path.dirname(real_path)
+    
+    # Zusatz-NFOs strikt ablehnen
+    if basename == "season.nfo":
+        return False
+
+    # Darf nicht direkt im Kategorie-Root liegen
+    if parent_dir == cat_path:
+        return False
+
+    video_exts = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv'}
+    
+    def folder_has_video(folder_path):
+        try:
+            for f in os.listdir(folder_path):
+                if os.path.splitext(f)[1].lower() in video_exts:
+                    return True
+        except OSError:
+            pass
+        return False
+
+    if basename == "tvshow.nfo":
+        return is_valid_series_root(parent_dir, settings)
+    
+    if basename == "movie.nfo":
+        if "serie" in cat.get("name", "").lower():
+            return False
+        return folder_has_video(parent_dir)
+        
+    # Für andere NFOs (Sidecar Film oder Episode)
+    # Strikte Paarung: es muss exakt ein Video mit gleichem Basisnamen existieren
+    base_no_ext = os.path.splitext(os.path.basename(real_path))[0]
+    try:
+        for f in os.listdir(parent_dir):
+            if os.path.splitext(f)[0] == base_no_ext and os.path.splitext(f)[1].lower() in video_exts:
+                return True
+    except OSError:
+        pass
+        
     return False
 
 def collect_season_episode_nfos(season_path: str) -> list:
@@ -1171,7 +1226,7 @@ def collect_series_nfos(series_path: str) -> tuple:
         spath = os.path.join(series_path, e)
         if not os.path.isdir(spath):
             continue
-        if e.lower().startswith("staffel ") or e.lower().startswith("season ") or e.lower().startswith("specials"):
+        if re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", e, re.IGNORECASE):
             episode_nfos.extend(collect_season_episode_nfos(spath))
             
     return tvshow_nfo, sorted(list(set(episode_nfos)))
@@ -1228,16 +1283,22 @@ def handle_api_fsk_batch_preview():
             if scope == "single":
                 # Ziel muss ein konkretes Medienobjekt sein
                 if os.path.isfile(real_p) and real_p.lower().endswith(".nfo"):
+                    if not is_valid_media_nfo(real_p, settings):
+                        return jsonify({"ok": False, "message": "NFO-Datei ist unzulässig (Sidecar-Kopplung fehlt oder falsch).", "path": real_p}), 400
                     resolved_targets.append((real_p, False))
                 elif os.path.isdir(real_p):
                     is_movie = "serie" not in cat.get("name", "").lower()
                     import gui.core.health as health
                     nfo_path = health.find_primary_nfo(real_p, is_movie=is_movie)
                     if nfo_path:
+                        if not is_valid_media_nfo(nfo_path, settings):
+                            return jsonify({"ok": False, "message": "Gefundene NFO-Datei ist unzulässig (Sidecar-Kopplung fehlt).", "path": nfo_path}), 400
                         resolved_targets.append((nfo_path, False))
                     else:
                         # Falls wir keine primäre NFO finden, ist sie missing
                         nfo_path = os.path.join(real_p, "movie.nfo" if is_movie else "tvshow.nfo")
+                        if not is_valid_media_nfo(nfo_path, settings):
+                            return jsonify({"ok": False, "message": "Neuanlage der NFO-Datei unzulässig (z.B. kein Video vorhanden).", "path": nfo_path}), 400
                         resolved_targets.append((nfo_path, True))
                 else:
                     return jsonify({"ok": False, "message": "Ungültiges Ziel für Einzelaktion."}), 400
@@ -1510,6 +1571,9 @@ def handle_api_fsk_batch_apply():
                     nfo = health.find_primary_nfo(real_p, is_movie=is_movie)
                     if nfo:
                         resolved_targets.append(nfo)
+                    else:
+                        nfo = os.path.join(real_p, "movie.nfo" if is_movie else "tvshow.nfo")
+                        resolved_targets.append(nfo)
             elif scope == "season":
                 basename = os.path.basename(real_p)
                 is_season = bool(re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", basename, re.IGNORECASE))
@@ -1525,6 +1589,11 @@ def handle_api_fsk_batch_apply():
                 tvshow, eps = collect_series_nfos(real_p)
                 resolved_targets.append(tvshow)
                 resolved_targets.extend(eps)
+
+        # Re-Validierung aller ermittelten Targets (is_valid_media_nfo)
+        for nfo in resolved_targets:
+            if not is_valid_media_nfo(nfo, settings):
+                return jsonify({"ok": False, "message": f"NFO-Datei ist unzulässig (Sidecar-Kopplung fehlt oder falsch).", "path": nfo}), 400
 
         # Sicherheitsabgleich: Nur Nachfahren und erlaubte Pfade zulassen
         final_targets = []
@@ -1625,8 +1694,20 @@ def handle_api_fsk_batch_apply():
         for c_root in invalidated_roots:
             HealthCacheManager().invalidate_entry(c_root)
 
+        # Partial Semantics
+        if summary["failed"] > 0 and summary["success"] == 0:
+            status_val = "failed"
+            ok_val = False
+        elif summary["failed"] > 0 and summary["success"] > 0:
+            status_val = "partial"
+            ok_val = True
+        else:
+            status_val = "success"
+            ok_val = True
+
         return jsonify({
-            "ok": True,
+            "ok": ok_val,
+            "status": status_val,
             "summary": summary,
             "results": results
         })

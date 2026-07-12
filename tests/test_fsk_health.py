@@ -69,11 +69,16 @@ class TestFSKHealthCheck(unittest.TestCase):
     @patch('gui.api.nas_api.load_settings')
     def test_set_fsk_api(self, mock_load_settings):
         # Setup settings mock to pass NAS validation
-        mock_load_settings.return_value = {"nas_root": self.temp_dir}
+        mock_load_settings.return_value = {
+            "nas_root": self.temp_dir,
+            "sync_categories": [{"name": "Filme", "nas_sub": ".", "type": "movie"}]
+        }
 
         nfo_path = os.path.join(self.movie_dir, "My Movie (2020).nfo")
         with open(nfo_path, 'w') as f:
             f.write("<movie>\n  <title>Test</title>\n</movie>")
+        with open(os.path.join(self.movie_dir, "My Movie (2020).mkv"), 'w') as f:
+            f.write("dummy video")
 
         # API Call - Valid
         response = self.client.post('/api/nas/health-fix', json={
@@ -109,7 +114,10 @@ class TestFSKHealthCheck(unittest.TestCase):
         self.assertIn("außerhalb des NAS", response.json['message'])
 
         # Restore mock for further tests
-        mock_load_settings.return_value = {"nas_root": self.temp_dir}
+        mock_load_settings.return_value = {
+            "nas_root": self.temp_dir,
+            "sync_categories": [{"name": "Filme", "nas_sub": ".", "type": "movie"}]
+        }
 
         # API Call - Multiple mpaa tags
         with open(nfo_path, 'w') as f:
