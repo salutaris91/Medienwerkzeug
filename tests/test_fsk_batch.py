@@ -301,7 +301,7 @@ class TestFSKBatchEndpoints(unittest.TestCase):
         os.makedirs(series_dir)
         with open(os.path.join(series_dir, "tvshow.nfo"), 'w') as f_nfo:
             f_nfo.write("<tvshow></tvshow>")
-            
+
         outside_dir = tempfile.mkdtemp()
         try:
             with open(os.path.join(outside_dir, "outside.mkv"), 'w') as f_vid:
