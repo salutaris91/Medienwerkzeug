@@ -80,6 +80,7 @@ globalThis.HEALTH_SEVERITY = {
 globalThis.escapeHTML = (str) => str;
 globalThis.renderIgnoredFooter = () => "";
 globalThis.wireRestoreAll = () => {};
+globalThis.alert = () => {};
 
 // Mock relative fetch during load
 const originalFetch = globalThis.fetch;
@@ -111,6 +112,10 @@ globalThis.renderDuplicateStatus = renderDuplicateStatus;
 globalThis.loadNormalizePreview = loadNormalizePreview;
 globalThis.renderNormalizePlan = renderNormalizePlan;
 globalThis.renderQueue = renderQueue;
+globalThis.renderNfoAgentFiles = renderNfoAgentFiles;
+globalThis.submitNfoAgentJob = submitNfoAgentJob;
+globalThis.setNfoAgentScanData = (val) => { nfoAgentScanData = val; };
+globalThis.setNfoAgentCurrentPath = (val) => { nfoAgentCurrentPath = val; };
 `;
 
 eval(cleanAppJs);
@@ -382,4 +387,167 @@ test('renderHealthStatus - structure-only result wires structure batch button', 
     assert.ok(structureIssuesEl.innerHTML.includes('id="btn-structure-batch-check"'));
     assert.strictEqual(libraryView.dataset.structureFixDelegated, "true");
     assert.ok(libraryView.__listeners.click > 0);
+});
+
+test('renderHealthStatus - transition running -> warning clears loading spinner and hides structure container', () => {
+    const statusEl = globalThis.document.getElementById("health-scan-status");
+    const progWrap = globalThis.document.getElementById("health-progress-wrap");
+    const progBar = globalThis.document.getElementById("health-progress-bar");
+    const summaryEl = globalThis.document.getElementById("health-summary");
+    const issuesEl = globalThis.document.getElementById("health-issues");
+    const groupControls = globalThis.document.getElementById("health-group-controls");
+    const structureBadge = globalThis.document.getElementById("badge-count-structure");
+    const mediaBadge = globalThis.document.getElementById("badge-count-media");
+    const structureIssuesEl = globalThis.document.getElementById("health-issues-structure");
+    const structureContainer = globalThis.document.getElementById("structure-health-issues-container");
+
+    // Simulate setting initial state to visible
+    structureContainer.style.display = "block";
+
+    issuesEl.innerHTML = "";
+    structureIssuesEl.innerHTML = "";
+    summaryEl.innerHTML = "Existing content";
+
+    // 1. Übergang running
+    const runningData = {
+        status: "running",
+        progress: 45
+    };
+
+    globalThis.renderHealthStatus(runningData);
+
+    assert.strictEqual(statusEl.textContent, "Scan läuft...");
+    assert.strictEqual(progWrap.style.display, "block");
+    assert.strictEqual(progBar.style.width, "45%");
+    assert.strictEqual(groupControls.style.display, "none");
+    assert.strictEqual(structureBadge.style.display, "none");
+    assert.strictEqual(mediaBadge.style.display, "none");
+    assert.strictEqual(summaryEl.innerHTML, "");
+    assert.ok(issuesEl.innerHTML.includes("Health-Scan wird aktualisiert"));
+    assert.ok(issuesEl.innerHTML.includes("loading-spinner"));
+    assert.ok(structureIssuesEl.innerHTML.includes("Health-Scan wird aktualisiert"));
+    assert.ok(structureIssuesEl.innerHTML.includes("loading-spinner"));
+
+    // 2. Übergang warning
+    const warningData = {
+        status: "warning",
+        message: "Keine Bibliotheksordner gefunden."
+    };
+
+    globalThis.renderHealthStatus(warningData);
+
+    assert.strictEqual(statusEl.textContent, "Warnung: Keine Bibliotheksordner gefunden.");
+    assert.strictEqual(progWrap.style.display, "none");
+    assert.strictEqual(structureIssuesEl.innerHTML, "");
+    assert.strictEqual(structureContainer.style.display, "none");
+    assert.strictEqual(issuesEl.innerHTML.includes("loading-spinner"), false);
+    assert.strictEqual(issuesEl.innerHTML.includes("Scan nicht aussagekräftig"), true);
+});
+
+test('renderNfoAgentFiles - mediaType tvshow renders tvshow.nfo status matrix', () => {
+    elements["nfo-agent-media-type"] = createMockElement();
+    elements["nfo-agent-media-type"].value = "tvshow";
+    elements["nfo-agent-episodes-list"] = createMockElement();
+    elements["nfo-agent-season"] = createMockElement();
+    elements["nfo-agent-season"].value = "1";
+
+    const listBody = elements["nfo-agent-episodes-list"];
+
+    // Status matrix: [exists, parseable, complete, expectedBadge]
+    const testCases = [
+        [false, false, false, "[Keine NFO]"],
+        [true, false, false, "[NFO fehlerhaft]"],
+        [true, true, false, "[NFO unvollständig]"],
+        [true, true, true, "[NFO vorhanden]"]
+    ];
+
+    testCases.forEach(([exists, parseable, complete, expectedBadge]) => {
+        listBody.children = [];
+        listBody.appendChild = (child) => {
+            listBody.children.push(child);
+        };
+
+        const scanData = {
+            files: [],
+            show_nfo_status: {
+                path: "/path/to/tvshow.nfo",
+                exists,
+                parseable,
+                complete
+            },
+            file_nfo_statuses: {}
+        };
+
+        globalThis.renderNfoAgentFiles(scanData, {});
+
+        assert.ok(listBody.children.length > 0);
+        const row = listBody.children[0];
+        assert.ok(row.innerHTML.includes("tvshow.nfo (Haupt-Metadaten)"));
+        assert.ok(row.innerHTML.includes(expectedBadge), `Expected badge ${expectedBadge} to be rendered in row HTML: ${row.innerHTML}`);
+        assert.ok(row.innerHTML.includes('id="nfo-agent-show-nfo-action"'));
+    });
+});
+
+test('submitNfoAgentJob - payload structures and write_show_nfo semantics', () => {
+    // Expose mock inputs in elements dictionary
+    elements["nfo-agent-provider"] = createMockElement();
+    elements["nfo-agent-provider"].value = "tmdb_tv";
+    elements["nfo-agent-media-type"] = createMockElement();
+    elements["nfo-agent-media-type"].value = "tvshow";
+    elements["nfo-agent-metadata-id"] = createMockElement();
+    elements["nfo-agent-metadata-id"].value = "123456";
+    elements["nfo-agent-season"] = createMockElement();
+    elements["nfo-agent-season"].value = "2";
+    elements["nfo-agent-overwrite-nfo"] = createMockElement();
+    elements["nfo-agent-overwrite-nfo"].checked = true;
+
+    elements["nfo-agent-show-title"] = createMockElement();
+    elements["nfo-agent-show-title"].value = "Original Title";
+    elements["nfo-agent-show-year"] = createMockElement();
+    elements["nfo-agent-show-year"].value = "2026";
+    elements["nfo-agent-show-plot"] = createMockElement();
+    elements["nfo-agent-show-plot"].value = "Plot description";
+
+    elements["nfo-agent-show-nfo-action"] = createMockElement();
+
+    // Set global metadata variables
+    globalThis.setNfoAgentCurrentPath("/media/Serien/Show/Staffel 2");
+    globalThis.setNfoAgentScanData({
+        metadata_name: "Original Title",
+        metadata_year: "2026",
+        metadata_plot: "Plot description"
+    });
+
+    let interceptedUrl = null;
+    let interceptedOptions = null;
+
+    globalThis.fetch = (url, options) => {
+        interceptedUrl = url;
+        interceptedOptions = options;
+        return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ task_id: "test-task" })
+        });
+    };
+
+    // Case A: show NFO action is "process"
+    elements["nfo-agent-show-nfo-action"].value = "process";
+    globalThis.submitNfoAgentJob();
+
+    assert.strictEqual(interceptedUrl, "/api/process");
+    let payload = JSON.parse(interceptedOptions.body);
+    assert.strictEqual(payload.write_show_nfo, true);
+    assert.strictEqual(payload.show_id, "123456");
+    assert.strictEqual(payload.movie_id, "123456");
+    assert.strictEqual(payload.season, 2);
+    assert.strictEqual(payload.overwrite_nfo, true);
+
+    // Case B: show NFO action is "skip"
+    elements["nfo-agent-show-nfo-action"].value = "skip";
+    globalThis.submitNfoAgentJob();
+
+    payload = JSON.parse(interceptedOptions.body);
+    assert.strictEqual(payload.write_show_nfo, false);
+    assert.strictEqual(payload.show_id, "123456"); // show_id remains unchanged
 });

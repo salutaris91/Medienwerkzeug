@@ -139,6 +139,27 @@ def is_path_allowed(target_path):
             
     return False
 
+def resolve_series_root(path: str) -> str:
+    """
+    Resolves the series root folder. If path points to a season folder
+    (e.g., 'Staffel 2', 'Season 05 (2024)', 'S03', or 'Specials'), it returns the parent directory.
+    Otherwise, returns the normalized absolute path itself.
+    """
+    if not path:
+        return ""
+    normalized_path = os.path.normpath(os.path.abspath(path))
+    basename = os.path.basename(normalized_path)
+
+    # Vollständig verankerte Regex für Staffel- und Specials-Ordner
+    is_season = bool(re.match(
+        r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$",
+        basename,
+        re.IGNORECASE
+    ))
+    if is_season:
+        return os.path.dirname(normalized_path)
+    return normalized_path
+
 def extract_absolute_episode_number(ep_num_val, ep_data, filename):
     # 1. Check if absolute_number is explicitly provided in ep_data
     if isinstance(ep_data, dict) and ep_data.get("absolute_number"):

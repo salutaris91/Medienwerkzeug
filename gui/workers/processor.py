@@ -3112,42 +3112,45 @@ def process_worker(params):
 
     elif media_type == "tool_nfo_agent":
         log_message(f"=== STARTE NFO AGENT IN: {current_dir} ===")
-        
-        # 1. Pfad-Gate check
-        from gui.core.helpers import is_path_allowed
-        if not is_path_allowed(current_dir):
+
+        # 1. Pfad-Gate check für current_dir und das resolved show_dir
+        from gui.core.helpers import resolve_series_root, is_path_allowed
+        show_dir = resolve_series_root(current_dir)
+
+        if not is_path_allowed(current_dir) or not is_path_allowed(show_dir):
             log_message("❌ [NFO Agent] Access Denied: Pfad ist nicht erlaubt.")
             raise RuntimeError("Access Denied: Pfad ist nicht erlaubt.")
-            
+
         try:
             nfo_type = params.get("nfo_type", "tvshow")
             provider = params.get("provider")
             overwrite_nfo = params.get("overwrite_nfo", False)
+            write_show_nfo = params.get("write_show_nfo", True)
             nfo_overrides = params.get("nfo_overrides") or {}
-            
+
             # Start job status
             from gui.core.jobs import update_job
             update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=10)
-            
+
             if nfo_type == "tvshow":
                 show_id = params.get("show_id")
                 season = params.get("season", 1)
                 mappings = params.get("mappings") or {}
-                
-                # A. Generate show NFO
-                if show_id and provider:
+
+                # A. Generate show NFO (only if write_show_nfo is True)
+                if show_id and provider and write_show_nfo:
                     show_overrides = nfo_overrides.get("show")
                     from gui.core.health import should_overwrite_nfo
                     should_overwrite_show = should_overwrite_nfo(
                         overwrite_nfo,
                         show_overrides,
-                        os.path.join(current_dir, "tvshow.nfo"),
+                        os.path.join(show_dir, "tvshow.nfo"),
                         "tvshow"
                     )
-                    log_message(f"Prüfe tvshow.nfo (overwrite: {should_overwrite_show})...")
+                    log_message(f"Prüfe tvshow.nfo in {show_dir} (overwrite: {should_overwrite_show})...")
                     res_show = mw_metadata.generate_tvshow_nfo(
-                        provider, show_id, current_dir, 
-                        nfo_overrides=show_overrides, 
+                        provider, show_id, show_dir,
+                        nfo_overrides=show_overrides,
                         overwrite=should_overwrite_show
                     )
                     log_message(f"tvshow.nfo Generierungs-Ergebnis: {res_show}")

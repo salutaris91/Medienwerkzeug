@@ -12741,6 +12741,37 @@ function renderHealthStatus(data) {
     const groupControls = document.getElementById("health-group-controls");
     if (!statusEl || !summaryEl || !issuesEl) return;
 
+    if (data.status === "running") {
+        statusEl.textContent = "Scan läuft...";
+        if (progWrap) progWrap.style.display = "block";
+        if (progBar) progBar.style.width = `${data.progress || 0}%`;
+        if (groupControls) groupControls.style.display = "none";
+
+        const structureBadge = document.getElementById("badge-count-structure");
+        if (structureBadge) structureBadge.style.display = "none";
+        const mediaBadge = document.getElementById("badge-count-media");
+        if (mediaBadge) mediaBadge.style.display = "none";
+
+        summaryEl.innerHTML = "";
+
+        issuesEl.innerHTML = `
+            <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 0.95em;">
+                <div class="loading-spinner"></div>
+                Health-Scan wird aktualisiert ...
+            </div>
+        `;
+        const structureIssuesEl = document.getElementById("health-issues-structure");
+        if (structureIssuesEl) {
+            structureIssuesEl.innerHTML = `
+                <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 0.95em;">
+                    <div class="loading-spinner"></div>
+                    Health-Scan wird aktualisiert ...
+                </div>
+            `;
+        }
+        return;
+    }
+
     let bannerHtml = "";
     if (data.media_server_skipped === true) {
         bannerHtml = `
@@ -12782,6 +12813,11 @@ function renderHealthStatus(data) {
         if (overviewStructureSummary) overviewStructureSummary.textContent = "Keine Daten";
         const overviewHealthSummary = document.getElementById("overview-health-summary");
         if (overviewHealthSummary) overviewHealthSummary.textContent = "Keine Daten";
+
+        const targetStructureIssuesEl = document.getElementById("health-issues-structure");
+        if (targetStructureIssuesEl) targetStructureIssuesEl.innerHTML = "";
+        const structureContainer = document.getElementById("structure-health-issues-container");
+        if (structureContainer) structureContainer.style.display = "none";
 
         let warningHtml = `<div class="alert alert-warning" style="margin:4px 0; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:#f59e0b; padding:10px; border-radius:var(--radius-sm); font-size:12px; display:flex; align-items:center; gap:8px;">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="height:16px; width:16px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -15212,12 +15248,70 @@ function loadNfoAgentDetails(id, provider, type, season) {
 function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
     const listBody = document.getElementById("nfo-agent-episodes-list");
     listBody.innerHTML = "";
-    
+
+    const mediaType = document.getElementById("nfo-agent-media-type").value;
+
+    // 1. Render tvshow.nfo row at the top (only for TV Shows)
+    if (mediaType === "tvshow" && scanData.show_nfo_status) {
+        const showNfoRow = document.createElement("div");
+        showNfoRow.className = "nfo-episode-row show-nfo-row";
+        showNfoRow.style = "display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(255,255,255,0.06); padding: 10px; border-radius: 6px; background: rgba(var(--accent-rgb), 0.03); text-align: left; margin-bottom: 12px; border-left: 4px solid var(--accent);";
+
+        const nfoStatus = scanData.show_nfo_status;
+        let statusBadge = "";
+        let nfoActionOptions = "";
+
+        if (!nfoStatus.exists) {
+            statusBadge = '<span style="color:#ef4444; font-size:0.8em; margin-left:6px; font-weight:600;">[Keine NFO]</span>';
+            nfoActionOptions = `
+                <option value="process" selected>⚙️ Verarbeiten</option>
+                <option value="skip">⏭️ Überspringen</option>
+            `;
+        } else if (!nfoStatus.parseable) {
+            statusBadge = '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO fehlerhaft]</span>';
+            nfoActionOptions = `
+                <option value="process" selected>⚙️ Verarbeiten</option>
+                <option value="skip">⏭️ Überspringen</option>
+            `;
+        } else if (!nfoStatus.complete) {
+            statusBadge = '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO unvollständig]</span>';
+            nfoActionOptions = `
+                <option value="process" selected>⚙️ Verarbeiten</option>
+                <option value="skip">⏭️ Überspringen</option>
+            `;
+        } else {
+            statusBadge = '<span style="color:#10b981; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO vorhanden]</span>';
+            nfoActionOptions = `
+                <option value="process" selected>⚙️ Verarbeiten</option>
+                <option value="skip">⏭️ Überspringen</option>
+            `;
+        }
+
+        showNfoRow.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                <div style="font-weight: 600; font-size: 0.9em; word-break: break-all; color: var(--text-main); flex: 1; display: inline-flex; align-items: center; gap: 6px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-key" style="color: var(--accent);"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="16" r="2"/><path d="m16 10-4.5 4.5"/></svg>
+                    tvshow.nfo (Haupt-Metadaten)
+                    ${statusBadge}
+                </div>
+                <div style="width: 170px;">
+                    <select id="nfo-agent-show-nfo-action" style="width: 100%; padding: 6px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(30,30,45,1); color: var(--text-main);">
+                        ${nfoActionOptions}
+                    </select>
+                </div>
+            </div>
+        `;
+        listBody.appendChild(showNfoRow);
+    }
+
     const nfoStatuses = scanData.file_nfo_statuses || {};
     const files = (scanData.files || []).filter(file => nfoStatuses[file]);
-    
+
     if (files.length === 0) {
-        listBody.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 12px;">Keine Videodateien in diesem Verzeichnis gefunden.</div>`;
+        const noFilesMsg = document.createElement("div");
+        noFilesMsg.style = "text-align: center; color: var(--text-muted); padding: 12px;";
+        noFilesMsg.textContent = "Keine Videodateien in diesem Verzeichnis gefunden.";
+        listBody.appendChild(noFilesMsg);
         return;
     }
     
@@ -15437,6 +15531,9 @@ function submitNfoAgentJob() {
         episodes: episodesOverrides
     };
     
+    const showNfoActionSelect = document.getElementById("nfo-agent-show-nfo-action");
+    const writeShowNfo = showNfoActionSelect ? (showNfoActionSelect.value !== "skip") : true;
+
     const payload = {
         project_name: nfoAgentCurrentPath,
         media_type: "tool_nfo_agent",
@@ -15446,6 +15543,7 @@ function submitNfoAgentJob() {
         movie_id: movieId,
         season: season,
         overwrite_nfo: overwriteNfo,
+        write_show_nfo: writeShowNfo,
         mappings: mappings,
         nfo_overrides: nfoOverrides
     };

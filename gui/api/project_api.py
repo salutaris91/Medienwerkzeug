@@ -288,21 +288,37 @@ def handle_api_scan_project():
     file_nfo_statuses = {}
     
     metadata_source = None
+    show_nfo_status = None
 
     # TV Show
-    nfo_file = next((f for f in all_files if os.path.basename(f).lower() == "tvshow.nfo"), None)
+    from gui.core.helpers import resolve_series_root
+    from gui.core.health import check_nfo_incomplete
+
+    show_dir = resolve_series_root(target_dir)
+    show_nfo_path = None
+    if is_path_allowed(show_dir):
+        show_nfo_path = os.path.join(show_dir, "tvshow.nfo")
+
+    show_nfo_status = {
+        "path": show_nfo_path,
+        "exists": False,
+        "parseable": False,
+        "complete": False
+    }
+
     nfo_path = None
-    if nfo_file:
-        nfo_path = os.path.join(target_dir, nfo_file)
-    else:
-        target_basename = os.path.basename(target_dir)
-        is_season_folder = bool(re.search(r'(staffel|season|^s\d+$)', target_basename, re.IGNORECASE))
-        if is_season_folder:
-            parent_dir = os.path.dirname(target_dir)
-            if is_path_allowed(parent_dir):
-                parent_nfo_path = os.path.join(parent_dir, "tvshow.nfo")
-                if os.path.exists(parent_nfo_path):
-                    nfo_path = parent_nfo_path
+    if show_nfo_path and os.path.exists(show_nfo_path):
+        show_nfo_status["exists"] = True
+        nfo_path = show_nfo_path
+        try:
+            import xml.etree.ElementTree as ET
+            tree = ET.parse(show_nfo_path)
+            show_nfo_status["parseable"] = True
+
+            is_inc, sev, reason = check_nfo_incomplete(show_nfo_path, "tvshow")
+            show_nfo_status["complete"] = not is_inc
+        except Exception:
+            pass
 
     if nfo_path:
         if os.path.exists(nfo_path):
@@ -451,7 +467,8 @@ def handle_api_scan_project():
         "metadata_plot": metadata_plot,
         "metadata_source": metadata_source,
         "suggested_search_name": suggested_search_name,
-        "file_nfo_statuses": file_nfo_statuses
+        "file_nfo_statuses": file_nfo_statuses,
+        "show_nfo_status": show_nfo_status
     })
 
 
