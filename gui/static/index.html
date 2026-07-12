@@ -2682,7 +2682,7 @@ group_add:
     </div>
 </div>
 
-    <script type="module" src="app.js?v=80"></script>
+    <script type="module" src="app.js?v=81"></script>
 
     <!-- Modal: Confirm Merge -->
     <div id="modal-confirm-merge" class="mw-modal-overlay">
@@ -2846,6 +2846,71 @@ group_add:
             <div class="mw-modal-actions" style="display: flex; justify-content: flex-end; gap: 12px;">
                 <button class="mw-modal-btn mw-modal-btn-cancel" id="btn-trash-preview-cancel" type="button">Schließen</button>
                 <button class="mw-modal-btn mw-modal-btn-confirm" id="btn-trash-preview-confirm" style="background: var(--red); color: white; display: inline-flex; align-items: center; gap: 4px;" type="button"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2" style="height: 12px; width: 12px;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>Abgelaufene jetzt löschen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: FSK Batch Preview & Apply (Phase 2.5c-1) -->
+    <div id="modal-fsk-batch-preview" class="mw-modal-overlay hidden" style="z-index: 1000005;">
+        <div class="mw-modal" style="max-width: 800px; display: flex; flex-direction: column; padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-glass); background: rgba(30, 30, 45, 0.95); backdrop-filter: blur(10px); box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-light); padding-bottom: 12px; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield-alert" style="color: var(--accent);"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+                    <span>FSK-Altersfreigabe: Stapeländerung</span>
+                </h3>
+                <span class="close-modal" id="close-modal-fsk-batch-preview" style="cursor: pointer; font-size: 1.5em; color: var(--text-muted);">&times;</span>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 14px; text-align: left; overflow-y: auto; max-height: 65vh;">
+                <!-- Target Settings Row -->
+                <div style="display: flex; gap: 16px; flex-wrap: wrap; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 12px; border-radius: 6px; align-items: center;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <span class="text-muted" style="font-size: 0.8em; font-weight: 500; display: block; margin-bottom: 4px;">Geltungsbereich (Bedienebene):</span>
+                        <select id="fsk-batch-scope-select" class="form-select form-select-sm" style="background: var(--bg-surface-3); color: var(--text-main); border-color: var(--border-light);">
+                            <option value="single">Nur gewählte NFOs (Einzeln)</option>
+                            <option value="season">Ganze Staffel(n) (nur Episoden-NFOs)</option>
+                            <option value="series">Ganze Serie(n) (tvshow.nfo + Episoden)</option>
+                        </select>
+                    </div>
+                    <div style="min-width: 150px;">
+                        <span class="text-muted" style="font-size: 0.8em; font-weight: 500; display: block; margin-bottom: 4px;">FSK-Zielwert:</span>
+                        <span id="fsk-batch-target-val" style="font-size: 0.9em; font-weight: 600; padding: 4px 10px; background: var(--accent-light); color: var(--accent); border-radius: 4px; display: inline-block;">-</span>
+                    </div>
+                </div>
+
+                <!-- Preview Tree Title -->
+                <div>
+                    <span class="text-muted" style="font-size: 0.85em; font-weight: 500;">Geplanter Zielzustand (Vorschau):</span>
+                </div>
+
+                <!-- Loader Spinner -->
+                <div id="fsk-batch-loader" style="text-align: center; padding: 40px 20px; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
+                    <div class="loading-spinner" style="width: 24px; height: 24px; border: 2.5px solid rgba(255,255,255,0.1); border-radius: 50%; border-top-color: var(--accent); animation: spin 0.8s linear infinite;"></div>
+                    <span class="text-muted" style="font-size: 0.9em;">Vorschau wird berechnet...</span>
+                </div>
+
+                <!-- Tree Preview Panel -->
+                <div id="fsk-batch-tree-container" style="height: 250px; overflow-y: auto; background: var(--bg-surface); border: 1px solid var(--border-light); border-radius: 6px; padding: 12px; font-family: monospace; font-size: 0.85em; white-space: pre-wrap; line-height: 1.4;">
+                    <div class="text-muted" style="font-style: italic; text-align: center; padding: 20px 0;">Keine Vorschau geladen.</div>
+                </div>
+
+                <!-- Action Details / Summary -->
+                <div id="fsk-batch-summary" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 12px; border-radius: 6px; font-size: 0.9em; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px;">
+                    <div>Kein Plan geladen.</div>
+                </div>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="mw-modal-actions" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; border-top: 1px solid var(--border-light); padding-top: 12px;">
+                <button class="mw-modal-btn mw-modal-btn-cancel" id="btn-fsk-batch-cancel" type="button">Schließen</button>
+                <button class="mw-modal-btn mw-modal-btn-cancel" id="btn-fsk-batch-refresh" type="button" style="display: inline-flex; align-items: center; gap: 4px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="height: 12px; width: 12px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+                    Vorschau berechnen
+                </button>
+                <button class="mw-modal-btn mw-modal-btn-confirm" id="btn-fsk-batch-confirm" style="background: var(--accent); color: white; display: inline-flex; align-items: center; gap: 4px;" type="button" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height: 12px; width: 12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    Änderungen anwenden
+                </button>
             </div>
         </div>
     </div>

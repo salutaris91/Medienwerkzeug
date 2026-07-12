@@ -2,6 +2,7 @@ import { applyTheme } from './js/theme.js?v=73';
 import { cleanSeriesName } from './js/utils.js?v=73';
 import { formatBytes } from './js/format.js?v=73';
 import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=73';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=73';
 import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=73';
 import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=73';
 import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=73';
@@ -13046,11 +13047,16 @@ function renderHealthStatus(data) {
                 let batchBtnHtml = "";
                 if (typeId === "missing_age_rating" || typeId === "invalid_age_rating") {
                     batchBtnHtml = `
-                        <div style="display:inline-flex; align-items:center; gap:6px; opacity:0.7;" title="FSK-Stapelverarbeitung folgt in Phase 2.5c">
-                            <select disabled class="form-select form-select-xs health-batch-fsk-select" style="padding:2px 4px; font-size:11px; width:auto; height:24px; background:var(--bg-surface-3); border-color:var(--border-light); color:var(--text-muted); cursor:not-allowed;">
+                        <div style="display:inline-flex; align-items:center; gap:6px;">
+                            <select class="form-select form-select-xs health-batch-fsk-select" style="padding:2px 4px; font-size:11px; width:auto; height:24px; background:var(--bg-surface-3); border-color:var(--border-light); color:var(--text-main);">
                                 <option value="">FSK...</option>
+                                <option value="0">FSK 0</option>
+                                <option value="6">FSK 6</option>
+                                <option value="12">FSK 12</option>
+                                <option value="16">FSK 16</option>
+                                <option value="18">FSK 18</option>
                             </select>
-                            <button disabled class="btn btn-secondary btn-xs" style="padding:2px 8px; height:24px; cursor:not-allowed; opacity:0.8;">FSK Batch (2.5c)</button>
+                            <button class="btn btn-primary btn-xs health-batch-fsk-btn" style="padding:2px 8px; height:24px;" title="Ausgewählte FSK-Werte zuweisen">FSK Batch</button>
                         </div>
                     `;
                 } else if (typeId === "nested_duplicate" || typeId === "genre_container") {
@@ -13183,7 +13189,27 @@ function renderHealthStatus(data) {
                 });
             });
 
-            // Batch-Buttons (Phase 2.5b/c Ankündigung)
+            // FSK Batch-Buttons
+            issuesEl.querySelectorAll(".health-batch-fsk-btn").forEach(b => {
+                b.addEventListener("click", () => {
+                    const detailsEl = b.closest("details");
+                    const checkedPaths = Array.from(detailsEl.querySelectorAll(".health-item-select:checked")).map(cb => cb.getAttribute("data-path"));
+                    const fskVal = detailsEl.querySelector(".health-batch-fsk-select")?.value;
+
+                    if (checkedPaths.length === 0) {
+                        alert("Bitte wähle mindestens einen Befund aus.");
+                        return;
+                    }
+                    if (!fskVal) {
+                        alert("Bitte wähle eine FSK-Stufe aus.");
+                        return;
+                    }
+
+                    openFskBatchModal(checkedPaths, fskVal);
+                });
+            });
+
+            // Andere Batch-Buttons (Phase 2.5b/c)
             issuesEl.querySelectorAll(".health-batch-btn").forEach(b => {
                 b.addEventListener("click", () => {
                     const action = b.getAttribute("data-action");
@@ -13195,18 +13221,7 @@ function renderHealthStatus(data) {
                         return;
                     }
 
-                    let extraMsg = "";
-                    if (action === "set_fsk") {
-                        const selectEl = detailsEl.querySelector(".health-batch-fsk-select");
-                        const fskVal = selectEl?.value;
-                        if (!fskVal) {
-                            alert("Bitte wähle eine FSK-Stufe aus.");
-                            return;
-                        }
-                        extraMsg = ` auf FSK ${fskVal}`;
-                    }
-
-                    alert(`Batch-Aktion [${action}] für ${checkedPaths.length} ausgewählte(s) Element(e)${extraMsg} vorgemerkt.\n\n(Diese Batch-Funktion wird in Phase 2.5b/c implementiert.)`);
+                    alert(`Batch-Aktion [${action}] für ${checkedPaths.length} ausgewählte(s) Element(e) vorgemerkt.\n\n(Diese Batch-Funktion wird in Phase 2.5b/c implementiert.)`);
                 });
             });
 
@@ -13811,7 +13826,7 @@ function renderHealthStatus(data) {
         });
 
         document.querySelectorAll("#health-issues .health-fix-fsk, #health-issues-structure .health-fix-fsk").forEach(b => {
-            b.addEventListener("click", async () => {
+            b.addEventListener("click", () => {
                 const p = b.getAttribute("data-path");
                 const input = prompt("Bitte FSK-Stufe eingeben (0, 6, 12, 16, 18):");
                 if (!input) return;
@@ -13821,19 +13836,7 @@ function renderHealthStatus(data) {
                     alert("Ungültiger Wert. Bitte nur 0, 6, 12, 16 oder 18 eingeben.");
                     return;
                 }
-                if (!confirm("Die NFO-Datei wird nun angepasst. Fortfahren?")) return;
-
-                b.disabled = true;
-                try {
-                    const res = await fetch("/api/nas/health-fix", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ action: "set_fsk", path: p, new_fsk: fskVal }),
-                    });
-                    const data = await res.json();
-                    if (data.ok) { pollHealthStatus(false); }
-                    else { alert(data.message || "Fehler"); b.disabled = false; }
-                } catch (e) { alert("Fehler: " + e); b.disabled = false; }
+                openFskBatchModal([p], fskVal);
             });
         });
 
@@ -15663,4 +15666,306 @@ document.addEventListener("DOMContentLoaded", () => {
             searchNfoAgentMetadata();
         }
     });
+
+    // FSK-Batch Event-Listener verdrahten
+    document.getElementById("close-modal-fsk-batch-preview")?.addEventListener("click", closeFskBatchModal);
+    document.getElementById("btn-fsk-batch-cancel")?.addEventListener("click", closeFskBatchModal);
+    document.getElementById("btn-fsk-batch-refresh")?.addEventListener("click", loadFskBatchPreview);
+    document.getElementById("btn-fsk-batch-confirm")?.addEventListener("click", applyFskBatch);
+    document.getElementById("fsk-batch-scope-select")?.addEventListener("change", (e) => {
+        currentFskBatchScope = e.target.value;
+        loadFskBatchPreview();
+    });
 });
+
+
+// ==========================================================================
+// FSK-Batch Logik & UI-Controller (Phase 2.5c-1)
+// ==========================================================================
+let currentFskBatchPaths = [];
+let currentFskBatchTarget = "";
+let currentFskBatchScope = "single";
+let currentFskBatchPlan = null;
+
+function openFskBatchModal(paths, fskVal) {
+    currentFskBatchPaths = paths;
+    currentFskBatchTarget = fskVal;
+    currentFskBatchScope = "single";
+    currentFskBatchPlan = null;
+    
+    const modal = document.getElementById("modal-fsk-batch-preview");
+    if (modal) {
+        modal.classList.remove("hidden");
+        modal.classList.add("active");
+    }
+    
+    const targetValEl = document.getElementById("fsk-batch-target-val");
+    if (targetValEl) {
+        targetValEl.textContent = `FSK ${fskVal}`;
+    }
+    
+    const scopeSelect = document.getElementById("fsk-batch-scope-select");
+    if (scopeSelect) {
+        scopeSelect.value = currentFskBatchScope;
+    }
+    
+    loadFskBatchPreview();
+}
+
+async function loadFskBatchPreview() {
+    const loader = document.getElementById("fsk-batch-loader");
+    const container = document.getElementById("fsk-batch-tree-container");
+    const summaryEl = document.getElementById("fsk-batch-summary");
+    const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
+    
+    if (loader) loader.style.display = "flex";
+    if (container) container.innerHTML = "";
+    if (summaryEl) summaryEl.innerHTML = "Wird berechnet...";
+    if (confirmBtn) confirmBtn.disabled = true;
+    
+    try {
+        const res = await fetch("/api/nas/fsk-batch/preview", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                paths: currentFskBatchPaths,
+                scope: currentFskBatchScope,
+                new_fsk: currentFskBatchTarget
+            })
+        });
+        
+        if (!res.ok) {
+            const errData = await res.json();
+            if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Fehler: ${escapeHTML(errData.message || "Vorschau fehlgeschlagen.")}</div>`;
+            if (summaryEl) summaryEl.innerHTML = "Fehler bei der Berechnung.";
+            if (loader) loader.style.display = "none";
+            return;
+        }
+        
+        const data = await res.json();
+        currentFskBatchPlan = data;
+        
+        if (loader) loader.style.display = "none";
+        
+        // Hierarchischen Baum rendern
+        if (container) renderFskBatchTree(data.files, container);
+        
+        // Summary anzeigen
+        const sum = data.summary;
+        if (summaryEl) {
+            summaryEl.innerHTML = `
+                <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                    <span>Gesamtanzahl NFOs: <strong>${sum.total}</strong></span>
+                    <span class="text-success">Bereit zur Änderung: <strong>${sum.ready}</strong></span>
+                    <span class="text-muted">Bereits korrekt: <strong>${sum.unchanged}</strong></span>
+                    <span class="text-warning">NFO fehlt (übersprungen): <strong>${sum.skipped_missing}</strong></span>
+                    <span class="text-danger">Problematic: <strong>${sum.skipped_problematic}</strong></span>
+                </div>
+            `;
+        }
+        
+        // Button nur freigeben, wenn mindestens ein File "ready" ist
+        if (confirmBtn) {
+            confirmBtn.disabled = (sum.ready === 0);
+        }
+        
+    } catch (err) {
+        if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Netzwerkfehler: ${escapeHTML(err.message)}</div>`;
+        if (summaryEl) summaryEl.innerHTML = "Netzwerkfehler.";
+        if (loader) loader.style.display = "none";
+    }
+}
+
+function renderFskBatchTree(files, container) {
+    if (!files || files.length === 0) {
+        container.innerHTML = '<div class="text-muted" style="font-style:italic; text-align:center; padding:20px 0;">Keine betroffenen Dateien gefunden.</div>';
+        return;
+    }
+    
+    // Gruppieren nach Serie -> Staffel
+    const tree = {};
+    const movies = [];
+    
+    files.forEach(f => {
+        const h = f.hierarchy;
+        if (!h.show && !h.season) {
+            movies.push(f);
+        } else {
+            const showKey = h.show || "Unbekannte Serie";
+            if (!tree[showKey]) {
+                tree[showKey] = {};
+            }
+            const seasonKey = h.season || "Hauptverzeichnis / tvshow.nfo";
+            if (!tree[showKey][seasonKey]) {
+                tree[showKey][seasonKey] = [];
+            }
+            tree[showKey][seasonKey].push(f);
+        }
+    });
+    
+    let html = "";
+    
+    // Filme rendern
+    if (movies.length > 0) {
+        html += `<div style="font-weight:600; color:var(--text-main); margin-bottom:4px;">🎬 Filme</div>`;
+        movies.forEach(m => {
+            html += renderFskFileRow(m, 1);
+        });
+    }
+    
+    // Serien rendern
+    const shows = Object.keys(tree).sort();
+    shows.forEach(show => {
+        html += `<div style="font-weight:600; color:var(--text-main); margin-top:8px; margin-bottom:4px;">📺 Serie: ${escapeHTML(show)}</div>`;
+        const seasons = Object.keys(tree[show]).sort();
+        seasons.forEach(season => {
+            const isSeasonMain = season.includes("tvshow.nfo") || season.includes("Hauptverzeichnis");
+            const indent = isSeasonMain ? 1 : 2;
+            if (!isSeasonMain) {
+                html += `<div style="padding-left:16px; font-weight:500; color:var(--text-muted); margin-bottom:2px;">📁 ${escapeHTML(season)}</div>`;
+            }
+            tree[show][season].forEach(f => {
+                html += renderFskFileRow(f, indent);
+            });
+        });
+    });
+    
+    container.innerHTML = html;
+}
+
+function renderFskFileRow(f, indent) {
+    const padding = indent * 16;
+    let statusBadge = "";
+    let color = "var(--text-muted)";
+    let rowStyle = "";
+    
+    if (f.status === "ready") {
+        const fromFsk = f.current_fsk ? f.current_fsk : "Keine";
+        statusBadge = `<span class="badge" style="background:rgba(16,185,129,0.1); color:#10b981; font-size:10px;">FSK ändern (${fromFsk} → FSK ${currentFskBatchTarget})</span>`;
+        color = "var(--text-main)";
+    } else if (f.status === "unchanged") {
+        statusBadge = `<span class="badge" style="background:rgba(255,255,255,0.05); color:var(--text-muted); font-size:10px;">Bereits FSK ${currentFskBatchTarget} (übersprungen)</span>`;
+    } else if (f.status === "skipped_missing") {
+        statusBadge = `<span class="badge" style="background:rgba(245,158,11,0.1); color:#f59e0b; font-size:10px;">Übersprungen: NFO fehlt</span>`;
+        rowStyle = "opacity:0.6;";
+    } else if (f.status === "skipped_problematic") {
+        statusBadge = `<span class="badge" style="background:rgba(239,68,68,0.1); color:#ef4444; font-size:10px;">Fehler: ${escapeHTML(f.error)}</span>`;
+        rowStyle = "color:#ef4444;";
+    }
+    
+    const name = f.hierarchy.episode ? f.hierarchy.episode : osBasename(f.path);
+    
+    return `
+        <div style="padding-left:${padding}px; display:flex; justify-content:space-between; gap:10px; margin-bottom:2px; font-size:0.9em; ${rowStyle}">
+            <span style="color:${color}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHTML(f.path)}">📄 ${escapeHTML(name)}</span>
+            ${statusBadge}
+        </div>
+    `;
+}
+
+async function applyFskBatch() {
+    if (!currentFskBatchPlan) return;
+    
+    const sum = currentFskBatchPlan.summary;
+    const msg = `Möchtest du die FSK Altersfreigabe auf FSK ${currentFskBatchTarget} für ${sum.ready} Datei(en) anwenden?\n\nEs werden Backups erstellt.`;
+    if (!confirm(msg)) return;
+    
+    const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
+    const cancelBtn = document.getElementById("btn-fsk-batch-cancel");
+    const refreshBtn = document.getElementById("btn-fsk-batch-refresh");
+    const summaryEl = document.getElementById("fsk-batch-summary");
+    
+    if (confirmBtn) confirmBtn.disabled = true;
+    if (cancelBtn) cancelBtn.disabled = true;
+    if (refreshBtn) refreshBtn.disabled = true;
+    if (summaryEl) summaryEl.innerHTML = "Änderungen werden angewendet. Bitte warten...";
+    
+    try {
+        const payloadFiles = currentFskBatchPlan.files.map(f => ({
+            path: f.path,
+            fingerprint: f.fingerprint
+        }));
+        
+        const res = await fetch("/api/nas/fsk-batch/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                root_paths: currentFskBatchPaths,
+                scope: currentFskBatchScope,
+                new_fsk: currentFskBatchTarget,
+                files: payloadFiles
+            })
+        });
+        
+        if (res.status === 409) {
+            alert("Konflikt/Race-Condition erkannt!\nEine oder mehrere NFO-Dateien wurden zwischenzeitlich modifiziert. Die Aktion wurde komplett abgebrochen.");
+            loadFskBatchPreview();
+            if (cancelBtn) cancelBtn.disabled = false;
+            if (refreshBtn) refreshBtn.disabled = false;
+            return;
+        }
+        
+        if (!res.ok) {
+            const errData = await res.json();
+            alert("Fehler bei der Ausführung: " + (errData.message || "Unbekannter Fehler"));
+            loadFskBatchPreview();
+            if (cancelBtn) cancelBtn.disabled = false;
+            if (refreshBtn) refreshBtn.disabled = false;
+            return;
+        }
+        
+        const data = await res.json();
+        const applySum = data.summary;
+        
+        // Ergebnisse anzeigen
+        let resultHtml = `
+            <div style="font-weight:600; margin-bottom:4px;">Zusammenfassung der Ausführung:</div>
+            <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                <span class="text-success">Erfolgreich geändert: <strong>${applySum.success}</strong></span>
+                <span class="text-danger">Fehlgeschlagen: <strong>${applySum.failed}</strong></span>
+                <span class="text-muted">Unverändert: <strong>${applySum.unchanged}</strong></span>
+            </div>
+        `;
+        
+        const failedItems = data.results.filter(r => r.status === "failed");
+        if (failedItems.length > 0) {
+            resultHtml += `<div style="color:#ef4444; font-size:0.85em; margin-top:8px; max-height:100px; overflow-y:auto;">`;
+            failedItems.forEach(fi => {
+                resultHtml += `⚠️ ${escapeHTML(osBasename(fi.path))}: ${escapeHTML(fi.message)}<br>`;
+            });
+            resultHtml += `</div>`;
+        }
+        
+        if (summaryEl) summaryEl.innerHTML = resultHtml;
+        
+        if (cancelBtn) {
+            cancelBtn.textContent = "Fertig";
+            cancelBtn.disabled = false;
+            cancelBtn.onclick = () => {
+                closeFskBatchModal();
+                if (typeof pollHealthStatus === "function") pollHealthStatus(false);
+            };
+        }
+        
+    } catch (err) {
+        alert("Netzwerkfehler: " + err.message);
+        loadFskBatchPreview();
+        if (cancelBtn) cancelBtn.disabled = false;
+        if (refreshBtn) refreshBtn.disabled = false;
+    }
+}
+
+function closeFskBatchModal() {
+    const modal = document.getElementById("modal-fsk-batch-preview");
+    if (modal) {
+        modal.classList.remove("active");
+        modal.classList.add("hidden");
+    }
+    
+    // Standard-Handler zurücksetzen
+    const cancelBtn = document.getElementById("btn-fsk-batch-cancel");
+    if (cancelBtn) {
+        cancelBtn.textContent = "Schließen";
+        cancelBtn.onclick = closeFskBatchModal;
+    }
+}

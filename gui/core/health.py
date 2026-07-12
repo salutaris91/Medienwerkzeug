@@ -67,8 +67,8 @@ def _set_state(**kwargs):
         _scan_state.update(kwargs)
 
 
-def _add_issue(issues, severity, issue_type, category, path, message):
-    issues.append({
+def _add_issue(issues, severity, issue_type, category, path, message, **kwargs):
+    issue = {
         "severity": severity,
         "type": issue_type,
         "category": category,
@@ -76,7 +76,9 @@ def _add_issue(issues, severity, issue_type, category, path, message):
         "message": message,
         # Stabiler Schlüssel zum dauerhaften Ignorieren (typ + pfad, ohne wechselnde Texte)
         "key": f"health:{issue_type}:{path}",
-    })
+    }
+    issue.update(kwargs)
+    issues.append(issue)
 
 
 def _dir_has_video(directory):
@@ -276,7 +278,7 @@ def find_primary_nfo(folder_path, is_movie=False):
     return None
 
 
-def _check_fsk(issues, category, folder_path, nfo_path):
+def _check_fsk(issues, category, folder_path, nfo_path, **kwargs):
     if not nfo_path or not os.path.exists(nfo_path):
         return
 
@@ -287,20 +289,20 @@ def _check_fsk(issues, category, folder_path, nfo_path):
         m = re.search(r'<mpaa>(.*?)</mpaa>', content)
         if not m:
             _add_issue(issues, "warning", "missing_age_rating", category, folder_path,
-                       f"{os.path.basename(folder_path)}: Altersfreigabe (FSK) fehlt in der NFO")
+                       f"{os.path.basename(folder_path)}: Altersfreigabe (FSK) fehlt in der NFO", **kwargs)
             return
 
         val = m.group(1).strip()
         if not val:
             _add_issue(issues, "warning", "missing_age_rating", category, folder_path,
-                       f"{os.path.basename(folder_path)}: Altersfreigabe (FSK) ist leer in der NFO")
+                       f"{os.path.basename(folder_path)}: Altersfreigabe (FSK) ist leer in der NFO", **kwargs)
             return
 
         # Gültige Werte prüfen
         valid_values = {"FSK 0", "FSK 6", "FSK 12", "FSK 16", "FSK 18"}
         if val not in valid_values:
             _add_issue(issues, "info", "invalid_age_rating", category, folder_path,
-                       f"{os.path.basename(folder_path)}: Ungültige Altersfreigabe in NFO ({val})")
+                       f"{os.path.basename(folder_path)}: Ungültige Altersfreigabe in NFO ({val})", **kwargs)
 
     except Exception as e:
         log_message(f"⚠️ [Bibliothek-Check] FSK-Prüfung fehlgeschlagen für {nfo_path}: {e}")
@@ -349,6 +351,21 @@ def _check_season(issues, category, show_name, season_path, validator):
             if is_inc:
                 _add_issue(issues, sev, "incomplete_nfo", category, season_path,
                            f"{show_name} · {fn}: {reason}")
+            
+            # FSK-Check für Episode (dateibasiert über den NFO-Pfad)
+            series_path = os.path.dirname(season_path)
+            season_name = os.path.basename(season_path)
+            ep_label = f"{show_name} · {season_name} · {fn}"
+            _check_fsk(
+                issues,
+                category,
+                folder_path=ep_nfo_path,  # Eindeutiger Identifizierer für das Issue
+                nfo_path=ep_nfo_path,
+                scope_kind="episode",
+                series_path=series_path,
+                season_path=season_path,
+                label=ep_label
+            )
 
     # Episodenlücken: Nummern aus Dateinamen UND Ordnernamen (ein Ordner kann existieren,
     # auch wenn das Video noch fehlt -> sonst falsche "Episode fehlt"-Meldungen).
