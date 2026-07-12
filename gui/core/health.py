@@ -67,8 +67,8 @@ def _set_state(**kwargs):
         _scan_state.update(kwargs)
 
 
-def _add_issue(issues, severity, issue_type, category, path, message):
-    issues.append({
+def _add_issue(issues, severity, issue_type, category, path, message, **kwargs):
+    issue = {
         "severity": severity,
         "type": issue_type,
         "category": category,
@@ -76,7 +76,9 @@ def _add_issue(issues, severity, issue_type, category, path, message):
         "message": message,
         # Stabiler Schlüssel zum dauerhaften Ignorieren (typ + pfad, ohne wechselnde Texte)
         "key": f"health:{issue_type}:{path}",
-    })
+    }
+    issue.update(kwargs)
+    issues.append(issue)
 
 
 def _dir_has_video(directory):
@@ -152,7 +154,7 @@ def _get_provider_from_nfo(nfo_path):
             m = re.search(r'<mw_provider>(.*?)</mw_provider>', content)
             if m:
                 return m.group(1).strip()
-            
+
             # Fallbacks
             if '<tmdbid>' in content:
                 if 'tvshow.nfo' in nfo_path.lower():
@@ -167,7 +169,7 @@ def _get_provider_from_nfo(nfo_path):
                 except Exception:
                     pass
                 return 'tmdb_movie'
-                
+
             if '<tvdbid>' in content:
                 return 'tvdb'
     except Exception as e:
@@ -186,19 +188,19 @@ def check_nfo_incomplete(nfo_path, nfo_type="episode"):
         import xml.etree.ElementTree as ET
         tree = ET.parse(nfo_path)
         root = tree.getroot()
-        
+
         title_el = root.find("title")
         plot_el = root.find("plot")
-        
+
         title_missing = title_el is None or not title_el.text or not title_el.text.strip()
         plot_missing = plot_el is None or not plot_el.text or not plot_el.text.strip()
-        
+
         if title_missing or plot_missing:
             missing_fields = []
             if title_missing: missing_fields.append("Titel")
             if plot_missing: missing_fields.append("Plot")
             return True, "critical", f"NFO unvollständig (fehlende Felder: {', '.join(missing_fields)})"
-            
+
         # Optional warnings
         if nfo_type == "episode":
             aired_el = root.find("aired")
@@ -210,10 +212,10 @@ def check_nfo_incomplete(nfo_path, nfo_type="episode"):
             year_missing = year_el is None or not year_el.text or not year_el.text.strip()
             if year_missing:
                 return True, "warning", "NFO unvollständig (fehlendes Feld: Produktionsjahr)"
-                
+
     except Exception as e:
         return True, "critical", f"NFO beschädigt oder unlesbar: {str(e)}"
-        
+
     return False, None, None
 
 
@@ -276,7 +278,7 @@ def find_primary_nfo(folder_path, is_movie=False):
     return None
 
 
-def _check_fsk(issues, category, folder_path, nfo_path):
+def _check_fsk(issues, category, folder_path, nfo_path, **kwargs):
     if not nfo_path or not os.path.exists(nfo_path):
         return
 
@@ -287,20 +289,20 @@ def _check_fsk(issues, category, folder_path, nfo_path):
         m = re.search(r'<mpaa>(.*?)</mpaa>', content)
         if not m:
             _add_issue(issues, "warning", "missing_age_rating", category, folder_path,
-                       f"{os.path.basename(folder_path)}: Altersfreigabe (FSK) fehlt in der NFO")
+                       f"{os.path.basename(folder_path)}: Altersfreigabe (FSK) fehlt in der NFO", **kwargs)
             return
 
         val = m.group(1).strip()
         if not val:
             _add_issue(issues, "warning", "missing_age_rating", category, folder_path,
-                       f"{os.path.basename(folder_path)}: Altersfreigabe (FSK) ist leer in der NFO")
+                       f"{os.path.basename(folder_path)}: Altersfreigabe (FSK) ist leer in der NFO", **kwargs)
             return
 
         # Gültige Werte prüfen
         valid_values = {"FSK 0", "FSK 6", "FSK 12", "FSK 16", "FSK 18"}
         if val not in valid_values:
             _add_issue(issues, "info", "invalid_age_rating", category, folder_path,
-                       f"{os.path.basename(folder_path)}: Ungültige Altersfreigabe in NFO ({val})")
+                       f"{os.path.basename(folder_path)}: Ungültige Altersfreigabe in NFO ({val})", **kwargs)
 
     except Exception as e:
         log_message(f"⚠️ [Bibliothek-Check] FSK-Prüfung fehlgeschlagen für {nfo_path}: {e}")
@@ -340,7 +342,7 @@ def _check_season(issues, category, show_name, season_path, validator):
     if missing_nfo:
         _add_issue(issues, "warning", "missing_nfo", category, season_path,
                    f"{label}: {len(missing_nfo)} von {len(videos)} Episoden ohne NFO")
-                   
+
     # Check if existing episode NFOs are incomplete
     for full, fn in videos:
         ep_nfo_path = os.path.splitext(full)[0] + ".nfo"
@@ -349,6 +351,21 @@ def _check_season(issues, category, show_name, season_path, validator):
             if is_inc:
                 _add_issue(issues, sev, "incomplete_nfo", category, season_path,
                            f"{show_name} · {fn}: {reason}")
+
+            # FSK-Check für Episode (dateibasiert über den NFO-Pfad)
+            series_path = os.path.dirname(season_path)
+            season_name = os.path.basename(season_path)
+            ep_label = f"{show_name} · {season_name} · {fn}"
+            _check_fsk(
+                issues,
+                category,
+                folder_path=ep_nfo_path,  # Eindeutiger Identifizierer für das Issue
+                nfo_path=ep_nfo_path,
+                scope_kind="episode",
+                series_path=series_path,
+                season_path=season_path,
+                label=ep_label
+            )
 
     # Episodenlücken: Nummern aus Dateinamen UND Ordnernamen (ein Ordner kann existieren,
     # auch wenn das Video noch fehlt -> sonst falsche "Episode fehlt"-Meldungen).

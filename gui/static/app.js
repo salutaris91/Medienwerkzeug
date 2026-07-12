@@ -2,6 +2,7 @@ import { applyTheme } from './js/theme.js?v=73';
 import { cleanSeriesName } from './js/utils.js?v=73';
 import { formatBytes } from './js/format.js?v=73';
 import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=73';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=73';
 import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=73';
 import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=73';
 import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=73';
@@ -2823,19 +2824,19 @@ async function scanProject(project) {
             if (data.metadata_provider.startsWith("tmdb_movie") || data.metadata_provider === "ytdlp_movie") {
                 mediaType = "movie";
             }
-            
+
             setTimeout(() => {
                 const modeCard = document.getElementById(mediaType === "series" ? "mode-series" : "mode-movie");
                 if (modeCard) {
                     modeCard.click();
                 }
-                
+
                 const metaObj = {
                     id: data.metadata_id,
                     provider: data.metadata_provider,
                     name: data.metadata_name || data.suggested_query || project
                 };
-                
+
                 setTimeout(() => {
                     if (mediaType === "series") {
                         selectShow(metaObj);
@@ -3781,7 +3782,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                                 const title = typeof ep === 'object' ? ep.title : ep;
                                 const fileStatus = window.currentProjectFileNfoStatuses ? window.currentProjectFileNfoStatuses[file] : null;
                                 const shouldSkip = fileStatus && fileStatus.exists && fileStatus.complete;
-                                
+
                                 let isSelected = false;
                                 if (!shouldSkip) {
                                     if (isAllSeasons) {
@@ -4387,12 +4388,12 @@ async function executeSeriesWorkflow() {
                 const epTitle = document.getElementById(`episode-nfo-title-${index}`)?.value?.trim();
                 const epAired = document.getElementById(`episode-nfo-aired-${index}`)?.value?.trim();
                 const epPlot = document.getElementById(`episode-nfo-plot-${index}`)?.value?.trim();
-                
+
                 const epOverrides = {};
                 if (epTitle) epOverrides.title = epTitle;
                 if (epAired) epOverrides.aired = epAired;
                 if (epPlot) epOverrides.plot = epPlot;
-                
+
                 if (Object.keys(epOverrides).length > 0) {
                     nfoOverrides.episodes[file] = epOverrides;
                 }
@@ -12983,13 +12984,18 @@ function renderHealthStatus(data) {
                     const it = list[i];
                     totalRendered++;
                     let fixBtns = "";
+                    let scopeData = "";
+                    if (it.scope_kind) scopeData += ` data-scope-kind="${escapeHTML(it.scope_kind)}"`;
+                    if (it.series_path) scopeData += ` data-series-path="${escapeHTML(it.series_path)}"`;
+                    if (it.season_path) scopeData += ` data-season-path="${escapeHTML(it.season_path)}"`;
+
                     if (it.type === "nested_duplicate") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-structure-preview" data-path="${escapeHTML(it.path)}" title="Vorschau anzeigen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="height:12px; width:12px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>Vorschau</button>
                                    <button class="btn btn-primary btn-sm health-structure-apply" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height:12px; width:12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Auflösen</button>`;
                     } else if (it.type === "name_mismatch" || it.type === "bad_folder_name") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-fix-rename" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Umbenennen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit-3" style="height:12px; width:12px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Umbenennen</button>`;
                     } else if (it.type === "missing_age_rating" || it.type === "invalid_age_rating") {
-                        fixBtns = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" title="FSK-Stufe setzen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>FSK setzen</button>`;
+                        fixBtns = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" ${scopeData} title="FSK-Stufe setzen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>FSK setzen</button>`;
                     } else if (it.type === "missing_poster" || it.type === "missing_backdrop" || it.type === "missing_logo" || it.type === "missing_banner" || it.type === "missing_season_poster") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-artwork-search" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Bild online suchen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image" style="height:12px; width:12px;"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>Bild suchen</button>`;
                     } else if (it.type === "missing_nfo" || it.type === "incomplete_nfo") {
@@ -13046,11 +13052,16 @@ function renderHealthStatus(data) {
                 let batchBtnHtml = "";
                 if (typeId === "missing_age_rating" || typeId === "invalid_age_rating") {
                     batchBtnHtml = `
-                        <div style="display:inline-flex; align-items:center; gap:6px; opacity:0.7;" title="FSK-Stapelverarbeitung folgt in Phase 2.5c">
-                            <select disabled class="form-select form-select-xs health-batch-fsk-select" style="padding:2px 4px; font-size:11px; width:auto; height:24px; background:var(--bg-surface-3); border-color:var(--border-light); color:var(--text-muted); cursor:not-allowed;">
+                        <div style="display:inline-flex; align-items:center; gap:6px;">
+                            <select class="form-select form-select-xs health-batch-fsk-select" style="padding:2px 4px; font-size:11px; width:auto; height:24px; background:var(--bg-surface-3); border-color:var(--border-light); color:var(--text-main);">
                                 <option value="">FSK...</option>
+                                <option value="0">FSK 0</option>
+                                <option value="6">FSK 6</option>
+                                <option value="12">FSK 12</option>
+                                <option value="16">FSK 16</option>
+                                <option value="18">FSK 18</option>
                             </select>
-                            <button disabled class="btn btn-secondary btn-xs" style="padding:2px 8px; height:24px; cursor:not-allowed; opacity:0.8;">FSK Batch (2.5c)</button>
+                            <button class="btn btn-primary btn-xs health-batch-fsk-btn" style="padding:2px 8px; height:24px;" title="Ausgewählte FSK-Werte zuweisen">FSK Batch</button>
                         </div>
                     `;
                 } else if (typeId === "nested_duplicate" || typeId === "genre_container") {
@@ -13107,13 +13118,18 @@ function renderHealthStatus(data) {
                     const it = list[i];
                     totalRendered++;
                     let fixBtns = "";
+                    let scopeData = "";
+                    if (it.scope_kind) scopeData += ` data-scope-kind="${escapeHTML(it.scope_kind)}"`;
+                    if (it.series_path) scopeData += ` data-series-path="${escapeHTML(it.series_path)}"`;
+                    if (it.season_path) scopeData += ` data-season-path="${escapeHTML(it.season_path)}"`;
+
                     if (it.type === "nested_duplicate") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-structure-preview" data-path="${escapeHTML(it.path)}" title="Vorschau anzeigen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="height:12px; width:12px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>Vorschau</button>
                                    <button class="btn btn-primary btn-sm health-structure-apply" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height:12px; width:12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Auflösen</button>`;
                     } else if (it.type === "name_mismatch" || it.type === "bad_folder_name") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-fix-rename" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Umbenennen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit-3" style="height:12px; width:12px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Umbenennen</button>`;
                     } else if (it.type === "missing_age_rating" || it.type === "invalid_age_rating") {
-                        fixBtns = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" title="FSK-Stufe setzen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>FSK setzen</button>`;
+                        fixBtns = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" ${scopeData} title="FSK-Stufe setzen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>FSK setzen</button>`;
                     } else if (it.type === "missing_poster" || it.type === "missing_backdrop" || it.type === "missing_logo" || it.type === "missing_banner" || it.type === "missing_season_poster") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-artwork-search" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Bild online suchen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image" style="height:12px; width:12px;"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>Bild suchen</button>`;
                     } else if (it.type === "missing_nfo" || it.type === "incomplete_nfo") {
@@ -13123,7 +13139,7 @@ function renderHealthStatus(data) {
                     const m = HEALTH_SEVERITY[it.severity];
                     html += `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; font-size:0.9em; padding:8px 0; border-top:1px solid rgba(255,255,255,0.04);">
                                 <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0; color:var(--text-main); font-weight:500;">
-                                    <input type="checkbox" class="health-item-select" data-type-id="${typeId}" data-path="${escapeHTML(it.path)}" style="margin:0; width:14px; height:14px; cursor:pointer; flex-shrink:0;">
+                                    <input type="checkbox" class="health-item-select" data-type-id="${typeId}" data-path="${escapeHTML(it.path)}" ${scopeData} style="margin:0; width:14px; height:14px; cursor:pointer; flex-shrink:0;">
                                     <span style="color:${m.color}; margin-right:4px; display:inline-flex; align-items:center; flex-shrink:0;">${m.icon}</span>
                                     <span style="min-width:0; overflow-wrap:anywhere; word-break:break-word;">${escapeHTML(it.category)} · ${escapeHTML(it.message)}</span>
                                 </div>
@@ -13183,7 +13199,32 @@ function renderHealthStatus(data) {
                 });
             });
 
-            // Batch-Buttons (Phase 2.5b/c Ankündigung)
+            // FSK Batch-Buttons
+            issuesEl.querySelectorAll(".health-batch-fsk-btn").forEach(b => {
+                b.addEventListener("click", () => {
+                    const detailsEl = b.closest("details");
+                    const checkedItems = Array.from(detailsEl.querySelectorAll(".health-item-select:checked")).map(cb => ({
+                        path: cb.getAttribute("data-path"),
+                        scope_kind: cb.getAttribute("data-scope-kind"),
+                        series_path: cb.getAttribute("data-series-path"),
+                        season_path: cb.getAttribute("data-season-path")
+                    }));
+                    const fskVal = detailsEl.querySelector(".health-batch-fsk-select")?.value;
+
+                    if (checkedItems.length === 0) {
+                        alert("Bitte wähle mindestens einen Befund aus.");
+                        return;
+                    }
+                    if (!fskVal) {
+                        alert("Bitte wähle eine FSK-Stufe aus.");
+                        return;
+                    }
+
+                    openFskBatchModal(checkedItems, fskVal);
+                });
+            });
+
+            // Andere Batch-Buttons (Phase 2.5b/c)
             issuesEl.querySelectorAll(".health-batch-btn").forEach(b => {
                 b.addEventListener("click", () => {
                     const action = b.getAttribute("data-action");
@@ -13195,18 +13236,7 @@ function renderHealthStatus(data) {
                         return;
                     }
 
-                    let extraMsg = "";
-                    if (action === "set_fsk") {
-                        const selectEl = detailsEl.querySelector(".health-batch-fsk-select");
-                        const fskVal = selectEl?.value;
-                        if (!fskVal) {
-                            alert("Bitte wähle eine FSK-Stufe aus.");
-                            return;
-                        }
-                        extraMsg = ` auf FSK ${fskVal}`;
-                    }
-
-                    alert(`Batch-Aktion [${action}] für ${checkedPaths.length} ausgewählte(s) Element(e)${extraMsg} vorgemerkt.\n\n(Diese Batch-Funktion wird in Phase 2.5b/c implementiert.)`);
+                    alert(`Batch-Aktion [${action}] für ${checkedPaths.length} ausgewählte(s) Element(e) vorgemerkt.\n\n(Diese Batch-Funktion wird in Phase 2.5b/c implementiert.)`);
                 });
             });
 
@@ -13811,8 +13841,13 @@ function renderHealthStatus(data) {
         });
 
         document.querySelectorAll("#health-issues .health-fix-fsk, #health-issues-structure .health-fix-fsk").forEach(b => {
-            b.addEventListener("click", async () => {
-                const p = b.getAttribute("data-path");
+            b.addEventListener("click", () => {
+                const item = {
+                    path: b.getAttribute("data-path"),
+                    scope_kind: b.getAttribute("data-scope-kind"),
+                    series_path: b.getAttribute("data-series-path"),
+                    season_path: b.getAttribute("data-season-path")
+                };
                 const input = prompt("Bitte FSK-Stufe eingeben (0, 6, 12, 16, 18):");
                 if (!input) return;
                 const fskVal = input.trim();
@@ -13821,19 +13856,7 @@ function renderHealthStatus(data) {
                     alert("Ungültiger Wert. Bitte nur 0, 6, 12, 16 oder 18 eingeben.");
                     return;
                 }
-                if (!confirm("Die NFO-Datei wird nun angepasst. Fortfahren?")) return;
-
-                b.disabled = true;
-                try {
-                    const res = await fetch("/api/nas/health-fix", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ action: "set_fsk", path: p, new_fsk: fskVal }),
-                    });
-                    const data = await res.json();
-                    if (data.ok) { pollHealthStatus(false); }
-                    else { alert(data.message || "Fehler"); b.disabled = false; }
-                } catch (e) { alert("Fehler: " + e); b.disabled = false; }
+                openFskBatchModal([item], fskVal);
             });
         });
 
@@ -14942,7 +14965,7 @@ function openNfoAgentModal(path) {
     nfoAgentCurrentPath = path;
     const modal = document.getElementById("modal-nfo-agent");
     if (!modal) return;
-    
+
     // Clear / reset UI
     modal.classList.add("active");
     modal.classList.remove("hidden");
@@ -14976,7 +14999,7 @@ function openNfoAgentModal(path) {
     if (advancedDetails) {
         advancedDetails.removeAttribute("open");
     }
-    
+
     nfoAgentProfileId = "";
     nfoAgentProfileProvider = "";
 
@@ -14986,7 +15009,7 @@ function openNfoAgentModal(path) {
         searchBtn.disabled = true;
         searchBtn.textContent = "Scanne...";
     }
-    
+
     fetch(`/api/scan-project?project=${encodeURIComponent(path)}`)
         .then(res => res.json())
         .then(data => {
@@ -14995,7 +15018,7 @@ function openNfoAgentModal(path) {
                 return;
             }
             nfoAgentScanData = data;
-            
+
             // Set type
             const mediaTypeSelect = document.getElementById("nfo-agent-media-type");
             mediaTypeSelect.value = data.type === "movie" ? "movie" : "tvshow";
@@ -15013,7 +15036,7 @@ function openNfoAgentModal(path) {
             // Set search input to the suggested search name
             const titleInput = document.getElementById("nfo-agent-search-title");
             titleInput.value = data.suggested_search_name || "";
-            
+
             // Populate backend-resolved ID/provider/name (priority: NFO -> Profile)
             if (data.metadata_provider) {
                 document.getElementById("nfo-agent-provider").value = data.metadata_provider;
@@ -15026,7 +15049,7 @@ function openNfoAgentModal(path) {
                 document.getElementById("nfo-agent-show-year").value = data.metadata_year || "";
                 document.getElementById("nfo-agent-show-plot").value = data.metadata_plot || "";
             }
-            
+
             // Fetch series profile in background (only for badge comparison "Profil abweichend")
             const showNameQuery = data.metadata_name || data.project || "";
             if (data.type !== "movie" && showNameQuery) {
@@ -15074,7 +15097,7 @@ function triggerNfoAgentMediaTypeChange() {
     const providerSelect = document.getElementById("nfo-agent-provider");
     const seasonContainer = document.getElementById("nfo-agent-season-container");
     const epSection = document.getElementById("nfo-agent-episodes-section");
-    
+
     // Clear and build options based on type
     providerSelect.innerHTML = "";
     if (type === "tvshow") {
@@ -15100,16 +15123,16 @@ function searchNfoAgentMetadata() {
     const title = document.getElementById("nfo-agent-search-title").value.trim();
     const type = document.getElementById("nfo-agent-media-type").value;
     const season = document.getElementById("nfo-agent-season").value;
-    
+
     if (!title) {
         alert("Bitte gib einen Suchbegriff ein.");
         return;
     }
-    
+
     const searchBtn = document.getElementById("btn-nfo-agent-search");
     searchBtn.disabled = true;
     searchBtn.textContent = "Suche...";
-    
+
     // 1. Search for ID using the unified search endpoint
     const queryType = type === 'tvshow' ? 'tv' : 'movie';
     fetch(`/api/search?type=${queryType}&q=${encodeURIComponent(title)}`)
@@ -15117,33 +15140,33 @@ function searchNfoAgentMetadata() {
         .then(results => {
             const resultsContainer = document.getElementById("nfo-agent-search-results");
             resultsContainer.innerHTML = "";
-            
+
             if (!results || results.length === 0) {
                 resultsContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 8px; font-size: 0.85em;">Keine Treffer gefunden. Bitte gib die ID manuell in den erweiterten Einstellungen ein.</div>`;
                 resultsContainer.style.display = "block";
-                
+
                 const advDetails = document.getElementById("nfo-agent-advanced-details");
                 if (advDetails) {
                     advDetails.open = true;
                 }
                 return;
             }
-            
+
             resultsContainer.style.display = "block";
-            
+
             results.forEach((item, index) => {
                 const itemDiv = document.createElement("div");
                 itemDiv.className = "search-result-item";
                 itemDiv.style = "display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid var(--border-light); cursor: pointer; font-size: 0.85em; transition: background 0.2s;";
                 itemDiv.addEventListener("mouseenter", () => { itemDiv.style.background = "rgba(255,255,255,0.05)"; });
                 itemDiv.addEventListener("mouseleave", () => { itemDiv.style.background = "transparent"; });
-                
+
                 // Determine badges
                 let badgeHTML = "";
                 const normItemProv = normalizeProvider(item.provider);
                 const normScanProv = normalizeProvider(nfoAgentScanData ? nfoAgentScanData.metadata_provider : "");
                 const scanId = nfoAgentScanData ? nfoAgentScanData.metadata_id : "";
-                
+
                 // 1. Check NFO / Profile match
                 if (scanId && String(item.id) === String(scanId) && normItemProv === normScanProv) {
                     if (nfoAgentScanData && nfoAgentScanData.metadata_source === "nfo") {
@@ -15152,7 +15175,7 @@ function searchNfoAgentMetadata() {
                         badgeHTML += `<span style="background: #3b82f6; color: white; font-size: 0.75em; padding: 2px 6px; border-radius: 10px; font-weight: 600; margin-left: 6px;">aus Serienprofil</span>`;
                     }
                 }
-                
+
                 // 2. Check Profile discrepant match
                 const normProfProv = normalizeProvider(nfoAgentProfileProvider);
                 if (nfoAgentProfileId && String(item.id) === String(nfoAgentProfileId) && normItemProv === normProfProv) {
@@ -15161,7 +15184,7 @@ function searchNfoAgentMetadata() {
                         badgeHTML += `<span style="background: #f59e0b; color: white; font-size: 0.75em; padding: 2px 6px; border-radius: 10px; font-weight: 600; margin-left: 6px;">Profil abweichend</span>`;
                     }
                 }
-                
+
                 itemDiv.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 8px; color: var(--text-main); flex: 1;">
                         <strong style="color: var(--accent); font-size: 0.8em; text-transform: uppercase;">[${escapeHTML(item.provider || "Manual")}]</strong>
@@ -15169,7 +15192,7 @@ function searchNfoAgentMetadata() {
                         ${badgeHTML}
                     </div>
                 `;
-                
+
                 itemDiv.addEventListener("click", () => {
                     // Set inputs
                     let mappedProv = item.provider;
@@ -15184,7 +15207,7 @@ function searchNfoAgentMetadata() {
                     }
                     document.getElementById("nfo-agent-provider").value = mappedProv;
                     document.getElementById("nfo-agent-metadata-id").value = item.id;
-                    
+
                     // Highlight selected item by setting border-left
                     resultsContainer.querySelectorAll(".search-result-item").forEach(el => {
                         el.style.borderLeft = "none";
@@ -15192,13 +15215,13 @@ function searchNfoAgentMetadata() {
                     });
                     itemDiv.style.borderLeft = "4px solid var(--accent)";
                     itemDiv.style.background = "rgba(255,255,255,0.02)";
-                    
+
                     // Fetch full details
                     loadNfoAgentDetails(item.id, mappedProv, type, season);
                 });
-                
+
                 resultsContainer.appendChild(itemDiv);
-                
+
                 // Auto-select/highlight the best matching item
                 if (scanId && String(item.id) === String(scanId) && normItemProv === normScanProv) {
                     itemDiv.style.borderLeft = "4px solid var(--accent)";
@@ -15211,7 +15234,7 @@ function searchNfoAgentMetadata() {
             const resultsContainer = document.getElementById("nfo-agent-search-results");
             resultsContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 8px; font-size: 0.85em;">Metadatensuche fehlgeschlagen. Bitte gib die ID manuell in den erweiterten Einstellungen ein.</div>`;
             resultsContainer.style.display = "block";
-            
+
             const advDetails = document.getElementById("nfo-agent-advanced-details");
             if (advDetails) {
                 advDetails.open = true;
@@ -15230,7 +15253,7 @@ function loadNfoAgentDetails(id, provider, type, season) {
     } else {
         url = `/api/metadata/fetch?media_type=movie&provider=${provider}&movie_id=${id}`;
     }
-    
+
     fetch(url)
         .then(res => res.json())
         .then(meta => {
@@ -15238,7 +15261,7 @@ function loadNfoAgentDetails(id, provider, type, season) {
             document.getElementById("nfo-agent-show-title").value = meta.name || "";
             document.getElementById("nfo-agent-show-year").value = meta.year || "";
             document.getElementById("nfo-agent-show-plot").value = meta.plot || "";
-            
+
             // If series, rebuild the files list with the loaded episode metadata
             if (type === "tvshow" && nfoAgentScanData) {
                 renderNfoAgentFiles(nfoAgentScanData, meta.episodes || {});
@@ -15319,22 +15342,22 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
         listBody.appendChild(noFilesMsg);
         return;
     }
-    
+
     files.forEach(file => {
         const basename = file;
         const status = nfoStatuses[basename] || { exists: false, complete: false };
-        
+
         // Auto-detect season and episode numbers from filename
         let match = basename.match(/S(\d+)E(\d+)/i) || basename.match(/E(\d+)/i);
         let epNum = "";
         if (match) {
             epNum = match[2] ? `S${parseInt(match[1])}E${parseInt(match[2])}` : `E${parseInt(match[1])}`;
         }
-        
+
         // Get metadata title if loaded
         let metaTitle = "";
         let metaPlot = "";
-        
+
         if (epNum) {
             let epKey = epNum;
             if (!epKey.startsWith("S")) {
@@ -15358,10 +15381,10 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
                 }
             }
         }
-        
+
         // Default dropdown value: skip if NFO exists and is complete
         const defaultSelectValue = (status.exists && status.complete) ? "skip" : (epNum || "skip");
-        
+
         const row = document.createElement("div");
         row.className = "nfo-episode-row";
         row.style = "display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--border-light); padding: 10px; border-radius: 6px; background: rgba(255,255,255,0.01); text-align: left;";
@@ -15369,10 +15392,10 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                 <div style="font-weight: 500; font-size: 0.9em; word-break: break-all; color: var(--text-main); flex: 1;">
                     ${escapeHTML(basename)}
-                    ${status.exists ? 
-                        (status.complete ? 
-                            '<span style="color:#10b981; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO vorhanden]</span>' : 
-                            '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO unvollständig]</span>') : 
+                    ${status.exists ?
+                        (status.complete ?
+                            '<span style="color:#10b981; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO vorhanden]</span>' :
+                            '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO unvollständig]</span>') :
                         '<span style="color:#ef4444; font-size:0.8em; margin-left:6px; font-weight:600;">[Keine NFO]</span>'
                     }
                 </div>
@@ -15397,27 +15420,27 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
             </div>
         `;
         listBody.appendChild(row);
-        
+
         const select = row.querySelector(".nfo-agent-ep-mapping-select");
         const container = row.querySelector(".nfo-agent-ep-override-container");
-        
+
         // Dynamic episode metadata fetch helper
         const loadEpMetadata = async (val) => {
             if (val === "skip") return;
             const prov = document.getElementById("nfo-agent-provider").value;
             const shId = document.getElementById("nfo-agent-metadata-id").value.trim();
             if (prov === "manual" || !shId) return;
-            
+
             const matchFormat = val.match(/S(\d+)E(\d+)/i);
             if (!matchFormat) return;
             const s = matchFormat[1];
             const e = matchFormat[2];
-            
+
             const titleInput = row.querySelector(".nfo-agent-ep-override-title");
             const plotTextarea = row.querySelector(".nfo-agent-ep-override-plot");
-            
+
             if (plotTextarea) plotTextarea.placeholder = "Lade Metadaten...";
-            
+
             try {
                 const response = await fetch(`/api/metadata/fetch?media_type=episode&provider=${encodeURIComponent(prov)}&show_id=${encodeURIComponent(shId)}&season=${encodeURIComponent(s)}&episode=${encodeURIComponent(e)}`);
                 if (response.ok) {
@@ -15466,23 +15489,23 @@ function buildEpisodeOptionsHTML(fileCount, selectedVal) {
 
 function submitNfoAgentJob() {
     if (!nfoAgentCurrentPath) return;
-    
+
     const provider = document.getElementById("nfo-agent-provider").value;
     const mediaType = document.getElementById("nfo-agent-media-type").value;
     const showId = document.getElementById("nfo-agent-metadata-id").value.trim();
     const movieId = showId;
     const season = parseInt(document.getElementById("nfo-agent-season").value) || 1;
     const overwriteNfo = document.getElementById("nfo-agent-overwrite-nfo").checked;
-    
+
     if (provider !== "manual" && !showId) {
         alert("Bitte gib eine Show- oder Movie-ID an.");
         return;
     }
-    
+
     // Build mappings & overrides
     const mappings = {};
     const episodesOverrides = {};
-    
+
     const mappingSelects = document.querySelectorAll(".nfo-agent-ep-mapping-select");
     mappingSelects.forEach(select => {
         const file = select.getAttribute("data-file");
@@ -15491,26 +15514,26 @@ function submitNfoAgentJob() {
             mappings[file] = val;
         }
     });
-    
+
     const epTitleInputs = document.querySelectorAll(".nfo-agent-ep-override-title");
     epTitleInputs.forEach(input => {
         const file = input.getAttribute("data-file");
         const title = input.value.trim();
         const plotTextarea = document.querySelector(`.nfo-agent-ep-override-plot[data-file="${CSS.escape(file)}"]`);
         const plot = plotTextarea ? plotTextarea.value.trim() : "";
-        
+
         if (title || plot) {
             episodesOverrides[file] = { title, plot };
         }
     });
-    
+
     const showTitle = document.getElementById("nfo-agent-show-title").value.trim();
     const showYear = document.getElementById("nfo-agent-show-year").value.trim();
     const showPlot = document.getElementById("nfo-agent-show-plot").value.trim();
-    
+
     const showOverrides = {};
     const movieOverrides = {};
-    
+
     if (nfoAgentScanData) {
         if (showTitle !== (nfoAgentScanData.metadata_name || "")) {
             showOverrides.title = showTitle;
@@ -15529,13 +15552,13 @@ function submitNfoAgentJob() {
         if (showYear) { showOverrides.year = showYear; movieOverrides.year = showYear; }
         if (showPlot) { showOverrides.plot = showPlot; movieOverrides.plot = showPlot; }
     }
-    
+
     const nfoOverrides = {
         show: showOverrides,
         movie: movieOverrides,
         episodes: episodesOverrides
     };
-    
+
     const showNfoActionSelect = document.getElementById("nfo-agent-show-nfo-action");
     const writeShowNfo = showNfoActionSelect ? (showNfoActionSelect.value !== "skip") : true;
 
@@ -15552,15 +15575,15 @@ function submitNfoAgentJob() {
         mappings: mappings,
         nfo_overrides: nfoOverrides
     };
-    
+
     const submitBtn = document.getElementById("btn-nfo-agent-submit");
     submitBtn.disabled = true;
     submitBtn.style.opacity = "0.5";
-    
+
     const logContainer = document.getElementById("nfo-agent-log-container");
     logContainer.style.display = "block";
     logContainer.textContent = "Starte NFO Agent Job...\n";
-    
+
     fetch("/api/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -15655,7 +15678,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("btn-nfo-agent-submit")?.addEventListener("click", submitNfoAgentJob);
     document.getElementById("btn-nfo-agent-search")?.addEventListener("click", searchNfoAgentMetadata);
     document.getElementById("nfo-agent-media-type")?.addEventListener("change", triggerNfoAgentMediaTypeChange);
-    
+
     // Bind Enter key inside search box
     document.getElementById("nfo-agent-search-title")?.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
@@ -15663,4 +15686,344 @@ document.addEventListener("DOMContentLoaded", () => {
             searchNfoAgentMetadata();
         }
     });
+
+    // FSK-Batch Event-Listener verdrahten
+    document.getElementById("close-modal-fsk-batch-preview")?.addEventListener("click", closeFskBatchModal);
+    document.getElementById("btn-fsk-batch-cancel")?.addEventListener("click", closeFskBatchModal);
+    document.getElementById("btn-fsk-batch-refresh")?.addEventListener("click", loadFskBatchPreview);
+    document.getElementById("btn-fsk-batch-confirm")?.addEventListener("click", applyFskBatch);
+    document.getElementById("fsk-batch-scope-select")?.addEventListener("change", (e) => {
+        currentFskBatchScope = e.target.value;
+        loadFskBatchPreview();
+    });
 });
+
+
+// ==========================================================================
+// FSK-Batch Logik & UI-Controller (Phase 2.5c-1)
+// ==========================================================================
+let currentFskBatchItems = [];
+let currentFskBatchTarget = "";
+let currentFskBatchScope = "single";
+let currentFskBatchPlan = null;
+
+function openFskBatchModal(items, fskVal) {
+    currentFskBatchItems = items;
+    currentFskBatchTarget = fskVal;
+    currentFskBatchScope = "single";
+    currentFskBatchPlan = null;
+
+    const modal = document.getElementById("modal-fsk-batch-preview");
+    if (modal) {
+        modal.classList.remove("hidden");
+        modal.classList.add("active");
+    }
+
+    const targetValEl = document.getElementById("fsk-batch-target-val");
+    if (targetValEl) {
+        targetValEl.textContent = `FSK ${fskVal}`;
+    }
+
+    const scopeSelect = document.getElementById("fsk-batch-scope-select");
+    if (scopeSelect) {
+        scopeSelect.value = currentFskBatchScope;
+    }
+
+    loadFskBatchPreview();
+}
+
+function resolveSendPaths(items, scope) {
+    if (!items) return [];
+    let sendPaths = [];
+    for (let it of items) {
+        if (!it) continue;
+        if (scope === "series") {
+            if (it.series_path) sendPaths.push(it.series_path);
+        } else if (scope === "season") {
+            if (it.season_path) sendPaths.push(it.season_path);
+        } else {
+            if (it.path) sendPaths.push(it.path);
+        }
+    }
+    // Eindeutige Werte
+    return [...new Set(sendPaths)];
+}
+// Export für Node.js Tests
+if (typeof globalThis !== 'undefined') {
+    globalThis.resolveSendPaths = resolveSendPaths;
+}
+
+async function loadFskBatchPreview() {
+    const loader = document.getElementById("fsk-batch-loader");
+    const container = document.getElementById("fsk-batch-tree-container");
+    const summaryEl = document.getElementById("fsk-batch-summary");
+    const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
+
+    if (loader) loader.style.display = "flex";
+    if (container) container.innerHTML = "";
+    if (summaryEl) summaryEl.innerHTML = "Wird berechnet...";
+    if (confirmBtn) confirmBtn.disabled = true;
+
+    try {
+        const sendPaths = resolveSendPaths(currentFskBatchItems, currentFskBatchScope);
+
+        if (sendPaths.length === 0) {
+            if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Fehler: Keine gültigen Zielpfade für den gewählten Scope gefunden.</div>`;
+            if (summaryEl) summaryEl.innerHTML = "Aktion nicht möglich.";
+            if (loader) loader.style.display = "none";
+            return;
+        }
+
+        const res = await fetch("/api/nas/fsk-batch/preview", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                paths: sendPaths,
+                scope: currentFskBatchScope,
+                new_fsk: currentFskBatchTarget
+            })
+        });
+
+        if (!res.ok) {
+            const errData = await res.json();
+            if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Fehler: ${escapeHTML(errData.message || "Vorschau fehlgeschlagen.")}</div>`;
+            if (summaryEl) summaryEl.innerHTML = "Fehler bei der Berechnung.";
+            if (loader) loader.style.display = "none";
+            return;
+        }
+
+        const data = await res.json();
+        currentFskBatchPlan = data;
+
+        if (loader) loader.style.display = "none";
+
+        // Hierarchischen Baum rendern
+        if (container) renderFskBatchTree(data.files, container);
+
+        // Summary anzeigen
+        const sum = data.summary;
+        if (summaryEl) {
+            summaryEl.innerHTML = `
+                <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                    <span>Gesamtanzahl NFOs: <strong>${sum.total}</strong></span>
+                    <span class="text-success">Bereit zur Änderung: <strong>${sum.ready}</strong></span>
+                    <span class="text-muted">Bereits korrekt: <strong>${sum.unchanged}</strong></span>
+                    <span class="text-warning">NFO fehlt (übersprungen): <strong>${sum.skipped_missing}</strong></span>
+                    <span class="text-danger">Problematic: <strong>${sum.skipped_problematic}</strong></span>
+                </div>
+            `;
+        }
+
+        // Button nur freigeben, wenn mindestens ein File "ready" ist
+        if (confirmBtn) {
+            confirmBtn.disabled = (sum.ready === 0);
+        }
+
+    } catch (err) {
+        if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Netzwerkfehler: ${escapeHTML(err.message)}</div>`;
+        if (summaryEl) summaryEl.innerHTML = "Netzwerkfehler.";
+        if (loader) loader.style.display = "none";
+    }
+}
+
+function renderFskBatchTree(files, container) {
+    if (!files || files.length === 0) {
+        container.innerHTML = '<div class="text-muted" style="font-style:italic; text-align:center; padding:20px 0;">Keine betroffenen Dateien gefunden.</div>';
+        return;
+    }
+
+    // Gruppieren nach Serie -> Staffel
+    const tree = {};
+    const movies = [];
+
+    files.forEach(f => {
+        const h = f.hierarchy;
+        if (!h.show && !h.season) {
+            movies.push(f);
+        } else {
+            const showKey = h.show || "Unbekannte Serie";
+            if (!tree[showKey]) {
+                tree[showKey] = {};
+            }
+            const seasonKey = h.season || "Hauptverzeichnis / tvshow.nfo";
+            if (!tree[showKey][seasonKey]) {
+                tree[showKey][seasonKey] = [];
+            }
+            tree[showKey][seasonKey].push(f);
+        }
+    });
+
+    let html = "";
+
+    // Filme rendern
+    if (movies.length > 0) {
+        html += `<div style="font-weight:600; color:var(--text-main); margin-bottom:4px;">🎬 Filme</div>`;
+        movies.forEach(m => {
+            html += renderFskFileRow(m, 1);
+        });
+    }
+
+    // Serien rendern
+    const shows = Object.keys(tree).sort();
+    shows.forEach(show => {
+        html += `<div style="font-weight:600; color:var(--text-main); margin-top:8px; margin-bottom:4px;">📺 Serie: ${escapeHTML(show)}</div>`;
+        const seasons = Object.keys(tree[show]).sort();
+        seasons.forEach(season => {
+            const isSeasonMain = season.includes("tvshow.nfo") || season.includes("Hauptverzeichnis");
+            const indent = isSeasonMain ? 1 : 2;
+            if (!isSeasonMain) {
+                html += `<div style="padding-left:16px; font-weight:500; color:var(--text-muted); margin-bottom:2px;">📁 ${escapeHTML(season)}</div>`;
+            }
+            tree[show][season].forEach(f => {
+                html += renderFskFileRow(f, indent);
+            });
+        });
+    });
+
+    container.innerHTML = html;
+}
+
+function renderFskFileRow(f, indent) {
+    const padding = indent * 16;
+    let statusBadge = "";
+    let color = "var(--text-muted)";
+    let rowStyle = "";
+
+    if (f.status === "ready") {
+        const fromFsk = f.current_fsk ? f.current_fsk : "Keine";
+        statusBadge = `<span class="badge" style="background:rgba(16,185,129,0.1); color:#10b981; font-size:10px;">FSK ändern (${fromFsk} → FSK ${currentFskBatchTarget})</span>`;
+        color = "var(--text-main)";
+    } else if (f.status === "unchanged") {
+        statusBadge = `<span class="badge" style="background:rgba(255,255,255,0.05); color:var(--text-muted); font-size:10px;">Bereits FSK ${currentFskBatchTarget} (übersprungen)</span>`;
+    } else if (f.status === "skipped_missing") {
+        statusBadge = `<span class="badge" style="background:rgba(245,158,11,0.1); color:#f59e0b; font-size:10px;">Übersprungen: NFO fehlt</span>`;
+        rowStyle = "opacity:0.6;";
+    } else if (f.status === "skipped_problematic") {
+        statusBadge = `<span class="badge" style="background:rgba(239,68,68,0.1); color:#ef4444; font-size:10px;">Fehler: ${escapeHTML(f.error)}</span>`;
+        rowStyle = "color:#ef4444;";
+    }
+
+    const name = f.hierarchy.episode ? f.hierarchy.episode : osBasename(f.path);
+
+    return `
+        <div style="padding-left:${padding}px; display:flex; justify-content:space-between; gap:10px; margin-bottom:2px; font-size:0.9em; ${rowStyle}">
+            <span style="color:${color}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHTML(f.path)}">📄 ${escapeHTML(name)}</span>
+            ${statusBadge}
+        </div>
+    `;
+}
+
+async function applyFskBatch() {
+    if (!currentFskBatchPlan) return;
+
+    const sum = currentFskBatchPlan.summary;
+    const msg = `Möchtest du die FSK Altersfreigabe auf FSK ${currentFskBatchTarget} für ${sum.ready} Datei(en) anwenden?\n\nEs werden Backups erstellt.`;
+    if (!confirm(msg)) return;
+
+    const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
+    const cancelBtn = document.getElementById("btn-fsk-batch-cancel");
+    const refreshBtn = document.getElementById("btn-fsk-batch-refresh");
+    const summaryEl = document.getElementById("fsk-batch-summary");
+
+    if (confirmBtn) confirmBtn.disabled = true;
+    if (cancelBtn) cancelBtn.disabled = true;
+    if (refreshBtn) refreshBtn.disabled = true;
+    if (summaryEl) summaryEl.innerHTML = "Änderungen werden angewendet. Bitte warten...";
+
+    try {
+        const payloadFiles = currentFskBatchPlan.files.map(f => ({
+            path: f.path,
+            fingerprint: f.fingerprint
+        }));
+
+        const sendPaths = resolveSendPaths(currentFskBatchItems, currentFskBatchScope);
+        if (sendPaths.length === 0) {
+            alert("Fehler: Keine gültigen Zielpfade gefunden.");
+            if (cancelBtn) cancelBtn.disabled = false;
+            if (refreshBtn) refreshBtn.disabled = false;
+            return;
+        }
+
+        const res = await fetch("/api/nas/fsk-batch/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                root_paths: sendPaths,
+                scope: currentFskBatchScope,
+                new_fsk: currentFskBatchTarget,
+                files: payloadFiles
+            })
+        });
+
+        if (res.status === 409) {
+            alert("Konflikt/Race-Condition erkannt!\nEine oder mehrere NFO-Dateien wurden zwischenzeitlich modifiziert. Die Aktion wurde komplett abgebrochen.");
+            loadFskBatchPreview();
+            if (cancelBtn) cancelBtn.disabled = false;
+            if (refreshBtn) refreshBtn.disabled = false;
+            return;
+        }
+
+        if (!res.ok) {
+            const errData = await res.json();
+            alert("Fehler bei der Ausführung: " + (errData.message || "Unbekannter Fehler"));
+            loadFskBatchPreview();
+            if (cancelBtn) cancelBtn.disabled = false;
+            if (refreshBtn) refreshBtn.disabled = false;
+            return;
+        }
+
+        const data = await res.json();
+        const applySum = data.summary;
+
+        // Ergebnisse anzeigen
+        let resultHtml = `
+            <div style="font-weight:600; margin-bottom:4px;">Zusammenfassung der Ausführung:</div>
+            <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                <span class="text-success">Erfolgreich geändert: <strong>${applySum.success}</strong></span>
+                <span class="text-danger">Fehlgeschlagen: <strong>${applySum.failed}</strong></span>
+                <span class="text-muted">Unverändert: <strong>${applySum.unchanged}</strong></span>
+            </div>
+        `;
+
+        const failedItems = data.results.filter(r => r.status === "failed");
+        if (failedItems.length > 0) {
+            resultHtml += `<div style="color:#ef4444; font-size:0.85em; margin-top:8px; max-height:100px; overflow-y:auto;">`;
+            failedItems.forEach(fi => {
+                resultHtml += `⚠️ ${escapeHTML(osBasename(fi.path))}: ${escapeHTML(fi.message)}<br>`;
+            });
+            resultHtml += `</div>`;
+        }
+
+        if (summaryEl) summaryEl.innerHTML = resultHtml;
+
+        if (cancelBtn) {
+            cancelBtn.textContent = "Fertig";
+            cancelBtn.disabled = false;
+            cancelBtn.onclick = () => {
+                closeFskBatchModal();
+                if (typeof pollHealthStatus === "function") pollHealthStatus(false);
+            };
+        }
+
+    } catch (err) {
+        alert("Netzwerkfehler: " + err.message);
+        loadFskBatchPreview();
+        if (cancelBtn) cancelBtn.disabled = false;
+        if (refreshBtn) refreshBtn.disabled = false;
+    }
+}
+
+function closeFskBatchModal() {
+    const modal = document.getElementById("modal-fsk-batch-preview");
+    if (modal) {
+        modal.classList.remove("active");
+        modal.classList.add("hidden");
+    }
+
+    // Standard-Handler zurücksetzen
+    const cancelBtn = document.getElementById("btn-fsk-batch-cancel");
+    if (cancelBtn) {
+        cancelBtn.textContent = "Schließen";
+        cancelBtn.onclick = closeFskBatchModal;
+    }
+}

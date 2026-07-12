@@ -2,6 +2,15 @@
 
 Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 12.07.2026 (FSK Batch: Hierarchische Zuweisung)
+
+- **Hierarchische FSK-Batch-Zuweisung (Branch `feature/fsk-hierarchical-assignment`):**
+  * **Scope-Auswahl:** Möglichkeit zur Zuweisung auf Datei- (`single`), Staffel- (`season`) oder Serien-Ebene (`series`).
+  * **Preview & Payload:** Bei Änderung des Scopes wird die Preview mit den passenden Pfaden asynchron aktualisiert.
+  * **Validierung:** `nas_api.py` führt strenge Security-Checks durch, sodass Ausbrüche aus dem NAS-Root per Symlink (inklusive temporären Dirs) konsequent geblockt werden.
+  * **Unit Tests:** Vollständige DOM-Tests isolieren den FSK-Controller erfolgreich von globalem App-Status. Backend-Tests decken die hierarchische Pfadauflösung inklusive Scope-Prüfung ab.
+  * **Test Isolation & Whitespace:** Der gesamte Branch ist whitespace-bereinigt. Der VM-Harness für Frontend-Tests läuft nun ohne irrelevante Timers und Fehler-Logs durch.
+
 ## Stand am 11.07.2026 (NFO-Agent: Kanonische Pfadauflösung & Health-Scan Ladeanzeige)
 
 - **UX-Refinements & Ladeanzeige (Branch `feature/nfo-agent-refinements`):**

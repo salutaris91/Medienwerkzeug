@@ -178,7 +178,7 @@ class TestHealthScanCache(unittest.TestCase):
         mock_load_settings.return_value = {
             "media_server": "emby",
             "nas_root": self.temp_dir.name,
-            "sync_categories": []
+            "sync_categories": [{"name": "Serien", "nas_sub": ".", "type": "series"}]
         }
         mock_ensure_nas.return_value = True
 
@@ -206,7 +206,7 @@ class TestHealthScanCache(unittest.TestCase):
         with open(os.path.join(ep_dir, "Test Show S01E01.mkv"), "w") as f:
             f.write("video content" * 5000)
         with open(os.path.join(ep_dir, "Test Show S01E01.nfo"), "w") as f:
-            f.write("<episode><title>Episode 1</title><plot>Plot 1</plot><aired>2026-07-11</aired></episode>")
+            f.write("<episode><title>Episode 1</title><plot>Plot 1</plot><aired>2026-07-11</aired><mpaa>FSK 12</mpaa></episode>")
 
         mock_walk.return_value = [{
             "category": "Serien",
