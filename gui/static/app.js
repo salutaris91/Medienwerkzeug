@@ -2824,19 +2824,19 @@ async function scanProject(project) {
             if (data.metadata_provider.startsWith("tmdb_movie") || data.metadata_provider === "ytdlp_movie") {
                 mediaType = "movie";
             }
-            
+
             setTimeout(() => {
                 const modeCard = document.getElementById(mediaType === "series" ? "mode-series" : "mode-movie");
                 if (modeCard) {
                     modeCard.click();
                 }
-                
+
                 const metaObj = {
                     id: data.metadata_id,
                     provider: data.metadata_provider,
                     name: data.metadata_name || data.suggested_query || project
                 };
-                
+
                 setTimeout(() => {
                     if (mediaType === "series") {
                         selectShow(metaObj);
@@ -3782,7 +3782,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                                 const title = typeof ep === 'object' ? ep.title : ep;
                                 const fileStatus = window.currentProjectFileNfoStatuses ? window.currentProjectFileNfoStatuses[file] : null;
                                 const shouldSkip = fileStatus && fileStatus.exists && fileStatus.complete;
-                                
+
                                 let isSelected = false;
                                 if (!shouldSkip) {
                                     if (isAllSeasons) {
@@ -4388,12 +4388,12 @@ async function executeSeriesWorkflow() {
                 const epTitle = document.getElementById(`episode-nfo-title-${index}`)?.value?.trim();
                 const epAired = document.getElementById(`episode-nfo-aired-${index}`)?.value?.trim();
                 const epPlot = document.getElementById(`episode-nfo-plot-${index}`)?.value?.trim();
-                
+
                 const epOverrides = {};
                 if (epTitle) epOverrides.title = epTitle;
                 if (epAired) epOverrides.aired = epAired;
                 if (epPlot) epOverrides.plot = epPlot;
-                
+
                 if (Object.keys(epOverrides).length > 0) {
                     nfoOverrides.episodes[file] = epOverrides;
                 }
@@ -14965,7 +14965,7 @@ function openNfoAgentModal(path) {
     nfoAgentCurrentPath = path;
     const modal = document.getElementById("modal-nfo-agent");
     if (!modal) return;
-    
+
     // Clear / reset UI
     modal.classList.add("active");
     modal.classList.remove("hidden");
@@ -14999,7 +14999,7 @@ function openNfoAgentModal(path) {
     if (advancedDetails) {
         advancedDetails.removeAttribute("open");
     }
-    
+
     nfoAgentProfileId = "";
     nfoAgentProfileProvider = "";
 
@@ -15009,7 +15009,7 @@ function openNfoAgentModal(path) {
         searchBtn.disabled = true;
         searchBtn.textContent = "Scanne...";
     }
-    
+
     fetch(`/api/scan-project?project=${encodeURIComponent(path)}`)
         .then(res => res.json())
         .then(data => {
@@ -15018,7 +15018,7 @@ function openNfoAgentModal(path) {
                 return;
             }
             nfoAgentScanData = data;
-            
+
             // Set type
             const mediaTypeSelect = document.getElementById("nfo-agent-media-type");
             mediaTypeSelect.value = data.type === "movie" ? "movie" : "tvshow";
@@ -15036,7 +15036,7 @@ function openNfoAgentModal(path) {
             // Set search input to the suggested search name
             const titleInput = document.getElementById("nfo-agent-search-title");
             titleInput.value = data.suggested_search_name || "";
-            
+
             // Populate backend-resolved ID/provider/name (priority: NFO -> Profile)
             if (data.metadata_provider) {
                 document.getElementById("nfo-agent-provider").value = data.metadata_provider;
@@ -15049,7 +15049,7 @@ function openNfoAgentModal(path) {
                 document.getElementById("nfo-agent-show-year").value = data.metadata_year || "";
                 document.getElementById("nfo-agent-show-plot").value = data.metadata_plot || "";
             }
-            
+
             // Fetch series profile in background (only for badge comparison "Profil abweichend")
             const showNameQuery = data.metadata_name || data.project || "";
             if (data.type !== "movie" && showNameQuery) {
@@ -15097,7 +15097,7 @@ function triggerNfoAgentMediaTypeChange() {
     const providerSelect = document.getElementById("nfo-agent-provider");
     const seasonContainer = document.getElementById("nfo-agent-season-container");
     const epSection = document.getElementById("nfo-agent-episodes-section");
-    
+
     // Clear and build options based on type
     providerSelect.innerHTML = "";
     if (type === "tvshow") {
@@ -15123,16 +15123,16 @@ function searchNfoAgentMetadata() {
     const title = document.getElementById("nfo-agent-search-title").value.trim();
     const type = document.getElementById("nfo-agent-media-type").value;
     const season = document.getElementById("nfo-agent-season").value;
-    
+
     if (!title) {
         alert("Bitte gib einen Suchbegriff ein.");
         return;
     }
-    
+
     const searchBtn = document.getElementById("btn-nfo-agent-search");
     searchBtn.disabled = true;
     searchBtn.textContent = "Suche...";
-    
+
     // 1. Search for ID using the unified search endpoint
     const queryType = type === 'tvshow' ? 'tv' : 'movie';
     fetch(`/api/search?type=${queryType}&q=${encodeURIComponent(title)}`)
@@ -15140,33 +15140,33 @@ function searchNfoAgentMetadata() {
         .then(results => {
             const resultsContainer = document.getElementById("nfo-agent-search-results");
             resultsContainer.innerHTML = "";
-            
+
             if (!results || results.length === 0) {
                 resultsContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 8px; font-size: 0.85em;">Keine Treffer gefunden. Bitte gib die ID manuell in den erweiterten Einstellungen ein.</div>`;
                 resultsContainer.style.display = "block";
-                
+
                 const advDetails = document.getElementById("nfo-agent-advanced-details");
                 if (advDetails) {
                     advDetails.open = true;
                 }
                 return;
             }
-            
+
             resultsContainer.style.display = "block";
-            
+
             results.forEach((item, index) => {
                 const itemDiv = document.createElement("div");
                 itemDiv.className = "search-result-item";
                 itemDiv.style = "display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid var(--border-light); cursor: pointer; font-size: 0.85em; transition: background 0.2s;";
                 itemDiv.addEventListener("mouseenter", () => { itemDiv.style.background = "rgba(255,255,255,0.05)"; });
                 itemDiv.addEventListener("mouseleave", () => { itemDiv.style.background = "transparent"; });
-                
+
                 // Determine badges
                 let badgeHTML = "";
                 const normItemProv = normalizeProvider(item.provider);
                 const normScanProv = normalizeProvider(nfoAgentScanData ? nfoAgentScanData.metadata_provider : "");
                 const scanId = nfoAgentScanData ? nfoAgentScanData.metadata_id : "";
-                
+
                 // 1. Check NFO / Profile match
                 if (scanId && String(item.id) === String(scanId) && normItemProv === normScanProv) {
                     if (nfoAgentScanData && nfoAgentScanData.metadata_source === "nfo") {
@@ -15175,7 +15175,7 @@ function searchNfoAgentMetadata() {
                         badgeHTML += `<span style="background: #3b82f6; color: white; font-size: 0.75em; padding: 2px 6px; border-radius: 10px; font-weight: 600; margin-left: 6px;">aus Serienprofil</span>`;
                     }
                 }
-                
+
                 // 2. Check Profile discrepant match
                 const normProfProv = normalizeProvider(nfoAgentProfileProvider);
                 if (nfoAgentProfileId && String(item.id) === String(nfoAgentProfileId) && normItemProv === normProfProv) {
@@ -15184,7 +15184,7 @@ function searchNfoAgentMetadata() {
                         badgeHTML += `<span style="background: #f59e0b; color: white; font-size: 0.75em; padding: 2px 6px; border-radius: 10px; font-weight: 600; margin-left: 6px;">Profil abweichend</span>`;
                     }
                 }
-                
+
                 itemDiv.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 8px; color: var(--text-main); flex: 1;">
                         <strong style="color: var(--accent); font-size: 0.8em; text-transform: uppercase;">[${escapeHTML(item.provider || "Manual")}]</strong>
@@ -15192,7 +15192,7 @@ function searchNfoAgentMetadata() {
                         ${badgeHTML}
                     </div>
                 `;
-                
+
                 itemDiv.addEventListener("click", () => {
                     // Set inputs
                     let mappedProv = item.provider;
@@ -15207,7 +15207,7 @@ function searchNfoAgentMetadata() {
                     }
                     document.getElementById("nfo-agent-provider").value = mappedProv;
                     document.getElementById("nfo-agent-metadata-id").value = item.id;
-                    
+
                     // Highlight selected item by setting border-left
                     resultsContainer.querySelectorAll(".search-result-item").forEach(el => {
                         el.style.borderLeft = "none";
@@ -15215,13 +15215,13 @@ function searchNfoAgentMetadata() {
                     });
                     itemDiv.style.borderLeft = "4px solid var(--accent)";
                     itemDiv.style.background = "rgba(255,255,255,0.02)";
-                    
+
                     // Fetch full details
                     loadNfoAgentDetails(item.id, mappedProv, type, season);
                 });
-                
+
                 resultsContainer.appendChild(itemDiv);
-                
+
                 // Auto-select/highlight the best matching item
                 if (scanId && String(item.id) === String(scanId) && normItemProv === normScanProv) {
                     itemDiv.style.borderLeft = "4px solid var(--accent)";
@@ -15234,7 +15234,7 @@ function searchNfoAgentMetadata() {
             const resultsContainer = document.getElementById("nfo-agent-search-results");
             resultsContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 8px; font-size: 0.85em;">Metadatensuche fehlgeschlagen. Bitte gib die ID manuell in den erweiterten Einstellungen ein.</div>`;
             resultsContainer.style.display = "block";
-            
+
             const advDetails = document.getElementById("nfo-agent-advanced-details");
             if (advDetails) {
                 advDetails.open = true;
@@ -15253,7 +15253,7 @@ function loadNfoAgentDetails(id, provider, type, season) {
     } else {
         url = `/api/metadata/fetch?media_type=movie&provider=${provider}&movie_id=${id}`;
     }
-    
+
     fetch(url)
         .then(res => res.json())
         .then(meta => {
@@ -15261,7 +15261,7 @@ function loadNfoAgentDetails(id, provider, type, season) {
             document.getElementById("nfo-agent-show-title").value = meta.name || "";
             document.getElementById("nfo-agent-show-year").value = meta.year || "";
             document.getElementById("nfo-agent-show-plot").value = meta.plot || "";
-            
+
             // If series, rebuild the files list with the loaded episode metadata
             if (type === "tvshow" && nfoAgentScanData) {
                 renderNfoAgentFiles(nfoAgentScanData, meta.episodes || {});
@@ -15342,22 +15342,22 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
         listBody.appendChild(noFilesMsg);
         return;
     }
-    
+
     files.forEach(file => {
         const basename = file;
         const status = nfoStatuses[basename] || { exists: false, complete: false };
-        
+
         // Auto-detect season and episode numbers from filename
         let match = basename.match(/S(\d+)E(\d+)/i) || basename.match(/E(\d+)/i);
         let epNum = "";
         if (match) {
             epNum = match[2] ? `S${parseInt(match[1])}E${parseInt(match[2])}` : `E${parseInt(match[1])}`;
         }
-        
+
         // Get metadata title if loaded
         let metaTitle = "";
         let metaPlot = "";
-        
+
         if (epNum) {
             let epKey = epNum;
             if (!epKey.startsWith("S")) {
@@ -15381,10 +15381,10 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
                 }
             }
         }
-        
+
         // Default dropdown value: skip if NFO exists and is complete
         const defaultSelectValue = (status.exists && status.complete) ? "skip" : (epNum || "skip");
-        
+
         const row = document.createElement("div");
         row.className = "nfo-episode-row";
         row.style = "display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--border-light); padding: 10px; border-radius: 6px; background: rgba(255,255,255,0.01); text-align: left;";
@@ -15392,10 +15392,10 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                 <div style="font-weight: 500; font-size: 0.9em; word-break: break-all; color: var(--text-main); flex: 1;">
                     ${escapeHTML(basename)}
-                    ${status.exists ? 
-                        (status.complete ? 
-                            '<span style="color:#10b981; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO vorhanden]</span>' : 
-                            '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO unvollständig]</span>') : 
+                    ${status.exists ?
+                        (status.complete ?
+                            '<span style="color:#10b981; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO vorhanden]</span>' :
+                            '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO unvollständig]</span>') :
                         '<span style="color:#ef4444; font-size:0.8em; margin-left:6px; font-weight:600;">[Keine NFO]</span>'
                     }
                 </div>
@@ -15420,27 +15420,27 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
             </div>
         `;
         listBody.appendChild(row);
-        
+
         const select = row.querySelector(".nfo-agent-ep-mapping-select");
         const container = row.querySelector(".nfo-agent-ep-override-container");
-        
+
         // Dynamic episode metadata fetch helper
         const loadEpMetadata = async (val) => {
             if (val === "skip") return;
             const prov = document.getElementById("nfo-agent-provider").value;
             const shId = document.getElementById("nfo-agent-metadata-id").value.trim();
             if (prov === "manual" || !shId) return;
-            
+
             const matchFormat = val.match(/S(\d+)E(\d+)/i);
             if (!matchFormat) return;
             const s = matchFormat[1];
             const e = matchFormat[2];
-            
+
             const titleInput = row.querySelector(".nfo-agent-ep-override-title");
             const plotTextarea = row.querySelector(".nfo-agent-ep-override-plot");
-            
+
             if (plotTextarea) plotTextarea.placeholder = "Lade Metadaten...";
-            
+
             try {
                 const response = await fetch(`/api/metadata/fetch?media_type=episode&provider=${encodeURIComponent(prov)}&show_id=${encodeURIComponent(shId)}&season=${encodeURIComponent(s)}&episode=${encodeURIComponent(e)}`);
                 if (response.ok) {
@@ -15489,23 +15489,23 @@ function buildEpisodeOptionsHTML(fileCount, selectedVal) {
 
 function submitNfoAgentJob() {
     if (!nfoAgentCurrentPath) return;
-    
+
     const provider = document.getElementById("nfo-agent-provider").value;
     const mediaType = document.getElementById("nfo-agent-media-type").value;
     const showId = document.getElementById("nfo-agent-metadata-id").value.trim();
     const movieId = showId;
     const season = parseInt(document.getElementById("nfo-agent-season").value) || 1;
     const overwriteNfo = document.getElementById("nfo-agent-overwrite-nfo").checked;
-    
+
     if (provider !== "manual" && !showId) {
         alert("Bitte gib eine Show- oder Movie-ID an.");
         return;
     }
-    
+
     // Build mappings & overrides
     const mappings = {};
     const episodesOverrides = {};
-    
+
     const mappingSelects = document.querySelectorAll(".nfo-agent-ep-mapping-select");
     mappingSelects.forEach(select => {
         const file = select.getAttribute("data-file");
@@ -15514,26 +15514,26 @@ function submitNfoAgentJob() {
             mappings[file] = val;
         }
     });
-    
+
     const epTitleInputs = document.querySelectorAll(".nfo-agent-ep-override-title");
     epTitleInputs.forEach(input => {
         const file = input.getAttribute("data-file");
         const title = input.value.trim();
         const plotTextarea = document.querySelector(`.nfo-agent-ep-override-plot[data-file="${CSS.escape(file)}"]`);
         const plot = plotTextarea ? plotTextarea.value.trim() : "";
-        
+
         if (title || plot) {
             episodesOverrides[file] = { title, plot };
         }
     });
-    
+
     const showTitle = document.getElementById("nfo-agent-show-title").value.trim();
     const showYear = document.getElementById("nfo-agent-show-year").value.trim();
     const showPlot = document.getElementById("nfo-agent-show-plot").value.trim();
-    
+
     const showOverrides = {};
     const movieOverrides = {};
-    
+
     if (nfoAgentScanData) {
         if (showTitle !== (nfoAgentScanData.metadata_name || "")) {
             showOverrides.title = showTitle;
@@ -15552,13 +15552,13 @@ function submitNfoAgentJob() {
         if (showYear) { showOverrides.year = showYear; movieOverrides.year = showYear; }
         if (showPlot) { showOverrides.plot = showPlot; movieOverrides.plot = showPlot; }
     }
-    
+
     const nfoOverrides = {
         show: showOverrides,
         movie: movieOverrides,
         episodes: episodesOverrides
     };
-    
+
     const showNfoActionSelect = document.getElementById("nfo-agent-show-nfo-action");
     const writeShowNfo = showNfoActionSelect ? (showNfoActionSelect.value !== "skip") : true;
 
@@ -15575,15 +15575,15 @@ function submitNfoAgentJob() {
         mappings: mappings,
         nfo_overrides: nfoOverrides
     };
-    
+
     const submitBtn = document.getElementById("btn-nfo-agent-submit");
     submitBtn.disabled = true;
     submitBtn.style.opacity = "0.5";
-    
+
     const logContainer = document.getElementById("nfo-agent-log-container");
     logContainer.style.display = "block";
     logContainer.textContent = "Starte NFO Agent Job...\n";
-    
+
     fetch("/api/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -15678,7 +15678,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("btn-nfo-agent-submit")?.addEventListener("click", submitNfoAgentJob);
     document.getElementById("btn-nfo-agent-search")?.addEventListener("click", searchNfoAgentMetadata);
     document.getElementById("nfo-agent-media-type")?.addEventListener("change", triggerNfoAgentMediaTypeChange);
-    
+
     // Bind Enter key inside search box
     document.getElementById("nfo-agent-search-title")?.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
@@ -15712,24 +15712,45 @@ function openFskBatchModal(items, fskVal) {
     currentFskBatchTarget = fskVal;
     currentFskBatchScope = "single";
     currentFskBatchPlan = null;
-    
+
     const modal = document.getElementById("modal-fsk-batch-preview");
     if (modal) {
         modal.classList.remove("hidden");
         modal.classList.add("active");
     }
-    
+
     const targetValEl = document.getElementById("fsk-batch-target-val");
     if (targetValEl) {
         targetValEl.textContent = `FSK ${fskVal}`;
     }
-    
+
     const scopeSelect = document.getElementById("fsk-batch-scope-select");
     if (scopeSelect) {
         scopeSelect.value = currentFskBatchScope;
     }
-    
+
     loadFskBatchPreview();
+}
+
+function resolveSendPaths(items, scope) {
+    if (!items) return [];
+    let sendPaths = [];
+    for (let it of items) {
+        if (!it) continue;
+        if (scope === "series") {
+            if (it.series_path) sendPaths.push(it.series_path);
+        } else if (scope === "season") {
+            if (it.season_path) sendPaths.push(it.season_path);
+        } else {
+            if (it.path) sendPaths.push(it.path);
+        }
+    }
+    // Eindeutige Werte
+    return [...new Set(sendPaths)];
+}
+// Export für Node.js Tests
+if (typeof globalThis !== 'undefined') {
+    globalThis.resolveSendPaths = resolveSendPaths;
 }
 
 async function loadFskBatchPreview() {
@@ -15737,22 +15758,20 @@ async function loadFskBatchPreview() {
     const container = document.getElementById("fsk-batch-tree-container");
     const summaryEl = document.getElementById("fsk-batch-summary");
     const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
-    
+
     if (loader) loader.style.display = "flex";
     if (container) container.innerHTML = "";
     if (summaryEl) summaryEl.innerHTML = "Wird berechnet...";
     if (confirmBtn) confirmBtn.disabled = true;
-    
+
     try {
-        let sendPaths = [];
-        for (let it of currentFskBatchItems) {
-            if (currentFskBatchScope === "series" && it.series_path) {
-                sendPaths.push(it.series_path);
-            } else if (currentFskBatchScope === "season" && it.season_path) {
-                sendPaths.push(it.season_path);
-            } else {
-                sendPaths.push(it.path);
-            }
+        const sendPaths = resolveSendPaths(currentFskBatchItems, currentFskBatchScope);
+
+        if (sendPaths.length === 0) {
+            if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Fehler: Keine gültigen Zielpfade für den gewählten Scope gefunden.</div>`;
+            if (summaryEl) summaryEl.innerHTML = "Aktion nicht möglich.";
+            if (loader) loader.style.display = "none";
+            return;
         }
 
         const res = await fetch("/api/nas/fsk-batch/preview", {
@@ -15764,7 +15783,7 @@ async function loadFskBatchPreview() {
                 new_fsk: currentFskBatchTarget
             })
         });
-        
+
         if (!res.ok) {
             const errData = await res.json();
             if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Fehler: ${escapeHTML(errData.message || "Vorschau fehlgeschlagen.")}</div>`;
@@ -15772,15 +15791,15 @@ async function loadFskBatchPreview() {
             if (loader) loader.style.display = "none";
             return;
         }
-        
+
         const data = await res.json();
         currentFskBatchPlan = data;
-        
+
         if (loader) loader.style.display = "none";
-        
+
         // Hierarchischen Baum rendern
         if (container) renderFskBatchTree(data.files, container);
-        
+
         // Summary anzeigen
         const sum = data.summary;
         if (summaryEl) {
@@ -15794,12 +15813,12 @@ async function loadFskBatchPreview() {
                 </div>
             `;
         }
-        
+
         // Button nur freigeben, wenn mindestens ein File "ready" ist
         if (confirmBtn) {
             confirmBtn.disabled = (sum.ready === 0);
         }
-        
+
     } catch (err) {
         if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Netzwerkfehler: ${escapeHTML(err.message)}</div>`;
         if (summaryEl) summaryEl.innerHTML = "Netzwerkfehler.";
@@ -15812,11 +15831,11 @@ function renderFskBatchTree(files, container) {
         container.innerHTML = '<div class="text-muted" style="font-style:italic; text-align:center; padding:20px 0;">Keine betroffenen Dateien gefunden.</div>';
         return;
     }
-    
+
     // Gruppieren nach Serie -> Staffel
     const tree = {};
     const movies = [];
-    
+
     files.forEach(f => {
         const h = f.hierarchy;
         if (!h.show && !h.season) {
@@ -15833,9 +15852,9 @@ function renderFskBatchTree(files, container) {
             tree[showKey][seasonKey].push(f);
         }
     });
-    
+
     let html = "";
-    
+
     // Filme rendern
     if (movies.length > 0) {
         html += `<div style="font-weight:600; color:var(--text-main); margin-bottom:4px;">🎬 Filme</div>`;
@@ -15843,7 +15862,7 @@ function renderFskBatchTree(files, container) {
             html += renderFskFileRow(m, 1);
         });
     }
-    
+
     // Serien rendern
     const shows = Object.keys(tree).sort();
     shows.forEach(show => {
@@ -15860,7 +15879,7 @@ function renderFskBatchTree(files, container) {
             });
         });
     });
-    
+
     container.innerHTML = html;
 }
 
@@ -15869,7 +15888,7 @@ function renderFskFileRow(f, indent) {
     let statusBadge = "";
     let color = "var(--text-muted)";
     let rowStyle = "";
-    
+
     if (f.status === "ready") {
         const fromFsk = f.current_fsk ? f.current_fsk : "Keine";
         statusBadge = `<span class="badge" style="background:rgba(16,185,129,0.1); color:#10b981; font-size:10px;">FSK ändern (${fromFsk} → FSK ${currentFskBatchTarget})</span>`;
@@ -15883,9 +15902,9 @@ function renderFskFileRow(f, indent) {
         statusBadge = `<span class="badge" style="background:rgba(239,68,68,0.1); color:#ef4444; font-size:10px;">Fehler: ${escapeHTML(f.error)}</span>`;
         rowStyle = "color:#ef4444;";
     }
-    
+
     const name = f.hierarchy.episode ? f.hierarchy.episode : osBasename(f.path);
-    
+
     return `
         <div style="padding-left:${padding}px; display:flex; justify-content:space-between; gap:10px; margin-bottom:2px; font-size:0.9em; ${rowStyle}">
             <span style="color:${color}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHTML(f.path)}">📄 ${escapeHTML(name)}</span>
@@ -15896,38 +15915,46 @@ function renderFskFileRow(f, indent) {
 
 async function applyFskBatch() {
     if (!currentFskBatchPlan) return;
-    
+
     const sum = currentFskBatchPlan.summary;
     const msg = `Möchtest du die FSK Altersfreigabe auf FSK ${currentFskBatchTarget} für ${sum.ready} Datei(en) anwenden?\n\nEs werden Backups erstellt.`;
     if (!confirm(msg)) return;
-    
+
     const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
     const cancelBtn = document.getElementById("btn-fsk-batch-cancel");
     const refreshBtn = document.getElementById("btn-fsk-batch-refresh");
     const summaryEl = document.getElementById("fsk-batch-summary");
-    
+
     if (confirmBtn) confirmBtn.disabled = true;
     if (cancelBtn) cancelBtn.disabled = true;
     if (refreshBtn) refreshBtn.disabled = true;
     if (summaryEl) summaryEl.innerHTML = "Änderungen werden angewendet. Bitte warten...";
-    
+
     try {
         const payloadFiles = currentFskBatchPlan.files.map(f => ({
             path: f.path,
             fingerprint: f.fingerprint
         }));
-        
+
+        const sendPaths = resolveSendPaths(currentFskBatchItems, currentFskBatchScope);
+        if (sendPaths.length === 0) {
+            alert("Fehler: Keine gültigen Zielpfade gefunden.");
+            if (cancelBtn) cancelBtn.disabled = false;
+            if (refreshBtn) refreshBtn.disabled = false;
+            return;
+        }
+
         const res = await fetch("/api/nas/fsk-batch/apply", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                root_paths: currentFskBatchPaths,
+                root_paths: sendPaths,
                 scope: currentFskBatchScope,
                 new_fsk: currentFskBatchTarget,
                 files: payloadFiles
             })
         });
-        
+
         if (res.status === 409) {
             alert("Konflikt/Race-Condition erkannt!\nEine oder mehrere NFO-Dateien wurden zwischenzeitlich modifiziert. Die Aktion wurde komplett abgebrochen.");
             loadFskBatchPreview();
@@ -15935,7 +15962,7 @@ async function applyFskBatch() {
             if (refreshBtn) refreshBtn.disabled = false;
             return;
         }
-        
+
         if (!res.ok) {
             const errData = await res.json();
             alert("Fehler bei der Ausführung: " + (errData.message || "Unbekannter Fehler"));
@@ -15944,10 +15971,10 @@ async function applyFskBatch() {
             if (refreshBtn) refreshBtn.disabled = false;
             return;
         }
-        
+
         const data = await res.json();
         const applySum = data.summary;
-        
+
         // Ergebnisse anzeigen
         let resultHtml = `
             <div style="font-weight:600; margin-bottom:4px;">Zusammenfassung der Ausführung:</div>
@@ -15957,7 +15984,7 @@ async function applyFskBatch() {
                 <span class="text-muted">Unverändert: <strong>${applySum.unchanged}</strong></span>
             </div>
         `;
-        
+
         const failedItems = data.results.filter(r => r.status === "failed");
         if (failedItems.length > 0) {
             resultHtml += `<div style="color:#ef4444; font-size:0.85em; margin-top:8px; max-height:100px; overflow-y:auto;">`;
@@ -15966,9 +15993,9 @@ async function applyFskBatch() {
             });
             resultHtml += `</div>`;
         }
-        
+
         if (summaryEl) summaryEl.innerHTML = resultHtml;
-        
+
         if (cancelBtn) {
             cancelBtn.textContent = "Fertig";
             cancelBtn.disabled = false;
@@ -15977,7 +16004,7 @@ async function applyFskBatch() {
                 if (typeof pollHealthStatus === "function") pollHealthStatus(false);
             };
         }
-        
+
     } catch (err) {
         alert("Netzwerkfehler: " + err.message);
         loadFskBatchPreview();
@@ -15992,7 +16019,7 @@ function closeFskBatchModal() {
         modal.classList.remove("active");
         modal.classList.add("hidden");
     }
-    
+
     // Standard-Handler zurücksetzen
     const cancelBtn = document.getElementById("btn-fsk-batch-cancel");
     if (cancelBtn) {

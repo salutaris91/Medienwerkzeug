@@ -1592,7 +1592,7 @@ def handle_api_fsk_batch_apply():
 
         # Re-Validierung aller ermittelten Targets (is_valid_media_nfo)
         for nfo in resolved_targets:
-            if not is_valid_media_nfo(nfo, settings):
+            if os.path.exists(nfo) and not is_valid_media_nfo(nfo, settings):
                 return jsonify({"ok": False, "message": f"NFO-Datei ist unzulässig (Sidecar-Kopplung fehlt oder falsch).", "path": nfo}), 400
 
         # Sicherheitsabgleich: Nur Nachfahren und erlaubte Pfade zulassen
