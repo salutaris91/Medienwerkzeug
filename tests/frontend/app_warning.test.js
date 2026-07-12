@@ -400,9 +400,15 @@ test('renderHealthStatus - transition running -> warning clears loading spinner 
     const mediaBadge = globalThis.document.getElementById("badge-count-media");
     const structureIssuesEl = globalThis.document.getElementById("health-issues-structure");
     const structureContainer = globalThis.document.getElementById("structure-health-issues-container");
+    const overviewLastScan = globalThis.document.getElementById("overview-last-scan");
+    const overviewHealthSummary = globalThis.document.getElementById("overview-health-summary");
+    const overviewStructureSummary = globalThis.document.getElementById("overview-structure-summary");
 
-    // Simulate setting initial state to visible
+    // Simulate setting initial state to visible & pre-populated dashboard values
     structureContainer.style.display = "block";
+    overviewLastScan.textContent = "12.07.2026, 10:00:00";
+    overviewHealthSummary.innerHTML = "0 kritisch, 1 warnend";
+    overviewStructureSummary.textContent = "1 Strukturfehler";
 
     issuesEl.innerHTML = "";
     structureIssuesEl.innerHTML = "";
@@ -428,6 +434,10 @@ test('renderHealthStatus - transition running -> warning clears loading spinner 
     assert.ok(structureIssuesEl.innerHTML.includes("Health-Scan wird aktualisiert"));
     assert.ok(structureIssuesEl.innerHTML.includes("loading-spinner"));
 
+    // Overview dashboard shows "Scan läuft..." during scan
+    assert.strictEqual(overviewLastScan.textContent, "Scan läuft...");
+    assert.strictEqual(overviewHealthSummary.textContent, "Scan läuft...");
+
     // 2. Übergang warning
     const warningData = {
         status: "warning",
@@ -442,6 +452,10 @@ test('renderHealthStatus - transition running -> warning clears loading spinner 
     assert.strictEqual(structureContainer.style.display, "none");
     assert.strictEqual(issuesEl.innerHTML.includes("loading-spinner"), false);
     assert.strictEqual(issuesEl.innerHTML.includes("Scan nicht aussagekräftig"), true);
+
+    // Dashboard values reset to "Keine Daten"
+    assert.strictEqual(overviewHealthSummary.textContent, "Keine Daten");
+    assert.strictEqual(overviewStructureSummary.textContent, "Keine Daten");
 });
 
 test('renderNfoAgentFiles - mediaType tvshow renders tvshow.nfo status matrix', () => {

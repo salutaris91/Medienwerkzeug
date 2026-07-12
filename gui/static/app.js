@@ -12752,6 +12752,11 @@ function renderHealthStatus(data) {
         const mediaBadge = document.getElementById("badge-count-media");
         if (mediaBadge) mediaBadge.style.display = "none";
 
+        const overviewLastScan = document.getElementById("overview-last-scan");
+        if (overviewLastScan) overviewLastScan.textContent = "Scan läuft...";
+        const overviewHealthSummary = document.getElementById("overview-health-summary");
+        if (overviewHealthSummary) overviewHealthSummary.textContent = "Scan läuft...";
+
         summaryEl.innerHTML = "";
 
         issuesEl.innerHTML = `
