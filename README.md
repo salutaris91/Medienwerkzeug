@@ -336,6 +336,11 @@ graph TD
 
 Die reguläre Nutzung ist aktuell über Docker vorgesehen. Folge dafür direkt der Installationsanleitung oben unter [Setup & Installation](#%EF%B8%8F-setup--installation).
 
+Vor einem Update auf dem NAS kann derselbe Docker-Betrieb isoliert auf dem Mac
+mit OrbStack geprüft werden. Die Testumgebung verwendet ausschließlich
+synthetische Wegwerfdaten und bindet das NAS nicht ein. Der vollständige Ablauf
+steht im [OrbStack-Test-Runbook](docs/ORBSTACK_TESTING.md).
+
 ### Variante B: Desktop-App (Coming Soon)
 
 Eine eigenständige Desktop-Version für Endnutzer ist geplant, aber aktuell noch nicht der primäre Distributionsweg. Bis dahin ist Docker die offizielle und aktiv gepflegte Variante.
