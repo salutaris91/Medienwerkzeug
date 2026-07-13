@@ -12495,12 +12495,14 @@ function initHealthDashboard() {
 
     const btnSev = document.getElementById("btn-health-group-severity");
     const btnType = document.getElementById("btn-health-group-type");
-    if (btnSev && btnType) {
+    const btnMedia = document.getElementById("btn-health-group-media");
+    if (btnSev && btnType && btnMedia) {
         btnSev.addEventListener("click", () => {
             if (window.healthGroupMode !== "severity") {
                 window.healthGroupMode = "severity";
                 btnSev.classList.add("active");
                 btnType.classList.remove("active");
+                btnMedia.classList.remove("active");
                 pollHealthStatus(false);
             }
         });
@@ -12509,6 +12511,16 @@ function initHealthDashboard() {
                 window.healthGroupMode = "type";
                 btnType.classList.add("active");
                 btnSev.classList.remove("active");
+                btnMedia.classList.remove("active");
+                pollHealthStatus(false);
+            }
+        });
+        btnMedia.addEventListener("click", () => {
+            if (window.healthGroupMode !== "media") {
+                window.healthGroupMode = "media";
+                btnMedia.classList.add("active");
+                btnSev.classList.remove("active");
+                btnType.classList.remove("active");
                 pollHealthStatus(false);
             }
         });
@@ -13014,7 +13026,7 @@ function renderHealthStatus(data) {
                 }
                 html += `</div></details>`;
             });
-        } else {
+        } else if (window.healthGroupMode === "type") {
             // Gruppierung nach Fehlertyp
             const grouped = {};
             data.issues.forEach(it => {
@@ -13152,7 +13164,184 @@ function renderHealthStatus(data) {
                 }
                 html += `</div></details>`;
             });
+        } else if (window.healthGroupMode === "media") {
+            const seriesList = data.media_structure ? data.media_structure.series || [] : [];
+            const moviesList = data.media_structure ? data.media_structure.movies || [] : [];
+
+            html += `<div style="font-weight:600; color:var(--text-main); margin-bottom:10px; font-size:1.1em; display:flex; align-items:center; gap:6px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="color:var(--accent);"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
+                        <span>Serien</span>
+                     </div>`;
+
+            let renderedSeriesCount = 0;
+            seriesList.forEach(s => {
+                const totalEp = s.seasons.reduce((acc, se) => acc + (se.episodes ? se.episodes.length : 0), 0);
+                const affectedEp = s.seasons.reduce((acc, se) => acc + (se.episodes ? se.episodes.filter(ep => ep.fsk_status === "Keine" || ep.fsk_status.startsWith("Ungültig")).length : 0), 0);
+
+                const hasShowFskIssue = s.fsk_status === "Keine" || s.fsk_status.startsWith("Ungültig");
+                const isShowAffected = !s.has_nfo || hasShowFskIssue || affectedEp > 0;
+
+                if (!isShowAffected) return;
+                renderedSeriesCount++;
+
+                const showBadge = !s.has_nfo 
+                    ? `<span class="badge" style="background:rgba(239,68,68,0.1); color:#ef4444; font-size:10px;">tvshow.nfo fehlt</span>`
+                    : `<span class="badge" style="background:rgba(255,255,255,0.05); color:var(--text-muted); font-size:10px;">Serie: ${escapeHTML(s.fsk_status)}</span>`;
+
+                const epBadge = affectedEp > 0
+                    ? `<span class="badge" style="background:rgba(245,158,11,0.1); color:#f59e0b; font-size:10px;">${affectedEp} von ${totalEp} Ep. betroffen</span>`
+                    : `<span class="badge" style="background:rgba(16,185,129,0.1); color:#10b981; font-size:10px;">Episoden korrekt</span>`;
+
+                // Gruppenaktion für Serie: FSK zuweisen
+                let groupActionHtml = "";
+                const showNeedsFsk = hasShowFskIssue || affectedEp > 0;
+                if (showNeedsFsk) {
+                    groupActionHtml = `
+                        <div style="display:inline-flex; align-items:center; gap:6px;">
+                            <select class="form-select form-select-xs show-group-fsk-select" style="padding:2px 4px; font-size:11px; width:auto; height:24px; background:var(--bg-surface-3); border-color:var(--border-light); color:var(--text-main);">
+                                <option value="12">FSK 12</option>
+                                <option value="0">FSK 0</option>
+                                <option value="6">FSK 6</option>
+                                <option value="16">FSK 16</option>
+                                <option value="18">FSK 18</option>
+                            </select>
+                            <button class="btn btn-primary btn-xs show-group-fsk-btn" data-path="${escapeHTML(s.path)}" style="padding:2px 8px; height:24px;">FSK zuweisen</button>
+                        </div>
+                    `;
+                } else if (!s.has_nfo) {
+                    groupActionHtml = `<button class="btn btn-accent btn-xs health-nfo-agent" data-path="${escapeHTML(s.path)}" style="padding:2px 8px; height:24px;">NFO Agent</button>`;
+                }
+
+                const isShowOpen = openTypes.includes(`show:${s.path}`);
+
+                html += `<details data-show-path="${escapeHTML(s.path)}" ${isShowOpen ? "open" : ""} style="border:1px solid var(--border-light); border-radius:8px; padding:8px 12px; margin-bottom:8px;">
+                            <summary class="health-show-summary" style="cursor:pointer; font-weight:500; display:flex; align-items:center; justify-content:space-between; gap:12px; list-style:none;">
+                                <div style="display:flex; align-items:center; gap:8px; flex:1;">
+                                    <span style="color:var(--text-main); font-weight:600;">📺 ${escapeHTML(s.name)}</span>
+                                    ${showBadge}
+                                    ${epBadge}
+                                </div>
+                                <div style="display:flex; align-items:center; gap:10px;" onclick="event.stopPropagation();">
+                                    ${groupActionHtml}
+                                </div>
+                            </summary>
+                            <div style="margin-top:8px; border-top:1px solid var(--border-light); padding-top:8px; display:flex; flex-direction:column; gap:8px;">`;
+
+                // Zeige tvshow.nfo-Zeile, falls sie Probleme hat
+                if (!s.has_nfo || hasShowFskIssue) {
+                    let tvshowAction = "";
+                    if (!s.has_nfo) {
+                        tvshowAction = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(s.path)}">NFO Agent</button>`;
+                    } else if (hasShowFskIssue) {
+                        tvshowAction = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(s.path)}" data-scope-kind="series" data-series-path="${escapeHTML(s.path)}">FSK setzen</button>`;
+                    }
+                    html += `<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.9em; padding:4px 8px; background:rgba(255,255,255,0.01); border-radius:4px;">
+                                <span class="fsk-path-monospace" style="color:var(--text-main);">📄 tvshow.nfo</span>
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span class="text-danger" style="font-size:0.85em;">${!s.has_nfo ? "NFO fehlt" : escapeHTML(s.fsk_status)}</span>
+                                    ${tvshowAction}
+                                </div>
+                             </div>`;
+                }
+
+                // Staffeln durchlaufen
+                s.seasons.forEach(se => {
+                    const affectedEpInSeason = se.episodes ? se.episodes.filter(ep => ep.fsk_status === "Keine" || ep.fsk_status.startsWith("Ungültig")).length : 0;
+                    if (affectedEpInSeason === 0) return;
+
+                    // Gruppenaktion für Staffel, falls >= 2 betroffene Episoden
+                    let seasonActionHtml = "";
+                    if (affectedEpInSeason >= 2) {
+                        seasonActionHtml = `
+                            <div style="display:inline-flex; align-items:center; gap:6px;">
+                                <select class="form-select form-select-xs season-group-fsk-select" style="padding:2px 4px; font-size:11px; width:auto; height:20px; background:var(--bg-surface-3); border-color:var(--border-light); color:var(--text-main);">
+                                    <option value="12">FSK 12</option>
+                                    <option value="0">FSK 0</option>
+                                    <option value="6">FSK 6</option>
+                                    <option value="16">FSK 16</option>
+                                    <option value="18">FSK 18</option>
+                                </select>
+                                <button class="btn btn-primary btn-xs season-group-fsk-btn" data-path="${escapeHTML(se.path)}" data-series-path="${escapeHTML(s.path)}" style="padding:2px 6px; height:20px;">Staffel-FSK</button>
+                            </div>
+                        `;
+                    }
+
+                    html += `<div style="padding-left:12px; margin-top:4px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-weight:500; color:var(--text-muted); font-size:0.9em; margin-bottom:4px;">
+                                    <span>📁 ${escapeHTML(se.name)}</span>
+                                    <div onclick="event.stopPropagation();">${seasonActionHtml}</div>
+                                </div>
+                                <div style="display:flex; flex-direction:column; gap:4px; padding-left:12px;">`;
+
+                    // Episoden durchlaufen
+                    se.episodes.forEach(ep => {
+                        const isEpAffected = ep.fsk_status === "Keine" || ep.fsk_status.startsWith("Ungültig");
+                        if (!isEpAffected) return;
+
+                        let epActionHtml = "";
+                        // Einzelbutton nur rendern, wenn NICHT mindestens 2 betroffene Episoden existieren (Gruppenaktion greift)
+                        if (affectedEpInSeason < 2) {
+                            epActionHtml = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(ep.path)}" data-scope-kind="episode" data-series-path="${escapeHTML(s.path)}" data-season-path="${escapeHTML(se.path)}" style="padding:2px 6px; font-size:11px; height:22px;">FSK setzen</button>`;
+                        }
+
+                        html += `<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.85em; padding:2px 6px; border-bottom:1px solid rgba(255,255,255,0.02);">
+                                    <span class="fsk-path-monospace" style="color:var(--text-main); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%;" title="${escapeHTML(ep.path)}">📄 ${escapeHTML(ep.name)}</span>
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <span class="text-warning">${escapeHTML(ep.fsk_status)}</span>
+                                        ${epActionHtml}
+                                    </div>
+                                 </div>`;
+                    });
+
+                    html += `</div></div>`;
+                });
+
+                html += `</div></details>`;
+            });
+
+            if (renderedSeriesCount === 0) {
+                html += `<p class="text-muted" style="font-style:italic; padding-left:10px; margin-bottom:15px;">Keine auffälligen Serien gefunden.</p>`;
+            }
+
+            // Filme rendern
+            html += `<div style="font-weight:600; color:var(--text-main); margin-top:20px; margin-bottom:10px; font-size:1.1em; display:flex; align-items:center; gap:6px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film" style="color:var(--accent);"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 17h4"/><path d="M17 7h4"/><path d="M17 17h4"/></svg>
+                        <span>Filme</span>
+                     </div>`;
+
+            let renderedMoviesCount = 0;
+            moviesList.forEach(m => {
+                const hasMovieFskIssue = m.fsk_status === "Keine" || m.fsk_status.startsWith("Ungültig");
+                const hasIssues = m.issue_keys && m.issue_keys.length > 0;
+                const isMovieAffected = hasMovieFskIssue || hasIssues;
+
+                if (!isMovieAffected) return;
+                renderedMoviesCount++;
+
+                let movieAction = "";
+                const isMissingNfo = m.issue_keys.some(k => k.includes("missing_nfo"));
+                if (isMissingNfo) {
+                    movieAction = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(m.path)}" style="padding:2px 8px; height:24px;">NFO Agent</button>`;
+                } else if (hasMovieFskIssue) {
+                    movieAction = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(m.path)}" data-scope-kind="movie" data-series-path="" style="padding:2px 8px; height:24px;">FSK setzen</button>`;
+                }
+
+                html += `<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.9em; padding:6px 12px; background:rgba(255,255,255,0.01); border:1px solid var(--border-light); border-radius:6px; margin-bottom:6px;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span style="font-weight:500; color:var(--text-main);">🎬 ${escapeHTML(m.name)}</span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span style="font-size:0.85em; color:${hasMovieFskIssue ? "#f59e0b" : "var(--text-muted)"}">${escapeHTML(m.fsk_status)}</span>
+                                ${movieAction}
+                            </div>
+                         </div>`;
+            });
+
+            if (renderedMoviesCount === 0) {
+                html += `<p class="text-muted" style="font-style:italic; padding-left:10px;">Keine auffälligen Filme gefunden.</p>`;
+            }
         }
+
         html += renderIgnoredFooter(data.ignored_count);
         issuesEl.innerHTML = bannerHtml + html;
         if ((!data.issues || data.issues.length === 0) && structureIssues.length > 0) {
@@ -13165,9 +13354,12 @@ function renderHealthStatus(data) {
                 if (window.healthGroupMode === "severity") {
                     const sev = d.getAttribute("data-sev");
                     d.open = openSeverities.includes(sev) || (sev === "critical" && openSeverities.length === 0);
-                } else {
+                } else if (window.healthGroupMode === "type") {
                     const typ = d.getAttribute("data-type-id");
                     d.open = openTypes.includes(typ);
+                } else if (window.healthGroupMode === "media") {
+                    const path = d.getAttribute("data-show-path");
+                    d.open = openTypes.includes(`show:${path}`);
                 }
             });
         }
@@ -13848,15 +14040,65 @@ function renderHealthStatus(data) {
                     series_path: b.getAttribute("data-series-path"),
                     season_path: b.getAttribute("data-season-path")
                 };
-                const input = prompt("Bitte FSK-Stufe eingeben (0, 6, 12, 16, 18):");
-                if (!input) return;
-                const fskVal = input.trim();
-                const validFsks = ["0", "6", "12", "16", "18"];
-                if (!validFsks.includes(fskVal)) {
-                    alert("Ungültiger Wert. Bitte nur 0, 6, 12, 16 oder 18 eingeben.");
-                    return;
-                }
+                openFskBatchModal([item], "12");
+            });
+        });
+
+        // Event-Listener für Serien-Gruppenaktion im Medienorientiert-Modus
+        document.querySelectorAll("#health-issues .show-group-fsk-btn").forEach(b => {
+            b.addEventListener("click", () => {
+                const path = b.getAttribute("data-path");
+                const selectEl = b.previousElementSibling;
+                const fskVal = selectEl ? selectEl.value : "12";
+                const item = {
+                    series_path: path,
+                    path: path
+                };
                 openFskBatchModal([item], fskVal);
+                // Scope auf series setzen im Modal
+                currentFskBatchScope = "series";
+                const scopeSelect = document.getElementById("fsk-batch-scope-select");
+                if (scopeSelect) {
+                    scopeSelect.value = "series";
+                }
+                loadFskBatchPreview();
+            });
+        });
+
+        // Event-Listener für Staffel-Gruppenaktion im Medienorientiert-Modus
+        document.querySelectorAll("#health-issues .season-group-fsk-btn").forEach(b => {
+            b.addEventListener("click", () => {
+                const path = b.getAttribute("data-path");
+                const seriesPath = b.getAttribute("data-series-path");
+                const selectEl = b.previousElementSibling;
+                const fskVal = selectEl ? selectEl.value : "12";
+                const item = {
+                    season_path: path,
+                    series_path: seriesPath,
+                    path: path
+                };
+                openFskBatchModal([item], fskVal);
+                // Scope auf season setzen im Modal
+                currentFskBatchScope = "season";
+                const scopeSelect = document.getElementById("fsk-batch-scope-select");
+                if (scopeSelect) {
+                    scopeSelect.value = "season";
+                }
+                loadFskBatchPreview();
+            });
+        });
+
+        // Akkordeon-Zustand für Shows persistieren im Medienorientiert-Modus
+        issuesEl.querySelectorAll("details[data-show-path]").forEach(detailsEl => {
+            const path = detailsEl.getAttribute("data-show-path");
+            detailsEl.addEventListener("toggle", () => {
+                const key = `show:${path}`;
+                if (detailsEl.open) {
+                    if (!openTypes.includes(key)) openTypes.push(key);
+                } else {
+                    const idx = openTypes.indexOf(key);
+                    if (idx !== -1) openTypes.splice(idx, 1);
+                }
             });
         });
 

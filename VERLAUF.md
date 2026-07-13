@@ -1,6 +1,16 @@
 # Projektverlauf – Historie
 
-Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert aus `STAND.md`.
+Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
+
+## Stand am 13.07.2026 (Phase 2.5c-2 – Schritt 1: FSK Altersfreigaben Stapelverarbeitung & Integrität abgeschlossen)
+
+- **Phase 2.5c-2 (Schritt 1) – FSK Altersfreigaben Stapelverarbeitung & Integrität (Branch `feature/fsk-workflow-overhaul`):**
+  * **Binäres NFO-Schreiben:** Bytegenaue, binäre Ersetzung des Werts im `<mpaa>` Tag unter Erhalt von Dateirechten, Umlauten (BOMs), Attributen und Kommentaren.
+  * **Race-Condition & mtime-Absicherung:** Präzise String-Repräsentation von `mtime_ns` im JSON-Plan zur Vermeidung von JavaScript-Rundungsfehlern. Toleranz gegenüber reinen mtime-Änderungen auf dem Server (keine Fehlalarme).
+  * **Fehlende NFOs:** Korrekte Repräsentation als `status: "skipped_missing"` und `"fingerprint": null` im Clientplan. HTTP 409 bei Widersprüchen.
+  * **Zentraler Media-Kind-Resolver:** Bestimmung von `media_kind` ausschließlich über den Resolver-Kategoriekontext (`walk_nas_categories`).
+  * **UI & Barrierefreiheit:** Umstellung des FSK-Batch-Modals auf ein `<select>` Dropdown für den FSK-Zielwert. Inline-Fehlerpanel statt nativer `alert`/`confirm` Dialoge. Dynamische Beschriftung des Apply-Buttons ("X NFOs auf FSK Y ändern"). Monospace-Schrift für Pfadangaben.
+  * **Testabdeckung:** Erstellung dedizierter Binärtests in `test_nfo_write.py` und API-Integrations- sowie UI-Tests in `test_fsk_batch.py` und `fsk_batch_dom.test.js`.
 
 ## Stand am 13.07.2026 (Phase 2.5c-1 – Hierarchische FSK-Zuweisung abgeschlossen)
 

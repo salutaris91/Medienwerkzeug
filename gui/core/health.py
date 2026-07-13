@@ -59,6 +59,7 @@ _scan_state = {
     "stats": {"cache_hits": 0, "cache_miss_modified": 0, "cache_miss_known_issues": 0, "cache_miss_new": 0},
     "error": None,
     "media_server_skipped": False,
+    "media_structure": {"series": [], "movies": []},
 }
 
 
@@ -308,6 +309,58 @@ def _check_fsk(issues, category, folder_path, nfo_path, **kwargs):
         log_message(f"⚠️ [Bibliothek-Check] FSK-Prüfung fehlgeschlagen für {nfo_path}: {e}")
 
 
+def _get_fsk_info(nfo_path):
+    if not nfo_path or not os.path.exists(nfo_path):
+        return "Keine", "Keine"
+
+    try:
+        with open(nfo_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+
+        m = re.search(r'<mpaa>(.*?)</mpaa>', content)
+        if not m:
+            return "Keine", "Keine"
+
+        val = m.group(1).strip()
+        if not val:
+            return "Keine", "Keine"
+
+        valid_values = {"FSK 0", "FSK 6", "FSK 12", "FSK 16", "FSK 18"}
+        if val in valid_values:
+            return val, None
+        else:
+            return f"Ungültig: {val}", val
+
+    except Exception:
+        return "Unlesbar", "Unlesbar"
+
+
+def _find_issue_keys_for_episode(issues, season_path, ep_video_filename, ep_nfo_path):
+    keys = []
+    abs_nfo_path = os.path.realpath(ep_nfo_path)
+    abs_season_path = os.path.realpath(season_path)
+    for it in issues:
+        it_path = os.path.realpath(it.get("path"))
+        if it_path == abs_nfo_path:
+            keys.append(it["key"])
+        elif it_path == abs_season_path:
+            msg = it.get("message", "")
+            if ep_video_filename in msg or os.path.basename(ep_nfo_path) in msg:
+                keys.append(it["key"])
+    return keys
+
+
+def _find_issue_keys_for_movie(issues, movie_path, movie_nfo_path):
+    keys = []
+    abs_movie_path = os.path.realpath(movie_path)
+    abs_nfo_path = os.path.realpath(movie_nfo_path) if movie_nfo_path else None
+    for it in issues:
+        it_path = os.path.realpath(it.get("path"))
+        if it_path == abs_movie_path or (abs_nfo_path and it_path == abs_nfo_path):
+            keys.append(it["key"])
+    return keys
+
+
 def _check_season(issues, category, show_name, season_path, validator):
     """Prüft einen einzelnen Staffel-Ordner (rekursiv). Gibt geprüfte Dateien zurück."""
     # Showname voranstellen, damit das Issue auf einen Blick zuordenbar ist
@@ -325,7 +378,7 @@ def _check_season(issues, category, show_name, season_path, validator):
     if not videos and not child_dirs:
         _add_issue(issues, "info", "empty_folder", category, season_path,
                    f"{label}: keine Videodateien")
-        return 0
+        return 0, {"name": os.path.basename(season_path), "path": season_path, "episodes": []}
 
     # Episoden-Unterordner ohne fertiges Video erkennen (z. B. abgebrochener Download:
     # nur versteckte Temp-Datei + Untertitel/Thumbnail, aber kein .mkv/.mp4).
@@ -423,7 +476,27 @@ def _check_season(issues, category, show_name, season_path, validator):
             _add_issue(issues, "warning", "missing_season_poster", category, season_path,
                        f"{label}: Season-Poster fehlt — ggf. manuell als '{preferred}' im Serienordner ablegen")
 
-    return len(videos)
+    # Episoden-Struktur sammeln
+    season_episodes = []
+    for full, fn in videos:
+        ep_nfo_path = os.path.splitext(full)[0] + ".nfo"
+        ep_fsk_status, ep_actionable_fsk = _get_fsk_info(ep_nfo_path)
+        ep_issue_keys = _find_issue_keys_for_episode(issues, season_path, fn, ep_nfo_path)
+        season_episodes.append({
+            "name": fn,
+            "path": ep_nfo_path,
+            "fsk_status": ep_fsk_status,
+            "actionable_fsk": ep_actionable_fsk,
+            "issue_keys": ep_issue_keys
+        })
+
+    season_metadata = {
+        "name": os.path.basename(season_path),
+        "path": season_path,
+        "episodes": sorted(season_episodes, key=lambda e: e["name"])
+    }
+
+    return len(videos), season_metadata
 
 
 def _normalize_for_consistency_check(name):
@@ -443,7 +516,7 @@ def _check_series_show(issues, category, show_path, validator):
         entries = os.listdir(show_path)
     except OSError as e:
         log_message(f"⚠️ [Bibliothek-Check] Serien-Ordner nicht lesbar: {show_path} ({e})")
-        return 0
+        return 0, {"name": os.path.basename(show_path), "path": show_path, "has_nfo": False, "fsk_status": "Keine", "actionable_fsk": None, "seasons": []}
     entries_lower = {e.lower() for e in entries}
 
     # tvshow.nfo
@@ -533,10 +606,26 @@ def _check_series_show(issues, category, show_path, validator):
             _add_issue(issues, "warning", "inconsistent_naming", category, show_path,
                        f"{show_name}: Episodendateien verwenden einen anderen Seriennamen ('{prefix_val}') als der Hauptordner")
 
+    seasons_list = []
     for sd in season_dirs:
-        files_checked += _check_season(issues, category, show_name, os.path.join(show_path, sd), validator)
+        files_in_season, season_metadata = _check_season(issues, category, show_name, os.path.join(show_path, sd), validator)
+        files_checked += files_in_season
+        seasons_list.append(season_metadata)
 
-    return files_checked
+    # tvshow.nfo Altersfreigabe parsen
+    show_nfo_path = find_primary_nfo(show_path, is_movie=False)
+    show_fsk_status, show_actionable_fsk = _get_fsk_info(show_nfo_path)
+
+    media_metadata = {
+        "name": os.path.basename(show_path),
+        "path": show_path,
+        "has_nfo": show_nfo_path is not None,
+        "fsk_status": show_fsk_status,
+        "actionable_fsk": show_actionable_fsk,
+        "seasons": sorted(seasons_list, key=lambda s: s["name"])
+    }
+
+    return files_checked, media_metadata
 
 
 def _check_movie(issues, category, movie_path, validator):
@@ -545,7 +634,7 @@ def _check_movie(issues, category, movie_path, validator):
         entries = [e for e in os.listdir(movie_path) if not e.startswith('.')]
     except OSError as e:
         log_message(f"⚠️ [Bibliothek-Check] Film-Ordner nicht lesbar: {movie_path} ({e})")
-        return 0
+        return 0, {"name": name, "path": movie_path, "fsk_status": "Keine", "actionable_fsk": None, "issue_keys": []}
 
     # --- Check: Doppelte Verschachtelung (Ordner/Ordner/video.mkv) ---
     subdirs = [e for e in entries if os.path.isdir(os.path.join(movie_path, e))]
@@ -653,7 +742,19 @@ def _check_movie(issues, category, movie_path, validator):
         _add_issue(issues, "warning", "small_file", category, movie_path,
                    f"{name}: {len(small)} verdächtig kleine Videodatei(en) (< 50 MB)")
 
-    return len(videos)
+    movie_nfo_path = find_primary_nfo(movie_path, is_movie=True)
+    movie_fsk_status, movie_actionable_fsk = _get_fsk_info(movie_nfo_path)
+    movie_issue_keys = _find_issue_keys_for_movie(issues, movie_path, movie_nfo_path)
+
+    media_metadata = {
+        "name": name,
+        "path": movie_path,
+        "fsk_status": movie_fsk_status,
+        "actionable_fsk": movie_actionable_fsk,
+        "issue_keys": movie_issue_keys
+    }
+
+    return len(videos), media_metadata
 
 
 def _check_movie_cached(issues, category, movie_path, validator, cache_mgr, key, deep_dive, stats):
@@ -669,7 +770,7 @@ def _check_movie_cached(issues, category, movie_path, validator, cache_mgr, key,
             if cached_deep == current_deep:
                 issues.extend(cached_entry.get("issues", []))
                 stats["cache_hits"] += 1
-                return cached_entry.get("files_checked", 0)
+                return cached_entry.get("files_checked", 0), cached_entry.get("media_metadata")
             else:
                 stats["cache_miss_modified"] += 1
         else:
@@ -680,7 +781,7 @@ def _check_movie_cached(issues, category, movie_path, validator, cache_mgr, key,
             if cached_hybrid == current_hybrid:
                 issues.extend(cached_entry.get("issues", []))
                 stats["cache_hits"] += 1
-                return cached_entry.get("files_checked", 0)
+                return cached_entry.get("files_checked", 0), cached_entry.get("media_metadata")
             else:
                 stats["cache_miss_modified"] += 1
     elif cached_entry and has_issues_in_cache:
@@ -690,17 +791,17 @@ def _check_movie_cached(issues, category, movie_path, validator, cache_mgr, key,
 
     # Cache-Miss, Änderung oder bekannte Issues -> Vollständiger Scan
     temp_issues = []
-    files_checked = _check_movie(temp_issues, category, movie_path, validator)
+    files_checked, media_metadata = _check_movie(temp_issues, category, movie_path, validator)
 
     if deep_dive:
         current_deep = cache_mgr.calculate_deep_hash(movie_path)
-        cache_mgr.set_cached_entry(movie_path, key, temp_issues, deep_hash=current_deep, files_checked=files_checked)
+        cache_mgr.set_cached_entry(movie_path, key, temp_issues, deep_hash=current_deep, files_checked=files_checked, media_metadata=media_metadata)
     else:
         current_hybrid = cache_mgr.calculate_hybrid_state(movie_path, validator, is_movie=True)
-        cache_mgr.set_cached_entry(movie_path, key, temp_issues, hybrid_state=current_hybrid, files_checked=files_checked)
+        cache_mgr.set_cached_entry(movie_path, key, temp_issues, hybrid_state=current_hybrid, files_checked=files_checked, media_metadata=media_metadata)
 
     issues.extend(temp_issues)
-    return files_checked
+    return files_checked, media_metadata
 
 
 def _check_series_cached(issues, category, show_path, validator, cache_mgr, key, deep_dive, stats):
@@ -716,7 +817,7 @@ def _check_series_cached(issues, category, show_path, validator, cache_mgr, key,
             if cached_deep == current_deep:
                 issues.extend(cached_entry.get("issues", []))
                 stats["cache_hits"] += 1
-                return cached_entry.get("files_checked", 0)
+                return cached_entry.get("files_checked", 0), cached_entry.get("media_metadata")
             else:
                 stats["cache_miss_modified"] += 1
         else:
@@ -727,7 +828,7 @@ def _check_series_cached(issues, category, show_path, validator, cache_mgr, key,
             if cached_hybrid == current_hybrid:
                 issues.extend(cached_entry.get("issues", []))
                 stats["cache_hits"] += 1
-                return cached_entry.get("files_checked", 0)
+                return cached_entry.get("files_checked", 0), cached_entry.get("media_metadata")
             else:
                 stats["cache_miss_modified"] += 1
     elif cached_entry and has_issues_in_cache:
@@ -737,23 +838,23 @@ def _check_series_cached(issues, category, show_path, validator, cache_mgr, key,
 
     # Cache-Miss, Änderung oder bekannte Issues -> Vollständiger Scan
     temp_issues = []
-    files_checked = _check_series_show(temp_issues, category, show_path, validator)
+    files_checked, media_metadata = _check_series_show(temp_issues, category, show_path, validator)
 
     if deep_dive:
         current_deep = cache_mgr.calculate_deep_hash(show_path)
-        cache_mgr.set_cached_entry(show_path, key, temp_issues, deep_hash=current_deep, files_checked=files_checked)
+        cache_mgr.set_cached_entry(show_path, key, temp_issues, deep_hash=current_deep, files_checked=files_checked, media_metadata=media_metadata)
     else:
         current_hybrid = cache_mgr.calculate_hybrid_state(show_path, validator, is_movie=False)
-        cache_mgr.set_cached_entry(show_path, key, temp_issues, hybrid_state=current_hybrid, files_checked=files_checked)
+        cache_mgr.set_cached_entry(show_path, key, temp_issues, hybrid_state=current_hybrid, files_checked=files_checked, media_metadata=media_metadata)
 
     issues.extend(temp_issues)
-    return files_checked
+    return files_checked, media_metadata
 
 
 # ---------------------------------------------------------------------------
 # Scan-Steuerung
 # ---------------------------------------------------------------------------
-def _handle_cancel(shows_scanned, files_checked, issues, stats, cache_mgr):
+def _handle_cancel(shows_scanned, files_checked, issues, stats, cache_mgr, media_structure=None):
     cache_mgr.flush()
     summary = {"critical": 0, "warning": 0, "info": 0}
     for it in issues:
@@ -769,6 +870,7 @@ def _handle_cancel(shows_scanned, files_checked, issues, stats, cache_mgr):
         "scanned": {"shows": shows_scanned, "files": files_checked},
         "stats": stats,
         "error": None,
+        "media_structure": media_structure or {"series": [], "movies": []},
     }
     _set_state(**result)
     _write_cache()
@@ -851,9 +953,11 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
             log_message(f"⚠️ [Health-Scan] {msg}")
             return
 
+        media_structure = {"series": [], "movies": []}
+
         for idx, show in enumerate(shows):
             if _cancel_event.is_set():
-                _handle_cancel(idx, files_checked, issues, stats, cache_mgr)
+                _handle_cancel(idx, files_checked, issues, stats, cache_mgr, media_structure)
                 return
 
             _set_state(
@@ -863,7 +967,9 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
                 stats=stats,
             )
             if show["type"] == "series":
-                files_checked += _check_series_cached(issues, show["category"], show["path"], validator, cache_mgr, cache_key, deep_dive, stats)
+                files_in_show, show_metadata = _check_series_cached(issues, show["category"], show["path"], validator, cache_mgr, cache_key, deep_dive, stats)
+                files_checked += files_in_show
+                media_structure["series"].append(show_metadata)
             elif _is_genre_container(show["path"]):
                 # Genre-Sammelordner (z. B. Filme/Action): nicht selbst als Film prüfen,
                 # sondern die enthaltenen Film-Unterordner einzeln.
@@ -876,13 +982,17 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
                     subdirs = []
                 for sd in subdirs:
                     if _cancel_event.is_set():
-                        _handle_cancel(idx, files_checked, issues, stats, cache_mgr)
+                        _handle_cancel(idx, files_checked, issues, stats, cache_mgr, media_structure)
                         return
                     sp = os.path.join(show["path"], sd)
                     if os.path.isdir(sp):
-                        files_checked += _check_movie_cached(issues, show["category"], sp, validator, cache_mgr, cache_key, deep_dive, stats)
+                        files_in_movie, movie_metadata = _check_movie_cached(issues, show["category"], sp, validator, cache_mgr, cache_key, deep_dive, stats)
+                        files_checked += files_in_movie
+                        media_structure["movies"].append(movie_metadata)
             else:
-                files_checked += _check_movie_cached(issues, show["category"], show["path"], validator, cache_mgr, cache_key, deep_dive, stats)
+                files_in_movie, movie_metadata = _check_movie_cached(issues, show["category"], show["path"], validator, cache_mgr, cache_key, deep_dive, stats)
+                files_checked += files_in_movie
+                media_structure["movies"].append(movie_metadata)
 
             if (idx + 1) % 25 == 0:
                 log_message(f"🔍 [Health-Scan] {idx + 1}/{total} Ordner geprüft, "
@@ -906,6 +1016,7 @@ def _run_health_scan(deep_dive: bool = False, category_ids: Optional[list] = Non
             "stats": stats,
             "error": None,
             "media_server_skipped": media_server_skipped,
+            "media_structure": media_structure,
         }
         _set_state(**result)
         _write_cache()
@@ -1013,6 +1124,31 @@ def remove_issue(path: str, issue_type: str = None):
                     _scan_state["issues"] = [i for i in _scan_state["issues"] if i.get("path") != path]
                 if len(_scan_state["issues"]) < original_len:
                     changed = True
+
+        # media_structure in _scan_state aktualisieren
+        if changed and "media_structure" in _scan_state:
+            # Zu löschende Keys bestimmen
+            if issue_type:
+                target_keys = {f"health:{issue_type}:{path}"}
+            else:
+                target_keys = set()
+                # Falls wir idle waren, haben wir _scan_state durch cached überschrieben
+                if "issues" in _scan_state:
+                    for i in _scan_state["issues"]:
+                        if i.get("path") == path:
+                            target_keys.add(i["key"])
+
+            # Löschen aus movies
+            for m in _scan_state["media_structure"].get("movies", []):
+                if "issue_keys" in m:
+                    m["issue_keys"] = [k for k in m["issue_keys"] if k not in target_keys]
+
+            # Löschen aus series -> seasons -> episodes
+            for s in _scan_state["media_structure"].get("series", []):
+                for se in s.get("seasons", []):
+                    for ep in se.get("episodes", []):
+                        if "issue_keys" in ep:
+                            ep["issue_keys"] = [k for k in ep["issue_keys"] if k not in target_keys]
 
     if changed:
         _write_cache()
