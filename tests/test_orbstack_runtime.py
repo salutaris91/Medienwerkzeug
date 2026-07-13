@@ -25,6 +25,7 @@ def test_compose_is_localhost_only_and_non_restarting():
 
     assert '"127.0.0.1:5812:5001"' in content
     assert 'container_name: medienwerkzeug-orbstack-test' in content
+    assert "platform: linux/amd64" in content
     assert 'restart: "no"' in content
     assert "MW_RUNTIME: docker" in content
 

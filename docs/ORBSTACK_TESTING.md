@@ -39,6 +39,12 @@ Es gibt keinen Mount auf `/Volumes`, keine SMB-Verbindung und keinen Zugriff auf
 deine NAS-Mediathek. Die Weboberfläche ist nur auf dem eigenen Mac unter
 <http://127.0.0.1:5812> erreichbar.
 
+Die Compose-Datei verwendet bewusst `linux/amd64`: GitHub Actions veröffentlicht
+das derzeitige NAS-Image für diese Architektur und der Dockerfile enthält die
+Intel-VAAPI-Treiber des NAS. Auf einem Apple-Silicon-Mac emuliert OrbStack AMD64.
+Das ist etwas langsamer als ein nativer ARM64-Build, prüft dafür aber dieselbe
+Plattform, die anschließend produktiv eingesetzt wird.
+
 ## Voraussetzungen
 
 1. OrbStack ist installiert und gestartet.

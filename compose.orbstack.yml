@@ -3,6 +3,9 @@ name: medienwerkzeug-orbstack-test
 services:
   medienwerkzeug:
     image: "${MW_TEST_IMAGE:-medienwerkzeug:orbstack-local}"
+    # GitHub Actions and the current NAS image target linux/amd64. OrbStack
+    # emulates that architecture on Apple Silicon so this tests the same image.
+    platform: linux/amd64
     build:
       context: .
       dockerfile: Dockerfile
