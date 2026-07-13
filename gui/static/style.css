@@ -3021,3 +3021,9 @@ body.runtime-docker .docker-only-info {
         border-bottom: none !important;
     }
 }
+
+/* FSK Path Monospace Styling */
+.fsk-path-monospace {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.9em;
+}

@@ -2,6 +2,16 @@
 
 Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 13.07.2026 (Phase 2.5c-1 – Hierarchische FSK-Zuweisung abgeschlossen)
+
+- **Phase 2.5c-1 – Hierarchische FSK-Zuweisung (Plan v8):**
+  * Der Review-Plan v8 wurde vollständig implementiert. Alle Backend- und Frontend-Tests laufen zu 100% grün, einschließlich der neuen Sidecar-Video-Validierungen und Partial-Status-Logik.
+  * Backend-Zulässigkeitsprüfung `is_valid_media_nfo` mit strenger Video-Sidecar-Kopplung (für `/nas/health-fix` und `/nas/fsk-batch/apply`).
+  * Unterstützung von `partial`/`failed` Statuswerten im `apply`-Endpunkt, inklusive Mapping von Exceptions auf feingranulare Status-Ergebnisse.
+  * Update der Frontend-App-Logik (`app.js`) für das FSK-Batch-Modal, um dynamisch Hierarchie-Pfade (`series_path`, `season_path`) je nach Nutzer-Scope zu nutzen.
+  * Frontend HTML-Render in `app.js` mit `data-scope-kind`, `data-series-path` und `data-season-path` Attributen ausgestattet.
+  * Test-Suite für Plan v8 Lücken ergänzt (`test_fsk_batch.py`, `test_fsk_health.py`, `test_health_scan_cache.py`) und Dummy-Video-Dateien für Sidecar-Checks hinzugefügt.
+
 ## Stand am 12.07.2026 (FSK Batch: Hierarchische Zuweisung)
 
 - **Hierarchische FSK-Batch-Zuweisung (Branch `feature/fsk-hierarchical-assignment`):**

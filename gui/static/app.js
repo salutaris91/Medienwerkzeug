@@ -15696,6 +15696,10 @@ document.addEventListener("DOMContentLoaded", () => {
         currentFskBatchScope = e.target.value;
         loadFskBatchPreview();
     });
+    document.getElementById("fsk-batch-target-select")?.addEventListener("change", (e) => {
+        currentFskBatchTarget = e.target.value;
+        loadFskBatchPreview();
+    });
 });
 
 
@@ -15719,14 +15723,20 @@ function openFskBatchModal(items, fskVal) {
         modal.classList.add("active");
     }
 
-    const targetValEl = document.getElementById("fsk-batch-target-val");
-    if (targetValEl) {
-        targetValEl.textContent = `FSK ${fskVal}`;
+    const targetSelect = document.getElementById("fsk-batch-target-select");
+    if (targetSelect) {
+        targetSelect.value = fskVal;
     }
 
     const scopeSelect = document.getElementById("fsk-batch-scope-select");
     if (scopeSelect) {
         scopeSelect.value = currentFskBatchScope;
+    }
+
+    const errorEl = document.getElementById("fsk-batch-error-inline");
+    if (errorEl) {
+        errorEl.style.display = "none";
+        errorEl.textContent = "";
     }
 
     loadFskBatchPreview();
@@ -15758,11 +15768,22 @@ async function loadFskBatchPreview() {
     const container = document.getElementById("fsk-batch-tree-container");
     const summaryEl = document.getElementById("fsk-batch-summary");
     const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
+    const errorEl = document.getElementById("fsk-batch-error-inline");
 
     if (loader) loader.style.display = "flex";
     if (container) container.innerHTML = "";
     if (summaryEl) summaryEl.innerHTML = "Wird berechnet...";
-    if (confirmBtn) confirmBtn.disabled = true;
+    if (errorEl) {
+        errorEl.style.display = "none";
+        errorEl.textContent = "";
+    }
+    if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height: 12px; width: 12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            <span>Änderungen anwenden</span>
+        `;
+    }
 
     try {
         const sendPaths = resolveSendPaths(currentFskBatchItems, currentFskBatchScope);
@@ -15786,9 +15807,11 @@ async function loadFskBatchPreview() {
 
         if (!res.ok) {
             const errData = await res.json();
-            if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Fehler: ${escapeHTML(errData.message || "Vorschau fehlgeschlagen.")}</div>`;
+            const errMsg = errData.message || "Vorschau fehlgeschlagen.";
+            if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Fehler: ${escapeHTML(errMsg)}</div>`;
             if (summaryEl) summaryEl.innerHTML = "Fehler bei der Berechnung.";
             if (loader) loader.style.display = "none";
+            showFskBatchError(`Fehler bei der Vorschau: ${errMsg}`);
             return;
         }
 
@@ -15814,15 +15837,28 @@ async function loadFskBatchPreview() {
             `;
         }
 
-        // Button nur freigeben, wenn mindestens ein File "ready" ist
+        // Button nur freigeben, wenn mindestens ein File "ready" ist, und Text anpassen
         if (confirmBtn) {
             confirmBtn.disabled = (sum.ready === 0);
+            confirmBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height: 12px; width: 12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                <span>${sum.ready} NFOs auf FSK ${currentFskBatchTarget} ändern</span>
+            `;
         }
 
     } catch (err) {
         if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Netzwerkfehler: ${escapeHTML(err.message)}</div>`;
         if (summaryEl) summaryEl.innerHTML = "Netzwerkfehler.";
         if (loader) loader.style.display = "none";
+        showFskBatchError(`Netzwerkfehler bei der Vorschau: ${err.message}`);
+    }
+}
+
+function showFskBatchError(msg) {
+    const errorEl = document.getElementById("fsk-batch-error-inline");
+    if (errorEl) {
+        errorEl.textContent = msg;
+        errorEl.style.display = "block";
     }
 }
 
@@ -15907,7 +15943,7 @@ function renderFskFileRow(f, indent) {
 
     return `
         <div style="padding-left:${padding}px; display:flex; justify-content:space-between; gap:10px; margin-bottom:2px; font-size:0.9em; ${rowStyle}">
-            <span style="color:${color}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHTML(f.path)}">📄 ${escapeHTML(name)}</span>
+            <span class="fsk-path-monospace" style="color:${color}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHTML(f.path)}">📄 ${escapeHTML(name)}</span>
             ${statusBadge}
         </div>
     `;
@@ -15916,15 +15952,16 @@ function renderFskFileRow(f, indent) {
 async function applyFskBatch() {
     if (!currentFskBatchPlan) return;
 
-    const sum = currentFskBatchPlan.summary;
-    const msg = `Möchtest du die FSK Altersfreigabe auf FSK ${currentFskBatchTarget} für ${sum.ready} Datei(en) anwenden?\n\nEs werden Backups erstellt.`;
-    if (!confirm(msg)) return;
-
     const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
     const cancelBtn = document.getElementById("btn-fsk-batch-cancel");
     const refreshBtn = document.getElementById("btn-fsk-batch-refresh");
     const summaryEl = document.getElementById("fsk-batch-summary");
+    const errorEl = document.getElementById("fsk-batch-error-inline");
 
+    if (errorEl) {
+        errorEl.style.display = "none";
+        errorEl.textContent = "";
+    }
     if (confirmBtn) confirmBtn.disabled = true;
     if (cancelBtn) cancelBtn.disabled = true;
     if (refreshBtn) refreshBtn.disabled = true;
@@ -15933,12 +15970,13 @@ async function applyFskBatch() {
     try {
         const payloadFiles = currentFskBatchPlan.files.map(f => ({
             path: f.path,
+            status: f.status,
             fingerprint: f.fingerprint
         }));
 
         const sendPaths = resolveSendPaths(currentFskBatchItems, currentFskBatchScope);
         if (sendPaths.length === 0) {
-            alert("Fehler: Keine gültigen Zielpfade gefunden.");
+            showFskBatchError("Fehler: Keine gültigen Zielpfade gefunden.");
             if (cancelBtn) cancelBtn.disabled = false;
             if (refreshBtn) refreshBtn.disabled = false;
             return;
@@ -15956,7 +15994,8 @@ async function applyFskBatch() {
         });
 
         if (res.status === 409) {
-            alert("Konflikt/Race-Condition erkannt!\nEine oder mehrere NFO-Dateien wurden zwischenzeitlich modifiziert. Die Aktion wurde komplett abgebrochen.");
+            const errData = await res.json();
+            showFskBatchError(`Konflikt/Race-Condition erkannt: ${errData.message || "Eine oder mehrere NFO-Dateien wurden extern modifiziert. Die Aktion wurde komplett abgebrochen."}`);
             loadFskBatchPreview();
             if (cancelBtn) cancelBtn.disabled = false;
             if (refreshBtn) refreshBtn.disabled = false;
@@ -15965,7 +16004,7 @@ async function applyFskBatch() {
 
         if (!res.ok) {
             const errData = await res.json();
-            alert("Fehler bei der Ausführung: " + (errData.message || "Unbekannter Fehler"));
+            showFskBatchError("Fehler bei der Ausführung: " + (errData.message || "Unbekannter Fehler"));
             loadFskBatchPreview();
             if (cancelBtn) cancelBtn.disabled = false;
             if (refreshBtn) refreshBtn.disabled = false;
@@ -16006,7 +16045,7 @@ async function applyFskBatch() {
         }
 
     } catch (err) {
-        alert("Netzwerkfehler: " + err.message);
+        showFskBatchError("Netzwerkfehler: " + err.message);
         loadFskBatchPreview();
         if (cancelBtn) cancelBtn.disabled = false;
         if (refreshBtn) refreshBtn.disabled = false;

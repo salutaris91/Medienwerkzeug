@@ -286,3 +286,109 @@ test('Darstellung von partial und failed', async () => {
     assert.ok(summaryEl.innerHTML.includes("Fehlgeschlagen: <strong>1</strong>"));
     assert.ok(summaryEl.innerHTML.includes("Readonly"));
 });
+
+test('No native Dialogs and Inline Error Rendering', async () => {
+    // Reset call spies
+    globalThis.lastAlert = null;
+    globalThis.lastConfirm = null;
+
+    globalThis.fetchRequests = [];
+    globalThis.mockFetchResponse = {
+        ok: false,
+        status: 409,
+        json: () => Promise.resolve({
+            ok: false,
+            message: "Integritätskonflikt"
+        })
+    };
+
+    // FSK Preview laden (wird fehlschlagen)
+    await globalThis.loadFskBatchPreview();
+    await new Promise(r => setTimeout(r, 10));
+
+    const errorEl = document.getElementById("fsk-batch-error-inline");
+    assert.ok(errorEl.style.display !== "none");
+    assert.ok(errorEl.textContent.includes("Integritätskonflikt"));
+    assert.strictEqual(globalThis.lastAlert, null, "Native alert() was called");
+});
+
+test('Dynamic Button Text and Disabled State', async () => {
+    const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
+
+    // Case 1: 0 ready files
+    globalThis.mockFetchResponse = {
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+            files: [
+                { path: "/test.nfo", fingerprint: "abcd", status: "unchanged", hierarchy: { type: "movie", movie: "Test" } }
+            ],
+            summary: { total: 1, ready: 0, unchanged: 1, skipped_missing: 0, skipped_problematic: 0 }
+        })
+    };
+
+    globalThis.openFskBatchModal([{path: "/test.nfo"}], "12");
+    await new Promise(r => setTimeout(r, 10));
+
+    assert.strictEqual(confirmBtn.disabled, true);
+    assert.ok(confirmBtn.innerHTML.includes("0 NFOs auf FSK 12 ändern"), "Button text: " + confirmBtn.innerHTML);
+
+    // Case 2: 2 ready files
+    globalThis.mockFetchResponse = {
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+            files: [
+                { path: "/test1.nfo", fingerprint: "abcd", status: "ready", hierarchy: { type: "movie", movie: "Test" } },
+                { path: "/test2.nfo", fingerprint: "efgh", status: "ready", hierarchy: { type: "movie", movie: "Test" } }
+            ],
+            summary: { total: 2, ready: 2, unchanged: 0, skipped_missing: 0, skipped_problematic: 0 }
+        })
+    };
+
+    globalThis.openFskBatchModal([{path: "/test1.nfo"}, {path: "/test2.nfo"}], "16");
+    await new Promise(r => setTimeout(r, 10));
+
+    assert.strictEqual(confirmBtn.disabled, false);
+    assert.ok(confirmBtn.innerHTML.includes("2 NFOs auf FSK 16 ändern"), "Button text: " + confirmBtn.innerHTML);
+});
+
+test('Apply payload includes status field', async () => {
+    globalThis.fetchRequests = [];
+    globalThis.mockFetchResponse = {
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+            files: [
+                { path: "/test.nfo", fingerprint: "abcd", status: "ready", hierarchy: { type: "movie", movie: "Test" } }
+            ],
+            summary: { ready: 1 }
+        })
+    };
+
+    globalThis.openFskBatchModal([{path: "/test.nfo"}], "16");
+    await new Promise(r => setTimeout(r, 10));
+
+    // Simulate Apply Fetch
+    globalThis.fetchRequests = [];
+    globalThis.mockFetchResponse = {
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+            ok: true,
+            status: "success",
+            results: [],
+            summary: { success: 1, failed: 0 }
+        })
+    };
+
+    await globalThis.applyFskBatch();
+    await new Promise(r => setTimeout(r, 10));
+
+    const applyReq = globalThis.fetchRequests.find(req => req.url.includes("fsk-batch/apply"));
+    assert.ok(applyReq);
+
+    const body = JSON.parse(applyReq.options.body);
+    // Verifizieren, dass 'status' Teil der payload files ist (wichtig für skipped_missing Checks)
+    assert.deepStrictEqual(body.files, [{path: "/test.nfo", status: "ready", fingerprint: "abcd"}]);
+});

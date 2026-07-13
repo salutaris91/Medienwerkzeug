@@ -708,7 +708,7 @@ def handle_api_findings_ignored():
 # ==========================================================================
 def write_fsk_to_nfo(nfo_path: str, fsk_str: str) -> tuple[bool, str]:
     """Schreibt den FSK-Wert in die NFO-Datei unter Einhaltung aller Sicherheits-
-    und XML-Richtlinien (Backup, Validierung, atomares Schreiben).
+    und XML-Richtlinien (Backup, Validierung, atomares Schreiben auf Binärebene).
     Gibt (success, message) zurück.
     """
     import xml.etree.ElementTree as ET
@@ -717,37 +717,65 @@ def write_fsk_to_nfo(nfo_path: str, fsk_str: str) -> tuple[bool, str]:
     import time
     import re
     import os
+    import stat
 
     try:
-        with open(nfo_path, "r", encoding="utf-8", errors="ignore") as f:
-            content = f.read()
+        with open(nfo_path, "rb") as f:
+            content_bytes = f.read()
     except Exception as e:
         return False, f"NFO Lesefehler: {e}"
 
     try:
-        tree = ET.fromstring(content)
+        tree = ET.fromstring(content_bytes)
     except Exception as e:
         return False, f"Original-XML fehlerhaft: {e}"
 
-    if tree.tag not in ["movie", "tvshow", "episodedetails"]:
+    # Root-Tag Validierung
+    root_tag_local = tree.tag.split('}')[-1]
+    if root_tag_local not in ["movie", "tvshow", "episodedetails"]:
         return False, f"Ungültiges NFO Root-Tag: {tree.tag}"
 
-    mpaa_elements = tree.findall('.//mpaa')
-    if len(mpaa_elements) > 1:
+    # Namespaces ablehnen, falls vorhanden
+    if any('}' in elem.tag for elem in tree.iter()):
+        return False, "XML-Namespaces werden im MPAA-Tag nicht sicher unterstützt."
+
+    mpaa_elements = [elem for elem in tree.iter() if elem.tag == 'mpaa']
+    N = len(mpaa_elements)
+
+    if N > 1:
         return False, "Mehrere <mpaa>-Tags gefunden. Bitte manuell bereinigen."
 
-    if len(mpaa_elements) == 1:
-        new_content = re.sub(r'<mpaa[\s>].*?</mpaa>', f'<mpaa>{fsk_str}</mpaa>', content, count=1, flags=re.DOTALL|re.IGNORECASE)
+    mpaa_regex = re.compile(
+        br'(?P<open><mpaa(?:\s[^>]*)?>)'
+        br'(?P<value>.*?)'
+        br'(?P<close></mpaa\s*>)',
+        re.DOTALL | re.IGNORECASE
+    )
+
+    if N == 1:
+        matches = list(mpaa_regex.finditer(content_bytes))
+        if len(matches) != 1:
+            return False, "Fehler beim Byte-Regex-Abgleich des MPAA-Tags."
+        
+        # Bytegenaue Ersetzung der Value
+        new_content_bytes = mpaa_regex.sub(
+            lambda m: m.group("open") + fsk_str.encode("utf-8") + m.group("close"),
+            content_bytes,
+            count=1
+        )
     else:
-        # Vor dem schließenden Tag einfügen
-        closing_tag = f"</{tree.tag}>"
-        if closing_tag not in content:
-            return False, f"NFO-Datei ist unvollständig (End-Tag {closing_tag} fehlt)."
-        new_content = content.replace(closing_tag, f"  <mpaa>{fsk_str}</mpaa>\n{closing_tag}")
+        # Fall N == 0: Einfügen vor dem schließenden Root-Tag
+        closing_tag_bytes = f"</{tree.tag}>".encode("utf-8")
+        idx = content_bytes.rfind(closing_tag_bytes)
+        if idx == -1:
+            return False, f"NFO-Datei ist unvollständig (End-Tag </{tree.tag}> fehlt)."
+        
+        new_tag = f"  <mpaa>{fsk_str}</mpaa>\n".encode("utf-8")
+        new_content_bytes = content_bytes[:idx] + new_tag + content_bytes[idx:]
 
     # XML-Plausibilität des Ergebnisses prüfen
     try:
-        ET.fromstring(new_content)
+        ET.fromstring(new_content_bytes)
     except Exception as e:
         return False, f"Generiertes XML fehlerhaft: {e}"
 
@@ -762,11 +790,18 @@ def write_fsk_to_nfo(nfo_path: str, fsk_str: str) -> tuple[bool, str]:
             suffix += 1
         shutil.copy2(nfo_path, bak_path)
 
-        # Temp file schreiben
-        fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(nfo_path), text=True)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(new_content)
+        # Original-Rechte erfassen
+        original_mode = stat.S_IMODE(os.stat(nfo_path).st_mode)
 
+        # Temp file schreiben (Binärmodus)
+        fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(nfo_path), text=False)
+        with os.fdopen(fd, "wb") as f:
+            f.write(new_content_bytes)
+
+        # Rechte auf Temp-Datei übertragen
+        os.chmod(temp_path, original_mode)
+
+        # Atomares Ersetzen
         os.replace(temp_path, nfo_path)
         temp_path = None
         return True, "FSK erfolgreich aktualisiert."
@@ -778,6 +813,7 @@ def write_fsk_to_nfo(nfo_path: str, fsk_str: str) -> tuple[bool, str]:
                 os.remove(temp_path)
             except OSError:
                 pass
+
 
 
 def find_cache_root_and_type(nfo_path: str, settings: dict) -> tuple[str, bool]:
@@ -1077,33 +1113,28 @@ def handle_api_health_fix():
 import hashlib
 
 def calculate_nfo_hash(nfo_path: str) -> str:
-    """Berechnet den SHA-256-Hash des Dateiinhalts."""
-    try:
-        with open(nfo_path, "rb") as f:
-            return hashlib.sha256(f.read()).hexdigest()
-    except Exception:
-        return ""
+    """Berechnet den SHA-256-Hash des Dateiinhalts. Wirft eine Exception bei Fehlern."""
+    with open(nfo_path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
 
-def make_file_fingerprint(nfo_path: str) -> dict:
-    """Erzeugt einen Fingerprint (Pfad, mtime_ns, Größe, SHA-256-Hash) für eine NFO."""
-    try:
-        stat = os.stat(nfo_path)
-        mtime_ns = stat.st_mtime_ns
-        size = stat.st_size
-        sha = calculate_nfo_hash(nfo_path)
-        return {
-            "path": nfo_path,
-            "mtime_ns": mtime_ns,
-            "size": size,
-            "hash": sha
-        }
-    except Exception:
-        return {
-            "path": nfo_path,
-            "mtime_ns": 0,
-            "size": 0,
-            "hash": ""
-        }
+def make_file_fingerprint(nfo_path: str) -> dict | None:
+    """Erzeugt einen Fingerprint (Pfad, mtime_ns als String, Größe, SHA-256-Hash) für eine NFO.
+    Gibt None zurück, wenn die Datei physisch nicht existiert.
+    Wirft eine Exception bei anderen Fehlern (z.B. Leseberechtigungsfehler).
+    """
+    if not os.path.exists(nfo_path):
+        return None
+    
+    stat_res = os.stat(nfo_path)
+    mtime_ns = str(stat_res.st_mtime_ns)
+    size = stat_res.st_size
+    sha = calculate_nfo_hash(nfo_path)
+    return {
+        "path": nfo_path,
+        "mtime_ns": mtime_ns,
+        "size": size,
+        "hash": sha
+    }
 
 def find_category_for_path(path: str, settings: dict) -> tuple[dict, str]:
     """Ermittelt die passende Bibliothekskategorie für einen Pfad."""
@@ -1287,7 +1318,7 @@ def handle_api_fsk_batch_preview():
                         return jsonify({"ok": False, "message": "NFO-Datei ist unzulässig (Sidecar-Kopplung fehlt oder falsch).", "path": real_p}), 400
                     resolved_targets.append((real_p, False))
                 elif os.path.isdir(real_p):
-                    is_movie = "serie" not in cat.get("name", "").lower()
+                    is_movie = (cat.get("type") == "movie" if cat.get("type") in ["series", "movie"] else "serie" not in cat.get("name", "").lower())
                     import gui.core.health as health
                     nfo_path = health.find_primary_nfo(real_p, is_movie=is_movie)
                     if nfo_path:
@@ -1419,6 +1450,20 @@ def handle_api_fsk_batch_preview():
                 "episode": episode_name
             }
 
+            # media_kind bestimmen
+            cat_for_nfo, _ = find_category_for_path(nfo_path, settings)
+            if cat_for_nfo:
+                is_movie_nfo = (cat_for_nfo.get("type") == "movie" if cat_for_nfo.get("type") in ["series", "movie"] else "serie" not in cat_for_nfo.get("name", "").lower())
+            else:
+                is_movie_nfo = True
+
+            if is_movie_nfo:
+                media_kind = "movie"
+            elif os.path.basename(nfo_path).lower() == "tvshow.nfo":
+                media_kind = "series"
+            else:
+                media_kind = "episode"
+
             if is_missing:
                 summary["skipped_missing"] += 1
                 files_plan.append({
@@ -1428,6 +1473,7 @@ def handle_api_fsk_batch_preview():
                     "error": "NFO-Datei fehlt.",
                     "current_fsk": None,
                     "fingerprint": make_file_fingerprint(nfo_path),
+                    "media_kind": media_kind,
                     "hierarchy": hierarchy
                 })
                 continue
@@ -1445,6 +1491,7 @@ def handle_api_fsk_batch_preview():
                     "error": f"Lesefehler: {e}",
                     "current_fsk": None,
                     "fingerprint": make_file_fingerprint(nfo_path),
+                    "media_kind": media_kind,
                     "hierarchy": hierarchy
                 })
                 continue
@@ -1461,6 +1508,7 @@ def handle_api_fsk_batch_preview():
                     "error": f"XML beschädigt: {e}",
                     "current_fsk": None,
                     "fingerprint": make_file_fingerprint(nfo_path),
+                    "media_kind": media_kind,
                     "hierarchy": hierarchy
                 })
                 continue
@@ -1474,6 +1522,7 @@ def handle_api_fsk_batch_preview():
                     "error": "Mehrere <mpaa>-Tags vorhanden.",
                     "current_fsk": None,
                     "fingerprint": make_file_fingerprint(nfo_path),
+                    "media_kind": media_kind,
                     "hierarchy": hierarchy
                 })
                 continue
@@ -1490,6 +1539,7 @@ def handle_api_fsk_batch_preview():
                     "status": "unchanged",
                     "current_fsk": current_fsk_val,
                     "fingerprint": make_file_fingerprint(nfo_path),
+                    "media_kind": media_kind,
                     "hierarchy": hierarchy
                 })
             else:
@@ -1500,6 +1550,7 @@ def handle_api_fsk_batch_preview():
                     "status": "ready",
                     "current_fsk": current_fsk_val,
                     "fingerprint": make_file_fingerprint(nfo_path),
+                    "media_kind": media_kind,
                     "hierarchy": hierarchy
                 })
 
@@ -1566,7 +1617,7 @@ def handle_api_fsk_batch_apply():
                 if os.path.isfile(real_p) and real_p.lower().endswith(".nfo"):
                     resolved_targets.append(real_p)
                 elif os.path.isdir(real_p):
-                    is_movie = "serie" not in cat.get("name", "").lower()
+                    is_movie = (cat.get("type") == "movie" if cat.get("type") in ["series", "movie"] else "serie" not in cat.get("name", "").lower())
                     import gui.core.health as health
                     nfo = health.find_primary_nfo(real_p, is_movie=is_movie)
                     if nfo:
@@ -1617,26 +1668,40 @@ def handle_api_fsk_batch_apply():
                 final_targets.append(nfo_real)
 
         # Client-Plan gegen erneut aufgelösten Plan abgleichen
-        client_files_dict = {f.get("path"): f.get("fingerprint") for f in expected_files if f.get("path")}
+        # client_files_dict mappt path -> vollständiger Preview-Eintrag (inkl. status, fingerprint)
+        client_files_dict = {f.get("path"): f for f in expected_files if f.get("path")}
 
         # Jede NFO, die existieren soll, muss im Client-Plan enthalten sein und die Fingerprints müssen übereinstimmen
         for nfo in final_targets:
+            client_entry = client_files_dict.get(nfo)
+            if not client_entry:
+                return jsonify({"ok": False, "message": f"Race Condition erkannt: Datei {os.path.basename(nfo)} war in der Vorschau nicht enthalten."}), 409
+
             if not os.path.exists(nfo):
-                # Wenn sie fehlt, muss sie im Client-Plan als skipped_missing aufgeführt sein
-                client_fp = client_files_dict.get(nfo)
-                if client_fp and (client_fp.get("size") != 0 or client_fp.get("mtime_ns") != 0):
+                # Wenn sie fehlt, muss sie im Client-Plan als skipped_missing und fingerprint=null deklariert sein
+                if client_entry.get("status") != "skipped_missing" or client_entry.get("fingerprint") is not None:
                     return jsonify({"ok": False, "message": f"Race Condition erkannt: Die Datei {os.path.basename(nfo)} fehlt plötzlich."}), 409
                 continue
 
-            client_fp = client_files_dict.get(nfo)
-            if not client_fp:
-                return jsonify({"ok": False, "message": f"Race Condition erkannt: Datei {os.path.basename(nfo)} war in der Vorschau nicht enthalten."}), 409
+            # Wenn sie existiert, aber laut Client-Plan fehlen sollte
+            if client_entry.get("status") == "skipped_missing" or client_entry.get("fingerprint") is None:
+                return jsonify({"ok": False, "message": f"Race Condition erkannt: Datei {os.path.basename(nfo)} existiert plötzlich wieder."}), 409
+
+            client_fp = client_entry.get("fingerprint")
 
             # Fingerprints des Servers berechnen und mit Client-Erwartung vergleichen
-            server_fp = make_file_fingerprint(nfo)
-            if (server_fp["size"] != client_fp.get("size") or
-                server_fp["mtime_ns"] != client_fp.get("mtime_ns") or
-                server_fp["hash"] != client_fp.get("hash")):
+            # make_file_fingerprint wirft Exceptions bei Lese- oder Berechtigungsfehlern
+            try:
+                server_fp = make_file_fingerprint(nfo)
+            except Exception as e:
+                return jsonify({"ok": False, "message": f"Integritätsfehler beim Lesen der Datei {os.path.basename(nfo)}: {e}"}), 409
+
+            if server_fp is None:
+                # Datei fehlt plötzlich zwischen os.path.exists und make_file_fingerprint
+                return jsonify({"ok": False, "message": f"Race Condition erkannt: Die Datei {os.path.basename(nfo)} fehlt plötzlich."}), 409
+
+            # Inhaltlicher Abgleich über Dateigröße und SHA-256-Hash
+            if server_fp["size"] != client_fp.get("size") or server_fp["hash"] != client_fp.get("hash"):
                 return jsonify({"ok": False, "message": f"Race Condition erkannt: Datei {os.path.basename(nfo)} wurde zwischenzeitlich extern modifiziert."}), 409
 
         # Phase 2: Ausführung
