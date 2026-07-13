@@ -2,6 +2,14 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 13.07.2026 (Phase 2.5c-2 – Schritt 2: FSK-Aktionsfilterung, DOM-Klicktests & Trennung abgeschlossen)
+
+- **Phase 2.5c-2 (Schritt 2) – FSK-Aktionsfilterung und Zähler-Trennung (Branch `fix/fsk-workflow-review`):**
+  * **Trennung von Zählern und Aktionen:** Auf Serien-, Staffel- und Episodenebene werden betroffene Befunde (`affectedEp`, inklusive `nfo_missing` und `unreadable`) sauber von FSK-aktionsfähigen Schreibbefunden (`fskActionableEp`, nur `missing_fsk` und `invalid_fsk`) getrennt.
+  * **Anzeige-Integrität:** Serien und Episoden mit fehlenden oder unlesbaren NFOs bleiben in der medienorientierten Dashboard-Ansicht vollständig sichtbar und werden in den Betroffenen-Statistiken gezählt. Schreib-Buttons und Gruppenaktionen werden für sie jedoch unterdrückt.
+  * **Robuste DOM-Klicktests:** Die Gruppen-Klicktests wurden komplett auf das native Click-Event-Binding umgestellt. Zusätzliche 5 detaillierte Regressionstests decken alle Mischfälle (`nfo_missing`, `unreadable`, fehlende `tvshow.nfo` und Gruppen-Ausblendungs-Prioritäten) mit pfadbezogenen DOM-Assertions ab.
+  * **OrbStack-Verifikation:** Build, Start und Smoke-Tests wurden fehlerfrei durchlaufen.
+
 ## Stand am 13.07.2026 (Phase 2.5c-2 – Schritt 1: FSK Altersfreigaben Stapelverarbeitung & Integrität abgeschlossen)
 
 - **Phase 2.5c-2 (Schritt 1) – FSK Altersfreigaben Stapelverarbeitung & Integrität (Branch `feature/fsk-workflow-overhaul`):**
