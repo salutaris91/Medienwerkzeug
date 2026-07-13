@@ -13173,20 +13173,26 @@ function renderHealthStatus(data) {
                         <span>Serien</span>
                      </div>`;
 
+            const isEpAffectedGeneral = (ep) => ["nfo_missing", "unreadable", "missing_fsk", "invalid_fsk"].includes(ep.fsk_status);
+            const isEpFskActionable = (ep) => ["missing_fsk", "invalid_fsk"].includes(ep.fsk_status);
+
             let renderedSeriesCount = 0;
             seriesList.forEach(s => {
                 const totalEp = s.seasons.reduce((acc, se) => acc + (se.episodes ? se.episodes.length : 0), 0);
-                const affectedEp = s.seasons.reduce((acc, se) => acc + (se.episodes ? se.episodes.filter(ep => ep.fsk_status === "Keine" || ep.fsk_status.startsWith("Ungültig")).length : 0), 0);
+                const affectedEp = s.seasons.reduce((acc, se) => acc + (se.episodes ? se.episodes.filter(isEpAffectedGeneral).length : 0), 0);
+                const fskActionableEp = s.seasons.reduce((acc, se) => acc + (se.episodes ? se.episodes.filter(isEpFskActionable).length : 0), 0);
 
-                const hasShowFskIssue = s.fsk_status === "Keine" || s.fsk_status.startsWith("Ungültig");
-                const isShowAffected = !s.has_nfo || hasShowFskIssue || affectedEp > 0;
+                const showAffectedGeneral = !s.has_nfo || ["nfo_missing", "unreadable", "missing_fsk", "invalid_fsk"].includes(s.fsk_status) || affectedEp > 0;
+                const showFskActionable = s.has_nfo && ["missing_fsk", "invalid_fsk"].includes(s.fsk_status);
+                const seriesFskActionCount = (showFskActionable ? 1 : 0) + fskActionableEp;
+                const seriesGroupAvailable = seriesFskActionCount >= 2;
 
-                if (!isShowAffected) return;
+                if (!showAffectedGeneral) return;
                 renderedSeriesCount++;
 
-                const showBadge = !s.has_nfo 
+                const showBadge = !s.has_nfo
                     ? `<span class="badge" style="background:rgba(239,68,68,0.1); color:#ef4444; font-size:10px;">tvshow.nfo fehlt</span>`
-                    : `<span class="badge" style="background:rgba(255,255,255,0.05); color:var(--text-muted); font-size:10px;">Serie: ${escapeHTML(s.fsk_status)}</span>`;
+                    : `<span class="badge" style="background:rgba(255,255,255,0.05); color:var(--text-muted); font-size:10px;">Serie: ${escapeHTML(s.current_fsk || "Keine")}</span>`;
 
                 const epBadge = affectedEp > 0
                     ? `<span class="badge" style="background:rgba(245,158,11,0.1); color:#f59e0b; font-size:10px;">${affectedEp} von ${totalEp} Ep. betroffen</span>`
@@ -13194,8 +13200,7 @@ function renderHealthStatus(data) {
 
                 // Gruppenaktion für Serie: FSK zuweisen
                 let groupActionHtml = "";
-                const showNeedsFsk = hasShowFskIssue || affectedEp > 0;
-                if (showNeedsFsk) {
+                if (seriesGroupAvailable) {
                     groupActionHtml = `
                         <div style="display:inline-flex; align-items:center; gap:6px;">
                             <select class="form-select form-select-xs show-group-fsk-select" style="padding:2px 4px; font-size:11px; width:auto; height:24px; background:var(--bg-surface-3); border-color:var(--border-light); color:var(--text-main);">
@@ -13208,37 +13213,41 @@ function renderHealthStatus(data) {
                             <button class="btn btn-primary btn-xs show-group-fsk-btn" data-path="${escapeHTML(s.path)}" style="padding:2px 8px; height:24px;">FSK zuweisen</button>
                         </div>
                     `;
-                } else if (!s.has_nfo) {
+                } else if (!s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable") {
                     groupActionHtml = `<button class="btn btn-accent btn-xs health-nfo-agent" data-path="${escapeHTML(s.path)}" style="padding:2px 8px; height:24px;">NFO Agent</button>`;
                 }
 
                 const isShowOpen = openTypes.includes(`show:${s.path}`);
 
                 html += `<details data-show-path="${escapeHTML(s.path)}" ${isShowOpen ? "open" : ""} style="border:1px solid var(--border-light); border-radius:8px; padding:8px 12px; margin-bottom:8px;">
-                            <summary class="health-show-summary" style="cursor:pointer; font-weight:500; display:flex; align-items:center; justify-content:space-between; gap:12px; list-style:none;">
-                                <div style="display:flex; align-items:center; gap:8px; flex:1;">
-                                    <span style="color:var(--text-main); font-weight:600;">📺 ${escapeHTML(s.name)}</span>
-                                    ${showBadge}
-                                    ${epBadge}
-                                </div>
-                                <div style="display:flex; align-items:center; gap:10px;" onclick="event.stopPropagation();">
-                                    ${groupActionHtml}
-                                </div>
-                            </summary>
-                            <div style="margin-top:8px; border-top:1px solid var(--border-light); padding-top:8px; display:flex; flex-direction:column; gap:8px;">`;
+                             <summary class="health-show-summary" style="cursor:pointer; font-weight:500; display:flex; align-items:center; justify-content:space-between; gap:12px; list-style:none;">
+                                 <div style="display:flex; align-items:center; gap:8px; flex:1;">
+                                     <span style="color:var(--text-main); font-weight:600;">📺 ${escapeHTML(s.name)}</span>
+                                     ${showBadge}
+                                     ${epBadge}
+                                 </div>
+                                 <div style="display:flex; align-items:center; gap:10px;" onclick="event.stopPropagation();">
+                                     ${groupActionHtml}
+                                 </div>
+                             </summary>
+                             <div style="margin-top:8px; border-top:1px solid var(--border-light); padding-top:8px; display:flex; flex-direction:column; gap:8px;">`;
 
                 // Zeige tvshow.nfo-Zeile, falls sie Probleme hat
-                if (!s.has_nfo || hasShowFskIssue) {
+                if (!s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable" || showFskActionable) {
                     let tvshowAction = "";
-                    if (!s.has_nfo) {
+                    if (!s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable") {
                         tvshowAction = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(s.path)}">NFO Agent</button>`;
-                    } else if (hasShowFskIssue) {
+                    } else if (showFskActionable && !seriesGroupAvailable) {
                         tvshowAction = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(s.path)}" data-scope-kind="series" data-series-path="${escapeHTML(s.path)}">FSK setzen</button>`;
                     }
+                    const fskLabel = (!s.has_nfo || s.fsk_status === "nfo_missing")
+                        ? "NFO fehlt"
+                        : (s.fsk_status === "unreadable" ? "NFO unlesbar" : (s.fsk_status === "missing_fsk" ? "FSK fehlt" : (s.current_fsk || "Keine")));
+                    const labelColor = (!s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable") ? "text-danger" : "text-warning";
                     html += `<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.9em; padding:4px 8px; background:rgba(255,255,255,0.01); border-radius:4px;">
                                 <span class="fsk-path-monospace" style="color:var(--text-main);">📄 tvshow.nfo</span>
                                 <div style="display:flex; align-items:center; gap:8px;">
-                                    <span class="text-danger" style="font-size:0.85em;">${!s.has_nfo ? "NFO fehlt" : escapeHTML(s.fsk_status)}</span>
+                                    <span class="${labelColor}" style="font-size:0.85em;">${escapeHTML(fskLabel)}</span>
                                     ${tvshowAction}
                                 </div>
                              </div>`;
@@ -13246,12 +13255,14 @@ function renderHealthStatus(data) {
 
                 // Staffeln durchlaufen
                 s.seasons.forEach(se => {
-                    const affectedEpInSeason = se.episodes ? se.episodes.filter(ep => ep.fsk_status === "Keine" || ep.fsk_status.startsWith("Ungültig")).length : 0;
+                    const affectedEpInSeason = se.episodes ? se.episodes.filter(isEpAffectedGeneral).length : 0;
+                    const fskActionableEpInSeason = se.episodes ? se.episodes.filter(isEpFskActionable).length : 0;
                     if (affectedEpInSeason === 0) return;
 
                     // Gruppenaktion für Staffel, falls >= 2 betroffene Episoden
                     let seasonActionHtml = "";
-                    if (affectedEpInSeason >= 2) {
+                    const seasonGroupAvailable = fskActionableEpInSeason >= 2;
+                    if (seasonGroupAvailable) {
                         seasonActionHtml = `
                             <div style="display:inline-flex; align-items:center; gap:6px;">
                                 <select class="form-select form-select-xs season-group-fsk-select" style="padding:2px 4px; font-size:11px; width:auto; height:20px; background:var(--bg-surface-3); border-color:var(--border-light); color:var(--text-main);">
@@ -13275,19 +13286,34 @@ function renderHealthStatus(data) {
 
                     // Episoden durchlaufen
                     se.episodes.forEach(ep => {
-                        const isEpAffected = ep.fsk_status === "Keine" || ep.fsk_status.startsWith("Ungültig");
+                        const isEpAffected = isEpAffectedGeneral(ep);
                         if (!isEpAffected) return;
 
+                        const isEpFskActionableVal = isEpFskActionable(ep);
                         let epActionHtml = "";
-                        // Einzelbutton nur rendern, wenn NICHT mindestens 2 betroffene Episoden existieren (Gruppenaktion greift)
-                        if (affectedEpInSeason < 2) {
+                        // Einzelbutton nur rendern, wenn FSK-aktionsfähig und keine Gruppenaktion greift
+                        if (isEpFskActionableVal && !seasonGroupAvailable && !seriesGroupAvailable) {
                             epActionHtml = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(ep.path)}" data-scope-kind="episode" data-series-path="${escapeHTML(s.path)}" data-season-path="${escapeHTML(se.path)}" style="padding:2px 6px; font-size:11px; height:22px;">FSK setzen</button>`;
+                        }
+
+                        let fskLabel = "";
+                        let labelColor = "text-warning";
+                        if (ep.fsk_status === "nfo_missing") {
+                            fskLabel = "NFO fehlt";
+                            labelColor = "text-danger";
+                        } else if (ep.fsk_status === "unreadable") {
+                            fskLabel = "NFO unlesbar";
+                            labelColor = "text-danger";
+                        } else if (ep.fsk_status === "missing_fsk") {
+                            fskLabel = "FSK fehlt";
+                        } else {
+                            fskLabel = ep.current_fsk || "Unbekannt";
                         }
 
                         html += `<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.85em; padding:2px 6px; border-bottom:1px solid rgba(255,255,255,0.02);">
                                     <span class="fsk-path-monospace" style="color:var(--text-main); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%;" title="${escapeHTML(ep.path)}">📄 ${escapeHTML(ep.name)}</span>
                                     <div style="display:flex; align-items:center; gap:8px;">
-                                        <span class="text-warning">${escapeHTML(ep.fsk_status)}</span>
+                                        <span class="${labelColor}">${escapeHTML(fskLabel)}</span>
                                         ${epActionHtml}
                                     </div>
                                  </div>`;
@@ -13311,7 +13337,7 @@ function renderHealthStatus(data) {
 
             let renderedMoviesCount = 0;
             moviesList.forEach(m => {
-                const hasMovieFskIssue = m.fsk_status === "Keine" || m.fsk_status.startsWith("Ungültig");
+                const hasMovieFskIssue = m.fsk_status === "missing_fsk" || m.fsk_status === "invalid_fsk";
                 const hasIssues = m.issue_keys && m.issue_keys.length > 0;
                 const isMovieAffected = hasMovieFskIssue || hasIssues;
 
@@ -13326,12 +13352,13 @@ function renderHealthStatus(data) {
                     movieAction = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(m.path)}" data-scope-kind="movie" data-series-path="" style="padding:2px 8px; height:24px;">FSK setzen</button>`;
                 }
 
+                const fskLabel = m.fsk_status === "missing_fsk" ? "FSK fehlt" : (m.current_fsk || "Keine");
                 html += `<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.9em; padding:6px 12px; background:rgba(255,255,255,0.01); border:1px solid var(--border-light); border-radius:6px; margin-bottom:6px;">
                             <div style="display:flex; align-items:center; gap:8px;">
                                 <span style="font-weight:500; color:var(--text-main);">🎬 ${escapeHTML(m.name)}</span>
                             </div>
                             <div style="display:flex; align-items:center; gap:8px;">
-                                <span style="font-size:0.85em; color:${hasMovieFskIssue ? "#f59e0b" : "var(--text-muted)"}">${escapeHTML(m.fsk_status)}</span>
+                                <span style="font-size:0.85em; color:${hasMovieFskIssue ? "#f59e0b" : "var(--text-muted)"}">${escapeHTML(fskLabel)}</span>
                                 ${movieAction}
                             </div>
                          </div>`;
@@ -14034,13 +14061,15 @@ function renderHealthStatus(data) {
 
         document.querySelectorAll("#health-issues .health-fix-fsk, #health-issues-structure .health-fix-fsk").forEach(b => {
             b.addEventListener("click", () => {
+                const scopeKind = b.getAttribute("data-scope-kind") || "single";
+                const scope = (scopeKind === "series" || scopeKind === "season") ? scopeKind : "single";
                 const item = {
                     path: b.getAttribute("data-path"),
-                    scope_kind: b.getAttribute("data-scope-kind"),
+                    scope_kind: scopeKind,
                     series_path: b.getAttribute("data-series-path"),
                     season_path: b.getAttribute("data-season-path")
                 };
-                openFskBatchModal([item], "12");
+                openFskBatchModal([item], "12", scope);
             });
         });
 
@@ -14054,14 +14083,7 @@ function renderHealthStatus(data) {
                     series_path: path,
                     path: path
                 };
-                openFskBatchModal([item], fskVal);
-                // Scope auf series setzen im Modal
-                currentFskBatchScope = "series";
-                const scopeSelect = document.getElementById("fsk-batch-scope-select");
-                if (scopeSelect) {
-                    scopeSelect.value = "series";
-                }
-                loadFskBatchPreview();
+                openFskBatchModal([item], fskVal, "series");
             });
         });
 
@@ -14077,14 +14099,7 @@ function renderHealthStatus(data) {
                     series_path: seriesPath,
                     path: path
                 };
-                openFskBatchModal([item], fskVal);
-                // Scope auf season setzen im Modal
-                currentFskBatchScope = "season";
-                const scopeSelect = document.getElementById("fsk-batch-scope-select");
-                if (scopeSelect) {
-                    scopeSelect.value = "season";
-                }
-                loadFskBatchPreview();
+                openFskBatchModal([item], fskVal, "season");
             });
         });
 
@@ -15952,12 +15967,27 @@ let currentFskBatchItems = [];
 let currentFskBatchTarget = "";
 let currentFskBatchScope = "single";
 let currentFskBatchPlan = null;
+let currentPreviewRequestId = 0;
+let isFskBatchApplying = false;
 
-function openFskBatchModal(items, fskVal) {
+function openFskBatchModal(items, fskVal, scope = "single") {
     currentFskBatchItems = items;
     currentFskBatchTarget = fskVal;
-    currentFskBatchScope = "single";
+    currentFskBatchScope = scope;
     currentFskBatchPlan = null;
+    isFskBatchApplying = false;
+
+    const cancelBtn = document.getElementById("btn-fsk-batch-cancel");
+    if (cancelBtn) {
+        cancelBtn.textContent = "Schließen";
+        cancelBtn.disabled = false;
+        cancelBtn.onclick = closeFskBatchModal;
+    }
+
+    const modalX = document.querySelector("#modal-fsk-batch-preview .modal-close");
+    if (modalX) {
+        modalX.onclick = closeFskBatchModal;
+    }
 
     const modal = document.getElementById("modal-fsk-batch-preview");
     if (modal) {
@@ -15967,11 +15997,13 @@ function openFskBatchModal(items, fskVal) {
 
     const targetSelect = document.getElementById("fsk-batch-target-select");
     if (targetSelect) {
+        targetSelect.disabled = false;
         targetSelect.value = fskVal;
     }
 
     const scopeSelect = document.getElementById("fsk-batch-scope-select");
     if (scopeSelect) {
+        scopeSelect.disabled = false;
         scopeSelect.value = currentFskBatchScope;
     }
 
@@ -16005,7 +16037,7 @@ if (typeof globalThis !== 'undefined') {
     globalThis.resolveSendPaths = resolveSendPaths;
 }
 
-async function loadFskBatchPreview() {
+async function loadFskBatchPreview(keepError = false) {
     const loader = document.getElementById("fsk-batch-loader");
     const container = document.getElementById("fsk-batch-tree-container");
     const summaryEl = document.getElementById("fsk-batch-summary");
@@ -16015,7 +16047,7 @@ async function loadFskBatchPreview() {
     if (loader) loader.style.display = "flex";
     if (container) container.innerHTML = "";
     if (summaryEl) summaryEl.innerHTML = "Wird berechnet...";
-    if (errorEl) {
+    if (errorEl && !keepError) {
         errorEl.style.display = "none";
         errorEl.textContent = "";
     }
@@ -16027,10 +16059,13 @@ async function loadFskBatchPreview() {
         `;
     }
 
+    const requestId = ++currentPreviewRequestId;
+
     try {
         const sendPaths = resolveSendPaths(currentFskBatchItems, currentFskBatchScope);
 
         if (sendPaths.length === 0) {
+            if (requestId !== currentPreviewRequestId) return;
             if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Fehler: Keine gültigen Zielpfade für den gewählten Scope gefunden.</div>`;
             if (summaryEl) summaryEl.innerHTML = "Aktion nicht möglich.";
             if (loader) loader.style.display = "none";
@@ -16047,6 +16082,8 @@ async function loadFskBatchPreview() {
             })
         });
 
+        if (requestId !== currentPreviewRequestId) return;
+
         if (!res.ok) {
             const errData = await res.json();
             const errMsg = errData.message || "Vorschau fehlgeschlagen.";
@@ -16058,6 +16095,7 @@ async function loadFskBatchPreview() {
         }
 
         const data = await res.json();
+        if (requestId !== currentPreviewRequestId) return;
         currentFskBatchPlan = data;
 
         if (loader) loader.style.display = "none";
@@ -16089,6 +16127,7 @@ async function loadFskBatchPreview() {
         }
 
     } catch (err) {
+        if (requestId !== currentPreviewRequestId) return;
         if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Netzwerkfehler: ${escapeHTML(err.message)}</div>`;
         if (summaryEl) summaryEl.innerHTML = "Netzwerkfehler.";
         if (loader) loader.style.display = "none";
@@ -16192,11 +16231,15 @@ function renderFskFileRow(f, indent) {
 }
 
 async function applyFskBatch() {
-    if (!currentFskBatchPlan) return;
+    if (!currentFskBatchPlan || isFskBatchApplying) return;
+
+    isFskBatchApplying = true;
 
     const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
     const cancelBtn = document.getElementById("btn-fsk-batch-cancel");
     const refreshBtn = document.getElementById("btn-fsk-batch-refresh");
+    const scopeSelect = document.getElementById("fsk-batch-scope-select");
+    const targetSelect = document.getElementById("fsk-batch-target-select");
     const summaryEl = document.getElementById("fsk-batch-summary");
     const errorEl = document.getElementById("fsk-batch-error-inline");
 
@@ -16207,6 +16250,8 @@ async function applyFskBatch() {
     if (confirmBtn) confirmBtn.disabled = true;
     if (cancelBtn) cancelBtn.disabled = true;
     if (refreshBtn) refreshBtn.disabled = true;
+    if (scopeSelect) scopeSelect.disabled = true;
+    if (targetSelect) targetSelect.disabled = true;
     if (summaryEl) summaryEl.innerHTML = "Änderungen werden angewendet. Bitte warten...";
 
     try {
@@ -16219,8 +16264,11 @@ async function applyFskBatch() {
         const sendPaths = resolveSendPaths(currentFskBatchItems, currentFskBatchScope);
         if (sendPaths.length === 0) {
             showFskBatchError("Fehler: Keine gültigen Zielpfade gefunden.");
+            isFskBatchApplying = false;
             if (cancelBtn) cancelBtn.disabled = false;
             if (refreshBtn) refreshBtn.disabled = false;
+            if (scopeSelect) scopeSelect.disabled = false;
+            if (targetSelect) targetSelect.disabled = false;
             return;
         }
 
@@ -16238,18 +16286,30 @@ async function applyFskBatch() {
         if (res.status === 409) {
             const errData = await res.json();
             showFskBatchError(`Konflikt/Race-Condition erkannt: ${errData.message || "Eine oder mehrere NFO-Dateien wurden extern modifiziert. Die Aktion wurde komplett abgebrochen."}`);
-            loadFskBatchPreview();
-            if (cancelBtn) cancelBtn.disabled = false;
+            isFskBatchApplying = false;
+            loadFskBatchPreview(true);
+            if (cancelBtn) {
+                cancelBtn.disabled = false;
+                cancelBtn.textContent = "Schließen";
+            }
             if (refreshBtn) refreshBtn.disabled = false;
+            if (scopeSelect) scopeSelect.disabled = false;
+            if (targetSelect) targetSelect.disabled = false;
             return;
         }
 
         if (!res.ok) {
             const errData = await res.json();
             showFskBatchError("Fehler bei der Ausführung: " + (errData.message || "Unbekannter Fehler"));
-            loadFskBatchPreview();
-            if (cancelBtn) cancelBtn.disabled = false;
+            isFskBatchApplying = false;
+            loadFskBatchPreview(true);
+            if (cancelBtn) {
+                cancelBtn.disabled = false;
+                cancelBtn.textContent = "Schließen";
+            }
             if (refreshBtn) refreshBtn.disabled = false;
+            if (scopeSelect) scopeSelect.disabled = false;
+            if (targetSelect) targetSelect.disabled = false;
             return;
         }
 
@@ -16281,6 +16341,15 @@ async function applyFskBatch() {
             cancelBtn.textContent = "Fertig";
             cancelBtn.disabled = false;
             cancelBtn.onclick = () => {
+                isFskBatchApplying = false;
+                closeFskBatchModal();
+                if (typeof pollHealthStatus === "function") pollHealthStatus(false);
+            };
+        }
+        const modalX = document.querySelector("#modal-fsk-batch-preview .modal-close");
+        if (modalX) {
+            modalX.onclick = () => {
+                isFskBatchApplying = false;
                 closeFskBatchModal();
                 if (typeof pollHealthStatus === "function") pollHealthStatus(false);
             };
@@ -16288,13 +16357,23 @@ async function applyFskBatch() {
 
     } catch (err) {
         showFskBatchError("Netzwerkfehler: " + err.message);
-        loadFskBatchPreview();
-        if (cancelBtn) cancelBtn.disabled = false;
+        isFskBatchApplying = false;
+        loadFskBatchPreview(true);
+        if (cancelBtn) {
+            cancelBtn.disabled = false;
+            cancelBtn.textContent = "Schließen";
+        }
         if (refreshBtn) refreshBtn.disabled = false;
+        if (scopeSelect) scopeSelect.disabled = false;
+        if (targetSelect) targetSelect.disabled = false;
+    } finally {
+        isFskBatchApplying = false;
     }
 }
 
 function closeFskBatchModal() {
+    if (isFskBatchApplying) return;
+    currentPreviewRequestId++; // Laufende Vorschau entwerten!
     const modal = document.getElementById("modal-fsk-batch-preview");
     if (modal) {
         modal.classList.remove("active");

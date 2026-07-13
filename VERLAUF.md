@@ -2,6 +2,17 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 13.07.2026 (Phase 2.5c-2 – Schritt 2: Serienorientierte Health-Ansicht & Gruppenaktionen abgeschlossen)
+
+- **Phase 2.5c-2 (Schritt 2) – Serienorientierte Health-Ansicht & Gruppenaktionen (Branch `fix/fsk-workflow-review`):**
+  * **Medienstruktur-Aggregation:** Health-Scan sammelt Filme, Serien, Staffeln und Episoden mitsamt Pfaden, FSK-Status und zugehörigen Issue-Keys.
+  * **Cache-Upgrade:** `SCAN_VERSION` auf 3 angehoben, um alte v2-Zählerzustände im Cache zu entwerten und durch die neue medienorientierte `media_metadata` Struktur zu ersetzen.
+  * **API-Erweiterung:** `/nas/health-status` liefert die aggregierte `media_structure` für Serien und Filme.
+  * **UI-Integration:** Neue Ansicht `"Medienorientiert"` im Health-Anzeigemodus ermöglicht das Ausklappen von Serien -> Staffeln -> betroffenen Episoden.
+  * **Serien- & Staffel-Gruppenaktionen:** Direktes Aufrufen des FSK-Batch-Modals für komplette Serien oder Staffeln mit Dropdown-Vorauswahl im Dashboard.
+  * **Konditionales Ausblenden:** Einzelne FSK-Fix-Buttons werden bei den Episoden-Zeilen ausgeblendet, sobald eine bedienbare Gruppenaktion (mind. 2 betroffene Episoden in der Staffel oder Serie) existiert.
+  * **Tests:** Python-Tests in `test_fsk_health.py` (Cache-Upgrade, Aggregation) und Node.js Frontend-DOM-Tests (Gruppenaktionen) erfolgreich umgesetzt.
+
 ## Stand am 13.07.2026 (Phase 2.5c-2 – Schritt 1: FSK Altersfreigaben Stapelverarbeitung & Integrität abgeschlossen)
 
 - **Phase 2.5c-2 (Schritt 1) – FSK Altersfreigaben Stapelverarbeitung & Integrität (Branch `feature/fsk-workflow-overhaul`):**

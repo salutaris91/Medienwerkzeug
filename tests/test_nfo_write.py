@@ -118,7 +118,7 @@ class TestNFOWriteBinary(unittest.TestCase):
             f.write(b'<actors><actor>Dracula</actor></actors>')
         ok, msg = write_fsk_to_nfo(nfo_path3, "FSK 12")
         self.assertFalse(ok)
-        self.assertIn("Ung\xc3\xbcltiges NFO Root-Tag", msg)
+        self.assertIn("Ungültiges NFO Root-Tag", msg)
 
         # Case D: Namespaces ablehnen
         nfo_path4 = os.path.join(self.temp_dir, "test4_namespace.nfo")

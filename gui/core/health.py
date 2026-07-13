@@ -22,7 +22,7 @@ from typing import Optional
 from gui.core import utils
 from gui.core import media
 from gui.core.transfers import ensure_nas_mounted, walk_nas_categories
-from gui.core.helpers import log_message
+from gui.core.helpers import log_message, parse_fsk_status, get_category_media_type
 from gui.core import artwork_validators
 from gui.core import health_cache
 
@@ -310,29 +310,7 @@ def _check_fsk(issues, category, folder_path, nfo_path, **kwargs):
 
 
 def _get_fsk_info(nfo_path):
-    if not nfo_path or not os.path.exists(nfo_path):
-        return "Keine", "Keine"
-
-    try:
-        with open(nfo_path, "r", encoding="utf-8", errors="ignore") as f:
-            content = f.read()
-
-        m = re.search(r'<mpaa>(.*?)</mpaa>', content)
-        if not m:
-            return "Keine", "Keine"
-
-        val = m.group(1).strip()
-        if not val:
-            return "Keine", "Keine"
-
-        valid_values = {"FSK 0", "FSK 6", "FSK 12", "FSK 16", "FSK 18"}
-        if val in valid_values:
-            return val, None
-        else:
-            return f"Ungültig: {val}", val
-
-    except Exception:
-        return "Unlesbar", "Unlesbar"
+    return parse_fsk_status(nfo_path)
 
 
 def _find_issue_keys_for_episode(issues, season_path, ep_video_filename, ep_nfo_path):
@@ -480,12 +458,15 @@ def _check_season(issues, category, show_name, season_path, validator):
     season_episodes = []
     for full, fn in videos:
         ep_nfo_path = os.path.splitext(full)[0] + ".nfo"
-        ep_fsk_status, ep_actionable_fsk = _get_fsk_info(ep_nfo_path)
+        ep_fsk_status, ep_current_fsk, ep_raw_fsk, ep_actionable_fsk = _get_fsk_info(ep_nfo_path)
         ep_issue_keys = _find_issue_keys_for_episode(issues, season_path, fn, ep_nfo_path)
         season_episodes.append({
             "name": fn,
             "path": ep_nfo_path,
+            "nfo_path": ep_nfo_path,
             "fsk_status": ep_fsk_status,
+            "current_fsk": ep_current_fsk,
+            "raw_fsk": ep_raw_fsk,
             "actionable_fsk": ep_actionable_fsk,
             "issue_keys": ep_issue_keys
         })
@@ -516,7 +497,17 @@ def _check_series_show(issues, category, show_path, validator):
         entries = os.listdir(show_path)
     except OSError as e:
         log_message(f"⚠️ [Bibliothek-Check] Serien-Ordner nicht lesbar: {show_path} ({e})")
-        return 0, {"name": os.path.basename(show_path), "path": show_path, "has_nfo": False, "fsk_status": "Keine", "actionable_fsk": None, "seasons": []}
+        return 0, {
+            "name": os.path.basename(show_path),
+            "path": show_path,
+            "nfo_path": None,
+            "has_nfo": False,
+            "fsk_status": "nfo_missing",
+            "current_fsk": "Keine",
+            "raw_fsk": None,
+            "actionable_fsk": True,
+            "seasons": []
+        }
     entries_lower = {e.lower() for e in entries}
 
     # tvshow.nfo
@@ -614,13 +605,16 @@ def _check_series_show(issues, category, show_path, validator):
 
     # tvshow.nfo Altersfreigabe parsen
     show_nfo_path = find_primary_nfo(show_path, is_movie=False)
-    show_fsk_status, show_actionable_fsk = _get_fsk_info(show_nfo_path)
+    show_fsk_status, show_current_fsk, show_raw_fsk, show_actionable_fsk = _get_fsk_info(show_nfo_path)
 
     media_metadata = {
         "name": os.path.basename(show_path),
         "path": show_path,
+        "nfo_path": show_nfo_path,
         "has_nfo": show_nfo_path is not None,
         "fsk_status": show_fsk_status,
+        "current_fsk": show_current_fsk,
+        "raw_fsk": show_raw_fsk,
         "actionable_fsk": show_actionable_fsk,
         "seasons": sorted(seasons_list, key=lambda s: s["name"])
     }
@@ -634,7 +628,16 @@ def _check_movie(issues, category, movie_path, validator):
         entries = [e for e in os.listdir(movie_path) if not e.startswith('.')]
     except OSError as e:
         log_message(f"⚠️ [Bibliothek-Check] Film-Ordner nicht lesbar: {movie_path} ({e})")
-        return 0, {"name": name, "path": movie_path, "fsk_status": "Keine", "actionable_fsk": None, "issue_keys": []}
+        return 0, {
+            "name": name,
+            "path": movie_path,
+            "nfo_path": None,
+            "fsk_status": "nfo_missing",
+            "current_fsk": "Keine",
+            "raw_fsk": None,
+            "actionable_fsk": True,
+            "issue_keys": []
+        }
 
     # --- Check: Doppelte Verschachtelung (Ordner/Ordner/video.mkv) ---
     subdirs = [e for e in entries if os.path.isdir(os.path.join(movie_path, e))]
@@ -666,7 +669,19 @@ def _check_movie(issues, category, movie_path, validator):
     if not videos:
         _add_issue(issues, "info", "empty_folder", category, movie_path,
                    f"{name}: keine Videodatei im Ordner")
-        return 0
+        movie_nfo_path = find_primary_nfo(movie_path, is_movie=True)
+        m_status, m_curr, m_raw, m_action = _get_fsk_info(movie_nfo_path)
+        m_keys = _find_issue_keys_for_movie(issues, movie_path, movie_nfo_path)
+        return 0, {
+            "name": name,
+            "path": movie_path,
+            "nfo_path": movie_nfo_path,
+            "fsk_status": m_status,
+            "current_fsk": m_curr,
+            "raw_fsk": m_raw,
+            "actionable_fsk": m_action,
+            "issue_keys": m_keys
+        }
 
     # --- Check: Name-Mismatch (Ordnername ≠ Videodateiname) ---
     if len(videos) == 1:
@@ -743,13 +758,16 @@ def _check_movie(issues, category, movie_path, validator):
                    f"{name}: {len(small)} verdächtig kleine Videodatei(en) (< 50 MB)")
 
     movie_nfo_path = find_primary_nfo(movie_path, is_movie=True)
-    movie_fsk_status, movie_actionable_fsk = _get_fsk_info(movie_nfo_path)
+    movie_fsk_status, movie_current_fsk, movie_raw_fsk, movie_actionable_fsk = _get_fsk_info(movie_nfo_path)
     movie_issue_keys = _find_issue_keys_for_movie(issues, movie_path, movie_nfo_path)
 
     media_metadata = {
         "name": name,
         "path": movie_path,
+        "nfo_path": movie_nfo_path,
         "fsk_status": movie_fsk_status,
+        "current_fsk": movie_current_fsk,
+        "raw_fsk": movie_raw_fsk,
         "actionable_fsk": movie_actionable_fsk,
         "issue_keys": movie_issue_keys
     }
@@ -1103,6 +1121,20 @@ def remove_issue(path: str, issue_type: str = None):
     """Entfernt einen behobenen Befund aus dem State und Cache, damit er in der UI sofort verschwindet."""
     changed = False
     with _state_lock:
+        # 1. target_keys bestimmen (VOR dem Filtern!)
+        target_keys = set()
+        issues_source = _scan_state.get("issues", [])
+        if _scan_state["status"] == "idle":
+            cached = _read_cache()
+            if cached and "issues" in cached:
+                issues_source = cached["issues"]
+
+        for i in issues_source:
+            if i.get("path") == path:
+                if not issue_type or i.get("type") == issue_type:
+                    target_keys.add(i["key"])
+
+        # 2. Issues filtern
         if _scan_state["status"] == "idle":
             # Wenn wir idle sind, müssen wir den Cache laden, falls _scan_state leer ist
             cached = _read_cache()
@@ -1125,30 +1157,78 @@ def remove_issue(path: str, issue_type: str = None):
                 if len(_scan_state["issues"]) < original_len:
                     changed = True
 
-        # media_structure in _scan_state aktualisieren
+        # 3. Summary-Neuberechnung
+        if changed and "issues" in _scan_state:
+            new_sum = {"critical": 0, "warning": 0, "info": 0}
+            for i in _scan_state["issues"]:
+                sev = i.get("severity", "warning")
+                if sev in new_sum:
+                    new_sum[sev] += 1
+            _scan_state["summary"] = new_sum
+
+        # 4. media_structure in _scan_state aktualisieren
         if changed and "media_structure" in _scan_state:
-            # Zu löschende Keys bestimmen
-            if issue_type:
-                target_keys = {f"health:{issue_type}:{path}"}
-            else:
-                target_keys = set()
-                # Falls wir idle waren, haben wir _scan_state durch cached überschrieben
-                if "issues" in _scan_state:
-                    for i in _scan_state["issues"]:
-                        if i.get("path") == path:
-                            target_keys.add(i["key"])
+            new_status, new_current_fsk, new_raw_fsk, new_actionable_fsk = parse_fsk_status(path)
 
             # Löschen aus movies
             for m in _scan_state["media_structure"].get("movies", []):
+                if m.get("nfo_path") == path or m.get("path") == path:
+                    m["fsk_status"] = new_status
+                    m["current_fsk"] = new_current_fsk
+                    m["raw_fsk"] = new_raw_fsk
+                    m["actionable_fsk"] = new_actionable_fsk
                 if "issue_keys" in m:
                     m["issue_keys"] = [k for k in m["issue_keys"] if k not in target_keys]
 
             # Löschen aus series -> seasons -> episodes
             for s in _scan_state["media_structure"].get("series", []):
+                if s.get("nfo_path") == path or s.get("path") == path:
+                    s["fsk_status"] = new_status
+                    s["current_fsk"] = new_current_fsk
+                    s["raw_fsk"] = new_raw_fsk
+                    s["actionable_fsk"] = new_actionable_fsk
+                if "issue_keys" in s:
+                    s["issue_keys"] = [k for k in s["issue_keys"] if k not in target_keys]
+
                 for se in s.get("seasons", []):
                     for ep in se.get("episodes", []):
+                        if ep.get("nfo_path") == path or ep.get("path") == path:
+                            ep["fsk_status"] = new_status
+                            ep["current_fsk"] = new_current_fsk
+                            ep["raw_fsk"] = new_raw_fsk
+                            ep["actionable_fsk"] = new_actionable_fsk
                         if "issue_keys" in ep:
                             ep["issue_keys"] = [k for k in ep["issue_keys"] if k not in target_keys]
+
+        # 5. Folder-Cache-Invalidierung
+        folder_to_invalidate = None
+        if changed and "media_structure" in _scan_state:
+            for m in _scan_state["media_structure"].get("movies", []):
+                if m.get("nfo_path") == path or m.get("path") == path:
+                    folder_to_invalidate = m["path"]
+                    break
+            if not folder_to_invalidate:
+                for s in _scan_state["media_structure"].get("series", []):
+                    if s.get("nfo_path") == path or s.get("path") == path:
+                        folder_to_invalidate = s["path"]
+                        break
+                    for se in s.get("seasons", []):
+                        for ep in se.get("episodes", []):
+                            if ep.get("nfo_path") == path or ep.get("path") == path:
+                                folder_to_invalidate = s["path"]
+                                break
+                        if folder_to_invalidate:
+                            break
+                    if folder_to_invalidate:
+                        break
+
+        if folder_to_invalidate:
+            try:
+                from gui.core.health_cache import HealthCacheManager
+                cache_mgr = HealthCacheManager()
+                cache_mgr.invalidate_entry(folder_to_invalidate)
+            except Exception as e:
+                log_message(f"⚠️ [Health-Scan] Cache-Eintrag konnte nicht invalidiert werden: {e}")
 
     if changed:
         _write_cache()

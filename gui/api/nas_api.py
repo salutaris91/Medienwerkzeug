@@ -757,7 +757,7 @@ def write_fsk_to_nfo(nfo_path: str, fsk_str: str) -> tuple[bool, str]:
         matches = list(mpaa_regex.finditer(content_bytes))
         if len(matches) != 1:
             return False, "Fehler beim Byte-Regex-Abgleich des MPAA-Tags."
-        
+
         # Bytegenaue Ersetzung der Value
         new_content_bytes = mpaa_regex.sub(
             lambda m: m.group("open") + fsk_str.encode("utf-8") + m.group("close"),
@@ -770,7 +770,7 @@ def write_fsk_to_nfo(nfo_path: str, fsk_str: str) -> tuple[bool, str]:
         idx = content_bytes.rfind(closing_tag_bytes)
         if idx == -1:
             return False, f"NFO-Datei ist unvollständig (End-Tag </{tree.tag}> fehlt)."
-        
+
         new_tag = f"  <mpaa>{fsk_str}</mpaa>\n".encode("utf-8")
         new_content_bytes = content_bytes[:idx] + new_tag + content_bytes[idx:]
 
@@ -844,8 +844,8 @@ def find_cache_root_and_type(nfo_path: str, settings: dict) -> tuple[str, bool]:
 
     if best_cat:
         cat_path = os.path.realpath(os.path.join(nas_root, best_cat.get("nas_sub", "").lstrip("/")))
-        cat_name = best_cat.get("name", "")
-        if "serie" in cat_name.lower():
+        cat_type = get_category_media_type(best_cat, real_nfo)
+        if cat_type == "series":
             is_movie = False
             try:
                 rel = os.path.relpath(real_nfo, cat_path)
@@ -933,8 +933,8 @@ def handle_api_health_fix():
                         continue
 
                 if best_cat:
-                    cat_name = best_cat.get("name", "")
-                    if "serie" in cat_name.lower():
+                    cat_type = get_category_media_type(best_cat, real_path)
+                    if cat_type == "series":
                         is_movie = False
                     else:
                         try:
@@ -1125,7 +1125,7 @@ def make_file_fingerprint(nfo_path: str) -> dict | None:
     """
     if not os.path.exists(nfo_path):
         return None
-    
+
     stat_res = os.stat(nfo_path)
     mtime_ns = str(stat_res.st_mtime_ns)
     size = stat_res.st_size
@@ -1215,7 +1215,7 @@ def is_valid_media_nfo(nfo_path: str, settings: dict) -> bool:
         return is_valid_series_root(parent_dir, settings)
 
     if basename == "movie.nfo":
-        if "serie" in cat.get("name", "").lower():
+        if get_category_media_type(cat, real_path) == "series":
             return False
         return folder_has_video(parent_dir)
 
@@ -1253,13 +1253,20 @@ def collect_series_nfos(series_path: str) -> tuple:
     except OSError:
         entries = []
 
-    # Staffeln suchen
+    # Staffeln suchen (Unterordner)
     for e in sorted(entries):
         spath = os.path.join(series_path, e)
-        if not os.path.isdir(spath):
-            continue
-        if re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", e, re.IGNORECASE):
-            episode_nfos.extend(collect_season_episode_nfos(spath))
+        if os.path.isdir(spath):
+            if re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", e, re.IGNORECASE):
+                episode_nfos.extend(collect_season_episode_nfos(spath))
+
+    # Flache Episodenvideos direkt im Serienroot suchen (nicht-rekursiv)
+    video_exts = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv', '.iso', '.img'}
+    for e in sorted(entries):
+        fpath = os.path.join(series_path, e)
+        if os.path.isfile(fpath) and os.path.splitext(e)[1].lower() in video_exts:
+            expected_nfo = os.path.splitext(fpath)[0] + ".nfo"
+            episode_nfos.append(expected_nfo)
 
     return tvshow_nfo, sorted(list(set(episode_nfos)))
 
@@ -1319,7 +1326,7 @@ def handle_api_fsk_batch_preview():
                         return jsonify({"ok": False, "message": "NFO-Datei ist unzulässig (Sidecar-Kopplung fehlt oder falsch).", "path": real_p}), 400
                     resolved_targets.append((real_p, False))
                 elif os.path.isdir(real_p):
-                    is_movie = (cat.get("type") == "movie" if cat.get("type") in ["series", "movie"] else "serie" not in cat.get("name", "").lower())
+                    is_movie = (get_category_media_type(cat, real_p) == "movie")
                     import gui.core.health as health
                     nfo_path = health.find_primary_nfo(real_p, is_movie=is_movie)
                     if nfo_path:
@@ -1437,7 +1444,7 @@ def handle_api_fsk_batch_preview():
                 else:
                     # Film oder flach abgelegt
                     cat, _ = find_category_for_path(nfo_path, settings)
-                    if cat and "serie" in cat.get("name", "").lower():
+                    if cat and get_category_media_type(cat, nfo_path) == "series":
                         # Serie flach abgelegt (ohne Staffelordner)
                         show_name = parent_name
                         episode_name = os.path.basename(nfo_path)
@@ -1454,7 +1461,7 @@ def handle_api_fsk_batch_preview():
             # media_kind bestimmen
             cat_for_nfo, _ = find_category_for_path(nfo_path, settings)
             if cat_for_nfo:
-                is_movie_nfo = (cat_for_nfo.get("type") == "movie" if cat_for_nfo.get("type") in ["series", "movie"] else "serie" not in cat_for_nfo.get("name", "").lower())
+                is_movie_nfo = (get_category_media_type(cat_for_nfo, nfo_path) == "movie")
             else:
                 is_movie_nfo = True
 
@@ -1618,7 +1625,7 @@ def handle_api_fsk_batch_apply():
                 if os.path.isfile(real_p) and real_p.lower().endswith(".nfo"):
                     resolved_targets.append(real_p)
                 elif os.path.isdir(real_p):
-                    is_movie = (cat.get("type") == "movie" if cat.get("type") in ["series", "movie"] else "serie" not in cat.get("name", "").lower())
+                    is_movie = (get_category_media_type(cat, real_p) == "movie")
                     import gui.core.health as health
                     nfo = health.find_primary_nfo(real_p, is_movie=is_movie)
                     if nfo:
@@ -1829,7 +1836,7 @@ def _get_structure_fix_preview(path: str):
         if not nas_sub: continue
         cat_path = os.path.realpath(os.path.join(nas_root, nas_sub.lstrip("/")))
         if real_path.startswith(cat_path + os.sep) or real_path == cat_path:
-            if "serie" in cat.get("name", "").lower():
+            if get_category_media_type(cat, real_path) == "series":
                 is_series_dir = True
                 break
 

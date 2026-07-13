@@ -64,7 +64,7 @@ class TestHealthScanLibrary(unittest.TestCase):
     @patch("gui.core.health.utils.load_settings")
     @patch("gui.core.health.walk_nas_categories")
     @patch("gui.core.transfers.validate_nas_library_preflight", return_value=(True, ""))
-    @patch("gui.core.health._check_movie_cached", return_value=10)
+    @patch("gui.core.health._check_movie_cached", return_value=(10, None))
     @patch("gui.core.health.health_cache.HealthCacheManager")
     def test_scan_success_when_folders_found(self, mock_cache, mock_check_movie, mock_preflight, mock_walk, mock_load_settings, mock_mounted):
         mock_load_settings.return_value = {

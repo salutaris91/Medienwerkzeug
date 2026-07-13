@@ -323,8 +323,10 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
         movie_meta = movies[0]
         self.assertEqual(movie_meta["name"], "My Movie (2020)")
         self.assertEqual(movie_meta["path"], self.movie_dir)
-        self.assertEqual(movie_meta["fsk_status"], "Ungültig: Unrated")
-        self.assertEqual(movie_meta["actionable_fsk"], "Unrated")
+        self.assertEqual(movie_meta["fsk_status"], "invalid_fsk")
+        self.assertEqual(movie_meta["current_fsk"], "Ungültig: Unrated")
+        self.assertEqual(movie_meta["raw_fsk"], "Unrated")
+        self.assertTrue(movie_meta["actionable_fsk"])
         self.assertTrue(len(movie_meta["issue_keys"]) > 0)
 
         # Validate series entry
@@ -334,7 +336,7 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
         self.assertEqual(show_meta["name"], "My Show")
         self.assertEqual(show_meta["path"], self.show_dir)
         self.assertFalse(show_meta["has_nfo"]) # tvshow.nfo is missing
-        self.assertEqual(show_meta["fsk_status"], "Keine")
+        self.assertEqual(show_meta["fsk_status"], "nfo_missing")
 
         # Validate seasons & episodes
         seasons = show_meta.get("seasons", [])
@@ -348,14 +350,18 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
 
         # Ep 1: valid FSK 12
         ep1 = next(e for e in episodes if "S01E01" in e["name"])
-        self.assertEqual(ep1["fsk_status"], "FSK 12")
-        self.assertIsNone(ep1["actionable_fsk"])
+        self.assertEqual(ep1["fsk_status"], "healthy")
+        self.assertEqual(ep1["current_fsk"], "FSK 12")
+        self.assertEqual(ep1["raw_fsk"], "FSK 12")
+        self.assertFalse(ep1["actionable_fsk"])
         self.assertFalse(any("age_rating" in k for k in ep1["issue_keys"]))
 
         # Ep 2: invalid FSK Keine
         ep2 = next(e for e in episodes if "S01E02" in e["name"])
-        self.assertEqual(ep2["fsk_status"], "Ungültig: Keine")
-        self.assertEqual(ep2["actionable_fsk"], "Keine")
+        self.assertEqual(ep2["fsk_status"], "invalid_fsk")
+        self.assertEqual(ep2["current_fsk"], "Ungültig: Keine")
+        self.assertEqual(ep2["raw_fsk"], "Keine")
+        self.assertTrue(ep2["actionable_fsk"])
         self.assertTrue(any("age_rating" in k for k in ep2["issue_keys"]))
 
 

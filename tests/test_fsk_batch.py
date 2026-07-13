@@ -403,7 +403,7 @@ class TestFSKBatchEndpoints(unittest.TestCase):
         })
         self.assertEqual(res_prev.status_code, 200)
         client_files = res_prev.json["files"]
-        
+
         # Sicherstellen, dass mtime_ns ein String ist
         self.assertIsInstance(client_files[0]["fingerprint"]["mtime_ns"], str)
 
@@ -484,7 +484,7 @@ class TestFSKBatchEndpoints(unittest.TestCase):
             "paths": [show_dir], "scope": "series", "new_fsk": "12"
         })
         self.assertEqual(res_prev.status_code, 200)
-        
+
         # Suchen nach der fehlenden Episode-NFO
         missing_nfo_entry = None
         for f in res_prev.json["files"]:
@@ -506,7 +506,12 @@ class TestFSKBatchEndpoints(unittest.TestCase):
         self.assertEqual(res_app.json["summary"]["success"], 1) # Nur tvshow.nfo geändert
 
         # 3. Manipulation: Wenn wir den Client-Plan manipulieren (z. B. fälschlicherweise status='ready' eintragen) -> muss 409 geben
-        manipulated_files = [dict(f) for f in res_prev.json["files"]]
+        res_prev2 = self.client.post('/api/nas/fsk-batch/preview', json={
+            "paths": [show_dir], "scope": "series", "new_fsk": "12"
+        })
+        self.assertEqual(res_prev2.status_code, 200)
+
+        manipulated_files = [dict(f) for f in res_prev2.json["files"]]
         for f in manipulated_files:
             if "episode_without_nfo.nfo" in f["path"]:
                 f["status"] = "ready"
@@ -516,10 +521,10 @@ class TestFSKBatchEndpoints(unittest.TestCase):
             "root_paths": [show_dir], "scope": "series", "new_fsk": "12", "files": manipulated_files
         })
         self.assertEqual(res_app_manip.status_code, 409)
-        self.assertIn("fehlt pl\xc3\xb6tzlich", res_app_manip.json["message"])
+        self.assertIn("fehlt plötzlich", res_app_manip.json["message"])
 
         # 4. Wenn wir den Eintrag der fehlenden NFO komplett aus dem Clientplan entfernen -> muss 409 geben
-        removed_files = [f for f in res_prev.json["files"] if "episode_without_nfo.nfo" not in f["path"]]
+        removed_files = [f for f in res_prev2.json["files"] if "episode_without_nfo.nfo" not in f["path"]]
         res_app_rem = self.client.post('/api/nas/fsk-batch/apply', json={
             "root_paths": [show_dir], "scope": "series", "new_fsk": "12", "files": removed_files
         })

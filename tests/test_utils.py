@@ -1373,7 +1373,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             _run_health_scan(deep_dive=False, category_ids=["cat1"])
 
             # Phase 2 (Cache Assertions)
-            expected_cache_key = "2:none"
+            expected_cache_key = "3:none"
             cache_manager = HealthCacheManager()
             normalized_show_dir = os.path.realpath(show_dir)
             self.assertIn(normalized_show_dir, cache_manager._cache)
