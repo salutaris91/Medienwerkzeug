@@ -23,13 +23,13 @@ def test_compose_uses_only_isolated_bind_mounts():
     assert "/.runtime-test-shared/" in GITIGNORE.read_text(encoding="utf-8")
 
 
-def test_compose_is_localhost_only_and_non_restarting():
+def test_compose_is_localhost_only_and_matches_nas_restart_policy():
     content = COMPOSE.read_text(encoding="utf-8")
 
     assert '"127.0.0.1:5812:5001"' in content
     assert 'container_name: medienwerkzeug-orbstack-test' in content
     assert "platform: linux/amd64" in content
-    assert 'restart: "no"' in content
+    assert "restart: unless-stopped" in content
     assert "MW_RUNTIME: docker" in content
 
 

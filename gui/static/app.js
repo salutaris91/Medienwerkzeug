@@ -9690,6 +9690,32 @@ function renderSyncCategories() {
     });
 }
 
+const SERVER_RESTART_BUTTON_HTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-power" style="height:12px; width:12px; margin-right:6px;"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>Server neu starten';
+
+function restoreServerRestartButton(button) {
+    button.disabled = false;
+    button.innerHTML = SERVER_RESTART_BUTTON_HTML;
+}
+
+async function waitForServerRestart(fetchStatus = () => fetch("/api/status"), options = {}) {
+    const maxAttempts = options.maxAttempts ?? 60;
+    const pollDelayMs = options.pollDelayMs ?? 1000;
+    const sleep = options.sleep ?? ((delay) => new Promise((resolve) => setTimeout(resolve, delay)));
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        await sleep(pollDelayMs);
+        try {
+            const response = await fetchStatus();
+            if (response.ok) {
+                return true;
+            }
+        } catch (error) {
+            // A short connection failure is expected while the process restarts.
+        }
+    }
+    return false;
+}
+
 // Bind Settings Events
 document.addEventListener("DOMContentLoaded", () => {
     const btnSaveSettings = document.getElementById("btn-save-settings");
@@ -9823,48 +9849,42 @@ document.addEventListener("DOMContentLoaded", () => {
                     const data = await response.json();
                     if (data.status === "busy") {
                         alert("Abgebrochen: " + data.message);
-                        btnRestartServer.disabled = false;
-                        btnRestartServer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-power" style="height:12px; width:12px; margin-right:6px;"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>Server neu starten';
+                        restoreServerRestartButton(btnRestartServer);
                     } else if (data.status === "restarting") {
                         appendConsoleLog("[System]: Server startet neu... Warte auf Neustart.");
                         expandConsole();
-
-                        const pollInterval = setInterval(async () => {
-                            try {
-                                const res = await fetch("/api/status");
-                                if (res.ok) {
-                                    clearInterval(pollInterval);
-                                    appendConsoleLog("[System]: Server wieder online. Lade Seite neu...");
-                                    setTimeout(() => {
-                                        location.reload();
-                                    }, 500);
-                                }
-                            } catch (err) {
-                                // Keep polling
-                            }
-                        }, 1000);
-                    }
-                } else {
-                    alert("Fehler beim Senden des Neustart-Befehls.");
-                    btnRestartServer.disabled = false;
-                    btnRestartServer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-power" style="height:12px; width:12px; margin-right:6px;"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>Server neu starten';
-                }
-            } catch (e) {
-                appendConsoleLog("[System]: Verbindung getrennt. Warte auf Server...");
-                const pollInterval = setInterval(async () => {
-                    try {
-                        const res = await fetch("/api/status");
-                        if (res.ok) {
-                            clearInterval(pollInterval);
+                        const serverIsOnline = await waitForServerRestart();
+                        if (serverIsOnline) {
                             appendConsoleLog("[System]: Server wieder online. Lade Seite neu...");
                             setTimeout(() => {
                                 location.reload();
                             }, 500);
+                        } else {
+                            appendConsoleLog("[System]: Neustart nach 60 Sekunden nicht abgeschlossen.");
+                            alert("Der Server wurde innerhalb von 60 Sekunden nicht wieder erreichbar. Bitte prüfe den Container-Status und die Server-Logs.");
+                            restoreServerRestartButton(btnRestartServer);
                         }
-                    } catch (err) {
-                        // Keep polling
+                    } else {
+                        alert("Der Server hat den Neustart-Befehl nicht bestätigt.");
+                        restoreServerRestartButton(btnRestartServer);
                     }
-                }, 1000);
+                } else {
+                    alert("Fehler beim Senden des Neustart-Befehls.");
+                    restoreServerRestartButton(btnRestartServer);
+                }
+            } catch (e) {
+                appendConsoleLog("[System]: Verbindung getrennt. Warte auf Server...");
+                const serverIsOnline = await waitForServerRestart();
+                if (serverIsOnline) {
+                    appendConsoleLog("[System]: Server wieder online. Lade Seite neu...");
+                    setTimeout(() => {
+                        location.reload();
+                    }, 500);
+                } else {
+                    appendConsoleLog("[System]: Neustart nach 60 Sekunden nicht abgeschlossen.");
+                    alert("Der Server wurde innerhalb von 60 Sekunden nicht wieder erreichbar. Bitte prüfe den Container-Status und die Server-Logs.");
+                    restoreServerRestartButton(btnRestartServer);
+                }
             }
         });
     }

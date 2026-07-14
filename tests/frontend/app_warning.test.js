@@ -116,6 +116,8 @@ globalThis.renderNfoAgentFiles = renderNfoAgentFiles;
 globalThis.submitNfoAgentJob = submitNfoAgentJob;
 globalThis.setNfoAgentScanData = (val) => { nfoAgentScanData = val; };
 globalThis.setNfoAgentCurrentPath = (val) => { nfoAgentCurrentPath = val; };
+globalThis.waitForServerRestart = waitForServerRestart;
+globalThis.restoreServerRestartButton = restoreServerRestartButton;
 `;
 
 eval(cleanAppJs);
@@ -564,4 +566,52 @@ test('submitNfoAgentJob - payload structures and write_show_nfo semantics', () =
     payload = JSON.parse(interceptedOptions.body);
     assert.strictEqual(payload.write_show_nfo, false);
     assert.strictEqual(payload.show_id, "123456"); // show_id remains unchanged
+});
+
+test('waitForServerRestart succeeds after a temporary connection failure', async () => {
+    let attempts = 0;
+    const fetchStatus = async () => {
+        attempts += 1;
+        if (attempts === 1) {
+            throw new Error("server offline");
+        }
+        return { ok: true };
+    };
+
+    const result = await globalThis.waitForServerRestart(fetchStatus, {
+        maxAttempts: 3,
+        pollDelayMs: 0,
+        sleep: async () => {}
+    });
+
+    assert.strictEqual(result, true);
+    assert.strictEqual(attempts, 2);
+});
+
+test('waitForServerRestart stops after the configured attempt limit', async () => {
+    let attempts = 0;
+    const fetchStatus = async () => {
+        attempts += 1;
+        throw new Error("server remains offline");
+    };
+
+    const result = await globalThis.waitForServerRestart(fetchStatus, {
+        maxAttempts: 3,
+        pollDelayMs: 0,
+        sleep: async () => {}
+    });
+
+    assert.strictEqual(result, false);
+    assert.strictEqual(attempts, 3);
+});
+
+test('restoreServerRestartButton clears the loading state', () => {
+    const button = createMockElement();
+    button.disabled = true;
+    button.innerHTML = "Starte neu...";
+
+    globalThis.restoreServerRestartButton(button);
+
+    assert.strictEqual(button.disabled, false);
+    assert.ok(button.innerHTML.includes("Server neu starten"));
 });

@@ -2,6 +2,14 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 14.07.2026 (Docker-Neustart in OrbStack und NAS)
+
+- **Ursache behoben:** Der In-App-Neustart beendete den Docker-Hauptprozess, während die OrbStack-Testumgebung den Container wegen `restart: "no"` ausgeschaltet ließ. Das Frontend wartete zugleich ohne Abbruchgrenze.
+- **Laufzeitgerechter Neustart:** In Docker beendet die Anwendung nur noch den Hauptprozess und überlässt den Wiederanlauf dem Container-Supervisor. Die Desktop-Laufzeit behält den bisherigen Start eines Nachfolgeprozesses.
+- **Produktionsnahe Testumgebung:** `compose.orbstack.yml` nutzt wie die NAS-Compose-Datei `restart: unless-stopped`, sodass der echte Neustartablauf vor dem Deployment geprüft werden kann.
+- **Sichtbarer Fehlerzustand:** Die Browseroberfläche wartet höchstens 60 Statusabfragen und stellt danach Button und verständliche Fehlermeldung wieder her, statt endlos zu laden.
+- **Regressionstests:** Runtime-, Backend- und Frontendtests prüfen Supervisor-Übergabe, Desktop-Kompatibilität, Compose-Policy, erfolgreichen Wiederanlauf und Zeitüberschreitung. Vollständig bestanden: 434 Backend- und 77 Frontendtests.
+
 ## Stand am 14.07.2026 (OrbStack – persistente Testeinstellungen über Worktrees)
 
 - **Getrennte Lebenszyklen:** OrbStack-Testeinstellungen liegen jetzt projektweit unter `.runtime-test-shared/config`, während veränderliche Testmedien weiterhin je Worktree unter `.runtime-test/media-run` liegen.
