@@ -2,6 +2,13 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 14.07.2026 (Phase 2.5c – sichtbarer FSK-Status und klare NFO-Agent-Hierarchie)
+
+- **FSK bleibt sichtbar:** Der medienorientierte Überblick behandelt FSK weiterhin als Teil der NFO-Metadaten, zeigt den konkreten Zustand aber wieder in einem eigenen kompakten Chip. Serien fassen betroffene Haupt-NFOs und Episoden verständlich zusammen; Filme zeigen fehlende, ungültige oder vorhandene Freigaben direkt.
+- **Befund vor Bearbeitung:** Der NFO-Agent zeigt den Zustand der `tvshow.nfo` beziehungsweise `movie.nfo` jetzt oberhalb von Titel, Jahr und Plot. Status, kurze Erklärung und die Aktion `Verarbeiten`/`Überspringen` bilden einen gemeinsamen Befundkasten.
+- **Saubere Abschnittstrennung:** Haupt-NFO, editierbare Haupt-Metadaten und Episoden-NFOs sind visuell und semantisch getrennt. Im Film-Modus wird der Episodenabschnitt vollständig ausgeblendet.
+- **Verifikation:** 437 Backend- und 82 Frontend-Tests bestanden. Das aktuelle Image wurde in der isolierten OrbStack-Testumgebung gebaut und der Smoke-Test meldet `health=ok` sowie `runtime=docker`.
+
 ## Stand am 14.07.2026 (Phase 2.5c – autoritativer NFO-Agent-Medientyp)
 
 - **Backend als Quelle der Wahrheit:** `/api/scan-project` bestimmt Film oder Serie vorrangig über die konfigurierte NAS-Kategorie. Für Inbox-Projekte bleiben NFO-Root, Dateinamen und Serienstruktur als kontrollierter Fallback erhalten.

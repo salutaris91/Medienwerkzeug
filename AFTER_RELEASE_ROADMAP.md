@@ -470,7 +470,9 @@ Analyse ~0,5 Tag; Umsetzung abhängig vom Messergebnis.
 > über stabile Film- und Serienpfade, trennt ruhige Zusammenfassungen von exakten
 > Detailaktionen und lädt den autoritativen Health-Status nach FSK-Änderungen
 > unmittelbar neu. Gruppenaktionen ersetzen Einzelaktionen nur dann, wenn sie
-> nachweislich dieselben NFO-Dateien abdecken.
+> nachweislich dieselben NFO-Dateien abdecken. Der konkrete FSK-Zustand bleibt
+> trotz der NFO-Metadaten-Gruppierung dauerhaft sichtbar; der NFO-Agent ordnet
+> Haupt-NFO-Befund, Haupt-Metadaten und Episoden-NFOs in einer klaren Reihenfolge.
 
 Für den Vor-Release reicht es, nach einem Quick-Fix Scrollposition, geöffnete
 Gruppen und den sichtbaren Kontext stabil zu halten. Später kann die Bedienung

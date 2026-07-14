@@ -12472,6 +12472,47 @@ function countHealthMediaIssues(issues, typeSet) {
     return issues.filter((issue) => typeSet.has(issue.type)).length;
 }
 
+function formatFskSummaryValue(value) {
+    return String(value || "").trim().replace(/^FSK\s*/i, "");
+}
+
+function getSeriesFskSummary(series, totalEpisodes, affectedEpisodes, showFskActionable) {
+    const episodeLabel = affectedEpisodes === 1 ? "Folge" : "Folgen";
+    if (!series.has_nfo || ["nfo_missing", "unreadable"].includes(series.fsk_status)) {
+        const episodeSuffix = affectedEpisodes > 0 ? ` + ${affectedEpisodes} ${episodeLabel}` : "";
+        return { label: `FSK: Serien-NFO${episodeSuffix} prüfen`, tone: "danger" };
+    }
+    if (showFskActionable && affectedEpisodes > 0) {
+        return { label: `FSK: Serie + ${affectedEpisodes} ${episodeLabel} prüfen`, tone: "warning" };
+    }
+    if (showFskActionable) {
+        return { label: "FSK: Serie prüfen", tone: "warning" };
+    }
+    if (affectedEpisodes > 0) {
+        const totalLabel = totalEpisodes > 0 ? ` von ${totalEpisodes}` : "";
+        return { label: `FSK: ${affectedEpisodes}${totalLabel} ${episodeLabel} prüfen`, tone: "warning" };
+    }
+
+    const currentFsk = formatFskSummaryValue(series.current_fsk);
+    return { label: currentFsk ? `FSK: ${currentFsk}` : "FSK: korrekt", tone: "success" };
+}
+
+function getMovieFskSummary(movie, hasNfoIssue) {
+    if (hasNfoIssue || ["nfo_missing", "unreadable"].includes(movie.fsk_status)) {
+        return { label: "FSK: nicht prüfbar", tone: "danger" };
+    }
+    if (movie.fsk_status === "missing_fsk") {
+        return { label: "FSK: fehlt", tone: "warning" };
+    }
+    if (movie.fsk_status === "invalid_fsk") {
+        const currentFsk = formatFskSummaryValue(movie.current_fsk);
+        return { label: currentFsk ? `FSK: ${currentFsk} ungültig` : "FSK: ungültig", tone: "warning" };
+    }
+
+    const currentFsk = formatFskSummaryValue(movie.current_fsk);
+    return { label: currentFsk ? `FSK: ${currentFsk}` : "FSK: korrekt", tone: "success" };
+}
+
 window.switchLibraryTab = function(tabId) {
     document.querySelectorAll(".library-tab-content").forEach(el => el.classList.add("hidden"));
     const tabEl = document.getElementById("library-tab-" + tabId);
@@ -13269,6 +13310,8 @@ function renderHealthStatus(data) {
                     hasMetadataIssue ? "NFO-Metadaten: prüfen" : "NFO-Metadaten: korrekt",
                     hasNfoIssue ? "danger" : (hasMetadataIssue ? "warning" : "success")
                 ));
+                const seriesFskSummary = getSeriesFskSummary(s, totalEp, fskActionableEp, showFskActionable);
+                summaryChips.push(renderMediaSummaryChip(seriesFskSummary.label, seriesFskSummary.tone));
                 if (artworkIssueCount > 0) summaryChips.push(renderMediaSummaryChip(`Artwork: ${artworkIssueCount} fehlen`, "warning"));
                 if (otherIssueCount > 0) summaryChips.push(renderMediaSummaryChip(`Weitere: ${otherIssueCount}`, "warning"));
 
@@ -13460,6 +13503,8 @@ function renderHealthStatus(data) {
                     hasMovieMetadataIssue ? "NFO-Metadaten: prüfen" : "NFO-Metadaten: korrekt",
                     hasMovieNfoIssue ? "danger" : (hasMovieMetadataIssue ? "warning" : "success")
                 ));
+                const movieFskSummary = getMovieFskSummary(m, hasMovieNfoIssue);
+                movieSummaryChips.push(renderMediaSummaryChip(movieFskSummary.label, movieFskSummary.tone));
                 if (artworkIssueCount > 0) movieSummaryChips.push(renderMediaSummaryChip(`Artwork: ${artworkIssueCount} fehlen`, "warning"));
                 if (otherIssueCount > 0) movieSummaryChips.push(renderMediaSummaryChip(`Weitere: ${otherIssueCount}`, "warning"));
 
@@ -15391,6 +15436,8 @@ function openNfoAgentModal(path) {
     document.getElementById("nfo-agent-show-title").value = "";
     document.getElementById("nfo-agent-show-year").value = "";
     document.getElementById("nfo-agent-show-plot").value = "";
+    document.getElementById("nfo-agent-main-nfo-status").innerHTML = "";
+    document.getElementById("nfo-agent-main-nfo-section").style.display = "none";
     document.getElementById("nfo-agent-episodes-list").innerHTML = "";
     document.getElementById("nfo-agent-log-container").style.display = "none";
     document.getElementById("nfo-agent-log-container").textContent = "";
@@ -15517,6 +15564,8 @@ function triggerNfoAgentMediaTypeChange() {
     const searchLabel = document.getElementById("nfo-agent-search-label");
     const titleLabel = document.getElementById("nfo-agent-title-label");
     const filesHeading = document.getElementById("nfo-agent-files-heading");
+    const mainNfoHeading = document.getElementById("nfo-agent-main-nfo-heading");
+    const detailsHeading = document.getElementById("nfo-agent-details-heading");
 
     // Clear and build options based on type
     providerSelect.innerHTML = "";
@@ -15531,7 +15580,9 @@ function triggerNfoAgentMediaTypeChange() {
         if (modalTitle) modalTitle.textContent = "NFO Agent: Serien-Metadaten";
         if (searchLabel) searchLabel.textContent = "Name der Serie:";
         if (titleLabel) titleLabel.textContent = "Serientitel (tvshow.nfo):";
-        if (filesHeading) filesHeading.textContent = "Serien-NFOs und Episoden-Mappings";
+        if (mainNfoHeading) mainNfoHeading.textContent = "Serien-NFO prüfen";
+        if (detailsHeading) detailsHeading.textContent = "Serien-Metadaten bearbeiten";
+        if (filesHeading) filesHeading.textContent = "Episoden-NFOs und Zuordnung";
     } else {
         providerSelect.innerHTML = `
             <option value="tmdb_movie">TMDb Film</option>
@@ -15539,11 +15590,12 @@ function triggerNfoAgentMediaTypeChange() {
             <option value="manual">Manuell</option>
         `;
         seasonContainer.style.display = "none";
-        epSection.style.display = "block";
+        epSection.style.display = "none";
         if (modalTitle) modalTitle.textContent = "NFO Agent: Film-Metadaten";
         if (searchLabel) searchLabel.textContent = "Name des Films:";
         if (titleLabel) titleLabel.textContent = "Filmtitel (movie.nfo):";
-        if (filesHeading) filesHeading.textContent = "Film-NFO";
+        if (mainNfoHeading) mainNfoHeading.textContent = "Film-NFO prüfen";
+        if (detailsHeading) detailsHeading.textContent = "Film-Metadaten bearbeiten";
     }
 
     if (nfoAgentScanData) renderNfoAgentFiles(nfoAgentScanData);
@@ -15705,7 +15757,10 @@ function loadNfoAgentDetails(id, provider, type, season) {
 
 function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
     const listBody = document.getElementById("nfo-agent-episodes-list");
+    const mainNfoBody = document.getElementById("nfo-agent-main-nfo-status");
+    const mainNfoSection = document.getElementById("nfo-agent-main-nfo-section");
     listBody.innerHTML = "";
+    mainNfoBody.innerHTML = "";
 
     const mediaType = document.getElementById("nfo-agent-media-type").value;
 
@@ -15714,34 +15769,41 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
         || (mediaType === "movie" ? scanData.movie_nfo_status : scanData.show_nfo_status);
     if (mainNfoStatus) {
         const showNfoRow = document.createElement("div");
-        showNfoRow.className = "nfo-episode-row show-nfo-row";
-        showNfoRow.style = "display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(255,255,255,0.06); padding: 10px; border-radius: 6px; background: rgba(var(--accent-rgb), 0.03); text-align: left; margin-bottom: 12px; border-left: 4px solid var(--accent);";
+        showNfoRow.className = "nfo-agent-main-nfo-card show-nfo-row";
 
         const nfoStatus = mainNfoStatus;
         const mainNfoFilename = nfoStatus.filename || (mediaType === "movie" ? "movie.nfo" : "tvshow.nfo");
-        let statusBadge = "";
+        let statusLabel = "";
+        let statusTone = "warning";
+        let statusDescription = "";
         let nfoActionOptions = "";
 
         if (!nfoStatus.exists) {
-            statusBadge = '<span style="color:#ef4444; font-size:0.8em; margin-left:6px; font-weight:600;">[Keine NFO]</span>';
+            statusLabel = "NFO fehlt";
+            statusTone = "danger";
+            statusDescription = "Die Haupt-NFO ist nicht vorhanden und wird neu erzeugt.";
             nfoActionOptions = `
                 <option value="process" selected>⚙️ Verarbeiten</option>
                 <option value="skip">⏭️ Überspringen</option>
             `;
         } else if (!nfoStatus.parseable) {
-            statusBadge = '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO fehlerhaft]</span>';
+            statusLabel = "NFO fehlerhaft";
+            statusDescription = "Die Haupt-NFO kann nicht gelesen werden und muss repariert werden.";
             nfoActionOptions = `
                 <option value="process" selected>⚙️ Verarbeiten</option>
                 <option value="skip">⏭️ Überspringen</option>
             `;
         } else if (!nfoStatus.complete) {
-            statusBadge = '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO unvollständig]</span>';
+            statusLabel = "NFO unvollständig";
+            statusDescription = "Pflichtfelder fehlen oder sind leer. Vorhandene Metadaten können ergänzt werden.";
             nfoActionOptions = `
                 <option value="process" selected>⚙️ Verarbeiten</option>
                 <option value="skip">⏭️ Überspringen</option>
             `;
         } else {
-            statusBadge = '<span style="color:#10b981; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO vorhanden]</span>';
+            statusLabel = "NFO vollständig";
+            statusTone = "success";
+            statusDescription = "Die Haupt-NFO ist vollständig und kann verarbeitet oder übersprungen werden.";
             nfoActionOptions = `
                 <option value="process" selected>⚙️ Verarbeiten</option>
                 <option value="skip">⏭️ Überspringen</option>
@@ -15749,20 +15811,27 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
         }
 
         showNfoRow.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-                <div style="font-weight: 600; font-size: 0.9em; word-break: break-all; color: var(--text-main); flex: 1; display: inline-flex; align-items: center; gap: 6px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-key" style="color: var(--accent);"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="16" r="2"/><path d="m16 10-4.5 4.5"/></svg>
-                    ${escapeHTML(mainNfoFilename)} (Haupt-Metadaten)
-                    ${statusBadge}
+            <div class="nfo-agent-main-nfo-content">
+                <div class="nfo-agent-main-nfo-title">
+                    <span class="nfo-agent-main-nfo-file">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-key"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="16" r="2"/><path d="m16 10-4.5 4.5"/></svg>
+                        ${escapeHTML(mainNfoFilename)}
+                    </span>
+                    <span class="nfo-agent-status nfo-agent-status-${statusTone}">${escapeHTML(statusLabel)}</span>
                 </div>
-                <div style="width: 170px;">
-                    <select id="nfo-agent-show-nfo-action" style="width: 100%; padding: 6px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(30,30,45,1); color: var(--text-main);">
-                        ${nfoActionOptions}
-                    </select>
-                </div>
+                <p class="nfo-agent-main-nfo-description">${escapeHTML(statusDescription)}</p>
             </div>
+            <label class="nfo-agent-main-nfo-action">
+                <span>Aktion</span>
+                <select id="nfo-agent-show-nfo-action">
+                        ${nfoActionOptions}
+                </select>
+            </label>
         `;
-        listBody.appendChild(showNfoRow);
+        mainNfoBody.appendChild(showNfoRow);
+        mainNfoSection.style.display = "block";
+    } else {
+        mainNfoSection.style.display = "none";
     }
 
     // A film has exactly one main metadata NFO and no episode mappings.

@@ -6,7 +6,7 @@
     <meta name="description" content="Medienwerkzeug - Automatisches Umbennen, Konvertieren und Kopieren von Filmen und Serien auf das NAS.">
     <meta name="color-scheme" content="dark">
     <title>Medienwerkzeug v5.0 (Master-Detail)</title>
-    <link rel="stylesheet" href="style.css?v=40">
+    <link rel="stylesheet" href="style.css?v=41">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -2683,7 +2683,7 @@ group_add:
     </div>
 </div>
 
-    <script type="module" src="app.js?v=85"></script>
+    <script type="module" src="app.js?v=86"></script>
 
     <!-- Modal: Confirm Merge -->
     <div id="modal-confirm-merge" class="mw-modal-overlay">
@@ -3128,8 +3128,21 @@ group_add:
 
             <!-- Review / Editor Area -->
             <div style="flex: 1 1 auto; min-height: 120px; overflow-y: auto; margin-bottom: 16px; border: 1px solid var(--border-light); border-radius: 6px; background: var(--bg-surface);">
+                <!-- Main NFO finding and action -->
+                <section id="nfo-agent-main-nfo-section" class="nfo-agent-section nfo-agent-main-nfo-section" style="display: none;">
+                    <h4 class="nfo-agent-section-heading">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clipboard-check"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>
+                        <span id="nfo-agent-main-nfo-heading">Haupt-NFO prüfen</span>
+                    </h4>
+                    <div id="nfo-agent-main-nfo-status"></div>
+                </section>
+
                 <!-- TV / Show Details -->
-                <div id="nfo-agent-details-container" style="padding: 12px; border-bottom: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.01);">
+                <section id="nfo-agent-details-container" class="nfo-agent-section nfo-agent-details-section">
+                    <h4 class="nfo-agent-section-heading">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square-pen"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .505-.853z"/></svg>
+                        <span id="nfo-agent-details-heading">Haupt-Metadaten bearbeiten</span>
+                    </h4>
                     <div style="display: flex; gap: 12px;">
                         <div style="flex: 1;">
                             <label id="nfo-agent-title-label" style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Serien-/Filmtitel (Haupt-NFO):</label>
@@ -3144,18 +3157,18 @@ group_add:
                         <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Beschreibung (Plot):</label>
                         <textarea id="nfo-agent-show-plot" rows="2" style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.15); color: var(--text-main); font-family: inherit; font-size: 0.9em; resize: vertical;"></textarea>
                     </div>
-                </div>
+                </section>
 
                 <!-- Episodes Grid -->
-                <div id="nfo-agent-episodes-section" style="padding: 12px;">
-                    <h4 style="margin: 0 0 10px 0; color: var(--text-main); font-size: 0.9em; display: flex; align-items: center; gap: 6px;">
+                <section id="nfo-agent-episodes-section" class="nfo-agent-section nfo-agent-episodes-section">
+                    <h4 class="nfo-agent-section-heading">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-video"><path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/><path d="m16 12 5 3-5 3v-6Z"/></svg>
                         <span id="nfo-agent-files-heading">Episoden-Mappings & Details</span>
                     </h4>
                     <div id="nfo-agent-episodes-list" style="display: flex; flex-direction: column; gap: 12px;">
                         <!-- Injected via JS -->
                     </div>
-                </div>
+                </section>
             </div>
 
             <!-- Logging / Progress stream inside Modal -->

@@ -3105,6 +3105,148 @@ body.runtime-docker .docker-only-info {
     background: rgba(16, 185, 129, 0.06);
 }
 
+/* NFO Agent: finding first, editable metadata second, episode mappings last. */
+.nfo-agent-section {
+    padding: 14px;
+}
+
+.nfo-agent-section + .nfo-agent-section {
+    border-top: 1px solid var(--border-light);
+}
+
+.nfo-agent-section-heading {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0 0 10px;
+    color: var(--text-main);
+    font-size: 0.9rem;
+    font-weight: 650;
+}
+
+.nfo-agent-section-heading svg {
+    color: var(--accent);
+    flex: 0 0 auto;
+}
+
+.nfo-agent-main-nfo-section {
+    background: rgba(255, 255, 255, 0.012);
+}
+
+.nfo-agent-main-nfo-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px;
+    border: 1px solid var(--border-light);
+    border-left: 4px solid var(--accent);
+    border-radius: 7px;
+    background: rgba(var(--accent-rgb), 0.035);
+    text-align: left;
+}
+
+.nfo-agent-main-nfo-content {
+    min-width: 0;
+    flex: 1;
+}
+
+.nfo-agent-main-nfo-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.nfo-agent-main-nfo-file {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--text-main);
+    font-size: 0.9rem;
+    font-weight: 650;
+    word-break: break-all;
+}
+
+.nfo-agent-main-nfo-file svg {
+    color: var(--accent);
+    flex: 0 0 auto;
+}
+
+.nfo-agent-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 2px 7px;
+    border: 1px solid var(--border-light);
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 650;
+}
+
+.nfo-agent-status-warning {
+    color: #fbbf24;
+    border-color: rgba(245, 158, 11, 0.28);
+    background: rgba(245, 158, 11, 0.08);
+}
+
+.nfo-agent-status-danger {
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.28);
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.nfo-agent-status-success {
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.22);
+    background: rgba(16, 185, 129, 0.07);
+}
+
+.nfo-agent-main-nfo-description {
+    margin: 6px 0 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+.nfo-agent-main-nfo-action {
+    display: flex;
+    flex: 0 0 170px;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.nfo-agent-main-nfo-action select {
+    width: 100%;
+    padding: 7px;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    background: rgba(30, 30, 45, 1);
+    color: var(--text-main);
+    font-size: 0.85rem;
+}
+
+.nfo-agent-details-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.01);
+}
+
+@media (max-width: 700px) {
+    .nfo-agent-main-nfo-card {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .nfo-agent-main-nfo-action {
+        flex-basis: auto;
+        width: 100%;
+    }
+}
+
 .health-media-disclosure {
     display: inline-flex;
     align-items: center;

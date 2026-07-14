@@ -886,6 +886,7 @@ test('Media summary stays calm and exposes exact actions only in details', () =>
     const html = issuesEl.innerHTML;
     const summaryHtml = html.match(/<summary class="health-media-summary">[\s\S]*?<\/summary>/)?.[0] || "";
     assert.ok(summaryHtml.includes("NFO-Metadaten: prüfen"));
+    assert.ok(summaryHtml.includes("FSK: Serien-NFO prüfen"));
     assert.ok(summaryHtml.includes("Artwork: 1 fehlen"));
     assert.ok(summaryHtml.includes("Details anzeigen"));
     assert.ok(!summaryHtml.includes("health-nfo-agent"));
@@ -893,6 +894,52 @@ test('Media summary stays calm and exposes exact actions only in details', () =>
     assert.ok(html.includes("📄 tvshow.nfo"));
     assert.ok(html.includes("Fehlendes Staffelposter"));
     assert.ok(html.includes(`data-path="${showPath}"`));
+
+    document.body.removeChild(container);
+});
+
+test('Media-oriented movie summary keeps explicit FSK status visible', () => {
+    const container = document.createElement("div");
+    container.id = "view-library";
+    globalThis.elements["view-library"] = container;
+    document.body.appendChild(container);
+
+    const issuesEl = document.createElement("div");
+    issuesEl.id = "health-issues";
+    globalThis.elements["health-issues"] = issuesEl;
+    container.appendChild(issuesEl);
+
+    globalThis.healthGroupMode = "media";
+    const moviePath = "/Filme/Film mit ungültiger FSK";
+    const issueKey = `health:invalid_age_rating:${moviePath}`;
+    globalThis.renderHealthStatus({
+        status: "done",
+        issues: [{
+            key: issueKey,
+            type: "invalid_age_rating",
+            severity: "warning",
+            path: moviePath,
+            message: "Ungültige Altersfreigabe"
+        }],
+        summary: { critical: 0, warning: 1, info: 0 },
+        ignored_count: 0,
+        media_structure: {
+            series: [],
+            movies: [{
+                name: "Film mit ungültiger FSK",
+                path: moviePath,
+                nfo_path: `${moviePath}/movie.nfo`,
+                fsk_status: "invalid_fsk",
+                current_fsk: "FSK 99",
+                issue_keys: [issueKey]
+            }]
+        }
+    });
+
+    const summaryHtml = issuesEl.innerHTML.match(/<summary class="health-media-summary">[\s\S]*?<\/summary>/)?.[0] || "";
+    assert.ok(summaryHtml.includes("NFO-Metadaten: prüfen"));
+    assert.ok(summaryHtml.includes("FSK: 99 ungültig"));
+    assert.ok(issuesEl.innerHTML.includes("FSK setzen"));
 
     document.body.removeChild(container);
 });
@@ -951,9 +998,9 @@ test('nfo_missing visibility and action suppression', () => {
     assert.ok(issuesEl.innerHTML.includes("📺 My Show"));
     // Episode 1 muss sichtbar sein
     assert.ok(issuesEl.innerHTML.includes("Episode 1"));
-    // NFO-Problem wird ruhig aggregiert; eine FSK-Korrektheit wird ohne NFO nicht behauptet.
+    // NFO-Problem wird aggregiert; der vorhandene Serien-FSK-Status bleibt sichtbar.
     assert.ok(issuesEl.innerHTML.includes("NFO-Metadaten: prüfen"));
-    assert.ok(!issuesEl.innerHTML.includes("Episoden-FSK: korrekt"));
+    assert.ok(issuesEl.innerHTML.includes("FSK: 12"));
     // FSK-Label muss rot ("text-danger") sein und "NFO fehlt" heißen
     assert.ok(issuesEl.innerHTML.includes('class="text-danger"'));
     assert.ok(issuesEl.innerHTML.includes('NFO fehlt'));
@@ -1059,10 +1106,9 @@ test('nfo_missing visibility and action suppression', () => {
 
     globalThis.renderHealthStatus(testDataMisch2);
 
-    // FSK bleibt im Detail gezielt bedienbar, wird in der Zusammenfassung aber
-    // als NFO-Metadatenproblem eingeordnet.
+    // FSK bleibt im Detail bedienbar und in der Zusammenfassung ausdrücklich sichtbar.
     assert.ok(issuesEl.innerHTML.includes("NFO-Metadaten: prüfen"));
-    assert.ok(!issuesEl.innerHTML.includes("Episoden-FSK:"));
+    assert.ok(issuesEl.innerHTML.includes("FSK: Serie + 1 Folge prüfen"));
     // Seriengruppenaktion vorhanden
     assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "show-group-fsk-btn", "/Serien/My Show"));
     // Einzel-FSK-Button für tvshow.nfo ausgeblendet
@@ -1099,6 +1145,7 @@ test('nfo_missing visibility and action suppression', () => {
     // Sichtbar
     assert.ok(issuesEl.innerHTML.includes("Episode 1"));
     assert.ok(issuesEl.innerHTML.includes("NFO-Metadaten: prüfen"));
+    assert.ok(issuesEl.innerHTML.includes("FSK: 12"));
     // Label
     assert.ok(issuesEl.innerHTML.includes('class="text-danger"'));
     assert.ok(issuesEl.innerHTML.includes('NFO unlesbar'));

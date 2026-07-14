@@ -464,24 +464,29 @@ test('renderHealthStatus - transition running -> warning clears loading spinner 
 test('renderNfoAgentFiles - mediaType tvshow renders tvshow.nfo status matrix', () => {
     elements["nfo-agent-media-type"] = createMockElement();
     elements["nfo-agent-media-type"].value = "tvshow";
+    elements["nfo-agent-main-nfo-section"] = createMockElement();
+    elements["nfo-agent-main-nfo-status"] = createMockElement();
     elements["nfo-agent-episodes-list"] = createMockElement();
     elements["nfo-agent-season"] = createMockElement();
     elements["nfo-agent-season"].value = "1";
 
-    const listBody = elements["nfo-agent-episodes-list"];
+    const mainNfoBody = elements["nfo-agent-main-nfo-status"];
+    const episodeList = elements["nfo-agent-episodes-list"];
+    episodeList.children = [];
+    episodeList.appendChild = (child) => episodeList.children.push(child);
 
-    // Status matrix: [exists, parseable, complete, expectedBadge]
+    // Status matrix: [exists, parseable, complete, expectedStatus]
     const testCases = [
-        [false, false, false, "[Keine NFO]"],
-        [true, false, false, "[NFO fehlerhaft]"],
-        [true, true, false, "[NFO unvollständig]"],
-        [true, true, true, "[NFO vorhanden]"]
+        [false, false, false, "NFO fehlt"],
+        [true, false, false, "NFO fehlerhaft"],
+        [true, true, false, "NFO unvollständig"],
+        [true, true, true, "NFO vollständig"]
     ];
 
-    testCases.forEach(([exists, parseable, complete, expectedBadge]) => {
-        listBody.children = [];
-        listBody.appendChild = (child) => {
-            listBody.children.push(child);
+    testCases.forEach(([exists, parseable, complete, expectedStatus]) => {
+        mainNfoBody.children = [];
+        mainNfoBody.appendChild = (child) => {
+            mainNfoBody.children.push(child);
         };
 
         const scanData = {
@@ -497,12 +502,25 @@ test('renderNfoAgentFiles - mediaType tvshow renders tvshow.nfo status matrix', 
 
         globalThis.renderNfoAgentFiles(scanData, {});
 
-        assert.ok(listBody.children.length > 0);
-        const row = listBody.children[0];
-        assert.ok(row.innerHTML.includes("tvshow.nfo (Haupt-Metadaten)"));
-        assert.ok(row.innerHTML.includes(expectedBadge), `Expected badge ${expectedBadge} to be rendered in row HTML: ${row.innerHTML}`);
+        assert.strictEqual(mainNfoBody.children.length, 1);
+        const row = mainNfoBody.children[0];
+        assert.ok(row.innerHTML.includes("tvshow.nfo"));
+        assert.ok(row.innerHTML.includes(expectedStatus), `Expected status ${expectedStatus} to be rendered in row HTML: ${row.innerHTML}`);
         assert.ok(row.innerHTML.includes('id="nfo-agent-show-nfo-action"'));
+        assert.strictEqual(elements["nfo-agent-main-nfo-section"].style.display, "block");
+        assert.ok(!episodeList.children.some((child) => child.innerHTML.includes("tvshow.nfo")));
     });
+});
+
+test('NFO Agent presents main finding before metadata editor and episode mappings', () => {
+    const indexHtml = fs.readFileSync(path.resolve(__dirname, '../../gui/static/index.html'), 'utf8');
+    const findingIndex = indexHtml.indexOf('id="nfo-agent-main-nfo-section"');
+    const detailsIndex = indexHtml.indexOf('id="nfo-agent-details-container"');
+    const episodesIndex = indexHtml.indexOf('id="nfo-agent-episodes-section"');
+
+    assert.ok(findingIndex >= 0, "main NFO finding section must exist");
+    assert.ok(findingIndex < detailsIndex, "main NFO finding must precede the metadata editor");
+    assert.ok(detailsIndex < episodesIndex, "metadata editor must precede episode mappings");
 });
 
 test('NFO Agent movie mode renders movie.nfo without series controls', () => {
@@ -514,12 +532,19 @@ test('NFO Agent movie mode renders movie.nfo without series controls', () => {
     elements["nfo-agent-modal-title"] = createMockElement();
     elements["nfo-agent-search-label"] = createMockElement();
     elements["nfo-agent-title-label"] = createMockElement();
+    elements["nfo-agent-main-nfo-heading"] = createMockElement();
+    elements["nfo-agent-details-heading"] = createMockElement();
     elements["nfo-agent-files-heading"] = createMockElement();
+    elements["nfo-agent-main-nfo-section"] = createMockElement();
+    elements["nfo-agent-main-nfo-status"] = createMockElement();
     elements["nfo-agent-episodes-list"] = createMockElement();
 
     const listBody = elements["nfo-agent-episodes-list"];
     listBody.children = [];
     listBody.appendChild = (child) => listBody.children.push(child);
+    const mainNfoBody = elements["nfo-agent-main-nfo-status"];
+    mainNfoBody.children = [];
+    mainNfoBody.appendChild = (child) => mainNfoBody.children.push(child);
 
     globalThis.setNfoAgentScanData({
         type: "movie",
@@ -539,14 +564,16 @@ test('NFO Agent movie mode renders movie.nfo without series controls', () => {
     globalThis.triggerNfoAgentMediaTypeChange();
 
     assert.strictEqual(elements["nfo-agent-season-container"].style.display, "none");
-    assert.strictEqual(elements["nfo-agent-episodes-section"].style.display, "block");
+    assert.strictEqual(elements["nfo-agent-episodes-section"].style.display, "none");
     assert.strictEqual(elements["nfo-agent-modal-title"].textContent, "NFO Agent: Film-Metadaten");
     assert.strictEqual(elements["nfo-agent-search-label"].textContent, "Name des Films:");
     assert.strictEqual(elements["nfo-agent-title-label"].textContent, "Filmtitel (movie.nfo):");
-    assert.strictEqual(elements["nfo-agent-files-heading"].textContent, "Film-NFO");
-    assert.strictEqual(listBody.children.length, 1);
-    assert.ok(listBody.children[0].innerHTML.includes("movie.nfo (Haupt-Metadaten)"));
-    assert.ok(!listBody.children[0].innerHTML.includes("tvshow.nfo"));
+    assert.strictEqual(elements["nfo-agent-main-nfo-heading"].textContent, "Film-NFO prüfen");
+    assert.strictEqual(elements["nfo-agent-details-heading"].textContent, "Film-Metadaten bearbeiten");
+    assert.strictEqual(mainNfoBody.children.length, 1);
+    assert.ok(mainNfoBody.children[0].innerHTML.includes("movie.nfo"));
+    assert.ok(!mainNfoBody.children[0].innerHTML.includes("tvshow.nfo"));
+    assert.strictEqual(listBody.children.length, 0);
     assert.ok(!listBody.children.some((child) => child.innerHTML.includes("Example Movie.mkv")));
 });
 
