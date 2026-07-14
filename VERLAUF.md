@@ -11,7 +11,7 @@ Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert 
   * **UI-Integration:** Neue Ansicht `"Medienorientiert"` im Health-Anzeigemodus ermöglicht das Ausklappen von Serien -> Staffeln -> betroffenen Episoden.
   * **Serien- & Staffel-Gruppenaktionen:** Direktes Aufrufen des FSK-Batch-Modals für komplette Serien oder Staffeln mit Dropdown-Vorauswahl im Dashboard.
   * **Präzise Zähler- & Aktions-Trennung (Revision 2.2):** Die Prädikate `isEpAffectedGeneral` und `isEpFskActionable` trennen allgemeine Medienanzeige (`nfo_missing`, `unreadable`) von tatsächlichen FSK-Schreibaktionen.
-  * **Konditionales Ausblenden:** FSK-Schreib-Buttons werden für unbeschreibbare Medien konsequent unterdrückt. Fehlt die `tvshow.nfo`, wird an der Serie der `NFO Agent` angeboten, jedoch keine FSK-Gruppenaktion.
+  * **Konditionales Ausblenden:** FSK-Schreib-Buttons werden für unbeschreibbare Medien konsequent unterdrückt. Fehlt die `tvshow.nfo`, zählt die Serie selbst nicht als FSK-aktionsfähig. Sind jedoch mindestens zwei Episoden FSK-aktionsfähig, wird weiterhin eine Serien-Gruppenaktion angeboten, während an der Serie zusätzlich der `NFO Agent` verfügbar bleibt.
   * **Tests:** Python-Tests in `test_fsk_health.py` und erweiterte Node.js Frontend-DOM-Tests (69/69), welche insbesondere pfadbezogene DOM-Assertions für Mischfälle und FSK-Ausblendungen abdecken, erfolgreich umgesetzt.
 
 ## Stand am 13.07.2026 (Phase 2.5c-2 – Schritt 1: FSK Altersfreigaben Stapelverarbeitung & Integrität abgeschlossen)
