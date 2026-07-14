@@ -13134,6 +13134,12 @@ function renderHealthStatus(data) {
                     if (it.scope_kind) scopeData += ` data-scope-kind="${escapeHTML(it.scope_kind)}"`;
                     if (it.series_path) scopeData += ` data-series-path="${escapeHTML(it.series_path)}"`;
                     if (it.season_path) scopeData += ` data-season-path="${escapeHTML(it.season_path)}"`;
+                    
+                    let mediaKind = "unknown";
+                    if (it.category && (it.category.includes("Film") || it.category.includes("Movie"))) mediaKind = "movie";
+                    if (it.category && (it.category.includes("Serie") || it.category.includes("Anime"))) mediaKind = "series";
+                    scopeData += ` data-media-kind="${mediaKind}"`;
+
 
                     if (it.type === "nested_duplicate") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-structure-preview" data-path="${escapeHTML(it.path)}" title="Vorschau anzeigen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="height:12px; width:12px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>Vorschau</button>
@@ -13194,6 +13200,15 @@ function renderHealthStatus(data) {
                     ? `<span class="badge" style="background:rgba(239,68,68,0.1); color:#ef4444; font-size:10px;">tvshow.nfo fehlt</span>`
                     : `<span class="badge" style="background:rgba(255,255,255,0.05); color:var(--text-muted); font-size:10px;">Serie: ${escapeHTML(s.current_fsk || "Keine")}</span>`;
 
+                let seriesIssueBadgesHtml = "";
+                if (s.issue_keys && s.issue_keys.length > 0) {
+                    const uniqueKeys = [...new Set(s.issue_keys)];
+                    seriesIssueBadgesHtml = uniqueKeys.map(k => {
+                        let label = HEALTH_TYPE_LABELS[k] || k;
+                        return `<span class="badge" style="background:rgba(239,68,68,0.1); color:#ef4444; font-size:10px; margin-left:4px;">${escapeHTML(label)}</span>`;
+                    }).join("");
+                }
+
                 const epBadge = affectedEp > 0
                     ? `<span class="badge" style="background:rgba(245,158,11,0.1); color:#f59e0b; font-size:10px;">${affectedEp} von ${totalEp} Ep. betroffen</span>`
                     : `<span class="badge" style="background:rgba(16,185,129,0.1); color:#10b981; font-size:10px;">Episoden korrekt</span>`;
@@ -13224,6 +13239,7 @@ function renderHealthStatus(data) {
                                  <div style="display:flex; align-items:center; gap:8px; flex:1;">
                                      <span style="color:var(--text-main); font-weight:600;">📺 ${escapeHTML(s.name)}</span>
                                      ${showBadge}
+                                     ${seriesIssueBadgesHtml}
                                      ${epBadge}
                                  </div>
                                  <div style="display:flex; align-items:center; gap:10px;" onclick="event.stopPropagation();">
@@ -13353,9 +13369,19 @@ function renderHealthStatus(data) {
                 }
 
                 const fskLabel = m.fsk_status === "missing_fsk" ? "FSK fehlt" : (m.current_fsk || "Keine");
+                
+                let issueBadgesHtml = "";
+                if (m.issue_keys && m.issue_keys.length > 0) {
+                    const uniqueKeys = [...new Set(m.issue_keys)];
+                    issueBadgesHtml = uniqueKeys.map(k => {
+                        let label = HEALTH_TYPE_LABELS[k] || k;
+                        return `<span class="badge" style="background:rgba(239,68,68,0.1); color:#ef4444; font-size:10px; margin-right:4px;">${escapeHTML(label)}</span>`;
+                    }).join("");
+                }
                 html += `<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.9em; padding:6px 12px; background:rgba(255,255,255,0.01); border:1px solid var(--border-light); border-radius:6px; margin-bottom:6px;">
                             <div style="display:flex; align-items:center; gap:8px;">
                                 <span style="font-weight:500; color:var(--text-main);">🎬 ${escapeHTML(m.name)}</span>
+                                ${issueBadgesHtml}
                             </div>
                             <div style="display:flex; align-items:center; gap:8px;">
                                 <span style="font-size:0.85em; color:${hasMovieFskIssue ? "#f59e0b" : "var(--text-muted)"}">${escapeHTML(fskLabel)}</span>
@@ -13424,9 +13450,8 @@ function renderHealthStatus(data) {
                     const detailsEl = b.closest("details");
                     const checkedItems = Array.from(detailsEl.querySelectorAll(".health-item-select:checked")).map(cb => ({
                         path: cb.getAttribute("data-path"),
-                        scope_kind: cb.getAttribute("data-scope-kind"),
-                        series_path: cb.getAttribute("data-series-path"),
-                        season_path: cb.getAttribute("data-season-path")
+                        scope_kind: "single", // Allgemeine Checkbox-Batches sind strikt single
+                        media_kind: cb.getAttribute("data-media-kind") || "unknown"
                     }));
                     const fskVal = detailsEl.querySelector(".health-batch-fsk-select")?.value;
 
@@ -13439,7 +13464,9 @@ function renderHealthStatus(data) {
                         return;
                     }
 
-                    openFskBatchModal(checkedItems, fskVal);
+                    const isMixed = new Set(checkedItems.map(i => i.media_kind)).size > 1;
+                    const mediaKind = isMixed ? "mixed" : (checkedItems.length > 0 ? checkedItems[0].media_kind : "unknown");
+                    openFskBatchModal(checkedItems, fskVal, "single", mediaKind);
                 });
             });
 
@@ -14067,9 +14094,10 @@ function renderHealthStatus(data) {
                     path: b.getAttribute("data-path"),
                     scope_kind: scopeKind,
                     series_path: b.getAttribute("data-series-path"),
-                    season_path: b.getAttribute("data-season-path")
+                    season_path: b.getAttribute("data-season-path"),
+                    media_kind: b.getAttribute("data-media-kind") || "unknown"
                 };
-                openFskBatchModal([item], "12", scope);
+                openFskBatchModal([item], "12", scope, item.media_kind);
             });
         });
 
@@ -14081,9 +14109,10 @@ function renderHealthStatus(data) {
                 const fskVal = selectEl ? selectEl.value : "12";
                 const item = {
                     series_path: path,
-                    path: path
+                    path: path,
+                    media_kind: "series"
                 };
-                openFskBatchModal([item], fskVal, "series");
+                openFskBatchModal([item], fskVal, "series", "series");
             });
         });
 
@@ -14097,9 +14126,10 @@ function renderHealthStatus(data) {
                 const item = {
                     season_path: path,
                     series_path: seriesPath,
-                    path: path
+                    path: path,
+                    media_kind: "series" // Staffel gehört zu Serien
                 };
-                openFskBatchModal([item], fskVal, "season");
+                openFskBatchModal([item], fskVal, "season", "series");
             });
         });
 
@@ -15214,11 +15244,25 @@ function normalizeProvider(prov) {
     return p;
 }
 
+let wasFskModalOpenForNfoAgent = false;
+let nfoAgentJobSuccess = false;
+
 function openNfoAgentModal(path) {
     if (!path) {
         alert("Bitte gib einen Pfad an.");
         return;
     }
+    
+    wasFskModalOpenForNfoAgent = false;
+    nfoAgentJobSuccess = false;
+    
+    const fskModal = document.getElementById("modal-fsk-batch-preview");
+    if (fskModal && fskModal.classList.contains("active")) {
+        wasFskModalOpenForNfoAgent = true;
+        fskModal.classList.remove("active");
+        fskModal.classList.add("hidden");
+    }
+
     nfoAgentCurrentPath = path;
     const modal = document.getElementById("modal-nfo-agent");
     if (!modal) return;
@@ -15900,6 +15944,7 @@ function startNfoAgentLogStreaming(taskId) {
                 logContainer.scrollTop = logContainer.scrollHeight;
 
                 if (job.status === "done") {
+                    nfoAgentJobSuccess = true;
                     clearInterval(nfoAgentLogInterval);
                     logContainer.textContent += "\n=== ✅ NFO Agent abgeschlossen ===\n";
                     logContainer.scrollTop = logContainer.scrollHeight;
@@ -15922,6 +15967,20 @@ function closeNfoAgentModal() {
         modal.classList.remove("active");
         modal.classList.add("hidden");
     }
+    
+    if (wasFskModalOpenForNfoAgent) {
+        const fskModal = document.getElementById("modal-fsk-batch-preview");
+        if (fskModal) {
+            fskModal.classList.remove("hidden");
+            fskModal.classList.add("active");
+        }
+        if (nfoAgentJobSuccess) {
+            loadFskBatchPreview(false);
+            if (typeof startHealthScan === "function") startHealthScan(); 
+        }
+        wasFskModalOpenForNfoAgent = false;
+        nfoAgentJobSuccess = false;
+    }
 }
 
 // Bind DOM Events for NFO Agent Modal
@@ -15929,8 +15988,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("close-modal-nfo-agent")?.addEventListener("click", closeNfoAgentModal);
     document.getElementById("btn-nfo-agent-cancel")?.addEventListener("click", closeNfoAgentModal);
     document.getElementById("btn-nfo-agent-done")?.addEventListener("click", () => {
+        const wasFskOpen = wasFskModalOpenForNfoAgent;
         closeNfoAgentModal();
-        if (typeof startHealthScan === "function") startHealthScan();
+        if (!wasFskOpen && typeof startHealthScan === "function") startHealthScan();
     });
     document.getElementById("btn-nfo-agent-submit")?.addEventListener("click", submitNfoAgentJob);
     document.getElementById("btn-nfo-agent-search")?.addEventListener("click", searchNfoAgentMetadata);
@@ -15970,11 +16030,14 @@ let currentFskBatchPlan = null;
 let currentPreviewRequestId = 0;
 let isFskBatchApplying = false;
 
-function openFskBatchModal(items, fskVal, scope = "single") {
+let currentFskBatchMediaKind = "unknown";
+
+function openFskBatchModal(items, fskVal, scope = "single", mediaKind = "unknown") {
     currentFskBatchItems = items;
     currentFskBatchTarget = fskVal;
     currentFskBatchScope = scope;
     currentFskBatchPlan = null;
+    currentFskBatchMediaKind = mediaKind;
     isFskBatchApplying = false;
 
     const cancelBtn = document.getElementById("btn-fsk-batch-cancel");
@@ -16003,8 +16066,19 @@ function openFskBatchModal(items, fskVal, scope = "single") {
 
     const scopeSelect = document.getElementById("fsk-batch-scope-select");
     if (scopeSelect) {
+        Array.from(scopeSelect.options).forEach(opt => {
+            if (opt.value === "season" || opt.value === "series") {
+                if (mediaKind !== "series") {
+                    opt.style.display = "none";
+                    if (scope === opt.value) scope = "single";
+                } else {
+                    opt.style.display = "";
+                }
+            }
+        });
+        currentFskBatchScope = scope;
         scopeSelect.disabled = false;
-        scopeSelect.value = currentFskBatchScope;
+        scopeSelect.value = scope;
     }
 
     const errorEl = document.getElementById("fsk-batch-error-inline");
@@ -16118,12 +16192,20 @@ async function loadFskBatchPreview(keepError = false) {
         }
 
         // Button nur freigeben, wenn mindestens ein File "ready" ist, und Text anpassen
+        // Phase-Logik (preview -> terminal if ready===0)
         if (confirmBtn) {
-            confirmBtn.disabled = (sum.ready === 0);
-            confirmBtn.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height: 12px; width: 12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-                <span>${sum.ready} NFOs auf FSK ${currentFskBatchTarget} ändern</span>
-            `;
+            if (sum.ready === 0) {
+                confirmBtn.disabled = false;
+                confirmBtn.onclick = () => { closeFskBatchModal(); if (typeof pollHealthStatus === "function") pollHealthStatus(false); };
+                confirmBtn.innerHTML = `<span>Fertig</span>`;
+            } else {
+                confirmBtn.disabled = false;
+                confirmBtn.onclick = applyFskBatch; // Direktbindung, globaler Eventlistener ignoriert isFskBatchApplying
+                confirmBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height: 12px; width: 12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    <span>${sum.ready} NFOs auf FSK ${currentFskBatchTarget} ändern</span>
+                `;
+            }
         }
 
     } catch (err) {
@@ -16315,10 +16397,23 @@ async function applyFskBatch() {
 
         const data = await res.json();
         const applySum = data.summary;
+        const failedItems = data.results ? data.results.filter(r => r.status === "failed") : [];
 
-        // Ergebnisse anzeigen
-        let resultHtml = `
-            <div style="font-weight:600; margin-bottom:4px;">Zusammenfassung der Ausführung:</div>
+        // 4-Phasen-Modell: completed, partial, failed
+        let phase = "completed";
+        if (applySum.failed > 0 && applySum.success > 0) phase = "partial";
+        if (applySum.failed > 0 && applySum.success === 0) phase = "failed";
+
+        let resultHtml = `<div style="font-weight:600; margin-bottom:4px;">Zusammenfassung der Ausführung:</div>`;
+        if (phase === "failed") {
+            resultHtml += `<div style="color:var(--danger); margin-bottom:8px;">Kompletter Fehlschlag. Bitte Fehler prüfen.</div>`;
+        } else if (phase === "partial") {
+            resultHtml += `<div style="color:var(--warning); margin-bottom:8px;">Teilweise erfolgreich abgeschlossen.</div>`;
+        } else {
+            resultHtml += `<div style="color:var(--success); margin-bottom:8px;">Erfolgreich abgeschlossen.</div>`;
+        }
+
+        resultHtml += `
             <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
                 <span class="text-success">Erfolgreich geändert: <strong>${applySum.success}</strong></span>
                 <span class="text-danger">Fehlgeschlagen: <strong>${applySum.failed}</strong></span>
@@ -16326,7 +16421,6 @@ async function applyFskBatch() {
             </div>
         `;
 
-        const failedItems = data.results.filter(r => r.status === "failed");
         if (failedItems.length > 0) {
             resultHtml += `<div style="color:#ef4444; font-size:0.85em; margin-top:8px; max-height:100px; overflow-y:auto;">`;
             failedItems.forEach(fi => {
@@ -16337,22 +16431,42 @@ async function applyFskBatch() {
 
         if (summaryEl) summaryEl.innerHTML = resultHtml;
 
-        if (cancelBtn) {
-            cancelBtn.textContent = "Fertig";
-            cancelBtn.disabled = false;
-            cancelBtn.onclick = () => {
-                isFskBatchApplying = false;
-                closeFskBatchModal();
-                if (typeof pollHealthStatus === "function") pollHealthStatus(false);
-            };
-        }
-        const modalX = document.querySelector("#modal-fsk-batch-preview .modal-close");
-        if (modalX) {
-            modalX.onclick = () => {
-                isFskBatchApplying = false;
-                closeFskBatchModal();
-                if (typeof pollHealthStatus === "function") pollHealthStatus(false);
-            };
+        if (phase === "failed") {
+            // Fehlgeschlagen: Retry anbieten (Vorschau neu laden)
+            isFskBatchApplying = false;
+            if (cancelBtn) {
+                cancelBtn.textContent = "Schließen";
+                cancelBtn.disabled = false;
+            }
+            if (refreshBtn) refreshBtn.disabled = false;
+            if (scopeSelect) scopeSelect.disabled = false;
+            if (targetSelect) targetSelect.disabled = false;
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = `<span>Erneut versuchen</span>`;
+                confirmBtn.onclick = applyFskBatch;
+            }
+        } else {
+            // Completed oder Partial: Terminal-Zustand "Fertig"
+            if (cancelBtn) {
+                cancelBtn.textContent = "Fertig";
+                cancelBtn.disabled = false;
+                cancelBtn.onclick = () => {
+                    isFskBatchApplying = false;
+                    closeFskBatchModal();
+                    if (typeof pollHealthStatus === "function") pollHealthStatus(true); // Autoritative Synchronisation erzwingen!
+                };
+            }
+            if (confirmBtn) confirmBtn.style.display = "none";
+            
+            const modalX = document.querySelector("#modal-fsk-batch-preview .modal-close");
+            if (modalX) {
+                modalX.onclick = () => {
+                    isFskBatchApplying = false;
+                    closeFskBatchModal();
+                    if (typeof pollHealthStatus === "function") pollHealthStatus(true); // Autoritative Synchronisation erzwingen!
+                };
+            }
         }
 
     } catch (err) {

@@ -1679,6 +1679,12 @@ def handle_api_fsk_batch_apply():
         # client_files_dict mappt path -> vollständiger Preview-Eintrag (inkl. status, fingerprint)
         client_files_dict = {f.get("path"): f for f in expected_files if f.get("path")}
 
+        preview_realpath_set = set(client_files_dict.keys())
+        apply_realpath_set = set(final_targets)
+
+        if preview_realpath_set != apply_realpath_set:
+            return jsonify({"ok": False, "message": "Zielmenge hat sich seit der Vorschau verändert (Dateien hinzugefügt oder entfernt). Bitte Vorschau neu laden."}), 409
+
         # Jede NFO, die existieren soll, muss im Client-Plan enthalten sein und die Fingerprints müssen übereinstimmen
         for nfo in final_targets:
             client_entry = client_files_dict.get(nfo)
