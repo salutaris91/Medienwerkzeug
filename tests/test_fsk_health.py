@@ -241,6 +241,7 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
         self.nas_root = os.path.join(self.temp_dir, "nas")
         os.makedirs(self.nas_root)
+        self.client = app.test_client()
 
         # Settings mock setup
         self.settings = {
@@ -364,6 +365,48 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
         self.assertTrue(ep2["actionable_fsk"])
         self.assertTrue(any("age_rating" in k for k in ep2["issue_keys"]))
 
+
+    @patch('gui.api.nas_api.write_fsk_to_nfo')
+    @patch('gui.core.health.remove_issue')
+    @patch('gui.api.nas_api.load_settings')
+    def test_health_fix_issue_removal_args(self, mock_load_settings, mock_remove_issue, mock_write_fsk):
+        mock_load_settings.return_value = {
+            "nas_root": self.temp_dir,
+            "nas_paths": {"Filme": self.temp_dir, "Serien": self.temp_dir},
+            "sync_categories": [{"name": "Filme", "nas_sub": "/"}]
+        }
+        mock_write_fsk.return_value = (True, "")
+
+        import os
+        movie_dir = os.path.join(self.temp_dir, "Ein Film")
+        os.makedirs(movie_dir, exist_ok=True)
+        nfo_path = os.path.join(movie_dir, "movie.nfo")
+        with open(nfo_path, 'w') as f:
+            f.write("<movie></movie>")
+        with open(os.path.join(movie_dir, "Ein Film.mkv"), 'w') as f:
+            f.write("video")
+
+        res = self.client.post('/api/nas/health-fix', json={
+            "action": "set_fsk",
+            "path": nfo_path,
+            "new_fsk": "12"
+        })
+        self.assertEqual(res.status_code, 200)
+
+        # Überprüfen, ob remove_issue mit nfo_path Argument für das Verzeichnis (real_path) gerufen wurde
+        real_movie_dir = os.path.realpath(movie_dir)
+        real_nfo_path = os.path.realpath(nfo_path)
+        mock_remove_issue.assert_any_call(real_movie_dir, "missing_age_rating", nfo_path=real_nfo_path)
+        mock_remove_issue.assert_any_call(real_movie_dir, "invalid_age_rating", nfo_path=real_nfo_path)
+        mock_remove_issue.reset_mock()
+        res = self.client.post('/api/nas/health-fix', json={
+            "action": "set_fsk",
+            "path": nfo_path,
+            "new_fsk": "16"
+        })
+        self.assertEqual(res.status_code, 200)
+        # remove_issue sollte für den Verzeichnis-Issue-Pfad aufgerufen werden (da movie.nfo)
+        mock_remove_issue.assert_any_call(real_movie_dir, "missing_age_rating", nfo_path=real_nfo_path)
 
 if __name__ == '__main__':
     unittest.main()

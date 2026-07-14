@@ -15243,6 +15243,7 @@ function normalizeProvider(prov) {
 
 let wasFskModalOpenForNfoAgent = false;
 let nfoAgentJobSuccess = false;
+let nfoAgentJobErrorMsg = null;
 
 function openNfoAgentModal(path) {
     if (!path) {
@@ -15252,6 +15253,7 @@ function openNfoAgentModal(path) {
     
     wasFskModalOpenForNfoAgent = false;
     nfoAgentJobSuccess = false;
+    nfoAgentJobErrorMsg = null;
     
     const fskModal = document.getElementById("modal-fsk-batch-preview");
     if (fskModal && fskModal.classList.contains("active")) {
@@ -15929,8 +15931,9 @@ function startNfoAgentLogStreaming(taskId) {
                 if (!job) {
                     // Job vanished from the queue -> treat as finished.
                     clearInterval(nfoAgentLogInterval);
-                    logContainer.textContent += "\n=== Job abgeschlossen ===\n";
+                    logContainer.textContent += "\n=== Job nicht mehr verfügbar ===\n";
                     logContainer.scrollTop = logContainer.scrollHeight;
+                    nfoAgentJobErrorMsg = "Das Ergebnis des NFO-Agenten ist nicht mehr abrufbar.";
                     showNfoAgentDone();
                     return;
                 }
@@ -15950,6 +15953,13 @@ function startNfoAgentLogStreaming(taskId) {
                     clearInterval(nfoAgentLogInterval);
                     logContainer.textContent += `\n=== ❌ Fehler: ${job.message || "unbekannt"} ===\n`;
                     logContainer.scrollTop = logContainer.scrollHeight;
+                    nfoAgentJobErrorMsg = `Fehler beim NFO-Agent: ${job.message || "unbekannt"}`;
+                    showNfoAgentDone();
+                } else if (job.status === "cancelled") {
+                    clearInterval(nfoAgentLogInterval);
+                    logContainer.textContent += `\n=== 🛑 Abgebrochen ===\n`;
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                    nfoAgentJobErrorMsg = "NFO-Agent wurde abgebrochen.";
                     showNfoAgentDone();
                 }
             })
@@ -15974,9 +15984,12 @@ function closeNfoAgentModal() {
         if (nfoAgentJobSuccess) {
             loadFskBatchPreview(true);
             if (typeof pollHealthStatus === "function") pollHealthStatus(true); 
+        } else if (nfoAgentJobErrorMsg) {
+            showFskBatchError(nfoAgentJobErrorMsg);
         }
         wasFskModalOpenForNfoAgent = false;
         nfoAgentJobSuccess = false;
+        nfoAgentJobErrorMsg = null;
     }
 }
 
@@ -16258,7 +16271,7 @@ function renderFskBatchTree(files, container) {
 
     files.forEach(f => {
         const h = f.hierarchy;
-        if (!h.show && !h.season) {
+        if (f.media_kind === "movie") {
             movies.push(f);
         } else {
             const showKey = h.show || "Unbekannte Serie";
@@ -16316,7 +16329,11 @@ function renderFskFileRow(f, indent) {
     } else if (f.status === "unchanged") {
         statusBadge = `<span class="badge" style="background:rgba(255,255,255,0.05); color:var(--text-muted); font-size:10px;">Bereits FSK ${currentFskBatchTarget} (übersprungen)</span>`;
     } else if (f.status === "skipped_missing") {
-        statusBadge = `<span class="badge" style="background:rgba(245,158,11,0.1); color:#f59e0b; font-size:10px;">Übersprungen: NFO fehlt</span>`;
+        let btn = "";
+        if (f.agent_path) {
+             btn = `<button type="button" class="btn btn-sm btn-outline-primary health-nfo-agent" style="padding:1px 6px; font-size:9px;" data-path="${escapeHTML(f.agent_path)}">NFO Agent</button>`;
+        }
+        statusBadge = `${btn} <span class="badge" style="background:rgba(245,158,11,0.1); color:#f59e0b; font-size:10px;">Übersprungen: NFO fehlt</span>`;
         rowStyle = "opacity:0.6;";
     } else if (f.status === "skipped_problematic") {
         statusBadge = `<span class="badge" style="background:rgba(239,68,68,0.1); color:#ef4444; font-size:10px;">Fehler: ${escapeHTML(f.error)}</span>`;
