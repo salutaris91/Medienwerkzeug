@@ -885,7 +885,7 @@ test('Media summary stays calm and exposes exact actions only in details', () =>
 
     const html = issuesEl.innerHTML;
     const summaryHtml = html.match(/<summary class="health-media-summary">[\s\S]*?<\/summary>/)?.[0] || "";
-    assert.ok(summaryHtml.includes("NFO: 1 Problem"));
+    assert.ok(summaryHtml.includes("NFO-Metadaten: prüfen"));
     assert.ok(summaryHtml.includes("Artwork: 1 fehlen"));
     assert.ok(summaryHtml.includes("Details anzeigen"));
     assert.ok(!summaryHtml.includes("health-nfo-agent"));
@@ -952,7 +952,7 @@ test('nfo_missing visibility and action suppression', () => {
     // Episode 1 muss sichtbar sein
     assert.ok(issuesEl.innerHTML.includes("Episode 1"));
     // NFO-Problem wird ruhig aggregiert; eine FSK-Korrektheit wird ohne NFO nicht behauptet.
-    assert.ok(issuesEl.innerHTML.includes("NFO: 1 Problem"));
+    assert.ok(issuesEl.innerHTML.includes("NFO-Metadaten: prüfen"));
     assert.ok(!issuesEl.innerHTML.includes("Episoden-FSK: korrekt"));
     // FSK-Label muss rot ("text-danger") sein und "NFO fehlt" heißen
     assert.ok(issuesEl.innerHTML.includes('class="text-danger"'));
@@ -1059,6 +1059,10 @@ test('nfo_missing visibility and action suppression', () => {
 
     globalThis.renderHealthStatus(testDataMisch2);
 
+    // FSK bleibt im Detail gezielt bedienbar, wird in der Zusammenfassung aber
+    // als NFO-Metadatenproblem eingeordnet.
+    assert.ok(issuesEl.innerHTML.includes("NFO-Metadaten: prüfen"));
+    assert.ok(!issuesEl.innerHTML.includes("Episoden-FSK:"));
     // Seriengruppenaktion vorhanden
     assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "show-group-fsk-btn", "/Serien/My Show"));
     // Einzel-FSK-Button für tvshow.nfo ausgeblendet
@@ -1094,7 +1098,7 @@ test('nfo_missing visibility and action suppression', () => {
 
     // Sichtbar
     assert.ok(issuesEl.innerHTML.includes("Episode 1"));
-    assert.ok(issuesEl.innerHTML.includes("NFO: 1 Problem"));
+    assert.ok(issuesEl.innerHTML.includes("NFO-Metadaten: prüfen"));
     // Label
     assert.ok(issuesEl.innerHTML.includes('class="text-danger"'));
     assert.ok(issuesEl.innerHTML.includes('NFO unlesbar'));

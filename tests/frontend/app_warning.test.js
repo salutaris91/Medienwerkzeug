@@ -113,6 +113,7 @@ globalThis.loadNormalizePreview = loadNormalizePreview;
 globalThis.renderNormalizePlan = renderNormalizePlan;
 globalThis.renderQueue = renderQueue;
 globalThis.renderNfoAgentFiles = renderNfoAgentFiles;
+globalThis.triggerNfoAgentMediaTypeChange = triggerNfoAgentMediaTypeChange;
 globalThis.submitNfoAgentJob = submitNfoAgentJob;
 globalThis.setNfoAgentScanData = (val) => { nfoAgentScanData = val; };
 globalThis.setNfoAgentCurrentPath = (val) => { nfoAgentCurrentPath = val; };
@@ -502,6 +503,51 @@ test('renderNfoAgentFiles - mediaType tvshow renders tvshow.nfo status matrix', 
         assert.ok(row.innerHTML.includes(expectedBadge), `Expected badge ${expectedBadge} to be rendered in row HTML: ${row.innerHTML}`);
         assert.ok(row.innerHTML.includes('id="nfo-agent-show-nfo-action"'));
     });
+});
+
+test('NFO Agent movie mode renders movie.nfo without series controls', () => {
+    elements["nfo-agent-media-type"] = createMockElement();
+    elements["nfo-agent-media-type"].value = "movie";
+    elements["nfo-agent-provider"] = createMockElement();
+    elements["nfo-agent-season-container"] = createMockElement();
+    elements["nfo-agent-episodes-section"] = createMockElement();
+    elements["nfo-agent-modal-title"] = createMockElement();
+    elements["nfo-agent-search-label"] = createMockElement();
+    elements["nfo-agent-title-label"] = createMockElement();
+    elements["nfo-agent-files-heading"] = createMockElement();
+    elements["nfo-agent-episodes-list"] = createMockElement();
+
+    const listBody = elements["nfo-agent-episodes-list"];
+    listBody.children = [];
+    listBody.appendChild = (child) => listBody.children.push(child);
+
+    globalThis.setNfoAgentScanData({
+        type: "movie",
+        files: ["Example Movie.mkv"],
+        main_nfo_status: {
+            path: "/media/Filme/Example Movie/movie.nfo",
+            filename: "movie.nfo",
+            exists: true,
+            parseable: true,
+            complete: false
+        },
+        file_nfo_statuses: {
+            "Example Movie.mkv": { exists: false, complete: false }
+        }
+    });
+
+    globalThis.triggerNfoAgentMediaTypeChange();
+
+    assert.strictEqual(elements["nfo-agent-season-container"].style.display, "none");
+    assert.strictEqual(elements["nfo-agent-episodes-section"].style.display, "block");
+    assert.strictEqual(elements["nfo-agent-modal-title"].textContent, "NFO Agent: Film-Metadaten");
+    assert.strictEqual(elements["nfo-agent-search-label"].textContent, "Name des Films:");
+    assert.strictEqual(elements["nfo-agent-title-label"].textContent, "Filmtitel (movie.nfo):");
+    assert.strictEqual(elements["nfo-agent-files-heading"].textContent, "Film-NFO");
+    assert.strictEqual(listBody.children.length, 1);
+    assert.ok(listBody.children[0].innerHTML.includes("movie.nfo (Haupt-Metadaten)"));
+    assert.ok(!listBody.children[0].innerHTML.includes("tvshow.nfo"));
+    assert.ok(!listBody.children.some((child) => child.innerHTML.includes("Example Movie.mkv")));
 });
 
 test('submitNfoAgentJob - payload structures and write_show_nfo semantics', () => {

@@ -1156,6 +1156,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                     self.assertEqual(data["metadata_name"], "Mock Show")
                     self.assertEqual(data["metadata_year"], "1986")
                     self.assertEqual(data["metadata_plot"], "Mock Plot")
+                    self.assertEqual(data["type"], "tvshow")
+                    self.assertEqual(data["main_nfo_status"]["filename"], "tvshow.nfo")
                     self.assertIn("Mock Show - S01E01.mp4", data["file_nfo_statuses"])
                     self.assertTrue(data["file_nfo_statuses"]["Mock Show - S01E01.mp4"]["exists"])
                     self.assertTrue(data["file_nfo_statuses"]["Mock Show - S01E01.mp4"]["complete"])
@@ -1207,6 +1209,70 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                     self.assertEqual(data["metadata_name"], "Mock Show Parent")
                     self.assertEqual(data["metadata_source"], "nfo")
                     self.assertEqual(data["suggested_search_name"], "Mock Show Parent (1986)")
+
+    def test_scan_project_resolves_movie_from_configured_category(self):
+        from gui.api.project_api import handle_api_scan_project, _resolve_project_media_type
+        from flask import Flask
+        from unittest.mock import patch
+
+        app = Flask(__name__)
+        nas_root = os.path.join(self.test_dir, "media")
+        movie_dir = os.path.join(nas_root, "Filme", "Example Movie (2026)")
+        os.makedirs(movie_dir, exist_ok=True)
+        with open(os.path.join(movie_dir, "Example Movie (2026).mkv"), "wb") as video_file:
+            video_file.write(b"video")
+        with open(os.path.join(movie_dir, "movie.nfo"), "w", encoding="utf-8") as nfo_file:
+            nfo_file.write(
+                "<movie><title>Example Movie</title><plot>Plot</plot>"
+                "<year>2026</year><tmdbid>123</tmdbid></movie>"
+            )
+
+        settings = {
+            "inbox_dir": self.test_dir,
+            "nas_root": nas_root,
+            "sync_categories": [
+                {"id": "movies", "name": "Filme", "nas_sub": "Filme", "type": "movie"}
+            ],
+        }
+        with app.test_request_context(query_string=f"project={movie_dir}"):
+            with patch("gui.api.project_api.is_path_allowed", return_value=True):
+                with patch("gui.api.project_api.load_settings", return_value=settings):
+                    with patch("gui.api.project_api.media.get_video_codec", return_value="h264"):
+                        response = handle_api_scan_project()
+
+        data = response.get_json()
+        self.assertEqual(data["type"], "movie")
+        self.assertEqual(data["type_source"], "category")
+        self.assertIsNone(data["show_nfo_status"])
+        self.assertEqual(data["main_nfo_status"], data["movie_nfo_status"])
+        self.assertEqual(data["main_nfo_status"]["filename"], "movie.nfo")
+        self.assertTrue(data["main_nfo_status"]["exists"])
+        self.assertTrue(data["main_nfo_status"]["parseable"])
+        self.assertTrue(data["main_nfo_status"]["complete"])
+        self.assertEqual(data["metadata_name"], "Example Movie")
+
+        os.replace(
+            os.path.join(movie_dir, "movie.nfo"),
+            os.path.join(movie_dir, "Example Movie (2026).nfo"),
+        )
+        with app.test_request_context(query_string=f"project={movie_dir}"):
+            with patch("gui.api.project_api.is_path_allowed", return_value=True):
+                with patch("gui.api.project_api.load_settings", return_value=settings):
+                    with patch("gui.api.project_api.media.get_video_codec", return_value="h264"):
+                        sidecar_response = handle_api_scan_project()
+
+        sidecar_data = sidecar_response.get_json()
+        self.assertEqual(sidecar_data["type"], "movie")
+        self.assertEqual(sidecar_data["main_nfo_status"]["filename"], "Example Movie (2026).nfo")
+        self.assertTrue(sidecar_data["main_nfo_status"]["complete"])
+        self.assertEqual(
+            _resolve_project_media_type(
+                {"nas_root": "", "sync_categories": []},
+                movie_dir,
+                ["Example Movie (2026).nfo", "Example Movie (2026).mkv"],
+            ),
+            ("movie", "structure"),
+        )
 
     def test_scan_project_profile_fallback(self):
         from gui.api.project_api import handle_api_scan_project

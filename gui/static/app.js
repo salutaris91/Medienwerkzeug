@@ -12458,6 +12458,7 @@ const HEALTH_SEVERITY = {
 const HEALTH_MEDIA_NFO_TYPES = new Set(["missing_nfo", "incomplete_nfo", "unreadable_nfo"]);
 const HEALTH_MEDIA_ARTWORK_TYPES = new Set(["missing_season_poster", "missing_poster", "missing_backdrop", "missing_logo", "missing_banner"]);
 const HEALTH_MEDIA_FSK_TYPES = new Set(["missing_age_rating", "invalid_age_rating"]);
+const HEALTH_MEDIA_METADATA_TYPES = new Set([...HEALTH_MEDIA_NFO_TYPES, ...HEALTH_MEDIA_FSK_TYPES]);
 
 function getIssuesForKeys(issueKeys, issuesByKey) {
     return [...new Set(issueKeys || [])].map((key) => issuesByKey[key]).filter(Boolean);
@@ -13249,7 +13250,13 @@ function renderHealthStatus(data) {
                 if (!showAffectedGeneral) return;
                 renderedSeriesCount++;
 
-                const nfoIssueCount = countHealthMediaIssues(seriesIssues, HEALTH_MEDIA_NFO_TYPES);
+                const hasNfoIssue = seriesIssues.some((issue) => HEALTH_MEDIA_NFO_TYPES.has(issue.type))
+                    || !s.has_nfo
+                    || ["nfo_missing", "unreadable"].includes(s.fsk_status);
+                const hasMetadataIssue = hasNfoIssue
+                    || seriesIssues.some((issue) => HEALTH_MEDIA_METADATA_TYPES.has(issue.type))
+                    || showFskActionable
+                    || fskActionableEp > 0;
                 const artworkIssueCount = countHealthMediaIssues(seriesIssues, HEALTH_MEDIA_ARTWORK_TYPES);
                 const otherIssueCount = seriesIssues.filter((issue) =>
                     !HEALTH_MEDIA_NFO_TYPES.has(issue.type)
@@ -13258,17 +13265,10 @@ function renderHealthStatus(data) {
                 ).length;
 
                 const summaryChips = [];
-                if (s.has_nfo) {
-                    const showFskLabel = showFskActionable ? (s.fsk_status === "missing_fsk" ? "FSK fehlt" : s.current_fsk) : (s.current_fsk || "Keine FSK");
-                    summaryChips.push(renderMediaSummaryChip(`Serien-NFO: ${showFskLabel}`, showFskActionable ? "warning" : "neutral"));
-                }
-                if (totalEp > 0 && (fskActionableEp > 0 || affectedEp === 0)) {
-                    summaryChips.push(renderMediaSummaryChip(
-                        fskActionableEp > 0 ? `Episoden-FSK: ${fskActionableEp} von ${totalEp} betroffen` : "Episoden-FSK: korrekt",
-                        fskActionableEp > 0 ? "warning" : "success"
-                    ));
-                }
-                if (nfoIssueCount > 0) summaryChips.push(renderMediaSummaryChip(`NFO: ${nfoIssueCount} ${nfoIssueCount === 1 ? "Problem" : "Probleme"}`, "danger"));
+                summaryChips.push(renderMediaSummaryChip(
+                    hasMetadataIssue ? "NFO-Metadaten: prüfen" : "NFO-Metadaten: korrekt",
+                    hasNfoIssue ? "danger" : (hasMetadataIssue ? "warning" : "success")
+                ));
                 if (artworkIssueCount > 0) summaryChips.push(renderMediaSummaryChip(`Artwork: ${artworkIssueCount} fehlen`, "warning"));
                 if (otherIssueCount > 0) summaryChips.push(renderMediaSummaryChip(`Weitere: ${otherIssueCount}`, "warning"));
 
@@ -13444,7 +13444,8 @@ function renderHealthStatus(data) {
                 renderedMoviesCount++;
 
                 const movieNfoIssue = movieIssues.find((issue) => HEALTH_MEDIA_NFO_TYPES.has(issue.type));
-                const nfoIssueCount = countHealthMediaIssues(movieIssues, HEALTH_MEDIA_NFO_TYPES);
+                const hasMovieNfoIssue = Boolean(movieNfoIssue) || ["nfo_missing", "unreadable"].includes(m.fsk_status);
+                const hasMovieMetadataIssue = hasMovieNfoIssue || hasMovieFskIssue;
                 const artworkIssueCount = countHealthMediaIssues(movieIssues, HEALTH_MEDIA_ARTWORK_TYPES);
                 const otherIssueCount = movieIssues.filter((issue) =>
                     !HEALTH_MEDIA_NFO_TYPES.has(issue.type)
@@ -13455,10 +13456,10 @@ function renderHealthStatus(data) {
                 const fskLabel = m.fsk_status === "missing_fsk"
                     ? "FSK fehlt"
                     : (m.fsk_status === "invalid_fsk" ? (m.current_fsk || "FSK ungültig") : (m.current_fsk || "Keine FSK"));
-                if (!["nfo_missing", "unreadable"].includes(m.fsk_status)) {
-                    movieSummaryChips.push(renderMediaSummaryChip(`FSK: ${fskLabel}`, hasMovieFskIssue ? "warning" : "neutral"));
-                }
-                if (nfoIssueCount > 0) movieSummaryChips.push(renderMediaSummaryChip(`NFO: ${nfoIssueCount} ${nfoIssueCount === 1 ? "Problem" : "Probleme"}`, "danger"));
+                movieSummaryChips.push(renderMediaSummaryChip(
+                    hasMovieMetadataIssue ? "NFO-Metadaten: prüfen" : "NFO-Metadaten: korrekt",
+                    hasMovieNfoIssue ? "danger" : (hasMovieMetadataIssue ? "warning" : "success")
+                ));
                 if (artworkIssueCount > 0) movieSummaryChips.push(renderMediaSummaryChip(`Artwork: ${artworkIssueCount} fehlen`, "warning"));
                 if (otherIssueCount > 0) movieSummaryChips.push(renderMediaSummaryChip(`Weitere: ${otherIssueCount}`, "warning"));
 
@@ -15512,6 +15513,10 @@ function triggerNfoAgentMediaTypeChange() {
     const providerSelect = document.getElementById("nfo-agent-provider");
     const seasonContainer = document.getElementById("nfo-agent-season-container");
     const epSection = document.getElementById("nfo-agent-episodes-section");
+    const modalTitle = document.getElementById("nfo-agent-modal-title");
+    const searchLabel = document.getElementById("nfo-agent-search-label");
+    const titleLabel = document.getElementById("nfo-agent-title-label");
+    const filesHeading = document.getElementById("nfo-agent-files-heading");
 
     // Clear and build options based on type
     providerSelect.innerHTML = "";
@@ -15523,6 +15528,10 @@ function triggerNfoAgentMediaTypeChange() {
         `;
         seasonContainer.style.display = "block";
         epSection.style.display = "block";
+        if (modalTitle) modalTitle.textContent = "NFO Agent: Serien-Metadaten";
+        if (searchLabel) searchLabel.textContent = "Name der Serie:";
+        if (titleLabel) titleLabel.textContent = "Serientitel (tvshow.nfo):";
+        if (filesHeading) filesHeading.textContent = "Serien-NFOs und Episoden-Mappings";
     } else {
         providerSelect.innerHTML = `
             <option value="tmdb_movie">TMDb Film</option>
@@ -15530,8 +15539,14 @@ function triggerNfoAgentMediaTypeChange() {
             <option value="manual">Manuell</option>
         `;
         seasonContainer.style.display = "none";
-        epSection.style.display = "none";
+        epSection.style.display = "block";
+        if (modalTitle) modalTitle.textContent = "NFO Agent: Film-Metadaten";
+        if (searchLabel) searchLabel.textContent = "Name des Films:";
+        if (titleLabel) titleLabel.textContent = "Filmtitel (movie.nfo):";
+        if (filesHeading) filesHeading.textContent = "Film-NFO";
     }
+
+    if (nfoAgentScanData) renderNfoAgentFiles(nfoAgentScanData);
 }
 
 function searchNfoAgentMetadata() {
@@ -15694,13 +15709,16 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
 
     const mediaType = document.getElementById("nfo-agent-media-type").value;
 
-    // 1. Render tvshow.nfo row at the top (only for TV Shows)
-    if (mediaType === "tvshow" && scanData.show_nfo_status) {
+    // 1. Render the authoritative main NFO for the selected media type.
+    const mainNfoStatus = scanData.main_nfo_status
+        || (mediaType === "movie" ? scanData.movie_nfo_status : scanData.show_nfo_status);
+    if (mainNfoStatus) {
         const showNfoRow = document.createElement("div");
         showNfoRow.className = "nfo-episode-row show-nfo-row";
         showNfoRow.style = "display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(255,255,255,0.06); padding: 10px; border-radius: 6px; background: rgba(var(--accent-rgb), 0.03); text-align: left; margin-bottom: 12px; border-left: 4px solid var(--accent);";
 
-        const nfoStatus = scanData.show_nfo_status;
+        const nfoStatus = mainNfoStatus;
+        const mainNfoFilename = nfoStatus.filename || (mediaType === "movie" ? "movie.nfo" : "tvshow.nfo");
         let statusBadge = "";
         let nfoActionOptions = "";
 
@@ -15734,7 +15752,7 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                 <div style="font-weight: 600; font-size: 0.9em; word-break: break-all; color: var(--text-main); flex: 1; display: inline-flex; align-items: center; gap: 6px;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-key" style="color: var(--accent);"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="16" r="2"/><path d="m16 10-4.5 4.5"/></svg>
-                    tvshow.nfo (Haupt-Metadaten)
+                    ${escapeHTML(mainNfoFilename)} (Haupt-Metadaten)
                     ${statusBadge}
                 </div>
                 <div style="width: 170px;">
@@ -15746,6 +15764,9 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
         `;
         listBody.appendChild(showNfoRow);
     }
+
+    // A film has exactly one main metadata NFO and no episode mappings.
+    if (mediaType === "movie") return;
 
     const nfoStatuses = scanData.file_nfo_statuses || {};
     const files = (scanData.files || []).filter(file => nfoStatuses[file]);

@@ -44,6 +44,105 @@ def get_clean_search_name(folder_name):
     return cleaned
 
 
+def _resolve_project_media_type(settings, target_dir, all_files):
+    """Resolve the NFO Agent media type from configured library ownership first.
+
+    Folders outside configured NAS categories keep a structural fallback so the
+    NFO Agent remains usable for inbox projects. The API always returns the
+    frontend values ``movie`` or ``tvshow``.
+    """
+    real_target = os.path.realpath(target_dir)
+    nas_root = os.path.realpath(settings.get("nas_root", ""))
+    best_category = None
+    best_category_length = -1
+
+    if nas_root:
+        for category in settings.get("sync_categories", []):
+            nas_sub = category.get("nas_sub")
+            if not nas_sub:
+                continue
+            category_path = os.path.realpath(os.path.join(nas_root, nas_sub.lstrip("/")))
+            try:
+                if os.path.commonpath([real_target, category_path]) != category_path:
+                    continue
+            except ValueError:
+                continue
+            if len(category_path) > best_category_length:
+                best_category = category
+                best_category_length = len(category_path)
+
+    if best_category:
+        category_type = get_category_media_type(best_category, real_target)
+        if category_type == "movie":
+            return "movie", "category"
+        if category_type == "series":
+            return "tvshow", "category"
+
+    lowered_basenames = {os.path.basename(path).lower() for path in all_files}
+    if "movie.nfo" in lowered_basenames:
+        return "movie", "structure"
+    if "tvshow.nfo" in lowered_basenames:
+        return "tvshow", "structure"
+
+    for relative_path in all_files:
+        if not relative_path.lower().endswith(".nfo"):
+            continue
+        nfo_path = os.path.join(real_target, relative_path)
+        try:
+            import xml.etree.ElementTree as ET
+            root_tag = ET.parse(nfo_path).getroot().tag.lower()
+        except (OSError, ET.ParseError):
+            continue
+        if root_tag == "movie":
+            return "movie", "structure"
+        if root_tag in {"tvshow", "episodedetails"}:
+            return "tvshow", "structure"
+
+    for relative_path in all_files:
+        basename = os.path.basename(relative_path)
+        if re.search(r"S\d+E\d+", basename, re.IGNORECASE):
+            return "tvshow", "structure"
+
+    try:
+        if any(
+            os.path.isdir(os.path.join(real_target, entry)) and is_season_folder_name(entry)
+            for entry in os.listdir(real_target)
+        ):
+            return "tvshow", "structure"
+    except OSError:
+        pass
+
+    # Preserve the legacy inbox behavior when the folder is genuinely ambiguous.
+    return "tvshow", "default"
+
+
+def _build_main_nfo_status(nfo_path, nfo_type):
+    status = {
+        "path": nfo_path,
+        "filename": os.path.basename(nfo_path),
+        "exists": False,
+        "parseable": False,
+        "complete": False,
+    }
+    if not os.path.isfile(nfo_path):
+        return status
+
+    status["exists"] = True
+    try:
+        import xml.etree.ElementTree as ET
+        root = ET.parse(nfo_path).getroot()
+        expected_root = "movie" if nfo_type == "movie" else "tvshow"
+        if root.tag != expected_root:
+            return status
+        status["parseable"] = True
+        from gui.core.health import check_nfo_incomplete
+        is_incomplete, _, _ = check_nfo_incomplete(nfo_path, nfo_type)
+        status["complete"] = not is_incomplete
+    except (OSError, ET.ParseError) as error:
+        log_message(f"Fehler beim Prüfen von {nfo_path}: {error}")
+    return status
+
+
 
 @project_api.route('/browse-folder', methods=['GET', 'POST'])
 def handle_api_browse_folder():
@@ -186,6 +285,8 @@ def handle_api_scan_project():
         if not ext:
             ext = "ohne_endung"
         ext_counts[ext] = ext_counts.get(ext, 0) + 1
+
+    media_type, media_type_source = _resolve_project_media_type(settings, target_parent, all_files)
             
     # Count videos
     video_count = sum(ext_counts.get(ext, 0) for ext in ['mp4', 'mkv', 'avi', 'webm', 'mov'])
@@ -288,37 +389,30 @@ def handle_api_scan_project():
     file_nfo_statuses = {}
     
     metadata_source = None
+
+    # Main NFO status is media-type specific. Compatibility fields remain in
+    # the response while ``main_nfo_status`` is the authoritative UI contract.
     show_nfo_status = None
-
-    # TV Show
-    from gui.core.helpers import resolve_series_root
-    from gui.core.health import check_nfo_incomplete
-
-    show_dir = resolve_series_root(target_dir)
-    show_nfo_path = None
-    if is_path_allowed(show_dir):
-        show_nfo_path = os.path.join(show_dir, "tvshow.nfo")
-
-    show_nfo_status = {
-        "path": show_nfo_path,
-        "exists": False,
-        "parseable": False,
-        "complete": False
-    }
-
+    movie_nfo_status = None
+    main_nfo_status = None
     nfo_path = None
-    if show_nfo_path and os.path.exists(show_nfo_path):
-        show_nfo_status["exists"] = True
-        nfo_path = show_nfo_path
-        try:
-            import xml.etree.ElementTree as ET
-            tree = ET.parse(show_nfo_path)
-            show_nfo_status["parseable"] = True
+    movie_nfo_path = None
 
-            is_inc, sev, reason = check_nfo_incomplete(show_nfo_path, "tvshow")
-            show_nfo_status["complete"] = not is_inc
-        except Exception:
-            pass
+    if media_type == "tvshow":
+        show_dir = resolve_series_root(target_parent)
+        show_nfo_path = os.path.join(show_dir, "tvshow.nfo") if is_path_allowed(show_dir) else None
+        if show_nfo_path:
+            show_nfo_status = _build_main_nfo_status(show_nfo_path, "tvshow")
+            main_nfo_status = show_nfo_status
+            if show_nfo_status["exists"]:
+                nfo_path = show_nfo_path
+    else:
+        from gui.core.health import find_primary_nfo
+        movie_nfo_path = find_primary_nfo(target_parent, is_movie=True) or os.path.join(target_parent, "movie.nfo")
+        movie_nfo_status = _build_main_nfo_status(movie_nfo_path, "movie")
+        main_nfo_status = movie_nfo_status
+        if movie_nfo_status["exists"]:
+            nfo_path = movie_nfo_path
 
     if nfo_path:
         if os.path.exists(nfo_path):
@@ -361,9 +455,8 @@ def handle_api_scan_project():
                 log_message(f"Fehler beim Parsen von tvshow.nfo: {e}")
                 
     # Movie
-    movie_nfo = next((f for f in all_files if os.path.basename(f).lower() == "movie.nfo" or (f.lower().endswith(".nfo") and os.path.basename(f).lower() != "tvshow.nfo")), None)
-    if movie_nfo and not metadata_id:
-        nfo_path = os.path.join(target_dir, movie_nfo)
+    if media_type == "movie" and movie_nfo_path and os.path.isfile(movie_nfo_path) and not metadata_id:
+        nfo_path = movie_nfo_path
         if os.path.exists(nfo_path):
             try:
                 import xml.etree.ElementTree as ET
@@ -398,7 +491,7 @@ def handle_api_scan_project():
                 log_message(f"Fehler beim Parsen von movie.nfo: {e}")
                 
     # Profile Fallback for TV Shows if no NFO was found
-    if not metadata_id:
+    if media_type == "tvshow" and not metadata_id:
         target_basename = os.path.basename(target_dir)
         is_season_folder = bool(re.search(r'(staffel|season|^s\d+$)', target_basename, re.IGNORECASE))
         profile_name = os.path.basename(os.path.dirname(target_dir)) if is_season_folder else target_basename
@@ -468,7 +561,11 @@ def handle_api_scan_project():
         "metadata_source": metadata_source,
         "suggested_search_name": suggested_search_name,
         "file_nfo_statuses": file_nfo_statuses,
-        "show_nfo_status": show_nfo_status
+        "type": media_type,
+        "type_source": media_type_source,
+        "main_nfo_status": main_nfo_status,
+        "show_nfo_status": show_nfo_status,
+        "movie_nfo_status": movie_nfo_status
     })
 
 

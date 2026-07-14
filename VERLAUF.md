@@ -2,6 +2,14 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 14.07.2026 (Phase 2.5c – autoritativer NFO-Agent-Medientyp)
+
+- **Backend als Quelle der Wahrheit:** `/api/scan-project` bestimmt Film oder Serie vorrangig über die konfigurierte NAS-Kategorie. Für Inbox-Projekte bleiben NFO-Root, Dateinamen und Serienstruktur als kontrollierter Fallback erhalten.
+- **Einheitlicher Haupt-NFO-Vertrag:** Die API liefert `main_nfo_status` für `movie.nfo`, Film-Sidecars oder `tvshow.nfo`; die bisherigen typspezifischen Statusfelder bleiben kompatibel.
+- **Film-spezifischer NFO-Agent:** Filme zeigen Filmtexte, Filmprovider und genau ihre Haupt-NFO. Staffelwahl, `tvshow.nfo` und Episoden-Mappings werden nicht mehr fälschlich angezeigt.
+- **FSK als NFO-Metadatenproblem:** Die ruhige Medienzusammenfassung gruppiert fehlende oder ungültige FSK unter `NFO-Metadaten: prüfen`. In den Details bleibt die sichere, feldgenaue Aktion `FSK setzen` getrennt vom vollständigen NFO-Agenten.
+- **Verifikation:** Syntax-, Whitespace- und gezielte Regressionstests bestanden; vollständig grün mit 437 Backend- und 80 Frontend-Tests.
+
 ## Stand am 14.07.2026 (Phase 2.5c – ruhige Medienübersicht und eindeutige FSK-Aktionen)
 
 - **Ruhige, klickbare Übersicht:** Der medienorientierte Health-Modus zeigt pro Film oder Serie eine dauerhaft sichtbare Zusammenfassung. Native, klar beschriftete Detailbereiche enthalten die einzelnen Befunde und Aktionen.
