@@ -17,7 +17,7 @@ services:
       TZ: Europe/Berlin
       MW_RUNTIME: docker
     volumes:
-      - ./.runtime-test/config:/config
+      - "${MW_TEST_CONFIG_DIR:?MW_TEST_CONFIG_DIR is required}:/config"
       - ./.runtime-test/media-run:/media
     labels:
       com.medienwerkzeug.purpose: local-acceptance-test

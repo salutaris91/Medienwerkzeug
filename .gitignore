@@ -23,6 +23,7 @@ DOCKER_DEPLOYMENT_GUIDE.md
 
 # Disposable local container acceptance runtime
 /.runtime-test/
+/.runtime-test-shared/
 
 # Generated knowledge graph output
 graphify-out/

@@ -3,9 +3,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+GIT_COMMON_DIR="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)"
+PROJECT_ROOT="$(cd "$GIT_COMMON_DIR/.." && pwd)"
 COMPOSE_FILE="$ROOT/compose.orbstack.yml"
 RUNTIME_DIR="$ROOT/.runtime-test"
-CONFIG_DIR="$RUNTIME_DIR/config"
+SHARED_RUNTIME_DIR="$PROJECT_ROOT/.runtime-test-shared"
+CONFIG_DIR="$SHARED_RUNTIME_DIR/config"
 MEDIA_DIR="$RUNTIME_DIR/media-run"
 ENV_FILE="$RUNTIME_DIR/runtime.env"
 FIXTURE_DIR="$ROOT/tests/fixtures/orbstack-library"
@@ -17,24 +20,32 @@ usage() {
 Usage: scripts/orbstack-test.sh <command> [options]
 
 Commands:
-  init                 Create the isolated runtime and copy the fixture once.
+  init                 Create shared test settings and copy the local fixture once.
   reset [--yes|--dry-run]
                        Replace media-run with a fresh fixture copy.
   build                Build the current Git branch as the local test image.
   start                Start the currently selected test image.
   smoke                Check health endpoint and Docker runtime capabilities.
   release [image]      Pull and start a registry image (default: GHCR main).
-  status               Show image source, Compose status, and published port.
+  status               Show paths, image source, Compose status, and published port.
   logs                 Follow logs of the test container only.
   stop                 Stop the test Compose project only.
 
-The runtime never mounts the NAS. Writable data stays below .runtime-test/.
+The runtime never mounts the NAS. Settings are shared across Git worktrees;
+resettable media stays below each worktree's .runtime-test/ directory.
 EOF
 }
 
 assert_safe_media_dir() {
     if [[ "$MEDIA_DIR" != "$ROOT/.runtime-test/media-run" ]]; then
         echo "ERROR: Unsafe reset target rejected: $MEDIA_DIR" >&2
+        exit 1
+    fi
+}
+
+assert_safe_config_dir() {
+    if [[ "$CONFIG_DIR" != "$PROJECT_ROOT/.runtime-test-shared/config" ]]; then
+        echo "ERROR: Unsafe shared config target rejected: $CONFIG_DIR" >&2
         exit 1
     fi
 }
@@ -48,12 +59,21 @@ write_runtime_env() {
         printf 'MW_TEST_GID=%s\n' "$(id -g)"
         printf 'MW_TEST_IMAGE=%s\n' "$image"
         printf 'MW_TEST_SOURCE=%s\n' "$source"
+        printf 'MW_TEST_CONFIG_DIR=%s\n' "$CONFIG_DIR"
     } > "$ENV_FILE"
 }
 
 ensure_runtime_env() {
-    if [[ ! -f "$ENV_FILE" ]]; then
-        write_runtime_env "medienwerkzeug:orbstack-local" "not-built"
+    local image="medienwerkzeug:orbstack-local"
+    local source="not-built"
+    if [[ -f "$ENV_FILE" ]]; then
+        image="$(awk -F= '$1 == "MW_TEST_IMAGE" {sub(/^[^=]*=/, ""); print; exit}' "$ENV_FILE")"
+        source="$(awk -F= '$1 == "MW_TEST_SOURCE" {sub(/^[^=]*=/, ""); print; exit}' "$ENV_FILE")"
+        image="${image:-medienwerkzeug:orbstack-local}"
+        source="${source:-not-built}"
+    fi
+    if [[ ! -f "$ENV_FILE" ]] || ! grep -q '^MW_TEST_CONFIG_DIR=' "$ENV_FILE"; then
+        write_runtime_env "$image" "$source"
     fi
 }
 
@@ -70,12 +90,13 @@ require_docker() {
 }
 
 copy_fixture() {
-    mkdir -p "$CONFIG_DIR" "$MEDIA_DIR"
+    mkdir -p "$MEDIA_DIR"
     cp -R "$FIXTURE_DIR"/. "$MEDIA_DIR"/
 }
 
 init_runtime() {
     assert_safe_media_dir
+    assert_safe_config_dir
     mkdir -p "$CONFIG_DIR" "$MEDIA_DIR"
     ensure_runtime_env
     if [[ -z "$(find "$MEDIA_DIR" -mindepth 1 -print -quit)" ]]; then
@@ -84,7 +105,8 @@ init_runtime() {
     else
         echo "Existing media-run preserved: $MEDIA_DIR"
     fi
-    echo "Persistent test config: $CONFIG_DIR"
+    echo "Shared persistent test config: $CONFIG_DIR"
+    echo "Worktree-local test media: $MEDIA_DIR"
 }
 
 reset_runtime() {
@@ -115,7 +137,7 @@ reset_runtime() {
         fi
     fi
 
-    mkdir -p "$CONFIG_DIR" "$MEDIA_DIR"
+    mkdir -p "$MEDIA_DIR"
     find "$MEDIA_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
     copy_fixture
     echo "media-run restored from fixture. Persistent config was not changed."
@@ -182,6 +204,8 @@ start_release() {
 
 show_status() {
     ensure_runtime_env
+    echo "Shared test config: $CONFIG_DIR"
+    echo "Worktree-local media: $MEDIA_DIR"
     echo "Runtime metadata:"
     sed 's/^/  /' "$ENV_FILE"
     if docker info >/dev/null 2>&1; then

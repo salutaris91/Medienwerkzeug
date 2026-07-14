@@ -2,6 +2,15 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 14.07.2026 (OrbStack – persistente Testeinstellungen über Worktrees)
+
+- **Getrennte Lebenszyklen:** OrbStack-Testeinstellungen liegen jetzt projektweit unter `.runtime-test-shared/config`, während veränderliche Testmedien weiterhin je Worktree unter `.runtime-test/media-run` liegen.
+- **Kein erneutes Onboarding:** Neue Feature-Worktrees verwenden automatisch die bereits eingerichtete Testkonfiguration des Git-Hauptrepositorys. Die vorherige isolierte Konfiguration wurde einmalig und bytegleich migriert.
+- **Sicherer Reset:** `reset` ersetzt ausschließlich die Medien-Fixture des aktuellen Worktrees und verändert weder die gemeinsame Config noch branchbezogene Image-Metadaten.
+- **Kompatibles Runtime-Env:** Vorhandene `runtime.env`-Dateien werden um `MW_TEST_CONFIG_DIR` ergänzt, ohne Image- oder Source-Metadaten zu verlieren.
+- **Regressionstest:** Ein temporäres echtes Git-Worktree-Szenario prüft gemeinsame Config, lokale Medien, den Env-Upgradepfad und den Erhalt der Config beim Reset.
+- **Runbook:** `docs/ORBSTACK_TESTING.md` erklärt das neue mentale Modell und die Speicherorte.
+
 ## Stand am 14.07.2026 (Phase 2.5c – FSK-Workflow-Abschlusskorrektur)
 
 - **Worker-Zwischenstand bereinigt:** Die durch Leerzeilen auf 1.405 Zeilen aufgeblähte Backend-Testdatei wurde auf einen lesbaren Stand zurückgeführt; fachliche Regressionen wurden gezielt statt per globalem Whitespace-Skript ergänzt.

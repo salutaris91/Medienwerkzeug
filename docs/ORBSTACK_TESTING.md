@@ -31,9 +31,15 @@ OrbStack stellt auf dem Mac den Docker-Daemon bereit. `docker compose` liest
 Ordner ein:
 
 ```text
-.runtime-test/config    -> /config
-.runtime-test/media-run -> /media
+Hauptrepository/.runtime-test-shared/config -> /config
+aktueller Worktree/.runtime-test/media-run   -> /media
 ```
+
+Die Testeinstellungen werden damit von allen Git-Worktrees desselben Repositorys
+geteilt. Ein neuer Feature-Worktree zeigt deshalb nicht erneut das Onboarding,
+wenn es bereits in einem anderen Worktree abgeschlossen wurde. Die veränderliche
+Testbibliothek bleibt dagegen absichtlich worktree-lokal, damit ein Branch-Test
+keine Medien eines anderen Branches verändert.
 
 Es gibt keinen Mount auf `/Volumes`, keine SMB-Verbindung und keinen Zugriff auf
 deine NAS-Mediathek. Die Weboberfläche ist nur auf dem eigenen Mac unter
@@ -63,8 +69,11 @@ scripts/orbstack-test.sh help
 scripts/orbstack-test.sh init
 ```
 
-Dabei entstehen ausschließlich gitignorierte Laufzeitdateien unter
-`.runtime-test/`. Existierende Testmedien werden nicht überschrieben.
+Dabei entstehen ausschließlich gitignorierte Laufzeitdateien. Persistente
+Einstellungen liegen im Hauptrepository unter `.runtime-test-shared/config/`;
+Image-Metadaten und Testmedien liegen im aktuellen Worktree unter
+`.runtime-test/`. Existierende Einstellungen und Testmedien werden nicht
+überschrieben.
 
 ## Test 1: aktuellen Feature-Branch bauen
 
@@ -89,7 +98,8 @@ unter `/media`. Für die Fixture sind das insbesondere `/media/Filme` und
 
 ## Empfohlene manuelle Prüfung
 
-1. Einrichtungsdialog und Startseite öffnen.
+1. Beim ersten Test dieses Repositorys den Einrichtungsdialog abschließen; in
+   späteren Worktrees muss die gemeinsame Konfiguration direkt geladen werden.
 2. `/media/Filme` und `/media/Serien` als Testbibliothek konfigurieren.
 3. Health-Scan ausführen.
 4. Prüfen, dass fehlende und ungültige FSK-Werte sowie die fehlende
@@ -149,9 +159,11 @@ Für automatisierte lokale Abläufe ist die ausdrückliche Bestätigung möglich
 scripts/orbstack-test.sh reset --yes
 ```
 
-`reset` verändert nicht `.runtime-test/config`. Ein vollständiges Löschen der
-lokalen Runtime ist absichtlich nicht automatisiert. Dadurch kann kein zu weit
-gefasster Cleanup-Befehl versehentlich andere Daten entfernen.
+`reset` verändert weder `.runtime-test-shared/config` noch die branchbezogenen
+Image-Metadaten. Es ersetzt ausschließlich `media-run` des aktuellen Worktrees.
+Ein vollständiges Löschen der lokalen Runtime oder der gemeinsamen
+Testkonfiguration ist absichtlich nicht automatisiert. Dadurch kann kein zu weit
+gefasster Cleanup-Befehl versehentlich Einstellungen oder andere Daten entfernen.
 
 ## Fehlerdiagnose
 
