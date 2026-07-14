@@ -365,7 +365,6 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
         self.assertTrue(ep2["actionable_fsk"])
         self.assertTrue(any("age_rating" in k for k in ep2["issue_keys"]))
 
-
     @patch('gui.api.nas_api.write_fsk_to_nfo')
     @patch('gui.core.health.remove_issue')
     @patch('gui.api.nas_api.load_settings')
@@ -376,7 +375,6 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
             "sync_categories": [{"name": "Filme", "nas_sub": "/"}]
         }
         mock_write_fsk.return_value = (True, "")
-
         import os
         movie_dir = os.path.join(self.temp_dir, "Ein Film")
         os.makedirs(movie_dir, exist_ok=True)
@@ -399,6 +397,7 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
         mock_remove_issue.assert_any_call(real_movie_dir, "missing_age_rating", nfo_path=real_nfo_path)
         mock_remove_issue.assert_any_call(real_movie_dir, "invalid_age_rating", nfo_path=real_nfo_path)
         mock_remove_issue.reset_mock()
+
         res = self.client.post('/api/nas/health-fix', json={
             "action": "set_fsk",
             "path": nfo_path,

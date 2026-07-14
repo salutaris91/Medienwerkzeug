@@ -13134,7 +13134,7 @@ function renderHealthStatus(data) {
                     if (it.scope_kind) scopeData += ` data-scope-kind="${escapeHTML(it.scope_kind)}"`;
                     if (it.series_path) scopeData += ` data-series-path="${escapeHTML(it.series_path)}"`;
                     if (it.season_path) scopeData += ` data-season-path="${escapeHTML(it.season_path)}"`;
-                    
+
                     let mediaKind = it.media_kind || "unknown";
                     scopeData += ` data-media-kind="${mediaKind}"`;
 
@@ -13375,7 +13375,7 @@ function renderHealthStatus(data) {
                 }
 
                 const fskLabel = m.fsk_status === "missing_fsk" ? "FSK fehlt" : (m.current_fsk || "Keine");
-                
+
                 let issueBadgesHtml = "";
                 if (m.issue_keys && m.issue_keys.length > 0) {
                     const uniqueKeys = [...new Set(m.issue_keys)];
@@ -15250,11 +15250,11 @@ function openNfoAgentModal(path) {
         alert("Bitte gib einen Pfad an.");
         return;
     }
-    
+
     wasFskModalOpenForNfoAgent = false;
     nfoAgentJobSuccess = false;
     nfoAgentJobErrorMsg = null;
-    
+
     const fskModal = document.getElementById("modal-fsk-batch-preview");
     if (fskModal && fskModal.classList.contains("active")) {
         wasFskModalOpenForNfoAgent = true;
@@ -15974,7 +15974,7 @@ function closeNfoAgentModal() {
         modal.classList.remove("active");
         modal.classList.add("hidden");
     }
-    
+
     if (wasFskModalOpenForNfoAgent) {
         const fskModal = document.getElementById("modal-fsk-batch-preview");
         if (fskModal) {
@@ -15983,7 +15983,7 @@ function closeNfoAgentModal() {
         }
         if (nfoAgentJobSuccess) {
             loadFskBatchPreview(true);
-            if (typeof pollHealthStatus === "function") pollHealthStatus(true); 
+            if (typeof pollHealthStatus === "function") pollHealthStatus(true);
         } else if (nfoAgentJobErrorMsg) {
             showFskBatchError(nfoAgentJobErrorMsg);
         }
@@ -15993,8 +15993,7 @@ function closeNfoAgentModal() {
     }
 }
 
-// Bind DOM Events for NFO Agent Modal
-document.addEventListener("DOMContentLoaded", () => {
+window.bindNfoAgentEvents = function() {
     document.getElementById("close-modal-nfo-agent")?.addEventListener("click", closeNfoAgentModal);
     document.getElementById("btn-nfo-agent-cancel")?.addEventListener("click", closeNfoAgentModal);
     document.getElementById("btn-nfo-agent-done")?.addEventListener("click", () => {
@@ -16013,6 +16012,13 @@ document.addEventListener("DOMContentLoaded", () => {
             searchNfoAgentMetadata();
         }
     });
+};
+
+// Bind DOM Events for NFO Agent Modal
+document.addEventListener("DOMContentLoaded", () => {
+    if (typeof window.bindNfoAgentEvents === "function") {
+        window.bindNfoAgentEvents();
+    }
 
     // Event-Delegation für Health-Aktionen
     document.addEventListener("click", (e) => {
@@ -16227,9 +16233,9 @@ async function loadFskBatchPreview(keepError = false) {
         if (confirmBtn) {
             if (sum.ready === 0) {
                 confirmBtn.disabled = false;
-                confirmBtn.onclick = () => { 
-                    closeFskBatchModal(); 
-                    if (typeof pollHealthStatus === "function") pollHealthStatus(false); 
+                confirmBtn.onclick = () => {
+                    closeFskBatchModal();
+                    if (typeof pollHealthStatus === "function") pollHealthStatus(false);
                 };
                 confirmBtn.innerHTML = `<span>Fertig</span>`;
             } else {
@@ -16496,7 +16502,7 @@ async function applyFskBatch() {
                 };
             }
             if (confirmBtn) confirmBtn.style.display = "none";
-            
+
             const modalX = document.querySelector("#modal-fsk-batch-preview .modal-close");
             if (modalX) {
                 modalX.onclick = () => {

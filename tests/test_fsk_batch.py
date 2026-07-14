@@ -564,29 +564,45 @@ class TestFSKBatchEndpoints(unittest.TestCase):
 
         import os
 
-        movie_dir = os.path.join(self.movies_dir, "Same Count Race")
+        series_dir = os.path.join(self.series_dir, "Same Count Race Serie")
 
-        os.makedirs(movie_dir)
+        os.makedirs(series_dir)
 
-        nfo_path1 = os.path.join(movie_dir, "movie1.nfo")
+        with open(os.path.join(series_dir, "tvshow.nfo"), 'w') as f:
 
-        with open(nfo_path1, 'w') as f_nfo:
+            f.write("<tvshow></tvshow>")
 
-            f_nfo.write("<movie></movie>")
 
-        with open(os.path.join(movie_dir, "movie1.mkv"), 'w') as f_vid:
+
+        season_dir = os.path.join(series_dir, "Staffel 1")
+
+        os.makedirs(season_dir)
+
+
+
+        ep1_dir = os.path.join(season_dir, "Ep 1")
+
+        os.makedirs(ep1_dir)
+
+        with open(os.path.join(ep1_dir, "Ep1.nfo"), 'w') as f_nfo:
+
+            f_nfo.write("<episode></episode>")
+
+        with open(os.path.join(ep1_dir, "Ep1.mkv"), 'w') as f_vid:
 
             f_vid.write("video")
 
 
 
-        nfo_path2 = os.path.join(movie_dir, "movie2.nfo")
+        ep2_dir = os.path.join(season_dir, "Ep 2")
 
-        with open(nfo_path2, 'w') as f_nfo:
+        os.makedirs(ep2_dir)
 
-            f_nfo.write("<movie></movie>")
+        with open(os.path.join(ep2_dir, "Ep2.nfo"), 'w') as f_nfo:
 
-        with open(os.path.join(movie_dir, "movie2.mkv"), 'w') as f_vid:
+            f_nfo.write("<episode></episode>")
+
+        with open(os.path.join(ep2_dir, "Ep2.mkv"), 'w') as f_vid:
 
             f_vid.write("video")
 
@@ -594,7 +610,7 @@ class TestFSKBatchEndpoints(unittest.TestCase):
 
         res = self.client.post('/api/nas/fsk-batch/preview', json={
 
-            "paths": [nfo_path1, nfo_path2], "scope": "single", "new_fsk": "12"
+            "paths": [season_dir], "scope": "season", "new_fsk": "12"
 
         })
 
@@ -604,15 +620,21 @@ class TestFSKBatchEndpoints(unittest.TestCase):
 
         # Now we modify the target files so the total count is the same, but the fingerprints/paths change
 
-        os.remove(nfo_path1)
+        os.remove(os.path.join(ep1_dir, "Ep1.nfo"))
 
-        nfo_path3 = os.path.join(movie_dir, "movie3.nfo")
+        os.remove(os.path.join(ep1_dir, "Ep1.mkv"))
 
-        with open(nfo_path3, 'w') as f_nfo:
 
-            f_nfo.write("<movie></movie>")
 
-        with open(os.path.join(movie_dir, "movie3.mkv"), 'w') as f_vid:
+        ep3_dir = os.path.join(season_dir, "Ep 3")
+
+        os.makedirs(ep3_dir)
+
+        with open(os.path.join(ep3_dir, "Ep3.nfo"), 'w') as f_nfo:
+
+            f_nfo.write("<episode></episode>")
+
+        with open(os.path.join(ep3_dir, "Ep3.mkv"), 'w') as f_vid:
 
             f_vid.write("video")
 
@@ -620,9 +642,9 @@ class TestFSKBatchEndpoints(unittest.TestCase):
 
         apply_res = self.client.post('/api/nas/fsk-batch/apply', json={
 
-            "root_paths": [movie_dir],
+            "root_paths": [season_dir],
 
-            "scope": "single",
+            "scope": "season",
 
             "new_fsk": "12",
 
@@ -715,6 +737,158 @@ class TestFSKBatchEndpoints(unittest.TestCase):
         })
 
         self.assertEqual(res.json["summary"]["ready"], 2)
+
+
+
+    @patch('gui.api.nas_api.load_settings')
+
+    def test_agent_path_boundaries(self, mock_load_settings):
+
+        # 1. Flache Episode -> Serienroot
+
+        # 2. Verschachtelte Episode -> Staffelordner
+
+        # 3. season.nfo -> Staffelordner
+
+        # 4. Kein Aufstieg oberhalb des Serienroots
+
+        # 5. Symlink oder Pfad außerhalb der Kategorie
+
+        mock_load_settings.return_value = self.mock_settings
+
+        import os
+
+
+
+        # 1. Flache Episode
+
+        series_dir1 = os.path.join(self.series_dir, "Agent Path Serie 1")
+
+        os.makedirs(series_dir1)
+
+        with open(os.path.join(series_dir1, "tvshow.nfo"), 'w') as f_nfo:
+
+            f_nfo.write("<tvshow></tvshow>")
+
+        with open(os.path.join(series_dir1, "Ep1.mkv"), 'w') as f_vid:
+
+            f_vid.write("vid")
+
+        # Missing NFO -> skipped_missing
+
+        res = self.client.post('/api/nas/fsk-batch/preview', json={
+
+            "paths": [os.path.join(series_dir1, "Ep1.nfo")], "scope": "single", "new_fsk": "12"
+
+        })
+
+        f = res.json["files"][0]
+
+        self.assertEqual(f["status"], "skipped_missing")
+
+        self.assertEqual(f["agent_path"], series_dir1)
+
+
+
+        # 2. Verschachtelte Episode -> Staffelordner
+
+        season_dir2 = os.path.join(series_dir1, "Staffel 2")
+
+        os.makedirs(season_dir2)
+
+        ep2_dir = os.path.join(season_dir2, "Ep2")
+
+        os.makedirs(ep2_dir)
+
+        with open(os.path.join(ep2_dir, "Ep2.mkv"), 'w') as f_vid:
+
+            f_vid.write("vid")
+
+        res = self.client.post('/api/nas/fsk-batch/preview', json={
+
+            "paths": [os.path.join(ep2_dir, "Ep2.nfo")], "scope": "single", "new_fsk": "12"
+
+        })
+
+        f = res.json["files"][0]
+
+        self.assertEqual(f["status"], "skipped_missing")
+
+        self.assertEqual(f["agent_path"], season_dir2)
+
+
+
+        # 3. season.nfo -> Staffelordner
+
+        res = self.client.post('/api/nas/fsk-batch/preview', json={
+
+            "paths": [os.path.join(season_dir2, "season.nfo")], "scope": "single", "new_fsk": "12"
+
+        })
+
+        f = res.json["files"][0]
+
+        self.assertEqual(f["status"], "skipped_missing")
+
+        self.assertEqual(f["agent_path"], season_dir2)
+
+
+
+        # 4. Kein Aufstieg oberhalb des Serienroots
+
+        # E.g. we name a series root "Staffel X" to try and trick the boundary
+
+        trick_series_dir = os.path.join(self.series_dir, "Staffel Trick")
+
+        os.makedirs(trick_series_dir)
+
+        with open(os.path.join(trick_series_dir, "tvshow.nfo"), 'w') as f_nfo:
+
+            f_nfo.write("<tvshow></tvshow>")
+
+        trick_ep_dir = os.path.join(trick_series_dir, "EpTrick")
+
+        os.makedirs(trick_ep_dir)
+
+        with open(os.path.join(trick_ep_dir, "EpTrick.mkv"), 'w') as f_vid:
+
+            f_vid.write("vid")
+
+        res = self.client.post('/api/nas/fsk-batch/preview', json={
+
+            "paths": [os.path.join(trick_ep_dir, "EpTrick.nfo")], "scope": "single", "new_fsk": "12"
+
+        })
+
+        f = res.json["files"][0]
+
+        self.assertEqual(f["status"], "skipped_missing")
+
+        self.assertEqual(f["agent_path"], trick_series_dir)
+
+
+
+        # 5. Pfad außerhalb der Kategorie (z.B. Desktop)
+
+        outside_dir = os.path.join(self.temp_dir, "Outside")
+
+        os.makedirs(outside_dir)
+
+        with open(os.path.join(outside_dir, "Outside.mkv"), 'w') as f_vid:
+
+            f_vid.write("vid")
+
+        res = self.client.post('/api/nas/fsk-batch/preview', json={
+
+            "paths": [os.path.join(outside_dir, "Outside.nfo")], "scope": "single", "new_fsk": "12"
+
+        })
+
+        f = res.json["files"][0]
+
+        self.assertEqual(f["status"], "skipped_missing")
+
+        self.assertEqual(f["agent_path"], outside_dir)
 
 
 
