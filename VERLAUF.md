@@ -2,6 +2,36 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 14.07.2026 (Phase 2.5c-3 - FSK-Workflow-Integration Fix)
+
+# Aktueller Stand
+
+> Status: **FSK-Workflow-Integration (Phase 2.5c-1) fertig implementiert. Bereit für Code-Review & Tests.**
+
+---
+
+## Aktuelle Aufgabe
+
+### Phase 2.5c-1 – FSK-Batch-Modal State-Machine & Sync
+Alle 5 besprochenen Findings aus der Planungsphase wurden im Code erfolgreich behoben:
+- [x] **Medientyp-Bootstrap:** Modal erhält `media_kind` aus strukturierter Übergabe. Fehlende Hierarchie bei gemischter Selektion wird berücksichtigt.
+- [x] **Zustandsmodell (4-Phasen):** Modal verweilt im Zustand `Applying` und wechselt auf `Completed`, `Partial` oder `Failed`.
+- [x] **Problem-Badges:** Issue-Keys werden in `renderHealthStatus` ausgelesen und als Badges angezeigt.
+- [x] **NFO-Agent-Rückkehr:** FSK-Modal wird versteckt, wenn der NFO-Agent öffnet, und springt nach Erfolg des Agenten wieder auf inkl. Neu-Scan.
+- [x] **Exakte Zielmengenprüfung:** Beim Apply wird ein strikter Realpath-Vergleich zwischen Preview- und Apply-Targets (inklusive Lückenüberprüfung) durchgeführt (HTTP 409).
+
+## Erledigte Aufgaben
+
+- [x] Code-Revision gemäß Review (Phase 2.5c-2).
+- [x] Commit der Änderungen im Branch `fix/fsk-workflow-review`.
+- [x] Graphify Knowledge-Graph aktualisiert.
+
+## Nächster Schritt / Übergabe
+
+- [ ] Alex: Branch `fix/fsk-workflow-review` lokal testen.
+- [ ] Alex: Merge nach `main` (sofern alle Tests und UI-Flows passen).
+
+
 ## Stand am 14.07.2026 (Phase 2.5c-2 – Schritt 2: Serienorientierte Health-Ansicht & Gruppenaktionen abgeschlossen)
 
 - **Phase 2.5c-2 (Schritt 2) – Serienorientierte Health-Ansicht & Gruppenaktionen (Branch `fix/fsk-workflow-review`):**

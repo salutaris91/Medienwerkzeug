@@ -406,8 +406,8 @@ test('Dynamic Button Text and Disabled State', async () => {
     globalThis.openFskBatchModal([{path: "/test.nfo"}], "12");
     await new Promise(r => setTimeout(r, 10));
 
-    assert.strictEqual(confirmBtn.disabled, true);
-    assert.ok(confirmBtn.innerHTML.includes("0 NFOs auf FSK 12 ändern"), "Button text: " + confirmBtn.innerHTML);
+    assert.strictEqual(confirmBtn.disabled, false);
+    assert.ok(confirmBtn.innerHTML.includes("Fertig"), "Button text: " + confirmBtn.innerHTML);
 
     // Case 2: 2 ready files
     globalThis.mockFetchResponse = {
@@ -522,7 +522,7 @@ test('show-group-fsk-btn click - triggers openFskBatchModal and fetches series s
     assert.ok(boundBtn);
     boundBtn.dispatchEvent({ type: 'click' });
 
-    assert.deepStrictEqual(globalThis.currentFskBatchItems, [{ series_path: "/Serien/My Show", path: "/Serien/My Show" }]);
+    assert.deepStrictEqual(globalThis.currentFskBatchItems, [{ series_path: "/Serien/My Show", path: "/Serien/My Show", media_kind: "series" }]);
     assert.strictEqual(globalThis.currentFskBatchTarget, "16");
     assert.strictEqual(globalThis.currentFskBatchScope, "series");
 
@@ -587,7 +587,8 @@ test('season-group-fsk-btn click - triggers openFskBatchModal and fetches season
     assert.deepStrictEqual(globalThis.currentFskBatchItems, [{
         season_path: "/Serien/My Show/Season 1",
         series_path: "/Serien/My Show",
-        path: "/Serien/My Show/Season 1"
+        path: "/Serien/My Show/Season 1",
+        media_kind: "series"
     }]);
     assert.strictEqual(globalThis.currentFskBatchTarget, "6");
     assert.strictEqual(globalThis.currentFskBatchScope, "season");

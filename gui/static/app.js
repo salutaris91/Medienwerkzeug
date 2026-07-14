@@ -13135,9 +13135,7 @@ function renderHealthStatus(data) {
                     if (it.series_path) scopeData += ` data-series-path="${escapeHTML(it.series_path)}"`;
                     if (it.season_path) scopeData += ` data-season-path="${escapeHTML(it.season_path)}"`;
                     
-                    let mediaKind = "unknown";
-                    if (it.category && (it.category.includes("Film") || it.category.includes("Movie"))) mediaKind = "movie";
-                    if (it.category && (it.category.includes("Serie") || it.category.includes("Anime"))) mediaKind = "series";
+                    let mediaKind = it.media_kind || "unknown";
                     scopeData += ` data-media-kind="${mediaKind}"`;
 
 
@@ -13151,7 +13149,7 @@ function renderHealthStatus(data) {
                     } else if (it.type === "missing_poster" || it.type === "missing_backdrop" || it.type === "missing_logo" || it.type === "missing_banner" || it.type === "missing_season_poster") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-artwork-search" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Bild online suchen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image" style="height:12px; width:12px;"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>Bild suchen</button>`;
                     } else if (it.type === "missing_nfo" || it.type === "incomplete_nfo") {
-                        fixBtns = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(it.path)}" title="NFO Agent für diesen Ordner öffnen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" style="height:12px; width:12px;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>NFO Agent</button>`;
+                        fixBtns = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(it.agent_path || it.path)}" title="NFO Agent für diesen Ordner öffnen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" style="height:12px; width:12px;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>NFO Agent</button>`;
                     }
 
                     const m = HEALTH_SEVERITY[it.severity];
@@ -13173,6 +13171,11 @@ function renderHealthStatus(data) {
         } else if (window.healthGroupMode === "media") {
             const seriesList = data.media_structure ? data.media_structure.series || [] : [];
             const moviesList = data.media_structure ? data.media_structure.movies || [] : [];
+            const issuesByKey = {};
+            if (data.issues) {
+                data.issues.forEach(i => issuesByKey[i.key] = i);
+            }
+
 
             html += `<div style="font-weight:600; color:var(--text-main); margin-bottom:10px; font-size:1.1em; display:flex; align-items:center; gap:6px;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="color:var(--accent);"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
@@ -13204,8 +13207,11 @@ function renderHealthStatus(data) {
                 if (s.issue_keys && s.issue_keys.length > 0) {
                     const uniqueKeys = [...new Set(s.issue_keys)];
                     seriesIssueBadgesHtml = uniqueKeys.map(k => {
-                        let label = HEALTH_TYPE_LABELS[k] || k;
-                        return `<span class="badge" style="background:rgba(239,68,68,0.1); color:#ef4444; font-size:10px; margin-left:4px;">${escapeHTML(label)}</span>`;
+                        const issue = issuesByKey[k];
+                        if (!issue) return "";
+                        const m = HEALTH_SEVERITY[issue.severity] || HEALTH_SEVERITY["warning"];
+                        const label = HEALTH_TYPE_LABELS[issue.type] || issue.type;
+                        return `<span class="badge" style="background:${m.color}15; color:${m.color}; font-size:10px; margin-left:4px; border:1px solid ${m.color}30;">${escapeHTML(label)}</span>`;
                     }).join("");
                 }
 
@@ -13374,8 +13380,11 @@ function renderHealthStatus(data) {
                 if (m.issue_keys && m.issue_keys.length > 0) {
                     const uniqueKeys = [...new Set(m.issue_keys)];
                     issueBadgesHtml = uniqueKeys.map(k => {
-                        let label = HEALTH_TYPE_LABELS[k] || k;
-                        return `<span class="badge" style="background:rgba(239,68,68,0.1); color:#ef4444; font-size:10px; margin-right:4px;">${escapeHTML(label)}</span>`;
+                        const issue = issuesByKey[k];
+                        if (!issue) return "";
+                        const sev = HEALTH_SEVERITY[issue.severity] || HEALTH_SEVERITY["warning"];
+                        const label = HEALTH_TYPE_LABELS[issue.type] || issue.type;
+                        return `<span class="badge" style="background:${sev.color}15; color:${sev.color}; font-size:10px; margin-right:4px; border:1px solid ${sev.color}30;">${escapeHTML(label)}</span>`;
                     }).join("");
                 }
                 html += `<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.9em; padding:6px 12px; background:rgba(255,255,255,0.01); border:1px solid var(--border-light); border-radius:6px; margin-bottom:6px;">
@@ -13515,19 +13524,7 @@ function renderHealthStatus(data) {
             });
         }
 
-        document.querySelectorAll("#health-issues .health-nfo-agent, #health-issues-structure .health-nfo-agent").forEach(b => {
-            b.addEventListener("click", () => {
-                const p = b.getAttribute("data-path");
-                if (p) openNfoAgentModal(p);
-            });
-        });
 
-        document.querySelectorAll("#health-issues .health-open-folder, #health-issues-structure .health-open-folder").forEach(b => {
-            b.addEventListener("click", () => {
-                const p = b.getAttribute("data-path");
-                window.openFolder({ path: p });
-            });
-        });
 
         // ==========================================================================
         // NEU: Doppelte Ordnerstruktur auflösen (Einzel & Batch)
@@ -15975,8 +15972,8 @@ function closeNfoAgentModal() {
             fskModal.classList.add("active");
         }
         if (nfoAgentJobSuccess) {
-            loadFskBatchPreview(false);
-            if (typeof startHealthScan === "function") startHealthScan(); 
+            loadFskBatchPreview(true);
+            if (typeof pollHealthStatus === "function") pollHealthStatus(true); 
         }
         wasFskModalOpenForNfoAgent = false;
         nfoAgentJobSuccess = false;
@@ -15990,7 +15987,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("btn-nfo-agent-done")?.addEventListener("click", () => {
         const wasFskOpen = wasFskModalOpenForNfoAgent;
         closeNfoAgentModal();
-        if (!wasFskOpen && typeof startHealthScan === "function") startHealthScan();
+        if (!wasFskOpen && typeof pollHealthStatus === "function") pollHealthStatus(true);
     });
     document.getElementById("btn-nfo-agent-submit")?.addEventListener("click", submitNfoAgentJob);
     document.getElementById("btn-nfo-agent-search")?.addEventListener("click", searchNfoAgentMetadata);
@@ -16004,11 +16001,26 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // Event-Delegation für Health-Aktionen
+    document.addEventListener("click", (e) => {
+        const nfoBtn = e.target.closest(".health-nfo-agent");
+        if (nfoBtn) {
+            const p = nfoBtn.getAttribute("data-path");
+            if (p) openNfoAgentModal(p);
+            return;
+        }
+        const openFolderBtn = e.target.closest(".health-open-folder");
+        if (openFolderBtn) {
+            const p = openFolderBtn.getAttribute("data-path");
+            if (p) window.openFolder({ path: p });
+            return;
+        }
+    });
+
     // FSK-Batch Event-Listener verdrahten
     document.getElementById("close-modal-fsk-batch-preview")?.addEventListener("click", closeFskBatchModal);
     document.getElementById("btn-fsk-batch-cancel")?.addEventListener("click", closeFskBatchModal);
-    document.getElementById("btn-fsk-batch-refresh")?.addEventListener("click", loadFskBatchPreview);
-    document.getElementById("btn-fsk-batch-confirm")?.addEventListener("click", applyFskBatch);
+    document.getElementById("btn-fsk-batch-refresh")?.addEventListener("click", () => loadFskBatchPreview());
     document.getElementById("fsk-batch-scope-select")?.addEventListener("change", (e) => {
         currentFskBatchScope = e.target.value;
         loadFskBatchPreview();
@@ -16047,6 +16059,11 @@ function openFskBatchModal(items, fskVal, scope = "single", mediaKind = "unknown
         cancelBtn.onclick = closeFskBatchModal;
     }
 
+    const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
+    if (confirmBtn) {
+        confirmBtn.style.display = "";
+    }
+
     const modalX = document.querySelector("#modal-fsk-batch-preview .modal-close");
     if (modalX) {
         modalX.onclick = closeFskBatchModal;
@@ -16066,7 +16083,7 @@ function openFskBatchModal(items, fskVal, scope = "single", mediaKind = "unknown
 
     const scopeSelect = document.getElementById("fsk-batch-scope-select");
     if (scopeSelect) {
-        Array.from(scopeSelect.options).forEach(opt => {
+        scopeSelect.querySelectorAll("option").forEach(opt => {
             if (opt.value === "season" || opt.value === "series") {
                 if (mediaKind !== "series") {
                     opt.style.display = "none";
@@ -16127,6 +16144,7 @@ async function loadFskBatchPreview(keepError = false) {
     }
     if (confirmBtn) {
         confirmBtn.disabled = true;
+        confirmBtn.onclick = applyFskBatch; // Standardaktion
         confirmBtn.innerHTML = `
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height: 12px; width: 12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
             <span>Änderungen anwenden</span>
@@ -16196,7 +16214,10 @@ async function loadFskBatchPreview(keepError = false) {
         if (confirmBtn) {
             if (sum.ready === 0) {
                 confirmBtn.disabled = false;
-                confirmBtn.onclick = () => { closeFskBatchModal(); if (typeof pollHealthStatus === "function") pollHealthStatus(false); };
+                confirmBtn.onclick = () => { 
+                    closeFskBatchModal(); 
+                    if (typeof pollHealthStatus === "function") pollHealthStatus(false); 
+                };
                 confirmBtn.innerHTML = `<span>Fertig</span>`;
             } else {
                 confirmBtn.disabled = false;
@@ -16499,5 +16520,10 @@ function closeFskBatchModal() {
     if (cancelBtn) {
         cancelBtn.textContent = "Schließen";
         cancelBtn.onclick = closeFskBatchModal;
+    }
+    const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
+    if (confirmBtn) {
+        confirmBtn.style.display = "";
+        confirmBtn.onclick = null;
     }
 }

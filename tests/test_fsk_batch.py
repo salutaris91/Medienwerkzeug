@@ -184,8 +184,8 @@ class TestFSKBatchEndpoints(unittest.TestCase):
 
         # Prüfen, ob Cache invalidiert und Issues gelöscht wurden
         mock_invalidate.assert_called_with(os.path.realpath(movie_dir))
-        mock_remove_issue.assert_any_call(os.path.realpath(nfo_path), "missing_age_rating")
-        mock_remove_issue.assert_any_call(os.path.realpath(nfo_path), "invalid_age_rating")
+        mock_remove_issue.assert_any_call(os.path.realpath(movie_dir), "missing_age_rating", nfo_path=os.path.realpath(nfo_path))
+        mock_remove_issue.assert_any_call(os.path.realpath(movie_dir), "invalid_age_rating", nfo_path=os.path.realpath(nfo_path))
 
         # 3. Race Condition erzeugen: mtime/hash manipulieren und apply aufrufen
         # Wir ändern den Inhalt der Datei physisch
@@ -250,7 +250,7 @@ class TestFSKBatchEndpoints(unittest.TestCase):
         })
         self.assertEqual(res.status_code, 200)
         files = [f["path"] for f in res.json["files"]]
-        self.assertFalse(any("season.nfo" in f for f in files))
+        self.assertTrue(any("season.nfo" in f for f in files))
 
     @patch('gui.api.nas_api.load_settings')
     def test_episodenlayouts(self, mock_load_settings):
@@ -529,7 +529,7 @@ class TestFSKBatchEndpoints(unittest.TestCase):
             "root_paths": [show_dir], "scope": "series", "new_fsk": "12", "files": removed_files
         })
         self.assertEqual(res_app_rem.status_code, 409)
-        self.assertIn("nicht enthalten", res_app_rem.json["message"])
+        self.assertIn("Zielmenge hat sich seit der Vorschau verändert", res_app_rem.json["message"])
 
 if __name__ == '__main__':
     unittest.main()

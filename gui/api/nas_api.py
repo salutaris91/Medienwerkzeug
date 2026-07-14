@@ -1192,10 +1192,6 @@ def is_valid_media_nfo(nfo_path: str, settings: dict) -> bool:
     basename = os.path.basename(real_path).lower()
     parent_dir = os.path.dirname(real_path)
 
-    # Zusatz-NFOs strikt ablehnen
-    if basename == "season.nfo":
-        return False
-
     # Darf nicht direkt im Kategorie-Root liegen
     if parent_dir == cat_path:
         return False
@@ -1213,6 +1209,9 @@ def is_valid_media_nfo(nfo_path: str, settings: dict) -> bool:
 
     if basename == "tvshow.nfo":
         return is_valid_series_root(parent_dir, settings)
+
+    if basename == "season.nfo":
+        return folder_has_video(parent_dir)
 
     if basename == "movie.nfo":
         if get_category_media_type(cat, real_path) == "series":
@@ -1239,6 +1238,10 @@ def collect_season_episode_nfos(season_path: str) -> list:
     import gui.core.health as health
     videos, _ = health._collect_videos(season_path)
     targets = []
+    season_nfo = os.path.join(season_path, "season.nfo")
+    if os.path.isfile(season_nfo):
+        targets.append(season_nfo)
+
     for full_video, filename in videos:
         expected_nfo = os.path.splitext(full_video)[0] + ".nfo"
         targets.append(expected_nfo)
@@ -1469,6 +1472,8 @@ def handle_api_fsk_batch_preview():
                 media_kind = "movie"
             elif os.path.basename(nfo_path).lower() == "tvshow.nfo":
                 media_kind = "series"
+            elif os.path.basename(nfo_path).lower() == "season.nfo":
+                media_kind = "season"
             else:
                 media_kind = "episode"
 
@@ -1677,10 +1682,10 @@ def handle_api_fsk_batch_apply():
 
         # Client-Plan gegen erneut aufgelösten Plan abgleichen
         # client_files_dict mappt path -> vollständiger Preview-Eintrag (inkl. status, fingerprint)
-        client_files_dict = {f.get("path"): f for f in expected_files if f.get("path")}
+        client_files_dict = {os.path.realpath(f.get("path")): f for f in expected_files if f.get("path")}
 
         preview_realpath_set = set(client_files_dict.keys())
-        apply_realpath_set = set(final_targets)
+        apply_realpath_set = set(os.path.realpath(t) for t in final_targets)
 
         if preview_realpath_set != apply_realpath_set:
             return jsonify({"ok": False, "message": "Zielmenge hat sich seit der Vorschau verändert (Dateien hinzugefügt oder entfernt). Bitte Vorschau neu laden."}), 409
@@ -1759,8 +1764,14 @@ def handle_api_fsk_batch_apply():
                 results.append({"path": nfo, "status": "success", "message": msg})
 
                 # Issues dateigenau entfernen
-                health.remove_issue(nfo, "missing_age_rating")
-                health.remove_issue(nfo, "invalid_age_rating")
+                basename_lower = os.path.basename(nfo).lower()
+                if basename_lower in ["tvshow.nfo", "movie.nfo", "season.nfo"]:
+                    issue_path = os.path.dirname(nfo)
+                else:
+                    issue_path = nfo
+
+                health.remove_issue(issue_path, "missing_age_rating", nfo_path=nfo)
+                health.remove_issue(issue_path, "invalid_age_rating", nfo_path=nfo)
 
                 # Cache-Root ermitteln
                 c_root, _ = find_cache_root_and_type(nfo, settings)

@@ -339,6 +339,17 @@ def _find_issue_keys_for_movie(issues, movie_path, movie_nfo_path):
     return keys
 
 
+def _find_issue_keys_for_series(issues, show_path, show_nfo_path):
+    keys = []
+    abs_show_path = os.path.realpath(show_path)
+    abs_nfo_path = os.path.realpath(show_nfo_path) if show_nfo_path else None
+    for it in issues:
+        it_path = os.path.realpath(it.get("path"))
+        if it_path == abs_show_path or (abs_nfo_path and it_path == abs_nfo_path):
+            keys.append(it["key"])
+    return keys
+
+
 def _check_season(issues, category, show_name, season_path, validator):
     """Prüft einen einzelnen Staffel-Ordner (rekursiv). Gibt geprüfte Dateien zurück."""
     # Showname voranstellen, damit das Issue auf einen Blick zuordenbar ist
@@ -355,7 +366,7 @@ def _check_season(issues, category, show_name, season_path, validator):
     # Wirklich leerer Ordner (kein Video, keine Episoden-Unterordner)
     if not videos and not child_dirs:
         _add_issue(issues, "info", "empty_folder", category, season_path,
-                   f"{label}: keine Videodateien")
+                   f"{label}: keine Videodateien", media_kind="season", agent_path=season_path)
         return 0, {"name": os.path.basename(season_path), "path": season_path, "episodes": []}
 
     # Episoden-Unterordner ohne fertiges Video erkennen (z. B. abgebrochener Download:
@@ -366,13 +377,13 @@ def _check_season(issues, category, show_name, season_path, validator):
         dpath = os.path.join(season_path, d)
         if not _dir_has_video(dpath):
             _add_issue(issues, "warning", "no_video", category, dpath,
-                       f"{show_name} · {d}: kein Video im Ordner (unvollständiger Download?)")
+                       f"{show_name} · {d}: kein Video im Ordner (unvollständiger Download?)", media_kind="episode", agent_path=season_path)
 
     # Fehlende Episoden-NFOs (gleicher Basisname im selben Ordner)
     missing_nfo = [fn for (full, fn) in videos if os.path.splitext(full)[0] not in nfo_basenames]
     if missing_nfo:
         _add_issue(issues, "warning", "missing_nfo", category, season_path,
-                   f"{label}: {len(missing_nfo)} von {len(videos)} Episoden ohne NFO")
+                   f"{label}: {len(missing_nfo)} von {len(videos)} Episoden ohne NFO", media_kind="episode", agent_path=season_path)
 
     # Check if existing episode NFOs are incomplete
     for full, fn in videos:
@@ -381,7 +392,7 @@ def _check_season(issues, category, show_name, season_path, validator):
             is_inc, sev, reason = check_nfo_incomplete(ep_nfo_path, "episode")
             if is_inc:
                 _add_issue(issues, sev, "incomplete_nfo", category, season_path,
-                           f"{show_name} · {fn}: {reason}")
+                           f"{show_name} · {fn}: {reason}", media_kind="episode", agent_path=season_path)
 
             # FSK-Check für Episode (dateibasiert über den NFO-Pfad)
             series_path = os.path.dirname(season_path)
@@ -411,7 +422,7 @@ def _check_season(issues, category, show_name, season_path, validator):
             if len(missing) > 10:
                 preview += " …"
             _add_issue(issues, "critical", "episode_gap", category, season_path,
-                       f"{label}: Episodenlücke ({preview})")
+                       f"{label}: Episodenlücke ({preview})", media_kind="season", agent_path=season_path)
 
     # Verdächtig kleine Dateien
     small = []
@@ -423,7 +434,7 @@ def _check_season(issues, category, show_name, season_path, validator):
             pass
     if small:
         _add_issue(issues, "warning", "small_file", category, season_path,
-                   f"{label}: {len(small)} verdächtig kleine Videodatei(en) (< 50 MB)")
+                   f"{label}: {len(small)} verdächtig kleine Videodatei(en) (< 50 MB)", media_kind="episode", agent_path=season_path)
 
     # Codec-Inkonsistenz (ffprobe-Stichprobe)
     if len(videos) >= 2:
@@ -434,7 +445,7 @@ def _check_season(issues, category, show_name, season_path, validator):
                 codecs.add(c)
         if len(codecs) > 1:
             _add_issue(issues, "warning", "codec_inconsistency", category, season_path,
-                       f"{label}: uneinheitliche Codecs in Stichprobe ({', '.join(sorted(codecs))})")
+                       f"{label}: uneinheitliche Codecs in Stichprobe ({', '.join(sorted(codecs))})", media_kind="season", agent_path=season_path)
 
     # Season poster check
     if validator is not None:
@@ -452,7 +463,7 @@ def _check_season(issues, category, show_name, season_path, validator):
         if not has_season_poster:
             preferred = validator.get_preferred_season_poster_name(season_num)
             _add_issue(issues, "warning", "missing_season_poster", category, season_path,
-                       f"{label}: Season-Poster fehlt — ggf. manuell als '{preferred}' im Serienordner ablegen")
+                       f"{label}: Season-Poster fehlt — ggf. manuell als '{preferred}' im Serienordner ablegen", media_kind="season", agent_path=season_path)
 
     # Episoden-Struktur sammeln
     season_episodes = []
@@ -513,7 +524,7 @@ def _check_series_show(issues, category, show_path, validator):
     # tvshow.nfo
     if "tvshow.nfo" not in entries_lower:
         _add_issue(issues, "warning", "missing_nfo", category, show_path,
-                   f"{os.path.basename(show_path)}: tvshow.nfo fehlt")
+                   f"{os.path.basename(show_path)}: tvshow.nfo fehlt", media_kind="series", agent_path=show_path)
     else:
         nfo_path = find_primary_nfo(show_path, is_movie=False)
         _check_fsk(issues, category, show_path, nfo_path)
@@ -521,7 +532,7 @@ def _check_series_show(issues, category, show_path, validator):
             is_inc, sev, reason = check_nfo_incomplete(nfo_path, "tvshow")
             if is_inc:
                 _add_issue(issues, sev, "incomplete_nfo", category, show_path,
-                           f"{os.path.basename(show_path)}: {reason}")
+                           f"{os.path.basename(show_path)}: {reason}", media_kind="series", agent_path=show_path)
 
     # Fetch provider from tvshow.nfo if it exists
     provider = _get_provider_from_nfo(os.path.join(show_path, "tvshow.nfo"))
@@ -533,14 +544,14 @@ def _check_series_show(issues, category, show_path, validator):
         if not has_poster:
             preferred = validator.get_preferred_series_poster_name()
             _add_issue(issues, "warning", "missing_poster", category, show_path,
-                       f"{show_dir_name}: Serienposter fehlt — ggf. manuell als '{preferred}' ablegen")
+                       f"{show_dir_name}: Serienposter fehlt — ggf. manuell als '{preferred}' ablegen", media_kind="series", agent_path=show_path)
 
         # 2. Fanart/Backdrop check
         has_backdrop = validator.has_artwork_file(show_path, validator.get_series_backdrop_names())
         if not has_backdrop:
             preferred = validator.get_preferred_series_backdrop_name()
             _add_issue(issues, "warning", "missing_backdrop", category, show_path,
-                       f"{show_dir_name}: Hintergrundbild fehlt — ggf. manuell als '{preferred}' ablegen")
+                       f"{show_dir_name}: Hintergrundbild fehlt — ggf. manuell als '{preferred}' ablegen", media_kind="series", agent_path=show_path)
 
         # 3. Logo check
         if validator.supports_logos:
@@ -550,7 +561,7 @@ def _check_series_show(issues, category, show_path, validator):
                 msg = f"{show_dir_name}: ClearLogo fehlt — ggf. manuell als '{preferred}' ablegen"
                 if provider in ("mediathek", "ytdlp", "manual"):
                     msg += f" (Metadatendienst '{provider}' unterstützt keine Logos)"
-                _add_issue(issues, "info", "missing_logo", category, show_path, msg)
+                _add_issue(issues, "info", "missing_logo", category, show_path, msg, media_kind="series", agent_path=show_path)
 
         # 4. Banner check
         if validator.supports_banners:
@@ -560,7 +571,7 @@ def _check_series_show(issues, category, show_path, validator):
                 msg = f"{show_dir_name}: Banner fehlt — ggf. manuell als '{preferred}' ablegen"
                 if provider in ("mediathek", "ytdlp", "manual"):
                     msg += f" (Metadatendienst '{provider}' unterstützt keine Banner)"
-                _add_issue(issues, "info", "missing_banner", category, show_path, msg)
+                _add_issue(issues, "info", "missing_banner", category, show_path, msg, media_kind="series", agent_path=show_path)
 
     # Staffeln
     season_dirs = [e for e in sorted(entries)
@@ -588,14 +599,14 @@ def _check_series_show(issues, category, show_path, validator):
     if len(prefixes) > 1:
         prefix_list = sorted(list(prefixes.values()))
         _add_issue(issues, "warning", "inconsistent_naming", category, show_path,
-                   f"{show_name}: Uneinheitliche Benennung der Episodendateien (z. B. '{prefix_list[0]}' vs. '{prefix_list[1]}')")
+                   f"{show_name}: Uneinheitliche Benennung der Episodendateien (z. B. '{prefix_list[0]}' vs. '{prefix_list[1]}')", media_kind="series", agent_path=show_path)
     elif len(prefixes) == 1:
         prefix_val = list(prefixes.values())[0]
         norm_prefix = list(prefixes.keys())[0]
         norm_folder = _normalize_for_consistency_check(show_name)
         if norm_prefix != norm_folder:
             _add_issue(issues, "warning", "inconsistent_naming", category, show_path,
-                       f"{show_name}: Episodendateien verwenden einen anderen Seriennamen ('{prefix_val}') als der Hauptordner")
+                       f"{show_name}: Episodendateien verwenden einen anderen Seriennamen ('{prefix_val}') als der Hauptordner", media_kind="series", agent_path=show_path)
 
     seasons_list = []
     for sd in season_dirs:
@@ -607,6 +618,8 @@ def _check_series_show(issues, category, show_path, validator):
     show_nfo_path = find_primary_nfo(show_path, is_movie=False)
     show_fsk_status, show_current_fsk, show_raw_fsk, show_actionable_fsk = _get_fsk_info(show_nfo_path)
 
+    show_issue_keys = _find_issue_keys_for_series(issues, show_path, show_nfo_path)
+
     media_metadata = {
         "name": os.path.basename(show_path),
         "path": show_path,
@@ -616,6 +629,7 @@ def _check_series_show(issues, category, show_path, validator):
         "current_fsk": show_current_fsk,
         "raw_fsk": show_raw_fsk,
         "actionable_fsk": show_actionable_fsk,
+        "issue_keys": show_issue_keys,
         "seasons": sorted(seasons_list, key=lambda s: s["name"])
     }
 
@@ -648,15 +662,15 @@ def _check_movie(issues, category, movie_path, validator):
         name_norm = name.lower().rstrip('. ')
         if inner_norm == name_norm:
             _add_issue(issues, "warning", "nested_duplicate", category, movie_path,
-                       f"{name}: doppelt verschachtelter Ordner ({name}/{inner}/…)")
+                       f"{name}: doppelt verschachtelter Ordner ({name}/{inner}/…)", media_kind="movie", agent_path=movie_path)
 
     # --- Check: Schlechter Ordnername (kein Jahr oder kryptischer 8.3-Kurzname) ---
     if SHORT_NAME_RE.match(name):
         _add_issue(issues, "warning", "bad_folder_name", category, movie_path,
-                   f"{name}: kryptischer Kurzname (8.3-Format) – sollte umbenannt werden")
+                   f"{name}: kryptischer Kurzname (8.3-Format) – sollte umbenannt werden", media_kind="movie", agent_path=movie_path)
     elif not YEAR_RE.search(name):
         _add_issue(issues, "warning", "bad_folder_name", category, movie_path,
-                   f"{name}: kein Jahr im Ordnernamen – erschwert die Zuordnung")
+                   f"{name}: kein Jahr im Ordnernamen – erschwert die Zuordnung", media_kind="movie", agent_path=movie_path)
 
     videos, _ = _collect_videos(movie_path)
     # Für Filme: irgendeine .nfo im Ordnerbaum (movie.nfo / <name>.nfo)
@@ -668,7 +682,7 @@ def _check_movie(issues, category, movie_path, validator):
 
     if not videos:
         _add_issue(issues, "info", "empty_folder", category, movie_path,
-                   f"{name}: keine Videodatei im Ordner")
+                   f"{name}: keine Videodatei im Ordner", media_kind="movie", agent_path=movie_path)
         movie_nfo_path = find_primary_nfo(movie_path, is_movie=True)
         m_status, m_curr, m_raw, m_action = _get_fsk_info(movie_nfo_path)
         m_keys = _find_issue_keys_for_movie(issues, movie_path, movie_nfo_path)
@@ -691,19 +705,19 @@ def _check_movie(issues, category, movie_path, validator):
         video_norm = video_stem.lower().rstrip('. ')
         if folder_norm != video_norm:
             _add_issue(issues, "warning", "name_mismatch", category, movie_path,
-                       f"{name}: Ordnername „{name}“ passt nicht zu Dateiname „{video_stem}“")
+                       f"{name}: Ordnername „{name}“ passt nicht zu Dateiname „{video_stem}“", media_kind="movie", agent_path=movie_path)
 
     if not has_nfo:
         _add_issue(issues, "warning", "missing_nfo", category, movie_path,
-                   f"{name}: keine NFO vorhanden")
+                   f"{name}: keine NFO vorhanden", media_kind="movie", agent_path=movie_path)
     else:
         nfo_path = find_primary_nfo(movie_path, is_movie=True)
         if nfo_path:
-            _check_fsk(issues, category, movie_path, nfo_path)
+            _check_fsk(issues, category, movie_path, nfo_path, media_kind="movie", agent_path=movie_path)
             is_inc, sev, reason = check_nfo_incomplete(nfo_path, "movie")
             if is_inc:
                 _add_issue(issues, sev, "incomplete_nfo", category, movie_path,
-                           f"{name}: {reason}")
+                           f"{name}: {reason}", media_kind="movie", agent_path=movie_path)
 
     if validator is not None:
         # Artwork checks using validator
@@ -716,14 +730,14 @@ def _check_movie(issues, category, movie_path, validator):
         if not has_poster:
             preferred = validator.get_preferred_movie_poster_name(video_filename)
             _add_issue(issues, "warning", "missing_poster", category, movie_path,
-                       f"{name}: Filmplakat (Poster) fehlt — ggf. manuell als '{preferred}' ablegen")
+                       f"{name}: Filmplakat (Poster) fehlt — ggf. manuell als '{preferred}' ablegen", media_kind="movie", agent_path=movie_path)
 
         # 2. Fanart/Backdrop check
         has_backdrop = validator.has_artwork_file(movie_path, validator.get_movie_backdrop_names(video_filename))
         if not has_backdrop:
             preferred = validator.get_preferred_movie_backdrop_name(video_filename)
             _add_issue(issues, "warning", "missing_backdrop", category, movie_path,
-                       f"{name}: Hintergrundbild fehlt — ggf. manuell als '{preferred}' ablegen")
+                       f"{name}: Hintergrundbild fehlt — ggf. manuell als '{preferred}' ablegen", media_kind="movie", agent_path=movie_path)
 
         # 3. Logo check
         if validator.supports_logos:
@@ -733,7 +747,7 @@ def _check_movie(issues, category, movie_path, validator):
                 msg = f"{name}: ClearLogo fehlt — ggf. manuell als '{preferred}' ablegen"
                 if provider in ("mediathek", "ytdlp", "manual"):
                     msg += f" (Metadatendienst '{provider}' unterstützt keine Logos)"
-                _add_issue(issues, "info", "missing_logo", category, movie_path, msg)
+                _add_issue(issues, "info", "missing_logo", category, movie_path, msg, media_kind="movie", agent_path=movie_path)
 
         # 4. Banner check
         if validator.supports_banners:
@@ -743,7 +757,7 @@ def _check_movie(issues, category, movie_path, validator):
                 msg = f"{name}: Banner fehlt — ggf. manuell als '{preferred}' ablegen"
                 if provider in ("mediathek", "ytdlp", "manual"):
                     msg += f" (Metadatendienst '{provider}' unterstützt keine Banner)"
-                _add_issue(issues, "info", "missing_banner", category, movie_path, msg)
+                _add_issue(issues, "info", "missing_banner", category, movie_path, msg, media_kind="movie", agent_path=movie_path)
 
     # Kleine Dateien
     small = []
@@ -755,7 +769,7 @@ def _check_movie(issues, category, movie_path, validator):
             pass
     if small:
         _add_issue(issues, "warning", "small_file", category, movie_path,
-                   f"{name}: {len(small)} verdächtig kleine Videodatei(en) (< 50 MB)")
+                   f"{name}: {len(small)} verdächtig kleine Videodatei(en) (< 50 MB)", media_kind="movie", agent_path=movie_path)
 
     movie_nfo_path = find_primary_nfo(movie_path, is_movie=True)
     movie_fsk_status, movie_current_fsk, movie_raw_fsk, movie_actionable_fsk = _get_fsk_info(movie_nfo_path)
@@ -1117,7 +1131,7 @@ def get_health_status():
     return _apply_ignores(snapshot)
 
 
-def remove_issue(path: str, issue_type: str = None):
+def remove_issue(issue_path: str, issue_type: str = None, nfo_path: str = None):
     """Entfernt einen behobenen Befund aus dem State und Cache, damit er in der UI sofort verschwindet."""
     changed = False
     with _state_lock:
@@ -1130,7 +1144,7 @@ def remove_issue(path: str, issue_type: str = None):
                 issues_source = cached["issues"]
 
         for i in issues_source:
-            if i.get("path") == path:
+            if i.get("path") == issue_path:
                 if not issue_type or i.get("type") == issue_type:
                     target_keys.add(i["key"])
 
@@ -1141,9 +1155,9 @@ def remove_issue(path: str, issue_type: str = None):
             if cached and "issues" in cached:
                 original_len = len(cached["issues"])
                 if issue_type:
-                    cached["issues"] = [i for i in cached["issues"] if not (i.get("path") == path and i.get("type") == issue_type)]
+                    cached["issues"] = [i for i in cached["issues"] if not (i.get("path") == issue_path and i.get("type") == issue_type)]
                 else:
-                    cached["issues"] = [i for i in cached["issues"] if i.get("path") != path]
+                    cached["issues"] = [i for i in cached["issues"] if i.get("path") != issue_path]
                 if len(cached["issues"]) < original_len:
                     _scan_state.update(cached)
                     changed = True
@@ -1151,9 +1165,9 @@ def remove_issue(path: str, issue_type: str = None):
             if "issues" in _scan_state:
                 original_len = len(_scan_state["issues"])
                 if issue_type:
-                    _scan_state["issues"] = [i for i in _scan_state["issues"] if not (i.get("path") == path and i.get("type") == issue_type)]
+                    _scan_state["issues"] = [i for i in _scan_state["issues"] if not (i.get("path") == issue_path and i.get("type") == issue_type)]
                 else:
-                    _scan_state["issues"] = [i for i in _scan_state["issues"] if i.get("path") != path]
+                    _scan_state["issues"] = [i for i in _scan_state["issues"] if i.get("path") != issue_path]
                 if len(_scan_state["issues"]) < original_len:
                     changed = True
 
@@ -1168,11 +1182,11 @@ def remove_issue(path: str, issue_type: str = None):
 
         # 4. media_structure in _scan_state aktualisieren
         if changed and "media_structure" in _scan_state:
-            new_status, new_current_fsk, new_raw_fsk, new_actionable_fsk = parse_fsk_status(path)
+            new_status, new_current_fsk, new_raw_fsk, new_actionable_fsk = parse_fsk_status(nfo_path or issue_path)
 
             # Löschen aus movies
             for m in _scan_state["media_structure"].get("movies", []):
-                if m.get("nfo_path") == path or m.get("path") == path:
+                if m.get("nfo_path") == issue_path or m.get("path") == issue_path:
                     m["fsk_status"] = new_status
                     m["current_fsk"] = new_current_fsk
                     m["raw_fsk"] = new_raw_fsk
@@ -1182,7 +1196,7 @@ def remove_issue(path: str, issue_type: str = None):
 
             # Löschen aus series -> seasons -> episodes
             for s in _scan_state["media_structure"].get("series", []):
-                if s.get("nfo_path") == path or s.get("path") == path:
+                if s.get("nfo_path") == issue_path or s.get("path") == issue_path:
                     s["fsk_status"] = new_status
                     s["current_fsk"] = new_current_fsk
                     s["raw_fsk"] = new_raw_fsk
@@ -1192,7 +1206,7 @@ def remove_issue(path: str, issue_type: str = None):
 
                 for se in s.get("seasons", []):
                     for ep in se.get("episodes", []):
-                        if ep.get("nfo_path") == path or ep.get("path") == path:
+                        if ep.get("nfo_path") == issue_path or ep.get("path") == issue_path:
                             ep["fsk_status"] = new_status
                             ep["current_fsk"] = new_current_fsk
                             ep["raw_fsk"] = new_raw_fsk
@@ -1204,17 +1218,17 @@ def remove_issue(path: str, issue_type: str = None):
         folder_to_invalidate = None
         if changed and "media_structure" in _scan_state:
             for m in _scan_state["media_structure"].get("movies", []):
-                if m.get("nfo_path") == path or m.get("path") == path:
+                if m.get("nfo_path") == issue_path or m.get("path") == issue_path:
                     folder_to_invalidate = m["path"]
                     break
             if not folder_to_invalidate:
                 for s in _scan_state["media_structure"].get("series", []):
-                    if s.get("nfo_path") == path or s.get("path") == path:
+                    if s.get("nfo_path") == issue_path or s.get("path") == issue_path:
                         folder_to_invalidate = s["path"]
                         break
                     for se in s.get("seasons", []):
                         for ep in se.get("episodes", []):
-                            if ep.get("nfo_path") == path or ep.get("path") == path:
+                            if ep.get("nfo_path") == issue_path or ep.get("path") == issue_path:
                                 folder_to_invalidate = s["path"]
                                 break
                         if folder_to_invalidate:
