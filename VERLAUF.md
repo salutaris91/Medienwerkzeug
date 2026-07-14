@@ -2,6 +2,16 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 14.07.2026 (Phase 2.5c – FSK-Workflow-Abschlusskorrektur)
+
+- **Worker-Zwischenstand bereinigt:** Die durch Leerzeilen auf 1.405 Zeilen aufgeblähte Backend-Testdatei wurde auf einen lesbaren Stand zurückgeführt; fachliche Regressionen wurden gezielt statt per globalem Whitespace-Skript ergänzt.
+- **Backend-Sicherheitsverträge:** Tests sichern `agent_path` für flache und verschachtelte Episoden, Kategorie- und Serienroot-Grenzen, Symlink-Ausbrüche, vorhandene `season.nfo` sowie den Same-Count-Zielaustausch mit HTTP 409 und Schreibabbruch ab.
+- **Produktionsnaher NFO-Agent-Lifecycle:** Die Frontend-Tests verwenden die echten Event-Bindings und den produktiven `/api/queue`-Pollingweg für erfolgreiche, fehlgeschlagene, abgebrochene und nicht mehr vorhandene Jobs.
+- **Idempotente Event-Bindings:** Wiederholtes Binden erzeugt keine doppelten NFO-Agent- oder Health-Aktionslistener; Sonderzeichenpfade werden über die echte Event-Delegation korrekt an den NFO-Agenten übergeben.
+- **Automatisierte Verifikation:** `python3 -m pytest tests/` mit 430 bestandenen Tests und `npm run test:frontend` mit 74 bestandenen Tests.
+- **Projektwissen:** Der lokale Graphify-Wissensgraph und seine Wiki-/HTML-Exporte wurden nach Code und Dokumentation neu erzeugt.
+- **OrbStack-Sicherheitscheck:** Der bestehende Testcontainer meldet `health=ok` und `runtime=docker`; seine Bind-Mounts zeigen ausschließlich auf `.runtime-test/media-run` und `.runtime-test/config` des bisherigen Fix-Worktrees. Ein aktueller Branch-Build und die visuelle Abnahme bleiben deshalb getrennte nächste Schritte.
+
 ## Stand am 14.07.2026 (Phase 2.5c-3 - FSK-Workflow-Integration Fix)
 
 # Aktueller Stand

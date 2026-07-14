@@ -15993,7 +15993,12 @@ function closeNfoAgentModal() {
     }
 }
 
+let nfoAgentEventsBound = false;
+
 window.bindNfoAgentEvents = function() {
+    if (nfoAgentEventsBound) return;
+    nfoAgentEventsBound = true;
+
     document.getElementById("close-modal-nfo-agent")?.addEventListener("click", closeNfoAgentModal);
     document.getElementById("btn-nfo-agent-cancel")?.addEventListener("click", closeNfoAgentModal);
     document.getElementById("btn-nfo-agent-done")?.addEventListener("click", () => {
@@ -16014,27 +16019,36 @@ window.bindNfoAgentEvents = function() {
     });
 };
 
+let healthActionEventsBound = false;
+
+window.bindHealthActionEvents = function() {
+    if (healthActionEventsBound) return;
+    healthActionEventsBound = true;
+
+    document.addEventListener("click", (e) => {
+        const nfoBtn = e.target.closest(".health-nfo-agent");
+        if (nfoBtn) {
+            const path = nfoBtn.getAttribute("data-path");
+            if (path) openNfoAgentModal(path);
+            return;
+        }
+
+        const openFolderBtn = e.target.closest(".health-open-folder");
+        if (openFolderBtn) {
+            const path = openFolderBtn.getAttribute("data-path");
+            if (path) window.openFolder({ path });
+        }
+    });
+};
+
 // Bind DOM Events for NFO Agent Modal
 document.addEventListener("DOMContentLoaded", () => {
     if (typeof window.bindNfoAgentEvents === "function") {
         window.bindNfoAgentEvents();
     }
-
-    // Event-Delegation für Health-Aktionen
-    document.addEventListener("click", (e) => {
-        const nfoBtn = e.target.closest(".health-nfo-agent");
-        if (nfoBtn) {
-            const p = nfoBtn.getAttribute("data-path");
-            if (p) openNfoAgentModal(p);
-            return;
-        }
-        const openFolderBtn = e.target.closest(".health-open-folder");
-        if (openFolderBtn) {
-            const p = openFolderBtn.getAttribute("data-path");
-            if (p) window.openFolder({ path: p });
-            return;
-        }
-    });
+    if (typeof window.bindHealthActionEvents === "function") {
+        window.bindHealthActionEvents();
+    }
 
     // FSK-Batch Event-Listener verdrahten
     document.getElementById("close-modal-fsk-batch-preview")?.addEventListener("click", closeFskBatchModal);

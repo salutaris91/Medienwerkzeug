@@ -132,8 +132,11 @@ const originalFetch = (url, options) => {
     globalThis.fetchRequests.push(req);
 
     if (globalThis.autoResolveFetch) {
-        if (globalThis.mockFetchResponse) {
-            resolveFn(globalThis.mockFetchResponse);
+        const configuredResponse = typeof globalThis.mockFetchResponse === "function"
+            ? globalThis.mockFetchResponse(url, options)
+            : globalThis.mockFetchResponse;
+        if (configuredResponse) {
+            resolveFn(configuredResponse);
         } else {
             resolveFn({
                 ok: true,
@@ -161,9 +164,6 @@ let appJsContent = fs.readFileSync(appJsPath, 'utf8');
 appJsContent = appJsContent.replace(/import\s+[\s\S]*?from\s+['"].*?['"];?/g, "");
 appJsContent = appJsContent.replace(/"DOMContentLoaded"/g, '"never-fire"');
 appJsContent = appJsContent.replace(/setInterval\(pollHealthStatus,\s*5000\);/g, "");
-appJsContent = appJsContent.replace(/let wasFskModalOpenForNfoAgent = false;/g, "window.wasFskModalOpenForNfoAgent = false;");
-appJsContent = appJsContent.replace(/let nfoAgentJobSuccess = false;/g, "window.nfoAgentJobSuccess = false;");
-appJsContent = appJsContent.replace(/let nfoAgentJobErrorMsg = null;/g, "window.nfoAgentJobErrorMsg = null;");
 
 appJsContent += `
 globalThis.openFskBatchModal = openFskBatchModal;
@@ -173,6 +173,7 @@ globalThis.closeFskBatchModal = closeFskBatchModal;
 globalThis.resolveSendPaths = resolveSendPaths;
 globalThis.submitNfoAgentJob = submitNfoAgentJob;
 globalThis.openNfoAgentModal = openNfoAgentModal;
+globalThis.startNfoAgentLogStreaming = startNfoAgentLogStreaming;
 globalThis.searchNfoAgentMetadata = searchNfoAgentMetadata;
 globalThis.renderHealthStatus = renderHealthStatus;
 globalThis.setFskBatchScope = (scope) => { currentFskBatchScope = scope; };
@@ -200,11 +201,23 @@ Object.defineProperty(globalThis, 'currentFskBatchScope', {
     get: () => currentFskBatchScope,
     set: (v) => { currentFskBatchScope = v; }
 });
+Object.defineProperty(globalThis, 'wasFskModalOpenForNfoAgent', {
+    get: () => wasFskModalOpenForNfoAgent,
+    set: (v) => { wasFskModalOpenForNfoAgent = v; }
+});
+Object.defineProperty(globalThis, 'nfoAgentJobSuccess', {
+    get: () => nfoAgentJobSuccess,
+    set: (v) => { nfoAgentJobSuccess = v; }
+});
+Object.defineProperty(globalThis, 'nfoAgentJobErrorMsg', {
+    get: () => nfoAgentJobErrorMsg,
+    set: (v) => { nfoAgentJobErrorMsg = v; }
+});
 `;
 
 eval(appJsContent);
 globalThis.bindNfoAgentEvents = globalThis.window.bindNfoAgentEvents;
-globalThis.document.dispatchEvent({ type: 'DOMContentLoaded' });
+globalThis.bindHealthActionEvents = globalThis.window.bindHealthActionEvents;
 const realOpenFskBatchModal = globalThis.openFskBatchModal;
 
 // Tests
@@ -686,8 +699,6 @@ test('409 Conflict keeps error message visible after preview load', async () => 
     await pApply;
 
     await new Promise(r => setTimeout(r, 10));
-    console.log("errorEl.textContent after apply:", errorEl.textContent);
-
     // 3. Das nachfolgende loadFskBatchPreview(true) annehmen
     const previewReq = globalThis.fetchRequests.find(req => req.url.includes("fsk-batch/preview"));
     assert.ok(previewReq);
@@ -699,8 +710,6 @@ test('409 Conflict keeps error message visible after preview load', async () => 
         })
     });
     await new Promise(r => setTimeout(r, 20));
-
-    console.log("errorEl.textContent after preview load:", errorEl.textContent);
 
     // 4. Verifizieren, dass die 409-Fehlermeldung weiterhin im Element sichtbar ist und nicht gelöscht wurde
     assert.strictEqual(errorEl.style.display, "block");
@@ -1089,61 +1098,105 @@ test('Fertig-Klick bei ready=0 schliesst Modal', async () => {
     assert.ok(!applyReq);
 });
 
-test('NFO Agent Lifecycle 4 states', async () => {
-    const modal = document.getElementById("modal-nfo-agent");
-    modal.classList.add("active");
-    modal.classList.remove("hidden");
-    globalThis.wasFskModalOpenForNfoAgent = true;
+test('NFO Agent Lifecycle wertet done, error, cancelled und fehlende Queue-Jobs aus', async () => {
+    const originalSetInterval = globalThis.setInterval;
+    const originalClearInterval = globalThis.clearInterval;
+    let intervalCallback = null;
 
-    // Bind the events properly to simulate lifecycle hooks
+    globalThis.setInterval = (callback) => {
+        intervalCallback = callback;
+        return 42;
+    };
+    globalThis.clearInterval = () => {};
     globalThis.bindNfoAgentEvents();
+    globalThis.bindNfoAgentEvents();
+    assert.strictEqual(
+        document.getElementById("btn-nfo-agent-done").__listeners.click.length,
+        1,
+        "NFO-Agent events must not be bound twice"
+    );
 
-    globalThis.nfoAgentJobSuccess = true;
-    globalThis.nfoAgentJobErrorMsg = null;
-    globalThis.fetchRequests = [];
-    document.getElementById("btn-nfo-agent-done").dispatchEvent({ type: 'click' });
-    let loadCalled = globalThis.fetchRequests.some(req => req.url.includes("fsk-batch/preview"));
-    assert.ok(loadCalled);
-    assert.notStrictEqual(document.getElementById("fsk-batch-error-inline").style.display, "block");
-    assert.ok(modal.classList.contains("hidden"));
+    const cases = [
+        {
+            status: "done",
+            jobs: [{ id: "task-1", status: "done", progress: 100 }],
+            expectsPreview: true,
+            errorText: null
+        },
+        {
+            status: "error",
+            jobs: [{ id: "task-1", status: "error", message: "Metadata lookup failed" }],
+            expectsPreview: false,
+            errorText: "Fehler beim NFO-Agent: Metadata lookup failed"
+        },
+        {
+            status: "cancelled",
+            jobs: [{ id: "task-1", status: "cancelled" }],
+            expectsPreview: false,
+            errorText: "NFO-Agent wurde abgebrochen."
+        },
+        {
+            status: "missing",
+            jobs: [],
+            expectsPreview: false,
+            errorText: "Das Ergebnis des NFO-Agenten ist nicht mehr abrufbar."
+        }
+    ];
 
-    modal.classList.add("active");
-    modal.classList.remove("hidden");
-    globalThis.wasFskModalOpenForNfoAgent = true;
-    loadCalled = false;
-    globalThis.nfoAgentJobSuccess = false;
-    globalThis.nfoAgentJobErrorMsg = "Some error";
-    globalThis.fetchRequests = [];
-    document.getElementById("btn-nfo-agent-cancel").dispatchEvent({ type: 'click' });
-    let loadCalledError = globalThis.fetchRequests.some(req => req.url.includes("fsk-batch/preview"));
-    assert.ok(!loadCalledError);
-    assert.strictEqual(document.getElementById("fsk-batch-error-inline").style.display, "block");
-    assert.strictEqual(document.getElementById("fsk-batch-error-inline").textContent, "Some error");
+    try {
+        for (const lifecycleCase of cases) {
+            const modal = document.getElementById("modal-nfo-agent");
+            modal.classList.add("active");
+            modal.classList.remove("hidden");
+            document.getElementById("modal-fsk-batch-preview").classList.add("active");
+            document.getElementById("modal-fsk-batch-preview").classList.remove("hidden");
+            document.getElementById("btn-nfo-agent-done").style.display = "none";
+            document.getElementById("fsk-batch-error-inline").style.display = "none";
+            document.getElementById("fsk-batch-error-inline").textContent = "";
+            globalThis.wasFskModalOpenForNfoAgent = true;
+            globalThis.nfoAgentJobSuccess = false;
+            globalThis.nfoAgentJobErrorMsg = null;
+            globalThis.fetchRequests = [];
+            intervalCallback = null;
+            globalThis.mockFetchResponse = (url) => ({
+                ok: true,
+                status: 200,
+                json: async () => url === "/api/queue"
+                    ? { jobs: lifecycleCase.jobs }
+                    : { files: [], summary: { ready: 0 } }
+            });
 
-    modal.classList.add("active");
-    modal.classList.remove("hidden");
-    globalThis.wasFskModalOpenForNfoAgent = true;
-    globalThis.nfoAgentJobSuccess = false;
-    globalThis.nfoAgentJobErrorMsg = "NFO-Agent wurde abgebrochen.";
-    globalThis.fetchRequests = [];
-    document.getElementById("close-modal-nfo-agent").dispatchEvent({ type: 'click' });
-    let loadCalledError2 = globalThis.fetchRequests.some(req => req.url.includes("fsk-batch/preview"));
-    assert.ok(!loadCalledError2);
-    assert.strictEqual(document.getElementById("fsk-batch-error-inline").style.display, "block");
-    assert.strictEqual(document.getElementById("fsk-batch-error-inline").textContent, "NFO-Agent wurde abgebrochen.");
+            globalThis.startNfoAgentLogStreaming("task-1");
+            assert.strictEqual(typeof intervalCallback, "function", `${lifecycleCase.status}: polling interval missing`);
+            intervalCallback();
+            await new Promise(resolve => setTimeout(resolve, 0));
 
-    modal.classList.add("active");
-    modal.classList.remove("hidden");
-    globalThis.wasFskModalOpenForNfoAgent = true;
-    globalThis.nfoAgentJobSuccess = false;
-    globalThis.nfoAgentJobErrorMsg = null;
-    document.getElementById("fsk-batch-error-inline").style.display = "none";
-    document.getElementById("fsk-batch-error-inline").textContent = "";
-    globalThis.fetchRequests = [];
-    document.getElementById("btn-nfo-agent-cancel").dispatchEvent({ type: 'click' });
-    let loadCalledError3 = globalThis.fetchRequests.some(req => req.url.includes("fsk-batch/preview"));
-    assert.ok(!loadCalledError3);
-    assert.strictEqual(document.getElementById("fsk-batch-error-inline").style.display, "none");
+            assert.ok(
+                globalThis.fetchRequests.some(request => request.url === "/api/queue"),
+                `${lifecycleCase.status}: production queue endpoint was not polled`
+            );
+            assert.strictEqual(document.getElementById("btn-nfo-agent-done").style.display, "inline-flex");
+
+            document.getElementById("btn-nfo-agent-done").dispatchEvent({ type: "click" });
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            const previewRequested = globalThis.fetchRequests.some(request => request.url.includes("fsk-batch/preview"));
+            assert.strictEqual(previewRequested, lifecycleCase.expectsPreview, `${lifecycleCase.status}: preview result mismatch`);
+            assert.ok(modal.classList.contains("hidden"), `${lifecycleCase.status}: agent modal stayed open`);
+
+            const errorElement = document.getElementById("fsk-batch-error-inline");
+            if (lifecycleCase.errorText) {
+                assert.strictEqual(errorElement.style.display, "block");
+                assert.strictEqual(errorElement.textContent, lifecycleCase.errorText);
+            } else {
+                assert.notStrictEqual(errorElement.style.display, "block");
+            }
+        }
+    } finally {
+        globalThis.setInterval = originalSetInterval;
+        globalThis.clearInterval = originalClearInterval;
+        globalThis.mockFetchResponse = null;
+    }
 });
 
 test('Escaping-Sicherheit bei NFO-Agent-Event-Delegation', async () => {
@@ -1166,43 +1219,24 @@ test('Escaping-Sicherheit bei NFO-Agent-Event-Delegation', async () => {
     const container = document.getElementById("fsk-batch-tree-container");
     const html = container.innerHTML;
 
-    // In DOM, the data-path attribute should be correctly HTML-escaped.
-    // &quot; for ", &#039; for ', &amp; for &
     const escapedPath = problemPath.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#039;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    console.log("HTML CONTAINS:", html.substring(html.indexOf('data-path='), html.indexOf('data-path=') + 100));
-    console.log("EXPECTED:", `data-path="${escapedPath}"`);
     assert.ok(html.includes(`data-path="${escapedPath}"`), "The data-path must be properly escaped in the HTML output");
 
-    // Simulate what the browser does when clicking the button
-    // Simulate event bubbling to document
-    // We add the event listener that app.js would have added, to test its logic in isolation without triggering the rest of app.js init
-    globalThis.document.addEventListener("click", (e) => {
-        const nfoBtn = e.target.closest(".health-nfo-agent");
-        if (nfoBtn) {
-            const p = nfoBtn.getAttribute("data-path");
-            if (p) {
-                try {
-                    globalThis.openNfoAgentModal(p);
-                } catch (err) {
-                    console.error("openNfoAgentModal failed:", err);
-                }
-            }
-            return;
-        }
-    });
-
-    globalThis.fetchRequests = []; // Clear before click
+    const clickListenerCount = (globalThis.document.__listeners.click || []).length;
+    globalThis.bindHealthActionEvents();
+    globalThis.bindHealthActionEvents();
+    assert.strictEqual(
+        globalThis.document.__listeners.click.length,
+        clickListenerCount + 1,
+        "Health action delegation must not be bound twice"
+    );
+    const button = createMockElement();
+    button.setAttribute("data-path", problemPath);
+    globalThis.fetchRequests = [];
     globalThis.document.dispatchEvent({
-        type: 'click',
+        type: "click",
         target: {
-            closest: (sel) => {
-                if (sel === ".health-nfo-agent") {
-                    return {
-                        getAttribute: (attr) => attr === "data-path" ? problemPath : null
-                    };
-                }
-                return null;
-            }
+            closest: selector => selector === ".health-nfo-agent" ? button : null
         }
     });
 
