@@ -2,7 +2,7 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
-## Stand am 13.07.2026 (Phase 2.5c-2 – Schritt 2: Serienorientierte Health-Ansicht & Gruppenaktionen abgeschlossen)
+## Stand am 14.07.2026 (Phase 2.5c-2 – Schritt 2: Serienorientierte Health-Ansicht & Gruppenaktionen abgeschlossen)
 
 - **Phase 2.5c-2 (Schritt 2) – Serienorientierte Health-Ansicht & Gruppenaktionen (Branch `fix/fsk-workflow-review`):**
   * **Medienstruktur-Aggregation:** Health-Scan sammelt Filme, Serien, Staffeln und Episoden mitsamt Pfaden, FSK-Status und zugehörigen Issue-Keys.
@@ -10,8 +10,9 @@ Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert 
   * **API-Erweiterung:** `/nas/health-status` liefert die aggregierte `media_structure` für Serien und Filme.
   * **UI-Integration:** Neue Ansicht `"Medienorientiert"` im Health-Anzeigemodus ermöglicht das Ausklappen von Serien -> Staffeln -> betroffenen Episoden.
   * **Serien- & Staffel-Gruppenaktionen:** Direktes Aufrufen des FSK-Batch-Modals für komplette Serien oder Staffeln mit Dropdown-Vorauswahl im Dashboard.
-  * **Konditionales Ausblenden:** Einzelne FSK-Fix-Buttons werden bei den Episoden-Zeilen ausgeblendet, sobald eine bedienbare Gruppenaktion (mind. 2 betroffene Episoden in der Staffel oder Serie) existiert.
-  * **Tests:** Python-Tests in `test_fsk_health.py` (Cache-Upgrade, Aggregation) und Node.js Frontend-DOM-Tests (Gruppenaktionen) erfolgreich umgesetzt.
+  * **Präzise Zähler- & Aktions-Trennung (Revision 2.2):** Die Prädikate `isEpAffectedGeneral` und `isEpFskActionable` trennen allgemeine Medienanzeige (`nfo_missing`, `unreadable`) von tatsächlichen FSK-Schreibaktionen.
+  * **Konditionales Ausblenden:** FSK-Schreib-Buttons werden für unbeschreibbare Medien konsequent unterdrückt. Fehlt die `tvshow.nfo`, wird an der Serie der `NFO Agent` angeboten, jedoch keine FSK-Gruppenaktion.
+  * **Tests:** Python-Tests in `test_fsk_health.py` und erweiterte Node.js Frontend-DOM-Tests (69/69), welche insbesondere pfadbezogene DOM-Assertions für Mischfälle und FSK-Ausblendungen abdecken, erfolgreich umgesetzt.
 
 ## Stand am 13.07.2026 (Phase 2.5c-2 – Schritt 1: FSK Altersfreigaben Stapelverarbeitung & Integrität abgeschlossen)
 
