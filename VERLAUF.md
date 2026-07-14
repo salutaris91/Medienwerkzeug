@@ -2,6 +2,14 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 14.07.2026 (Phase 2.5c – kontextbezogene NFO-Bearbeitung)
+
+- **Passender Einstieg:** Ein Klick auf `tvshow.nfo` öffnet ausschließlich die Serien-NFO-Bearbeitung. Ein Klick auf eine Episode öffnet genau diese Folge, wählt sie aus und blendet andere NFOs zunächst aus. Das gilt in medienorientierter, Schweregrad- und Fehlertyp-Ansicht.
+- **Bewusste Erweiterung:** `Ganze Serie bearbeiten` erweitert dieselbe Ansicht um Serien-NFO und auswählbare Folgen. `Zur vorherigen Ansicht` stellt unabhängig vom Einstieg die ursprüngliche Serien- oder Folgenansicht wieder her.
+- **Sicherer Payload:** Die Folgenansicht setzt `write_show_nfo=false` und sendet nur die fokussierte Episode. Die Serien-NFO-Ansicht sendet keine Episoden-Mappings. Fingerprints und bestehender Konfliktschutz bleiben unverändert.
+- **Knappe, eindeutige Texte:** Zusätzliche Erklärungstexte entfallen. Fehlende Quellen werden als `Noch keine Angabe` beziehungsweise nach einer Suche als `Metadatensuche liefert keine Angabe` bezeichnet.
+- **Verifikation:** 445 Backend- und 87 Frontend-Tests bestanden; Syntax- und Whitespace-Prüfung sind fehlerfrei.
+
 ## Stand am 14.07.2026 (Phase 2.5c – FSK als Bestandteil des NFO-Workflows)
 
 - **Ein gemeinsamer Bearbeitungspfad:** Einzelne fehlende oder ungültige FSK-Werte öffnen jetzt den NFO-Agenten. Fehlende NFOs werden erstellt, vorhandene NFOs standardmäßig nur in den ausdrücklich ausgewählten Feldern ergänzt; vollständiges Ersetzen bleibt eine bewusste Option.

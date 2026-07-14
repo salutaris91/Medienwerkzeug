@@ -173,6 +173,9 @@ globalThis.closeFskBatchModal = closeFskBatchModal;
 globalThis.resolveSendPaths = resolveSendPaths;
 globalThis.submitNfoAgentJob = submitNfoAgentJob;
 globalThis.openNfoAgentModal = openNfoAgentModal;
+globalThis.renderNfoAgentFiles = renderNfoAgentFiles;
+globalThis.applyNfoAgentEditMode = applyNfoAgentEditMode;
+globalThis.setNfoAgentEditMode = setNfoAgentEditMode;
 globalThis.startNfoAgentLogStreaming = startNfoAgentLogStreaming;
 globalThis.searchNfoAgentMetadata = searchNfoAgentMetadata;
 globalThis.renderHealthStatus = renderHealthStatus;
@@ -213,6 +216,12 @@ Object.defineProperty(globalThis, 'nfoAgentJobErrorMsg', {
     get: () => nfoAgentJobErrorMsg,
     set: (v) => { nfoAgentJobErrorMsg = v; }
 });
+Object.defineProperty(globalThis, 'nfoAgentEditContext', {
+    get: () => nfoAgentEditContext,
+    set: (v) => { nfoAgentEditContext = v; }
+});
+globalThis.setNfoAgentScanData = (value) => { nfoAgentScanData = value; };
+globalThis.setNfoAgentCurrentPath = (value) => { nfoAgentCurrentPath = value; };
 `;
 
 eval(appJsContent);
@@ -894,6 +903,7 @@ test('Media summary stays calm and exposes exact actions only in details', () =>
     assert.ok(html.includes("📄 tvshow.nfo"));
     assert.ok(html.includes("Fehlendes Staffelposter"));
     assert.ok(html.includes(`data-path="${showPath}"`));
+    assert.ok(html.includes('data-edit-mode="series"'));
 
     document.body.removeChild(container);
 });
@@ -1006,6 +1016,8 @@ test('nfo_missing visibility and action suppression', () => {
     assert.ok(issuesEl.innerHTML.includes('NFO fehlt'));
     // Genau zu dieser Episode gehört ein NFO-Agent, aber keine FSK-Aktion.
     assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "health-nfo-agent", "/Serien/My Show/Season 1"));
+    assert.ok(issuesEl.innerHTML.includes('data-edit-mode="episode"'));
+    assert.ok(issuesEl.innerHTML.includes('data-episode-file="Episode 1"'));
     assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "health-fix-fsk", "/Serien/My Show/Season 1/S01E01.nfo"));
 
     // 2. Mehrere fehlende NFOs erzeugen keine Gruppenaktionen
@@ -1425,4 +1437,187 @@ test('Escaping-Sicherheit bei NFO-Agent-Event-Delegation', async () => {
     assert.ok(fetchCall, "A fetch call should have been made to open the NFO Agent modal");
     const encodedPath = encodeURIComponent(problemPath);
     assert.ok(fetchCall.url.includes(`project=${encodedPath}`), "Event delegation should pass the exact unescaped path to openNfoAgentModal, which then encodes it for the request");
+});
+
+test('NFO Agent switches between entry context and whole-series editing', () => {
+    const originalQuerySelectorAll = globalThis.document.querySelectorAll;
+    const mediaType = document.getElementById("nfo-agent-media-type");
+    mediaType.value = "tvshow";
+    globalThis.setNfoAgentScanData({
+        main_nfo_status: { exists: true },
+        file_nfo_statuses: {}
+    });
+
+    const createEpisodeRow = (file, mapping) => {
+        const row = createMockElement();
+        const select = createMockElement();
+        const overrideContainer = createMockElement();
+        select.value = "skip";
+        row.setAttribute("data-file", file);
+        row.setAttribute("data-default-mapping", mapping);
+        row.querySelector = (selector) => selector === ".nfo-agent-ep-mapping-select" ? select : overrideContainer;
+        return { row, select, overrideContainer };
+    };
+    const first = createEpisodeRow("Show S01E01.mkv", "S1E1");
+    const second = createEpisodeRow("Show S01E02.mkv", "S1E2");
+    globalThis.document.querySelectorAll = (selector) => selector === "#nfo-agent-episodes-list .nfo-episode-row"
+        ? [first.row, second.row]
+        : [];
+
+    globalThis.nfoAgentEditContext = { originMode: "episode", mode: "episode", episodeFile: "Show S01E02.nfo" };
+    globalThis.renderNfoAgentFiles({
+        files: [],
+        main_nfo_status: { exists: true, parseable: true, complete: true },
+        file_nfo_statuses: {}
+    });
+    globalThis.applyNfoAgentEditMode();
+
+    assert.strictEqual(document.getElementById("nfo-agent-edit-mode-title").textContent, "Folge S01E02 bearbeiten");
+    assert.strictEqual(document.getElementById("nfo-agent-main-nfo-section").style.display, "none");
+    assert.strictEqual(first.row.style.display, "none");
+    assert.strictEqual(second.row.style.display, "flex");
+    assert.strictEqual(second.select.value, "S1E2");
+    assert.strictEqual(document.getElementById("btn-nfo-agent-edit-whole-series").style.display, "inline-flex");
+
+    globalThis.setNfoAgentEditMode("full");
+    assert.strictEqual(document.getElementById("nfo-agent-edit-mode-title").textContent, "Ganze Serie bearbeiten");
+    assert.strictEqual(document.getElementById("nfo-agent-main-nfo-section").style.display, "block");
+    assert.strictEqual(first.row.style.display, "flex");
+    assert.strictEqual(document.getElementById("btn-nfo-agent-edit-back").style.display, "inline-flex");
+
+    globalThis.setNfoAgentEditMode(globalThis.nfoAgentEditContext.originMode);
+    assert.strictEqual(document.getElementById("nfo-agent-edit-mode-title").textContent, "Folge S01E02 bearbeiten");
+
+    globalThis.document.querySelectorAll = originalQuerySelectorAll;
+});
+
+test('NFO Agent episode mode submits only the selected episode', () => {
+    const originalQuerySelectorAll = globalThis.document.querySelectorAll;
+    const originalQuerySelector = globalThis.document.querySelector;
+    globalThis.CSS = { escape: value => value };
+
+    const values = {
+        "nfo-agent-provider": "manual",
+        "nfo-agent-media-type": "tvshow",
+        "nfo-agent-metadata-id": "",
+        "nfo-agent-season": "1",
+        "nfo-agent-show-title": "Show",
+        "nfo-agent-show-year": "2026",
+        "nfo-agent-show-plot": "Plot",
+        "nfo-agent-show-genres": "Drama",
+        "nfo-agent-show-fsk": "12"
+    };
+    Object.entries(values).forEach(([id, value]) => { document.getElementById(id).value = value; });
+    document.getElementById("nfo-agent-overwrite-nfo").checked = false;
+    document.getElementById("nfo-agent-show-nfo-action").value = "process";
+
+    const createMapping = (file, value) => {
+        const element = createMockElement();
+        element.value = value;
+        element.setAttribute("data-file", file);
+        return element;
+    };
+    const createTitle = (file, value) => {
+        const element = createMockElement();
+        element.value = value;
+        element.setAttribute("data-file", file);
+        return element;
+    };
+    const mappings = [createMapping("Show S01E01.mkv", "S1E1"), createMapping("Show S01E02.mkv", "S1E2")];
+    const titles = [createTitle("Show S01E01.mkv", "First changed"), createTitle("Show S01E02.mkv", "Second changed")];
+    const plotByFile = Object.fromEntries(titles.map(input => {
+        const element = createMockElement();
+        element.value = `${input.value} plot`;
+        return [input.getAttribute("data-file"), element];
+    }));
+    const fskByFile = Object.fromEntries(titles.map(input => {
+        const element = createMockElement();
+        element.value = "12";
+        return [input.getAttribute("data-file"), element];
+    }));
+
+    globalThis.document.querySelectorAll = (selector) => {
+        if (selector === ".nfo-agent-ep-mapping-select") return mappings;
+        if (selector === ".nfo-agent-ep-override-title") return titles;
+        return [];
+    };
+    globalThis.document.querySelector = (selector) => {
+        const file = selector.match(/data-file="([^"]+)"/)?.[1];
+        return selector.includes("override-plot") ? plotByFile[file] : fskByFile[file];
+    };
+
+    globalThis.setNfoAgentCurrentPath("/media/Serien/Show/Staffel 1");
+    globalThis.setNfoAgentScanData({
+        metadata_name: "Show",
+        metadata_year: "2026",
+        metadata_plot: "Plot",
+        metadata_genres: ["Drama"],
+        metadata_fsk: "12",
+        main_nfo_status: { exists: true, fingerprint: { hash: "main" } },
+        file_nfo_statuses: {
+            "Show S01E01.mkv": { title: "First", plot: "First plot", fsk: "6", fingerprint: { hash: "one" } },
+            "Show S01E02.mkv": { title: "Second", plot: "Second plot", fsk: "6", fingerprint: { hash: "two" } }
+        }
+    });
+    globalThis.nfoAgentEditContext = { originMode: "episode", mode: "episode", episodeFile: "Show S01E02.nfo" };
+    globalThis.fetchRequests = [];
+
+    globalThis.submitNfoAgentJob();
+
+    const request = globalThis.fetchRequests.find(item => item.url === "/api/process");
+    assert.ok(request);
+    const payload = JSON.parse(request.options.body);
+    assert.strictEqual(payload.write_show_nfo, false);
+    assert.deepStrictEqual(payload.mappings, { "Show S01E02.mkv": "S1E2" });
+    assert.deepStrictEqual(payload.episode_fingerprints, { "Show S01E02.mkv": { hash: "two" } });
+    assert.deepStrictEqual(Object.keys(payload.nfo_overrides.episodes), ["Show S01E02.mkv"]);
+    assert.deepStrictEqual(payload.nfo_overrides.show, {});
+
+    globalThis.nfoAgentEditContext = { originMode: "series", mode: "series", episodeFile: "" };
+    globalThis.fetchRequests = [];
+    globalThis.submitNfoAgentJob();
+    const seriesRequest = globalThis.fetchRequests.find(item => item.url === "/api/process");
+    const seriesPayload = JSON.parse(seriesRequest.options.body);
+    assert.strictEqual(seriesPayload.write_show_nfo, true);
+    assert.deepStrictEqual(seriesPayload.mappings, {});
+    assert.deepStrictEqual(seriesPayload.nfo_overrides.episodes, {});
+
+    globalThis.document.querySelectorAll = originalQuerySelectorAll;
+    globalThis.document.querySelector = originalQuerySelector;
+});
+
+test('NFO Agent uses concise mode controls and clear missing-source copy', () => {
+    const indexHtml = fs.readFileSync(path.resolve(__dirname, '../../gui/static/index.html'), 'utf8');
+    assert.ok(indexHtml.includes('id="btn-nfo-agent-edit-whole-series"'));
+    assert.ok(indexHtml.includes('>Ganze Serie bearbeiten</button>'));
+    assert.ok(indexHtml.includes('>Zur vorherigen Ansicht</button>'));
+    assert.ok(!indexHtml.includes("Änderungen werden nur auf ausgewählte"));
+    assert.ok(!indexHtml.includes(">nicht verfügbar</small>"));
+    assert.ok(appJsContent.includes('metadata_provider_missing: "Metadatensuche liefert keine Angabe"'));
+});
+
+test('Type-oriented episode findings preserve the focused episode context', () => {
+    const issuesEl = document.getElementById("health-issues");
+    globalThis.healthGroupMode = "type";
+    globalThis.renderHealthStatus({
+        status: "done",
+        issues: [{
+            key: "episode-incomplete",
+            type: "incomplete_nfo",
+            severity: "warning",
+            category: "Serien",
+            path: "/Serien/Show/Staffel 1/Show S01E02.nfo",
+            agent_path: "/Serien/Show/Staffel 1",
+            media_kind: "episode",
+            episode_file: "Show S01E02.mkv",
+            message: "Episoden-NFO unvollständig"
+        }],
+        summary: { critical: 0, warning: 1, info: 0 },
+        ignored_count: 0,
+        media_structure: { series: [], movies: [] }
+    });
+
+    assert.ok(issuesEl.innerHTML.includes('data-path="/Serien/Show/Staffel 1"'));
+    assert.ok(issuesEl.innerHTML.includes('data-edit-mode="episode"'));
+    assert.ok(issuesEl.innerHTML.includes('data-episode-file="Show S01E02.mkv"'));
 });

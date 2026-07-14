@@ -369,6 +369,10 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
         self.assertEqual(ep2["raw_fsk"], "Keine")
         self.assertTrue(ep2["actionable_fsk"])
         self.assertTrue(any("age_rating" in k for k in ep2["issue_keys"]))
+        ep2_issue = next(issue for issue in status["issues"] if issue["path"] == ep2["nfo_path"])
+        self.assertEqual(ep2_issue["media_kind"], "episode")
+        self.assertEqual(ep2_issue["agent_path"], self.season_dir)
+        self.assertEqual(ep2_issue["episode_file"], ep2["name"])
 
     def test_health_scan_excludes_backup_folder_and_maps_missing_episode_nfo(self):
         missing_video = os.path.join(self.season_dir, "My Show - S01E03.mkv")
@@ -395,6 +399,7 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
 
         missing_issue = next(issue for issue in status["issues"] if issue["path"] == expected_nfo)
         self.assertEqual(missing_issue["agent_path"], self.season_dir)
+        self.assertEqual(missing_issue["episode_file"], os.path.basename(missing_video))
         self.assertFalse(any("Staffel Backup" in issue.get("path", "") for issue in status["issues"]))
 
     @patch('gui.api.nas_api.write_fsk_to_nfo')

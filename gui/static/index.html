@@ -2683,7 +2683,7 @@ group_add:
     </div>
 </div>
 
-    <script type="module" src="app.js?v=87"></script>
+    <script type="module" src="app.js?v=88"></script>
 
     <!-- Modal: Confirm Merge -->
     <div id="modal-confirm-merge" class="mw-modal-overlay">
@@ -3126,6 +3126,14 @@ group_add:
                 </label>
             </div>
 
+            <div id="nfo-agent-edit-mode-bar" style="display: none; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; padding: 8px 12px; border: 1px solid var(--border-light); border-radius: 6px; background: rgba(255,255,255,0.02);">
+                <strong id="nfo-agent-edit-mode-title" style="color: var(--text-main);">Ganze Serie bearbeiten</strong>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-secondary btn-sm" id="btn-nfo-agent-edit-whole-series" type="button">Ganze Serie bearbeiten</button>
+                    <button class="btn btn-secondary btn-sm" id="btn-nfo-agent-edit-back" type="button" style="display: none;">Zur vorherigen Ansicht</button>
+                </div>
+            </div>
+
             <!-- Review / Editor Area -->
             <div style="flex: 1 1 auto; min-height: 120px; overflow-y: auto; margin-bottom: 16px; border: 1px solid var(--border-light); border-radius: 6px; background: var(--bg-surface);">
                 <!-- Main NFO finding and action -->
@@ -3145,25 +3153,25 @@ group_add:
                     </h4>
                     <div style="display: flex; gap: 12px;">
                         <div style="flex: 1;">
-                            <label id="nfo-agent-title-label" style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);"><span id="nfo-agent-title-label-text">Serien-/Filmtitel (Haupt-NFO):</span> <small id="nfo-agent-title-source" class="nfo-agent-field-source">nicht verfügbar</small></label>
+                            <label id="nfo-agent-title-label" style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);"><span id="nfo-agent-title-label-text">Serien-/Filmtitel (Haupt-NFO):</span> <small id="nfo-agent-title-source" class="nfo-agent-field-source">Noch keine Angabe</small></label>
                             <input type="text" id="nfo-agent-show-title" style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.15); color: var(--text-main);">
                         </div>
                         <div style="width: 100px;">
-                            <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Jahr: <small id="nfo-agent-year-source" class="nfo-agent-field-source">nicht verfügbar</small></label>
+                            <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Jahr: <small id="nfo-agent-year-source" class="nfo-agent-field-source">Noch keine Angabe</small></label>
                             <input type="text" id="nfo-agent-show-year" style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.15); color: var(--text-main);">
                         </div>
                     </div>
                     <div>
-                        <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Beschreibung (Plot): <small id="nfo-agent-plot-source" class="nfo-agent-field-source">nicht verfügbar</small></label>
+                        <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Beschreibung (Plot): <small id="nfo-agent-plot-source" class="nfo-agent-field-source">Noch keine Angabe</small></label>
                         <textarea id="nfo-agent-show-plot" rows="2" style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.15); color: var(--text-main); font-family: inherit; font-size: 0.9em; resize: vertical;"></textarea>
                     </div>
                     <div class="nfo-agent-metadata-grid">
                         <label class="nfo-agent-field">
-                            <span>Genre <small id="nfo-agent-genre-source" class="nfo-agent-field-source">nicht verfügbar</small></span>
+                            <span>Genre <small id="nfo-agent-genre-source" class="nfo-agent-field-source">Noch keine Angabe</small></span>
                             <input type="text" id="nfo-agent-show-genres" placeholder="z. B. Drama, Komödie">
                         </label>
                         <label class="nfo-agent-field">
-                            <span>Altersfreigabe <small id="nfo-agent-fsk-source" class="nfo-agent-field-source">nicht verfügbar</small></span>
+                            <span>Altersfreigabe <small id="nfo-agent-fsk-source" class="nfo-agent-field-source">Noch keine Angabe</small></span>
                             <select id="nfo-agent-show-fsk">
                                 <option value="">Keine Angabe</option>
                                 <option value="0">FSK 0</option>

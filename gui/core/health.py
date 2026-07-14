@@ -402,6 +402,7 @@ def _check_season(issues, category, show_name, season_path, validator):
             f"{show_name} · {fn}: Episoden-NFO fehlt",
             media_kind="episode",
             agent_path=season_path,
+            episode_file=fn,
         )
 
     # Check if existing episode NFOs are incomplete
@@ -411,7 +412,8 @@ def _check_season(issues, category, show_name, season_path, validator):
             is_inc, sev, reason = check_nfo_incomplete(ep_nfo_path, "episode")
             if is_inc:
                 _add_issue(issues, sev, "incomplete_nfo", category, season_path,
-                           f"{show_name} · {fn}: {reason}", media_kind="episode", agent_path=season_path)
+                           f"{show_name} · {fn}: {reason}", media_kind="episode",
+                           agent_path=season_path, episode_file=fn, nfo_path=ep_nfo_path)
 
             # FSK-Check für Episode (dateibasiert über den NFO-Pfad)
             series_path = os.path.dirname(season_path)
@@ -425,7 +427,10 @@ def _check_season(issues, category, show_name, season_path, validator):
                 scope_kind="episode",
                 series_path=series_path,
                 season_path=season_path,
-                label=ep_label
+                label=ep_label,
+                media_kind="episode",
+                agent_path=season_path,
+                episode_file=fn,
             )
 
     # Episodenlücken: Nummern aus Dateinamen UND Ordnernamen (ein Ordner kann existieren,
@@ -547,7 +552,7 @@ def _check_series_show(issues, category, show_path, validator):
                    f"{os.path.basename(show_path)}: tvshow.nfo fehlt", media_kind="series", agent_path=show_path)
     else:
         nfo_path = find_primary_nfo(show_path, is_movie=False)
-        _check_fsk(issues, category, show_path, nfo_path)
+        _check_fsk(issues, category, show_path, nfo_path, media_kind="series", agent_path=show_path)
         if nfo_path:
             is_inc, sev, reason = check_nfo_incomplete(nfo_path, "tvshow")
             if is_inc:
