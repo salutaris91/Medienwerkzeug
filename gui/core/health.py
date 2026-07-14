@@ -22,7 +22,7 @@ from typing import Optional
 from gui.core import utils
 from gui.core import media
 from gui.core.transfers import ensure_nas_mounted, walk_nas_categories
-from gui.core.helpers import log_message, parse_fsk_status, get_category_media_type
+from gui.core.helpers import log_message, parse_fsk_status, get_category_media_type, is_season_folder_name
 from gui.core import artwork_validators
 from gui.core import health_cache
 
@@ -350,6 +350,16 @@ def _find_issue_keys_for_series(issues, show_path, show_nfo_path):
     return keys
 
 
+def _find_issue_keys_for_season(issues, season_path):
+    """Return findings that belong to the season folder itself."""
+    abs_season_path = os.path.realpath(season_path)
+    return [
+        item["key"]
+        for item in issues
+        if os.path.realpath(item.get("path")) == abs_season_path
+    ]
+
+
 def _check_season(issues, category, show_name, season_path, validator):
     """Prüft einen einzelnen Staffel-Ordner (rekursiv). Gibt geprüfte Dateien zurück."""
     # Showname voranstellen, damit das Issue auf einen Blick zuordenbar ist
@@ -380,10 +390,19 @@ def _check_season(issues, category, show_name, season_path, validator):
                        f"{show_name} · {d}: kein Video im Ordner (unvollständiger Download?)", media_kind="episode", agent_path=season_path)
 
     # Fehlende Episoden-NFOs (gleicher Basisname im selben Ordner)
-    missing_nfo = [fn for (full, fn) in videos if os.path.splitext(full)[0] not in nfo_basenames]
-    if missing_nfo:
-        _add_issue(issues, "warning", "missing_nfo", category, season_path,
-                   f"{label}: {len(missing_nfo)} von {len(videos)} Episoden ohne NFO", media_kind="episode", agent_path=season_path)
+    missing_nfo = [(full, fn) for (full, fn) in videos if os.path.splitext(full)[0] not in nfo_basenames]
+    for full, fn in missing_nfo:
+        expected_nfo_path = os.path.splitext(full)[0] + ".nfo"
+        _add_issue(
+            issues,
+            "warning",
+            "missing_nfo",
+            category,
+            expected_nfo_path,
+            f"{show_name} · {fn}: Episoden-NFO fehlt",
+            media_kind="episode",
+            agent_path=season_path,
+        )
 
     # Check if existing episode NFOs are incomplete
     for full, fn in videos:
@@ -485,6 +504,7 @@ def _check_season(issues, category, show_name, season_path, validator):
     season_metadata = {
         "name": os.path.basename(season_path),
         "path": season_path,
+        "issue_keys": _find_issue_keys_for_season(issues, season_path),
         "episodes": sorted(season_episodes, key=lambda e: e["name"])
     }
 
@@ -574,10 +594,13 @@ def _check_series_show(issues, category, show_path, validator):
                 _add_issue(issues, "info", "missing_banner", category, show_path, msg, media_kind="series", agent_path=show_path)
 
     # Staffeln
-    season_dirs = [e for e in sorted(entries)
-                   if not e.startswith('.') and os.path.isdir(os.path.join(show_path, e))
-                   and (e.lower().startswith("staffel ") or e.lower().startswith("season ")
-                        or e.lower().startswith("specials"))]
+    season_dirs = [
+        entry
+        for entry in sorted(entries)
+        if not entry.startswith('.')
+        and os.path.isdir(os.path.join(show_path, entry))
+        and is_season_folder_name(entry)
+    ]
     show_name = os.path.basename(show_path)
 
     # Collect all video files to check naming consistency

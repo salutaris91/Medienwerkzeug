@@ -517,6 +517,31 @@ class TestFSKBatchEndpoints(unittest.TestCase):
         self.assertIn("Zielmenge hat sich seit der Vorschau verändert", res_app_rem.json["message"])
 
     @patch('gui.api.nas_api.load_settings')
+    def test_missing_tvshow_nfo_is_skipped_and_never_fsk_actionable(self, mock_load_settings):
+        mock_load_settings.return_value = self.mock_settings
+        show_dir = os.path.join(self.series_dir, "Serie ohne tvshow")
+        season_dir = os.path.join(show_dir, "Staffel 1")
+        os.makedirs(season_dir)
+        with open(os.path.join(season_dir, "S01E01.mkv"), "w") as video_file:
+            video_file.write("video")
+        with open(os.path.join(season_dir, "S01E01.nfo"), "w") as nfo_file:
+            nfo_file.write("<episodedetails><mpaa>FSK 12</mpaa></episodedetails>")
+
+        response = self.client.post('/api/nas/fsk-batch/preview', json={
+            "paths": [show_dir], "scope": "series", "new_fsk": "12"
+        })
+
+        self.assertEqual(response.status_code, 200)
+        tvshow_entry = next(
+            item for item in response.json["files"]
+            if item["path"] == os.path.join(show_dir, "tvshow.nfo")
+        )
+        self.assertEqual(tvshow_entry["status"], "skipped_missing")
+        self.assertIsNone(tvshow_entry["fingerprint"])
+        self.assertEqual(tvshow_entry["media_kind"], "series")
+        self.assertEqual(tvshow_entry["agent_path"], show_dir)
+
+    @patch('gui.api.nas_api.load_settings')
     def test_season_nfo_is_rejected_in_movie_folder(self, mock_load_settings):
         mock_load_settings.return_value = self.mock_settings
         movie_dir = os.path.join(self.movies_dir, "Film mit season.nfo")

@@ -2,6 +2,16 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 14.07.2026 (Phase 2.5c – ruhige Medienübersicht und eindeutige FSK-Aktionen)
+
+- **Ruhige, klickbare Übersicht:** Der medienorientierte Health-Modus zeigt pro Film oder Serie eine dauerhaft sichtbare Zusammenfassung. Native, klar beschriftete Detailbereiche enthalten die einzelnen Befunde und Aktionen.
+- **Keine doppelten NFO-Agenten:** NFO-Agent-Aktionen stehen ausschließlich an der konkreten NFO-Detailzeile. Eine fehlende `tvshow.nfo` erzeugt genau eine Aktion statt einer doppelten Serien- und Detailaktion.
+- **Dateigenaue Episodenbefunde:** Fehlende Episoden-NFOs werden mit ihrem erwarteten NFO-Pfad und dem zugehörigen Staffelordner als Agent-Ziel erfasst. Backup-Ordner wie `Staffel Backup` sind durch eine zentrale, streng verankerte Staffelregel ausgeschlossen.
+- **Staffel-NFO-Vertrag:** Vorhandene `season.nfo` wird in Staffel- und Serien-FSK-Scopes verarbeitet. Fehlt sie, wird sie nicht als obligatorische Datei oder eigener Health-Fehler erfunden.
+- **Film-Modal und Abschlusszustand:** Einzelne Filme erhalten einen Film-spezifischen Titel ohne Serien-/Staffel-Scope, korrekte Singulartexte und ihren Mediennamen. Nach erfolgreichem Apply wird der Health-Status unmittelbar neu geladen und es bleibt genau eine Aktion `Fertig`.
+- **Aktionsregeln:** Einzel-FSK-Buttons bleiben erhalten, solange keine echte Gruppenaktion dieselben Dateien abdeckt. Fehlende oder unlesbare NFOs bieten stattdessen den passenden NFO-Agenten an.
+- **Verifikation:** 436 Backend- und 79 Frontend-Tests bestanden. Das aktuelle Image wurde in der isolierten OrbStack-Testumgebung gebaut und gestartet; Smoke meldet `health=ok` und `runtime=docker`, die Mount-Prüfung zeigt keinen NAS-Zugriff.
+
 ## Stand am 14.07.2026 (Docker-Neustart in OrbStack und NAS)
 
 - **Ursache behoben:** Der In-App-Neustart beendete den Docker-Hauptprozess, während die OrbStack-Testumgebung den Container wegen `restart: "no"` ausgeschaltet ließ. Das Frontend wartete zugleich ohne Abbruchgrenze.

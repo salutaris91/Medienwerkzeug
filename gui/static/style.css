@@ -3027,3 +3027,141 @@ body.runtime-docker .docker-only-info {
     font-family: var(--font-mono, monospace);
     font-size: 0.9em;
 }
+
+/* Media-oriented health summary: calm overview, exact actions in details. */
+.health-media-card {
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.health-media-summary {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px;
+    list-style: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.health-media-summary::-webkit-details-marker {
+    display: none;
+}
+
+.health-media-summary:hover,
+.health-media-summary:focus-visible {
+    background: rgba(255, 255, 255, 0.035);
+    outline: 2px solid transparent;
+}
+
+.health-media-summary:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.health-media-summary-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 180px;
+}
+
+.health-media-summary-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex: 1;
+}
+
+.health-media-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border-light);
+    background: rgba(255, 255, 255, 0.035);
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    line-height: 1.2;
+}
+
+.health-media-chip-warning {
+    color: #fbbf24;
+    border-color: rgba(245, 158, 11, 0.25);
+    background: rgba(245, 158, 11, 0.07);
+}
+
+.health-media-chip-danger {
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.25);
+    background: rgba(239, 68, 68, 0.07);
+}
+
+.health-media-chip-success {
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.2);
+    background: rgba(16, 185, 129, 0.06);
+}
+
+.health-media-disclosure {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.health-media-disclosure::after {
+    content: "▾";
+    font-size: 1rem;
+    transition: transform 0.15s ease;
+}
+
+.health-media-card[open] .health-media-disclosure::after {
+    transform: rotate(180deg);
+}
+
+.health-media-disclosure-open {
+    display: none;
+}
+
+.health-media-card[open] .health-media-disclosure-closed {
+    display: none;
+}
+
+.health-media-card[open] .health-media-disclosure-open {
+    display: inline;
+}
+
+.health-media-details {
+    border-top: 1px solid var(--border-light);
+    padding: 10px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.health-media-detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 8px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.015);
+}
+
+@media (max-width: 900px) {
+    .health-media-summary {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .health-media-summary-chips {
+        flex-basis: 100%;
+        order: 3;
+    }
+}

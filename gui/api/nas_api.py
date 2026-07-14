@@ -317,8 +317,7 @@ def handle_api_nas_seasons():
                     entry_path = os.path.join(base_path, entry)
                     if not os.path.isdir(entry_path) or entry.startswith('.'):
                         continue
-                    # Match "Staffel X" pattern
-                    if entry.lower().startswith("staffel ") or entry.lower().startswith("season ") or entry.lower().startswith("specials"):
+                    if is_season_folder_name(entry):
                         # Count video files in this season dir (including subdirs)
                         episode_count = 0
                         for root, dirs, files in os.walk(entry_path):
@@ -938,7 +937,7 @@ def handle_api_health_fix():
                         is_movie = False
                     else:
                         try:
-                            if any(os.path.isdir(os.path.join(real_path, e)) and (e.lower().startswith("staffel ") or e.lower().startswith("season ") or e.lower().startswith("specials")) for e in os.listdir(real_path)):
+                            if any(os.path.isdir(os.path.join(real_path, e)) and is_season_folder_name(e) for e in os.listdir(real_path)):
                                 is_movie = False
                         except OSError:
                             pass
@@ -1179,7 +1178,7 @@ def is_valid_series_root(path: str, settings: dict) -> bool:
         return True
     # Oder besitzt mindestens einen Staffelordner
     try:
-        if any(os.path.isdir(os.path.join(real_path, e)) and bool(re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", e, re.IGNORECASE)) for e in os.listdir(real_path)):
+        if any(os.path.isdir(os.path.join(real_path, e)) and is_season_folder_name(e) for e in os.listdir(real_path)):
             return True
     except OSError:
         pass
@@ -1219,9 +1218,7 @@ def is_valid_media_nfo(nfo_path: str, settings: dict) -> bool:
     if basename == "season.nfo":
         if get_category_media_type(cat, real_path) != "series":
             return False
-        import re
-        is_season = bool(re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", os.path.basename(parent_dir), re.IGNORECASE))
-        if not is_season:
+        if not is_season_folder_name(os.path.basename(parent_dir)):
             return False
         series_dir = os.path.dirname(parent_dir)
         return is_valid_series_root(series_dir, settings)
@@ -1273,7 +1270,7 @@ def collect_series_nfos(series_path: str) -> tuple:
     for e in sorted(entries):
         spath = os.path.join(series_path, e)
         if os.path.isdir(spath):
-            if re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", e, re.IGNORECASE):
+            if is_season_folder_name(e):
                 episode_nfos.extend(collect_season_episode_nfos(spath))
 
     # Flache Episodenvideos direkt im Serienroot suchen (nicht-rekursiv)
@@ -1362,8 +1359,7 @@ def handle_api_fsk_batch_preview():
             elif scope == "season":
                 # root_path muss ein gültiger Staffelordner sein
                 basename = os.path.basename(real_p)
-                is_season = bool(re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", basename, re.IGNORECASE))
-                if not is_season:
+                if not is_season_folder_name(basename):
                     return jsonify({"ok": False, "message": f"Pfad ist kein gültiger Staffelordner: {basename}"}), 400
 
                 # Das Elternverzeichnis muss ein Serienhauptordner sein
@@ -1435,7 +1431,7 @@ def handle_api_fsk_batch_preview():
             parent_name = os.path.basename(parent_dir)
 
             # Checken, ob das Elternteil ein Staffelordner ist
-            is_parent_season = bool(re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", parent_name, re.IGNORECASE))
+            is_parent_season = is_season_folder_name(parent_name)
 
             if "tvshow.nfo" in nfo_path.lower():
                 show_name = os.path.basename(parent_dir)
@@ -1448,7 +1444,7 @@ def handle_api_fsk_batch_preview():
                 # Prüfen, ob Großelternteil Staffelordner ist (z.B. flaches Layout: Staffel 1/S01E01.nfo)
                 grandparent_dir = os.path.dirname(parent_dir)
                 grandparent_name = os.path.basename(grandparent_dir)
-                is_grandparent_season = bool(re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", grandparent_name, re.IGNORECASE))
+                is_grandparent_season = is_season_folder_name(grandparent_name)
                 if is_parent_season:
                     season_name = parent_name
                     show_name = os.path.basename(grandparent_dir)
@@ -1513,7 +1509,7 @@ def handle_api_fsk_batch_preview():
                     # Stoppe an der Serienroot-Grenze (inclusive, d.h. der Staffelordner liegt INNERHALB der Grenze)
                     if series_root_boundary and os.path.realpath(curr) == os.path.realpath(series_root_boundary):
                         break
-                    if bool(re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", os.path.basename(curr), re.IGNORECASE)):
+                    if is_season_folder_name(os.path.basename(curr)):
                         found_season = curr
                         break
                     curr = os.path.dirname(curr)
@@ -1689,8 +1685,7 @@ def handle_api_fsk_batch_apply():
                         resolved_targets.append(nfo)
             elif scope == "season":
                 basename = os.path.basename(real_p)
-                is_season = bool(re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", basename, re.IGNORECASE))
-                if not is_season:
+                if not is_season_folder_name(basename):
                     return jsonify({"ok": False, "message": "Ungültiger Staffelordner."}), 400
                 parent = os.path.dirname(real_p)
                 if not is_valid_series_root(parent, settings):

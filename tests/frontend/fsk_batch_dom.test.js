@@ -833,6 +833,70 @@ test('Single vs Group button visibility and kanonische FSK states in Media View'
     document.body.removeChild(container);
 });
 
+test('Media summary stays calm and exposes exact actions only in details', () => {
+    const container = document.createElement("div");
+    container.id = "view-library";
+    globalThis.elements["view-library"] = container;
+    document.body.appendChild(container);
+
+    const issuesEl = document.createElement("div");
+    issuesEl.id = "health-issues";
+    globalThis.elements["health-issues"] = issuesEl;
+    container.appendChild(issuesEl);
+
+    globalThis.healthGroupMode = "media";
+    const showPath = "/Serien/Serie ohne tvshow";
+    const seasonPath = `${showPath}/Staffel 01`;
+    const tvshowKey = `health:missing_nfo:${showPath}`;
+    const seasonPosterKey = `health:missing_season_poster:${seasonPath}`;
+
+    globalThis.renderHealthStatus({
+        status: "done",
+        issues: [
+            { key: tvshowKey, type: "missing_nfo", severity: "warning", path: showPath, agent_path: showPath, message: "tvshow.nfo fehlt" },
+            { key: seasonPosterKey, type: "missing_season_poster", severity: "warning", path: seasonPath, agent_path: seasonPath, message: "Staffelposter fehlt" }
+        ],
+        summary: { critical: 0, warning: 2, info: 0 },
+        ignored_count: 0,
+        media_structure: {
+            series: [{
+                name: "Serie ohne tvshow",
+                path: showPath,
+                has_nfo: false,
+                fsk_status: "nfo_missing",
+                current_fsk: "",
+                issue_keys: [tvshowKey],
+                seasons: [{
+                    name: "Staffel 01",
+                    path: seasonPath,
+                    issue_keys: [seasonPosterKey],
+                    episodes: [{
+                        name: "S01E01.nfo",
+                        path: `${seasonPath}/S01E01.nfo`,
+                        fsk_status: "healthy",
+                        current_fsk: "FSK 12",
+                        issue_keys: []
+                    }]
+                }]
+            }],
+            movies: []
+        }
+    });
+
+    const html = issuesEl.innerHTML;
+    const summaryHtml = html.match(/<summary class="health-media-summary">[\s\S]*?<\/summary>/)?.[0] || "";
+    assert.ok(summaryHtml.includes("NFO: 1 Problem"));
+    assert.ok(summaryHtml.includes("Artwork: 1 fehlen"));
+    assert.ok(summaryHtml.includes("Details anzeigen"));
+    assert.ok(!summaryHtml.includes("health-nfo-agent"));
+    assert.strictEqual((html.match(/health-nfo-agent/g) || []).length, 1);
+    assert.ok(html.includes("📄 tvshow.nfo"));
+    assert.ok(html.includes("Fehlendes Staffelposter"));
+    assert.ok(html.includes(`data-path="${showPath}"`));
+
+    document.body.removeChild(container);
+});
+
 test('nfo_missing visibility and action suppression', () => {
     // Hilfsfunktionen für präzise HTML-Prüfungen
     const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -858,8 +922,9 @@ test('nfo_missing visibility and action suppression', () => {
     globalThis.healthGroupMode = "media";
 
     // 1. Episode mit nfo_missing
+    const missingEpisodeKey = "health:missing_nfo:/Serien/My Show/Season 1/S01E01.nfo";
     const testData = {
-        issues: [{ type: "nfo_missing", severity: "danger", path: "/Serien/My Show/Season 1/S01E01.mkv", category: "serien" }],
+        issues: [{ key: missingEpisodeKey, type: "missing_nfo", severity: "warning", path: "/Serien/My Show/Season 1/S01E01.nfo", agent_path: "/Serien/My Show/Season 1", category: "serien" }],
         ignored_count: 0,
         media_structure: {
             series: [{
@@ -872,7 +937,7 @@ test('nfo_missing visibility and action suppression', () => {
                     name: "Season 1",
                     path: "/Serien/My Show/Season 1",
                     episodes: [
-                        { name: "Episode 1", path: "/Serien/My Show/Season 1/S01E01.mkv", fsk_status: "nfo_missing", current_fsk: "" }
+                        { name: "Episode 1", path: "/Serien/My Show/Season 1/S01E01.nfo", fsk_status: "nfo_missing", current_fsk: "", issue_keys: [missingEpisodeKey] }
                     ]
                 }]
             }],
@@ -886,19 +951,21 @@ test('nfo_missing visibility and action suppression', () => {
     assert.ok(issuesEl.innerHTML.includes("📺 My Show"));
     // Episode 1 muss sichtbar sein
     assert.ok(issuesEl.innerHTML.includes("Episode 1"));
-    // Betroffener Episodenzähler muss exakt "1 von 1 Ep. betroffen" sein
-    assert.ok(issuesEl.innerHTML.includes("1 von 1 Ep. betroffen"));
+    // NFO-Problem wird ruhig aggregiert; eine FSK-Korrektheit wird ohne NFO nicht behauptet.
+    assert.ok(issuesEl.innerHTML.includes("NFO: 1 Problem"));
+    assert.ok(!issuesEl.innerHTML.includes("Episoden-FSK: korrekt"));
     // FSK-Label muss rot ("text-danger") sein und "NFO fehlt" heißen
     assert.ok(issuesEl.innerHTML.includes('class="text-danger"'));
     assert.ok(issuesEl.innerHTML.includes('NFO fehlt'));
-    // Kein Einzelbutton für diese Episode
-    assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "health-fix-fsk", "/Serien/My Show/Season 1/S01E01.mkv"));
+    // Genau zu dieser Episode gehört ein NFO-Agent, aber keine FSK-Aktion.
+    assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "health-nfo-agent", "/Serien/My Show/Season 1"));
+    assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "health-fix-fsk", "/Serien/My Show/Season 1/S01E01.nfo"));
 
     // 2. Mehrere fehlende NFOs erzeugen keine Gruppenaktionen
     const testDataMultiple = {
         issues: [
-            { type: "nfo_missing", severity: "danger", path: "/Serien/My Show/Season 1/S01E01.mkv", category: "serien" },
-            { type: "nfo_missing", severity: "danger", path: "/Serien/My Show/Season 1/S01E02.mkv", category: "serien" }
+            { key: "missing-1", type: "nfo_missing", severity: "warning", path: "/Serien/My Show/Season 1/S01E01.nfo", agent_path: "/Serien/My Show/Season 1", category: "serien" },
+            { key: "missing-2", type: "nfo_missing", severity: "warning", path: "/Serien/My Show/Season 1/S01E02.nfo", agent_path: "/Serien/My Show/Season 1", category: "serien" }
         ],
         ignored_count: 0,
         media_structure: {
@@ -912,8 +979,8 @@ test('nfo_missing visibility and action suppression', () => {
                     name: "Season 1",
                     path: "/Serien/My Show/Season 1",
                     episodes: [
-                        { name: "Episode 1", path: "/Serien/My Show/Season 1/S01E01.mkv", fsk_status: "nfo_missing", current_fsk: "" },
-                        { name: "Episode 2", path: "/Serien/My Show/Season 1/S01E02.mkv", fsk_status: "nfo_missing", current_fsk: "" }
+                        { name: "Episode 1", path: "/Serien/My Show/Season 1/S01E01.nfo", fsk_status: "nfo_missing", current_fsk: "", issue_keys: ["missing-1"] },
+                        { name: "Episode 2", path: "/Serien/My Show/Season 1/S01E02.nfo", fsk_status: "nfo_missing", current_fsk: "", issue_keys: ["missing-2"] }
                     ]
                 }]
             }],
@@ -1000,8 +1067,9 @@ test('nfo_missing visibility and action suppression', () => {
     assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "health-fix-fsk", "/Serien/My Show/Season 1/S01E01.nfo"));
 
     // 5. Episode mit unreadable NFO
+    const unreadableKey = "health:unreadable_nfo:/Serien/My Show/Season 1/S01E01.nfo";
     const testDataUnreadable = {
-        issues: [{ type: "unreadable_nfo", severity: "danger", path: "/Serien/My Show/Season 1/S01E01.nfo", category: "serien" }],
+        issues: [{ key: unreadableKey, type: "unreadable_nfo", severity: "critical", path: "/Serien/My Show/Season 1/S01E01.nfo", agent_path: "/Serien/My Show/Season 1", category: "serien" }],
         ignored_count: 0,
         media_structure: {
             series: [{
@@ -1014,7 +1082,7 @@ test('nfo_missing visibility and action suppression', () => {
                     name: "Season 1",
                     path: "/Serien/My Show/Season 1",
                     episodes: [
-                        { name: "Episode 1", path: "/Serien/My Show/Season 1/S01E01.nfo", fsk_status: "unreadable", current_fsk: "" }
+                        { name: "Episode 1", path: "/Serien/My Show/Season 1/S01E01.nfo", fsk_status: "unreadable", current_fsk: "", issue_keys: [unreadableKey] }
                     ]
                 }]
             }],
@@ -1026,12 +1094,13 @@ test('nfo_missing visibility and action suppression', () => {
 
     // Sichtbar
     assert.ok(issuesEl.innerHTML.includes("Episode 1"));
-    assert.ok(issuesEl.innerHTML.includes("1 von 1 Ep. betroffen"));
+    assert.ok(issuesEl.innerHTML.includes("NFO: 1 Problem"));
     // Label
     assert.ok(issuesEl.innerHTML.includes('class="text-danger"'));
     assert.ok(issuesEl.innerHTML.includes('NFO unlesbar'));
-    // Kein Button
+    // Kein FSK-Button, aber ein dateibezogener NFO-Agent.
     assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "health-fix-fsk", "/Serien/My Show/Season 1/S01E01.nfo"));
+    assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "health-nfo-agent", "/Serien/My Show/Season 1"));
 
     // Cleanup
     document.body.removeChild(container);
@@ -1044,17 +1113,78 @@ test('Film-Rendering in FSK Modal uses media_kind', async () => {
         status: 200,
         json: () => Promise.resolve({
             files: [
-                { path: "/Filme/Ein Film/movie.nfo", fingerprint: "abcd", status: "ready", media_kind: "movie", hierarchy: { show: "SollteIgnoriertWerden", season: "1" } }
+                { path: "/Filme/Ein Film/movie.nfo", fingerprint: "abcd", status: "ready", media_kind: "movie", hierarchy: { show: "Ein Film (2024)" } }
             ],
-            summary: { ready: 1 }
+            summary: { total: 1, ready: 1, unchanged: 0, skipped_missing: 0, skipped_problematic: 0 }
         })
     };
-    globalThis.openFskBatchModal([{path: "/Filme/Ein Film/movie.nfo"}], "16");
+    globalThis.openFskBatchModal([{path: "/Filme/Ein Film/movie.nfo", media_kind: "movie"}], "16", "single", "movie");
     await new Promise(r => setTimeout(r, 10));
     const container = document.getElementById("fsk-batch-tree-container");
     const html = container.innerHTML;
-    assert.ok(!html.includes("📺 SollteIgnoriertWerden"));
     assert.ok(html.includes("🎬 Filme"));
+    assert.ok(html.includes("Ein Film (2024)"));
+    assert.ok(!html.includes("📺 Serie:"));
+    assert.strictEqual(document.getElementById("fsk-batch-modal-title").textContent, "FSK-Altersfreigabe setzen");
+    assert.strictEqual(document.getElementById("fsk-batch-scope-field").style.display, "none");
+    assert.ok(document.getElementById("btn-fsk-batch-confirm").innerHTML.includes("1 NFO auf FSK 16 ändern"));
+});
+
+test('Successful apply leaves one terminal action and refreshes health immediately', async () => {
+    globalThis.fetchRequests = [];
+    globalThis.mockFetchResponse = (url) => {
+        if (url.includes("fsk-batch/preview")) {
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    files: [{
+                        path: "/Filme/Ein Film/movie.nfo",
+                        fingerprint: "abcd",
+                        status: "ready",
+                        media_kind: "movie",
+                        hierarchy: { show: "Ein Film (2024)" }
+                    }],
+                    summary: { total: 1, ready: 1, unchanged: 0, skipped_missing: 0, skipped_problematic: 0 }
+                })
+            };
+        }
+        if (url.includes("fsk-batch/apply")) {
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    ok: true,
+                    status: "success",
+                    results: [{ path: "/Filme/Ein Film/movie.nfo", status: "success" }],
+                    summary: { success: 1, failed: 0, unchanged: 0 }
+                })
+            };
+        }
+        if (url.includes("health-status")) {
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    status: "done",
+                    issues: [],
+                    summary: { critical: 0, warning: 0, info: 0 },
+                    ignored_count: 0,
+                    media_structure: { series: [], movies: [] }
+                })
+            };
+        }
+        return null;
+    };
+
+    globalThis.openFskBatchModal([{ path: "/Filme/Ein Film/movie.nfo", media_kind: "movie" }], "12", "single", "movie");
+    await new Promise(r => setTimeout(r, 10));
+    await globalThis.applyFskBatch();
+
+    assert.ok(globalThis.fetchRequests.some((request) => request.url.includes("/api/nas/health-status")));
+    assert.strictEqual(document.getElementById("btn-fsk-batch-confirm").style.display, "none");
+    assert.strictEqual(document.getElementById("btn-fsk-batch-refresh").style.display, "none");
+    assert.strictEqual(document.getElementById("btn-fsk-batch-cancel").textContent, "Fertig");
 });
 
 test('NFO-Agent rendered in skipped_missing', async () => {

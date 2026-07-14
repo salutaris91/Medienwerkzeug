@@ -345,6 +345,11 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
         season_meta = seasons[0]
         self.assertEqual(season_meta["name"], "Season 1")
         self.assertEqual(season_meta["path"], self.season_dir)
+        season_issue_keys = {
+            issue["key"] for issue in status["issues"]
+            if os.path.realpath(issue["path"]) == os.path.realpath(self.season_dir)
+        }
+        self.assertEqual(set(season_meta["issue_keys"]), season_issue_keys)
 
         episodes = season_meta.get("episodes", [])
         self.assertEqual(len(episodes), 2)
@@ -364,6 +369,33 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
         self.assertEqual(ep2["raw_fsk"], "Keine")
         self.assertTrue(ep2["actionable_fsk"])
         self.assertTrue(any("age_rating" in k for k in ep2["issue_keys"]))
+
+    def test_health_scan_excludes_backup_folder_and_maps_missing_episode_nfo(self):
+        missing_video = os.path.join(self.season_dir, "My Show - S01E03.mkv")
+        open(missing_video, "w").close()
+        backup_dir = os.path.join(self.show_dir, "Staffel Backup")
+        os.makedirs(backup_dir)
+        open(os.path.join(backup_dir, "My Show Bonus.mkv"), "w").close()
+
+        health._scan_state["media_structure"] = {"series": [], "movies": []}
+        health._scan_state["issues"] = []
+        health._run_health_scan()
+
+        status = health.get_health_status()
+        show = status["media_structure"]["series"][0]
+        self.assertEqual([season["name"] for season in show["seasons"]], ["Season 1"])
+        episodes = show["seasons"][0]["episodes"]
+        self.assertEqual(len(episodes), 3)
+
+        missing_episode = next(ep for ep in episodes if "S01E03" in ep["name"])
+        expected_nfo = os.path.splitext(missing_video)[0] + ".nfo"
+        self.assertEqual(missing_episode["path"], expected_nfo)
+        self.assertEqual(missing_episode["fsk_status"], "nfo_missing")
+        self.assertTrue(any("missing_nfo" in key for key in missing_episode["issue_keys"]))
+
+        missing_issue = next(issue for issue in status["issues"] if issue["path"] == expected_nfo)
+        self.assertEqual(missing_issue["agent_path"], self.season_dir)
+        self.assertFalse(any("Staffel Backup" in issue.get("path", "") for issue in status["issues"]))
 
     @patch('gui.api.nas_api.write_fsk_to_nfo')
     @patch('gui.core.health.remove_issue')

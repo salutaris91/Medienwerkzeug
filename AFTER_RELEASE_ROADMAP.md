@@ -19,7 +19,7 @@ die aktive After-Release-Roadmap übernommen.
 | 10 | Duplikat-Erkennung für Filme | geplant | mittel |
 | 11 | Inkrementeller Cache für den Duplikat-Scan | geplant | mittel |
 | 12 | Performance-Optimierung für sehr große Serienbibliotheken | geplant | mittel |
-| 13 | Komfortablere Health-Quick-Fix-Oberfläche | geplant | klein–mittel |
+| 13 | Komfortablere Health-Quick-Fix-Oberfläche | erledigt | klein–mittel |
 | 14 | Health-Status-Vertrag & Frontend-Testabdeckung | erledigt | klein–mittel |
 | 15 | FAQ sprachlich und visuell überarbeiten | erledigt | klein |
 | 16 | System Metrics Worker: Thread-Akkumulation verhindern | erledigt | klein |
@@ -465,6 +465,12 @@ Analyse ~0,5 Tag; Umsetzung abhängig vom Messergebnis.
 ---
 
 ## 13. Komfortablere Health-Quick-Fix-Oberfläche
+
+> **Erledigt (14.07.2026):** Die medienorientierte Ansicht bewahrt ihren Kontext
+> über stabile Film- und Serienpfade, trennt ruhige Zusammenfassungen von exakten
+> Detailaktionen und lädt den autoritativen Health-Status nach FSK-Änderungen
+> unmittelbar neu. Gruppenaktionen ersetzen Einzelaktionen nur dann, wenn sie
+> nachweislich dieselben NFO-Dateien abdecken.
 
 Für den Vor-Release reicht es, nach einem Quick-Fix Scrollposition, geöffnete
 Gruppen und den sichtbaren Kontext stabil zu halten. Später kann die Bedienung
@@ -1533,4 +1539,3 @@ Erweiterung des NFO-Agenten um die Möglichkeit, auch FSK-Freigaben, Genres, Stu
 
 ### Aufwand (grob)
 Klein–mittel: UI-Erweiterung im Modal und Backend-Anpassung zur NFO-Erzeugung.
-

@@ -12412,6 +12412,7 @@ const HEALTH_TYPE_LABELS = {
     bad_folder_name: "Ungültiger Ordnername",
     name_mismatch: "Namensabweichung (Ordner vs. Datei)",
     missing_nfo: "Fehlende NFO-Metadaten",
+    unreadable_nfo: "NFO unlesbar",
     incomplete_nfo: "Unvollständige NFO-Metadaten",
     episode_gap: "Episodenlücke in Staffel",
     empty_folder: "Leerer Ordner",
@@ -12453,6 +12454,22 @@ const HEALTH_SEVERITY = {
     warning:  { label: "Warnung",  icon: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="height:14px; width:14px; display:inline-block; vertical-align:middle; margin-right:4px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>`, color: "#f59e0b" },
     info:     { label: "Hinweis",  icon: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info" style="height:14px; width:14px; display:inline-block; vertical-align:middle; margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>`, color: "#3b82f6" },
 };
+
+const HEALTH_MEDIA_NFO_TYPES = new Set(["missing_nfo", "incomplete_nfo", "unreadable_nfo"]);
+const HEALTH_MEDIA_ARTWORK_TYPES = new Set(["missing_season_poster", "missing_poster", "missing_backdrop", "missing_logo", "missing_banner"]);
+const HEALTH_MEDIA_FSK_TYPES = new Set(["missing_age_rating", "invalid_age_rating"]);
+
+function getIssuesForKeys(issueKeys, issuesByKey) {
+    return [...new Set(issueKeys || [])].map((key) => issuesByKey[key]).filter(Boolean);
+}
+
+function renderMediaSummaryChip(label, tone = "neutral") {
+    return `<span class="health-media-chip health-media-chip-${tone}">${escapeHTML(label)}</span>`;
+}
+
+function countHealthMediaIssues(issues, typeSet) {
+    return issues.filter((issue) => typeSet.has(issue.type)).length;
+}
 
 window.switchLibraryTab = function(tabId) {
     document.querySelectorAll(".library-tab-content").forEach(el => el.classList.add("hidden"));
@@ -12937,6 +12954,10 @@ function renderHealthStatus(data) {
                 if (sev) openSeverities.push(sev);
                 const typ = d.getAttribute("data-type-id");
                 if (typ) openTypes.push(typ);
+                const showPath = d.getAttribute("data-show-path");
+                if (showPath) openTypes.push(`show:${showPath}`);
+                const moviePath = d.getAttribute("data-movie-path");
+                if (moviePath) openTypes.push(`movie:${moviePath}`);
             }
         });
     }
@@ -13211,7 +13232,16 @@ function renderHealthStatus(data) {
                 const affectedEp = s.seasons.reduce((acc, se) => acc + (se.episodes ? se.episodes.filter(isEpAffectedGeneral).length : 0), 0);
                 const fskActionableEp = s.seasons.reduce((acc, se) => acc + (se.episodes ? se.episodes.filter(isEpFskActionable).length : 0), 0);
 
-                const showAffectedGeneral = !s.has_nfo || ["nfo_missing", "unreadable", "missing_fsk", "invalid_fsk"].includes(s.fsk_status) || affectedEp > 0;
+                const seriesIssueKeys = [...(s.issue_keys || [])];
+                s.seasons.forEach((season) => {
+                    seriesIssueKeys.push(...(season.issue_keys || []));
+                    (season.episodes || []).forEach((episode) => seriesIssueKeys.push(...(episode.issue_keys || [])));
+                });
+                const seriesIssues = getIssuesForKeys(seriesIssueKeys, issuesByKey);
+                const showAffectedGeneral = !s.has_nfo
+                    || ["nfo_missing", "unreadable", "missing_fsk", "invalid_fsk"].includes(s.fsk_status)
+                    || affectedEp > 0
+                    || seriesIssues.length > 0;
                 const showFskActionable = s.has_nfo && ["missing_fsk", "invalid_fsk"].includes(s.fsk_status);
                 const seriesFskActionCount = (showFskActionable ? 1 : 0) + fskActionableEp;
                 const seriesGroupAvailable = seriesFskActionCount >= 2;
@@ -13219,25 +13249,28 @@ function renderHealthStatus(data) {
                 if (!showAffectedGeneral) return;
                 renderedSeriesCount++;
 
-                const showBadge = !s.has_nfo
-                    ? `<span class="badge" style="background:rgba(239,68,68,0.1); color:#ef4444; font-size:10px;">tvshow.nfo fehlt</span>`
-                    : `<span class="badge" style="background:rgba(255,255,255,0.05); color:var(--text-muted); font-size:10px;">Serie: ${escapeHTML(s.current_fsk || "Keine")}</span>`;
+                const nfoIssueCount = countHealthMediaIssues(seriesIssues, HEALTH_MEDIA_NFO_TYPES);
+                const artworkIssueCount = countHealthMediaIssues(seriesIssues, HEALTH_MEDIA_ARTWORK_TYPES);
+                const otherIssueCount = seriesIssues.filter((issue) =>
+                    !HEALTH_MEDIA_NFO_TYPES.has(issue.type)
+                    && !HEALTH_MEDIA_ARTWORK_TYPES.has(issue.type)
+                    && !HEALTH_MEDIA_FSK_TYPES.has(issue.type)
+                ).length;
 
-                let seriesIssueBadgesHtml = "";
-                if (s.issue_keys && s.issue_keys.length > 0) {
-                    const uniqueKeys = [...new Set(s.issue_keys)];
-                    seriesIssueBadgesHtml = uniqueKeys.map(k => {
-                        const issue = issuesByKey[k];
-                        if (!issue) return "";
-                        const m = HEALTH_SEVERITY[issue.severity] || HEALTH_SEVERITY["warning"];
-                        const label = HEALTH_TYPE_LABELS[issue.type] || issue.type;
-                        return `<span class="badge" style="background:${m.color}15; color:${m.color}; font-size:10px; margin-left:4px; border:1px solid ${m.color}30;">${escapeHTML(label)}</span>`;
-                    }).join("");
+                const summaryChips = [];
+                if (s.has_nfo) {
+                    const showFskLabel = showFskActionable ? (s.fsk_status === "missing_fsk" ? "FSK fehlt" : s.current_fsk) : (s.current_fsk || "Keine FSK");
+                    summaryChips.push(renderMediaSummaryChip(`Serien-NFO: ${showFskLabel}`, showFskActionable ? "warning" : "neutral"));
                 }
-
-                const epBadge = affectedEp > 0
-                    ? `<span class="badge" style="background:rgba(245,158,11,0.1); color:#f59e0b; font-size:10px;">${affectedEp} von ${totalEp} Ep. betroffen</span>`
-                    : `<span class="badge" style="background:rgba(16,185,129,0.1); color:#10b981; font-size:10px;">Episoden korrekt</span>`;
+                if (totalEp > 0 && (fskActionableEp > 0 || affectedEp === 0)) {
+                    summaryChips.push(renderMediaSummaryChip(
+                        fskActionableEp > 0 ? `Episoden-FSK: ${fskActionableEp} von ${totalEp} betroffen` : "Episoden-FSK: korrekt",
+                        fskActionableEp > 0 ? "warning" : "success"
+                    ));
+                }
+                if (nfoIssueCount > 0) summaryChips.push(renderMediaSummaryChip(`NFO: ${nfoIssueCount} ${nfoIssueCount === 1 ? "Problem" : "Probleme"}`, "danger"));
+                if (artworkIssueCount > 0) summaryChips.push(renderMediaSummaryChip(`Artwork: ${artworkIssueCount} fehlen`, "warning"));
+                if (otherIssueCount > 0) summaryChips.push(renderMediaSummaryChip(`Weitere: ${otherIssueCount}`, "warning"));
 
                 // Gruppenaktion für Serie: FSK zuweisen
                 let groupActionHtml = "";
@@ -13254,39 +13287,39 @@ function renderHealthStatus(data) {
                             <button class="btn btn-primary btn-xs show-group-fsk-btn" data-path="${escapeHTML(s.path)}" style="padding:2px 8px; height:24px;">FSK zuweisen</button>
                         </div>
                     `;
-                } else if (!s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable") {
-                    groupActionHtml = `<button class="btn btn-accent btn-xs health-nfo-agent" data-path="${escapeHTML(s.path)}" style="padding:2px 8px; height:24px;">NFO Agent</button>`;
                 }
 
                 const isShowOpen = openTypes.includes(`show:${s.path}`);
 
-                html += `<details data-show-path="${escapeHTML(s.path)}" ${isShowOpen ? "open" : ""} style="border:1px solid var(--border-light); border-radius:8px; padding:8px 12px; margin-bottom:8px;">
-                             <summary class="health-show-summary" style="cursor:pointer; font-weight:500; display:flex; align-items:center; justify-content:space-between; gap:12px; list-style:none;">
-                                 <div style="display:flex; align-items:center; gap:8px; flex:1;">
+                html += `<details class="health-media-card" data-show-path="${escapeHTML(s.path)}" ${isShowOpen ? "open" : ""}>
+                             <summary class="health-media-summary">
+                                 <div class="health-media-summary-main">
                                      <span style="color:var(--text-main); font-weight:600;">📺 ${escapeHTML(s.name)}</span>
-                                     ${showBadge}
-                                     ${seriesIssueBadgesHtml}
-                                     ${epBadge}
                                  </div>
-                                 <div style="display:flex; align-items:center; gap:10px;" onclick="event.stopPropagation();">
-                                     ${groupActionHtml}
-                                 </div>
+                                 <div class="health-media-summary-chips">${summaryChips.join("")}</div>
+                                 <span class="health-media-disclosure"><span class="health-media-disclosure-closed">Details anzeigen</span><span class="health-media-disclosure-open">Details schließen</span></span>
                              </summary>
-                             <div style="margin-top:8px; border-top:1px solid var(--border-light); padding-top:8px; display:flex; flex-direction:column; gap:8px;">`;
+                             <div class="health-media-details">
+                                 ${groupActionHtml ? `<div style="display:flex; justify-content:flex-end;">${groupActionHtml}</div>` : ""}`;
+
+                const showIssues = getIssuesForKeys(s.issue_keys || [], issuesByKey);
+                const showNfoIssue = showIssues.find((issue) => HEALTH_MEDIA_NFO_TYPES.has(issue.type));
 
                 // Zeige tvshow.nfo-Zeile, falls sie Probleme hat
-                if (!s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable" || showFskActionable) {
+                if (showNfoIssue || !s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable" || showFskActionable) {
                     let tvshowAction = "";
-                    if (!s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable") {
-                        tvshowAction = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(s.path)}">NFO Agent</button>`;
+                    if (showNfoIssue || !s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable") {
+                        tvshowAction = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(showNfoIssue?.agent_path || s.path)}">NFO Agent</button>`;
                     } else if (showFskActionable && !seriesGroupAvailable) {
-                        tvshowAction = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(s.path)}" data-scope-kind="series" data-series-path="${escapeHTML(s.path)}">FSK setzen</button>`;
+                        tvshowAction = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(s.path)}" data-scope-kind="series" data-series-path="${escapeHTML(s.path)}" data-media-kind="series">FSK setzen</button>`;
                     }
-                    const fskLabel = (!s.has_nfo || s.fsk_status === "nfo_missing")
-                        ? "NFO fehlt"
-                        : (s.fsk_status === "unreadable" ? "NFO unlesbar" : (s.fsk_status === "missing_fsk" ? "FSK fehlt" : (s.current_fsk || "Keine")));
+                    const fskLabel = showNfoIssue
+                        ? (HEALTH_TYPE_LABELS[showNfoIssue.type] || "NFO-Problem")
+                        : ((!s.has_nfo || s.fsk_status === "nfo_missing")
+                            ? "NFO fehlt"
+                            : (s.fsk_status === "unreadable" ? "NFO unlesbar" : (s.fsk_status === "missing_fsk" ? "FSK fehlt" : (s.current_fsk || "Keine"))));
                     const labelColor = (!s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable") ? "text-danger" : "text-warning";
-                    html += `<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.9em; padding:4px 8px; background:rgba(255,255,255,0.01); border-radius:4px;">
+                    html += `<div class="health-media-detail-row" style="font-size:0.9em;">
                                 <span class="fsk-path-monospace" style="color:var(--text-main);">📄 tvshow.nfo</span>
                                 <div style="display:flex; align-items:center; gap:8px;">
                                     <span class="${labelColor}" style="font-size:0.85em;">${escapeHTML(fskLabel)}</span>
@@ -13295,11 +13328,22 @@ function renderHealthStatus(data) {
                              </div>`;
                 }
 
+                showIssues
+                    .filter((issue) => !HEALTH_MEDIA_NFO_TYPES.has(issue.type) && !HEALTH_MEDIA_FSK_TYPES.has(issue.type))
+                    .forEach((issue) => {
+                        const label = HEALTH_TYPE_LABELS[issue.type] || issue.type;
+                        html += `<div class="health-media-detail-row" style="font-size:0.88em;">
+                                    <span style="color:var(--text-main);">${escapeHTML(label)}</span>
+                                    <span class="text-muted" style="font-size:0.82em; text-align:right;">${escapeHTML(issue.message || "")}</span>
+                                 </div>`;
+                    });
+
                 // Staffeln durchlaufen
                 s.seasons.forEach(se => {
                     const affectedEpInSeason = se.episodes ? se.episodes.filter(isEpAffectedGeneral).length : 0;
                     const fskActionableEpInSeason = se.episodes ? se.episodes.filter(isEpFskActionable).length : 0;
-                    if (affectedEpInSeason === 0) return;
+                    const seasonIssues = getIssuesForKeys(se.issue_keys || [], issuesByKey);
+                    if (affectedEpInSeason === 0 && seasonIssues.length === 0) return;
 
                     // Gruppenaktion für Staffel, falls >= 2 betroffene Episoden
                     let seasonActionHtml = "";
@@ -13326,6 +13370,14 @@ function renderHealthStatus(data) {
                                 </div>
                                 <div style="display:flex; flex-direction:column; gap:4px; padding-left:12px;">`;
 
+                    seasonIssues.forEach((issue) => {
+                        const label = HEALTH_TYPE_LABELS[issue.type] || issue.type;
+                        html += `<div class="health-media-detail-row" style="font-size:0.85em;">
+                                    <span style="color:var(--text-main);">${escapeHTML(label)}</span>
+                                    <span class="text-muted" style="font-size:0.82em; text-align:right;">${escapeHTML(issue.message || "")}</span>
+                                 </div>`;
+                    });
+
                     // Episoden durchlaufen
                     se.episodes.forEach(ep => {
                         const isEpAffected = isEpAffectedGeneral(ep);
@@ -13333,9 +13385,13 @@ function renderHealthStatus(data) {
 
                         const isEpFskActionableVal = isEpFskActionable(ep);
                         let epActionHtml = "";
-                        // Einzelbutton nur rendern, wenn FSK-aktionsfähig und keine Gruppenaktion greift
-                        if (isEpFskActionableVal && !seasonGroupAvailable && !seriesGroupAvailable) {
-                            epActionHtml = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(ep.path)}" data-scope-kind="episode" data-series-path="${escapeHTML(s.path)}" data-season-path="${escapeHTML(se.path)}" style="padding:2px 6px; font-size:11px; height:22px;">FSK setzen</button>`;
+                        const episodeIssues = getIssuesForKeys(ep.issue_keys || [], issuesByKey);
+                        const episodeNfoIssue = episodeIssues.find((issue) => HEALTH_MEDIA_NFO_TYPES.has(issue.type));
+                        if (episodeNfoIssue || ep.fsk_status === "nfo_missing" || ep.fsk_status === "unreadable") {
+                            epActionHtml = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(episodeNfoIssue?.agent_path || se.path)}" style="padding:2px 6px; font-size:11px; height:22px;">NFO Agent</button>`;
+                        } else if (isEpFskActionableVal && !seasonGroupAvailable && !seriesGroupAvailable) {
+                            // Einzelbutton nur ausblenden, wenn dieselben Dateien über eine Gruppenaktion bedienbar sind.
+                            epActionHtml = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(ep.path)}" data-scope-kind="episode" data-series-path="${escapeHTML(s.path)}" data-season-path="${escapeHTML(se.path)}" data-media-kind="series" style="padding:2px 6px; font-size:11px; height:22px;">FSK setzen</button>`;
                         }
 
                         let fskLabel = "";
@@ -13352,7 +13408,7 @@ function renderHealthStatus(data) {
                             fskLabel = ep.current_fsk || "Unbekannt";
                         }
 
-                        html += `<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.85em; padding:2px 6px; border-bottom:1px solid rgba(255,255,255,0.02);">
+                        html += `<div class="health-media-detail-row" style="font-size:0.85em;">
                                     <span class="fsk-path-monospace" style="color:var(--text-main); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%;" title="${escapeHTML(ep.path)}">📄 ${escapeHTML(ep.name)}</span>
                                     <div style="display:flex; align-items:center; gap:8px;">
                                         <span class="${labelColor}">${escapeHTML(fskLabel)}</span>
@@ -13380,43 +13436,68 @@ function renderHealthStatus(data) {
             let renderedMoviesCount = 0;
             moviesList.forEach(m => {
                 const hasMovieFskIssue = m.fsk_status === "missing_fsk" || m.fsk_status === "invalid_fsk";
-                const hasIssues = m.issue_keys && m.issue_keys.length > 0;
+                const movieIssues = getIssuesForKeys(m.issue_keys || [], issuesByKey);
+                const hasIssues = movieIssues.length > 0;
                 const isMovieAffected = hasMovieFskIssue || hasIssues;
 
                 if (!isMovieAffected) return;
                 renderedMoviesCount++;
 
-                let movieAction = "";
-                const isMissingNfo = m.issue_keys.some(k => k.includes("missing_nfo"));
-                if (isMissingNfo) {
-                    movieAction = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(m.path)}" style="padding:2px 8px; height:24px;">NFO Agent</button>`;
-                } else if (hasMovieFskIssue) {
-                    movieAction = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(m.path)}" data-scope-kind="movie" data-series-path="" style="padding:2px 8px; height:24px;">FSK setzen</button>`;
+                const movieNfoIssue = movieIssues.find((issue) => HEALTH_MEDIA_NFO_TYPES.has(issue.type));
+                const nfoIssueCount = countHealthMediaIssues(movieIssues, HEALTH_MEDIA_NFO_TYPES);
+                const artworkIssueCount = countHealthMediaIssues(movieIssues, HEALTH_MEDIA_ARTWORK_TYPES);
+                const otherIssueCount = movieIssues.filter((issue) =>
+                    !HEALTH_MEDIA_NFO_TYPES.has(issue.type)
+                    && !HEALTH_MEDIA_ARTWORK_TYPES.has(issue.type)
+                    && !HEALTH_MEDIA_FSK_TYPES.has(issue.type)
+                ).length;
+                const movieSummaryChips = [];
+                const fskLabel = m.fsk_status === "missing_fsk"
+                    ? "FSK fehlt"
+                    : (m.fsk_status === "invalid_fsk" ? (m.current_fsk || "FSK ungültig") : (m.current_fsk || "Keine FSK"));
+                if (!["nfo_missing", "unreadable"].includes(m.fsk_status)) {
+                    movieSummaryChips.push(renderMediaSummaryChip(`FSK: ${fskLabel}`, hasMovieFskIssue ? "warning" : "neutral"));
+                }
+                if (nfoIssueCount > 0) movieSummaryChips.push(renderMediaSummaryChip(`NFO: ${nfoIssueCount} ${nfoIssueCount === 1 ? "Problem" : "Probleme"}`, "danger"));
+                if (artworkIssueCount > 0) movieSummaryChips.push(renderMediaSummaryChip(`Artwork: ${artworkIssueCount} fehlen`, "warning"));
+                if (otherIssueCount > 0) movieSummaryChips.push(renderMediaSummaryChip(`Weitere: ${otherIssueCount}`, "warning"));
+
+                const isMovieOpen = openTypes.includes(`movie:${m.path}`);
+                html += `<details class="health-media-card" data-movie-path="${escapeHTML(m.path)}" ${isMovieOpen ? "open" : ""}>
+                            <summary class="health-media-summary">
+                                <div class="health-media-summary-main">
+                                    <span style="font-weight:600; color:var(--text-main);">🎬 ${escapeHTML(m.name)}</span>
+                                </div>
+                                <div class="health-media-summary-chips">${movieSummaryChips.join("")}</div>
+                                <span class="health-media-disclosure"><span class="health-media-disclosure-closed">Details anzeigen</span><span class="health-media-disclosure-open">Details schließen</span></span>
+                            </summary>
+                            <div class="health-media-details">`;
+
+                if (movieNfoIssue || hasMovieFskIssue) {
+                    const movieAction = movieNfoIssue
+                        ? `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(movieNfoIssue.agent_path || m.path)}">NFO Agent</button>`
+                        : `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(m.path)}" data-scope-kind="movie" data-series-path="" data-media-kind="movie">FSK setzen</button>`;
+                    const nfoLabel = movieNfoIssue ? (HEALTH_TYPE_LABELS[movieNfoIssue.type] || "NFO-Problem") : fskLabel;
+                    html += `<div class="health-media-detail-row">
+                                <span class="fsk-path-monospace" style="color:var(--text-main);">📄 ${escapeHTML(osBasename(m.nfo_path || "movie.nfo"))}</span>
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span class="${movieNfoIssue ? "text-danger" : "text-warning"}">${escapeHTML(nfoLabel)}</span>
+                                    ${movieAction}
+                                </div>
+                             </div>`;
                 }
 
-                const fskLabel = m.fsk_status === "missing_fsk" ? "FSK fehlt" : (m.current_fsk || "Keine");
-
-                let issueBadgesHtml = "";
-                if (m.issue_keys && m.issue_keys.length > 0) {
-                    const uniqueKeys = [...new Set(m.issue_keys)];
-                    issueBadgesHtml = uniqueKeys.map(k => {
-                        const issue = issuesByKey[k];
-                        if (!issue) return "";
-                        const sev = HEALTH_SEVERITY[issue.severity] || HEALTH_SEVERITY["warning"];
+                movieIssues
+                    .filter((issue) => !HEALTH_MEDIA_NFO_TYPES.has(issue.type) && !HEALTH_MEDIA_FSK_TYPES.has(issue.type))
+                    .forEach((issue) => {
                         const label = HEALTH_TYPE_LABELS[issue.type] || issue.type;
-                        return `<span class="badge" style="background:${sev.color}15; color:${sev.color}; font-size:10px; margin-right:4px; border:1px solid ${sev.color}30;">${escapeHTML(label)}</span>`;
-                    }).join("");
-                }
-                html += `<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.9em; padding:6px 12px; background:rgba(255,255,255,0.01); border:1px solid var(--border-light); border-radius:6px; margin-bottom:6px;">
-                            <div style="display:flex; align-items:center; gap:8px;">
-                                <span style="font-weight:500; color:var(--text-main);">🎬 ${escapeHTML(m.name)}</span>
-                                ${issueBadgesHtml}
-                            </div>
-                            <div style="display:flex; align-items:center; gap:8px;">
-                                <span style="font-size:0.85em; color:${hasMovieFskIssue ? "#f59e0b" : "var(--text-muted)"}">${escapeHTML(fskLabel)}</span>
-                                ${movieAction}
-                            </div>
-                         </div>`;
+                        html += `<div class="health-media-detail-row">
+                                    <span style="color:var(--text-main);">${escapeHTML(label)}</span>
+                                    <span class="text-muted" style="font-size:0.82em; text-align:right;">${escapeHTML(issue.message || "")}</span>
+                                 </div>`;
+                    });
+
+                html += `</div></details>`;
             });
 
             if (renderedMoviesCount === 0) {
@@ -13440,8 +13521,10 @@ function renderHealthStatus(data) {
                     const typ = d.getAttribute("data-type-id");
                     d.open = openTypes.includes(typ);
                 } else if (window.healthGroupMode === "media") {
-                    const path = d.getAttribute("data-show-path");
-                    d.open = openTypes.includes(`show:${path}`);
+                    const showPath = d.getAttribute("data-show-path");
+                    const moviePath = d.getAttribute("data-movie-path");
+                    d.open = (showPath && openTypes.includes(`show:${showPath}`))
+                        || (moviePath && openTypes.includes(`movie:${moviePath}`));
                 }
             });
         }
@@ -14155,6 +14238,18 @@ function renderHealthStatus(data) {
             const path = detailsEl.getAttribute("data-show-path");
             detailsEl.addEventListener("toggle", () => {
                 const key = `show:${path}`;
+                if (detailsEl.open) {
+                    if (!openTypes.includes(key)) openTypes.push(key);
+                } else {
+                    const idx = openTypes.indexOf(key);
+                    if (idx !== -1) openTypes.splice(idx, 1);
+                }
+            });
+        });
+        issuesEl.querySelectorAll("details[data-movie-path]").forEach(detailsEl => {
+            const path = detailsEl.getAttribute("data-movie-path");
+            detailsEl.addEventListener("toggle", () => {
+                const key = `movie:${path}`;
                 if (detailsEl.open) {
                     if (!openTypes.includes(key)) openTypes.push(key);
                 } else {
@@ -16104,6 +16199,13 @@ function openFskBatchModal(items, fskVal, scope = "single", mediaKind = "unknown
     currentFskBatchPlan = null;
     currentFskBatchMediaKind = mediaKind;
     isFskBatchApplying = false;
+    const isSingleMovie = mediaKind === "movie" && items.length === 1;
+
+    const modalTitle = document.getElementById("fsk-batch-modal-title");
+    if (modalTitle) modalTitle.textContent = isSingleMovie ? "FSK-Altersfreigabe setzen" : "FSK-Altersfreigabe: Stapeländerung";
+
+    const scopeField = document.getElementById("fsk-batch-scope-field");
+    if (scopeField) scopeField.style.display = isSingleMovie ? "none" : "block";
 
     const cancelBtn = document.getElementById("btn-fsk-batch-cancel");
     if (cancelBtn) {
@@ -16115,6 +16217,12 @@ function openFskBatchModal(items, fskVal, scope = "single", mediaKind = "unknown
     const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
     if (confirmBtn) {
         confirmBtn.style.display = "";
+    }
+
+    const refreshBtn = document.getElementById("btn-fsk-batch-refresh");
+    if (refreshBtn) {
+        refreshBtn.style.display = "inline-flex";
+        refreshBtn.disabled = false;
     }
 
     const modalX = document.querySelector("#modal-fsk-batch-preview .modal-close");
@@ -16277,7 +16385,7 @@ async function loadFskBatchPreview(keepError = false) {
                 confirmBtn.onclick = applyFskBatch; // Direktbindung, globaler Eventlistener ignoriert isFskBatchApplying
                 confirmBtn.innerHTML = `
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height: 12px; width: 12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-                    <span>${sum.ready} NFOs auf FSK ${currentFskBatchTarget} ändern</span>
+                    <span>${sum.ready} ${sum.ready === 1 ? "NFO" : "NFOs"} auf FSK ${currentFskBatchTarget} ändern</span>
                 `;
             }
         }
@@ -16380,7 +16488,9 @@ function renderFskFileRow(f, indent) {
         rowStyle = "color:#ef4444;";
     }
 
-    const name = f.hierarchy.episode ? f.hierarchy.episode : osBasename(f.path);
+    const name = f.media_kind === "movie"
+        ? (f.hierarchy.show || osBasename(f.path))
+        : (f.hierarchy.episode ? f.hierarchy.episode : osBasename(f.path));
 
     return `
         <div style="padding-left:${padding}px; display:flex; justify-content:space-between; gap:10px; margin-bottom:2px; font-size:0.9em; ${rowStyle}">
@@ -16526,23 +16636,23 @@ async function applyFskBatch() {
             }
         } else {
             // Completed oder Partial: Terminal-Zustand "Fertig"
+            if (typeof pollHealthStatus === "function") await pollHealthStatus(false);
             if (cancelBtn) {
                 cancelBtn.textContent = "Fertig";
                 cancelBtn.disabled = false;
                 cancelBtn.onclick = () => {
                     isFskBatchApplying = false;
                     closeFskBatchModal();
-                    if (typeof pollHealthStatus === "function") pollHealthStatus(true); // Autoritative Synchronisation erzwingen!
                 };
             }
             if (confirmBtn) confirmBtn.style.display = "none";
+            if (refreshBtn) refreshBtn.style.display = "none";
 
             const modalX = document.querySelector("#modal-fsk-batch-preview .modal-close");
             if (modalX) {
                 modalX.onclick = () => {
                     isFskBatchApplying = false;
                     closeFskBatchModal();
-                    if (typeof pollHealthStatus === "function") pollHealthStatus(true); // Autoritative Synchronisation erzwingen!
                 };
             }
         }
@@ -16583,4 +16693,6 @@ function closeFskBatchModal() {
         confirmBtn.style.display = "";
         confirmBtn.onclick = null;
     }
+    const refreshBtn = document.getElementById("btn-fsk-batch-refresh");
+    if (refreshBtn) refreshBtn.style.display = "inline-flex";
 }
