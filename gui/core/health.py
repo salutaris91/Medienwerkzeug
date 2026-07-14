@@ -536,7 +536,7 @@ def _check_series_show(issues, category, show_path, validator):
             "fsk_status": "nfo_missing",
             "current_fsk": "Keine",
             "raw_fsk": None,
-            "actionable_fsk": True,
+            "actionable_fsk": False,
             "seasons": []
         }
     entries_lower = {e.lower() for e in entries}
@@ -672,7 +672,7 @@ def _check_movie(issues, category, movie_path, validator):
             "fsk_status": "nfo_missing",
             "current_fsk": "Keine",
             "raw_fsk": None,
-            "actionable_fsk": True,
+            "actionable_fsk": False,
             "issue_keys": []
         }
 

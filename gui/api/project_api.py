@@ -117,17 +117,21 @@ def _resolve_project_media_type(settings, target_dir, all_files):
 
 
 def _build_main_nfo_status(nfo_path, nfo_type):
+    from gui.core.nfo_mutation import make_nfo_fingerprint
+
     status = {
         "path": nfo_path,
         "filename": os.path.basename(nfo_path),
         "exists": False,
         "parseable": False,
         "complete": False,
+        "fingerprint": None,
     }
     if not os.path.isfile(nfo_path):
         return status
 
     status["exists"] = True
+    status["fingerprint"] = make_nfo_fingerprint(nfo_path)
     try:
         import xml.etree.ElementTree as ET
         root = ET.parse(nfo_path).getroot()
@@ -386,6 +390,8 @@ def handle_api_scan_project():
     metadata_name = None
     metadata_year = None
     metadata_plot = None
+    metadata_fsk = None
+    metadata_genres = []
     file_nfo_statuses = {}
     
     metadata_source = None
@@ -450,6 +456,16 @@ def handle_api_scan_project():
                 plot_el = root.find("plot")
                 if plot_el is not None and plot_el.text:
                     metadata_plot = plot_el.text.strip()
+                mpaa_el = root.find("mpaa")
+                if mpaa_el is not None and mpaa_el.text:
+                    from gui.core.nfo_mutation import normalize_fsk
+                    normalized_fsk = normalize_fsk(mpaa_el.text)
+                    metadata_fsk = normalized_fsk.replace("FSK ", "") if normalized_fsk else None
+                metadata_genres = [
+                    element.text.strip()
+                    for element in root.findall("genre")
+                    if element.text and element.text.strip()
+                ]
                 metadata_source = "nfo"
             except Exception as e:
                 log_message(f"Fehler beim Parsen von tvshow.nfo: {e}")
@@ -486,6 +502,16 @@ def handle_api_scan_project():
                     plot_el = root.find("plot")
                     if plot_el is not None and plot_el.text:
                         metadata_plot = plot_el.text.strip()
+                    mpaa_el = root.find("mpaa")
+                    if mpaa_el is not None and mpaa_el.text:
+                        from gui.core.nfo_mutation import normalize_fsk
+                        normalized_fsk = normalize_fsk(mpaa_el.text)
+                        metadata_fsk = normalized_fsk.replace("FSK ", "") if normalized_fsk else None
+                    metadata_genres = [
+                        element.text.strip()
+                        for element in root.findall("genre")
+                        if element.text and element.text.strip()
+                    ]
                     metadata_source = "nfo"
             except Exception as e:
                 log_message(f"Fehler beim Parsen von movie.nfo: {e}")
@@ -524,12 +550,16 @@ def handle_api_scan_project():
         suggested_search_name = suggested_search_name.strip()
 
     # Check each video file's NFO status
+    from gui.core.nfo_mutation import make_nfo_fingerprint
     for f in all_files:
         if os.path.splitext(f)[1].lower() in video_extensions:
             nfo_rel = os.path.splitext(f)[0] + ".nfo"
             nfo_path = os.path.join(target_dir, nfo_rel)
             exists = os.path.exists(nfo_path)
             complete = False
+            episode_fsk = ""
+            episode_title = ""
+            episode_plot = ""
             if exists:
                 try:
                     import xml.etree.ElementTree as ET
@@ -539,10 +569,24 @@ def handle_api_scan_project():
                     plot_el = root.find("plot")
                     title_missing = title_el is None or not title_el.text or not title_el.text.strip()
                     plot_missing = plot_el is None or not plot_el.text or not plot_el.text.strip()
+                    episode_title = title_el.text.strip() if not title_missing else ""
+                    episode_plot = plot_el.text.strip() if not plot_missing else ""
                     complete = not (title_missing or plot_missing)
+                    mpaa_el = root.find("mpaa")
+                    if mpaa_el is not None and mpaa_el.text:
+                        from gui.core.nfo_mutation import normalize_fsk
+                        normalized_fsk = normalize_fsk(mpaa_el.text)
+                        episode_fsk = normalized_fsk.replace("FSK ", "") if normalized_fsk else ""
                 except Exception:
                     complete = False
-            file_nfo_statuses[f] = {"exists": exists, "complete": complete}
+            file_nfo_statuses[f] = {
+                "exists": exists,
+                "complete": complete,
+                "fsk": episode_fsk,
+                "title": episode_title,
+                "plot": episode_plot,
+                "fingerprint": make_nfo_fingerprint(nfo_path) if exists else None,
+            }
             
     return jsonify({
         "current_dir": target_dir,
@@ -558,6 +602,8 @@ def handle_api_scan_project():
         "metadata_name": metadata_name,
         "metadata_year": metadata_year,
         "metadata_plot": metadata_plot,
+        "metadata_fsk": metadata_fsk,
+        "metadata_genres": metadata_genres,
         "metadata_source": metadata_source,
         "suggested_search_name": suggested_search_name,
         "file_nfo_statuses": file_nfo_statuses,

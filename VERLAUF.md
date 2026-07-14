@@ -2,6 +2,14 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 14.07.2026 (Phase 2.5c – FSK als Bestandteil des NFO-Workflows)
+
+- **Ein gemeinsamer Bearbeitungspfad:** Einzelne fehlende oder ungültige FSK-Werte öffnen jetzt den NFO-Agenten. Fehlende NFOs werden erstellt, vorhandene NFOs standardmäßig nur in den ausdrücklich ausgewählten Feldern ergänzt; vollständiges Ersetzen bleibt eine bewusste Option.
+- **Transparente Metadaten:** Titel, Jahr, Plot, Genre und FSK zeigen ihre Herkunft aus vorhandener NFO, Metadatendienst oder manueller Eingabe. Fehlende Kernangaben erzeugen einen ruhigen, nicht blockierenden Hinweis und können ergänzt oder bewusst leer gelassen werden.
+- **Sicheres Schreiben:** Der gemeinsame, byteerhaltende NFO-Schreiber verändert nur `title`, `year`, `plot`, `genre` und `mpaa`, erhält sonstige XML-Inhalte, Dateirechte und deklarierte Kodierungen und legt Backups an. Fingerprints verhindern Änderungen auf veralteter Vorschau; Episodenkonflikte werden als Jobfehler sichtbar.
+- **Hierarchische Aktionen bleiben:** Staffel- und Serien-FSK-Aktionen bleiben für echte Gruppenfälle bestehen und verwenden weiterhin die sichere Stapelvorschau.
+- **Verifikation:** 445 Backend- und 83 Frontend-Tests bestanden; zusätzliche Regressionstests prüfen Byte-Treue, Einzelfeld-Patches, Kodierungserhalt, sichtbare Metadienst-Fehler und Fingerprint-Konflikte.
+
 ## Stand am 14.07.2026 (Phase 2.5c – sichtbarer FSK-Status und klare NFO-Agent-Hierarchie)
 
 - **FSK bleibt sichtbar:** Der medienorientierte Überblick behandelt FSK weiterhin als Teil der NFO-Metadaten, zeigt den konkreten Zustand aber wieder in einem eigenen kompakten Chip. Serien fassen betroffene Haupt-NFOs und Episoden verständlich zusammen; Filme zeigen fehlende, ungültige oder vorhandene Freigaben direkt.

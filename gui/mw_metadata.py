@@ -1185,6 +1185,8 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
     return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart, "logo": not needs_logo, "banner": not needs_banner}
 
 def fetch_show_nfo_data(provider, show_id):
+    from gui.core.nfo_mutation import normalize_fsk
+
     if provider == "manual":
         try:
             meta = json.loads(show_id) if isinstance(show_id, str) else show_id
@@ -1194,13 +1196,17 @@ def fetch_show_nfo_data(provider, show_id):
         return {
             "title": meta.get("title", "Manuelle Serie"),
             "plot": meta.get("plot", ""),
-            "year": meta.get("year", "")
+            "year": meta.get("year", ""),
+            "fsk": normalize_fsk(meta.get("fsk", "")).replace("FSK ", ""),
+            "genres": meta.get("genres", []),
         }
     elif provider == "mediathek":
         return {
             "title": show_id or "",
             "plot": "",
-            "year": ""
+            "year": "",
+            "fsk": "",
+            "genres": [],
         }
     elif provider == "ytdlp":
         try:
@@ -1210,10 +1216,10 @@ def fetch_show_nfo_data(provider, show_id):
             if not isinstance(entries, dict) and len(entries) > 0:
                 title = entries[0].get("playlist_title") or entries[0].get("playlist") or entries[0].get("title") or "YouTube/Mediathek Serie"
                 plot = entries[0].get("description") or ""
-            return {"title": title, "plot": plot, "year": ""}
+            return {"title": title, "plot": plot, "year": "", "fsk": "", "genres": []}
         except Exception as e:
             print(f"[Show NFO Error] yt-dlp-Metadaten für '{show_id}' nicht abrufbar: {e}", file=sys.stderr)
-            return {"title": "YouTube/Mediathek Serie", "plot": "", "year": ""}
+            return {"title": "YouTube/Mediathek Serie", "plot": "", "year": "", "fsk": "", "genres": []}
     elif provider == "tvdb":
         try:
             token = get_tvdb_token()
@@ -1234,25 +1240,45 @@ def fetch_show_nfo_data(provider, show_id):
                         plot = t.get('overview', plot)
                         break
             year = data.get('firstAired', '')[:4] if data.get('firstAired') else ''
-            return {"title": title, "plot": plot, "year": year}
+            fsk = ""
+            for rating in data.get("contentRatings", []):
+                if rating.get("country") == "deu":
+                    fsk = normalize_fsk(rating.get("name", "")).replace("FSK ", "")
+                    break
+            genres = [genre.get("name", "") for genre in data.get("genres", []) if genre.get("name")]
+            return {"title": title, "plot": plot, "year": year, "fsk": fsk, "genres": genres}
         except Exception as e:
-            return {"title": "", "plot": f"Fehler: {e}", "year": ""}
+            return {
+                "title": "", "plot": "", "year": "", "fsk": "", "genres": [],
+                "error": f"TVDB-Metadaten konnten nicht geladen werden: {e}",
+            }
     elif provider in ["tmdb_tv", "tmdb_tv_en"]:
         try:
             lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
-            url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}&language={lang}"
+            url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}&language={lang}&append_to_response=content_ratings"
             req = make_tmdb_request(url)
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
             title = data.get('name', '')
             plot = data.get('overview', '')
             year = data.get('first_air_date', '')[:4] if data.get('first_air_date') else ''
-            return {"title": title, "plot": plot, "year": year}
+            fsk = ""
+            for rating in data.get("content_ratings", {}).get("results", []):
+                if rating.get("iso_3166_1") == "DE":
+                    fsk = normalize_fsk(rating.get("rating", "")).replace("FSK ", "")
+                    break
+            genres = [genre.get("name", "") for genre in data.get("genres", []) if genre.get("name")]
+            return {"title": title, "plot": plot, "year": year, "fsk": fsk, "genres": genres}
         except Exception as e:
-            return {"title": "", "plot": f"Fehler: {e}", "year": ""}
-    return {"title": "", "plot": "", "year": ""}
+            return {
+                "title": "", "plot": "", "year": "", "fsk": "", "genres": [],
+                "error": f"TMDB-Serienmetadaten konnten nicht geladen werden: {e}",
+            }
+    return {"title": "", "plot": "", "year": "", "fsk": "", "genres": []}
 
 def fetch_movie_nfo_data(provider, movie_id):
+    from gui.core.nfo_mutation import normalize_fsk
+
     if provider == "manual" or (isinstance(movie_id, str) and movie_id.startswith("{")):
         try:
             meta = json.loads(movie_id) if isinstance(movie_id, str) else movie_id
@@ -1262,7 +1288,9 @@ def fetch_movie_nfo_data(provider, movie_id):
         return {
             "title": meta.get("title", ""),
             "plot": meta.get("plot", ""),
-            "year": meta.get("year", "")
+            "year": meta.get("year", ""),
+            "fsk": normalize_fsk(meta.get("fsk", "")).replace("FSK ", ""),
+            "genres": meta.get("genres", []),
         }
     elif provider == "mediathek" or (isinstance(movie_id, str) and movie_id.startswith("url_mediathek:")):
         title = movie_id
@@ -1281,7 +1309,7 @@ def fetch_movie_nfo_data(provider, movie_id):
                     year = date_str[:4]
         except Exception as e:
             print(f"[fetch_movie_nfo_data mediathek error] {e}")
-        return {"title": title, "plot": plot, "year": year}
+        return {"title": title, "plot": plot, "year": year, "fsk": "", "genres": []}
     elif isinstance(movie_id, str) and (movie_id.startswith("http://") or movie_id.startswith("https://")):
         try:
             entries = fetch_ytdlp_url_metadata(movie_id)
@@ -1296,22 +1324,35 @@ def fetch_movie_nfo_data(provider, movie_id):
                     year = entry.get("upload_date")[:4]
                 elif entry.get("release_year"):
                     year = str(entry.get("release_year"))
-            return {"title": title, "plot": plot, "year": year}
+            return {"title": title, "plot": plot, "year": year, "fsk": "", "genres": []}
         except Exception as e:
             print(f"[Movie NFO Error] yt-dlp-Metadaten für '{movie_id}' nicht abrufbar: {e}", file=sys.stderr)
-            return {"title": "", "plot": "", "year": ""}
+            return {"title": "", "plot": "", "year": "", "fsk": "", "genres": []}
     else: # TMDB
         try:
-            url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&language=de-DE"
+            url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&language=de-DE&append_to_response=release_dates"
             req = make_tmdb_request(url)
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
             title = data.get('title', '')
             plot = data.get('overview', '')
             year = data.get('release_date', '')[:4] if data.get('release_date') else ''
-            return {"title": title, "plot": plot, "year": year}
+            fsk = ""
+            for country in data.get("release_dates", {}).get("results", []):
+                if country.get("iso_3166_1") == "DE":
+                    for release in country.get("release_dates", []):
+                        fsk = normalize_fsk(release.get("certification", "")).replace("FSK ", "")
+                        if fsk:
+                            break
+                if fsk:
+                    break
+            genres = [genre.get("name", "") for genre in data.get("genres", []) if genre.get("name")]
+            return {"title": title, "plot": plot, "year": year, "fsk": fsk, "genres": genres}
         except Exception as e:
-            return {"title": "", "plot": f"Fehler: {e}", "year": ""}
+            return {
+                "title": "", "plot": "", "year": "", "fsk": "", "genres": [],
+                "error": f"TMDB-Filmmetadaten konnten nicht geladen werden: {e}",
+            }
 
 def fetch_episode_nfo_data(provider, show_id, season, episode):
     if provider == "manual":
@@ -2824,4 +2865,3 @@ if __name__ == "__main__":
             print(res)
     else:
         print("{}")
-

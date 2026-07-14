@@ -13352,15 +13352,22 @@ function renderHealthStatus(data) {
                 if (showNfoIssue || !s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable" || showFskActionable) {
                     let tvshowAction = "";
                     if (showNfoIssue || !s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable") {
-                        tvshowAction = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(showNfoIssue?.agent_path || s.path)}">NFO Agent</button>`;
+                        tvshowAction = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(showNfoIssue?.agent_path || s.path)}">NFO und FSK bearbeiten</button>`;
                     } else if (showFskActionable && !seriesGroupAvailable) {
-                        tvshowAction = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(s.path)}" data-scope-kind="series" data-series-path="${escapeHTML(s.path)}" data-media-kind="series">FSK setzen</button>`;
+                        tvshowAction = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(s.path)}" data-agent-path="${escapeHTML(s.path)}" data-scope-kind="single" data-series-path="${escapeHTML(s.path)}" data-media-kind="series">FSK bearbeiten</button>`;
                     }
-                    const fskLabel = showNfoIssue
-                        ? (HEALTH_TYPE_LABELS[showNfoIssue.type] || "NFO-Problem")
-                        : ((!s.has_nfo || s.fsk_status === "nfo_missing")
-                            ? "NFO fehlt"
-                            : (s.fsk_status === "unreadable" ? "NFO unlesbar" : (s.fsk_status === "missing_fsk" ? "FSK fehlt" : (s.current_fsk || "Keine"))));
+                    let fskLabel = "";
+                    if (!s.has_nfo || s.fsk_status === "nfo_missing") {
+                        fskLabel = `${showNfoIssue ? (HEALTH_TYPE_LABELS[showNfoIssue.type] || "NFO fehlt") : "NFO fehlt"} · FSK noch nicht setzbar`;
+                    } else if (s.fsk_status === "unreadable") {
+                        fskLabel = "NFO unlesbar · FSK noch nicht prüfbar";
+                    } else if (showNfoIssue && showFskActionable) {
+                        fskLabel = `${HEALTH_TYPE_LABELS[showNfoIssue.type] || "NFO-Problem"} · ${s.fsk_status === "invalid_fsk" ? "FSK ungültig" : "FSK fehlt"}`;
+                    } else if (showNfoIssue) {
+                        fskLabel = HEALTH_TYPE_LABELS[showNfoIssue.type] || "NFO-Problem";
+                    } else {
+                        fskLabel = s.fsk_status === "missing_fsk" ? "FSK fehlt" : (s.current_fsk || "Keine");
+                    }
                     const labelColor = (!s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable") ? "text-danger" : "text-warning";
                     html += `<div class="health-media-detail-row" style="font-size:0.9em;">
                                 <span class="fsk-path-monospace" style="color:var(--text-main);">📄 tvshow.nfo</span>
@@ -13434,7 +13441,7 @@ function renderHealthStatus(data) {
                             epActionHtml = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(episodeNfoIssue?.agent_path || se.path)}" style="padding:2px 6px; font-size:11px; height:22px;">NFO Agent</button>`;
                         } else if (isEpFskActionableVal && !seasonGroupAvailable && !seriesGroupAvailable) {
                             // Einzelbutton nur ausblenden, wenn dieselben Dateien über eine Gruppenaktion bedienbar sind.
-                            epActionHtml = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(ep.path)}" data-scope-kind="episode" data-series-path="${escapeHTML(s.path)}" data-season-path="${escapeHTML(se.path)}" data-media-kind="series" style="padding:2px 6px; font-size:11px; height:22px;">FSK setzen</button>`;
+                            epActionHtml = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(ep.path)}" data-agent-path="${escapeHTML(se.path)}" data-scope-kind="episode" data-series-path="${escapeHTML(s.path)}" data-season-path="${escapeHTML(se.path)}" data-media-kind="series" style="padding:2px 6px; font-size:11px; height:22px;">FSK bearbeiten</button>`;
                         }
 
                         let fskLabel = "";
@@ -13521,9 +13528,16 @@ function renderHealthStatus(data) {
 
                 if (movieNfoIssue || hasMovieFskIssue) {
                     const movieAction = movieNfoIssue
-                        ? `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(movieNfoIssue.agent_path || m.path)}">NFO Agent</button>`
-                        : `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(m.path)}" data-scope-kind="movie" data-series-path="" data-media-kind="movie">FSK setzen</button>`;
-                    const nfoLabel = movieNfoIssue ? (HEALTH_TYPE_LABELS[movieNfoIssue.type] || "NFO-Problem") : fskLabel;
+                        ? `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(movieNfoIssue.agent_path || m.path)}">NFO und FSK bearbeiten</button>`
+                        : `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(m.path)}" data-agent-path="${escapeHTML(m.path)}" data-scope-kind="movie" data-series-path="" data-media-kind="movie">FSK bearbeiten</button>`;
+                    let nfoLabel = fskLabel;
+                    if (movieNfoIssue && ["nfo_missing", "unreadable"].includes(m.fsk_status)) {
+                        nfoLabel = `${HEALTH_TYPE_LABELS[movieNfoIssue.type] || "NFO-Problem"} · FSK noch nicht ${m.fsk_status === "unreadable" ? "prüfbar" : "setzbar"}`;
+                    } else if (movieNfoIssue && hasMovieFskIssue) {
+                        nfoLabel = `${HEALTH_TYPE_LABELS[movieNfoIssue.type] || "NFO-Problem"} · ${fskLabel}`;
+                    } else if (movieNfoIssue) {
+                        nfoLabel = HEALTH_TYPE_LABELS[movieNfoIssue.type] || "NFO-Problem";
+                    }
                     html += `<div class="health-media-detail-row">
                                 <span class="fsk-path-monospace" style="color:var(--text-main);">📄 ${escapeHTML(osBasename(m.nfo_path || "movie.nfo"))}</span>
                                 <div style="display:flex; align-items:center; gap:8px;">
@@ -14236,6 +14250,10 @@ function renderHealthStatus(data) {
             b.addEventListener("click", () => {
                 const scopeKind = b.getAttribute("data-scope-kind") || "single";
                 const scope = (scopeKind === "series" || scopeKind === "season") ? scopeKind : "single";
+                if (scope === "single") {
+                    openNfoAgentModal(b.getAttribute("data-agent-path") || b.getAttribute("data-season-path") || b.getAttribute("data-series-path") || b.getAttribute("data-path"));
+                    return;
+                }
                 const item = {
                     path: b.getAttribute("data-path"),
                     scope_kind: scopeKind,
@@ -15390,6 +15408,48 @@ let nfoAgentLogInterval = null;
 
 let nfoAgentProfileId = "";
 let nfoAgentProfileProvider = "";
+let nfoAgentFieldSources = {};
+
+const NFO_AGENT_SOURCE_LABELS = {
+    existing_nfo: "aus vorhandener NFO",
+    metadata_provider: "vom Metadatendienst",
+    manual: "manuell",
+    profile: "aus Serienprofil",
+    missing: "nicht verfügbar"
+};
+
+function setNfoAgentFieldSource(field, source) {
+    nfoAgentFieldSources[field] = source || "missing";
+    const label = document.getElementById(`nfo-agent-${field}-source`);
+    if (label) label.textContent = NFO_AGENT_SOURCE_LABELS[nfoAgentFieldSources[field]] || "nicht verfügbar";
+}
+
+function updateNfoAgentCompletenessWarning() {
+    const fields = [
+        ["Titel", document.getElementById("nfo-agent-show-title")?.value],
+        ["Jahr", document.getElementById("nfo-agent-show-year")?.value],
+        ["Plot", document.getElementById("nfo-agent-show-plot")?.value],
+        ["Genre", document.getElementById("nfo-agent-show-genres")?.value],
+        ["FSK", document.getElementById("nfo-agent-show-fsk")?.value]
+    ];
+    const missing = fields.filter(([, value]) => !String(value || "").trim()).map(([label]) => label);
+    const panel = document.getElementById("nfo-agent-completeness-warning");
+    const heading = document.getElementById("nfo-agent-completeness-heading");
+    const text = document.getElementById("nfo-agent-completeness-text");
+    const submit = document.getElementById("btn-nfo-agent-submit");
+    if (!panel || !heading || !text || !submit) return missing;
+
+    if (missing.length === 0) {
+        panel.style.display = "none";
+        submit.textContent = "Metadaten übernehmen";
+    } else {
+        panel.style.display = "block";
+        heading.textContent = `${missing.length} ${missing.length === 1 ? "Angabe fehlt" : "Angaben fehlen"}`;
+        text.textContent = `Nicht befüllt: ${missing.join(", ")}. Du kannst die Angaben ergänzen oder bewusst ohne sie fortfahren.`;
+        submit.textContent = `Trotz ${missing.length} ${missing.length === 1 ? "fehlender Angabe" : "fehlender Angaben"} fortfahren`;
+    }
+    return missing;
+}
 
 function normalizeProvider(prov) {
     if (!prov) return "";
@@ -15436,6 +15496,14 @@ function openNfoAgentModal(path) {
     document.getElementById("nfo-agent-show-title").value = "";
     document.getElementById("nfo-agent-show-year").value = "";
     document.getElementById("nfo-agent-show-plot").value = "";
+    const genresInput = document.getElementById("nfo-agent-show-genres");
+    if (genresInput) genresInput.value = "";
+    const fskSelect = document.getElementById("nfo-agent-show-fsk");
+    if (fskSelect) fskSelect.value = "";
+    nfoAgentFieldSources = {};
+    ["title", "year", "plot", "genre", "fsk"].forEach(field => setNfoAgentFieldSource(field, "missing"));
+    const overwriteInput = document.getElementById("nfo-agent-overwrite-nfo");
+    if (overwriteInput) overwriteInput.checked = false;
     document.getElementById("nfo-agent-main-nfo-status").innerHTML = "";
     document.getElementById("nfo-agent-main-nfo-section").style.display = "none";
     document.getElementById("nfo-agent-episodes-list").innerHTML = "";
@@ -15512,6 +15580,15 @@ function openNfoAgentModal(path) {
                 document.getElementById("nfo-agent-show-year").value = data.metadata_year || "";
                 document.getElementById("nfo-agent-show-plot").value = data.metadata_plot || "";
             }
+            if (genresInput) genresInput.value = (data.metadata_genres || []).join(", ");
+            if (fskSelect) fskSelect.value = data.metadata_fsk || "";
+            const initialSource = data.metadata_source === "nfo" ? "existing_nfo" : (data.metadata_source || "missing");
+            setNfoAgentFieldSource("title", data.metadata_name ? initialSource : "missing");
+            setNfoAgentFieldSource("year", data.metadata_year ? initialSource : "missing");
+            setNfoAgentFieldSource("plot", data.metadata_plot ? initialSource : "missing");
+            setNfoAgentFieldSource("genre", (data.metadata_genres || []).length ? initialSource : "missing");
+            setNfoAgentFieldSource("fsk", data.metadata_fsk ? initialSource : "missing");
+            updateNfoAgentCompletenessWarning();
 
             // Fetch series profile in background (only for badge comparison "Profil abweichend")
             const showNameQuery = data.metadata_name || data.project || "";
@@ -15563,6 +15640,7 @@ function triggerNfoAgentMediaTypeChange() {
     const modalTitle = document.getElementById("nfo-agent-modal-title");
     const searchLabel = document.getElementById("nfo-agent-search-label");
     const titleLabel = document.getElementById("nfo-agent-title-label");
+    const titleLabelText = document.getElementById("nfo-agent-title-label-text");
     const filesHeading = document.getElementById("nfo-agent-files-heading");
     const mainNfoHeading = document.getElementById("nfo-agent-main-nfo-heading");
     const detailsHeading = document.getElementById("nfo-agent-details-heading");
@@ -15579,7 +15657,8 @@ function triggerNfoAgentMediaTypeChange() {
         epSection.style.display = "block";
         if (modalTitle) modalTitle.textContent = "NFO Agent: Serien-Metadaten";
         if (searchLabel) searchLabel.textContent = "Name der Serie:";
-        if (titleLabel) titleLabel.textContent = "Serientitel (tvshow.nfo):";
+        if (titleLabelText) titleLabelText.textContent = "Serientitel (tvshow.nfo):";
+        else if (titleLabel) titleLabel.textContent = "Serientitel (tvshow.nfo):";
         if (mainNfoHeading) mainNfoHeading.textContent = "Serien-NFO prüfen";
         if (detailsHeading) detailsHeading.textContent = "Serien-Metadaten bearbeiten";
         if (filesHeading) filesHeading.textContent = "Episoden-NFOs und Zuordnung";
@@ -15593,7 +15672,8 @@ function triggerNfoAgentMediaTypeChange() {
         epSection.style.display = "none";
         if (modalTitle) modalTitle.textContent = "NFO Agent: Film-Metadaten";
         if (searchLabel) searchLabel.textContent = "Name des Films:";
-        if (titleLabel) titleLabel.textContent = "Filmtitel (movie.nfo):";
+        if (titleLabelText) titleLabelText.textContent = "Filmtitel (movie.nfo):";
+        else if (titleLabel) titleLabel.textContent = "Filmtitel (movie.nfo):";
         if (mainNfoHeading) mainNfoHeading.textContent = "Film-NFO prüfen";
         if (detailsHeading) detailsHeading.textContent = "Film-Metadaten bearbeiten";
     }
@@ -15739,10 +15819,22 @@ function loadNfoAgentDetails(id, provider, type, season) {
     fetch(url)
         .then(res => res.json())
         .then(meta => {
+            if (meta.error) throw new Error(meta.error);
             // Populate Show / Movie details
-            document.getElementById("nfo-agent-show-title").value = meta.name || "";
+            const metadataTitle = meta.name || meta.title || "";
+            document.getElementById("nfo-agent-show-title").value = metadataTitle;
             document.getElementById("nfo-agent-show-year").value = meta.year || "";
             document.getElementById("nfo-agent-show-plot").value = meta.plot || "";
+            const genresInput = document.getElementById("nfo-agent-show-genres");
+            if (genresInput) genresInput.value = (meta.genres || []).join(", ");
+            const fskSelect = document.getElementById("nfo-agent-show-fsk");
+            if (fskSelect) fskSelect.value = meta.fsk || "";
+            setNfoAgentFieldSource("title", metadataTitle ? "metadata_provider" : "missing");
+            setNfoAgentFieldSource("year", meta.year ? "metadata_provider" : "missing");
+            setNfoAgentFieldSource("plot", meta.plot ? "metadata_provider" : "missing");
+            setNfoAgentFieldSource("genre", (meta.genres || []).length ? "metadata_provider" : "missing");
+            setNfoAgentFieldSource("fsk", meta.fsk ? "metadata_provider" : "missing");
+            updateNfoAgentCompletenessWarning();
 
             // If series, rebuild the files list with the loaded episode metadata
             if (type === "tvshow" && nfoAgentScanData) {
@@ -15751,7 +15843,7 @@ function loadNfoAgentDetails(id, provider, type, season) {
         })
         .catch(err => {
             console.error(err);
-            alert("Fehler beim Laden der Details.");
+            alert(`Fehler beim Laden der Details: ${err.message || "Unbekannter Fehler"}`);
         });
 }
 
@@ -15851,6 +15943,7 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
     files.forEach(file => {
         const basename = file;
         const status = nfoStatuses[basename] || { exists: false, complete: false };
+        const episodeFsk = status.fsk || "";
 
         // Auto-detect season and episode numbers from filename
         let match = basename.match(/S(\d+)E(\d+)/i) || basename.match(/E(\d+)/i);
@@ -15886,6 +15979,8 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
                 }
             }
         }
+        const displayedTitle = status.title || metaTitle;
+        const displayedPlot = status.plot || metaPlot;
 
         // Default dropdown value: skip if NFO exists and is complete
         const defaultSelectValue = (status.exists && status.complete) ? "skip" : (epNum || "skip");
@@ -15915,12 +16010,19 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
                 <div style="display: flex; gap: 8px;">
                     <div style="flex: 1;">
                         <label style="display: block; font-size: 0.75em; margin-bottom: 2px; color: var(--text-muted);">Episodentitel:</label>
-                        <input type="text" class="nfo-agent-ep-override-title" data-file="${escapeHTML(basename)}" value="${escapeHTML(metaTitle)}" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.1); color: var(--text-main);">
+                        <input type="text" class="nfo-agent-ep-override-title" data-file="${escapeHTML(basename)}" value="${escapeHTML(displayedTitle)}" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.1); color: var(--text-main);">
+                    </div>
+                    <div style="width: 130px;">
+                        <label style="display: block; font-size: 0.75em; margin-bottom: 2px; color: var(--text-muted);">Altersfreigabe:</label>
+                        <select class="nfo-agent-ep-override-fsk" data-file="${escapeHTML(basename)}" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(30,30,45,1); color: var(--text-main);">
+                            <option value="" ${episodeFsk ? "" : "selected"}>Keine Angabe</option>
+                            ${[0, 6, 12, 16, 18].map(value => `<option value="${value}" ${String(episodeFsk) === String(value) ? "selected" : ""}>FSK ${value}</option>`).join("")}
+                        </select>
                     </div>
                 </div>
                 <div>
                     <label style="display: block; font-size: 0.75em; margin-bottom: 2px; color: var(--text-muted);">Beschreibung (Episoden-Plot):</label>
-                    <textarea class="nfo-agent-ep-override-plot" data-file="${escapeHTML(basename)}" rows="2" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.1); color: var(--text-main); font-family: inherit; resize: vertical;">${escapeHTML(metaPlot)}</textarea>
+                    <textarea class="nfo-agent-ep-override-plot" data-file="${escapeHTML(basename)}" rows="2" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.1); color: var(--text-main); font-family: inherit; resize: vertical;">${escapeHTML(displayedPlot)}</textarea>
                 </div>
             </div>
         `;
@@ -15997,8 +16099,7 @@ function submitNfoAgentJob() {
 
     const provider = document.getElementById("nfo-agent-provider").value;
     const mediaType = document.getElementById("nfo-agent-media-type").value;
-    const showId = document.getElementById("nfo-agent-metadata-id").value.trim();
-    const movieId = showId;
+    let showId = document.getElementById("nfo-agent-metadata-id").value.trim();
     const season = parseInt(document.getElementById("nfo-agent-season").value) || 1;
     const overwriteNfo = document.getElementById("nfo-agent-overwrite-nfo").checked;
 
@@ -16010,6 +16111,7 @@ function submitNfoAgentJob() {
     // Build mappings & overrides
     const mappings = {};
     const episodesOverrides = {};
+    const episodeFingerprints = {};
 
     const mappingSelects = document.querySelectorAll(".nfo-agent-ep-mapping-select");
     mappingSelects.forEach(select => {
@@ -16017,6 +16119,7 @@ function submitNfoAgentJob() {
         const val = select.value;
         if (val !== "skip") {
             mappings[file] = val;
+            episodeFingerprints[file] = nfoAgentScanData?.file_nfo_statuses?.[file]?.fingerprint ?? null;
         }
     });
 
@@ -16026,37 +16129,44 @@ function submitNfoAgentJob() {
         const title = input.value.trim();
         const plotTextarea = document.querySelector(`.nfo-agent-ep-override-plot[data-file="${CSS.escape(file)}"]`);
         const plot = plotTextarea ? plotTextarea.value.trim() : "";
+        const fskSelect = document.querySelector(`.nfo-agent-ep-override-fsk[data-file="${CSS.escape(file)}"]`);
+        const fsk = fskSelect ? fskSelect.value : "";
 
-        if (title || plot) {
-            episodesOverrides[file] = { title, plot };
+        const originalStatus = nfoAgentScanData?.file_nfo_statuses?.[file] || {};
+        const episodeChanges = {};
+        if (title && title !== (originalStatus.title || "")) episodeChanges.title = title;
+        if (plot && plot !== (originalStatus.plot || "")) episodeChanges.plot = plot;
+        if (fsk && fsk !== (originalStatus.fsk || "")) episodeChanges.fsk = fsk;
+        if (Object.keys(episodeChanges).length) {
+            episodesOverrides[file] = episodeChanges;
         }
     });
 
     const showTitle = document.getElementById("nfo-agent-show-title").value.trim();
     const showYear = document.getElementById("nfo-agent-show-year").value.trim();
     const showPlot = document.getElementById("nfo-agent-show-plot").value.trim();
+    const showGenres = (document.getElementById("nfo-agent-show-genres")?.value || "")
+        .split(/[,;]/)
+        .map(value => value.trim())
+        .filter(Boolean);
+    const showFsk = document.getElementById("nfo-agent-show-fsk")?.value || "";
+
+    if (provider === "manual" && !showId) {
+        showId = JSON.stringify({ title: showTitle, year: showYear, plot: showPlot, genres: showGenres, fsk: showFsk });
+    }
+    const movieId = showId;
 
     const showOverrides = {};
     const movieOverrides = {};
+    const existingMainNfo = Boolean(nfoAgentScanData?.main_nfo_status?.exists);
+    const originalGenres = nfoAgentScanData?.metadata_genres || [];
+    const includeMainField = (value, original) => !existingMainNfo || JSON.stringify(value) !== JSON.stringify(original);
 
-    if (nfoAgentScanData) {
-        if (showTitle !== (nfoAgentScanData.metadata_name || "")) {
-            showOverrides.title = showTitle;
-            movieOverrides.title = showTitle;
-        }
-        if (showYear !== (nfoAgentScanData.metadata_year || "").toString()) {
-            showOverrides.year = showYear;
-            movieOverrides.year = showYear;
-        }
-        if (showPlot !== (nfoAgentScanData.metadata_plot || "")) {
-            showOverrides.plot = showPlot;
-            movieOverrides.plot = showPlot;
-        }
-    } else {
-        if (showTitle) { showOverrides.title = showTitle; movieOverrides.title = showTitle; }
-        if (showYear) { showOverrides.year = showYear; movieOverrides.year = showYear; }
-        if (showPlot) { showOverrides.plot = showPlot; movieOverrides.plot = showPlot; }
-    }
+    if (showTitle && includeMainField(showTitle, nfoAgentScanData?.metadata_name || "")) { showOverrides.title = showTitle; movieOverrides.title = showTitle; }
+    if (showYear && includeMainField(showYear, String(nfoAgentScanData?.metadata_year || ""))) { showOverrides.year = showYear; movieOverrides.year = showYear; }
+    if (showPlot && includeMainField(showPlot, nfoAgentScanData?.metadata_plot || "")) { showOverrides.plot = showPlot; movieOverrides.plot = showPlot; }
+    if (showGenres.length && includeMainField(showGenres, originalGenres)) { showOverrides.genres = showGenres; movieOverrides.genres = showGenres; }
+    if (showFsk && includeMainField(showFsk, nfoAgentScanData?.metadata_fsk || "")) { showOverrides.fsk = showFsk; movieOverrides.fsk = showFsk; }
 
     const nfoOverrides = {
         show: showOverrides,
@@ -16066,6 +16176,8 @@ function submitNfoAgentJob() {
 
     const showNfoActionSelect = document.getElementById("nfo-agent-show-nfo-action");
     const writeShowNfo = showNfoActionSelect ? (showNfoActionSelect.value !== "skip") : true;
+    const mainNfoStatus = nfoAgentScanData?.main_nfo_status || null;
+    const nfoWriteMode = mainNfoStatus?.exists ? (overwriteNfo ? "replace" : "patch") : "create";
 
     const payload = {
         project_name: nfoAgentCurrentPath,
@@ -16076,8 +16188,11 @@ function submitNfoAgentJob() {
         movie_id: movieId,
         season: season,
         overwrite_nfo: overwriteNfo,
+        nfo_write_mode: nfoWriteMode,
+        main_nfo_fingerprint: mainNfoStatus?.fingerprint ?? null,
         write_show_nfo: writeShowNfo,
         mappings: mappings,
+        episode_fingerprints: episodeFingerprints,
         nfo_overrides: nfoOverrides
     };
 
@@ -16214,6 +16329,22 @@ window.bindNfoAgentEvents = function() {
     document.getElementById("btn-nfo-agent-submit")?.addEventListener("click", submitNfoAgentJob);
     document.getElementById("btn-nfo-agent-search")?.addEventListener("click", searchNfoAgentMetadata);
     document.getElementById("nfo-agent-media-type")?.addEventListener("change", triggerNfoAgentMediaTypeChange);
+    [
+        ["nfo-agent-show-title", "title"],
+        ["nfo-agent-show-year", "year"],
+        ["nfo-agent-show-plot", "plot"],
+        ["nfo-agent-show-genres", "genre"],
+        ["nfo-agent-show-fsk", "fsk"]
+    ].forEach(([elementId, field]) => {
+        document.getElementById(elementId)?.addEventListener("input", () => {
+            setNfoAgentFieldSource(field, "manual");
+            updateNfoAgentCompletenessWarning();
+        });
+        document.getElementById(elementId)?.addEventListener("change", () => {
+            setNfoAgentFieldSource(field, "manual");
+            updateNfoAgentCompletenessWarning();
+        });
+    });
 
     // Bind Enter key inside search box
     document.getElementById("nfo-agent-search-title")?.addEventListener("keydown", (e) => {

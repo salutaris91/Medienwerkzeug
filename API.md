@@ -178,7 +178,22 @@ Importiert ausgewählte lokale Medien aus konfigurierten Quellen in die Inbox un
   `flatten` (Verschachtelung auflösen), `rename_folder`, `rename_file`,
   `rename_folder_to_file`, `rename_file_to_folder`, `rename_both`, `set_fsk`.
   Payload: `{"action": "...", "path": "...", "new_name": "...", "new_fsk": "..."}`.
-  Nur innerhalb NAS-Root, nie überschreibend (Ausnahme: FSK-Fix überschreibt <mpaa> in NFO).
+  Nur innerhalb NAS-Root, nie überschreibend. Einzelne FSK-Befunde öffnen den
+  NFO-Agenten, damit Altersfreigabe und weitere NFO-Metadaten gemeinsam geprüft
+  werden. Staffel- und Serien-Stapelaktionen ändern weiterhin ausschließlich das
+  `<mpaa>`-Feld der zuvor angezeigten NFO-Dateien und prüfen vor dem Schreiben
+  deren Fingerprints.
+
+### NFO-Agent — gemeinsamer Metadaten-Workflow
+* `GET /api/scan-project` liefert für die Haupt-NFO und Episoden-NFOs den
+  vorhandenen Inhalt sowie einen Fingerprint der Vorschau.
+* `POST /api/process` mit `media_type: "tool_nfo_agent"` unterscheidet die
+  Schreibmodi `create`, `patch` und `replace`. `patch` verändert nur ausdrücklich
+  gewählte Felder (`title`, `year`, `plot`, `genre`, `mpaa`) und erhält alle
+  übrigen XML-Bytes. `replace` muss im Modal ausdrücklich gewählt werden.
+* Stimmen die Fingerprints beim Schreiben nicht mehr, wird der Job sichtbar
+  abgebrochen. Fehlende Angaben des Metadatendienstes sind ein nicht blockierender
+  Hinweis und können manuell ergänzt oder bewusst leer gelassen werden.
 
 ### Feature 4 — NAS-weite Duplikat-Erkennung
 * `POST /api/nas/scan-duplicates` — startet die Erkennung im Hintergrund.

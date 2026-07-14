@@ -939,7 +939,7 @@ test('Media-oriented movie summary keeps explicit FSK status visible', () => {
     const summaryHtml = issuesEl.innerHTML.match(/<summary class="health-media-summary">[\s\S]*?<\/summary>/)?.[0] || "";
     assert.ok(summaryHtml.includes("NFO-Metadaten: prüfen"));
     assert.ok(summaryHtml.includes("FSK: 99 ungültig"));
-    assert.ok(issuesEl.innerHTML.includes("FSK setzen"));
+    assert.ok(issuesEl.innerHTML.includes("FSK bearbeiten"));
 
     document.body.removeChild(container);
 });

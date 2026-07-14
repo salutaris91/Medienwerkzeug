@@ -3235,7 +3235,57 @@ body.runtime-docker .docker-only-info {
     background: rgba(255, 255, 255, 0.01);
 }
 
+.nfo-agent-metadata-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 180px;
+    gap: 12px;
+}
+
+.nfo-agent-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.nfo-agent-field input,
+.nfo-agent-field select {
+    width: 100%;
+    padding: 7px;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.15);
+    color: var(--text-main);
+}
+
+.nfo-agent-field-source {
+    margin-left: 5px;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.nfo-agent-completeness-warning {
+    margin: 0 14px 14px;
+    padding: 10px 12px;
+    border: 1px solid rgba(245, 158, 11, 0.26);
+    border-radius: 6px;
+    background: rgba(245, 158, 11, 0.07);
+    color: #fbbf24;
+}
+
+.nfo-agent-completeness-warning p {
+    margin: 4px 0 0;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
 @media (max-width: 700px) {
+    .nfo-agent-metadata-grid {
+        grid-template-columns: 1fr;
+    }
+
     .nfo-agent-main-nfo-card {
         align-items: stretch;
         flex-direction: column;

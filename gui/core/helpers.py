@@ -711,7 +711,7 @@ def parse_subtitle_suffix(original_name):
 
 def parse_fsk_status(nfo_path):
     if not nfo_path or not os.path.exists(nfo_path):
-        return "nfo_missing", "Keine", None, True
+        return "nfo_missing", "Keine", None, False
 
     try:
         with open(nfo_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -732,7 +732,7 @@ def parse_fsk_status(nfo_path):
             return "invalid_fsk", f"Ungültig: {val}", val, True
 
     except Exception:
-        return "unreadable", "Unlesbar", None, True
+        return "unreadable", "Unlesbar", None, False
 
 
 def get_category_media_type(cat, path=None):

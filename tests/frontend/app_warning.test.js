@@ -115,6 +115,7 @@ globalThis.renderQueue = renderQueue;
 globalThis.renderNfoAgentFiles = renderNfoAgentFiles;
 globalThis.triggerNfoAgentMediaTypeChange = triggerNfoAgentMediaTypeChange;
 globalThis.submitNfoAgentJob = submitNfoAgentJob;
+globalThis.updateNfoAgentCompletenessWarning = updateNfoAgentCompletenessWarning;
 globalThis.setNfoAgentScanData = (val) => { nfoAgentScanData = val; };
 globalThis.setNfoAgentCurrentPath = (val) => { nfoAgentCurrentPath = val; };
 globalThis.waitForServerRestart = waitForServerRestart;
@@ -567,7 +568,7 @@ test('NFO Agent movie mode renders movie.nfo without series controls', () => {
     assert.strictEqual(elements["nfo-agent-episodes-section"].style.display, "none");
     assert.strictEqual(elements["nfo-agent-modal-title"].textContent, "NFO Agent: Film-Metadaten");
     assert.strictEqual(elements["nfo-agent-search-label"].textContent, "Name des Films:");
-    assert.strictEqual(elements["nfo-agent-title-label"].textContent, "Filmtitel (movie.nfo):");
+    assert.strictEqual(elements["nfo-agent-title-label-text"].textContent, "Filmtitel (movie.nfo):");
     assert.strictEqual(elements["nfo-agent-main-nfo-heading"].textContent, "Film-NFO prüfen");
     assert.strictEqual(elements["nfo-agent-details-heading"].textContent, "Film-Metadaten bearbeiten");
     assert.strictEqual(mainNfoBody.children.length, 1);
@@ -596,6 +597,10 @@ test('submitNfoAgentJob - payload structures and write_show_nfo semantics', () =
     elements["nfo-agent-show-year"].value = "2026";
     elements["nfo-agent-show-plot"] = createMockElement();
     elements["nfo-agent-show-plot"].value = "Plot description";
+    elements["nfo-agent-show-genres"] = createMockElement();
+    elements["nfo-agent-show-genres"].value = "Drama, Komödie";
+    elements["nfo-agent-show-fsk"] = createMockElement();
+    elements["nfo-agent-show-fsk"].value = "12";
 
     elements["nfo-agent-show-nfo-action"] = createMockElement();
 
@@ -604,7 +609,13 @@ test('submitNfoAgentJob - payload structures and write_show_nfo semantics', () =
     globalThis.setNfoAgentScanData({
         metadata_name: "Original Title",
         metadata_year: "2026",
-        metadata_plot: "Plot description"
+        metadata_plot: "Plot description",
+        metadata_genres: [],
+        metadata_fsk: "",
+        main_nfo_status: {
+            exists: true,
+            fingerprint: { path: "/media/Serien/Show/tvshow.nfo", size: 12, hash: "abc" }
+        }
     });
 
     let interceptedUrl = null;
@@ -631,6 +642,10 @@ test('submitNfoAgentJob - payload structures and write_show_nfo semantics', () =
     assert.strictEqual(payload.movie_id, "123456");
     assert.strictEqual(payload.season, 2);
     assert.strictEqual(payload.overwrite_nfo, true);
+    assert.strictEqual(payload.nfo_write_mode, "replace");
+    assert.deepStrictEqual(payload.nfo_overrides.show.genres, ["Drama", "Komödie"]);
+    assert.strictEqual(payload.nfo_overrides.show.fsk, "12");
+    assert.strictEqual(payload.main_nfo_fingerprint.hash, "abc");
 
     // Case B: show NFO action is "skip"
     elements["nfo-agent-show-nfo-action"].value = "skip";
@@ -639,6 +654,31 @@ test('submitNfoAgentJob - payload structures and write_show_nfo semantics', () =
     payload = JSON.parse(interceptedOptions.body);
     assert.strictEqual(payload.write_show_nfo, false);
     assert.strictEqual(payload.show_id, "123456"); // show_id remains unchanged
+});
+
+test('NFO Agent shows a calm non-blocking completeness hint', () => {
+    elements["nfo-agent-show-title"].value = "Titel";
+    elements["nfo-agent-show-year"].value = "2026";
+    elements["nfo-agent-show-plot"].value = "Beschreibung";
+    elements["nfo-agent-show-genres"].value = "";
+    elements["nfo-agent-show-fsk"].value = "";
+    elements["nfo-agent-completeness-warning"] = createMockElement();
+    elements["nfo-agent-completeness-heading"] = createMockElement();
+    elements["nfo-agent-completeness-text"] = createMockElement();
+    elements["btn-nfo-agent-submit"] = createMockElement();
+
+    const missing = globalThis.updateNfoAgentCompletenessWarning();
+
+    assert.deepStrictEqual(missing, ["Genre", "FSK"]);
+    assert.strictEqual(elements["nfo-agent-completeness-warning"].style.display, "block");
+    assert.ok(elements["nfo-agent-completeness-text"].textContent.includes("Genre, FSK"));
+    assert.strictEqual(elements["btn-nfo-agent-submit"].textContent, "Trotz 2 fehlender Angaben fortfahren");
+
+    elements["nfo-agent-show-genres"].value = "Drama";
+    elements["nfo-agent-show-fsk"].value = "12";
+    assert.deepStrictEqual(globalThis.updateNfoAgentCompletenessWarning(), []);
+    assert.strictEqual(elements["nfo-agent-completeness-warning"].style.display, "none");
+    assert.strictEqual(elements["btn-nfo-agent-submit"].textContent, "Metadaten übernehmen");
 });
 
 test('waitForServerRestart succeeds after a temporary connection failure', async () => {

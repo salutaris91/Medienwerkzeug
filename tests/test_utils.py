@@ -1562,11 +1562,17 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             "overwrite_nfo": True
         }
 
+        def create_mock_episode_nfo(**kwargs):
+            nfo_path = os.path.join(kwargs["target_folder"], f'{kwargs["filename_base"]}.nfo')
+            with open(nfo_path, "w", encoding="utf-8") as nfo_file:
+                nfo_file.write("<episodedetails><title>Mock</title></episodedetails>")
+            return True
+
         # Mock generate_tvshow_nfo and generate_episode_nfo
         with patch("gui.workers.processor.load_settings", return_value={"inbox_dir": self.test_dir, "outbox_dir": self.test_dir}), \
              patch("gui.core.helpers.is_path_allowed", return_value=True), \
              patch("gui.mw_metadata.generate_tvshow_nfo") as mock_gen_show, \
-             patch("gui.mw_metadata.generate_episode_nfo", return_value=True) as mock_gen_ep:
+             patch("gui.mw_metadata.generate_episode_nfo", side_effect=create_mock_episode_nfo) as mock_gen_ep:
 
             process_worker(params)
 
@@ -3333,12 +3339,15 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                 "show": {
                     "title": "NFO Agent Show",
                     "year": "2026",
-                    "plot": "Show Plot Override"
+                    "plot": "Show Plot Override",
+                    "genres": ["Drama", "Komödie"],
+                    "fsk": "12"
                 },
                 "episodes": {
                     ep_file: {
                         "title": "Ep 1 Override",
-                        "plot": "Ep 1 Plot Override"
+                        "plot": "Ep 1 Plot Override",
+                        "fsk": "6"
                     }
                 }
             },
@@ -3368,10 +3377,13 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         tree_show = ET.parse(show_nfo)
         self.assertEqual(tree_show.find("title").text, "NFO Agent Show")
         self.assertEqual(tree_show.find("plot").text, "Show Plot Override")
+        self.assertEqual(tree_show.find("mpaa").text, "FSK 12")
+        self.assertEqual([node.text for node in tree_show.findall("genre")], ["Drama", "Komödie"])
         
         tree_ep = ET.parse(ep_nfo)
         self.assertEqual(tree_ep.find("title").text, "Ep 1 Override")
         self.assertEqual(tree_ep.find("plot").text, "Ep 1 Plot Override")
+        self.assertEqual(tree_ep.find("mpaa").text, "FSK 6")
         
         # Safety asserts: NO files moved/deleted/converted
         # The video file must still exist in proj_dir
@@ -3398,7 +3410,9 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                 "movie": {
                     "title": "NFO Agent Movie",
                     "year": "2026",
-                    "plot": "Movie Plot Override"
+                    "plot": "Movie Plot Override",
+                    "genres": ["Dokumentation"],
+                    "fsk": "0"
                 }
             },
             "overwrite_nfo": True
@@ -3423,9 +3437,105 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         tree = ET.parse(movie_nfo)
         self.assertEqual(tree.find("title").text, "NFO Agent Movie")
         self.assertEqual(tree.find("plot").text, "Movie Plot Override")
+        self.assertEqual(tree.find("mpaa").text, "FSK 0")
+        self.assertEqual([node.text for node in tree.findall("genre")], ["Dokumentation"])
         
         # Safety asserts: video file still in project dir, not moved/converted
         self.assertTrue(os.path.exists(os.path.join(proj_dir, movie_file)))
+
+    def test_nfo_metadata_fetch_error_is_not_written_as_plot(self):
+        from gui import mw_metadata
+        from unittest.mock import patch
+
+        with patch("gui.mw_metadata.urllib.request.urlopen", side_effect=OSError("offline")):
+            result = mw_metadata.fetch_movie_nfo_data("tmdb_movie", "123")
+
+        self.assertEqual(result["plot"], "")
+        self.assertIn("error", result)
+        self.assertIn("nicht geladen", result["error"])
+
+    def test_nfo_agent_patch_preserves_unselected_existing_metadata(self):
+        proj_dir = os.path.join(self.test_dir, "nfo_agent_patch_project")
+        os.makedirs(proj_dir, exist_ok=True)
+        nfo_path = os.path.join(proj_dir, "tvshow.nfo")
+        with open(nfo_path, "w", encoding="utf-8") as nfo_file:
+            nfo_file.write(
+                "<tvshow>\n  <title>Bestehender Titel</title>\n"
+                "  <plot>Alter Plot</plot>\n  <custom>Behalten</custom>\n"
+                "  <mpaa>FSK 6</mpaa>\n</tvshow>\n"
+            )
+
+        from gui.core.nfo_mutation import make_nfo_fingerprint
+        from gui.workers.processor import process_worker
+        from unittest.mock import patch
+
+        params = {
+            "media_type": "tool_nfo_agent",
+            "nfo_type": "tvshow",
+            "project_name": proj_dir,
+            "provider": "manual",
+            "show_id": "manual",
+            "nfo_write_mode": "patch",
+            "main_nfo_fingerprint": make_nfo_fingerprint(nfo_path),
+            "nfo_overrides": {"show": {"plot": "Neuer Plot", "fsk": "12"}},
+            "mappings": {},
+        }
+
+        with patch("gui.workers.processor.load_settings", return_value={
+            "inbox_dir": self.test_dir,
+            "nas_root": os.path.join(self.test_dir, "nas_root"),
+            "outbox_dir": os.path.join(self.test_dir, "outbox_dir")
+        }):
+            with patch("gui.core.helpers.is_path_allowed", return_value=True):
+                process_worker(params)
+
+        content = open(nfo_path, "r", encoding="utf-8").read()
+        self.assertIn("<title>Bestehender Titel</title>", content)
+        self.assertIn("<plot>Neuer Plot</plot>", content)
+        self.assertIn("<custom>Behalten</custom>", content)
+        self.assertIn("<mpaa>FSK 12</mpaa>", content)
+
+    def test_nfo_agent_reports_episode_fingerprint_conflict(self):
+        proj_dir = os.path.join(self.test_dir, "nfo_agent_episode_conflict")
+        os.makedirs(proj_dir, exist_ok=True)
+        episode_file = "Show - S01E01.mp4"
+        episode_nfo = os.path.join(proj_dir, "Show - S01E01.nfo")
+        with open(os.path.join(proj_dir, episode_file), "w", encoding="utf-8") as video_file:
+            video_file.write("mock video content")
+        with open(episode_nfo, "w", encoding="utf-8") as nfo_file:
+            nfo_file.write("<episodedetails><title>Vorschau</title></episodedetails>")
+
+        from gui.core.nfo_mutation import make_nfo_fingerprint
+        from gui.workers.processor import process_worker
+        from unittest.mock import patch
+
+        stale_fingerprint = make_nfo_fingerprint(episode_nfo)
+        with open(episode_nfo, "w", encoding="utf-8") as nfo_file:
+            nfo_file.write("<episodedetails><title>Extern geändert</title></episodedetails>")
+
+        params = {
+            "media_type": "tool_nfo_agent",
+            "nfo_type": "tvshow",
+            "project_name": proj_dir,
+            "provider": "manual",
+            "show_id": "manual",
+            "write_show_nfo": False,
+            "mappings": {episode_file: "S01E01"},
+            "episode_fingerprints": {episode_file: stale_fingerprint},
+            "nfo_overrides": {"episodes": {episode_file: {"fsk": "12"}}},
+        }
+
+        with patch("gui.workers.processor.load_settings", return_value={
+            "inbox_dir": self.test_dir,
+            "nas_root": os.path.join(self.test_dir, "nas_root"),
+            "outbox_dir": os.path.join(self.test_dir, "outbox_dir")
+        }):
+            with patch("gui.core.helpers.is_path_allowed", return_value=True):
+                with self.assertRaisesRegex(RuntimeError, "seit der Vorschau verändert"):
+                    process_worker(params)
+
+        with open(episode_nfo, "r", encoding="utf-8") as nfo_file:
+            self.assertIn("Extern geändert", nfo_file.read())
 
     def test_nfo_agent_job_path_denied(self):
         from gui.workers.processor import process_worker

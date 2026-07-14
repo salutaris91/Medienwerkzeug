@@ -57,7 +57,7 @@ die aktive After-Release-Roadmap übernommen.
 | 48 | Health-Scan: Qualitäts-, Bitrate- & Audiospur-Prüfung definieren und markieren | geplant | mittel |
 | 49 | Bibliotheks-Scan: Teilscan ohne Medienserver & dynamische Kategorieauswahl | erledigt | klein–mittel |
 | 50 | NFO-Agent: Mapping- und Review-Editor extrahieren (Ansatz C) | geplant | mittel |
-| 51 | NFO-Agent Vollständigkeit: FSK/Genre/Artwork | geplant | klein–mittel |
+| 51 | NFO-Agent Vollständigkeit: FSK/Genre/Artwork | teilweise | klein–mittel |
 
 ---
 
@@ -1532,6 +1532,15 @@ Der NFO-Agent deckt aktuell nur Titel, Plot und das Erscheinungsjahr ab. Weitere
 
 **Ziel:**
 Erweiterung des NFO-Agenten um die Möglichkeit, auch FSK-Freigaben, Genres, Studios, Darsteller und Artworks zu laden, im Modal anzuzeigen und in die Haupt-NFO zu schreiben.
+
+**Stand 14.07.2026:**
+FSK und Genres sind für Film-, Serien- und Episoden-NFOs in den gemeinsamen
+NFO-Agenten integriert. Vorhandene Dateien werden standardmäßig feldgenau
+ergänzt; vollständiges Ersetzen ist eine ausdrückliche Option. Quellenhinweise,
+Fingerprint-Konfliktschutz und ein nicht blockierender Hinweis auf fehlende
+Kernangaben sind umgesetzt. Artwork-Auswahl sowie Studios, Regisseure und
+Darsteller bleiben offen, daher ist das Roadmap-Item noch nicht vollständig
+erledigt.
 
 **Umsetzung:**
 1. **Frontend-Erweiterung:** Hinzufügen von Eingabefeldern/Dropdowns für FSK-Freigabe, Genres und Studios im NFO-Agent-Modal.
