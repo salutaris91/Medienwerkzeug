@@ -62,15 +62,19 @@ def test_linked_worktree_shares_config_but_keeps_resettable_media_local(tmp_path
     repository = tmp_path / "repository"
     linked_worktree = tmp_path / "linked-worktree"
     script_target = repository / "scripts" / "orbstack-test.sh"
+    compose_target = repository / "compose.orbstack.yml"
     fixture_target = repository / "tests" / "fixtures" / "orbstack-library"
     script_target.parent.mkdir(parents=True)
     fixture_target.mkdir(parents=True)
     shutil.copy2(SCRIPT, script_target)
+    # Without the compose file, `status` only passes while Docker is stopped:
+    # a running daemon makes `compose ps` fail on the missing file.
+    shutil.copy2(COMPOSE, compose_target)
     (fixture_target / "fixture.txt").write_text("original\n", encoding="utf-8")
 
     commands = [
         ["git", "init"],
-        ["git", "add", "scripts/orbstack-test.sh", "tests/fixtures/orbstack-library/fixture.txt"],
+        ["git", "add", "scripts/orbstack-test.sh", "compose.orbstack.yml", "tests/fixtures/orbstack-library/fixture.txt"],
         [
             "git",
             "-c",
