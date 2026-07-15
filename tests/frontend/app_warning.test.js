@@ -291,6 +291,8 @@ test('renderHealthStatus - severity grouping renders severity groups and no chec
     assert.ok(issuesEl.innerHTML.includes('data-sev="critical"'));
     // Sollte keinen Checkbox-Gruppenselector rendern
     assert.ok(!issuesEl.innerHTML.includes('class="health-group-select-all"'));
+    assert.ok(issuesEl.innerHTML.includes("Metadaten bearbeiten"));
+    assert.ok(!issuesEl.innerHTML.includes(">NFO Agent</button>"));
 });
 
 test('renderHealthStatus - type grouping renders type groups, checkboxes and tool-connectors', () => {
@@ -302,7 +304,8 @@ test('renderHealthStatus - type grouping renders type groups, checkboxes and too
         status: "done",
         message: "Scan abgeschlossen",
         issues: [
-            { key: "1", type: "missing_nfo", category: "Filme", severity: "critical", message: "Fehlende NFO", path: "/path/to/movie" }
+            { key: "1", type: "missing_nfo", category: "Filme", severity: "critical", message: "Fehlende NFO", path: "/path/to/movie" },
+            { key: "2", type: "missing_age_rating", category: "Filme", severity: "warning", message: "FSK fehlt", path: "/path/to/movie/movie.nfo", agent_path: "/path/to/movie", media_kind: "movie", scope_kind: "movie" }
         ],
         finished_at: 1719816000
     };
@@ -320,6 +323,10 @@ test('renderHealthStatus - type grouping renders type groups, checkboxes and too
     // da jede Serie eine eigene Metadatenquelle/ID braucht)
     assert.ok(issuesEl.innerHTML.includes('health-nfo-agent'));
     assert.ok(!issuesEl.innerHTML.includes('data-tool="tool_nfo_agent"'));
+    assert.ok(issuesEl.innerHTML.includes('health-fix-fsk'));
+    assert.ok(issuesEl.innerHTML.includes("Metadaten bearbeiten"));
+    assert.ok(!issuesEl.innerHTML.includes(">NFO Agent</button>"));
+    assert.ok(!issuesEl.innerHTML.includes(">FSK setzen</button>"));
 });
 
 test('renderHealthStatus - only nested_duplicate / structure issues displays tab specific empty state on media tab', () => {

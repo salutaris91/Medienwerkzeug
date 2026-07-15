@@ -6,7 +6,7 @@ Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert 
 
 - **Ein gemeinsamer Prüf- und Bearbeitungsbereich:** Der NFO-Agent zeigt Datei- und Vollständigkeitsstatus jetzt direkt innerhalb der Film- beziehungsweise Serien-Metadaten. Der frühere separate Prüfabschnitt und die zweite Warnbox am Formularende entfallen.
 - **Einfache Statussprache:** Statt Mengenangaben wie `2 Angaben fehlen` erscheint nur noch `Metadaten unvollständig`. Fehlende Dateien werden als `Fehlende Metadaten` und unlesbare Inhalte als `Metadaten nicht lesbar` bezeichnet.
-- **Einheitliche Aktion:** In der medienorientierten Ansicht führen einzelne NFO- und FSK-Probleme über den gemeinsamen Button `Metadaten bearbeiten` in denselben NFO-Workflow. Technische Zusätze wie `FSK noch nicht setzbar` entfallen.
+- **Einheitliche Aktion:** In allen Health-Ansichten führen einzelne NFO- und FSK-Probleme über den gemeinsamen Button `Metadaten bearbeiten` in denselben NFO-Workflow. Technische Zusätze wie `FSK noch nicht setzbar` entfallen.
 - **Ruhigere Darstellung:** `movie.nfo` und `tvshow.nfo` verwenden in den Health-Details dieselbe Typografie; die Zusammenfassung spricht nur noch von `Metadaten` statt von `NFO-Metadaten`.
 - **Verifikation:** 445 Backend- und 87 Frontend-Tests bestanden; Syntax- und Whitespace-Prüfung sind fehlerfrei.
 

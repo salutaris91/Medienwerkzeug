@@ -1273,7 +1273,7 @@ test('NFO-Agent rendered in skipped_missing', async () => {
     await new Promise(r => setTimeout(r, 10));
     const container = document.getElementById("fsk-batch-tree-container");
     const html = container.innerHTML;
-    assert.ok(html.includes("NFO Agent"));
+    assert.ok(html.includes("Metadaten bearbeiten"));
     assert.ok(html.includes("/Filme/Fehlend"));
 });
 
