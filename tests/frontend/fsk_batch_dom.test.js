@@ -179,6 +179,8 @@ globalThis.setNfoAgentEditMode = setNfoAgentEditMode;
 globalThis.startNfoAgentLogStreaming = startNfoAgentLogStreaming;
 globalThis.searchNfoAgentMetadata = searchNfoAgentMetadata;
 globalThis.renderHealthStatus = renderHealthStatus;
+globalThis.renderHealthMediaView = renderHealthMediaView;
+globalThis.switchHealthMediaTab = switchHealthMediaTab;
 globalThis.openHealthIgnoreModal = openHealthIgnoreModal;
 globalThis.submitHealthIgnoreRule = submitHealthIgnoreRule;
 globalThis.closeHealthIgnoreModal = closeHealthIgnoreModal;
@@ -1053,6 +1055,42 @@ test('Scoped ignore modal lists present issue types grouped by catalog group and
     });
     assert.ok(globalThis.fetchRequests.some((item) => item.url.includes("/api/nas/health-status")));
     assert.ok(modal.classList.contains("hidden"));
+});
+
+test('Media view separates series and movies into tabs with counts', () => {
+    const data = {
+        issues: [
+            { key: "s1", type: "missing_poster", group: "artwork", severity: "warning", scope_kind: "series", scope_path: "/Serien/My Show", series_path: "/Serien/My Show" },
+            { key: "m1", type: "missing_poster", group: "artwork", severity: "warning", scope_kind: "movie", scope_path: "/Filme/My Movie" }
+        ],
+        media_structure: {
+            series: [{ name: "My Show", path: "/Serien/My Show", has_nfo: true, fsk_status: "ok", issue_keys: ["s1"], seasons: [] }],
+            movies: [{ name: "My Movie", path: "/Filme/My Movie", fsk_status: "ok", issue_keys: ["m1"] }]
+        }
+    };
+
+    const html = globalThis.renderHealthMediaView(data, []);
+
+    // Tab bar with counts; series visible by default, movies hidden.
+    assert.ok(html.includes("Serien (1)"));
+    assert.ok(html.includes("Filme (1)"));
+    assert.ok(html.includes('class="health-media-tab-panel " data-media-panel="series"'));
+    assert.ok(html.includes('class="health-media-tab-panel hidden" data-media-panel="movies"'));
+    assert.ok(html.includes('data-media-tab="series" aria-selected="true"'));
+    assert.ok(html.includes('data-media-tab="movies" aria-selected="false"'));
+    // No emoji prefixes in the media sections anymore.
+    assert.ok(!html.includes("📺"));
+    assert.ok(!html.includes("🎬"));
+
+    // Switching the tab persists across re-renders.
+    globalThis.switchHealthMediaTab("movies");
+    const switchedHtml = globalThis.renderHealthMediaView(data, []);
+    assert.ok(switchedHtml.includes('class="health-media-tab-panel hidden" data-media-panel="series"'));
+    assert.ok(switchedHtml.includes('class="health-media-tab-panel " data-media-panel="movies"'));
+    assert.ok(switchedHtml.includes('data-media-tab="movies" aria-selected="true"'));
+
+    // Reset shared tab state so other tests keep the series default.
+    globalThis.switchHealthMediaTab("series");
 });
 
 test('Scoped ignore modal is static, explicit, and reversible', () => {

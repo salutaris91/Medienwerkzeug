@@ -3036,11 +3036,48 @@ body.runtime-docker .docker-only-info {
 }
 
 /* Media-oriented health summary: calm overview, exact actions in details. */
+.health-media-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.health-media-tab {
+    appearance: none;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 10px 14px;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.health-media-tab:hover,
+.health-media-tab:focus-visible {
+    color: var(--text-main);
+    outline: none;
+}
+
+.health-media-tab.active {
+    color: var(--text-main);
+    border-bottom-color: var(--accent);
+}
+
 .health-media-card {
-    border: 1px solid var(--border-light);
+    border: 1px solid var(--border-glass, var(--border-light));
     border-radius: 8px;
-    margin-bottom: 8px;
-    background: rgba(255, 255, 255, 0.01);
+    margin-bottom: 16px;
+    background: rgba(255, 255, 255, 0.03);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.health-media-summary-main span {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-main);
 }
 
 .health-media-summary {

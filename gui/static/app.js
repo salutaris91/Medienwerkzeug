@@ -12561,6 +12561,9 @@ function renderHealthIssueRows(issues) {
     }).join("");
 }
 
+// Active tab of the media view; persists across status re-renders.
+let healthMediaActiveTab = "series";
+
 function renderHealthMediaView(data, openTypes) {
     const seriesList = data.media_structure ? data.media_structure.series || [] : [];
     const moviesList = data.media_structure ? data.media_structure.movies || [] : [];
@@ -12568,7 +12571,7 @@ function renderHealthMediaView(data, openTypes) {
     (data.issues || []).forEach((issue) => { issuesByKey[issue.key] = issue; });
     const issuesFor = (item) => getIssuesForKeys(item && item.issue_keys ? item.issue_keys : [], issuesByKey);
     const issueCountForGroup = (issues, group) => issues.filter((issue) => getHealthIssueGroup(issue) === group).length;
-    let html = `<div class="health-media-section-title"><span>Serien</span></div>`;
+    let html = "";
     let renderedSeriesCount = 0;
 
     seriesList.forEach((series) => {
@@ -12699,7 +12702,8 @@ function renderHealthMediaView(data, openTypes) {
 
     if (!renderedSeriesCount) html += `<p class="text-muted health-media-empty">Keine auffälligen Serien gefunden.</p>`;
 
-    html += `<div class="health-media-section-title health-media-movies-title"><span>Filme</span></div>`;
+    const seriesHtml = html;
+    html = "";
     let renderedMoviesCount = 0;
     moviesList.forEach((movie) => {
         const movieIssues = issuesFor(movie);
@@ -12736,7 +12740,27 @@ function renderHealthMediaView(data, openTypes) {
         html += `</div></details>`;
     });
     if (!renderedMoviesCount) html += `<p class="text-muted health-media-empty">Keine auffälligen Filme gefunden.</p>`;
-    return html;
+    const moviesHtml = html;
+
+    const activeTab = healthMediaActiveTab === "movies" ? "movies" : "series";
+    return `<div class="health-media-tabs" role="tablist">
+                <button type="button" role="tab" class="health-media-tab ${activeTab === "series" ? "active" : ""}" data-media-tab="series" aria-selected="${activeTab === "series"}">Serien (${renderedSeriesCount})</button>
+                <button type="button" role="tab" class="health-media-tab ${activeTab === "movies" ? "active" : ""}" data-media-tab="movies" aria-selected="${activeTab === "movies"}">Filme (${renderedMoviesCount})</button>
+            </div>
+            <div class="health-media-tab-panel ${activeTab === "series" ? "" : "hidden"}" data-media-panel="series">${seriesHtml}</div>
+            <div class="health-media-tab-panel ${activeTab === "movies" ? "" : "hidden"}" data-media-panel="movies">${moviesHtml}</div>`;
+}
+
+function switchHealthMediaTab(tabName) {
+    healthMediaActiveTab = tabName === "movies" ? "movies" : "series";
+    document.querySelectorAll(".health-media-tab").forEach((button) => {
+        const isActive = button.getAttribute("data-media-tab") === healthMediaActiveTab;
+        button.classList.toggle("active", isActive);
+        button.setAttribute("aria-selected", String(isActive));
+    });
+    document.querySelectorAll(".health-media-tab-panel").forEach((panel) => {
+        panel.classList.toggle("hidden", panel.getAttribute("data-media-panel") !== healthMediaActiveTab);
+    });
 }
 
 window.switchLibraryTab = function(tabId) {
@@ -16623,6 +16647,12 @@ window.bindHealthActionEvents = function() {
     });
 
     document.addEventListener("click", (e) => {
+        const mediaTabBtn = e.target.closest(".health-media-tab");
+        if (mediaTabBtn) {
+            switchHealthMediaTab(mediaTabBtn.getAttribute("data-media-tab"));
+            return;
+        }
+
         const ignoreScopeBtn = e.target.closest(".health-ignore-scope");
         if (ignoreScopeBtn) {
             openHealthIgnoreModal(
