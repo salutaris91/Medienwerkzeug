@@ -178,5 +178,8 @@ def is_health_issue_ignored(issue, state=None):
     state = state or get_ignore_state()
     if issue.get("key") in set(state["exact_keys"]):
         return True
-    group = issue.get("group") or get_issue_definition(issue.get("type", ""))["group"]
+    definition = get_issue_definition(issue.get("type", ""))
+    if issue.get("ignoreable", definition["ignoreable"]) is False:
+        return False
+    group = issue.get("group") or definition["group"]
     return any(group in rule["groups"] and _issue_belongs_to_rule(issue, rule) for rule in state["health_rules"])

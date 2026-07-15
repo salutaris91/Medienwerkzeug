@@ -10,7 +10,7 @@ Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert 
 - **Staffel-Metadaten bearbeitbar:** Vorhandene `season.nfo` und betroffene Folgen lassen sich im Staffelkontext gemeinsam prüfen, ohne die `tvshow.nfo` unbeabsichtigt zu verändern. Eine fehlende `season.nfo` bleibt weiterhin optional.
 - **Persistente, bereichsbezogene Hinweise:** Nutzer können für Film, Serie, Staffel oder Folge gezielt vorhandene Gruppen wie Metadaten, Artwork oder Dateien ausblenden. Ein Bestätigungsmodal zeigt nur tatsächlich betroffene Gruppen; alle Regeln können über „wieder einblenden“ vollständig zurückgenommen werden.
 - **Kompatible Migration:** Alte exakte Ignorier-Schlüssel und Duplikat-Ausnahmen bleiben erhalten. Nur die früher mehrdeutigen strikten Staffel-Schlüssel für NFO- und Dateihinweise werden automatisch in das neue Regelschema überführt; ähnlich benannte Ordner wie `Staffel Backup` bleiben exakte Altregeln.
-- **Verifikation:** 454 Backend- und 91 Frontend-Tests bestanden; Syntax-, Sicherheits-, Migrations- und Whitespace-Prüfungen sind fehlerfrei.
+- **Verifikation:** 456 Backend- und 92 Frontend-Tests bestanden; Syntax-, Sicherheits-, Migrations- und Whitespace-Prüfungen sind fehlerfrei.
 
 ## Stand am 15.07.2026 (Phase 2.5c – vereinfachte Metadatenführung)
 

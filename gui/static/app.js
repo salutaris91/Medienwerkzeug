@@ -12584,7 +12584,7 @@ function renderHealthMediaView(data, openTypes) {
             (season.episodes || []).forEach((episode) => allSeriesIssues.push(...issuesFor(episode)));
         });
         const uniqueSeriesIssues = [...new Map(allSeriesIssues.map((issue) => [issue.key, issue])).values()];
-        const showMetadataProblem = hasMetadataProblem(showIssues, series.fsk_status) || !series.has_nfo;
+        const showMetadataProblem = hasMetadataProblem(showIssues, series.fsk_status);
         if (!showMetadataProblem && affectedEpisodes.length === 0 && uniqueSeriesIssues.length === 0) return;
 
         renderedSeriesCount++;

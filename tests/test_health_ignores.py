@@ -90,6 +90,47 @@ def test_apply_ignores_recalculates_summary_for_scoped_rules(tmp_path, monkeypat
     assert filtered["summary"] == {"critical": 0, "warning": 1, "info": 0}
 
 
+def test_apply_ignores_removes_fsk_state_from_media_structure(tmp_path, monkeypatch):
+    monkeypatch.setattr(ignores, "IGNORE_FILE", str(tmp_path / "ignored_findings.json"))
+    movie_path = tmp_path / "Films" / "Movie"
+    movie_path.mkdir(parents=True)
+    fsk_issue = _issue("movie-fsk", "metadata", "movie", movie_path)
+    fsk_issue["type"] = "missing_age_rating"
+    assert ignores.add_health_rule("movie", str(movie_path), ["metadata"])
+    result = {
+        "issues": [fsk_issue],
+        "media_structure": {
+            "series": [],
+            "movies": [{
+                "path": str(movie_path),
+                "fsk_status": "missing_fsk",
+                "issue_keys": ["movie-fsk"],
+            }],
+        },
+    }
+
+    filtered = health._apply_ignores(result)
+
+    assert filtered["issues"] == []
+    assert filtered["media_structure"]["movies"][0]["issue_keys"] == []
+    assert filtered["media_structure"]["movies"][0]["fsk_status"] == "ignored"
+
+
+def test_unknown_issue_stays_visible_under_scoped_other_rule(tmp_path, monkeypatch):
+    monkeypatch.setattr(ignores, "IGNORE_FILE", str(tmp_path / "ignored_findings.json"))
+    series_path = tmp_path / "Show"
+    assert ignores.add_health_rule("series", str(series_path), ["other"])
+    unknown = {
+        "key": "future-check",
+        "type": "future_check",
+        "scope_kind": "series",
+        "scope_path": str(series_path),
+        "series_path": str(series_path),
+    }
+
+    assert ignores.is_health_issue_ignored(unknown) is False
+
+
 def test_ignore_rule_endpoint_validates_scope_group_and_library_boundary(tmp_path, monkeypatch):
     app = Flask(__name__)
     app.register_blueprint(nas_api, url_prefix="/api")

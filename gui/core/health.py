@@ -1233,7 +1233,39 @@ def _apply_ignores(result):
     from gui.core import ignores
     ignore_state = ignores.get_ignore_state()
     issues = result.get("issues", []) or []
+    ignored = [issue for issue in issues if ignores.is_health_issue_ignored(issue, ignore_state)]
     kept = [issue for issue in issues if not ignores.is_health_issue_ignored(issue, ignore_state)]
+    kept_keys = {issue.get("key") for issue in kept if issue.get("key")}
+
+    def filter_media_item(item):
+        if not isinstance(item, dict):
+            return
+        original_keys = item.get("issue_keys", []) or []
+        ignored_types = {
+            issue.get("type")
+            for issue in ignored
+            if issue.get("key") in original_keys
+        }
+        item["issue_keys"] = [key for key in original_keys if key in kept_keys]
+        if ignored_types & {"missing_nfo", "unreadable_nfo", "missing_age_rating", "invalid_age_rating"}:
+            remaining_types = {
+                issue.get("type")
+                for issue in kept
+                if issue.get("key") in item["issue_keys"]
+            }
+            if not remaining_types & {"missing_nfo", "unreadable_nfo", "missing_age_rating", "invalid_age_rating"}:
+                item["fsk_status"] = "ignored"
+
+    media_structure = result.get("media_structure", {}) or {}
+    for movie in media_structure.get("movies", []) or []:
+        filter_media_item(movie)
+    for series in media_structure.get("series", []) or []:
+        filter_media_item(series)
+        for season in series.get("seasons", []) or []:
+            filter_media_item(season)
+            for episode in season.get("episodes", []) or []:
+                filter_media_item(episode)
+
     ignored_count = len(issues) - len(kept)
     summary = {"critical": 0, "warning": 0, "info": 0}
     for i in kept:

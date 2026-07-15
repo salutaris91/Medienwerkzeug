@@ -1101,6 +1101,39 @@ test('Media-oriented movie view treats invalid FSK as a metadata problem', () =>
     document.body.removeChild(container);
 });
 
+test('Media view does not resurrect an ignored missing series NFO from structural status', () => {
+    const container = document.createElement("div");
+    container.id = "view-library";
+    globalThis.elements["view-library"] = container;
+    document.body.appendChild(container);
+    const issuesEl = document.createElement("div");
+    issuesEl.id = "health-issues";
+    globalThis.elements["health-issues"] = issuesEl;
+    container.appendChild(issuesEl);
+    globalThis.healthGroupMode = "media";
+
+    globalThis.renderHealthStatus({
+        status: "done",
+        issues: [],
+        summary: { critical: 0, warning: 0, info: 0 },
+        ignored_count: 1,
+        media_structure: {
+            series: [{
+                name: "Ignored Show",
+                path: "/Serien/Ignored Show",
+                has_nfo: false,
+                fsk_status: "ignored",
+                issue_keys: [],
+                seasons: []
+            }],
+            movies: []
+        }
+    });
+
+    assert.ok(!issuesEl.innerHTML.includes("Ignored Show"));
+    document.body.removeChild(container);
+});
+
 test('nfo_missing visibility and action suppression', () => {
     // Hilfsfunktionen für präzise HTML-Prüfungen
     const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
