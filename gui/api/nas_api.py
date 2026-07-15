@@ -679,6 +679,36 @@ def handle_api_findings_ignore():
     return jsonify({"ok": ok})
 
 
+@nas_api.route('/findings/ignore-rules', methods=['POST'])
+def handle_api_findings_ignore_rules():
+    """Persist selected Health groups for one canonical media scope."""
+    import gui.core.ignores as ignores
+    from gui.core.health_issue_registry import HEALTH_ISSUE_GROUPS
+
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    scope_kind = str(params.get("scope_kind", "")).strip()
+    scope_path = os.path.realpath(str(params.get("scope_path", "")).strip())
+    groups = params.get("groups", [])
+    if scope_kind not in ignores.ALLOWED_SCOPE_KINDS:
+        return jsonify({"ok": False, "message": "Ungültiger Geltungsbereich."}), 400
+    if not isinstance(groups, list) or not groups or any(group not in HEALTH_ISSUE_GROUPS for group in groups):
+        return jsonify({"ok": False, "message": "Keine gültigen Hinweisgruppen ausgewählt."}), 400
+    if not scope_path or not is_path_allowed(scope_path):
+        return jsonify({"ok": False, "message": "Der Pfad liegt außerhalb der freigegebenen Bibliothek."}), 403
+    if scope_kind == "season" and not is_season_folder_name(os.path.basename(scope_path)):
+        return jsonify({"ok": False, "message": "Der Pfad ist kein gültiger Staffelordner."}), 400
+    if scope_kind in {"movie", "series", "season"} and not os.path.isdir(scope_path):
+        return jsonify({"ok": False, "message": "Der Medienordner existiert nicht."}), 400
+    if scope_kind == "episode" and os.path.splitext(scope_path)[1].lower() != ".nfo":
+        return jsonify({"ok": False, "message": "Der Folgenbereich muss auf eine NFO-Datei zeigen."}), 400
+
+    ok = ignores.add_health_rule(scope_kind, scope_path, groups)
+    return jsonify({"ok": ok}), 200 if ok else 500
+
+
 @nas_api.route('/findings/unignore', methods=['POST'])
 def handle_api_findings_unignore():
     """Entfernt einen Befund-Schlüssel aus der Ignorier-Liste (wieder einblenden)."""
@@ -694,11 +724,15 @@ def handle_api_findings_unignore():
     return jsonify({"ok": ok})
 
 
-@nas_api.route('/findings/ignored', methods=['GET'])
+@nas_api.route('/findings/ignored', methods=['GET', 'DELETE'])
 def handle_api_findings_ignored():
-    """Liefert die Liste aller ignorierten Befund-Schlüssel."""
+    """Return persisted ignore state or restore every ignored finding."""
     import gui.core.ignores as ignores
-    return jsonify({"ignored": sorted(ignores.get_ignored())})
+    if request.method == "DELETE":
+        ok = ignores.clear_all()
+        return jsonify({"ok": ok}), 200 if ok else 500
+    state = ignores.get_ignore_state()
+    return jsonify({"ignored": state["exact_keys"], "rules": state["health_rules"], "version": state["version"]})
 
 
 

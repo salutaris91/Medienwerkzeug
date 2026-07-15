@@ -3493,6 +3493,70 @@ body.runtime-docker .docker-only-info {
 .health-media-episode-action {
     display: flex;
     justify-content: flex-end;
+    gap: 8px;
+}
+
+.health-ignore-notice {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.025);
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
+.health-ignore-select-all,
+.health-ignore-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.health-ignore-select-all {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.health-ignore-groups {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.health-ignore-option {
+    padding: 11px 12px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.health-ignore-option:hover {
+    border-color: var(--accent);
+    background: rgba(59, 130, 246, 0.08);
+}
+
+.health-ignore-option span {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.health-ignore-option small {
+    color: var(--text-muted);
+}
+
+.health-ignore-error {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-radius: var(--radius-md);
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.1);
 }
 
 @media (max-width: 900px) {

@@ -2925,6 +2925,33 @@ group_add:
         </div>
     </div>
 
+    <!-- Modal: Health-Hinweise bereichsbezogen ignorieren -->
+    <div id="modal-health-ignore" class="mw-modal-overlay hidden" style="z-index: 1000006;">
+        <div class="mw-modal" style="max-width: 620px; display: flex; flex-direction: column; padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-glass); background: rgba(30, 30, 45, 0.95); backdrop-filter: blur(10px); box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-light); padding-bottom: 12px; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: var(--text-main);">Hinweise ignorieren</h3>
+                <span class="close-modal" id="close-modal-health-ignore" style="cursor: pointer; font-size: 1.5em; color: var(--text-muted);" aria-label="Schließen">&times;</span>
+            </div>
+
+            <p id="health-ignore-description" class="text-muted" style="margin: 0 0 14px;"></p>
+            <p class="health-ignore-notice">
+                Ausgewählte Hinweise werden bei künftigen Health-Scans für diesen Bereich ausgeblendet. Du kannst sie jederzeit wieder einblenden.
+            </p>
+
+            <label class="health-ignore-select-all">
+                <input type="checkbox" id="health-ignore-select-all">
+                <strong>Alle auswählen</strong>
+            </label>
+            <div id="health-ignore-groups" class="health-ignore-groups"></div>
+            <div id="health-ignore-error" class="health-ignore-error" role="alert" style="display: none;"></div>
+
+            <div class="mw-modal-actions" style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 18px; border-top: 1px solid var(--border-light); padding-top: 12px;">
+                <button class="mw-modal-btn mw-modal-btn-cancel" id="btn-health-ignore-cancel" type="button">Abbrechen</button>
+                <button class="mw-modal-btn mw-modal-btn-confirm" id="btn-health-ignore-submit" type="button" disabled>Ausgewählte Hinweise ignorieren</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: Structure Fix Preview -->
     <div id="modal-structure-preview" class="mw-modal-overlay hidden">
         <div class="mw-modal" style="max-width: 800px; display: flex; flex-direction: column; padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-glass); background: rgba(30, 30, 45, 0.95); backdrop-filter: blur(10px); box-shadow: 0 20px 40px rgba(0,0,0,0.5);">

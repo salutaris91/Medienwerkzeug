@@ -179,6 +179,9 @@ globalThis.setNfoAgentEditMode = setNfoAgentEditMode;
 globalThis.startNfoAgentLogStreaming = startNfoAgentLogStreaming;
 globalThis.searchNfoAgentMetadata = searchNfoAgentMetadata;
 globalThis.renderHealthStatus = renderHealthStatus;
+globalThis.openHealthIgnoreModal = openHealthIgnoreModal;
+globalThis.submitHealthIgnoreRule = submitHealthIgnoreRule;
+globalThis.closeHealthIgnoreModal = closeHealthIgnoreModal;
 globalThis.setFskBatchScope = (scope) => { currentFskBatchScope = scope; };
 Object.defineProperty(globalThis, 'healthGroupMode', {
     get: () => window.healthGroupMode,
@@ -909,6 +912,8 @@ test('Media summary stays calm and exposes exact actions only in details', () =>
     assert.ok(html.includes("Fehlendes Staffelposter"));
     assert.ok(html.includes(`data-path="${showPath}"`));
     assert.ok(html.includes('data-edit-mode="series"'));
+    assert.ok(html.includes(`class="btn btn-secondary btn-sm health-ignore-scope" data-scope-kind="series" data-scope-path="${showPath}"`));
+    assert.ok(html.includes(`data-scope-kind="season" data-scope-path="${seasonPath}"`));
 
     document.body.removeChild(container);
 });
@@ -973,11 +978,78 @@ test('Media view separates season findings from collapsible episode metadata fin
     assert.ok(html.includes('data-edit-mode="season"'));
     assert.ok(html.includes('data-edit-mode="episode"'));
     assert.ok(html.includes('data-episode-file="My Show S01E01.mkv"'));
+    assert.ok(html.includes(`data-scope-kind="episode" data-scope-path="${episodeNfo}"`));
     assert.ok(html.includes("Fehlende Felder: Plot"));
     assert.ok(!html.match(/<details class="health-media-episode"[^>]*\sopen(?:\s|>)/));
     assert.ok(!html.includes("health-fix-fsk"));
 
     document.body.removeChild(container);
+});
+
+test('Scoped ignore modal lists only present issue groups and posts the exact scope', async () => {
+    const showPath = "/Serien/My Show";
+    const seasonPath = `${showPath}/Staffel 01`;
+    globalThis.window.currentHealthStatusData = {
+        issues: [
+            { key: "meta", type: "incomplete_nfo", group: "metadata", ignoreable: true, series_path: showPath, season_path: seasonPath },
+            { key: "art", type: "missing_season_poster", group: "artwork", ignoreable: true, series_path: showPath, season_path: seasonPath },
+            { key: "locked", type: "unknown", group: "other", ignoreable: false, series_path: showPath },
+            { key: "other", type: "small_file", group: "files", ignoreable: true, series_path: "/Serien/Other" }
+        ],
+        issue_catalog: {
+            groups: {
+                metadata: { label: "Metadaten", order: 10 },
+                artwork: { label: "Artwork", order: 20 },
+                files: { label: "Dateien", order: 30 },
+                other: { label: "Weitere Hinweise", order: 90 }
+            }
+        }
+    };
+
+    const groupList = document.getElementById("health-ignore-groups");
+    const modal = document.getElementById("modal-health-ignore");
+    globalThis.openHealthIgnoreModal("season", seasonPath);
+
+    assert.ok(modal.classList.contains("active"));
+    assert.ok(groupList.innerHTML.includes('value="metadata"'));
+    assert.ok(groupList.innerHTML.includes('value="artwork"'));
+    assert.ok(!groupList.innerHTML.includes('value="files"'));
+    assert.ok(!groupList.innerHTML.includes('value="other"'));
+    assert.ok(groupList.innerHTML.indexOf('value="metadata"') < groupList.innerHTML.indexOf('value="artwork"'));
+    assert.strictEqual(document.getElementById("health-ignore-description").textContent, "Wähle aus, welche Hinweise für diese Staffel künftig ausgeblendet werden sollen.");
+
+    groupList.querySelectorAll = (selector) => selector === ".health-ignore-group:checked"
+        ? [{ value: "metadata" }, { value: "artwork" }]
+        : [];
+    globalThis.fetchRequests = [];
+    globalThis.mockFetchResponse = (url) => ({
+        ok: true,
+        status: 200,
+        json: async () => url === "/api/findings/ignore-rules"
+            ? { ok: true }
+            : { status: "done", issues: [], summary: {}, media_structure: { series: [], movies: [] } }
+    });
+
+    await globalThis.submitHealthIgnoreRule();
+
+    const request = globalThis.fetchRequests.find((item) => item.url === "/api/findings/ignore-rules");
+    assert.ok(request);
+    assert.deepStrictEqual(JSON.parse(request.options.body), {
+        scope_kind: "season",
+        scope_path: seasonPath,
+        groups: ["metadata", "artwork"]
+    });
+    assert.ok(globalThis.fetchRequests.some((item) => item.url.includes("/api/nas/health-status")));
+    assert.ok(modal.classList.contains("hidden"));
+});
+
+test('Scoped ignore modal is static, explicit, and reversible', () => {
+    const indexHtml = fs.readFileSync(path.resolve(__dirname, '../../gui/static/index.html'), 'utf8');
+    assert.ok(indexHtml.includes('id="modal-health-ignore"'));
+    assert.ok(indexHtml.includes('>Hinweise ignorieren</h3>'));
+    assert.ok(indexHtml.includes('id="health-ignore-select-all"'));
+    assert.ok(indexHtml.includes('Ausgewählte Hinweise ignorieren'));
+    assert.ok(indexHtml.includes('Du kannst sie jederzeit wieder einblenden.'));
 });
 
 test('Media-oriented movie view treats invalid FSK as a metadata problem', () => {

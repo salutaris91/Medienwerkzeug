@@ -12544,6 +12544,10 @@ function renderHealthMetadataButton(path, editMode, episodeFile = "", label = "M
     return `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(path)}" data-edit-mode="${escapeHTML(editMode)}"${episodeData}>${escapeHTML(label)}</button>`;
 }
 
+function renderHealthIgnoreButton(scopeKind, scopePath) {
+    return `<button class="btn btn-secondary btn-sm health-ignore-scope" data-scope-kind="${escapeHTML(scopeKind)}" data-scope-path="${escapeHTML(scopePath)}">Hinweise ignorieren</button>`;
+}
+
 function renderHealthIssueRows(issues) {
     return issues.map((issue) => {
         const label = issue.label || HEALTH_TYPE_LABELS[issue.type] || issue.type;
@@ -12609,7 +12613,10 @@ function renderHealthMediaView(data, openTypes) {
                     <div class="health-media-details">
                         <div class="health-media-scope-action">
                             <span><strong>Gesamte Serie</strong><small>Serien-NFO, Staffeln und Folgen gemeinsam prüfen</small></span>
-                            ${renderHealthMetadataButton(series.path, "full", "", "Ganze Serie bearbeiten")}
+                            <div class="health-media-row-actions">
+                                ${renderHealthIgnoreButton("series", series.path)}
+                                ${renderHealthMetadataButton(series.path, "full", "", "Ganze Serie bearbeiten")}
+                            </div>
                         </div>`;
 
         if (showMetadataProblem) {
@@ -12655,7 +12662,10 @@ function renderHealthMediaView(data, openTypes) {
                         <div class="health-media-nested-body">
                             <div class="health-media-scope-action">
                                 <span><strong>${escapeHTML(season.name)}</strong><small>Optionale Staffel-NFO und betroffene Folgen prüfen</small></span>
-                                ${renderHealthMetadataButton(season.path, "season", "", "Staffel bearbeiten")}
+                                <div class="health-media-row-actions">
+                                    ${renderHealthIgnoreButton("season", season.path)}
+                                    ${renderHealthMetadataButton(season.path, "season", "", "Staffel bearbeiten")}
+                                </div>
                             </div>
                             ${renderHealthIssueRows(seasonIssues)}`;
 
@@ -12675,7 +12685,10 @@ function renderHealthMediaView(data, openTypes) {
                             </summary>
                             <div class="health-media-nested-body">
                                 ${renderHealthIssueRows(issues)}
-                                ${metadataProblem ? `<div class="health-media-episode-action">${renderHealthMetadataButton(agentPath, "episode", episode.name)}</div>` : ""}
+                                <div class="health-media-episode-action">
+                                    ${renderHealthIgnoreButton("episode", episode.path || episode.nfo_path || episode.name)}
+                                    ${metadataProblem ? renderHealthMetadataButton(agentPath, "episode", episode.name) : ""}
+                                </div>
                             </div>
                          </details>`;
             });
@@ -12706,7 +12719,8 @@ function renderHealthMediaView(data, openTypes) {
                         <div class="health-media-summary-chips">${chips.join("")}</div>
                         <span class="health-media-disclosure"><span class="health-media-disclosure-closed">Details anzeigen</span><span class="health-media-disclosure-open">Details schließen</span></span>
                     </summary>
-                    <div class="health-media-details">`;
+                    <div class="health-media-details">
+                        <div class="health-media-episode-action">${renderHealthIgnoreButton("movie", movie.path)}</div>`;
         if (metadataProblem) {
             const labels = getMetadataProblemLabels(movieIssues, movie.fsk_status);
             const agentPath = movieIssues.find((issue) => issue.agent_path)?.agent_path || movie.path;
@@ -13037,6 +13051,7 @@ function runContextTool(toolType, path) {
 }
 
 function renderHealthStatus(data) {
+    window.currentHealthStatusData = data;
     const statusEl = document.getElementById("health-scan-status");
     const progWrap = document.getElementById("health-progress-wrap");
     const progBar = document.getElementById("health-progress-bar");
@@ -14264,6 +14279,112 @@ function renderHealthStatus(data) {
 }
 
 // Gemeinsame Helfer für die "Ignorieren"-Funktion (Health & Duplikate)
+let currentHealthIgnoreScope = null;
+
+function healthIssueBelongsToScope(issue, scopeKind, scopePath) {
+    if (scopeKind === "series") {
+        return issue.series_path === scopePath || (issue.scope_kind === "series" && issue.scope_path === scopePath);
+    }
+    if (scopeKind === "season") {
+        return issue.season_path === scopePath || (issue.scope_kind === "season" && issue.scope_path === scopePath);
+    }
+    if (scopeKind === "episode") {
+        return issue.episode_path === scopePath || (issue.scope_kind === "episode" && issue.scope_path === scopePath);
+    }
+    return issue.scope_kind === "movie" && issue.scope_path === scopePath;
+}
+
+function closeHealthIgnoreModal() {
+    const modal = document.getElementById("modal-health-ignore");
+    if (modal) {
+        modal.classList.remove("active");
+        modal.classList.add("hidden");
+    }
+    currentHealthIgnoreScope = null;
+}
+
+function updateHealthIgnoreSubmitState() {
+    const groupList = document.getElementById("health-ignore-groups");
+    const submit = document.getElementById("btn-health-ignore-submit");
+    if (!groupList || !submit) return;
+    const checked = groupList.querySelectorAll(".health-ignore-group:checked").length;
+    submit.disabled = checked === 0;
+}
+
+function openHealthIgnoreModal(scopeKind, scopePath) {
+    const data = window.currentHealthStatusData || {};
+    const issues = (data.issues || []).filter((issue) =>
+        issue.ignoreable !== false && healthIssueBelongsToScope(issue, scopeKind, scopePath)
+    );
+    const counts = {};
+    issues.forEach((issue) => {
+        const group = getHealthIssueGroup(issue);
+        counts[group] = (counts[group] || 0) + 1;
+    });
+    const catalogGroups = data.issue_catalog && data.issue_catalog.groups ? data.issue_catalog.groups : {};
+    const groups = Object.keys(counts).sort((left, right) =>
+        (catalogGroups[left]?.order || 999) - (catalogGroups[right]?.order || 999)
+    );
+    currentHealthIgnoreScope = { scopeKind, scopePath };
+
+    const scopeLabels = { series: "diese Serie", season: "diese Staffel", episode: "diese Folge", movie: "diesen Film" };
+    const description = document.getElementById("health-ignore-description");
+    const groupList = document.getElementById("health-ignore-groups");
+    const error = document.getElementById("health-ignore-error");
+    const selectAll = document.getElementById("health-ignore-select-all");
+    if (description) description.textContent = `Wähle aus, welche Hinweise für ${scopeLabels[scopeKind] || "diesen Bereich"} künftig ausgeblendet werden sollen.`;
+    if (error) {
+        error.textContent = "";
+        error.style.display = "none";
+    }
+    if (selectAll) selectAll.checked = groups.length > 0;
+    if (groupList) {
+        groupList.innerHTML = groups.length
+            ? groups.map((group) => {
+                const label = catalogGroups[group]?.label || group;
+                return `<label class="health-ignore-option"><input type="checkbox" class="health-ignore-group" value="${escapeHTML(group)}" checked><span><strong>${escapeHTML(label)}</strong><small>${counts[group]} ${counts[group] === 1 ? "Hinweis" : "Hinweise"}</small></span></label>`;
+            }).join("")
+            : `<p class="text-muted">Für diesen Bereich sind keine ignorierbaren Hinweise vorhanden.</p>`;
+    }
+    updateHealthIgnoreSubmitState();
+    const modal = document.getElementById("modal-health-ignore");
+    if (modal) {
+        modal.classList.remove("hidden");
+        modal.classList.add("active");
+    }
+}
+
+async function submitHealthIgnoreRule() {
+    if (!currentHealthIgnoreScope) return;
+    const groupList = document.getElementById("health-ignore-groups");
+    const submit = document.getElementById("btn-health-ignore-submit");
+    const error = document.getElementById("health-ignore-error");
+    const groups = Array.from(groupList?.querySelectorAll(".health-ignore-group:checked") || []).map((input) => input.value);
+    if (!groups.length) return;
+    if (submit) submit.disabled = true;
+    try {
+        const response = await fetch("/api/findings/ignore-rules", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                scope_kind: currentHealthIgnoreScope.scopeKind,
+                scope_path: currentHealthIgnoreScope.scopePath,
+                groups,
+            }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || "Die Hinweise konnten nicht ausgeblendet werden.");
+        closeHealthIgnoreModal();
+        await pollHealthStatus(false);
+    } catch (err) {
+        if (error) {
+            error.textContent = err.message;
+            error.style.display = "block";
+        }
+        if (submit) submit.disabled = false;
+    }
+}
+
 function renderIgnoredFooter(count) {
     if (!count) return "";
     return `<p class="text-muted" style="margin:10px 0 0; font-size:0.82em;">
@@ -14296,18 +14417,13 @@ function wireRestoreAll(container) {
     link.addEventListener("click", async (e) => {
         e.preventDefault();
         try {
-            const res = await fetch("/api/findings/ignored");
-            const data = await res.json();
-            for (const key of (data.ignored || [])) {
-                await fetch("/api/findings/unignore", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ key }),
-                });
-            }
+            const res = await fetch("/api/findings/ignored", { method: "DELETE" });
+            if (!res.ok) throw new Error("Ausgeblendete Hinweise konnten nicht wiederhergestellt werden.");
             pollHealthStatus(false);
             pollDuplicateStatus(false);
-        } catch (err) { /* ignore */ }
+        } catch (err) {
+            console.error(err);
+        }
     });
 }
 
@@ -16442,7 +16558,35 @@ window.bindHealthActionEvents = function() {
     if (healthActionEventsBound) return;
     healthActionEventsBound = true;
 
+    document.getElementById("close-modal-health-ignore")?.addEventListener("click", closeHealthIgnoreModal);
+    document.getElementById("btn-health-ignore-cancel")?.addEventListener("click", closeHealthIgnoreModal);
+    document.getElementById("btn-health-ignore-submit")?.addEventListener("click", submitHealthIgnoreRule);
+    document.getElementById("health-ignore-select-all")?.addEventListener("change", (event) => {
+        document.getElementById("health-ignore-groups")?.querySelectorAll(".health-ignore-group").forEach((input) => {
+            input.checked = event.target.checked;
+        });
+        updateHealthIgnoreSubmitState();
+    });
+    document.getElementById("health-ignore-groups")?.addEventListener("change", () => {
+        const inputs = Array.from(document.getElementById("health-ignore-groups")?.querySelectorAll(".health-ignore-group") || []);
+        const selectAll = document.getElementById("health-ignore-select-all");
+        if (selectAll) {
+            selectAll.checked = inputs.length > 0 && inputs.every((input) => input.checked);
+            selectAll.indeterminate = inputs.some((input) => input.checked) && !selectAll.checked;
+        }
+        updateHealthIgnoreSubmitState();
+    });
+
     document.addEventListener("click", (e) => {
+        const ignoreScopeBtn = e.target.closest(".health-ignore-scope");
+        if (ignoreScopeBtn) {
+            openHealthIgnoreModal(
+                ignoreScopeBtn.getAttribute("data-scope-kind"),
+                ignoreScopeBtn.getAttribute("data-scope-path")
+            );
+            return;
+        }
+
         const nfoBtn = e.target.closest(".health-nfo-agent");
         if (nfoBtn) {
             const path = nfoBtn.getAttribute("data-path");

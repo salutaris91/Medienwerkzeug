@@ -1231,9 +1231,9 @@ def stop_health_scan():
 def _apply_ignores(result):
     """Filtert ignorierte Issues heraus, berechnet Summary neu und ergänzt ignored_count."""
     from gui.core import ignores
-    ignored_keys = ignores.get_ignored()
+    ignore_state = ignores.get_ignore_state()
     issues = result.get("issues", []) or []
-    kept = [i for i in issues if i.get("key") not in ignored_keys]
+    kept = [issue for issue in issues if not ignores.is_health_issue_ignored(issue, ignore_state)]
     ignored_count = len(issues) - len(kept)
     summary = {"critical": 0, "warning": 0, "info": 0}
     for i in kept:
