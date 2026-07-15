@@ -1450,6 +1450,10 @@ test('NFO Agent switches between entry context and whole-series editing', () => 
     const originalQuerySelectorAll = globalThis.document.querySelectorAll;
     const mediaType = document.getElementById("nfo-agent-media-type");
     mediaType.value = "tvshow";
+    document.getElementById("nfo-agent-provider").value = "manual";
+    document.getElementById("nfo-agent-metadata-id").value = "";
+    document.getElementById("nfo-agent-season").value = "1";
+    document.getElementById("nfo-agent-overwrite-nfo").checked = false;
     globalThis.setNfoAgentScanData({
         main_nfo_status: { exists: true },
         file_nfo_statuses: {}
@@ -1496,6 +1500,78 @@ test('NFO Agent switches between entry context and whole-series editing', () => 
     assert.strictEqual(document.getElementById("nfo-agent-edit-mode-title").textContent, "Folge S01E02 bearbeiten");
 
     globalThis.document.querySelectorAll = originalQuerySelectorAll;
+});
+
+test('NFO Agent season mode edits the season without writing the series NFO', () => {
+    const originalQuerySelectorAll = globalThis.document.querySelectorAll;
+    const originalQuerySelector = globalThis.document.querySelector;
+    const mediaType = document.getElementById("nfo-agent-media-type");
+    mediaType.value = "tvshow";
+    document.getElementById("nfo-agent-provider").value = "manual";
+    document.getElementById("nfo-agent-metadata-id").value = "";
+    document.getElementById("nfo-agent-season").value = "1";
+    document.getElementById("nfo-agent-overwrite-nfo").checked = false;
+
+    const episodeMapping = createMockElement();
+    episodeMapping.value = "S1E1";
+    episodeMapping.setAttribute("data-file", "Show S01E01.mkv");
+    const seasonRow = createMockElement();
+    seasonRow.setAttribute("data-path", "season.nfo");
+    const seasonFsk = createMockElement();
+    seasonFsk.value = "12";
+    seasonRow.querySelector = selector => selector === ".nfo-agent-season-fsk" ? seasonFsk : null;
+
+    globalThis.document.querySelectorAll = selector => {
+        if (selector === ".nfo-agent-ep-mapping-select") return [episodeMapping];
+        if (selector === ".nfo-agent-ep-override-title") return [];
+        if (selector === ".nfo-agent-season-nfo-row") return [seasonRow];
+        if (selector === "#nfo-agent-episodes-list .nfo-episode-row") return [];
+        if (selector === "#nfo-agent-episodes-list .nfo-agent-season-nfo-row") return [seasonRow];
+        return [];
+    };
+    globalThis.document.querySelector = () => null;
+    globalThis.setNfoAgentCurrentPath("/media/Serien/Show/Staffel 1");
+    globalThis.setNfoAgentScanData({
+        metadata_name: "Show",
+        metadata_year: "2026",
+        metadata_plot: "Plot",
+        metadata_genres: [],
+        metadata_fsk: "",
+        main_nfo_status: { exists: true, fingerprint: { hash: "show" } },
+        season_nfo_statuses: [{
+            relative_path: "season.nfo",
+            raw_fsk: "",
+            fingerprint: { hash: "season" }
+        }],
+        file_nfo_statuses: {
+            "Show S01E01.mkv": { fingerprint: { hash: "episode" } }
+        }
+    });
+    globalThis.nfoAgentEditContext = {
+        originMode: "season",
+        mode: "season",
+        episodeFile: "",
+        seasonName: "Staffel 1"
+    };
+
+    globalThis.applyNfoAgentEditMode();
+    assert.strictEqual(document.getElementById("nfo-agent-edit-mode-title").textContent, "Staffel 1 bearbeiten");
+    assert.strictEqual(document.getElementById("nfo-agent-main-nfo-section").style.display, "none");
+    assert.strictEqual(seasonRow.style.display, "flex");
+
+    globalThis.fetchRequests = [];
+    globalThis.submitNfoAgentJob();
+    const request = globalThis.fetchRequests.find(item => item.url === "/api/process");
+    const payload = JSON.parse(request.options.body);
+    assert.strictEqual(payload.write_show_nfo, false);
+    assert.deepStrictEqual(payload.mappings, { "Show S01E01.mkv": "S1E1" });
+    assert.deepStrictEqual(payload.nfo_overrides.show, {});
+    assert.deepStrictEqual(payload.season_nfo_overrides, {
+        "season.nfo": { fields: { fsk: "12" }, fingerprint: { hash: "season" } }
+    });
+
+    globalThis.document.querySelectorAll = originalQuerySelectorAll;
+    globalThis.document.querySelector = originalQuerySelector;
 });
 
 test('NFO Agent episode mode submits only the selected episode', () => {

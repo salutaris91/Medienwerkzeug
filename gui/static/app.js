@@ -15418,7 +15418,7 @@ let nfoAgentLogInterval = null;
 let nfoAgentProfileId = "";
 let nfoAgentProfileProvider = "";
 let nfoAgentFieldSources = {};
-let nfoAgentEditContext = { originMode: "full", mode: "full", episodeFile: "" };
+let nfoAgentEditContext = { originMode: "full", mode: "full", episodeFile: "", seasonName: "" };
 let nfoAgentHasRenderedMainNfo = false;
 
 const NFO_AGENT_SOURCE_LABELS = {
@@ -15498,6 +15498,11 @@ function getEpisodeEditTitle(file) {
     return `Folge ${basename.replace(/\.[^.]+$/, "") || "bearbeiten"}`.trim();
 }
 
+function getSeasonEditTitle() {
+    const seasonName = nfoAgentEditContext.seasonName || "Staffel";
+    return `${seasonName} bearbeiten`;
+}
+
 function applyNfoAgentEditMode() {
     const mediaType = document.getElementById("nfo-agent-media-type")?.value;
     const modeBar = document.getElementById("nfo-agent-edit-mode-bar");
@@ -15518,12 +15523,14 @@ function applyNfoAgentEditMode() {
     if (modeTitle) {
         modeTitle.textContent = mode === "series"
             ? "Serien-NFO bearbeiten"
-            : (mode === "episode" ? getEpisodeEditTitle(nfoAgentEditContext.episodeFile) : "Ganze Serie bearbeiten");
+            : (mode === "episode"
+                ? getEpisodeEditTitle(nfoAgentEditContext.episodeFile)
+                : (mode === "season" ? getSeasonEditTitle() : "Ganze Serie bearbeiten"));
     }
     if (wholeSeriesBtn) wholeSeriesBtn.style.display = mode === "full" ? "none" : "inline-flex";
     if (backBtn) backBtn.style.display = mode === "full" ? "inline-flex" : "none";
 
-    const showMainEditor = mode !== "episode";
+    const showMainEditor = mode === "series" || mode === "full";
     const showEpisodes = mode !== "series";
     if (mainSection) mainSection.style.display = showMainEditor && nfoAgentHasRenderedMainNfo ? "block" : "none";
     if (detailsSection) detailsSection.style.display = showMainEditor ? "block" : "none";
@@ -15547,6 +15554,9 @@ function applyNfoAgentEditMode() {
             }
         }
     });
+    document.querySelectorAll("#nfo-agent-episodes-list .nfo-agent-season-nfo-row").forEach(row => {
+        row.style.display = mode === "season" || mode === "full" ? "flex" : "none";
+    });
 }
 
 function setNfoAgentEditMode(mode) {
@@ -15563,11 +15573,13 @@ function openNfoAgentModal(path, options = {}) {
     wasFskModalOpenForNfoAgent = false;
     nfoAgentJobSuccess = false;
     nfoAgentJobErrorMsg = null;
-    const requestedMode = ["series", "episode", "full"].includes(options.mode) ? options.mode : "full";
+    const requestedMode = ["series", "season", "episode", "full"].includes(options.mode) ? options.mode : "full";
+    const pathBasename = String(path).split(/[\\/]/).filter(Boolean).pop() || "";
     nfoAgentEditContext = {
         originMode: requestedMode,
         mode: requestedMode,
-        episodeFile: options.episodeFile || ""
+        episodeFile: options.episodeFile || "",
+        seasonName: options.seasonName || pathBasename
     };
 
     const fskModal = document.getElementById("modal-fsk-batch-preview");
@@ -15980,7 +15992,7 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
                 <option value="process" selected>⚙️ Verarbeiten</option>
                 <option value="skip">⏭️ Überspringen</option>
             `;
-        } else if (!nfoStatus.complete) {
+        } else if (nfoStatus.needs_review || !nfoStatus.complete) {
             statusLabel = "Metadaten unvollständig";
             nfoState = "incomplete";
             nfoActionOptions = `
@@ -16024,6 +16036,30 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
         applyNfoAgentEditMode();
         return;
     }
+
+    const seasonNfoStatuses = scanData.season_nfo_statuses || [];
+    seasonNfoStatuses.forEach(status => {
+        const row = document.createElement("div");
+        row.className = "nfo-agent-season-nfo-row";
+        row.dataset.path = status.relative_path || status.filename || "season.nfo";
+        const currentValue = String(status.raw_fsk || "").replace(/^FSK\s*/i, "");
+        row.innerHTML = `
+            <div>
+                <strong>${escapeHTML(status.relative_path || "season.nfo")}</strong>
+                <span class="nfo-agent-status nfo-agent-status-${status.needs_review ? "warning" : "success"}">
+                    ${status.needs_review ? "Metadaten prüfen" : "Metadaten vollständig"}
+                </span>
+            </div>
+            <label>
+                <span>Altersfreigabe</span>
+                <select class="nfo-agent-season-fsk">
+                    <option value="" ${currentValue ? "" : "selected"}>Keine Angabe</option>
+                    ${[0, 6, 12, 16, 18].map(value => `<option value="${value}" ${currentValue === String(value) ? "selected" : ""}>FSK ${value}</option>`).join("")}
+                </select>
+            </label>
+        `;
+        listBody.appendChild(row);
+    });
 
     const nfoStatuses = scanData.file_nfo_statuses || {};
     const files = (scanData.files || []).filter(file => nfoStatuses[file]);
@@ -16085,7 +16121,7 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
         // but another field such as FSK still needs attention.
         const defaultSelectValue = isFocusedEpisode
             ? (epNum || "skip")
-            : ((status.exists && status.complete) ? "skip" : (epNum || "skip"));
+            : (status.needs_review ? (epNum || "skip") : "skip");
 
         const row = document.createElement("div");
         row.className = "nfo-episode-row";
@@ -16097,9 +16133,9 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
                 <div style="font-weight: 500; font-size: 0.9em; word-break: break-all; color: var(--text-main); flex: 1;">
                     ${escapeHTML(basename)}
                     ${status.exists ?
-                        (status.complete ?
-                            '<span style="color:#10b981; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO vorhanden]</span>' :
-                            '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO unvollständig]</span>') :
+                        (!status.needs_review && status.complete ?
+                            '<span style="color:#10b981; font-size:0.8em; margin-left:6px; font-weight:600;">[Metadaten vollständig]</span>' :
+                            '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[Metadaten unvollständig]</span>') :
                         '<span style="color:#ef4444; font-size:0.8em; margin-left:6px; font-weight:600;">[Keine NFO]</span>'
                     }
                 </div>
@@ -16279,14 +16315,30 @@ function submitNfoAgentJob() {
     if (showGenres.length && includeMainField(showGenres, originalGenres)) { showOverrides.genres = showGenres; movieOverrides.genres = showGenres; }
     if (showFsk && includeMainField(showFsk, nfoAgentScanData?.metadata_fsk || "")) { showOverrides.fsk = showFsk; movieOverrides.fsk = showFsk; }
 
+    const includeMainNfo = nfoAgentEditContext.mode === "series" || nfoAgentEditContext.mode === "full";
     const nfoOverrides = {
-        show: nfoAgentEditContext.mode === "episode" ? {} : showOverrides,
-        movie: nfoAgentEditContext.mode === "episode" ? {} : movieOverrides,
+        show: includeMainNfo ? showOverrides : {},
+        movie: includeMainNfo ? movieOverrides : {},
         episodes: episodesOverrides
     };
 
+    const seasonNfoOverrides = {};
+    document.querySelectorAll(".nfo-agent-season-nfo-row").forEach(row => {
+        const fskValue = row.querySelector(".nfo-agent-season-fsk")?.value || "";
+        const relativePath = row.getAttribute("data-path");
+        const original = (nfoAgentScanData?.season_nfo_statuses || [])
+            .find(status => status.relative_path === relativePath);
+        const originalValue = String(original?.raw_fsk || "").replace(/^FSK\s*/i, "");
+        if (relativePath && fskValue && fskValue !== originalValue) {
+            seasonNfoOverrides[relativePath] = {
+                fields: { fsk: fskValue },
+                fingerprint: original?.fingerprint ?? null
+            };
+        }
+    });
+
     const showNfoActionSelect = document.getElementById("nfo-agent-show-nfo-action");
-    const writeShowNfo = nfoAgentEditContext.mode !== "episode"
+    const writeShowNfo = includeMainNfo
         && (showNfoActionSelect ? (showNfoActionSelect.value !== "skip") : true);
     const mainNfoStatus = nfoAgentScanData?.main_nfo_status || null;
     const nfoWriteMode = mainNfoStatus?.exists ? (overwriteNfo ? "replace" : "patch") : "create";
@@ -16305,7 +16357,8 @@ function submitNfoAgentJob() {
         write_show_nfo: writeShowNfo,
         mappings: mappings,
         episode_fingerprints: episodeFingerprints,
-        nfo_overrides: nfoOverrides
+        nfo_overrides: nfoOverrides,
+        season_nfo_overrides: seasonNfoOverrides
     };
 
     const submitBtn = document.getElementById("btn-nfo-agent-submit");

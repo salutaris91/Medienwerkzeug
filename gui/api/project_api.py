@@ -118,6 +118,7 @@ def _resolve_project_media_type(settings, target_dir, all_files):
 
 def _build_main_nfo_status(nfo_path, nfo_type):
     from gui.core.nfo_mutation import make_nfo_fingerprint
+    from gui.core.helpers import parse_fsk_status
 
     status = {
         "path": nfo_path,
@@ -125,6 +126,9 @@ def _build_main_nfo_status(nfo_path, nfo_type):
         "exists": False,
         "parseable": False,
         "complete": False,
+        "missing_fields": [],
+        "fsk_status": "nfo_missing",
+        "needs_review": True,
         "fingerprint": None,
     }
     if not os.path.isfile(nfo_path):
@@ -135,13 +139,22 @@ def _build_main_nfo_status(nfo_path, nfo_type):
     try:
         import xml.etree.ElementTree as ET
         root = ET.parse(nfo_path).getroot()
-        expected_root = "movie" if nfo_type == "movie" else "tvshow"
+        expected_root = {"movie": "movie", "tvshow": "tvshow", "season": "season"}[nfo_type]
         if root.tag != expected_root:
             return status
         status["parseable"] = True
-        from gui.core.health import check_nfo_incomplete
-        is_incomplete, _, _ = check_nfo_incomplete(nfo_path, nfo_type)
-        status["complete"] = not is_incomplete
+        from gui.core.health import inspect_nfo_completeness
+        completeness = inspect_nfo_completeness(nfo_path, nfo_type)
+        status["complete"] = not completeness["incomplete"]
+        status["missing_fields"] = completeness["missing_fields"]
+        fsk_status, current_fsk, raw_fsk, _ = parse_fsk_status(nfo_path)
+        status["fsk_status"] = fsk_status
+        status["current_fsk"] = current_fsk
+        status["raw_fsk"] = raw_fsk
+        status["needs_review"] = (
+            completeness["incomplete"]
+            or status["fsk_status"] in {"missing_fsk", "invalid_fsk", "nfo_missing"}
+        )
     except (OSError, ET.ParseError) as error:
         log_message(f"Fehler beim Prüfen von {nfo_path}: {error}")
     return status
@@ -400,6 +413,7 @@ def handle_api_scan_project():
     # the response while ``main_nfo_status`` is the authoritative UI contract.
     show_nfo_status = None
     movie_nfo_status = None
+    season_nfo_status = None
     main_nfo_status = None
     nfo_path = None
     movie_nfo_path = None
@@ -412,6 +426,10 @@ def handle_api_scan_project():
             main_nfo_status = show_nfo_status
             if show_nfo_status["exists"]:
                 nfo_path = show_nfo_path
+        if is_season_folder_name(os.path.basename(target_dir)):
+            season_nfo_path = os.path.join(target_dir, "season.nfo")
+            if os.path.isfile(season_nfo_path):
+                season_nfo_status = _build_main_nfo_status(season_nfo_path, "season")
     else:
         from gui.core.health import find_primary_nfo
         movie_nfo_path = find_primary_nfo(target_parent, is_movie=True) or os.path.join(target_parent, "movie.nfo")
@@ -551,6 +569,8 @@ def handle_api_scan_project():
 
     # Check each video file's NFO status
     from gui.core.nfo_mutation import make_nfo_fingerprint
+    from gui.core.health import inspect_nfo_completeness
+    from gui.core.helpers import parse_fsk_status
     for f in all_files:
         if os.path.splitext(f)[1].lower() in video_extensions:
             nfo_rel = os.path.splitext(f)[0] + ".nfo"
@@ -560,6 +580,8 @@ def handle_api_scan_project():
             episode_fsk = ""
             episode_title = ""
             episode_plot = ""
+            missing_fields = []
+            fsk_status = "nfo_missing"
             if exists:
                 try:
                     import xml.etree.ElementTree as ET
@@ -571,7 +593,10 @@ def handle_api_scan_project():
                     plot_missing = plot_el is None or not plot_el.text or not plot_el.text.strip()
                     episode_title = title_el.text.strip() if not title_missing else ""
                     episode_plot = plot_el.text.strip() if not plot_missing else ""
-                    complete = not (title_missing or plot_missing)
+                    completeness = inspect_nfo_completeness(nfo_path, "episode")
+                    complete = not completeness["incomplete"]
+                    missing_fields = completeness["missing_fields"]
+                    fsk_status = parse_fsk_status(nfo_path)[0]
                     mpaa_el = root.find("mpaa")
                     if mpaa_el is not None and mpaa_el.text:
                         from gui.core.nfo_mutation import normalize_fsk
@@ -585,8 +610,28 @@ def handle_api_scan_project():
                 "fsk": episode_fsk,
                 "title": episode_title,
                 "plot": episode_plot,
+                "missing_fields": missing_fields,
+                "fsk_status": fsk_status,
+                "needs_review": (
+                    not exists
+                    or not complete
+                    or fsk_status in {"missing_fsk", "invalid_fsk", "nfo_missing"}
+                ),
                 "fingerprint": make_nfo_fingerprint(nfo_path) if exists else None,
             }
+
+    season_nfo_statuses = []
+    if media_type == "tvshow":
+        for relative_path in all_files:
+            if os.path.basename(relative_path).lower() != "season.nfo":
+                continue
+            relative_parent = os.path.dirname(relative_path)
+            season_dir = os.path.normpath(os.path.join(target_dir, relative_parent))
+            if not is_season_folder_name(os.path.basename(season_dir)):
+                continue
+            status = _build_main_nfo_status(os.path.join(target_dir, relative_path), "season")
+            status["relative_path"] = relative_path
+            season_nfo_statuses.append(status)
             
     return jsonify({
         "current_dir": target_dir,
@@ -611,7 +656,9 @@ def handle_api_scan_project():
         "type_source": media_type_source,
         "main_nfo_status": main_nfo_status,
         "show_nfo_status": show_nfo_status,
-        "movie_nfo_status": movie_nfo_status
+        "movie_nfo_status": movie_nfo_status,
+        "season_nfo_status": season_nfo_status,
+        "season_nfo_statuses": season_nfo_statuses,
     })
 
 

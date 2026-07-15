@@ -3144,6 +3144,7 @@ def process_worker(params):
                 season = params.get("season", 1)
                 mappings = params.get("mappings") or {}
                 episode_fingerprints = params.get("episode_fingerprints") or {}
+                season_nfo_overrides = params.get("season_nfo_overrides") or {}
 
                 # A. Generate show NFO (only if write_show_nfo is True)
                 if show_id and provider and write_show_nfo:
@@ -3176,6 +3177,33 @@ def process_worker(params):
                     log_message(f"tvshow.nfo Feld-Patch: {patch_message}")
                 
                 update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=30)
+
+                # Existing season.nfo files are optional. When explicitly edited,
+                # patch only the selected fields and never create a missing file.
+                from gui.core.helpers import is_season_folder_name
+                current_real = os.path.realpath(current_dir)
+                for relative_path, season_change in season_nfo_overrides.items():
+                    normalized_relative = os.path.normpath(str(relative_path or ""))
+                    season_nfo_path = os.path.realpath(os.path.join(current_real, normalized_relative))
+                    if (
+                        os.path.isabs(normalized_relative)
+                        or os.path.commonpath([current_real, season_nfo_path]) != current_real
+                        or os.path.basename(season_nfo_path).lower() != "season.nfo"
+                        or not is_season_folder_name(os.path.basename(os.path.dirname(season_nfo_path)))
+                        or not os.path.isfile(season_nfo_path)
+                        or not is_path_allowed(season_nfo_path)
+                    ):
+                        raise RuntimeError(f"Ungültiger season.nfo-Pfad: {relative_path}")
+                    expected_fingerprint = season_change.get("fingerprint")
+                    assert_nfo_fingerprint(season_nfo_path, expected_fingerprint)
+                    patch_ok, patch_message = patch_nfo_fields(
+                        season_nfo_path,
+                        season_change.get("fields") or {},
+                        expected_fingerprint=expected_fingerprint,
+                    )
+                    if not patch_ok:
+                        raise RuntimeError(patch_message)
+                    log_message(f"season.nfo Feld-Patch: {patch_message}")
                 
                 # B. Fetch episodes list from metadata service
                 log_message("Rufe Episoden-Metadaten für Mappings ab...")

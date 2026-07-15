@@ -1140,6 +1140,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         <episodedetails>
             <title>Episode Title</title>
             <plot>Episode Plot</plot>
+            <aired>1986-01-01</aired>
         </episodedetails>"""
         with open(os.path.join(nas_dir, "Mock Show - S01E01.nfo"), "w", encoding="utf-8") as f:
             f.write(ep_nfo_content)
@@ -1196,6 +1197,16 @@ class TestMediawerkzeugLogic(unittest.TestCase):
         </tvshow>"""
         with open(os.path.join(parent_dir, "tvshow.nfo"), "w", encoding="utf-8") as f:
             f.write(nfo_content)
+        with open(os.path.join(season_dir, "season.nfo"), "w", encoding="utf-8") as f:
+            f.write("<season><title>Staffel 1</title><plot>Staffelplot</plot></season>")
+        episode_video = os.path.join(season_dir, "Mock Show Parent - S01E01.mkv")
+        with open(episode_video, "wb") as video_file:
+            video_file.write(b"video")
+        with open(os.path.splitext(episode_video)[0] + ".nfo", "w", encoding="utf-8") as nfo_file:
+            nfo_file.write(
+                "<episodedetails><title>Episode 1</title><plot>Plot</plot>"
+                "<aired>2026-01-01</aired></episodedetails>"
+            )
             
         from unittest.mock import patch
         with app.test_request_context(query_string=f"project={season_dir}"):
@@ -1209,6 +1220,13 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                     self.assertEqual(data["metadata_name"], "Mock Show Parent")
                     self.assertEqual(data["metadata_source"], "nfo")
                     self.assertEqual(data["suggested_search_name"], "Mock Show Parent (1986)")
+                    self.assertEqual(len(data["season_nfo_statuses"]), 1)
+                    self.assertEqual(data["season_nfo_statuses"][0]["relative_path"], "season.nfo")
+                    self.assertEqual(data["season_nfo_statuses"][0]["fsk_status"], "missing_fsk")
+                    episode_status = data["file_nfo_statuses"]["Mock Show Parent - S01E01.mkv"]
+                    self.assertTrue(episode_status["complete"])
+                    self.assertEqual(episode_status["fsk_status"], "missing_fsk")
+                    self.assertTrue(episode_status["needs_review"])
 
     def test_scan_project_resolves_movie_from_configured_category(self):
         from gui.api.project_api import handle_api_scan_project, _resolve_project_media_type
@@ -3539,6 +3557,88 @@ class TestMediawerkzeugLogic(unittest.TestCase):
 
         with open(episode_nfo, "r", encoding="utf-8") as nfo_file:
             self.assertIn("Extern geändert", nfo_file.read())
+
+    def test_nfo_agent_patches_existing_season_nfo_without_creating_one(self):
+        from gui.core.nfo_mutation import make_nfo_fingerprint
+        from gui.workers.processor import process_worker
+        from unittest.mock import patch
+
+        show_dir = os.path.join(self.test_dir, "Season NFO Show")
+        season_dir = os.path.join(show_dir, "Staffel 1")
+        os.makedirs(season_dir, exist_ok=True)
+        season_nfo = os.path.join(season_dir, "season.nfo")
+        with open(season_nfo, "w", encoding="utf-8") as nfo_file:
+            nfo_file.write("<season><title>Staffel 1</title><custom>Behalten</custom></season>")
+
+        params = {
+            "media_type": "tool_nfo_agent",
+            "nfo_type": "tvshow",
+            "project_name": season_dir,
+            "provider": "manual",
+            "show_id": "manual",
+            "write_show_nfo": False,
+            "mappings": {},
+            "season_nfo_overrides": {
+                "season.nfo": {
+                    "fields": {"fsk": "12"},
+                    "fingerprint": make_nfo_fingerprint(season_nfo),
+                }
+            },
+        }
+
+        with patch("gui.workers.processor.load_settings", return_value={
+            "inbox_dir": self.test_dir,
+            "nas_root": os.path.join(self.test_dir, "nas_root"),
+            "outbox_dir": os.path.join(self.test_dir, "outbox_dir"),
+        }), patch("gui.core.helpers.is_path_allowed", return_value=True):
+            process_worker(params)
+
+        content = open(season_nfo, "r", encoding="utf-8").read()
+        self.assertIn("<mpaa>FSK 12</mpaa>", content)
+        self.assertIn("<custom>Behalten</custom>", content)
+
+        missing_season_dir = os.path.join(show_dir, "Staffel 2")
+        os.makedirs(missing_season_dir)
+        no_season_nfo_params = dict(params)
+        no_season_nfo_params["project_name"] = missing_season_dir
+        no_season_nfo_params["season_nfo_overrides"] = {}
+        with patch("gui.workers.processor.load_settings", return_value={
+            "inbox_dir": self.test_dir,
+            "nas_root": os.path.join(self.test_dir, "nas_root"),
+            "outbox_dir": os.path.join(self.test_dir, "outbox_dir"),
+        }), patch("gui.core.helpers.is_path_allowed", return_value=True):
+            process_worker(no_season_nfo_params)
+        self.assertFalse(os.path.exists(os.path.join(missing_season_dir, "season.nfo")))
+
+    def test_nfo_agent_rejects_season_nfo_path_escape(self):
+        from gui.workers.processor import process_worker
+        from unittest.mock import patch
+
+        show_dir = os.path.join(self.test_dir, "Season Escape Show")
+        season_dir = os.path.join(show_dir, "Staffel 1")
+        os.makedirs(season_dir, exist_ok=True)
+        params = {
+            "media_type": "tool_nfo_agent",
+            "nfo_type": "tvshow",
+            "project_name": season_dir,
+            "provider": "manual",
+            "show_id": "manual",
+            "write_show_nfo": False,
+            "mappings": {},
+            "season_nfo_overrides": {
+                "../Staffel 2/season.nfo": {
+                    "fields": {"fsk": "12"},
+                    "fingerprint": None,
+                }
+            },
+        }
+        with patch("gui.workers.processor.load_settings", return_value={
+            "inbox_dir": self.test_dir,
+            "nas_root": os.path.join(self.test_dir, "nas_root"),
+            "outbox_dir": os.path.join(self.test_dir, "outbox_dir"),
+        }), patch("gui.core.helpers.is_path_allowed", return_value=True):
+            with self.assertRaisesRegex(RuntimeError, "Ungültiger season.nfo-Pfad"):
+                process_worker(params)
 
     def test_nfo_agent_job_path_denied(self):
         from gui.workers.processor import process_worker

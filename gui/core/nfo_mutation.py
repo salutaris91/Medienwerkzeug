@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 
 
-SUPPORTED_ROOTS = {"movie", "tvshow", "episodedetails"}
+SUPPORTED_ROOTS = {"movie", "tvshow", "season", "episodedetails"}
 SINGLE_VALUE_TAGS = {
     "title": "title",
     "year": "year",
