@@ -986,15 +986,17 @@ test('Media view separates season findings from collapsible episode metadata fin
     document.body.removeChild(container);
 });
 
-test('Scoped ignore modal lists only present issue groups and posts the exact scope', async () => {
+test('Scoped ignore modal lists present issue types grouped by catalog group and posts the exact scope', async () => {
     const showPath = "/Serien/My Show";
     const seasonPath = `${showPath}/Staffel 01`;
     globalThis.window.currentHealthStatusData = {
         issues: [
-            { key: "meta", type: "incomplete_nfo", group: "metadata", ignoreable: true, series_path: showPath, season_path: seasonPath },
-            { key: "art", type: "missing_season_poster", group: "artwork", ignoreable: true, series_path: showPath, season_path: seasonPath },
+            { key: "meta-1", type: "incomplete_nfo", group: "metadata", label: "Metadaten unvollständig", ignoreable: true, series_path: showPath, season_path: seasonPath },
+            { key: "meta-2", type: "incomplete_nfo", group: "metadata", label: "Metadaten unvollständig", ignoreable: true, series_path: showPath, season_path: seasonPath },
+            { key: "fsk", type: "missing_age_rating", group: "metadata", label: "Fehlende Altersfreigabe", ignoreable: true, series_path: showPath, season_path: seasonPath },
+            { key: "art", type: "missing_season_poster", group: "artwork", label: "Fehlendes Staffelposter", ignoreable: true, series_path: showPath, season_path: seasonPath },
             { key: "locked", type: "unknown", group: "other", ignoreable: false, series_path: showPath },
-            { key: "other", type: "small_file", group: "files", ignoreable: true, series_path: "/Serien/Other" }
+            { key: "other", type: "small_file", group: "files", label: "Verdächtig kleine Videodatei", ignoreable: true, series_path: "/Serien/Other" }
         ],
         issue_catalog: {
             groups: {
@@ -1002,6 +1004,11 @@ test('Scoped ignore modal lists only present issue groups and posts the exact sc
                 artwork: { label: "Artwork", order: 20 },
                 files: { label: "Dateien", order: 30 },
                 other: { label: "Weitere Hinweise", order: 90 }
+            },
+            types: {
+                incomplete_nfo: { label: "Metadaten unvollständig", group: "metadata" },
+                missing_age_rating: { label: "Fehlende Altersfreigabe", group: "metadata" },
+                missing_season_poster: { label: "Fehlendes Staffelposter", group: "artwork" }
             }
         }
     };
@@ -1011,15 +1018,20 @@ test('Scoped ignore modal lists only present issue groups and posts the exact sc
     globalThis.openHealthIgnoreModal("season", seasonPath);
 
     assert.ok(modal.classList.contains("active"));
-    assert.ok(groupList.innerHTML.includes('value="metadata"'));
-    assert.ok(groupList.innerHTML.includes('value="artwork"'));
-    assert.ok(!groupList.innerHTML.includes('value="files"'));
-    assert.ok(!groupList.innerHTML.includes('value="other"'));
-    assert.ok(groupList.innerHTML.indexOf('value="metadata"') < groupList.innerHTML.indexOf('value="artwork"'));
+    assert.ok(groupList.innerHTML.includes('class="health-ignore-type" value="incomplete_nfo" data-group="metadata"'));
+    assert.ok(groupList.innerHTML.includes('class="health-ignore-type" value="missing_age_rating" data-group="metadata"'));
+    assert.ok(groupList.innerHTML.includes('class="health-ignore-type" value="missing_season_poster" data-group="artwork"'));
+    assert.ok(groupList.innerHTML.includes('class="health-ignore-group-toggle" data-group="metadata"'));
+    // Two incomplete NFO findings collapse into one type row with a count.
+    assert.ok(groupList.innerHTML.includes("2 Hinweise"));
+    // Not in scope or not ignoreable: other series' small_file and the unknown type.
+    assert.ok(!groupList.innerHTML.includes('value="small_file"'));
+    assert.ok(!groupList.innerHTML.includes('value="unknown"'));
+    assert.ok(groupList.innerHTML.indexOf('data-group="metadata"') < groupList.innerHTML.indexOf('data-group="artwork"'));
     assert.strictEqual(document.getElementById("health-ignore-description").textContent, "Wähle aus, welche Hinweise für diese Staffel künftig ausgeblendet werden sollen.");
 
-    groupList.querySelectorAll = (selector) => selector === ".health-ignore-group:checked"
-        ? [{ value: "metadata" }, { value: "artwork" }]
+    groupList.querySelectorAll = (selector) => selector === ".health-ignore-type:checked"
+        ? [{ value: "incomplete_nfo" }, { value: "missing_season_poster" }]
         : [];
     globalThis.fetchRequests = [];
     globalThis.mockFetchResponse = (url) => ({
@@ -1037,7 +1049,7 @@ test('Scoped ignore modal lists only present issue groups and posts the exact sc
     assert.deepStrictEqual(JSON.parse(request.options.body), {
         scope_kind: "season",
         scope_path: seasonPath,
-        groups: ["metadata", "artwork"]
+        issue_types: ["incomplete_nfo", "missing_season_poster"]
     });
     assert.ok(globalThis.fetchRequests.some((item) => item.url.includes("/api/nas/health-status")));
     assert.ok(modal.classList.contains("hidden"));

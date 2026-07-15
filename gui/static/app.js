@@ -14307,8 +14307,27 @@ function updateHealthIgnoreSubmitState() {
     const groupList = document.getElementById("health-ignore-groups");
     const submit = document.getElementById("btn-health-ignore-submit");
     if (!groupList || !submit) return;
-    const checked = groupList.querySelectorAll(".health-ignore-group:checked").length;
+    const checked = groupList.querySelectorAll(".health-ignore-type:checked").length;
     submit.disabled = checked === 0;
+}
+
+// Sync group toggles (checked/indeterminate) and the select-all master with
+// the individual issue-type checkboxes.
+function syncHealthIgnoreToggleStates() {
+    const groupList = document.getElementById("health-ignore-groups");
+    if (!groupList) return;
+    groupList.querySelectorAll(".health-ignore-group-toggle").forEach((toggle) => {
+        const group = toggle.getAttribute("data-group");
+        const types = Array.from(groupList.querySelectorAll(`.health-ignore-type[data-group="${group}"]`));
+        toggle.checked = types.length > 0 && types.every((input) => input.checked);
+        toggle.indeterminate = !toggle.checked && types.some((input) => input.checked);
+    });
+    const allTypes = Array.from(groupList.querySelectorAll(".health-ignore-type"));
+    const selectAll = document.getElementById("health-ignore-select-all");
+    if (selectAll) {
+        selectAll.checked = allTypes.length > 0 && allTypes.every((input) => input.checked);
+        selectAll.indeterminate = !selectAll.checked && allTypes.some((input) => input.checked);
+    }
 }
 
 function openHealthIgnoreModal(scopeKind, scopePath) {
@@ -14316,15 +14335,28 @@ function openHealthIgnoreModal(scopeKind, scopePath) {
     const issues = (data.issues || []).filter((issue) =>
         issue.ignoreable !== false && healthIssueBelongsToScope(issue, scopeKind, scopePath)
     );
-    const counts = {};
-    issues.forEach((issue) => {
-        const group = getHealthIssueGroup(issue);
-        counts[group] = (counts[group] || 0) + 1;
-    });
     const catalogGroups = data.issue_catalog && data.issue_catalog.groups ? data.issue_catalog.groups : {};
-    const groups = Object.keys(counts).sort((left, right) =>
+    const catalogTypes = data.issue_catalog && data.issue_catalog.types ? data.issue_catalog.types : {};
+    // One entry per issue type present in this scope, grouped by registry group.
+    const typeEntries = {};
+    issues.forEach((issue) => {
+        const entry = typeEntries[issue.type] || {
+            type: issue.type,
+            group: getHealthIssueGroup(issue),
+            label: catalogTypes[issue.type]?.label || issue.label || HEALTH_TYPE_LABELS[issue.type] || issue.type,
+            count: 0,
+        };
+        entry.count += 1;
+        typeEntries[issue.type] = entry;
+    });
+    const groupedTypes = {};
+    Object.values(typeEntries).forEach((entry) => {
+        (groupedTypes[entry.group] = groupedTypes[entry.group] || []).push(entry);
+    });
+    const groups = Object.keys(groupedTypes).sort((left, right) =>
         (catalogGroups[left]?.order || 999) - (catalogGroups[right]?.order || 999)
     );
+    groups.forEach((group) => groupedTypes[group].sort((left, right) => left.label.localeCompare(right.label, "de")));
     currentHealthIgnoreScope = { scopeKind, scopePath };
 
     const scopeLabels = { series: "diese Serie", season: "diese Staffel", episode: "diese Folge", movie: "diesen Film" };
@@ -14337,12 +14369,21 @@ function openHealthIgnoreModal(scopeKind, scopePath) {
         error.textContent = "";
         error.style.display = "none";
     }
-    if (selectAll) selectAll.checked = groups.length > 0;
+    if (selectAll) {
+        selectAll.checked = groups.length > 0;
+        selectAll.indeterminate = false;
+    }
     if (groupList) {
         groupList.innerHTML = groups.length
             ? groups.map((group) => {
-                const label = catalogGroups[group]?.label || group;
-                return `<label class="health-ignore-option"><input type="checkbox" class="health-ignore-group" value="${escapeHTML(group)}" checked><span><strong>${escapeHTML(label)}</strong><small>${counts[group]} ${counts[group] === 1 ? "Hinweis" : "Hinweise"}</small></span></label>`;
+                const groupLabel = catalogGroups[group]?.label || group;
+                const typeRows = groupedTypes[group].map((entry) =>
+                    `<label class="health-ignore-option"><input type="checkbox" class="health-ignore-type" value="${escapeHTML(entry.type)}" data-group="${escapeHTML(group)}" checked><span><strong>${escapeHTML(entry.label)}</strong><small>${entry.count} ${entry.count === 1 ? "Hinweis" : "Hinweise"}</small></span></label>`
+                ).join("");
+                return `<div class="health-ignore-group-block">
+                            <label class="health-ignore-group-header"><input type="checkbox" class="health-ignore-group-toggle" data-group="${escapeHTML(group)}" checked><strong>${escapeHTML(groupLabel)}</strong></label>
+                            <div class="health-ignore-group-types">${typeRows}</div>
+                        </div>`;
             }).join("")
             : `<p class="text-muted">Für diesen Bereich sind keine ignorierbaren Hinweise vorhanden.</p>`;
     }
@@ -14359,8 +14400,8 @@ async function submitHealthIgnoreRule() {
     const groupList = document.getElementById("health-ignore-groups");
     const submit = document.getElementById("btn-health-ignore-submit");
     const error = document.getElementById("health-ignore-error");
-    const groups = Array.from(groupList?.querySelectorAll(".health-ignore-group:checked") || []).map((input) => input.value);
-    if (!groups.length) return;
+    const issueTypes = Array.from(groupList?.querySelectorAll(".health-ignore-type:checked") || []).map((input) => input.value);
+    if (!issueTypes.length) return;
     if (submit) submit.disabled = true;
     try {
         const response = await fetch("/api/findings/ignore-rules", {
@@ -14369,7 +14410,7 @@ async function submitHealthIgnoreRule() {
             body: JSON.stringify({
                 scope_kind: currentHealthIgnoreScope.scopeKind,
                 scope_path: currentHealthIgnoreScope.scopePath,
-                groups,
+                issue_types: issueTypes,
             }),
         });
         const result = await response.json();
@@ -16562,18 +16603,22 @@ window.bindHealthActionEvents = function() {
     document.getElementById("btn-health-ignore-cancel")?.addEventListener("click", closeHealthIgnoreModal);
     document.getElementById("btn-health-ignore-submit")?.addEventListener("click", submitHealthIgnoreRule);
     document.getElementById("health-ignore-select-all")?.addEventListener("change", (event) => {
-        document.getElementById("health-ignore-groups")?.querySelectorAll(".health-ignore-group").forEach((input) => {
+        document.getElementById("health-ignore-groups")?.querySelectorAll(".health-ignore-type, .health-ignore-group-toggle").forEach((input) => {
             input.checked = event.target.checked;
+            input.indeterminate = false;
         });
+        event.target.indeterminate = false;
         updateHealthIgnoreSubmitState();
     });
-    document.getElementById("health-ignore-groups")?.addEventListener("change", () => {
-        const inputs = Array.from(document.getElementById("health-ignore-groups")?.querySelectorAll(".health-ignore-group") || []);
-        const selectAll = document.getElementById("health-ignore-select-all");
-        if (selectAll) {
-            selectAll.checked = inputs.length > 0 && inputs.every((input) => input.checked);
-            selectAll.indeterminate = inputs.some((input) => input.checked) && !selectAll.checked;
+    document.getElementById("health-ignore-groups")?.addEventListener("change", (event) => {
+        const groupToggle = event.target.closest?.(".health-ignore-group-toggle");
+        if (groupToggle) {
+            const group = groupToggle.getAttribute("data-group");
+            document.getElementById("health-ignore-groups")?.querySelectorAll(`.health-ignore-type[data-group="${group}"]`).forEach((input) => {
+                input.checked = groupToggle.checked;
+            });
         }
+        syncHealthIgnoreToggleStates();
         updateHealthIgnoreSubmitState();
     });
 
