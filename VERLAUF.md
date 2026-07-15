@@ -2,6 +2,14 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 15.07.2026 (Phase 2.5c – Feedback aus der visuellen Abnahme)
+
+- **Leeres Ignoriermodal behoben:** Ursache war ein Health-Cache aus einem Zwischenstand des Branches, dem die Besitzfelder (`scope_*`, `series_path`) fehlten — Version 4 wurde früh gebumpt, die Felder kamen später. Cache-Version 5 invalidiert solche Stände überall.
+- **Modusleiste oben:** Die Leiste „Staffel/Folge/Serie bearbeiten" mit dem Wechsel „Ganze Serie bearbeiten" sitzt im NFO-Agenten jetzt direkt unter der Modal-Überschrift statt zwischen Optionen und Editor.
+- **Serien/Filme-Tabs:** Die Medienansicht trennt Serien und Filme über Tabs mit Zählern; der aktive Tab bleibt über Status-Aktualisierungen erhalten. Die Emoji-Präfixe (📺/🎬) entfallen.
+- **Kräftigere Karten:** Serien- und Filmkarten haben deutlichere Rahmen, eigenen Hintergrund, mehr Abstand und einen größeren Titel über den Status-Chips.
+- **Verifikation:** 457 Backend- und 93 Frontend-Tests bestanden; Image neu gebaut, Smoke-Test grün.
+
 ## Stand am 15.07.2026 (Phase 2.5c – Review-Findings: typgenaue Ignorierregeln)
 
 - **Typgenaue Ignorierregeln:** Bereichsbezogene Regeln speichern jetzt explizite Hinweisarten statt ganzer Gruppen. Eine Regel erfasst damit nie stillschweigend Hinweisarten, die erst nach dem Speichern registriert werden — die entsprechende Zusage aus dem Implementierungsplan gilt wieder.
