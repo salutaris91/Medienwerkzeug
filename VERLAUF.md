@@ -2,6 +2,16 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 15.07.2026 (Phase 2.5c – hierarchische Health-Ansicht und persistente Hinweisregeln)
+
+- **Ein zentraler Befundkatalog:** Jeder Health-Typ besitzt nun eine stabile Definition für Bezeichnung, Gruppe, erlaubte Medienebenen, Reparaturweg und Ignorierbarkeit. Scanner, API, Oberfläche und Tests verwenden denselben Vertrag; unbekannte Typen fallen in einen sichtbaren, nicht ignorierbaren Sicherheitszustand.
+- **Explizite Medienzugehörigkeit:** Befunde tragen kanonische Serien-, Staffel-, Folgen- beziehungsweise Filmpfade. Dadurch werden FSK-, NFO-, Artwork-, Datei- und Strukturhinweise ohne Frontend-Heuristiken der richtigen Ebene zugeordnet.
+- **Ruhige Hierarchie:** Die medienorientierte Ansicht führt von der Serienzusammenfassung über einklappbare Staffeln zu einklappbaren betroffenen Folgen. Serien-, Staffel- und Folgenbefunde bleiben getrennt; jede Ebene bietet genau ihren passenden Metadaten-Workflow.
+- **Staffel-Metadaten bearbeitbar:** Vorhandene `season.nfo` und betroffene Folgen lassen sich im Staffelkontext gemeinsam prüfen, ohne die `tvshow.nfo` unbeabsichtigt zu verändern. Eine fehlende `season.nfo` bleibt weiterhin optional.
+- **Persistente, bereichsbezogene Hinweise:** Nutzer können für Film, Serie, Staffel oder Folge gezielt vorhandene Gruppen wie Metadaten, Artwork oder Dateien ausblenden. Ein Bestätigungsmodal zeigt nur tatsächlich betroffene Gruppen; alle Regeln können über „wieder einblenden“ vollständig zurückgenommen werden.
+- **Kompatible Migration:** Alte exakte Ignorier-Schlüssel und Duplikat-Ausnahmen bleiben erhalten. Nur die früher mehrdeutigen strikten Staffel-Schlüssel für NFO- und Dateihinweise werden automatisch in das neue Regelschema überführt; ähnlich benannte Ordner wie `Staffel Backup` bleiben exakte Altregeln.
+- **Verifikation:** 454 Backend- und 91 Frontend-Tests bestanden; Syntax-, Sicherheits-, Migrations- und Whitespace-Prüfungen sind fehlerfrei.
+
 ## Stand am 15.07.2026 (Phase 2.5c – vereinfachte Metadatenführung)
 
 - **Ein gemeinsamer Prüf- und Bearbeitungsbereich:** Der NFO-Agent zeigt Datei- und Vollständigkeitsstatus jetzt direkt innerhalb der Film- beziehungsweise Serien-Metadaten. Der frühere separate Prüfabschnitt und die zweite Warnbox am Formularende entfallen.
