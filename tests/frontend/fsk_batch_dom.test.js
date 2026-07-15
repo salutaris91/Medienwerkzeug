@@ -746,7 +746,7 @@ test('Apply-Lock blocks closeFskBatchModal', async () => {
     assert.ok(!modal.classList.contains("active"));
 });
 
-test('Single vs Group button visibility and kanonische FSK states in Media View', () => {
+test('Media view routes series, season and episode metadata actions through the NFO Agent', () => {
     // Hilfsfunktionen für präzise HTML-Prüfungen
     const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const hasButtonWithClassAndPath = (html, className, path) => {
@@ -792,13 +792,16 @@ test('Single vs Group button visibility and kanonische FSK states in Media View'
 
     globalThis.renderHealthStatus(testDataSingle);
 
-    // Erwartetes Verhalten:
-    // - Serien-Gruppenaktion (.show-group-fsk-btn) darf NICHT existieren (nur 1 Befund)
-    // - Staffel-Gruppenaktion (.season-group-fsk-btn) darf NICHT existieren (nur 1 Befund)
-    // - Einzelbutton (.health-fix-fsk) an Episode 2 MUSS existieren
+    // FSK ist Teil der Metadatenpflege. Die Medienansicht bietet deshalb keine
+    // separaten FSK-Gruppenaktionen mehr, sondern eindeutige Agent-Umfänge.
     assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "show-group-fsk-btn", "/Serien/My Show"));
     assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "season-group-fsk-btn", "/Serien/My Show/Season 1"));
-    assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "health-fix-fsk", "/Serien/My Show/Season 1/S01E02.nfo"));
+    assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "health-nfo-agent", "/Serien/My Show"));
+    assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "health-nfo-agent", "/Serien/My Show/Season 1"));
+    assert.ok(issuesEl.innerHTML.includes('data-edit-mode="full"'));
+    assert.ok(issuesEl.innerHTML.includes('data-edit-mode="season"'));
+    assert.ok(issuesEl.innerHTML.includes('data-edit-mode="episode"'));
+    assert.ok(issuesEl.innerHTML.includes('data-episode-file="My Show - S01E02"'));
 
     // 2. Testfall: Mehrfachgruppe (Ep 1 und Ep 2 haben missing_fsk)
     const testDataGroup = {
@@ -829,14 +832,12 @@ test('Single vs Group button visibility and kanonische FSK states in Media View'
 
     globalThis.renderHealthStatus(testDataGroup);
 
-    // Erwartetes Verhalten:
-    // - Serien-Gruppenaktion (.show-group-fsk-btn) MUSS existieren (2 Befunde)
-    // - Staffel-Gruppenaktion (.season-group-fsk-btn) MUSS existieren (2 Befunde in Staffel)
-    // - Einzelbuttons (.health-fix-fsk) bei den Episoden MÜSSEN ausgeblendet sein (doppelte Bedienwege unterdrückt)
-    assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "show-group-fsk-btn", "/Serien/My Show"));
-    assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "season-group-fsk-btn", "/Serien/My Show/Season 1"));
+    assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "show-group-fsk-btn", "/Serien/My Show"));
+    assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "season-group-fsk-btn", "/Serien/My Show/Season 1"));
     assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "health-fix-fsk", "/Serien/My Show/Season 1/S01E01.nfo"));
     assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "health-fix-fsk", "/Serien/My Show/Season 1/S01E02.nfo"));
+    assert.ok(issuesEl.innerHTML.includes("Metadaten: 2 von 2 Folgen unvollständig"));
+    assert.strictEqual((issuesEl.innerHTML.match(/data-edit-mode="episode"/g) || []).length, 2);
 
     // Cleanup
     document.body.removeChild(container);
@@ -894,12 +895,11 @@ test('Media summary stays calm and exposes exact actions only in details', () =>
 
     const html = issuesEl.innerHTML;
     const summaryHtml = html.match(/<summary class="health-media-summary">[\s\S]*?<\/summary>/)?.[0] || "";
-    assert.ok(summaryHtml.includes("Metadaten: prüfen"));
-    assert.ok(summaryHtml.includes("FSK: Serien-NFO prüfen"));
+    assert.ok(summaryHtml.includes("Serien-Metadaten: prüfen"));
     assert.ok(summaryHtml.includes("Artwork: 1 fehlen"));
     assert.ok(summaryHtml.includes("Details anzeigen"));
     assert.ok(!summaryHtml.includes("health-nfo-agent"));
-    assert.strictEqual((html.match(/health-nfo-agent/g) || []).length, 1);
+    assert.ok((html.match(/health-nfo-agent/g) || []).length >= 2);
     assert.ok(html.includes("📄 tvshow.nfo"));
     assert.ok(html.includes('class="health-media-file"'));
     assert.ok(html.includes("Fehlende Metadaten"));
@@ -913,7 +913,74 @@ test('Media summary stays calm and exposes exact actions only in details', () =>
     document.body.removeChild(container);
 });
 
-test('Media-oriented movie summary keeps explicit FSK status visible', () => {
+test('Media view separates season findings from collapsible episode metadata findings', () => {
+    const container = document.createElement("div");
+    container.id = "view-library";
+    globalThis.elements["view-library"] = container;
+    document.body.appendChild(container);
+
+    const issuesEl = document.createElement("div");
+    issuesEl.id = "health-issues";
+    globalThis.elements["health-issues"] = issuesEl;
+    container.appendChild(issuesEl);
+    globalThis.healthGroupMode = "media";
+
+    const showPath = "/Serien/My Show";
+    const seasonPath = `${showPath}/Staffel 01`;
+    const episodeNfo = `${seasonPath}/My Show S01E01.nfo`;
+    const seasonKey = `health:missing_season_poster:${seasonPath}`;
+    const episodeKey = `health:incomplete_nfo:${episodeNfo}`;
+    globalThis.renderHealthStatus({
+        status: "done",
+        issues: [
+            { key: seasonKey, type: "missing_season_poster", group: "artwork", label: "Fehlendes Staffelposter", scope_kind: "season", scope_path: seasonPath, path: seasonPath, message: "Staffelposter fehlt" },
+            { key: episodeKey, type: "incomplete_nfo", group: "metadata", label: "Metadaten unvollständig", scope_kind: "episode", scope_path: episodeNfo, path: episodeNfo, agent_path: seasonPath, missing_fields: ["Plot"], message: "NFO unvollständig" }
+        ],
+        summary: { critical: 0, warning: 2, info: 0 },
+        ignored_count: 0,
+        media_structure: {
+            series: [{
+                name: "My Show",
+                path: showPath,
+                has_nfo: true,
+                fsk_status: "healthy",
+                current_fsk: "FSK 12",
+                issue_keys: [],
+                seasons: [{
+                    name: "Staffel 01",
+                    path: seasonPath,
+                    issue_keys: [seasonKey],
+                    episodes: [{
+                        name: "My Show S01E01.mkv",
+                        path: episodeNfo,
+                        nfo_path: episodeNfo,
+                        fsk_status: "healthy",
+                        current_fsk: "FSK 12",
+                        issue_keys: [episodeKey]
+                    }]
+                }]
+            }],
+            movies: []
+        }
+    });
+
+    const html = issuesEl.innerHTML;
+    const seasonIndex = html.indexOf('class="health-media-season"');
+    const seasonFindingIndex = html.indexOf("Fehlendes Staffelposter");
+    const episodeIndex = html.indexOf('class="health-media-episode"');
+    assert.ok(seasonIndex >= 0 && seasonFindingIndex > seasonIndex && episodeIndex > seasonFindingIndex);
+    assert.ok(html.includes("Metadaten: 1 von 1 Folge unvollständig"));
+    assert.ok(html.includes('data-edit-mode="season"'));
+    assert.ok(html.includes('data-edit-mode="episode"'));
+    assert.ok(html.includes('data-episode-file="My Show S01E01.mkv"'));
+    assert.ok(html.includes("Fehlende Felder: Plot"));
+    assert.ok(!html.match(/<details class="health-media-episode"[^>]*\sopen(?:\s|>)/));
+    assert.ok(!html.includes("health-fix-fsk"));
+
+    document.body.removeChild(container);
+});
+
+test('Media-oriented movie view treats invalid FSK as a metadata problem', () => {
     const container = document.createElement("div");
     container.id = "view-library";
     globalThis.elements["view-library"] = container;
@@ -953,7 +1020,8 @@ test('Media-oriented movie summary keeps explicit FSK status visible', () => {
 
     const summaryHtml = issuesEl.innerHTML.match(/<summary class="health-media-summary">[\s\S]*?<\/summary>/)?.[0] || "";
     assert.ok(summaryHtml.includes("Metadaten: prüfen"));
-    assert.ok(summaryHtml.includes("FSK: 99 ungültig"));
+    assert.ok(!summaryHtml.includes("FSK:"));
+    assert.ok(issuesEl.innerHTML.includes("Ungültige Altersfreigabe"));
     assert.ok(issuesEl.innerHTML.includes("Metadaten bearbeiten"));
     assert.ok(issuesEl.innerHTML.includes('class="health-media-file"'));
     assert.ok(!issuesEl.innerHTML.includes("FSK bearbeiten"));
@@ -1015,12 +1083,8 @@ test('nfo_missing visibility and action suppression', () => {
     assert.ok(issuesEl.innerHTML.includes("📺 My Show"));
     // Episode 1 muss sichtbar sein
     assert.ok(issuesEl.innerHTML.includes("Episode 1"));
-    // NFO-Problem wird aggregiert; der vorhandene Serien-FSK-Status bleibt sichtbar.
-    assert.ok(issuesEl.innerHTML.includes("Metadaten: prüfen"));
-    assert.ok(issuesEl.innerHTML.includes("FSK: 12"));
-    // FSK-Label muss rot ("text-danger") sein und "NFO fehlt" heißen
-    assert.ok(issuesEl.innerHTML.includes('class="text-danger"'));
-    assert.ok(issuesEl.innerHTML.includes('NFO fehlt'));
+    assert.ok(issuesEl.innerHTML.includes("Metadaten: 1 von 1 Folge unvollständig"));
+    assert.ok(issuesEl.innerHTML.includes("Fehlende Metadaten"));
     // Genau zu dieser Episode gehört ein NFO-Agent, aber keine FSK-Aktion.
     assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "health-nfo-agent", "/Serien/My Show/Season 1"));
     assert.ok(issuesEl.innerHTML.includes('data-edit-mode="episode"'));
@@ -1092,8 +1156,9 @@ test('nfo_missing visibility and action suppression', () => {
 
     // NFO Agent Button für Serie vorhanden
     assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "health-nfo-agent", "/Serien/My Show"));
-    // FSK setzen für Episode vorhanden
-    assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "health-fix-fsk", "/Serien/My Show/Season 1/S01E01.nfo"));
+    // Die Folge wird im Agenten bearbeitet; ein separater FSK-Button existiert nicht.
+    assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "health-nfo-agent", "/Serien/My Show/Season 1"));
+    assert.ok(issuesEl.innerHTML.includes('data-edit-mode="episode"'));
     // Keine Gruppenaktion vorhanden
     assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "show-group-fsk-btn", "/Serien/My Show"));
 
@@ -1125,14 +1190,11 @@ test('nfo_missing visibility and action suppression', () => {
 
     globalThis.renderHealthStatus(testDataMisch2);
 
-    // FSK bleibt im Detail bedienbar und in der Zusammenfassung ausdrücklich sichtbar.
-    assert.ok(issuesEl.innerHTML.includes("Metadaten: prüfen"));
-    assert.ok(issuesEl.innerHTML.includes("FSK: Serie + 1 Folge prüfen"));
-    // Seriengruppenaktion vorhanden
-    assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "show-group-fsk-btn", "/Serien/My Show"));
-    // Einzel-FSK-Button für tvshow.nfo ausgeblendet
+    assert.ok(issuesEl.innerHTML.includes("Serien-Metadaten: prüfen"));
+    assert.ok(issuesEl.innerHTML.includes("Metadaten: 1 von 1 Folge unvollständig"));
+    assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "show-group-fsk-btn", "/Serien/My Show"));
+    assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "health-nfo-agent", "/Serien/My Show"));
     assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "health-fix-fsk", "/Serien/My Show"));
-    // Einzel-FSK-Button für Episode ausgeblendet
     assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "health-fix-fsk", "/Serien/My Show/Season 1/S01E01.nfo"));
 
     // 5. Episode mit unreadable NFO
@@ -1163,10 +1225,7 @@ test('nfo_missing visibility and action suppression', () => {
 
     // Sichtbar
     assert.ok(issuesEl.innerHTML.includes("Episode 1"));
-    assert.ok(issuesEl.innerHTML.includes("Metadaten: prüfen"));
-    assert.ok(issuesEl.innerHTML.includes("FSK: 12"));
-    // Label
-    assert.ok(issuesEl.innerHTML.includes('class="text-danger"'));
+    assert.ok(issuesEl.innerHTML.includes("Metadaten: 1 von 1 Folge unvollständig"));
     assert.ok(issuesEl.innerHTML.includes('NFO unlesbar'));
     // Kein FSK-Button, aber ein dateibezogener NFO-Agent.
     assert.ok(!hasButtonWithClassAndPath(issuesEl.innerHTML, "health-fix-fsk", "/Serien/My Show/Season 1/S01E01.nfo"));

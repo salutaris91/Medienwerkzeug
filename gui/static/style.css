@@ -3353,6 +3353,148 @@ body.runtime-docker .docker-only-info {
     background: rgba(255, 255, 255, 0.015);
 }
 
+.health-media-section-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0 0 10px;
+    color: var(--text-main);
+    font-size: 1.05rem;
+    font-weight: 650;
+}
+
+.health-media-movies-title {
+    margin-top: 22px;
+}
+
+.health-media-empty {
+    margin: 4px 0 16px 10px;
+    font-style: italic;
+}
+
+.health-media-scope-action {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 9px 10px;
+    border: 1px solid var(--border-light);
+    border-radius: 7px;
+    background: rgba(59, 130, 246, 0.035);
+}
+
+.health-media-scope-action > span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.health-media-scope-action small {
+    color: var(--text-muted);
+    font-size: 0.76rem;
+}
+
+.health-media-row-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 9px;
+    text-align: right;
+}
+
+.health-media-primary-row {
+    border-left: 3px solid rgba(59, 130, 246, 0.55);
+}
+
+.health-media-finding-row .text-muted {
+    max-width: 68%;
+    font-size: 0.78rem;
+    text-align: right;
+}
+
+.health-media-season,
+.health-media-episode {
+    overflow: hidden;
+    border: 1px solid var(--border-light);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.012);
+}
+
+.health-media-season + .health-media-season,
+.health-media-episode + .health-media-episode {
+    margin-top: 7px;
+}
+
+.health-media-nested-summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.health-media-nested-summary::-webkit-details-marker {
+    display: none;
+}
+
+.health-media-nested-summary:hover,
+.health-media-nested-summary:focus-visible {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.health-media-nested-title {
+    min-width: 180px;
+    color: var(--text-main);
+    font-weight: 600;
+}
+
+.health-media-nested-disclosure {
+    margin-left: auto;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.health-media-nested-disclosure::after {
+    content: " ▾";
+}
+
+.health-media-season[open] > .health-media-nested-summary > .health-media-nested-disclosure::after,
+.health-media-episode[open] > .health-media-nested-summary > .health-media-nested-disclosure::after {
+    content: " ▴";
+}
+
+.health-media-nested-body {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 8px 10px 10px;
+    border-top: 1px solid var(--border-light);
+}
+
+.health-media-episode {
+    margin-left: 14px;
+}
+
+.health-media-episode-summary .health-media-chip {
+    margin-left: auto;
+}
+
+.health-media-episode-heading {
+    margin: 5px 4px 0;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.health-media-episode-action {
+    display: flex;
+    justify-content: flex-end;
+}
+
 @media (max-width: 900px) {
     .health-media-summary {
         align-items: flex-start;
@@ -3362,5 +3504,34 @@ body.runtime-docker .docker-only-info {
     .health-media-summary-chips {
         flex-basis: 100%;
         order: 3;
+    }
+
+    .health-media-scope-action,
+    .health-media-detail-row,
+    .health-media-row-actions {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .health-media-row-actions {
+        width: 100%;
+        text-align: left;
+    }
+
+    .health-media-nested-summary {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .health-media-nested-title {
+        min-width: 0;
+    }
+
+    .health-media-nested-summary .health-media-summary-chips {
+        flex-basis: 100%;
+    }
+
+    .health-media-episode {
+        margin-left: 0;
     }
 }

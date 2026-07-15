@@ -12513,6 +12513,218 @@ function getMovieFskSummary(movie, hasNfoIssue) {
     return { label: currentFsk ? `FSK: ${currentFsk}` : "FSK: korrekt", tone: "success" };
 }
 
+function getHealthIssueGroup(issue) {
+    if (issue && issue.group) return issue.group;
+    if (issue && HEALTH_MEDIA_METADATA_TYPES.has(issue.type)) return "metadata";
+    if (issue && HEALTH_MEDIA_ARTWORK_TYPES.has(issue.type)) return "artwork";
+    if (issue && ["small_file", "no_video", "empty_folder", "codec_inconsistency"].includes(issue.type)) return "files";
+    if (issue && ["episode_gap", "nested_duplicate", "genre_container", "bad_folder_name", "name_mismatch", "inconsistent_naming"].includes(issue.type)) return "structure";
+    return "other";
+}
+
+function hasMetadataProblem(issues, fskStatus = "") {
+    return issues.some((issue) => getHealthIssueGroup(issue) === "metadata")
+        || ["nfo_missing", "unreadable", "missing_fsk", "invalid_fsk"].includes(fskStatus);
+}
+
+function getMetadataProblemLabels(issues, fskStatus = "") {
+    const labels = issues
+        .filter((issue) => getHealthIssueGroup(issue) === "metadata")
+        .map((issue) => issue.label || HEALTH_TYPE_LABELS[issue.type] || issue.type);
+    const hasFskIssue = issues.some((issue) => HEALTH_MEDIA_FSK_TYPES.has(issue.type));
+    if (!hasFskIssue && fskStatus === "missing_fsk") labels.push("FSK fehlt");
+    if (!hasFskIssue && fskStatus === "invalid_fsk") labels.push("FSK ungültig");
+    if (fskStatus === "nfo_missing" && !labels.length) labels.push("Fehlende Metadaten");
+    if (fskStatus === "unreadable" && !labels.length) labels.push("Metadaten nicht lesbar");
+    return [...new Set(labels)];
+}
+
+function renderHealthMetadataButton(path, editMode, episodeFile = "", label = "Metadaten bearbeiten") {
+    const episodeData = episodeFile ? ` data-episode-file="${escapeHTML(episodeFile)}"` : "";
+    return `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(path)}" data-edit-mode="${escapeHTML(editMode)}"${episodeData}>${escapeHTML(label)}</button>`;
+}
+
+function renderHealthIssueRows(issues) {
+    return issues.map((issue) => {
+        const label = issue.label || HEALTH_TYPE_LABELS[issue.type] || issue.type;
+        const missingFields = Array.isArray(issue.missing_fields) && issue.missing_fields.length
+            ? `Fehlende Felder: ${issue.missing_fields.join(", ")}`
+            : "";
+        return `<div class="health-media-detail-row health-media-finding-row">
+                    <span>${escapeHTML(label)}</span>
+                    <span class="text-muted">${escapeHTML(missingFields || issue.message || "")}</span>
+                </div>`;
+    }).join("");
+}
+
+function renderHealthMediaView(data, openTypes) {
+    const seriesList = data.media_structure ? data.media_structure.series || [] : [];
+    const moviesList = data.media_structure ? data.media_structure.movies || [] : [];
+    const issuesByKey = {};
+    (data.issues || []).forEach((issue) => { issuesByKey[issue.key] = issue; });
+    const issuesFor = (item) => getIssuesForKeys(item && item.issue_keys ? item.issue_keys : [], issuesByKey);
+    const issueCountForGroup = (issues, group) => issues.filter((issue) => getHealthIssueGroup(issue) === group).length;
+    let html = `<div class="health-media-section-title"><span aria-hidden="true">📺</span><span>Serien</span></div>`;
+    let renderedSeriesCount = 0;
+
+    seriesList.forEach((series) => {
+        const showIssues = issuesFor(series);
+        const seasons = series.seasons || [];
+        const allEpisodes = seasons.flatMap((season) => season.episodes || []);
+        const episodeEntries = allEpisodes.map((episode) => ({ episode, issues: issuesFor(episode) }));
+        const affectedEpisodes = episodeEntries.filter(({ episode, issues }) => issues.length || hasMetadataProblem(issues, episode.fsk_status));
+        const metadataEpisodes = episodeEntries.filter(({ episode, issues }) => hasMetadataProblem(issues, episode.fsk_status));
+        const allSeriesIssues = [...showIssues];
+        seasons.forEach((season) => {
+            allSeriesIssues.push(...issuesFor(season));
+            (season.episodes || []).forEach((episode) => allSeriesIssues.push(...issuesFor(episode)));
+        });
+        const uniqueSeriesIssues = [...new Map(allSeriesIssues.map((issue) => [issue.key, issue])).values()];
+        const showMetadataProblem = hasMetadataProblem(showIssues, series.fsk_status) || !series.has_nfo;
+        if (!showMetadataProblem && affectedEpisodes.length === 0 && uniqueSeriesIssues.length === 0) return;
+
+        renderedSeriesCount++;
+        const summaryChips = [];
+        if (showMetadataProblem) summaryChips.push(renderMediaSummaryChip("Serien-Metadaten: prüfen", "danger"));
+        if (metadataEpisodes.length > 0) {
+            summaryChips.push(renderMediaSummaryChip(
+                `Metadaten: ${metadataEpisodes.length} von ${allEpisodes.length} ${metadataEpisodes.length === 1 ? "Folge" : "Folgen"} unvollständig`,
+                "warning"
+            ));
+        }
+        const artworkCount = issueCountForGroup(uniqueSeriesIssues, "artwork");
+        const fileCount = issueCountForGroup(uniqueSeriesIssues, "files");
+        const structureCount = issueCountForGroup(uniqueSeriesIssues, "structure");
+        if (artworkCount) summaryChips.push(renderMediaSummaryChip(`Artwork: ${artworkCount} fehlen`, "warning"));
+        if (fileCount) summaryChips.push(renderMediaSummaryChip(`Dateien: ${fileCount} prüfen`, "warning"));
+        if (structureCount) summaryChips.push(renderMediaSummaryChip(`Struktur: ${structureCount} prüfen`, "warning"));
+
+        const isShowOpen = openTypes.includes(`show:${series.path}`);
+        html += `<details class="health-media-card" data-show-path="${escapeHTML(series.path)}" ${isShowOpen ? "open" : ""}>
+                    <summary class="health-media-summary">
+                        <div class="health-media-summary-main"><span>📺 ${escapeHTML(series.name)}</span></div>
+                        <div class="health-media-summary-chips">${summaryChips.join("")}</div>
+                        <span class="health-media-disclosure"><span class="health-media-disclosure-closed">Details anzeigen</span><span class="health-media-disclosure-open">Details schließen</span></span>
+                    </summary>
+                    <div class="health-media-details">
+                        <div class="health-media-scope-action">
+                            <span><strong>Gesamte Serie</strong><small>Serien-NFO, Staffeln und Folgen gemeinsam prüfen</small></span>
+                            ${renderHealthMetadataButton(series.path, "full", "", "Ganze Serie bearbeiten")}
+                        </div>`;
+
+        if (showMetadataProblem) {
+            const showLabels = getMetadataProblemLabels(showIssues, series.fsk_status);
+            const agentPath = showIssues.find((issue) => issue.agent_path)?.agent_path || series.path;
+            html += `<div class="health-media-detail-row health-media-primary-row">
+                        <span class="health-media-file">📄 tvshow.nfo</span>
+                        <div class="health-media-row-actions">
+                            <span class="text-danger">${escapeHTML(showLabels.join(" · ") || "Metadaten unvollständig")}</span>
+                            ${renderHealthMetadataButton(agentPath, "series")}
+                        </div>
+                     </div>`;
+        }
+        html += renderHealthIssueRows(showIssues.filter((issue) => getHealthIssueGroup(issue) !== "metadata"));
+
+        seasons.forEach((season) => {
+            const seasonIssues = issuesFor(season);
+            const episodeEntriesInSeason = (season.episodes || []).map((episode) => ({ episode, issues: issuesFor(episode) }));
+            const affectedInSeason = episodeEntriesInSeason.filter(({ episode, issues }) => issues.length || hasMetadataProblem(issues, episode.fsk_status));
+            const metadataInSeason = episodeEntriesInSeason.filter(({ episode, issues }) => hasMetadataProblem(issues, episode.fsk_status));
+            if (!seasonIssues.length && !affectedInSeason.length) return;
+
+            const seasonChips = [];
+            if (metadataInSeason.length) {
+                seasonChips.push(renderMediaSummaryChip(
+                    `Metadaten: ${metadataInSeason.length} von ${episodeEntriesInSeason.length} ${metadataInSeason.length === 1 ? "Folge" : "Folgen"} unvollständig`,
+                    "warning"
+                ));
+            }
+            const seasonArtwork = issueCountForGroup(seasonIssues, "artwork");
+            const seasonFiles = issueCountForGroup(seasonIssues, "files");
+            const seasonStructure = issueCountForGroup(seasonIssues, "structure");
+            if (seasonArtwork) seasonChips.push(renderMediaSummaryChip(`Artwork: ${seasonArtwork} fehlt`, "warning"));
+            if (seasonFiles) seasonChips.push(renderMediaSummaryChip(`Dateien: ${seasonFiles} prüfen`, "warning"));
+            if (seasonStructure) seasonChips.push(renderMediaSummaryChip(`Struktur: ${seasonStructure} prüfen`, "warning"));
+
+            html += `<details class="health-media-season" data-season-path="${escapeHTML(season.path)}">
+                        <summary class="health-media-nested-summary">
+                            <span class="health-media-nested-title">📁 ${escapeHTML(season.name)}</span>
+                            <span class="health-media-summary-chips">${seasonChips.join("")}</span>
+                            <span class="health-media-nested-disclosure">Staffel anzeigen</span>
+                        </summary>
+                        <div class="health-media-nested-body">
+                            <div class="health-media-scope-action">
+                                <span><strong>${escapeHTML(season.name)}</strong><small>Optionale Staffel-NFO und betroffene Folgen prüfen</small></span>
+                                ${renderHealthMetadataButton(season.path, "season", "", "Staffel bearbeiten")}
+                            </div>
+                            ${renderHealthIssueRows(seasonIssues)}`;
+
+            if (affectedInSeason.length) {
+                html += `<div class="health-media-episode-heading">Folgen</div>`;
+            }
+            affectedInSeason.forEach(({ episode, issues }) => {
+                const metadataProblem = hasMetadataProblem(issues, episode.fsk_status);
+                const labels = getMetadataProblemLabels(issues, episode.fsk_status);
+                const episodeLabel = labels.length ? labels.join(" · ") : `${issues.length} ${issues.length === 1 ? "Hinweis" : "Hinweise"}`;
+                const agentPath = issues.find((issue) => issue.agent_path)?.agent_path || season.path;
+                html += `<details class="health-media-episode" data-episode-path="${escapeHTML(episode.path || episode.nfo_path || episode.name)}">
+                            <summary class="health-media-nested-summary health-media-episode-summary">
+                                <span class="health-media-nested-title">📄 ${escapeHTML(episode.name)}</span>
+                                <span class="health-media-chip ${metadataProblem ? "health-media-chip-warning" : ""}">${escapeHTML(episodeLabel)}</span>
+                                <span class="health-media-nested-disclosure">Folge anzeigen</span>
+                            </summary>
+                            <div class="health-media-nested-body">
+                                ${renderHealthIssueRows(issues)}
+                                ${metadataProblem ? `<div class="health-media-episode-action">${renderHealthMetadataButton(agentPath, "episode", episode.name)}</div>` : ""}
+                            </div>
+                         </details>`;
+            });
+            html += `</div></details>`;
+        });
+        html += `</div></details>`;
+    });
+
+    if (!renderedSeriesCount) html += `<p class="text-muted health-media-empty">Keine auffälligen Serien gefunden.</p>`;
+
+    html += `<div class="health-media-section-title health-media-movies-title"><span aria-hidden="true">🎬</span><span>Filme</span></div>`;
+    let renderedMoviesCount = 0;
+    moviesList.forEach((movie) => {
+        const movieIssues = issuesFor(movie);
+        const metadataProblem = hasMetadataProblem(movieIssues, movie.fsk_status);
+        if (!movieIssues.length && !metadataProblem) return;
+        renderedMoviesCount++;
+        const chips = [];
+        if (metadataProblem) chips.push(renderMediaSummaryChip("Metadaten: prüfen", "danger"));
+        const artworkCount = issueCountForGroup(movieIssues, "artwork");
+        const fileCount = issueCountForGroup(movieIssues, "files");
+        if (artworkCount) chips.push(renderMediaSummaryChip(`Artwork: ${artworkCount} fehlen`, "warning"));
+        if (fileCount) chips.push(renderMediaSummaryChip(`Dateien: ${fileCount} prüfen`, "warning"));
+        const isMovieOpen = openTypes.includes(`movie:${movie.path}`);
+        html += `<details class="health-media-card" data-movie-path="${escapeHTML(movie.path)}" ${isMovieOpen ? "open" : ""}>
+                    <summary class="health-media-summary">
+                        <div class="health-media-summary-main"><span>🎬 ${escapeHTML(movie.name)}</span></div>
+                        <div class="health-media-summary-chips">${chips.join("")}</div>
+                        <span class="health-media-disclosure"><span class="health-media-disclosure-closed">Details anzeigen</span><span class="health-media-disclosure-open">Details schließen</span></span>
+                    </summary>
+                    <div class="health-media-details">`;
+        if (metadataProblem) {
+            const labels = getMetadataProblemLabels(movieIssues, movie.fsk_status);
+            const agentPath = movieIssues.find((issue) => issue.agent_path)?.agent_path || movie.path;
+            html += `<div class="health-media-detail-row health-media-primary-row">
+                        <span class="health-media-file">📄 ${escapeHTML(osBasename(movie.nfo_path || "movie.nfo"))}</span>
+                        <div class="health-media-row-actions">
+                            <span class="text-danger">${escapeHTML(labels.join(" · ") || "Metadaten unvollständig")}</span>
+                            ${renderHealthMetadataButton(agentPath, "full")}
+                        </div>
+                     </div>`;
+        }
+        html += renderHealthIssueRows(movieIssues.filter((issue) => getHealthIssueGroup(issue) !== "metadata"));
+        html += `</div></details>`;
+    });
+    if (!renderedMoviesCount) html += `<p class="text-muted health-media-empty">Keine auffälligen Filme gefunden.</p>`;
+    return html;
+}
+
 window.switchLibraryTab = function(tabId) {
     document.querySelectorAll(".library-tab-content").forEach(el => el.classList.add("hidden"));
     const tabEl = document.getElementById("library-tab-" + tabId);
@@ -13000,6 +13212,10 @@ function renderHealthStatus(data) {
                 if (showPath) openTypes.push(`show:${showPath}`);
                 const moviePath = d.getAttribute("data-movie-path");
                 if (moviePath) openTypes.push(`movie:${moviePath}`);
+                const seasonPath = d.getAttribute("data-season-path");
+                if (seasonPath) openTypes.push(`season:${seasonPath}`);
+                const episodePath = d.getAttribute("data-episode-path");
+                if (episodePath) openTypes.push(`episode:${episodePath}`);
             }
         });
     }
@@ -13256,317 +13472,7 @@ function renderHealthStatus(data) {
                 html += `</div></details>`;
             });
         } else if (window.healthGroupMode === "media") {
-            const seriesList = data.media_structure ? data.media_structure.series || [] : [];
-            const moviesList = data.media_structure ? data.media_structure.movies || [] : [];
-            const issuesByKey = {};
-            if (data.issues) {
-                data.issues.forEach(i => issuesByKey[i.key] = i);
-            }
-
-
-            html += `<div style="font-weight:600; color:var(--text-main); margin-bottom:10px; font-size:1.1em; display:flex; align-items:center; gap:6px;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="color:var(--accent);"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
-                        <span>Serien</span>
-                     </div>`;
-
-            const isEpAffectedGeneral = (ep) => ["nfo_missing", "unreadable", "missing_fsk", "invalid_fsk"].includes(ep.fsk_status);
-            const isEpFskActionable = (ep) => ["missing_fsk", "invalid_fsk"].includes(ep.fsk_status);
-
-            let renderedSeriesCount = 0;
-            seriesList.forEach(s => {
-                const totalEp = s.seasons.reduce((acc, se) => acc + (se.episodes ? se.episodes.length : 0), 0);
-                const affectedEp = s.seasons.reduce((acc, se) => acc + (se.episodes ? se.episodes.filter(isEpAffectedGeneral).length : 0), 0);
-                const fskActionableEp = s.seasons.reduce((acc, se) => acc + (se.episodes ? se.episodes.filter(isEpFskActionable).length : 0), 0);
-
-                const seriesIssueKeys = [...(s.issue_keys || [])];
-                s.seasons.forEach((season) => {
-                    seriesIssueKeys.push(...(season.issue_keys || []));
-                    (season.episodes || []).forEach((episode) => seriesIssueKeys.push(...(episode.issue_keys || [])));
-                });
-                const seriesIssues = getIssuesForKeys(seriesIssueKeys, issuesByKey);
-                const showAffectedGeneral = !s.has_nfo
-                    || ["nfo_missing", "unreadable", "missing_fsk", "invalid_fsk"].includes(s.fsk_status)
-                    || affectedEp > 0
-                    || seriesIssues.length > 0;
-                const showFskActionable = s.has_nfo && ["missing_fsk", "invalid_fsk"].includes(s.fsk_status);
-                const seriesFskActionCount = (showFskActionable ? 1 : 0) + fskActionableEp;
-                const seriesGroupAvailable = seriesFskActionCount >= 2;
-
-                if (!showAffectedGeneral) return;
-                renderedSeriesCount++;
-
-                const hasNfoIssue = seriesIssues.some((issue) => HEALTH_MEDIA_NFO_TYPES.has(issue.type))
-                    || !s.has_nfo
-                    || ["nfo_missing", "unreadable"].includes(s.fsk_status);
-                const hasMetadataIssue = hasNfoIssue
-                    || seriesIssues.some((issue) => HEALTH_MEDIA_METADATA_TYPES.has(issue.type))
-                    || showFskActionable
-                    || fskActionableEp > 0;
-                const artworkIssueCount = countHealthMediaIssues(seriesIssues, HEALTH_MEDIA_ARTWORK_TYPES);
-                const otherIssueCount = seriesIssues.filter((issue) =>
-                    !HEALTH_MEDIA_NFO_TYPES.has(issue.type)
-                    && !HEALTH_MEDIA_ARTWORK_TYPES.has(issue.type)
-                    && !HEALTH_MEDIA_FSK_TYPES.has(issue.type)
-                ).length;
-
-                const summaryChips = [];
-                summaryChips.push(renderMediaSummaryChip(
-                    hasMetadataIssue ? "Metadaten: prüfen" : "Metadaten: korrekt",
-                    hasNfoIssue ? "danger" : (hasMetadataIssue ? "warning" : "success")
-                ));
-                const seriesFskSummary = getSeriesFskSummary(s, totalEp, fskActionableEp, showFskActionable);
-                summaryChips.push(renderMediaSummaryChip(seriesFskSummary.label, seriesFskSummary.tone));
-                if (artworkIssueCount > 0) summaryChips.push(renderMediaSummaryChip(`Artwork: ${artworkIssueCount} fehlen`, "warning"));
-                if (otherIssueCount > 0) summaryChips.push(renderMediaSummaryChip(`Weitere: ${otherIssueCount}`, "warning"));
-
-                // Gruppenaktion für Serie: FSK zuweisen
-                let groupActionHtml = "";
-                if (seriesGroupAvailable) {
-                    groupActionHtml = `
-                        <div style="display:inline-flex; align-items:center; gap:6px;">
-                            <select class="form-select form-select-xs show-group-fsk-select" style="padding:2px 4px; font-size:11px; width:auto; height:24px; background:var(--bg-surface-3); border-color:var(--border-light); color:var(--text-main);">
-                                <option value="12">FSK 12</option>
-                                <option value="0">FSK 0</option>
-                                <option value="6">FSK 6</option>
-                                <option value="16">FSK 16</option>
-                                <option value="18">FSK 18</option>
-                            </select>
-                            <button class="btn btn-primary btn-xs show-group-fsk-btn" data-path="${escapeHTML(s.path)}" style="padding:2px 8px; height:24px;">FSK zuweisen</button>
-                        </div>
-                    `;
-                }
-
-                const isShowOpen = openTypes.includes(`show:${s.path}`);
-
-                html += `<details class="health-media-card" data-show-path="${escapeHTML(s.path)}" ${isShowOpen ? "open" : ""}>
-                             <summary class="health-media-summary">
-                                 <div class="health-media-summary-main">
-                                     <span style="color:var(--text-main); font-weight:600;">📺 ${escapeHTML(s.name)}</span>
-                                 </div>
-                                 <div class="health-media-summary-chips">${summaryChips.join("")}</div>
-                                 <span class="health-media-disclosure"><span class="health-media-disclosure-closed">Details anzeigen</span><span class="health-media-disclosure-open">Details schließen</span></span>
-                             </summary>
-                             <div class="health-media-details">
-                                 ${groupActionHtml ? `<div style="display:flex; justify-content:flex-end;">${groupActionHtml}</div>` : ""}`;
-
-                const showIssues = getIssuesForKeys(s.issue_keys || [], issuesByKey);
-                const showNfoIssue = showIssues.find((issue) => HEALTH_MEDIA_NFO_TYPES.has(issue.type));
-
-                // Zeige tvshow.nfo-Zeile, falls sie Probleme hat
-                if (showNfoIssue || !s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable" || showFskActionable) {
-                    let tvshowAction = "";
-                    if (showNfoIssue || !s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable") {
-                        tvshowAction = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(showNfoIssue?.agent_path || s.path)}" data-edit-mode="series">Metadaten bearbeiten</button>`;
-                    } else if (showFskActionable && !seriesGroupAvailable) {
-                        tvshowAction = `<button class="btn btn-accent btn-sm health-fix-fsk" data-path="${escapeHTML(s.path)}" data-agent-path="${escapeHTML(s.path)}" data-scope-kind="single" data-series-path="${escapeHTML(s.path)}" data-media-kind="series">Metadaten bearbeiten</button>`;
-                    }
-                    let fskLabel = "";
-                    if (!s.has_nfo || s.fsk_status === "nfo_missing") {
-                        fskLabel = showNfoIssue ? (HEALTH_TYPE_LABELS[showNfoIssue.type] || "Fehlende Metadaten") : "Fehlende Metadaten";
-                    } else if (s.fsk_status === "unreadable") {
-                        fskLabel = "Metadaten nicht lesbar";
-                    } else if (showNfoIssue && showFskActionable) {
-                        fskLabel = `${HEALTH_TYPE_LABELS[showNfoIssue.type] || "NFO-Problem"} · ${s.fsk_status === "invalid_fsk" ? "FSK ungültig" : "FSK fehlt"}`;
-                    } else if (showNfoIssue) {
-                        fskLabel = HEALTH_TYPE_LABELS[showNfoIssue.type] || "NFO-Problem";
-                    } else {
-                        fskLabel = s.fsk_status === "missing_fsk" ? "FSK fehlt" : (s.current_fsk || "Keine");
-                    }
-                    const labelColor = (!s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable") ? "text-danger" : "text-warning";
-                    html += `<div class="health-media-detail-row" style="font-size:0.9em;">
-                                <span class="health-media-file">📄 tvshow.nfo</span>
-                                <div style="display:flex; align-items:center; gap:8px;">
-                                    <span class="${labelColor}" style="font-size:0.85em;">${escapeHTML(fskLabel)}</span>
-                                    ${tvshowAction}
-                                </div>
-                             </div>`;
-                }
-
-                showIssues
-                    .filter((issue) => !HEALTH_MEDIA_NFO_TYPES.has(issue.type) && !HEALTH_MEDIA_FSK_TYPES.has(issue.type))
-                    .forEach((issue) => {
-                        const label = HEALTH_TYPE_LABELS[issue.type] || issue.type;
-                        html += `<div class="health-media-detail-row" style="font-size:0.88em;">
-                                    <span style="color:var(--text-main);">${escapeHTML(label)}</span>
-                                    <span class="text-muted" style="font-size:0.82em; text-align:right;">${escapeHTML(issue.message || "")}</span>
-                                 </div>`;
-                    });
-
-                // Staffeln durchlaufen
-                s.seasons.forEach(se => {
-                    const affectedEpInSeason = se.episodes ? se.episodes.filter(isEpAffectedGeneral).length : 0;
-                    const fskActionableEpInSeason = se.episodes ? se.episodes.filter(isEpFskActionable).length : 0;
-                    const seasonIssues = getIssuesForKeys(se.issue_keys || [], issuesByKey);
-                    if (affectedEpInSeason === 0 && seasonIssues.length === 0) return;
-
-                    // Gruppenaktion für Staffel, falls >= 2 betroffene Episoden
-                    let seasonActionHtml = "";
-                    const seasonGroupAvailable = fskActionableEpInSeason >= 2;
-                    if (seasonGroupAvailable) {
-                        seasonActionHtml = `
-                            <div style="display:inline-flex; align-items:center; gap:6px;">
-                                <select class="form-select form-select-xs season-group-fsk-select" style="padding:2px 4px; font-size:11px; width:auto; height:20px; background:var(--bg-surface-3); border-color:var(--border-light); color:var(--text-main);">
-                                    <option value="12">FSK 12</option>
-                                    <option value="0">FSK 0</option>
-                                    <option value="6">FSK 6</option>
-                                    <option value="16">FSK 16</option>
-                                    <option value="18">FSK 18</option>
-                                </select>
-                                <button class="btn btn-primary btn-xs season-group-fsk-btn" data-path="${escapeHTML(se.path)}" data-series-path="${escapeHTML(s.path)}" style="padding:2px 6px; height:20px;">Staffel-FSK</button>
-                            </div>
-                        `;
-                    }
-
-                    html += `<div style="padding-left:12px; margin-top:4px;">
-                                <div style="display:flex; justify-content:space-between; align-items:center; font-weight:500; color:var(--text-muted); font-size:0.9em; margin-bottom:4px;">
-                                    <span>📁 ${escapeHTML(se.name)}</span>
-                                    <div onclick="event.stopPropagation();">${seasonActionHtml}</div>
-                                </div>
-                                <div style="display:flex; flex-direction:column; gap:4px; padding-left:12px;">`;
-
-                    seasonIssues.forEach((issue) => {
-                        const label = HEALTH_TYPE_LABELS[issue.type] || issue.type;
-                        html += `<div class="health-media-detail-row" style="font-size:0.85em;">
-                                    <span style="color:var(--text-main);">${escapeHTML(label)}</span>
-                                    <span class="text-muted" style="font-size:0.82em; text-align:right;">${escapeHTML(issue.message || "")}</span>
-                                 </div>`;
-                    });
-
-                    // Episoden durchlaufen
-                    se.episodes.forEach(ep => {
-                        const isEpAffected = isEpAffectedGeneral(ep);
-                        if (!isEpAffected) return;
-
-                        const isEpFskActionableVal = isEpFskActionable(ep);
-                        let epActionHtml = "";
-                        const episodeIssues = getIssuesForKeys(ep.issue_keys || [], issuesByKey);
-                        const episodeNfoIssue = episodeIssues.find((issue) => HEALTH_MEDIA_NFO_TYPES.has(issue.type));
-                        if (episodeNfoIssue || ep.fsk_status === "nfo_missing" || ep.fsk_status === "unreadable") {
-                            epActionHtml = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(episodeNfoIssue?.agent_path || se.path)}" data-edit-mode="episode" data-episode-file="${escapeHTML(ep.name)}" style="padding:2px 6px; font-size:11px; height:22px;">Metadaten bearbeiten</button>`;
-                        } else if (isEpFskActionableVal && !seasonGroupAvailable && !seriesGroupAvailable) {
-                            // Einzelbutton nur ausblenden, wenn dieselben Dateien über eine Gruppenaktion bedienbar sind.
-                            epActionHtml = `<button class="btn btn-accent btn-sm health-fix-fsk" data-path="${escapeHTML(ep.path)}" data-agent-path="${escapeHTML(se.path)}" data-scope-kind="episode" data-series-path="${escapeHTML(s.path)}" data-season-path="${escapeHTML(se.path)}" data-media-kind="series" data-episode-file="${escapeHTML(ep.name)}" style="padding:2px 6px; font-size:11px; height:22px;">Metadaten bearbeiten</button>`;
-                        }
-
-                        let fskLabel = "";
-                        let labelColor = "text-warning";
-                        if (ep.fsk_status === "nfo_missing") {
-                            fskLabel = "NFO fehlt";
-                            labelColor = "text-danger";
-                        } else if (ep.fsk_status === "unreadable") {
-                            fskLabel = "NFO unlesbar";
-                            labelColor = "text-danger";
-                        } else if (ep.fsk_status === "missing_fsk") {
-                            fskLabel = "FSK fehlt";
-                        } else {
-                            fskLabel = ep.current_fsk || "Unbekannt";
-                        }
-
-                        html += `<div class="health-media-detail-row" style="font-size:0.85em;">
-                                    <span class="fsk-path-monospace" style="color:var(--text-main); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%;" title="${escapeHTML(ep.path)}">📄 ${escapeHTML(ep.name)}</span>
-                                    <div style="display:flex; align-items:center; gap:8px;">
-                                        <span class="${labelColor}">${escapeHTML(fskLabel)}</span>
-                                        ${epActionHtml}
-                                    </div>
-                                 </div>`;
-                    });
-
-                    html += `</div></div>`;
-                });
-
-                html += `</div></details>`;
-            });
-
-            if (renderedSeriesCount === 0) {
-                html += `<p class="text-muted" style="font-style:italic; padding-left:10px; margin-bottom:15px;">Keine auffälligen Serien gefunden.</p>`;
-            }
-
-            // Filme rendern
-            html += `<div style="font-weight:600; color:var(--text-main); margin-top:20px; margin-bottom:10px; font-size:1.1em; display:flex; align-items:center; gap:6px;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film" style="color:var(--accent);"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 17h4"/><path d="M17 7h4"/><path d="M17 17h4"/></svg>
-                        <span>Filme</span>
-                     </div>`;
-
-            let renderedMoviesCount = 0;
-            moviesList.forEach(m => {
-                const hasMovieFskIssue = m.fsk_status === "missing_fsk" || m.fsk_status === "invalid_fsk";
-                const movieIssues = getIssuesForKeys(m.issue_keys || [], issuesByKey);
-                const hasIssues = movieIssues.length > 0;
-                const isMovieAffected = hasMovieFskIssue || hasIssues;
-
-                if (!isMovieAffected) return;
-                renderedMoviesCount++;
-
-                const movieNfoIssue = movieIssues.find((issue) => HEALTH_MEDIA_NFO_TYPES.has(issue.type));
-                const hasMovieNfoIssue = Boolean(movieNfoIssue) || ["nfo_missing", "unreadable"].includes(m.fsk_status);
-                const hasMovieMetadataIssue = hasMovieNfoIssue || hasMovieFskIssue;
-                const artworkIssueCount = countHealthMediaIssues(movieIssues, HEALTH_MEDIA_ARTWORK_TYPES);
-                const otherIssueCount = movieIssues.filter((issue) =>
-                    !HEALTH_MEDIA_NFO_TYPES.has(issue.type)
-                    && !HEALTH_MEDIA_ARTWORK_TYPES.has(issue.type)
-                    && !HEALTH_MEDIA_FSK_TYPES.has(issue.type)
-                ).length;
-                const movieSummaryChips = [];
-                const fskLabel = m.fsk_status === "missing_fsk"
-                    ? "FSK fehlt"
-                    : (m.fsk_status === "invalid_fsk" ? (m.current_fsk || "FSK ungültig") : (m.current_fsk || "Keine FSK"));
-                movieSummaryChips.push(renderMediaSummaryChip(
-                    hasMovieMetadataIssue ? "Metadaten: prüfen" : "Metadaten: korrekt",
-                    hasMovieNfoIssue ? "danger" : (hasMovieMetadataIssue ? "warning" : "success")
-                ));
-                const movieFskSummary = getMovieFskSummary(m, hasMovieNfoIssue);
-                movieSummaryChips.push(renderMediaSummaryChip(movieFskSummary.label, movieFskSummary.tone));
-                if (artworkIssueCount > 0) movieSummaryChips.push(renderMediaSummaryChip(`Artwork: ${artworkIssueCount} fehlen`, "warning"));
-                if (otherIssueCount > 0) movieSummaryChips.push(renderMediaSummaryChip(`Weitere: ${otherIssueCount}`, "warning"));
-
-                const isMovieOpen = openTypes.includes(`movie:${m.path}`);
-                html += `<details class="health-media-card" data-movie-path="${escapeHTML(m.path)}" ${isMovieOpen ? "open" : ""}>
-                            <summary class="health-media-summary">
-                                <div class="health-media-summary-main">
-                                    <span style="font-weight:600; color:var(--text-main);">🎬 ${escapeHTML(m.name)}</span>
-                                </div>
-                                <div class="health-media-summary-chips">${movieSummaryChips.join("")}</div>
-                                <span class="health-media-disclosure"><span class="health-media-disclosure-closed">Details anzeigen</span><span class="health-media-disclosure-open">Details schließen</span></span>
-                            </summary>
-                            <div class="health-media-details">`;
-
-                if (movieNfoIssue || hasMovieFskIssue) {
-                    const movieAction = movieNfoIssue
-                        ? `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(movieNfoIssue.agent_path || m.path)}">Metadaten bearbeiten</button>`
-                        : `<button class="btn btn-accent btn-sm health-fix-fsk" data-path="${escapeHTML(m.path)}" data-agent-path="${escapeHTML(m.path)}" data-scope-kind="movie" data-series-path="" data-media-kind="movie">Metadaten bearbeiten</button>`;
-                    let nfoLabel = fskLabel;
-                    if (movieNfoIssue && ["nfo_missing", "unreadable"].includes(m.fsk_status)) {
-                        nfoLabel = HEALTH_TYPE_LABELS[movieNfoIssue.type] || "Fehlende Metadaten";
-                    } else if (movieNfoIssue && hasMovieFskIssue) {
-                        nfoLabel = `${HEALTH_TYPE_LABELS[movieNfoIssue.type] || "NFO-Problem"} · ${fskLabel}`;
-                    } else if (movieNfoIssue) {
-                        nfoLabel = HEALTH_TYPE_LABELS[movieNfoIssue.type] || "NFO-Problem";
-                    }
-                    html += `<div class="health-media-detail-row">
-                                <span class="health-media-file">📄 ${escapeHTML(osBasename(m.nfo_path || "movie.nfo"))}</span>
-                                <div style="display:flex; align-items:center; gap:8px;">
-                                    <span class="${movieNfoIssue ? "text-danger" : "text-warning"}">${escapeHTML(nfoLabel)}</span>
-                                    ${movieAction}
-                                </div>
-                             </div>`;
-                }
-
-                movieIssues
-                    .filter((issue) => !HEALTH_MEDIA_NFO_TYPES.has(issue.type) && !HEALTH_MEDIA_FSK_TYPES.has(issue.type))
-                    .forEach((issue) => {
-                        const label = HEALTH_TYPE_LABELS[issue.type] || issue.type;
-                        html += `<div class="health-media-detail-row">
-                                    <span style="color:var(--text-main);">${escapeHTML(label)}</span>
-                                    <span class="text-muted" style="font-size:0.82em; text-align:right;">${escapeHTML(issue.message || "")}</span>
-                                 </div>`;
-                    });
-
-                html += `</div></details>`;
-            });
-
-            if (renderedMoviesCount === 0) {
-                html += `<p class="text-muted" style="font-style:italic; padding-left:10px;">Keine auffälligen Filme gefunden.</p>`;
-            }
+            html += renderHealthMediaView(data, openTypes);
         }
 
         html += renderIgnoredFooter(data.ignored_count);
@@ -13587,8 +13493,12 @@ function renderHealthStatus(data) {
                 } else if (window.healthGroupMode === "media") {
                     const showPath = d.getAttribute("data-show-path");
                     const moviePath = d.getAttribute("data-movie-path");
+                    const seasonPath = d.getAttribute("data-season-path");
+                    const episodePath = d.getAttribute("data-episode-path");
                     d.open = (showPath && openTypes.includes(`show:${showPath}`))
-                        || (moviePath && openTypes.includes(`movie:${moviePath}`));
+                        || (moviePath && openTypes.includes(`movie:${moviePath}`))
+                        || (seasonPath && openTypes.includes(`season:${seasonPath}`))
+                        || (episodePath && openTypes.includes(`episode:${episodePath}`));
                 }
             });
         }
