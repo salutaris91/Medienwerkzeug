@@ -2,6 +2,15 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 15.07.2026 (Phase 2.5c – Review-Findings: typgenaue Ignorierregeln)
+
+- **Typgenaue Ignorierregeln:** Bereichsbezogene Regeln speichern jetzt explizite Hinweisarten statt ganzer Gruppen. Eine Regel erfasst damit nie stillschweigend Hinweisarten, die erst nach dem Speichern registriert werden — die entsprechende Zusage aus dem Implementierungsplan gilt wieder.
+- **Typgenaue Migration:** Alte strikte Staffel-Schlüssel für unvollständige NFOs und kleine Dateien werden pro Hinweisart überführt; frühe Gruppenregeln aus diesem Branch werden einmalig auf die zum Zeitpunkt der Migration registrierten, ignorierbaren Typen expandiert und so persistiert.
+- **Feineres Modal:** Das Ignoriermodal zeigt jede vorhandene Hinweisart einzeln, gruppiert nach Katalog-Gruppe, mit Teilzustands-Gruppenschaltern und „Alle auswählen“. Gesendet werden ausschließlich die gewählten Hinweisarten; das Backend akzeptiert nur registrierte, ignorierbare Typen.
+- **Umgebungsunabhängiger Runtime-Test:** Der OrbStack-Worktree-Test enthält jetzt die Compose-Datei im Fixture und läuft dadurch auch bei laufendem Docker grün — zuvor war er nur bei gestopptem Docker erfolgreich.
+- **Dokumentierte Verträge:** `API.md` beschreibt jetzt die `findings`-Endpunkte (einzelne Schlüssel, bereichsbezogene Regeln, Wiederherstellen) sowie den `issue_catalog`- und Besitzpfad-Vertrag des Health-Status.
+- **Verifikation:** 457 Backend- und 92 Frontend-Tests bestanden (bei laufendem Docker verifiziert); Syntax- und Whitespace-Prüfungen fehlerfrei.
+
 ## Stand am 15.07.2026 (Phase 2.5c – hierarchische Health-Ansicht und persistente Hinweisregeln)
 
 - **Ein zentraler Befundkatalog:** Jeder Health-Typ besitzt nun eine stabile Definition für Bezeichnung, Gruppe, erlaubte Medienebenen, Reparaturweg und Ignorierbarkeit. Scanner, API, Oberfläche und Tests verwenden denselben Vertrag; unbekannte Typen fallen in einen sichtbaren, nicht ignorierbaren Sicherheitszustand.

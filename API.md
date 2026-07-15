@@ -184,6 +184,26 @@ Importiert ausgewählte lokale Medien aus konfigurierten Quellen in die Inbox un
   `<mpaa>`-Feld der zuvor angezeigten NFO-Dateien und prüfen vor dem Schreiben
   deren Fingerprints.
 
+Das `health-status`-Ergebnis enthält zusätzlich `issue_catalog` (Gruppen +
+registrierte Hinweisarten aus `health_issue_registry.py`); jedes Issue trägt
+`group`, `label`, `ignoreable` sowie strukturierte Besitzpfade
+(`scope_kind`, `scope_path`, `series_path`, `season_path`, `episode_path`).
+
+### Befunde dauerhaft ignorieren
+* `POST /api/findings/ignore` — blendet einen einzelnen Befund-Schlüssel aus.
+  Payload: `{"key": "health:<typ>:<pfad>"}` (auch `dup:<gruppe>` für Duplikate).
+* `POST /api/findings/unignore` — macht einen einzelnen Schlüssel wieder sichtbar.
+* `POST /api/findings/ignore-rules` — speichert eine bereichsbezogene Regel.
+  Payload: `{"scope_kind": "movie|series|season|episode", "scope_path": "...",
+  "issue_types": ["incomplete_nfo", ...]}`. **Sicherheit:** Pfad muss kanonisch
+  innerhalb der freigegebenen Bibliothek liegen; nur registrierte, ignorierbare
+  Hinweisarten werden akzeptiert. Regeln erfassen ausschließlich die genannten
+  Typen — später registrierte Typen bleiben sichtbar.
+* `GET /api/findings/ignored` — persistierter Zustand
+  (`{"ignored": [...], "rules": [...], "version": 2}`).
+* `DELETE /api/findings/ignored` — stellt **alle** ausgeblendeten Befunde wieder
+  her (exakte Schlüssel, Regeln und Duplikat-Ignorierungen).
+
 ### NFO-Agent — gemeinsamer Metadaten-Workflow
 * `GET /api/scan-project` liefert für die Haupt-NFO und Episoden-NFOs den
   vorhandenen Inhalt sowie einen Fingerprint der Vorschau.
