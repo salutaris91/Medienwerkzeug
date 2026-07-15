@@ -25,6 +25,11 @@ from gui.core.transfers import ensure_nas_mounted, walk_nas_categories
 from gui.core.helpers import log_message, parse_fsk_status, get_category_media_type, is_season_folder_name
 from gui.core import artwork_validators
 from gui.core import health_cache
+from gui.core.health_issue_registry import (
+    HEALTH_ISSUE_TYPES,
+    get_issue_catalog,
+    get_issue_definition,
+)
 
 # ---------------------------------------------------------------------------
 # Konfiguration
@@ -69,12 +74,19 @@ def _set_state(**kwargs):
 
 
 def _add_issue(issues, severity, issue_type, category, path, message, **kwargs):
+    definition = get_issue_definition(issue_type)
+    if issue_type not in HEALTH_ISSUE_TYPES:
+        log_message(f"⚠️ [Bibliothek-Check] Unregistrierter Health-Typ: {issue_type}")
     issue = {
         "severity": severity,
         "type": issue_type,
         "category": category,
         "path": path,
         "message": message,
+        "group": definition["group"],
+        "label": definition["label"],
+        "remediation": definition["remediation"],
+        "ignoreable": definition["ignoreable"],
         # Stabiler Schlüssel zum dauerhaften Ignorieren (typ + pfad, ohne wechselnde Texte)
         "key": f"health:{issue_type}:{path}",
     }
@@ -1143,6 +1155,7 @@ def _apply_ignores(result):
     result["issues"] = kept
     result["summary"] = summary
     result["ignored_count"] = ignored_count
+    result["issue_catalog"] = get_issue_catalog()
     return result
 
 
