@@ -12568,7 +12568,7 @@ function renderHealthMediaView(data, openTypes) {
     (data.issues || []).forEach((issue) => { issuesByKey[issue.key] = issue; });
     const issuesFor = (item) => getIssuesForKeys(item && item.issue_keys ? item.issue_keys : [], issuesByKey);
     const issueCountForGroup = (issues, group) => issues.filter((issue) => getHealthIssueGroup(issue) === group).length;
-    let html = `<div class="health-media-section-title"><span aria-hidden="true">📺</span><span>Serien</span></div>`;
+    let html = `<div class="health-media-section-title"><span>Serien</span></div>`;
     let renderedSeriesCount = 0;
 
     seriesList.forEach((series) => {
@@ -12606,7 +12606,7 @@ function renderHealthMediaView(data, openTypes) {
         const isShowOpen = openTypes.includes(`show:${series.path}`);
         html += `<details class="health-media-card" data-show-path="${escapeHTML(series.path)}" ${isShowOpen ? "open" : ""}>
                     <summary class="health-media-summary">
-                        <div class="health-media-summary-main"><span>📺 ${escapeHTML(series.name)}</span></div>
+                        <div class="health-media-summary-main"><span>${escapeHTML(series.name)}</span></div>
                         <div class="health-media-summary-chips">${summaryChips.join("")}</div>
                         <span class="health-media-disclosure"><span class="health-media-disclosure-closed">Details anzeigen</span><span class="health-media-disclosure-open">Details schließen</span></span>
                     </summary>
@@ -12699,7 +12699,7 @@ function renderHealthMediaView(data, openTypes) {
 
     if (!renderedSeriesCount) html += `<p class="text-muted health-media-empty">Keine auffälligen Serien gefunden.</p>`;
 
-    html += `<div class="health-media-section-title health-media-movies-title"><span aria-hidden="true">🎬</span><span>Filme</span></div>`;
+    html += `<div class="health-media-section-title health-media-movies-title"><span>Filme</span></div>`;
     let renderedMoviesCount = 0;
     moviesList.forEach((movie) => {
         const movieIssues = issuesFor(movie);
@@ -12715,7 +12715,7 @@ function renderHealthMediaView(data, openTypes) {
         const isMovieOpen = openTypes.includes(`movie:${movie.path}`);
         html += `<details class="health-media-card" data-movie-path="${escapeHTML(movie.path)}" ${isMovieOpen ? "open" : ""}>
                     <summary class="health-media-summary">
-                        <div class="health-media-summary-main"><span>🎬 ${escapeHTML(movie.name)}</span></div>
+                        <div class="health-media-summary-main"><span>${escapeHTML(movie.name)}</span></div>
                         <div class="health-media-summary-chips">${chips.join("")}</div>
                         <span class="health-media-disclosure"><span class="health-media-disclosure-closed">Details anzeigen</span><span class="health-media-disclosure-open">Details schließen</span></span>
                     </summary>

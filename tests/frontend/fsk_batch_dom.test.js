@@ -1196,8 +1196,8 @@ test('nfo_missing visibility and action suppression', () => {
 
     globalThis.renderHealthStatus(testData);
 
-    // Serie muss sichtbar sein
-    assert.ok(issuesEl.innerHTML.includes("📺 My Show"));
+    // Serie muss sichtbar sein — ohne Emoji-Präfix in der Medienansicht
+    assert.ok(issuesEl.innerHTML.includes('<span>My Show</span>'));
     // Episode 1 muss sichtbar sein
     assert.ok(issuesEl.innerHTML.includes("Episode 1"));
     assert.ok(issuesEl.innerHTML.includes("Metadaten: 1 von 1 Folge unvollständig"));

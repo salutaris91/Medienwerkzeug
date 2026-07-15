@@ -3089,6 +3089,14 @@ group_add:
                 <span class="close-modal" id="close-modal-nfo-agent" style="cursor: pointer; font-size: 1.5em; color: var(--text-muted);">&times;</span>
             </div>
 
+            <div id="nfo-agent-edit-mode-bar" style="display: none; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; padding: 8px 12px; border: 1px solid var(--border-light); border-radius: 6px; background: rgba(255,255,255,0.02);">
+                <strong id="nfo-agent-edit-mode-title" style="color: var(--text-main);">Ganze Serie bearbeiten</strong>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-secondary btn-sm" id="btn-nfo-agent-edit-whole-series" type="button">Ganze Serie bearbeiten</button>
+                    <button class="btn btn-secondary btn-sm" id="btn-nfo-agent-edit-back" type="button" style="display: none;">Zur vorherigen Ansicht</button>
+                </div>
+            </div>
+
             <!-- Path display -->
             <div style="margin-bottom: 16px; font-size: 0.85em; color: var(--text-muted); word-break: break-all; background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); padding: 8px 12px; border-radius: 4px;">
                 <strong>Verzeichnis:</strong> <span id="nfo-agent-current-path">/path/to/folder</span>
@@ -3151,14 +3159,6 @@ group_add:
                     <input type="checkbox" id="nfo-agent-overwrite-nfo" style="cursor: pointer;">
                     Bestehende NFO vollständig ersetzen
                 </label>
-            </div>
-
-            <div id="nfo-agent-edit-mode-bar" style="display: none; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; padding: 8px 12px; border: 1px solid var(--border-light); border-radius: 6px; background: rgba(255,255,255,0.02);">
-                <strong id="nfo-agent-edit-mode-title" style="color: var(--text-main);">Ganze Serie bearbeiten</strong>
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn btn-secondary btn-sm" id="btn-nfo-agent-edit-whole-series" type="button">Ganze Serie bearbeiten</button>
-                    <button class="btn btn-secondary btn-sm" id="btn-nfo-agent-edit-back" type="button" style="display: none;">Zur vorherigen Ansicht</button>
-                </div>
             </div>
 
             <!-- Review / Editor Area -->
