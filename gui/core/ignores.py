@@ -1,8 +1,9 @@
 """Persisted ignore rules for Health findings and duplicate groups.
 
 Version 2 keeps legacy exact keys for backwards compatibility and adds scoped
-Health rules. A scoped rule is based on the registry group plus canonical media
-ownership, so new findings do not need ad-hoc UI wiring.
+Health rules. A scoped rule names explicit issue types plus canonical media
+ownership, so a rule never silently covers issue types that are registered
+after the rule was saved.
 """
 
 import json
@@ -10,7 +11,7 @@ import os
 import threading
 
 from gui.core import utils
-from gui.core.health_issue_registry import HEALTH_ISSUE_GROUPS, get_issue_definition
+from gui.core.health_issue_registry import HEALTH_ISSUE_TYPES, get_issue_definition
 from gui.core.helpers import is_season_folder_name, log_message
 
 
@@ -24,19 +25,46 @@ def _empty_state():
     return {"version": IGNORE_SCHEMA_VERSION, "exact_keys": [], "health_rules": []}
 
 
+def ignoreable_issue_types():
+    """All registered issue types that users may ignore via scoped rules."""
+    return {code for code, definition in HEALTH_ISSUE_TYPES.items() if definition["ignoreable"]}
+
+
+def _expand_groups_to_issue_types(groups):
+    """One-time expansion for early v2 rules that stored whole groups.
+
+    Expands to the types registered right now, so the migrated rule keeps the
+    per-type contract: later additions to a group are not covered implicitly.
+    """
+    selected_groups = {str(group) for group in groups}
+    return {
+        code
+        for code, definition in HEALTH_ISSUE_TYPES.items()
+        if definition["ignoreable"] and definition["group"] in selected_groups
+    }
+
+
 def _normalize_rule(rule):
     if not isinstance(rule, dict):
-        return None
+        return None, False
     scope_kind = str(rule.get("scope_kind", "")).strip()
     scope_path = str(rule.get("scope_path", "")).strip()
-    groups = sorted({group for group in rule.get("groups", []) if group in HEALTH_ISSUE_GROUPS})
-    if scope_kind not in ALLOWED_SCOPE_KINDS or not scope_path or not groups:
-        return None
+    expanded_from_groups = "issue_types" not in rule and "groups" in rule
+    if expanded_from_groups:
+        issue_types = _expand_groups_to_issue_types(rule.get("groups", []))
+    else:
+        issue_types = {
+            str(issue_type)
+            for issue_type in rule.get("issue_types", [])
+            if str(issue_type) in ignoreable_issue_types()
+        }
+    if scope_kind not in ALLOWED_SCOPE_KINDS or not scope_path or not issue_types:
+        return None, expanded_from_groups
     return {
         "scope_kind": scope_kind,
         "scope_path": os.path.realpath(scope_path),
-        "groups": groups,
-    }
+        "issue_types": sorted(issue_types),
+    }, expanded_from_groups
 
 
 def _migrate_legacy_list(keys):
@@ -53,7 +81,7 @@ def _migrate_legacy_list(keys):
             legacy_path = os.path.realpath(key[len(prefix):])
             if is_season_folder_name(os.path.basename(os.path.normpath(legacy_path))):
                 scope_key = ("season", legacy_path)
-                rules_by_scope.setdefault(scope_key, set()).add(get_issue_definition(issue_type)["group"])
+                rules_by_scope.setdefault(scope_key, set()).add(issue_type)
                 migrated = True
             break
         if not migrated:
@@ -61,8 +89,8 @@ def _migrate_legacy_list(keys):
 
     state["exact_keys"] = sorted(set(state["exact_keys"]))
     state["health_rules"] = [
-        {"scope_kind": scope_kind, "scope_path": scope_path, "groups": sorted(groups)}
-        for (scope_kind, scope_path), groups in sorted(rules_by_scope.items())
+        {"scope_kind": scope_kind, "scope_path": scope_path, "issue_types": sorted(issue_types)}
+        for (scope_kind, scope_path), issue_types in sorted(rules_by_scope.items())
     ]
     return state
 
@@ -74,8 +102,15 @@ def _normalize_state(data):
         return _empty_state(), False
     state = _empty_state()
     state["exact_keys"] = sorted({key for key in data.get("exact_keys", []) if isinstance(key, str) and key})
-    state["health_rules"] = [rule for rule in (_normalize_rule(item) for item in data.get("health_rules", [])) if rule]
-    return state, data.get("version") != IGNORE_SCHEMA_VERSION
+    rules = []
+    any_expanded = False
+    for item in data.get("health_rules", []):
+        rule, expanded = _normalize_rule(item)
+        any_expanded = any_expanded or expanded
+        if rule:
+            rules.append(rule)
+    state["health_rules"] = rules
+    return state, data.get("version") != IGNORE_SCHEMA_VERSION or any_expanded
 
 
 def _load_state():
@@ -132,8 +167,8 @@ def remove_ignore(key):
         return _save_state(state)
 
 
-def add_health_rule(scope_kind, scope_path, groups):
-    normalized = _normalize_rule({"scope_kind": scope_kind, "scope_path": scope_path, "groups": groups})
+def add_health_rule(scope_kind, scope_path, issue_types):
+    normalized, _ = _normalize_rule({"scope_kind": scope_kind, "scope_path": scope_path, "issue_types": issue_types})
     if normalized is None:
         return False
     with _lock:
@@ -141,7 +176,7 @@ def add_health_rule(scope_kind, scope_path, groups):
         merged = False
         for rule in state["health_rules"]:
             if rule["scope_kind"] == normalized["scope_kind"] and rule["scope_path"] == normalized["scope_path"]:
-                rule["groups"] = sorted(set(rule["groups"]) | set(normalized["groups"]))
+                rule["issue_types"] = sorted(set(rule["issue_types"]) | set(normalized["issue_types"]))
                 merged = True
                 break
         if not merged:
@@ -181,5 +216,5 @@ def is_health_issue_ignored(issue, state=None):
     definition = get_issue_definition(issue.get("type", ""))
     if issue.get("ignoreable", definition["ignoreable"]) is False:
         return False
-    group = issue.get("group") or definition["group"]
-    return any(group in rule["groups"] and _issue_belongs_to_rule(issue, rule) for rule in state["health_rules"])
+    issue_type = issue.get("type", "")
+    return any(issue_type in rule["issue_types"] and _issue_belongs_to_rule(issue, rule) for rule in state["health_rules"])

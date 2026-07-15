@@ -8,10 +8,10 @@ from gui.api.nas_api import nas_api
 from gui.core import health, ignores
 
 
-def _issue(key, group, scope_kind, scope_path, **paths):
+def _issue(key, group, scope_kind, scope_path, issue_type=None, **paths):
     return {
         "key": key,
-        "type": "incomplete_nfo" if group == "metadata" else "missing_poster",
+        "type": issue_type or ("incomplete_nfo" if group == "metadata" else "missing_poster"),
         "group": group,
         "severity": "warning",
         "scope_kind": scope_kind,
@@ -38,26 +38,31 @@ def test_legacy_migration_only_expands_colliding_strict_season_keys(tmp_path, mo
 
     assert state["version"] == 2
     assert state["health_rules"] == [
-        {"scope_kind": "season", "scope_path": os.path.realpath(legacy_season_2), "groups": ["files"]},
-        {"scope_kind": "season", "scope_path": os.path.realpath(legacy_season), "groups": ["metadata"]},
+        {"scope_kind": "season", "scope_path": os.path.realpath(legacy_season_2), "issue_types": ["small_file"]},
+        {"scope_kind": "season", "scope_path": os.path.realpath(legacy_season), "issue_types": ["incomplete_nfo"]},
     ]
     assert f"health:incomplete_nfo:{backup_folder}" in state["exact_keys"]
     assert "dup:stable-group" in state["exact_keys"]
     assert json.loads(ignore_file.read_text(encoding="utf-8"))["version"] == 2
 
 
-def test_scoped_rules_match_only_the_selected_group_and_media_ownership(tmp_path, monkeypatch):
+def test_scoped_rules_match_only_the_selected_issue_types_and_media_ownership(tmp_path, monkeypatch):
     monkeypatch.setattr(ignores, "IGNORE_FILE", str(tmp_path / "ignored_findings.json"))
     series_path = tmp_path / "Show"
     season_path = series_path / "Staffel 1"
     episode_path = season_path / "S01E01.nfo"
     other_episode = season_path / "S01E02.nfo"
 
-    assert ignores.add_health_rule("season", str(season_path), ["metadata"])
+    assert ignores.add_health_rule("season", str(season_path), ["incomplete_nfo"])
     state = ignores.get_ignore_state()
 
     assert ignores.is_health_issue_ignored(_issue(
         "episode-metadata", "metadata", "episode", episode_path,
+        series_path=series_path, season_path=season_path, episode_path=episode_path,
+    ), state)
+    # Same group, different type: an incomplete_nfo rule must not cover missing_nfo.
+    assert not ignores.is_health_issue_ignored(_issue(
+        "episode-missing-nfo", "metadata", "episode", episode_path, issue_type="missing_nfo",
         series_path=series_path, season_path=season_path, episode_path=episode_path,
     ), state)
     assert not ignores.is_health_issue_ignored(_issue(
@@ -70,12 +75,37 @@ def test_scoped_rules_match_only_the_selected_group_and_media_ownership(tmp_path
     ), state)
 
 
+def test_early_group_rules_expand_once_to_current_issue_types(tmp_path, monkeypatch):
+    ignore_file = tmp_path / "ignored_findings.json"
+    season_path = tmp_path / "Show" / "Staffel 1"
+    ignore_file.write_text(json.dumps({
+        "version": 2,
+        "exact_keys": [],
+        "health_rules": [
+            {"scope_kind": "season", "scope_path": str(season_path), "groups": ["artwork"]},
+        ],
+    }), encoding="utf-8")
+    monkeypatch.setattr(ignores, "IGNORE_FILE", str(ignore_file))
+
+    state = ignores.get_ignore_state()
+
+    assert len(state["health_rules"]) == 1
+    rule = state["health_rules"][0]
+    assert "groups" not in rule
+    expected_types = sorted(ignores._expand_groups_to_issue_types(["artwork"]))
+    assert rule["issue_types"] == expected_types
+    assert "missing_season_poster" in rule["issue_types"]
+    # The expansion is persisted so future registry additions stay visible.
+    persisted = json.loads(ignore_file.read_text(encoding="utf-8"))
+    assert persisted["health_rules"][0]["issue_types"] == expected_types
+
+
 def test_apply_ignores_recalculates_summary_for_scoped_rules(tmp_path, monkeypatch):
     monkeypatch.setattr(ignores, "IGNORE_FILE", str(tmp_path / "ignored_findings.json"))
     series_path = tmp_path / "Show"
     season_path = series_path / "Staffel 1"
     episode_path = season_path / "S01E01.nfo"
-    assert ignores.add_health_rule("series", str(series_path), ["metadata"])
+    assert ignores.add_health_rule("series", str(series_path), ["incomplete_nfo"])
     result = {
         "issues": [
             _issue("metadata", "metadata", "episode", episode_path, series_path=series_path, season_path=season_path, episode_path=episode_path),
@@ -96,7 +126,7 @@ def test_apply_ignores_removes_fsk_state_from_media_structure(tmp_path, monkeypa
     movie_path.mkdir(parents=True)
     fsk_issue = _issue("movie-fsk", "metadata", "movie", movie_path)
     fsk_issue["type"] = "missing_age_rating"
-    assert ignores.add_health_rule("movie", str(movie_path), ["metadata"])
+    assert ignores.add_health_rule("movie", str(movie_path), ["missing_age_rating"])
     result = {
         "issues": [fsk_issue],
         "media_structure": {
@@ -116,10 +146,13 @@ def test_apply_ignores_removes_fsk_state_from_media_structure(tmp_path, monkeypa
     assert filtered["media_structure"]["movies"][0]["fsk_status"] == "ignored"
 
 
-def test_unknown_issue_stays_visible_under_scoped_other_rule(tmp_path, monkeypatch):
+def test_unknown_issue_types_cannot_be_ignored(tmp_path, monkeypatch):
     monkeypatch.setattr(ignores, "IGNORE_FILE", str(tmp_path / "ignored_findings.json"))
     series_path = tmp_path / "Show"
-    assert ignores.add_health_rule("series", str(series_path), ["other"])
+    # Unregistered types are rejected outright when saving a rule ...
+    assert ignores.add_health_rule("series", str(series_path), ["future_check"]) is False
+    # ... and an unknown finding stays visible even under an existing rule.
+    assert ignores.add_health_rule("series", str(series_path), ["missing_poster"])
     unknown = {
         "key": "future-check",
         "type": "future_check",
@@ -131,7 +164,7 @@ def test_unknown_issue_stays_visible_under_scoped_other_rule(tmp_path, monkeypat
     assert ignores.is_health_issue_ignored(unknown) is False
 
 
-def test_ignore_rule_endpoint_validates_scope_group_and_library_boundary(tmp_path, monkeypatch):
+def test_ignore_rule_endpoint_validates_scope_types_and_library_boundary(tmp_path, monkeypatch):
     app = Flask(__name__)
     app.register_blueprint(nas_api, url_prefix="/api")
     client = app.test_client()
@@ -143,23 +176,28 @@ def test_ignore_rule_endpoint_validates_scope_group_and_library_boundary(tmp_pat
     monkeypatch.setattr(ignores, "IGNORE_FILE", str(tmp_path / "ignored_findings.json"))
 
     response = client.post("/api/findings/ignore-rules", json={
-        "scope_kind": "season", "scope_path": str(season), "groups": ["metadata", "artwork"],
+        "scope_kind": "season", "scope_path": str(season), "issue_types": ["incomplete_nfo", "missing_season_poster"],
     })
     assert response.status_code == 200
     assert response.get_json()["ok"] is True
 
-    invalid_group = client.post("/api/findings/ignore-rules", json={
-        "scope_kind": "series", "scope_path": str(show), "groups": ["unknown"],
+    invalid_type = client.post("/api/findings/ignore-rules", json={
+        "scope_kind": "series", "scope_path": str(show), "issue_types": ["unknown_type"],
     })
-    assert invalid_group.status_code == 400
+    assert invalid_type.status_code == 400
+
+    group_instead_of_types = client.post("/api/findings/ignore-rules", json={
+        "scope_kind": "series", "scope_path": str(show), "groups": ["metadata"],
+    })
+    assert group_instead_of_types.status_code == 400
 
     invalid_season = client.post("/api/findings/ignore-rules", json={
-        "scope_kind": "season", "scope_path": str(show), "groups": ["metadata"],
+        "scope_kind": "season", "scope_path": str(show), "issue_types": ["incomplete_nfo"],
     })
     assert invalid_season.status_code == 400
 
     outside = client.post("/api/findings/ignore-rules", json={
-        "scope_kind": "series", "scope_path": str(tmp_path / "Outside"), "groups": ["metadata"],
+        "scope_kind": "series", "scope_path": str(tmp_path / "Outside"), "issue_types": ["incomplete_nfo"],
     })
     assert outside.status_code == 403
 

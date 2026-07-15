@@ -681,9 +681,8 @@ def handle_api_findings_ignore():
 
 @nas_api.route('/findings/ignore-rules', methods=['POST'])
 def handle_api_findings_ignore_rules():
-    """Persist selected Health groups for one canonical media scope."""
+    """Persist selected Health issue types for one canonical media scope."""
     import gui.core.ignores as ignores
-    from gui.core.health_issue_registry import HEALTH_ISSUE_GROUPS
 
     try:
         params = request.get_json() or {}
@@ -691,11 +690,16 @@ def handle_api_findings_ignore_rules():
         params = {}
     scope_kind = str(params.get("scope_kind", "")).strip()
     scope_path = os.path.realpath(str(params.get("scope_path", "")).strip())
-    groups = params.get("groups", [])
+    issue_types = params.get("issue_types", [])
+    allowed_types = ignores.ignoreable_issue_types()
     if scope_kind not in ignores.ALLOWED_SCOPE_KINDS:
         return jsonify({"ok": False, "message": "Ungültiger Geltungsbereich."}), 400
-    if not isinstance(groups, list) or not groups or any(group not in HEALTH_ISSUE_GROUPS for group in groups):
-        return jsonify({"ok": False, "message": "Keine gültigen Hinweisgruppen ausgewählt."}), 400
+    if (
+        not isinstance(issue_types, list)
+        or not issue_types
+        or any(issue_type not in allowed_types for issue_type in issue_types)
+    ):
+        return jsonify({"ok": False, "message": "Keine gültigen ignorierbaren Hinweisarten ausgewählt."}), 400
     if not scope_path or not is_path_allowed(scope_path):
         return jsonify({"ok": False, "message": "Der Pfad liegt außerhalb der freigegebenen Bibliothek."}), 403
     if scope_kind == "season" and not is_season_folder_name(os.path.basename(scope_path)):
@@ -705,7 +709,7 @@ def handle_api_findings_ignore_rules():
     if scope_kind == "episode" and os.path.splitext(scope_path)[1].lower() != ".nfo":
         return jsonify({"ok": False, "message": "Der Folgenbereich muss auf eine NFO-Datei zeigen."}), 400
 
-    ok = ignores.add_health_rule(scope_kind, scope_path, groups)
+    ok = ignores.add_health_rule(scope_kind, scope_path, issue_types)
     return jsonify({"ok": ok}), 200 if ok else 500
 
 
