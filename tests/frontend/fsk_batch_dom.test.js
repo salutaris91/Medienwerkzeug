@@ -894,13 +894,18 @@ test('Media summary stays calm and exposes exact actions only in details', () =>
 
     const html = issuesEl.innerHTML;
     const summaryHtml = html.match(/<summary class="health-media-summary">[\s\S]*?<\/summary>/)?.[0] || "";
-    assert.ok(summaryHtml.includes("NFO-Metadaten: prüfen"));
+    assert.ok(summaryHtml.includes("Metadaten: prüfen"));
     assert.ok(summaryHtml.includes("FSK: Serien-NFO prüfen"));
     assert.ok(summaryHtml.includes("Artwork: 1 fehlen"));
     assert.ok(summaryHtml.includes("Details anzeigen"));
     assert.ok(!summaryHtml.includes("health-nfo-agent"));
     assert.strictEqual((html.match(/health-nfo-agent/g) || []).length, 1);
     assert.ok(html.includes("📄 tvshow.nfo"));
+    assert.ok(html.includes('class="health-media-file"'));
+    assert.ok(html.includes("Fehlende Metadaten"));
+    assert.ok(html.includes("Metadaten bearbeiten"));
+    assert.ok(!html.includes("FSK noch nicht setzbar"));
+    assert.ok(!html.includes("NFO und FSK bearbeiten"));
     assert.ok(html.includes("Fehlendes Staffelposter"));
     assert.ok(html.includes(`data-path="${showPath}"`));
     assert.ok(html.includes('data-edit-mode="series"'));
@@ -947,9 +952,11 @@ test('Media-oriented movie summary keeps explicit FSK status visible', () => {
     });
 
     const summaryHtml = issuesEl.innerHTML.match(/<summary class="health-media-summary">[\s\S]*?<\/summary>/)?.[0] || "";
-    assert.ok(summaryHtml.includes("NFO-Metadaten: prüfen"));
+    assert.ok(summaryHtml.includes("Metadaten: prüfen"));
     assert.ok(summaryHtml.includes("FSK: 99 ungültig"));
-    assert.ok(issuesEl.innerHTML.includes("FSK bearbeiten"));
+    assert.ok(issuesEl.innerHTML.includes("Metadaten bearbeiten"));
+    assert.ok(issuesEl.innerHTML.includes('class="health-media-file"'));
+    assert.ok(!issuesEl.innerHTML.includes("FSK bearbeiten"));
 
     document.body.removeChild(container);
 });
@@ -1009,7 +1016,7 @@ test('nfo_missing visibility and action suppression', () => {
     // Episode 1 muss sichtbar sein
     assert.ok(issuesEl.innerHTML.includes("Episode 1"));
     // NFO-Problem wird aggregiert; der vorhandene Serien-FSK-Status bleibt sichtbar.
-    assert.ok(issuesEl.innerHTML.includes("NFO-Metadaten: prüfen"));
+    assert.ok(issuesEl.innerHTML.includes("Metadaten: prüfen"));
     assert.ok(issuesEl.innerHTML.includes("FSK: 12"));
     // FSK-Label muss rot ("text-danger") sein und "NFO fehlt" heißen
     assert.ok(issuesEl.innerHTML.includes('class="text-danger"'));
@@ -1119,7 +1126,7 @@ test('nfo_missing visibility and action suppression', () => {
     globalThis.renderHealthStatus(testDataMisch2);
 
     // FSK bleibt im Detail bedienbar und in der Zusammenfassung ausdrücklich sichtbar.
-    assert.ok(issuesEl.innerHTML.includes("NFO-Metadaten: prüfen"));
+    assert.ok(issuesEl.innerHTML.includes("Metadaten: prüfen"));
     assert.ok(issuesEl.innerHTML.includes("FSK: Serie + 1 Folge prüfen"));
     // Seriengruppenaktion vorhanden
     assert.ok(hasButtonWithClassAndPath(issuesEl.innerHTML, "show-group-fsk-btn", "/Serien/My Show"));
@@ -1156,7 +1163,7 @@ test('nfo_missing visibility and action suppression', () => {
 
     // Sichtbar
     assert.ok(issuesEl.innerHTML.includes("Episode 1"));
-    assert.ok(issuesEl.innerHTML.includes("NFO-Metadaten: prüfen"));
+    assert.ok(issuesEl.innerHTML.includes("Metadaten: prüfen"));
     assert.ok(issuesEl.innerHTML.includes("FSK: 12"));
     // Label
     assert.ok(issuesEl.innerHTML.includes('class="text-danger"'));

@@ -2,6 +2,14 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 15.07.2026 (Phase 2.5c – vereinfachte Metadatenführung)
+
+- **Ein gemeinsamer Prüf- und Bearbeitungsbereich:** Der NFO-Agent zeigt Datei- und Vollständigkeitsstatus jetzt direkt innerhalb der Film- beziehungsweise Serien-Metadaten. Der frühere separate Prüfabschnitt und die zweite Warnbox am Formularende entfallen.
+- **Einfache Statussprache:** Statt Mengenangaben wie `2 Angaben fehlen` erscheint nur noch `Metadaten unvollständig`. Fehlende Dateien werden als `Fehlende Metadaten` und unlesbare Inhalte als `Metadaten nicht lesbar` bezeichnet.
+- **Einheitliche Aktion:** In der medienorientierten Ansicht führen einzelne NFO- und FSK-Probleme über den gemeinsamen Button `Metadaten bearbeiten` in denselben NFO-Workflow. Technische Zusätze wie `FSK noch nicht setzbar` entfallen.
+- **Ruhigere Darstellung:** `movie.nfo` und `tvshow.nfo` verwenden in den Health-Details dieselbe Typografie; die Zusammenfassung spricht nur noch von `Metadaten` statt von `NFO-Metadaten`.
+- **Verifikation:** 445 Backend- und 87 Frontend-Tests bestanden; Syntax- und Whitespace-Prüfung sind fehlerfrei.
+
 ## Stand am 14.07.2026 (Phase 2.5c – kontextbezogene NFO-Bearbeitung)
 
 - **Passender Einstieg:** Ein Klick auf `tvshow.nfo` öffnet ausschließlich die Serien-NFO-Bearbeitung. Ein Klick auf eine Episode öffnet genau diese Folge, wählt sie aus und blendet andere NFOs zunächst aus. Das gilt in medienorientierter, Schweregrad- und Fehlertyp-Ansicht.

@@ -3028,6 +3028,13 @@ body.runtime-docker .docker-only-info {
     font-size: 0.9em;
 }
 
+.health-media-file {
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
 /* Media-oriented health summary: calm overview, exact actions in details. */
 .health-media-card {
     border: 1px solid var(--border-light);
@@ -3105,7 +3112,7 @@ body.runtime-docker .docker-only-info {
     background: rgba(16, 185, 129, 0.06);
 }
 
-/* NFO Agent: finding first, editable metadata second, episode mappings last. */
+/* NFO Agent: one metadata review surface, episode mappings last. */
 .nfo-agent-section {
     padding: 14px;
 }
@@ -3202,13 +3209,6 @@ body.runtime-docker .docker-only-info {
     background: rgba(16, 185, 129, 0.07);
 }
 
-.nfo-agent-main-nfo-description {
-    margin: 6px 0 0;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    line-height: 1.4;
-}
-
 .nfo-agent-main-nfo-action {
     display: flex;
     flex: 0 0 170px;
@@ -3263,22 +3263,6 @@ body.runtime-docker .docker-only-info {
     margin-left: 5px;
     color: var(--text-muted);
     font-weight: 400;
-}
-
-.nfo-agent-completeness-warning {
-    margin: 0 14px 14px;
-    padding: 10px 12px;
-    border: 1px solid rgba(245, 158, 11, 0.26);
-    border-radius: 6px;
-    background: rgba(245, 158, 11, 0.07);
-    color: #fbbf24;
-}
-
-.nfo-agent-completeness-warning p {
-    margin: 4px 0 0;
-    color: var(--text-muted);
-    font-size: 0.82rem;
-    line-height: 1.45;
 }
 
 @media (max-width: 700px) {

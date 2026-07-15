@@ -12411,9 +12411,9 @@ const HEALTH_TYPE_LABELS = {
     genre_container: "Sammelordner",
     bad_folder_name: "Ungültiger Ordnername",
     name_mismatch: "Namensabweichung (Ordner vs. Datei)",
-    missing_nfo: "Fehlende NFO-Metadaten",
+    missing_nfo: "Fehlende Metadaten",
     unreadable_nfo: "NFO unlesbar",
-    incomplete_nfo: "Unvollständige NFO-Metadaten",
+    incomplete_nfo: "Metadaten unvollständig",
     episode_gap: "Episodenlücke in Staffel",
     empty_folder: "Leerer Ordner",
     no_video: "Keine Videodatei im Ordner",
@@ -13311,7 +13311,7 @@ function renderHealthStatus(data) {
 
                 const summaryChips = [];
                 summaryChips.push(renderMediaSummaryChip(
-                    hasMetadataIssue ? "NFO-Metadaten: prüfen" : "NFO-Metadaten: korrekt",
+                    hasMetadataIssue ? "Metadaten: prüfen" : "Metadaten: korrekt",
                     hasNfoIssue ? "danger" : (hasMetadataIssue ? "warning" : "success")
                 ));
                 const seriesFskSummary = getSeriesFskSummary(s, totalEp, fskActionableEp, showFskActionable);
@@ -13356,15 +13356,15 @@ function renderHealthStatus(data) {
                 if (showNfoIssue || !s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable" || showFskActionable) {
                     let tvshowAction = "";
                     if (showNfoIssue || !s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable") {
-                        tvshowAction = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(showNfoIssue?.agent_path || s.path)}" data-edit-mode="series">NFO und FSK bearbeiten</button>`;
+                        tvshowAction = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(showNfoIssue?.agent_path || s.path)}" data-edit-mode="series">Metadaten bearbeiten</button>`;
                     } else if (showFskActionable && !seriesGroupAvailable) {
-                        tvshowAction = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(s.path)}" data-agent-path="${escapeHTML(s.path)}" data-scope-kind="single" data-series-path="${escapeHTML(s.path)}" data-media-kind="series">FSK bearbeiten</button>`;
+                        tvshowAction = `<button class="btn btn-accent btn-sm health-fix-fsk" data-path="${escapeHTML(s.path)}" data-agent-path="${escapeHTML(s.path)}" data-scope-kind="single" data-series-path="${escapeHTML(s.path)}" data-media-kind="series">Metadaten bearbeiten</button>`;
                     }
                     let fskLabel = "";
                     if (!s.has_nfo || s.fsk_status === "nfo_missing") {
-                        fskLabel = `${showNfoIssue ? (HEALTH_TYPE_LABELS[showNfoIssue.type] || "NFO fehlt") : "NFO fehlt"} · FSK noch nicht setzbar`;
+                        fskLabel = showNfoIssue ? (HEALTH_TYPE_LABELS[showNfoIssue.type] || "Fehlende Metadaten") : "Fehlende Metadaten";
                     } else if (s.fsk_status === "unreadable") {
-                        fskLabel = "NFO unlesbar · FSK noch nicht prüfbar";
+                        fskLabel = "Metadaten nicht lesbar";
                     } else if (showNfoIssue && showFskActionable) {
                         fskLabel = `${HEALTH_TYPE_LABELS[showNfoIssue.type] || "NFO-Problem"} · ${s.fsk_status === "invalid_fsk" ? "FSK ungültig" : "FSK fehlt"}`;
                     } else if (showNfoIssue) {
@@ -13374,7 +13374,7 @@ function renderHealthStatus(data) {
                     }
                     const labelColor = (!s.has_nfo || s.fsk_status === "nfo_missing" || s.fsk_status === "unreadable") ? "text-danger" : "text-warning";
                     html += `<div class="health-media-detail-row" style="font-size:0.9em;">
-                                <span class="fsk-path-monospace" style="color:var(--text-main);">📄 tvshow.nfo</span>
+                                <span class="health-media-file">📄 tvshow.nfo</span>
                                 <div style="display:flex; align-items:center; gap:8px;">
                                     <span class="${labelColor}" style="font-size:0.85em;">${escapeHTML(fskLabel)}</span>
                                     ${tvshowAction}
@@ -13442,10 +13442,10 @@ function renderHealthStatus(data) {
                         const episodeIssues = getIssuesForKeys(ep.issue_keys || [], issuesByKey);
                         const episodeNfoIssue = episodeIssues.find((issue) => HEALTH_MEDIA_NFO_TYPES.has(issue.type));
                         if (episodeNfoIssue || ep.fsk_status === "nfo_missing" || ep.fsk_status === "unreadable") {
-                            epActionHtml = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(episodeNfoIssue?.agent_path || se.path)}" data-edit-mode="episode" data-episode-file="${escapeHTML(ep.name)}" style="padding:2px 6px; font-size:11px; height:22px;">NFO Agent</button>`;
+                            epActionHtml = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(episodeNfoIssue?.agent_path || se.path)}" data-edit-mode="episode" data-episode-file="${escapeHTML(ep.name)}" style="padding:2px 6px; font-size:11px; height:22px;">Metadaten bearbeiten</button>`;
                         } else if (isEpFskActionableVal && !seasonGroupAvailable && !seriesGroupAvailable) {
                             // Einzelbutton nur ausblenden, wenn dieselben Dateien über eine Gruppenaktion bedienbar sind.
-                            epActionHtml = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(ep.path)}" data-agent-path="${escapeHTML(se.path)}" data-scope-kind="episode" data-series-path="${escapeHTML(s.path)}" data-season-path="${escapeHTML(se.path)}" data-media-kind="series" data-episode-file="${escapeHTML(ep.name)}" style="padding:2px 6px; font-size:11px; height:22px;">FSK bearbeiten</button>`;
+                            epActionHtml = `<button class="btn btn-accent btn-sm health-fix-fsk" data-path="${escapeHTML(ep.path)}" data-agent-path="${escapeHTML(se.path)}" data-scope-kind="episode" data-series-path="${escapeHTML(s.path)}" data-season-path="${escapeHTML(se.path)}" data-media-kind="series" data-episode-file="${escapeHTML(ep.name)}" style="padding:2px 6px; font-size:11px; height:22px;">Metadaten bearbeiten</button>`;
                         }
 
                         let fskLabel = "";
@@ -13511,7 +13511,7 @@ function renderHealthStatus(data) {
                     ? "FSK fehlt"
                     : (m.fsk_status === "invalid_fsk" ? (m.current_fsk || "FSK ungültig") : (m.current_fsk || "Keine FSK"));
                 movieSummaryChips.push(renderMediaSummaryChip(
-                    hasMovieMetadataIssue ? "NFO-Metadaten: prüfen" : "NFO-Metadaten: korrekt",
+                    hasMovieMetadataIssue ? "Metadaten: prüfen" : "Metadaten: korrekt",
                     hasMovieNfoIssue ? "danger" : (hasMovieMetadataIssue ? "warning" : "success")
                 ));
                 const movieFskSummary = getMovieFskSummary(m, hasMovieNfoIssue);
@@ -13532,18 +13532,18 @@ function renderHealthStatus(data) {
 
                 if (movieNfoIssue || hasMovieFskIssue) {
                     const movieAction = movieNfoIssue
-                        ? `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(movieNfoIssue.agent_path || m.path)}">NFO und FSK bearbeiten</button>`
-                        : `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(m.path)}" data-agent-path="${escapeHTML(m.path)}" data-scope-kind="movie" data-series-path="" data-media-kind="movie">FSK bearbeiten</button>`;
+                        ? `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(movieNfoIssue.agent_path || m.path)}">Metadaten bearbeiten</button>`
+                        : `<button class="btn btn-accent btn-sm health-fix-fsk" data-path="${escapeHTML(m.path)}" data-agent-path="${escapeHTML(m.path)}" data-scope-kind="movie" data-series-path="" data-media-kind="movie">Metadaten bearbeiten</button>`;
                     let nfoLabel = fskLabel;
                     if (movieNfoIssue && ["nfo_missing", "unreadable"].includes(m.fsk_status)) {
-                        nfoLabel = `${HEALTH_TYPE_LABELS[movieNfoIssue.type] || "NFO-Problem"} · FSK noch nicht ${m.fsk_status === "unreadable" ? "prüfbar" : "setzbar"}`;
+                        nfoLabel = HEALTH_TYPE_LABELS[movieNfoIssue.type] || "Fehlende Metadaten";
                     } else if (movieNfoIssue && hasMovieFskIssue) {
                         nfoLabel = `${HEALTH_TYPE_LABELS[movieNfoIssue.type] || "NFO-Problem"} · ${fskLabel}`;
                     } else if (movieNfoIssue) {
                         nfoLabel = HEALTH_TYPE_LABELS[movieNfoIssue.type] || "NFO-Problem";
                     }
                     html += `<div class="health-media-detail-row">
-                                <span class="fsk-path-monospace" style="color:var(--text-main);">📄 ${escapeHTML(osBasename(m.nfo_path || "movie.nfo"))}</span>
+                                <span class="health-media-file">📄 ${escapeHTML(osBasename(m.nfo_path || "movie.nfo"))}</span>
                                 <div style="display:flex; align-items:center; gap:8px;">
                                     <span class="${movieNfoIssue ? "text-danger" : "text-warning"}">${escapeHTML(nfoLabel)}</span>
                                     ${movieAction}
@@ -15445,20 +15445,22 @@ function updateNfoAgentCompletenessWarning() {
         ["FSK", document.getElementById("nfo-agent-show-fsk")?.value]
     ];
     const missing = fields.filter(([, value]) => !String(value || "").trim()).map(([label]) => label);
-    const panel = document.getElementById("nfo-agent-completeness-warning");
-    const heading = document.getElementById("nfo-agent-completeness-heading");
-    const text = document.getElementById("nfo-agent-completeness-text");
     const submit = document.getElementById("btn-nfo-agent-submit");
-    if (!panel || !heading || !text || !submit) return missing;
+    const status = document.getElementById("nfo-agent-main-nfo-current-status");
+    if (!submit) return missing;
 
     if (missing.length === 0) {
-        panel.style.display = "none";
         submit.textContent = "Metadaten übernehmen";
+        if (status && !["missing", "unreadable"].includes(status.dataset.nfoState || "")) {
+            status.textContent = "Metadaten vollständig";
+            status.className = "nfo-agent-status nfo-agent-status-success";
+        }
     } else {
-        panel.style.display = "block";
-        heading.textContent = `${missing.length} ${missing.length === 1 ? "Angabe fehlt" : "Angaben fehlen"}`;
-        text.textContent = `Nicht befüllt: ${missing.join(", ")}. Du kannst die Angaben ergänzen oder bewusst ohne sie fortfahren.`;
-        submit.textContent = `Trotz ${missing.length} ${missing.length === 1 ? "fehlender Angabe" : "fehlender Angaben"} fortfahren`;
+        submit.textContent = "Trotz unvollständiger Metadaten fortfahren";
+        if (status && !["missing", "unreadable"].includes(status.dataset.nfoState || "")) {
+            status.textContent = "Metadaten unvollständig";
+            status.className = "nfo-agent-status nfo-agent-status-warning";
+        }
     }
     return missing;
 }
@@ -15504,7 +15506,6 @@ function applyNfoAgentEditMode() {
     const backBtn = document.getElementById("btn-nfo-agent-edit-back");
     const mainSection = document.getElementById("nfo-agent-main-nfo-section");
     const detailsSection = document.getElementById("nfo-agent-details-container");
-    const warningSection = document.getElementById("nfo-agent-completeness-warning");
     const episodesSection = document.getElementById("nfo-agent-episodes-section");
 
     if (mediaType !== "tvshow") {
@@ -15526,10 +15527,7 @@ function applyNfoAgentEditMode() {
     const showEpisodes = mode !== "series";
     if (mainSection) mainSection.style.display = showMainEditor && nfoAgentHasRenderedMainNfo ? "block" : "none";
     if (detailsSection) detailsSection.style.display = showMainEditor ? "block" : "none";
-    if (warningSection) {
-        if (showMainEditor) updateNfoAgentCompletenessWarning();
-        else warningSection.style.display = "none";
-    }
+    if (showMainEditor) updateNfoAgentCompletenessWarning();
     if (episodesSection) episodesSection.style.display = showEpisodes ? "block" : "none";
 
     const rows = document.querySelectorAll("#nfo-agent-episodes-list .nfo-episode-row");
@@ -15740,7 +15738,6 @@ function triggerNfoAgentMediaTypeChange() {
     const titleLabel = document.getElementById("nfo-agent-title-label");
     const titleLabelText = document.getElementById("nfo-agent-title-label-text");
     const filesHeading = document.getElementById("nfo-agent-files-heading");
-    const mainNfoHeading = document.getElementById("nfo-agent-main-nfo-heading");
     const detailsHeading = document.getElementById("nfo-agent-details-heading");
 
     // Clear and build options based on type
@@ -15757,8 +15754,7 @@ function triggerNfoAgentMediaTypeChange() {
         if (searchLabel) searchLabel.textContent = "Name der Serie:";
         if (titleLabelText) titleLabelText.textContent = "Serientitel (tvshow.nfo):";
         else if (titleLabel) titleLabel.textContent = "Serientitel (tvshow.nfo):";
-        if (mainNfoHeading) mainNfoHeading.textContent = "Serien-NFO prüfen";
-        if (detailsHeading) detailsHeading.textContent = "Serien-Metadaten bearbeiten";
+        if (detailsHeading) detailsHeading.textContent = "Serien-Metadaten";
         if (filesHeading) filesHeading.textContent = "Episoden-NFOs und Zuordnung";
     } else {
         providerSelect.innerHTML = `
@@ -15772,8 +15768,7 @@ function triggerNfoAgentMediaTypeChange() {
         if (searchLabel) searchLabel.textContent = "Name des Films:";
         if (titleLabelText) titleLabelText.textContent = "Filmtitel (movie.nfo):";
         else if (titleLabel) titleLabel.textContent = "Filmtitel (movie.nfo):";
-        if (mainNfoHeading) mainNfoHeading.textContent = "Film-NFO prüfen";
-        if (detailsHeading) detailsHeading.textContent = "Film-Metadaten bearbeiten";
+        if (detailsHeading) detailsHeading.textContent = "Film-Metadaten";
     }
 
     if (nfoAgentScanData) renderNfoAgentFiles(nfoAgentScanData);
@@ -15966,35 +15961,35 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
         const mainNfoFilename = nfoStatus.filename || (mediaType === "movie" ? "movie.nfo" : "tvshow.nfo");
         let statusLabel = "";
         let statusTone = "warning";
-        let statusDescription = "";
+        let nfoState = "complete";
         let nfoActionOptions = "";
 
         if (!nfoStatus.exists) {
-            statusLabel = "NFO fehlt";
+            statusLabel = "Fehlende Metadaten";
             statusTone = "danger";
-            statusDescription = "Die Haupt-NFO ist nicht vorhanden und wird neu erzeugt.";
+            nfoState = "missing";
             nfoActionOptions = `
                 <option value="process" selected>⚙️ Verarbeiten</option>
                 <option value="skip">⏭️ Überspringen</option>
             `;
         } else if (!nfoStatus.parseable) {
-            statusLabel = "NFO fehlerhaft";
-            statusDescription = "Die Haupt-NFO kann nicht gelesen werden und muss repariert werden.";
+            statusLabel = "Metadaten nicht lesbar";
+            statusTone = "danger";
+            nfoState = "unreadable";
             nfoActionOptions = `
                 <option value="process" selected>⚙️ Verarbeiten</option>
                 <option value="skip">⏭️ Überspringen</option>
             `;
         } else if (!nfoStatus.complete) {
-            statusLabel = "NFO unvollständig";
-            statusDescription = "Pflichtfelder fehlen oder sind leer. Vorhandene Metadaten können ergänzt werden.";
+            statusLabel = "Metadaten unvollständig";
+            nfoState = "incomplete";
             nfoActionOptions = `
                 <option value="process" selected>⚙️ Verarbeiten</option>
                 <option value="skip">⏭️ Überspringen</option>
             `;
         } else {
-            statusLabel = "NFO vollständig";
+            statusLabel = "Metadaten vollständig";
             statusTone = "success";
-            statusDescription = "Die Haupt-NFO ist vollständig und kann verarbeitet oder übersprungen werden.";
             nfoActionOptions = `
                 <option value="process" selected>⚙️ Verarbeiten</option>
                 <option value="skip">⏭️ Überspringen</option>
@@ -16008,9 +16003,8 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-key"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="16" r="2"/><path d="m16 10-4.5 4.5"/></svg>
                         ${escapeHTML(mainNfoFilename)}
                     </span>
-                    <span class="nfo-agent-status nfo-agent-status-${statusTone}">${escapeHTML(statusLabel)}</span>
+                    <span id="nfo-agent-main-nfo-current-status" class="nfo-agent-status nfo-agent-status-${statusTone}" data-nfo-state="${nfoState}" role="status">${escapeHTML(statusLabel)}</span>
                 </div>
-                <p class="nfo-agent-main-nfo-description">${escapeHTML(statusDescription)}</p>
             </div>
             <label class="nfo-agent-main-nfo-action">
                 <span>Aktion</span>

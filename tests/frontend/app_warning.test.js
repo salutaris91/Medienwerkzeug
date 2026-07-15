@@ -478,10 +478,10 @@ test('renderNfoAgentFiles - mediaType tvshow renders tvshow.nfo status matrix', 
 
     // Status matrix: [exists, parseable, complete, expectedStatus]
     const testCases = [
-        [false, false, false, "NFO fehlt"],
-        [true, false, false, "NFO fehlerhaft"],
-        [true, true, false, "NFO unvollständig"],
-        [true, true, true, "NFO vollständig"]
+        [false, false, false, "Fehlende Metadaten"],
+        [true, false, false, "Metadaten nicht lesbar"],
+        [true, true, false, "Metadaten unvollständig"],
+        [true, true, true, "Metadaten vollständig"]
     ];
 
     testCases.forEach(([exists, parseable, complete, expectedStatus]) => {
@@ -513,15 +513,16 @@ test('renderNfoAgentFiles - mediaType tvshow renders tvshow.nfo status matrix', 
     });
 });
 
-test('NFO Agent presents main finding before metadata editor and episode mappings', () => {
+test('NFO Agent combines the main NFO status with the metadata editor', () => {
     const indexHtml = fs.readFileSync(path.resolve(__dirname, '../../gui/static/index.html'), 'utf8');
     const findingIndex = indexHtml.indexOf('id="nfo-agent-main-nfo-section"');
     const detailsIndex = indexHtml.indexOf('id="nfo-agent-details-container"');
     const episodesIndex = indexHtml.indexOf('id="nfo-agent-episodes-section"');
 
-    assert.ok(findingIndex >= 0, "main NFO finding section must exist");
-    assert.ok(findingIndex < detailsIndex, "main NFO finding must precede the metadata editor");
+    assert.ok(findingIndex > detailsIndex, "main NFO status must live inside the metadata editor");
     assert.ok(detailsIndex < episodesIndex, "metadata editor must precede episode mappings");
+    assert.ok(!indexHtml.includes('id="nfo-agent-completeness-warning"'));
+    assert.ok(!indexHtml.includes('id="nfo-agent-main-nfo-heading"'));
 });
 
 test('NFO Agent movie mode renders movie.nfo without series controls', () => {
@@ -569,8 +570,7 @@ test('NFO Agent movie mode renders movie.nfo without series controls', () => {
     assert.strictEqual(elements["nfo-agent-modal-title"].textContent, "NFO Agent: Film-Metadaten");
     assert.strictEqual(elements["nfo-agent-search-label"].textContent, "Name des Films:");
     assert.strictEqual(elements["nfo-agent-title-label-text"].textContent, "Filmtitel (movie.nfo):");
-    assert.strictEqual(elements["nfo-agent-main-nfo-heading"].textContent, "Film-NFO prüfen");
-    assert.strictEqual(elements["nfo-agent-details-heading"].textContent, "Film-Metadaten bearbeiten");
+    assert.strictEqual(elements["nfo-agent-details-heading"].textContent, "Film-Metadaten");
     assert.strictEqual(mainNfoBody.children.length, 1);
     assert.ok(mainNfoBody.children[0].innerHTML.includes("movie.nfo"));
     assert.ok(!mainNfoBody.children[0].innerHTML.includes("tvshow.nfo"));
@@ -662,22 +662,20 @@ test('NFO Agent shows a calm non-blocking completeness hint', () => {
     elements["nfo-agent-show-plot"].value = "Beschreibung";
     elements["nfo-agent-show-genres"].value = "";
     elements["nfo-agent-show-fsk"].value = "";
-    elements["nfo-agent-completeness-warning"] = createMockElement();
-    elements["nfo-agent-completeness-heading"] = createMockElement();
-    elements["nfo-agent-completeness-text"] = createMockElement();
+    elements["nfo-agent-main-nfo-current-status"] = createMockElement();
+    elements["nfo-agent-main-nfo-current-status"].dataset.nfoState = "incomplete";
     elements["btn-nfo-agent-submit"] = createMockElement();
 
     const missing = globalThis.updateNfoAgentCompletenessWarning();
 
     assert.deepStrictEqual(missing, ["Genre", "FSK"]);
-    assert.strictEqual(elements["nfo-agent-completeness-warning"].style.display, "block");
-    assert.ok(elements["nfo-agent-completeness-text"].textContent.includes("Genre, FSK"));
-    assert.strictEqual(elements["btn-nfo-agent-submit"].textContent, "Trotz 2 fehlender Angaben fortfahren");
+    assert.strictEqual(elements["nfo-agent-main-nfo-current-status"].textContent, "Metadaten unvollständig");
+    assert.strictEqual(elements["btn-nfo-agent-submit"].textContent, "Trotz unvollständiger Metadaten fortfahren");
 
     elements["nfo-agent-show-genres"].value = "Drama";
     elements["nfo-agent-show-fsk"].value = "12";
     assert.deepStrictEqual(globalThis.updateNfoAgentCompletenessWarning(), []);
-    assert.strictEqual(elements["nfo-agent-completeness-warning"].style.display, "none");
+    assert.strictEqual(elements["nfo-agent-main-nfo-current-status"].textContent, "Metadaten vollständig");
     assert.strictEqual(elements["btn-nfo-agent-submit"].textContent, "Metadaten übernehmen");
 });
 
