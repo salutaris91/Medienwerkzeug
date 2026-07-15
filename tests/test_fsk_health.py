@@ -289,19 +289,19 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
         shutil.rmtree(self.temp_dir)
 
     def test_cache_version_upgrade(self):
-        from gui.core.health_cache import HealthCacheManager
+        from gui.core.health_cache import HealthCacheManager, get_cache_key
         cache_mgr = HealthCacheManager()
 
-        # Simulate older Cache Entry (version 2) in Cache File
-        cache_mgr._cache["2:none"] = {
+        # Simulate an entry from the previous cache schema.
+        cache_mgr._cache["3:none"] = {
             self.movie_dir: {
                 "issues": [],
                 "files_checked": 1,
                 "hybrid_state": "some-hash"
             }
         }
-        # Under version 3, querying version 3 should not see or hit version 2 entry
-        entry = cache_mgr.get_cached_entry(self.movie_dir, "3:none")
+        # The current schema must not reuse the old entry.
+        entry = cache_mgr.get_cached_entry(self.movie_dir, get_cache_key("none"))
         self.assertIsNone(entry)
 
     def test_run_health_scan_aggregation(self):
@@ -347,7 +347,8 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
         self.assertEqual(season_meta["path"], self.season_dir)
         season_issue_keys = {
             issue["key"] for issue in status["issues"]
-            if os.path.realpath(issue["path"]) == os.path.realpath(self.season_dir)
+            if issue.get("scope_kind") == "season"
+            and os.path.realpath(issue["scope_path"]) == os.path.realpath(self.season_dir)
         }
         self.assertEqual(set(season_meta["issue_keys"]), season_issue_keys)
 
@@ -369,10 +370,37 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
         self.assertEqual(ep2["raw_fsk"], "Keine")
         self.assertTrue(ep2["actionable_fsk"])
         self.assertTrue(any("age_rating" in k for k in ep2["issue_keys"]))
-        ep2_issue = next(issue for issue in status["issues"] if issue["path"] == ep2["nfo_path"])
+        ep2_issue = next(
+            issue for issue in status["issues"]
+            if os.path.realpath(issue["path"]) == os.path.realpath(ep2["nfo_path"])
+            and issue["type"] == "invalid_age_rating"
+        )
         self.assertEqual(ep2_issue["media_kind"], "episode")
-        self.assertEqual(ep2_issue["agent_path"], self.season_dir)
+        self.assertEqual(os.path.realpath(ep2_issue["agent_path"]), os.path.realpath(self.season_dir))
         self.assertEqual(ep2_issue["episode_file"], ep2["name"])
+
+        episode_incomplete_issues = [
+            issue for issue in status["issues"]
+            if issue["type"] == "incomplete_nfo" and issue.get("scope_kind") == "episode"
+        ]
+        self.assertEqual(len(episode_incomplete_issues), 2)
+        self.assertEqual(len({issue["key"] for issue in episode_incomplete_issues}), 2)
+        self.assertTrue(all(issue["path"].endswith(".nfo") for issue in episode_incomplete_issues))
+        self.assertTrue(all(issue["details"]["missing_fields"] for issue in episode_incomplete_issues))
+        self.assertTrue(set(season_meta["issue_keys"]).isdisjoint(
+            {issue["key"] for issue in episode_incomplete_issues}
+        ))
+
+        small_file_issues = [
+            issue for issue in status["issues"]
+            if issue["type"] == "small_file" and issue.get("scope_kind") == "episode"
+        ]
+        self.assertEqual(len(small_file_issues), 2)
+        self.assertEqual(len({issue["key"] for issue in small_file_issues}), 2)
+        self.assertTrue(all(issue["path"].endswith(".mkv") for issue in small_file_issues))
+        self.assertTrue(set(season_meta["issue_keys"]).isdisjoint(
+            {issue["key"] for issue in small_file_issues}
+        ))
 
     def test_health_scan_excludes_backup_folder_and_maps_missing_episode_nfo(self):
         missing_video = os.path.join(self.season_dir, "My Show - S01E03.mkv")
@@ -397,8 +425,12 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
         self.assertEqual(missing_episode["fsk_status"], "nfo_missing")
         self.assertTrue(any("missing_nfo" in key for key in missing_episode["issue_keys"]))
 
-        missing_issue = next(issue for issue in status["issues"] if issue["path"] == expected_nfo)
-        self.assertEqual(missing_issue["agent_path"], self.season_dir)
+        missing_issue = next(
+            issue for issue in status["issues"]
+            if os.path.realpath(issue["path"]) == os.path.realpath(expected_nfo)
+            and issue["type"] == "missing_nfo"
+        )
+        self.assertEqual(os.path.realpath(missing_issue["agent_path"]), os.path.realpath(self.season_dir))
         self.assertEqual(missing_issue["episode_file"], os.path.basename(missing_video))
         self.assertFalse(any("Staffel Backup" in issue.get("path", "") for issue in status["issues"]))
 

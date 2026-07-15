@@ -77,20 +77,36 @@ def _add_issue(issues, severity, issue_type, category, path, message, **kwargs):
     definition = get_issue_definition(issue_type)
     if issue_type not in HEALTH_ISSUE_TYPES:
         log_message(f"⚠️ [Bibliothek-Check] Unregistrierter Health-Typ: {issue_type}")
+    subject_path = os.path.realpath(kwargs.pop("subject_path", path))
+    scope_kind = kwargs.pop("scope_kind", kwargs.get("media_kind", ""))
+    scope_path = os.path.realpath(kwargs.pop("scope_path", subject_path))
     issue = {
         "severity": severity,
         "type": issue_type,
         "category": category,
-        "path": path,
+        "path": subject_path,
+        "subject_path": subject_path,
+        "scope_kind": scope_kind,
+        "scope_path": scope_path,
         "message": message,
         "group": definition["group"],
         "label": definition["label"],
         "remediation": definition["remediation"],
         "ignoreable": definition["ignoreable"],
         # Stabiler Schlüssel zum dauerhaften Ignorieren (typ + pfad, ohne wechselnde Texte)
-        "key": f"health:{issue_type}:{path}",
+        "key": f"health:{issue_type}:{subject_path}",
     }
     issue.update(kwargs)
+    for path_field in ("series_path", "season_path", "episode_path", "nfo_path", "agent_path"):
+        if issue.get(path_field):
+            issue[path_field] = os.path.realpath(issue[path_field])
+    if scope_kind == "series":
+        issue.setdefault("series_path", scope_path)
+    elif scope_kind == "season":
+        issue.setdefault("season_path", scope_path)
+        issue.setdefault("series_path", os.path.dirname(scope_path))
+    elif scope_kind == "episode" and issue.get("season_path"):
+        issue.setdefault("series_path", os.path.dirname(issue["season_path"]))
     issues.append(issue)
 
 
@@ -190,13 +206,16 @@ def _get_provider_from_nfo(nfo_path):
     return None
 
 
-def check_nfo_incomplete(nfo_path, nfo_type="episode"):
-    """
-    Check if an NFO file is incomplete (e.g. missing title or plot).
-    Returns (is_incomplete, severity, reason)
-    """
+def inspect_nfo_completeness(nfo_path, nfo_type="episode"):
+    """Return a structured completeness result for one NFO file."""
+    result = {
+        "incomplete": False,
+        "severity": None,
+        "reason": None,
+        "missing_fields": [],
+    }
     if not os.path.exists(nfo_path):
-        return False, None, None
+        return result
     try:
         import xml.etree.ElementTree as ET
         tree = ET.parse(nfo_path)
@@ -204,32 +223,55 @@ def check_nfo_incomplete(nfo_path, nfo_type="episode"):
 
         title_el = root.find("title")
         plot_el = root.find("plot")
-
         title_missing = title_el is None or not title_el.text or not title_el.text.strip()
         plot_missing = plot_el is None or not plot_el.text or not plot_el.text.strip()
 
-        if title_missing or plot_missing:
-            missing_fields = []
-            if title_missing: missing_fields.append("Titel")
-            if plot_missing: missing_fields.append("Plot")
-            return True, "critical", f"NFO unvollständig (fehlende Felder: {', '.join(missing_fields)})"
+        if title_missing:
+            result["missing_fields"].append("Titel")
+        if plot_missing:
+            result["missing_fields"].append("Plot")
+        if result["missing_fields"]:
+            result.update({
+                "incomplete": True,
+                "severity": "critical",
+                "reason": f"NFO unvollständig (fehlende Felder: {', '.join(result['missing_fields'])})",
+            })
+            return result
 
-        # Optional warnings
         if nfo_type == "episode":
             aired_el = root.find("aired")
-            aired_missing = aired_el is None or not aired_el.text or not aired_el.text.strip()
-            if aired_missing:
-                return True, "warning", "NFO unvollständig (fehlendes Feld: Ausstrahlungsdatum)"
+            if aired_el is None or not aired_el.text or not aired_el.text.strip():
+                result.update({
+                    "incomplete": True,
+                    "severity": "warning",
+                    "reason": "NFO unvollständig (fehlendes Feld: Ausstrahlungsdatum)",
+                    "missing_fields": ["Ausstrahlungsdatum"],
+                })
         elif nfo_type in ("tvshow", "movie"):
             year_el = root.find("year")
-            year_missing = year_el is None or not year_el.text or not year_el.text.strip()
-            if year_missing:
-                return True, "warning", "NFO unvollständig (fehlendes Feld: Produktionsjahr)"
+            if year_el is None or not year_el.text or not year_el.text.strip():
+                result.update({
+                    "incomplete": True,
+                    "severity": "warning",
+                    "reason": "NFO unvollständig (fehlendes Feld: Produktionsjahr)",
+                    "missing_fields": ["Produktionsjahr"],
+                })
+    except Exception as exc:
+        result.update({
+            "incomplete": True,
+            "severity": "critical",
+            "reason": f"NFO beschädigt oder unlesbar: {exc}",
+        })
+    return result
 
-    except Exception as e:
-        return True, "critical", f"NFO beschädigt oder unlesbar: {str(e)}"
 
-    return False, None, None
+def check_nfo_incomplete(nfo_path, nfo_type="episode"):
+    """
+    Check if an NFO file is incomplete (e.g. missing title or plot).
+    Returns (is_incomplete, severity, reason)
+    """
+    result = inspect_nfo_completeness(nfo_path, nfo_type)
+    return result["incomplete"], result["severity"], result["reason"]
 
 
 def should_overwrite_nfo(overwrite_nfo, overrides, nfo_path, nfo_type):
@@ -325,19 +367,15 @@ def _get_fsk_info(nfo_path):
     return parse_fsk_status(nfo_path)
 
 
-def _find_issue_keys_for_episode(issues, season_path, ep_video_filename, ep_nfo_path):
-    keys = []
+def _find_issue_keys_for_episode(issues, ep_nfo_path):
+    """Return findings owned by exactly one episode NFO."""
     abs_nfo_path = os.path.realpath(ep_nfo_path)
-    abs_season_path = os.path.realpath(season_path)
-    for it in issues:
-        it_path = os.path.realpath(it.get("path"))
-        if it_path == abs_nfo_path:
-            keys.append(it["key"])
-        elif it_path == abs_season_path:
-            msg = it.get("message", "")
-            if ep_video_filename in msg or os.path.basename(ep_nfo_path) in msg:
-                keys.append(it["key"])
-    return keys
+    return [
+        item["key"]
+        for item in issues
+        if item.get("scope_kind") == "episode"
+        and os.path.realpath(item.get("episode_path") or item.get("scope_path") or "") == abs_nfo_path
+    ]
 
 
 def _find_issue_keys_for_movie(issues, movie_path, movie_nfo_path):
@@ -345,6 +383,8 @@ def _find_issue_keys_for_movie(issues, movie_path, movie_nfo_path):
     abs_movie_path = os.path.realpath(movie_path)
     abs_nfo_path = os.path.realpath(movie_nfo_path) if movie_nfo_path else None
     for it in issues:
+        if it.get("scope_kind") != "movie":
+            continue
         it_path = os.path.realpath(it.get("path"))
         if it_path == abs_movie_path or (abs_nfo_path and it_path == abs_nfo_path):
             keys.append(it["key"])
@@ -356,6 +396,8 @@ def _find_issue_keys_for_series(issues, show_path, show_nfo_path):
     abs_show_path = os.path.realpath(show_path)
     abs_nfo_path = os.path.realpath(show_nfo_path) if show_nfo_path else None
     for it in issues:
+        if it.get("scope_kind") != "series":
+            continue
         it_path = os.path.realpath(it.get("path"))
         if it_path == abs_show_path or (abs_nfo_path and it_path == abs_nfo_path):
             keys.append(it["key"])
@@ -368,7 +410,8 @@ def _find_issue_keys_for_season(issues, season_path):
     return [
         item["key"]
         for item in issues
-        if os.path.realpath(item.get("path")) == abs_season_path
+        if item.get("scope_kind") == "season"
+        and os.path.realpath(item.get("scope_path") or "") == abs_season_path
     ]
 
 
@@ -376,6 +419,7 @@ def _check_season(issues, category, show_name, season_path, validator):
     """Prüft einen einzelnen Staffel-Ordner (rekursiv). Gibt geprüfte Dateien zurück."""
     # Showname voranstellen, damit das Issue auf einen Blick zuordenbar ist
     label = f"{show_name} · {os.path.basename(season_path)}"
+    series_path = os.path.dirname(season_path)
     videos, nfo_basenames = _collect_videos(season_path)
 
     try:
@@ -398,8 +442,13 @@ def _check_season(issues, category, show_name, season_path, validator):
             continue  # nur echte Episoden-Ordner (mit SxxExx im Namen)
         dpath = os.path.join(season_path, d)
         if not _dir_has_video(dpath):
+            expected_nfo_path = os.path.join(dpath, f"{d}.nfo")
             _add_issue(issues, "warning", "no_video", category, dpath,
-                       f"{show_name} · {d}: kein Video im Ordner (unvollständiger Download?)", media_kind="episode", agent_path=season_path)
+                       f"{show_name} · {d}: kein Video im Ordner (unvollständiger Download?)",
+                       media_kind="episode", scope_kind="episode",
+                       scope_path=expected_nfo_path, episode_path=expected_nfo_path,
+                       series_path=series_path, season_path=season_path,
+                       agent_path=season_path)
 
     # Fehlende Episoden-NFOs (gleicher Basisname im selben Ordner)
     missing_nfo = [(full, fn) for (full, fn) in videos if os.path.splitext(full)[0] not in nfo_basenames]
@@ -413,6 +462,11 @@ def _check_season(issues, category, show_name, season_path, validator):
             expected_nfo_path,
             f"{show_name} · {fn}: Episoden-NFO fehlt",
             media_kind="episode",
+            scope_kind="episode",
+            scope_path=expected_nfo_path,
+            episode_path=expected_nfo_path,
+            series_path=series_path,
+            season_path=season_path,
             agent_path=season_path,
             episode_file=fn,
         )
@@ -421,14 +475,28 @@ def _check_season(issues, category, show_name, season_path, validator):
     for full, fn in videos:
         ep_nfo_path = os.path.splitext(full)[0] + ".nfo"
         if os.path.exists(ep_nfo_path):
-            is_inc, sev, reason = check_nfo_incomplete(ep_nfo_path, "episode")
-            if is_inc:
-                _add_issue(issues, sev, "incomplete_nfo", category, season_path,
-                           f"{show_name} · {fn}: {reason}", media_kind="episode",
-                           agent_path=season_path, episode_file=fn, nfo_path=ep_nfo_path)
+            completeness = inspect_nfo_completeness(ep_nfo_path, "episode")
+            if completeness["incomplete"]:
+                _add_issue(
+                    issues,
+                    completeness["severity"],
+                    "incomplete_nfo",
+                    category,
+                    ep_nfo_path,
+                    f"{show_name} · {fn}: {completeness['reason']}",
+                    media_kind="episode",
+                    scope_kind="episode",
+                    scope_path=ep_nfo_path,
+                    episode_path=ep_nfo_path,
+                    series_path=series_path,
+                    season_path=season_path,
+                    agent_path=season_path,
+                    episode_file=fn,
+                    nfo_path=ep_nfo_path,
+                    details={"missing_fields": completeness["missing_fields"]},
+                )
 
             # FSK-Check für Episode (dateibasiert über den NFO-Pfad)
-            series_path = os.path.dirname(season_path)
             season_name = os.path.basename(season_path)
             ep_label = f"{show_name} · {season_name} · {fn}"
             _check_fsk(
@@ -439,6 +507,7 @@ def _check_season(issues, category, show_name, season_path, validator):
                 scope_kind="episode",
                 series_path=series_path,
                 season_path=season_path,
+                episode_path=ep_nfo_path,
                 label=ep_label,
                 media_kind="episode",
                 agent_path=season_path,
@@ -461,16 +530,32 @@ def _check_season(issues, category, show_name, season_path, validator):
                        f"{label}: Episodenlücke ({preview})", media_kind="season", agent_path=season_path)
 
     # Verdächtig kleine Dateien
-    small = []
     for (full, fn) in videos:
         try:
             if os.path.getsize(full) < SMALL_FILE_BYTES:
-                small.append(fn)
+                ep_nfo_path = os.path.splitext(full)[0] + ".nfo"
+                _add_issue(
+                    issues,
+                    "warning",
+                    "small_file",
+                    category,
+                    full,
+                    f"{show_name} · {fn}: verdächtig kleine Videodatei (< 50 MB)",
+                    media_kind="episode",
+                    scope_kind="episode",
+                    scope_path=ep_nfo_path,
+                    episode_path=ep_nfo_path,
+                    series_path=series_path,
+                    season_path=season_path,
+                    agent_path=season_path,
+                    episode_file=fn,
+                    details={
+                        "size_bytes": os.path.getsize(full),
+                        "threshold_bytes": SMALL_FILE_BYTES,
+                    },
+                )
         except OSError:
             pass
-    if small:
-        _add_issue(issues, "warning", "small_file", category, season_path,
-                   f"{label}: {len(small)} verdächtig kleine Videodatei(en) (< 50 MB)", media_kind="episode", agent_path=season_path)
 
     # Codec-Inkonsistenz (ffprobe-Stichprobe)
     if len(videos) >= 2:
@@ -506,11 +591,12 @@ def _check_season(issues, category, show_name, season_path, validator):
     for full, fn in videos:
         ep_nfo_path = os.path.splitext(full)[0] + ".nfo"
         ep_fsk_status, ep_current_fsk, ep_raw_fsk, ep_actionable_fsk = _get_fsk_info(ep_nfo_path)
-        ep_issue_keys = _find_issue_keys_for_episode(issues, season_path, fn, ep_nfo_path)
+        ep_issue_keys = _find_issue_keys_for_episode(issues, ep_nfo_path)
         season_episodes.append({
             "name": fn,
             "path": ep_nfo_path,
             "nfo_path": ep_nfo_path,
+            "video_path": full,
             "fsk_status": ep_fsk_status,
             "current_fsk": ep_current_fsk,
             "raw_fsk": ep_raw_fsk,

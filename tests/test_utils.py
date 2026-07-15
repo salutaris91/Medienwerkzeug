@@ -1439,7 +1439,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             _run_health_scan(deep_dive=False, category_ids=["cat1"])
 
             # Phase 2 (Cache Assertions)
-            expected_cache_key = "3:none"
+            expected_cache_key = "4:none"
             cache_manager = HealthCacheManager()
             normalized_show_dir = os.path.realpath(show_dir)
             self.assertIn(normalized_show_dir, cache_manager._cache)
@@ -1447,8 +1447,8 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             entry = cache_manager.get_cached_entry(show_dir, expected_cache_key)
             self.assertIsNotNone(entry)
             self.assertEqual(entry["cache_key"], expected_cache_key)
-            self.assertEqual(entry["issues"][0]["path"], show_dir)
-            self.assertEqual(entry["issues"][0]["key"], f"health:missing_nfo:{show_dir}")
+            self.assertEqual(entry["issues"][0]["path"], normalized_show_dir)
+            self.assertEqual(entry["issues"][0]["key"], f"health:missing_nfo:{normalized_show_dir}")
 
             # Phase 3 (NFO Agent ausführen über den echten process_worker)
             ep_file = "Test Show Invalidation - S01E01.mkv"
@@ -1498,7 +1498,10 @@ class TestMediawerkzeugLogic(unittest.TestCase):
 
             # Verify missing_nfo issue for the show directory (tvshow.nfo) is gone!
             final_issues = final_entry.get("issues", [])
-            missing_show_nfo = next((i for i in final_issues if i["type"] == "missing_nfo" and i["path"] == show_dir), None)
+            missing_show_nfo = next((
+                i for i in final_issues
+                if i["type"] == "missing_nfo" and i["path"] == normalized_show_dir
+            ), None)
             self.assertIsNone(missing_show_nfo)
 
     def test_nfo_incomplete_detection(self):
