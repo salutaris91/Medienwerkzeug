@@ -5,7 +5,9 @@ import time
 import tempfile
 from typing import Optional
 
-SCAN_VERSION = 4
+# Bump whenever the issue schema changes, including mid-branch: version 4
+# caches from intermediate builds lack the ownership fields (scope_*, *_path).
+SCAN_VERSION = 5
 
 def get_cache_key(media_server: str) -> str:
     """Berechnet den Cache-Schlüssel basierend auf Scan-Version und Medienserver."""
