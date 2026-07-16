@@ -2,6 +2,13 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 16.07.2026 (Phase 2.5c – zweite Abnahmerunde: NFO-Agent-Korrekturen)
+
+- **Zurück-Button nur bei echtem Rückweg:** „Zur vorherigen Ansicht" erscheint im NFO-Agenten nur noch, wenn der Einstieg über eine engere Ansicht (Folge/Staffel/Serien-NFO) erfolgte — beim Direkteinstieg „Ganze Serie bearbeiten" gibt es keinen Rückweg und keinen Button.
+- **Provider-ID ist optional:** Ohne ID wird nicht mehr blockiert („Bitte gib eine Show- oder Movie-ID an"), sondern automatisch manuell verarbeitet: Die eingegebenen Formularfelder werden per Patch geschrieben, kein Metadatendienst wird abgefragt. Ein Film-Job ganz ohne Quelle schlägt sichtbar fehl statt still „Erfolg" zu melden.
+- **Befunde verschwinden nach Korrektur sofort:** Nach erfolgreichem Schreiben prüft der Prozessor jede geschriebene NFO erneut (`refresh_issues_after_nfo_write`) und entfernt nur tatsächlich behobene Befunde (unvollständig/fehlend/FSK) aus dem aktuellen Scan-Ergebnis — derselbe Mechanismus wie beim FSK-Quick-Fix. Nicht behobene Felder bleiben sichtbar.
+- **Verifikation:** Volle Test-Suiten grün (Backend + 95 Frontend-Tests, davon 4 neue); Image neu gebaut.
+
 ## Stand am 15.07.2026 (Phase 2.5c – Feedback aus der visuellen Abnahme)
 
 - **Leeres Ignoriermodal behoben:** Ursache war ein Health-Cache aus einem Zwischenstand des Branches, dem die Besitzfelder (`scope_*`, `series_path`) fehlten — Version 4 wurde früh gebumpt, die Felder kamen später. Cache-Version 5 invalidiert solche Stände überall.
