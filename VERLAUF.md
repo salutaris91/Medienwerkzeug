@@ -2,6 +2,13 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 16.07.2026 (Phase 2.5c – dritte Abnahmerunde: Button-Label & Mediathek-Treffer)
+
+- **Button-Text folgt den sichtbaren Feldern:** „Trotz unvollständiger Metadaten fortfahren" bewertete bisher nur die Serien-Felder — im Staffel-/Folgenmodus sind die aber ausgeblendet, manuell ausgefüllte Episodenfelder zählten nicht. Jetzt bewertet der Button genau die Felder, die der aktive Modus anzeigt und schreibt, und aktualisiert sich live beim Tippen (auch in Episodenfeldern).
+- **Mediathek-Treffer ohne TVDB-Irrweg:** Der Freitext-Eintrag „(Freie Mediathek-Suche)" wurde beim Anklicken auf den Provider TVDB gezwungen — daher die unpassende TVDB-Fehlermeldung (die Warnung hatte Substanz, war aber ein Routing-Fehler). Der Eintrag wirkt jetzt als Abkürzung zur manuellen Eingabe: Provider „Manuell", Titel vorbefüllt, keine ID-Abfrage.
+- **Wizard als Follow-up beschlossen:** Der mehrstufige NFO-Agent-Wizard (Quelle wählen → Prüfen & Bearbeiten) ist als Roadmap-Item 52 dokumentiert und wird nach dem Merge dieses Branches separat umgesetzt.
+- **Verifikation:** 97 Frontend-Tests grün (2 neue); Backend unverändert bei 459; Image neu gebaut.
+
 ## Stand am 16.07.2026 (Phase 2.5c – zweite Abnahmerunde: NFO-Agent-Korrekturen)
 
 - **Zurück-Button nur bei echtem Rückweg:** „Zur vorherigen Ansicht" erscheint im NFO-Agenten nur noch, wenn der Einstieg über eine engere Ansicht (Folge/Staffel/Serien-NFO) erfolgte — beim Direkteinstieg „Ganze Serie bearbeiten" gibt es keinen Rückweg und keinen Button.
