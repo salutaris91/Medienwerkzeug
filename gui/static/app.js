@@ -15528,27 +15528,53 @@ function setNfoAgentFieldSource(field, source) {
 }
 
 function updateNfoAgentCompletenessWarning() {
-    const fields = [
-        ["Titel", document.getElementById("nfo-agent-show-title")?.value],
-        ["Jahr", document.getElementById("nfo-agent-show-year")?.value],
-        ["Plot", document.getElementById("nfo-agent-show-plot")?.value],
-        ["Genre", document.getElementById("nfo-agent-show-genres")?.value],
-        ["FSK", document.getElementById("nfo-agent-show-fsk")?.value]
-    ];
-    const missing = fields.filter(([, value]) => !String(value || "").trim()).map(([label]) => label);
+    const mediaType = document.getElementById("nfo-agent-media-type")?.value;
+    const mode = nfoAgentEditContext.mode;
+    // Only fields the current mode actually shows and submits count as missing.
+    const includeMainFields = mediaType !== "tvshow" || mode === "series" || mode === "full";
+    const missing = [];
+
+    if (includeMainFields) {
+        [
+            ["Titel", document.getElementById("nfo-agent-show-title")?.value],
+            ["Jahr", document.getElementById("nfo-agent-show-year")?.value],
+            ["Plot", document.getElementById("nfo-agent-show-plot")?.value],
+            ["Genre", document.getElementById("nfo-agent-show-genres")?.value],
+            ["FSK", document.getElementById("nfo-agent-show-fsk")?.value]
+        ].forEach(([label, value]) => {
+            if (!String(value || "").trim()) missing.push(label);
+        });
+    }
+
+    if (mediaType === "tvshow" && mode !== "series") {
+        document.querySelectorAll("#nfo-agent-episodes-list .nfo-episode-row").forEach((row) => {
+            if (row.style.display === "none") return;
+            const mappingSelect = row.querySelector(".nfo-agent-ep-mapping-select");
+            if (mappingSelect && mappingSelect.value === "skip") return;
+            const episodeValues = [
+                row.querySelector(".nfo-agent-ep-override-title")?.value,
+                row.querySelector(".nfo-agent-ep-override-plot")?.value,
+                row.querySelector(".nfo-agent-ep-override-fsk")?.value
+            ];
+            if (!episodeValues.every((value) => String(value || "").trim())) {
+                missing.push(row.getAttribute("data-file") || "Folge");
+            }
+        });
+    }
+
     const submit = document.getElementById("btn-nfo-agent-submit");
     const status = document.getElementById("nfo-agent-main-nfo-current-status");
     if (!submit) return missing;
 
     if (missing.length === 0) {
         submit.textContent = "Metadaten übernehmen";
-        if (status && !["missing", "unreadable"].includes(status.dataset.nfoState || "")) {
+        if (includeMainFields && status && !["missing", "unreadable"].includes(status.dataset.nfoState || "")) {
             status.textContent = "Metadaten vollständig";
             status.className = "nfo-agent-status nfo-agent-status-success";
         }
     } else {
         submit.textContent = "Trotz unvollständiger Metadaten fortfahren";
-        if (status && !["missing", "unreadable"].includes(status.dataset.nfoState || "")) {
+        if (includeMainFields && status && !["missing", "unreadable"].includes(status.dataset.nfoState || "")) {
             status.textContent = "Metadaten unvollständig";
             status.className = "nfo-agent-status nfo-agent-status-warning";
         }
@@ -15627,7 +15653,6 @@ function applyNfoAgentEditMode() {
     const showEpisodes = mode !== "series";
     if (mainSection) mainSection.style.display = showMainEditor && nfoAgentHasRenderedMainNfo ? "block" : "none";
     if (detailsSection) detailsSection.style.display = showMainEditor ? "block" : "none";
-    if (showMainEditor) updateNfoAgentCompletenessWarning();
     if (episodesSection) episodesSection.style.display = showEpisodes ? "block" : "none";
 
     const rows = document.querySelectorAll("#nfo-agent-episodes-list .nfo-episode-row");
@@ -15650,6 +15675,9 @@ function applyNfoAgentEditMode() {
     document.querySelectorAll("#nfo-agent-episodes-list .nfo-agent-season-nfo-row").forEach(row => {
         row.style.display = mode === "season" || mode === "full" ? "flex" : "none";
     });
+
+    // After the row visibility is final: recompute the submit label for this mode.
+    updateNfoAgentCompletenessWarning();
 }
 
 function setNfoAgentEditMode(mode) {
@@ -15954,6 +15982,21 @@ function searchNfoAgentMetadata() {
                 `;
 
                 itemDiv.addEventListener("click", () => {
+                    // Highlight selected item by setting border-left
+                    resultsContainer.querySelectorAll(".search-result-item").forEach(el => {
+                        el.style.borderLeft = "none";
+                        el.style.background = "transparent";
+                    });
+                    itemDiv.style.borderLeft = "4px solid var(--accent)";
+                    itemDiv.style.background = "rgba(255,255,255,0.02)";
+
+                    // The free-text Mediathek entry has no service to fetch from:
+                    // switch to manual entry instead of forcing a TVDB lookup.
+                    if (String(item.id).startsWith("url_mediathek:")) {
+                        applyNfoAgentMediathekSelection(item);
+                        return;
+                    }
+
                     // Set inputs
                     let mappedProv = item.provider;
                     if (queryType === "movie" && mappedProv === "tmdb") {
@@ -15967,14 +16010,6 @@ function searchNfoAgentMetadata() {
                     }
                     document.getElementById("nfo-agent-provider").value = mappedProv;
                     document.getElementById("nfo-agent-metadata-id").value = item.id;
-
-                    // Highlight selected item by setting border-left
-                    resultsContainer.querySelectorAll(".search-result-item").forEach(el => {
-                        el.style.borderLeft = "none";
-                        el.style.background = "transparent";
-                    });
-                    itemDiv.style.borderLeft = "4px solid var(--accent)";
-                    itemDiv.style.background = "rgba(255,255,255,0.02)";
 
                     // Fetch full details
                     loadNfoAgentDetails(item.id, mappedProv, type, season);
@@ -16004,6 +16039,22 @@ function searchNfoAgentMetadata() {
             searchBtn.disabled = false;
             searchBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Suchen`;
         });
+}
+
+// The Mediathek search result is a free-text fallback without fetchable
+// details: use it as a manual-entry shortcut that prefills the title.
+function applyNfoAgentMediathekSelection(item) {
+    const providerSelect = document.getElementById("nfo-agent-provider");
+    if (providerSelect) providerSelect.value = "manual";
+    const idInput = document.getElementById("nfo-agent-metadata-id");
+    if (idInput) idInput.value = "";
+    const titleInput = document.getElementById("nfo-agent-show-title");
+    const queryText = String(item.id).split("url_mediathek:", 2)[1] || item.name || "";
+    if (titleInput && !titleInput.value.trim() && queryText) {
+        titleInput.value = queryText;
+        setNfoAgentFieldSource("title", "manual");
+    }
+    updateNfoAgentCompletenessWarning();
 }
 
 function loadNfoAgentDetails(id, provider, type, season) {
@@ -16607,6 +16658,13 @@ window.bindNfoAgentEvents = function() {
         });
         document.getElementById(elementId)?.addEventListener("change", () => {
             setNfoAgentFieldSource(field, "manual");
+            updateNfoAgentCompletenessWarning();
+        });
+    });
+    // Episode fields are rendered dynamically: one delegated listener keeps
+    // the submit label in sync while the user types.
+    ["input", "change"].forEach((eventName) => {
+        document.getElementById("nfo-agent-episodes-list")?.addEventListener(eventName, () => {
             updateNfoAgentCompletenessWarning();
         });
     });

@@ -176,6 +176,8 @@ globalThis.openNfoAgentModal = openNfoAgentModal;
 globalThis.renderNfoAgentFiles = renderNfoAgentFiles;
 globalThis.applyNfoAgentEditMode = applyNfoAgentEditMode;
 globalThis.setNfoAgentEditMode = setNfoAgentEditMode;
+globalThis.updateNfoAgentCompletenessWarning = updateNfoAgentCompletenessWarning;
+globalThis.applyNfoAgentMediathekSelection = applyNfoAgentMediathekSelection;
 globalThis.startNfoAgentLogStreaming = startNfoAgentLogStreaming;
 globalThis.searchNfoAgentMetadata = searchNfoAgentMetadata;
 globalThis.renderHealthStatus = renderHealthStatus;
@@ -1712,6 +1714,59 @@ test('NFO Agent switches between entry context and whole-series editing', () => 
 
     globalThis.setNfoAgentEditMode(globalThis.nfoAgentEditContext.originMode);
     assert.strictEqual(document.getElementById("nfo-agent-edit-mode-title").textContent, "Folge S01E02 bearbeiten");
+
+    globalThis.document.querySelectorAll = originalQuerySelectorAll;
+});
+
+test('Submit label reflects the visible episode fields in season mode', () => {
+    const originalQuerySelectorAll = globalThis.document.querySelectorAll;
+    document.getElementById("nfo-agent-media-type").value = "tvshow";
+    globalThis.nfoAgentEditContext = { originMode: "season", mode: "season", episodeFile: "", seasonName: "Staffel 01" };
+
+    const makeRow = (title, plot, fsk) => {
+        const row = createMockElement();
+        row.style.display = "flex";
+        const inputs = {
+            ".nfo-agent-ep-mapping-select": Object.assign(createMockElement(), { value: "S1E1" }),
+            ".nfo-agent-ep-override-title": Object.assign(createMockElement(), { value: title }),
+            ".nfo-agent-ep-override-plot": Object.assign(createMockElement(), { value: plot }),
+            ".nfo-agent-ep-override-fsk": Object.assign(createMockElement(), { value: fsk })
+        };
+        row.querySelector = (selector) => inputs[selector] || null;
+        return row;
+    };
+    let rows = [makeRow("Episode mit FSK", "bb", "12")];
+    globalThis.document.querySelectorAll = (selector) =>
+        selector === "#nfo-agent-episodes-list .nfo-episode-row" ? rows : [];
+
+    globalThis.updateNfoAgentCompletenessWarning();
+    assert.strictEqual(document.getElementById("btn-nfo-agent-submit").textContent, "Metadaten übernehmen");
+
+    rows = [makeRow("Episode ohne Plot", "", "12")];
+    globalThis.updateNfoAgentCompletenessWarning();
+    assert.strictEqual(document.getElementById("btn-nfo-agent-submit").textContent, "Trotz unvollständiger Metadaten fortfahren");
+
+    globalThis.document.querySelectorAll = originalQuerySelectorAll;
+});
+
+test('Mediathek search result switches to manual entry instead of a TVDB fetch', () => {
+    const originalQuerySelectorAll = globalThis.document.querySelectorAll;
+    globalThis.document.querySelectorAll = () => [];
+    document.getElementById("nfo-agent-media-type").value = "tvshow";
+    globalThis.nfoAgentEditContext = { originMode: "full", mode: "full", episodeFile: "" };
+    document.getElementById("nfo-agent-provider").value = "tvdb";
+    document.getElementById("nfo-agent-metadata-id").value = "stale-id";
+    document.getElementById("nfo-agent-show-title").value = "";
+
+    globalThis.applyNfoAgentMediathekSelection({
+        id: "url_mediathek:Beispielserie (2024)",
+        name: "Beispielserie (2024) (Freie Mediathek-Suche)",
+        provider: "mediathek"
+    });
+
+    assert.strictEqual(document.getElementById("nfo-agent-provider").value, "manual");
+    assert.strictEqual(document.getElementById("nfo-agent-metadata-id").value, "");
+    assert.strictEqual(document.getElementById("nfo-agent-show-title").value, "Beispielserie (2024)");
 
     globalThis.document.querySelectorAll = originalQuerySelectorAll;
 });

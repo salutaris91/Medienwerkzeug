@@ -1550,3 +1550,26 @@ erledigt.
 
 ### Aufwand (grob)
 Klein–mittel: UI-Erweiterung im Modal und Backend-Anpassung zur NFO-Erzeugung.
+
+---
+
+## 52. NFO-Agent: Mehrstufiger Wizard (Quelle wählen → Prüfen & Bearbeiten)
+
+**Einordnung / Priorität:** UX-Umbau des NFO-Agenten, beschlossen am 16.07.2026 als separates Follow-up nach dem Merge von `fix/fsk-workflow-final`.
+
+**Problem:**
+Das NFO-Agent-Modal mischt Metadatensuche, Optionen und die eigentliche Bearbeitung in einer langen Scroll-Ansicht. Nutzer wissen nicht, in welcher Phase sie sich befinden; nach dem Laden einer Quelle bleibt der Suchblock sichtbar und lenkt ab.
+
+**Ziel:**
+Zwei klar getrennte Schritte wie beim Onboarding:
+1. **Quelle wählen:** Suche (inkl. Hinweis auf Mediathek-Link), erweiterte Einstellungen (ID/Provider), Treffer-Auswahl. Ohne Treffer oder Eingabe führt ein Button „Weiter zur manuellen Eingabe" in Schritt 2.
+2. **Prüfen & Bearbeiten:** Die heutige Editor-Ansicht (Haupt-NFO, Staffel-/Folgenfelder) mit der Modusleiste. Der FSK-Workflow nutzt dasselbe Modal und profitiert automatisch.
+
+**Umsetzung (grob):**
+1. Modal-Inhalt in zwei Schritt-Container mit Fortschrittskopf und „Weiter/Zurück" gliedern; bestehende IDs/Logik erhalten.
+2. Suchtreffer-Auswahl schließt Schritt 1 ab und wechselt automatisch zu Schritt 2.
+3. Einstieg aus der Health-Ansicht mit bereits bekannter Quelle (vorhandene NFO/Profil) darf Schritt 1 überspringen.
+4. Frontend-Tests für Schrittwechsel, Direkteinstiege und manuelle Eingabe ohne Treffer.
+
+### Aufwand (grob)
+Mittel: reine Frontend-Umstrukturierung mit umfangreicher Testanpassung; keine Backend-Änderungen.
