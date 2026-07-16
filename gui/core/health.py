@@ -1407,6 +1407,29 @@ def remove_issue(issue_path: str, issue_type: str = None, nfo_path: str = None):
         _write_cache()
 
 
+def refresh_issues_after_nfo_write(nfo_path, nfo_kind):
+    """Drop findings that a successful NFO write just resolved.
+
+    Re-inspects the written file, so a finding only disappears when the
+    problem is actually gone. Movie/series findings carry the folder as
+    subject while episode findings carry the NFO file, hence both candidates.
+    """
+    real_nfo = os.path.realpath(nfo_path)
+    subject_candidates = {real_nfo, os.path.dirname(real_nfo)}
+    if nfo_kind in ("movie", "tvshow", "episode"):
+        completeness = inspect_nfo_completeness(real_nfo, nfo_kind)
+        if not completeness["incomplete"]:
+            for subject in subject_candidates:
+                remove_issue(subject, "missing_nfo", nfo_path=real_nfo)
+                remove_issue(subject, "incomplete_nfo", nfo_path=real_nfo)
+                remove_issue(subject, "unreadable_nfo", nfo_path=real_nfo)
+    fsk_status = parse_fsk_status(real_nfo)[0]
+    if fsk_status == "healthy":
+        for subject in subject_candidates:
+            remove_issue(subject, "missing_age_rating", nfo_path=real_nfo)
+            remove_issue(subject, "invalid_age_rating", nfo_path=real_nfo)
+
+
 # ---------------------------------------------------------------------------
 # Cache I/O
 # ---------------------------------------------------------------------------

@@ -476,5 +476,55 @@ class TestFSKHealthStructureAggregation(unittest.TestCase):
         # remove_issue sollte für den Verzeichnis-Issue-Pfad aufgerufen werden (da movie.nfo)
         mock_remove_issue.assert_any_call(real_movie_dir, "missing_age_rating", nfo_path=real_nfo_path)
 
+def _seed_scan_state(monkeypatch, issues):
+    from gui.core import health
+    monkeypatch.setitem(health._scan_state, "status", "done")
+    monkeypatch.setitem(health._scan_state, "issues", issues)
+    monkeypatch.setitem(health._scan_state, "summary", {"critical": 0, "warning": 0, "info": 0})
+    monkeypatch.setitem(health._scan_state, "media_structure", {"series": [], "movies": []})
+    monkeypatch.setattr(health, "_write_cache", lambda: None)
+
+
+def test_refresh_after_nfo_write_drops_resolved_findings(tmp_path, monkeypatch):
+    from gui.core import health
+    nfo_path = tmp_path / "Show S01E01.nfo"
+    nfo_path.write_text(
+        "<episodedetails><title>T</title><plot>P</plot>"
+        "<aired>2024-01-01</aired><mpaa>FSK 12</mpaa></episodedetails>",
+        encoding="utf-8",
+    )
+    real_nfo = os.path.realpath(str(nfo_path))
+    _seed_scan_state(monkeypatch, [
+        {"key": f"health:incomplete_nfo:{real_nfo}", "type": "incomplete_nfo", "severity": "critical", "path": real_nfo},
+        {"key": f"health:missing_age_rating:{real_nfo}", "type": "missing_age_rating", "severity": "warning", "path": real_nfo},
+        {"key": f"health:small_file:{real_nfo}", "type": "small_file", "severity": "warning", "path": real_nfo},
+    ])
+
+    health.refresh_issues_after_nfo_write(str(nfo_path), "episode")
+
+    remaining = {issue["type"] for issue in health._scan_state["issues"]}
+    assert "incomplete_nfo" not in remaining
+    assert "missing_age_rating" not in remaining
+    # Unrelated findings must survive the refresh.
+    assert "small_file" in remaining
+
+
+def test_refresh_after_nfo_write_keeps_unresolved_findings(tmp_path, monkeypatch):
+    from gui.core import health
+    nfo_path = tmp_path / "Show S01E01.nfo"
+    # Plot still missing and FSK still absent: nothing may be removed.
+    nfo_path.write_text("<episodedetails><title>T</title></episodedetails>", encoding="utf-8")
+    real_nfo = os.path.realpath(str(nfo_path))
+    _seed_scan_state(monkeypatch, [
+        {"key": f"health:incomplete_nfo:{real_nfo}", "type": "incomplete_nfo", "severity": "critical", "path": real_nfo},
+        {"key": f"health:missing_age_rating:{real_nfo}", "type": "missing_age_rating", "severity": "warning", "path": real_nfo},
+    ])
+
+    health.refresh_issues_after_nfo_write(str(nfo_path), "episode")
+
+    remaining = {issue["type"] for issue in health._scan_state["issues"]}
+    assert remaining == {"incomplete_nfo", "missing_age_rating"}
+
+
 if __name__ == '__main__':
     unittest.main()

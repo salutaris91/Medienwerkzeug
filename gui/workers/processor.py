@@ -3139,6 +3139,9 @@ def process_worker(params):
             from gui.core.jobs import update_job
             update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=10)
 
+            # (path, kind) of every successfully written NFO for the health refresh below
+            written_nfo_paths = []
+
             if nfo_type == "tvshow":
                 show_id = params.get("show_id")
                 season = params.get("season", 1)
@@ -3175,7 +3178,8 @@ def process_worker(params):
                     if not patch_ok:
                         raise RuntimeError(patch_message)
                     log_message(f"tvshow.nfo Feld-Patch: {patch_message}")
-                
+                    written_nfo_paths.append((show_nfo_path, "tvshow"))
+
                 update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=30)
 
                 # Existing season.nfo files are optional. When explicitly edited,
@@ -3204,7 +3208,8 @@ def process_worker(params):
                     if not patch_ok:
                         raise RuntimeError(patch_message)
                     log_message(f"season.nfo Feld-Patch: {patch_message}")
-                
+                    written_nfo_paths.append((season_nfo_path, "season"))
+
                 # B. Fetch episodes list from metadata service
                 log_message("Rufe Episoden-Metadaten für Mappings ab...")
                 episodes = {}
@@ -3309,6 +3314,7 @@ def process_worker(params):
                         if not patch_ok:
                             raise RuntimeError(patch_message)
                         log_message(f"Episoden-NFO Feld-Patch für '{filename}': {patch_message}")
+                        written_nfo_paths.append((episode_nfo_path, "episode"))
                     except Exception as e:
                         episode_error = f"{filename}: {e}"
                         episode_errors.append(episode_error)
@@ -3367,7 +3373,13 @@ def process_worker(params):
                     if not patch_ok:
                         raise RuntimeError(patch_message)
                     log_message(f"Film-NFO Feld-Patch: {patch_message}")
-                    
+                    written_nfo_paths.append((target_nfo_path, "movie"))
+                else:
+                    # A silent no-op would report success without writing anything.
+                    raise RuntimeError(
+                        "Film-NFO nicht verarbeitet: weder Metadaten-ID noch manuelle Angaben übergeben."
+                    )
+
                 update_job(task_id, pipeline_step="metadata", pipeline_status="done", pipeline_progress=100)
                 
             # Invalidate the health-scan cache so repaired NFOs drop out of the health check
@@ -3380,6 +3392,15 @@ def process_worker(params):
                 _hc.invalidate_entry(os.path.dirname(current_dir))
             except Exception as cache_err:
                 log_message(f"[NFO Agent] Cache-Invalidierung übersprungen: {cache_err}")
+
+            # Drop resolved findings from the live scan result so the dashboard
+            # reflects the repair immediately (same mechanism as the FSK quick fix).
+            try:
+                from gui.core.health import refresh_issues_after_nfo_write
+                for written_path, written_kind in written_nfo_paths:
+                    refresh_issues_after_nfo_write(written_path, written_kind)
+            except Exception as refresh_err:
+                log_message(f"[NFO Agent] Health-Aktualisierung übersprungen: {refresh_err}")
 
             log_message("✅ NFO Agent erfolgreich abgeschlossen.")
             update_job(task_id, pipeline_step="metadata", pipeline_status="done", pipeline_progress=100)
