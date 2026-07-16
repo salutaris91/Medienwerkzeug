@@ -1573,3 +1573,27 @@ Zwei klar getrennte Schritte wie beim Onboarding:
 
 ### Aufwand (grob)
 Mittel: reine Frontend-Umstrukturierung mit umfangreicher Testanpassung; keine Backend-Änderungen.
+
+---
+
+## 53. Health-Check: Schweregrade aus der Oberfläche entfernen
+
+**Einordnung / Priorität:** UX-Vereinfachung, beschlossen am 16.07.2026 nach dem ersten Voll-Scan der echten Bibliothek.
+
+**Problem:**
+Der reale NAS-Scan meldet 288 „kritische" Befunde, 1.225 Warnungen und 382 Hinweise. Bei diesen Mengen verliert die Dreiteilung jede Orientierungswirkung. Zudem ist die Einstufung eine redaktionelle Meinung des Tools (z. B. „unvollständige NFO = kritisch"), die die tatsächliche Priorität des Nutzers nicht kennt. Die Registry-Gruppen (Metadaten/Artwork/Dateien/Struktur), die Fehlertyp-Ansicht und die hierarchische Medienansicht beantworten „was", „wovon wie viel" und „wo" bereits besser.
+
+**Ziel:**
+Alle Befunde werden in der Oberfläche neutral als „Hinweise" behandelt.
+
+1. **Anzeigemodus „Schweregrad" entfernen;** „Fehlertyp" und „Medienorientiert" bleiben.
+2. **Zähler-Chips** (kritisch/Warnung/Hinweis) durch eine Gesamtzahl plus Gruppenzähler ersetzen; Severity-Färbung entfällt.
+3. **Datenmodell zunächst unverändert:** Das interne `severity`-Feld bleibt im ersten Schritt bestehen (API-Kompatibilität, Alt-Caches); die UI ignoriert es. Entfernung aus Scanner/API erst in einem zweiten Schritt, wenn kein Consumer mehr darauf zugreift.
+4. **Objektiv defekte Zustände** (unlesbare NFO, leerer Ordner, Episodenlücke) brauchen keinen eigenen Schweregrad — Gruppe und Typ transportieren das; bei Bedarf später eine „Defektes zuerst"-Sortierung prüfen.
+
+**Umsetzung (grob):**
+1. Frontend: Schweregrad-Ansicht, Severity-Chips und -Farben entfernen; Summary auf Gesamt-/Gruppenzähler umstellen; Tests anpassen.
+2. Backend (Schritt 2, optional): `severity` aus `_add_issue`, Summary und Cache-Schema entfernen; Cache-Version erhöhen.
+
+### Aufwand (grob)
+Klein (Schritt 1, Frontend); klein–mittel inkl. Schritt 2 (Backend-Bereinigung mit Cache-Bump).
