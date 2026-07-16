@@ -9690,6 +9690,32 @@ function renderSyncCategories() {
     });
 }
 
+const SERVER_RESTART_BUTTON_HTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-power" style="height:12px; width:12px; margin-right:6px;"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>Server neu starten';
+
+function restoreServerRestartButton(button) {
+    button.disabled = false;
+    button.innerHTML = SERVER_RESTART_BUTTON_HTML;
+}
+
+async function waitForServerRestart(fetchStatus = () => fetch("/api/status"), options = {}) {
+    const maxAttempts = options.maxAttempts ?? 60;
+    const pollDelayMs = options.pollDelayMs ?? 1000;
+    const sleep = options.sleep ?? ((delay) => new Promise((resolve) => setTimeout(resolve, delay)));
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        await sleep(pollDelayMs);
+        try {
+            const response = await fetchStatus();
+            if (response.ok) {
+                return true;
+            }
+        } catch (error) {
+            // A short connection failure is expected while the process restarts.
+        }
+    }
+    return false;
+}
+
 // Bind Settings Events
 document.addEventListener("DOMContentLoaded", () => {
     const btnSaveSettings = document.getElementById("btn-save-settings");
@@ -9823,48 +9849,42 @@ document.addEventListener("DOMContentLoaded", () => {
                     const data = await response.json();
                     if (data.status === "busy") {
                         alert("Abgebrochen: " + data.message);
-                        btnRestartServer.disabled = false;
-                        btnRestartServer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-power" style="height:12px; width:12px; margin-right:6px;"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>Server neu starten';
+                        restoreServerRestartButton(btnRestartServer);
                     } else if (data.status === "restarting") {
                         appendConsoleLog("[System]: Server startet neu... Warte auf Neustart.");
                         expandConsole();
-
-                        const pollInterval = setInterval(async () => {
-                            try {
-                                const res = await fetch("/api/status");
-                                if (res.ok) {
-                                    clearInterval(pollInterval);
-                                    appendConsoleLog("[System]: Server wieder online. Lade Seite neu...");
-                                    setTimeout(() => {
-                                        location.reload();
-                                    }, 500);
-                                }
-                            } catch (err) {
-                                // Keep polling
-                            }
-                        }, 1000);
-                    }
-                } else {
-                    alert("Fehler beim Senden des Neustart-Befehls.");
-                    btnRestartServer.disabled = false;
-                    btnRestartServer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-power" style="height:12px; width:12px; margin-right:6px;"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>Server neu starten';
-                }
-            } catch (e) {
-                appendConsoleLog("[System]: Verbindung getrennt. Warte auf Server...");
-                const pollInterval = setInterval(async () => {
-                    try {
-                        const res = await fetch("/api/status");
-                        if (res.ok) {
-                            clearInterval(pollInterval);
+                        const serverIsOnline = await waitForServerRestart();
+                        if (serverIsOnline) {
                             appendConsoleLog("[System]: Server wieder online. Lade Seite neu...");
                             setTimeout(() => {
                                 location.reload();
                             }, 500);
+                        } else {
+                            appendConsoleLog("[System]: Neustart nach 60 Sekunden nicht abgeschlossen.");
+                            alert("Der Server wurde innerhalb von 60 Sekunden nicht wieder erreichbar. Bitte prüfe den Container-Status und die Server-Logs.");
+                            restoreServerRestartButton(btnRestartServer);
                         }
-                    } catch (err) {
-                        // Keep polling
+                    } else {
+                        alert("Der Server hat den Neustart-Befehl nicht bestätigt.");
+                        restoreServerRestartButton(btnRestartServer);
                     }
-                }, 1000);
+                } else {
+                    alert("Fehler beim Senden des Neustart-Befehls.");
+                    restoreServerRestartButton(btnRestartServer);
+                }
+            } catch (e) {
+                appendConsoleLog("[System]: Verbindung getrennt. Warte auf Server...");
+                const serverIsOnline = await waitForServerRestart();
+                if (serverIsOnline) {
+                    appendConsoleLog("[System]: Server wieder online. Lade Seite neu...");
+                    setTimeout(() => {
+                        location.reload();
+                    }, 500);
+                } else {
+                    appendConsoleLog("[System]: Neustart nach 60 Sekunden nicht abgeschlossen.");
+                    alert("Der Server wurde innerhalb von 60 Sekunden nicht wieder erreichbar. Bitte prüfe den Container-Status und die Server-Logs.");
+                    restoreServerRestartButton(btnRestartServer);
+                }
             }
         });
     }
@@ -12391,8 +12411,9 @@ const HEALTH_TYPE_LABELS = {
     genre_container: "Sammelordner",
     bad_folder_name: "Ungültiger Ordnername",
     name_mismatch: "Namensabweichung (Ordner vs. Datei)",
-    missing_nfo: "Fehlende NFO-Metadaten",
-    incomplete_nfo: "Unvollständige NFO-Metadaten",
+    missing_nfo: "Fehlende Metadaten",
+    unreadable_nfo: "NFO unlesbar",
+    incomplete_nfo: "Metadaten unvollständig",
     episode_gap: "Episodenlücke in Staffel",
     empty_folder: "Leerer Ordner",
     no_video: "Keine Videodatei im Ordner",
@@ -12433,6 +12454,314 @@ const HEALTH_SEVERITY = {
     warning:  { label: "Warnung",  icon: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="height:14px; width:14px; display:inline-block; vertical-align:middle; margin-right:4px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>`, color: "#f59e0b" },
     info:     { label: "Hinweis",  icon: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info" style="height:14px; width:14px; display:inline-block; vertical-align:middle; margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>`, color: "#3b82f6" },
 };
+
+const HEALTH_MEDIA_NFO_TYPES = new Set(["missing_nfo", "incomplete_nfo", "unreadable_nfo"]);
+const HEALTH_MEDIA_ARTWORK_TYPES = new Set(["missing_season_poster", "missing_poster", "missing_backdrop", "missing_logo", "missing_banner"]);
+const HEALTH_MEDIA_FSK_TYPES = new Set(["missing_age_rating", "invalid_age_rating"]);
+const HEALTH_MEDIA_METADATA_TYPES = new Set([...HEALTH_MEDIA_NFO_TYPES, ...HEALTH_MEDIA_FSK_TYPES]);
+
+function getIssuesForKeys(issueKeys, issuesByKey) {
+    return [...new Set(issueKeys || [])].map((key) => issuesByKey[key]).filter(Boolean);
+}
+
+function renderMediaSummaryChip(label, tone = "neutral") {
+    return `<span class="health-media-chip health-media-chip-${tone}">${escapeHTML(label)}</span>`;
+}
+
+function countHealthMediaIssues(issues, typeSet) {
+    return issues.filter((issue) => typeSet.has(issue.type)).length;
+}
+
+function formatFskSummaryValue(value) {
+    return String(value || "").trim().replace(/^FSK\s*/i, "");
+}
+
+function getSeriesFskSummary(series, totalEpisodes, affectedEpisodes, showFskActionable) {
+    const episodeLabel = affectedEpisodes === 1 ? "Folge" : "Folgen";
+    if (!series.has_nfo || ["nfo_missing", "unreadable"].includes(series.fsk_status)) {
+        const episodeSuffix = affectedEpisodes > 0 ? ` + ${affectedEpisodes} ${episodeLabel}` : "";
+        return { label: `FSK: Serien-NFO${episodeSuffix} prüfen`, tone: "danger" };
+    }
+    if (showFskActionable && affectedEpisodes > 0) {
+        return { label: `FSK: Serie + ${affectedEpisodes} ${episodeLabel} prüfen`, tone: "warning" };
+    }
+    if (showFskActionable) {
+        return { label: "FSK: Serie prüfen", tone: "warning" };
+    }
+    if (affectedEpisodes > 0) {
+        const totalLabel = totalEpisodes > 0 ? ` von ${totalEpisodes}` : "";
+        return { label: `FSK: ${affectedEpisodes}${totalLabel} ${episodeLabel} prüfen`, tone: "warning" };
+    }
+
+    const currentFsk = formatFskSummaryValue(series.current_fsk);
+    return { label: currentFsk ? `FSK: ${currentFsk}` : "FSK: korrekt", tone: "success" };
+}
+
+function getMovieFskSummary(movie, hasNfoIssue) {
+    if (hasNfoIssue || ["nfo_missing", "unreadable"].includes(movie.fsk_status)) {
+        return { label: "FSK: nicht prüfbar", tone: "danger" };
+    }
+    if (movie.fsk_status === "missing_fsk") {
+        return { label: "FSK: fehlt", tone: "warning" };
+    }
+    if (movie.fsk_status === "invalid_fsk") {
+        const currentFsk = formatFskSummaryValue(movie.current_fsk);
+        return { label: currentFsk ? `FSK: ${currentFsk} ungültig` : "FSK: ungültig", tone: "warning" };
+    }
+
+    const currentFsk = formatFskSummaryValue(movie.current_fsk);
+    return { label: currentFsk ? `FSK: ${currentFsk}` : "FSK: korrekt", tone: "success" };
+}
+
+function getHealthIssueGroup(issue) {
+    if (issue && issue.group) return issue.group;
+    if (issue && HEALTH_MEDIA_METADATA_TYPES.has(issue.type)) return "metadata";
+    if (issue && HEALTH_MEDIA_ARTWORK_TYPES.has(issue.type)) return "artwork";
+    if (issue && ["small_file", "no_video", "empty_folder", "codec_inconsistency"].includes(issue.type)) return "files";
+    if (issue && ["episode_gap", "nested_duplicate", "genre_container", "bad_folder_name", "name_mismatch", "inconsistent_naming"].includes(issue.type)) return "structure";
+    return "other";
+}
+
+function hasMetadataProblem(issues, fskStatus = "") {
+    return issues.some((issue) => getHealthIssueGroup(issue) === "metadata")
+        || ["nfo_missing", "unreadable", "missing_fsk", "invalid_fsk"].includes(fskStatus);
+}
+
+function getMetadataProblemLabels(issues, fskStatus = "") {
+    const labels = issues
+        .filter((issue) => getHealthIssueGroup(issue) === "metadata")
+        .map((issue) => issue.label || HEALTH_TYPE_LABELS[issue.type] || issue.type);
+    const hasFskIssue = issues.some((issue) => HEALTH_MEDIA_FSK_TYPES.has(issue.type));
+    if (!hasFskIssue && fskStatus === "missing_fsk") labels.push("FSK fehlt");
+    if (!hasFskIssue && fskStatus === "invalid_fsk") labels.push("FSK ungültig");
+    if (fskStatus === "nfo_missing" && !labels.length) labels.push("Fehlende Metadaten");
+    if (fskStatus === "unreadable" && !labels.length) labels.push("Metadaten nicht lesbar");
+    return [...new Set(labels)];
+}
+
+function renderHealthMetadataButton(path, editMode, episodeFile = "", label = "Metadaten bearbeiten") {
+    const episodeData = episodeFile ? ` data-episode-file="${escapeHTML(episodeFile)}"` : "";
+    return `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(path)}" data-edit-mode="${escapeHTML(editMode)}"${episodeData}>${escapeHTML(label)}</button>`;
+}
+
+function renderHealthIgnoreButton(scopeKind, scopePath) {
+    return `<button class="btn btn-secondary btn-sm health-ignore-scope" data-scope-kind="${escapeHTML(scopeKind)}" data-scope-path="${escapeHTML(scopePath)}">Hinweise ignorieren</button>`;
+}
+
+function renderHealthIssueRows(issues) {
+    return issues.map((issue) => {
+        const label = issue.label || HEALTH_TYPE_LABELS[issue.type] || issue.type;
+        const missingFields = Array.isArray(issue.missing_fields) && issue.missing_fields.length
+            ? `Fehlende Felder: ${issue.missing_fields.join(", ")}`
+            : "";
+        return `<div class="health-media-detail-row health-media-finding-row">
+                    <span>${escapeHTML(label)}</span>
+                    <span class="text-muted">${escapeHTML(missingFields || issue.message || "")}</span>
+                </div>`;
+    }).join("");
+}
+
+// Active tab of the media view; persists across status re-renders.
+let healthMediaActiveTab = "series";
+
+function renderHealthMediaView(data, openTypes) {
+    const seriesList = data.media_structure ? data.media_structure.series || [] : [];
+    const moviesList = data.media_structure ? data.media_structure.movies || [] : [];
+    const issuesByKey = {};
+    (data.issues || []).forEach((issue) => { issuesByKey[issue.key] = issue; });
+    const issuesFor = (item) => getIssuesForKeys(item && item.issue_keys ? item.issue_keys : [], issuesByKey);
+    const issueCountForGroup = (issues, group) => issues.filter((issue) => getHealthIssueGroup(issue) === group).length;
+    let html = "";
+    let renderedSeriesCount = 0;
+
+    seriesList.forEach((series) => {
+        const showIssues = issuesFor(series);
+        const seasons = series.seasons || [];
+        const allEpisodes = seasons.flatMap((season) => season.episodes || []);
+        const episodeEntries = allEpisodes.map((episode) => ({ episode, issues: issuesFor(episode) }));
+        const affectedEpisodes = episodeEntries.filter(({ episode, issues }) => issues.length || hasMetadataProblem(issues, episode.fsk_status));
+        const metadataEpisodes = episodeEntries.filter(({ episode, issues }) => hasMetadataProblem(issues, episode.fsk_status));
+        const allSeriesIssues = [...showIssues];
+        seasons.forEach((season) => {
+            allSeriesIssues.push(...issuesFor(season));
+            (season.episodes || []).forEach((episode) => allSeriesIssues.push(...issuesFor(episode)));
+        });
+        const uniqueSeriesIssues = [...new Map(allSeriesIssues.map((issue) => [issue.key, issue])).values()];
+        const showMetadataProblem = hasMetadataProblem(showIssues, series.fsk_status);
+        if (!showMetadataProblem && affectedEpisodes.length === 0 && uniqueSeriesIssues.length === 0) return;
+
+        renderedSeriesCount++;
+        const summaryChips = [];
+        if (showMetadataProblem) summaryChips.push(renderMediaSummaryChip("Serien-Metadaten: prüfen", "danger"));
+        if (metadataEpisodes.length > 0) {
+            summaryChips.push(renderMediaSummaryChip(
+                `Metadaten: ${metadataEpisodes.length} von ${allEpisodes.length} ${metadataEpisodes.length === 1 ? "Folge" : "Folgen"} unvollständig`,
+                "warning"
+            ));
+        }
+        const artworkCount = issueCountForGroup(uniqueSeriesIssues, "artwork");
+        const fileCount = issueCountForGroup(uniqueSeriesIssues, "files");
+        const structureCount = issueCountForGroup(uniqueSeriesIssues, "structure");
+        if (artworkCount) summaryChips.push(renderMediaSummaryChip(`Artwork: ${artworkCount} fehlen`, "warning"));
+        if (fileCount) summaryChips.push(renderMediaSummaryChip(`Dateien: ${fileCount} prüfen`, "warning"));
+        if (structureCount) summaryChips.push(renderMediaSummaryChip(`Struktur: ${structureCount} prüfen`, "warning"));
+
+        const isShowOpen = openTypes.includes(`show:${series.path}`);
+        html += `<details class="health-media-card" data-show-path="${escapeHTML(series.path)}" ${isShowOpen ? "open" : ""}>
+                    <summary class="health-media-summary">
+                        <div class="health-media-summary-main"><span>${escapeHTML(series.name)}</span></div>
+                        <div class="health-media-summary-chips">${summaryChips.join("")}</div>
+                        <span class="health-media-disclosure"><span class="health-media-disclosure-closed">Details anzeigen</span><span class="health-media-disclosure-open">Details schließen</span></span>
+                    </summary>
+                    <div class="health-media-details">
+                        <div class="health-media-scope-action">
+                            <span><strong>Gesamte Serie</strong><small>Serien-NFO, Staffeln und Folgen gemeinsam prüfen</small></span>
+                            <div class="health-media-row-actions">
+                                ${renderHealthIgnoreButton("series", series.path)}
+                                ${renderHealthMetadataButton(series.path, "full", "", "Ganze Serie bearbeiten")}
+                            </div>
+                        </div>`;
+
+        if (showMetadataProblem) {
+            const showLabels = getMetadataProblemLabels(showIssues, series.fsk_status);
+            const agentPath = showIssues.find((issue) => issue.agent_path)?.agent_path || series.path;
+            html += `<div class="health-media-detail-row health-media-primary-row">
+                        <span class="health-media-file">📄 tvshow.nfo</span>
+                        <div class="health-media-row-actions">
+                            <span class="text-danger">${escapeHTML(showLabels.join(" · ") || "Metadaten unvollständig")}</span>
+                            ${renderHealthMetadataButton(agentPath, "series")}
+                        </div>
+                     </div>`;
+        }
+        html += renderHealthIssueRows(showIssues.filter((issue) => getHealthIssueGroup(issue) !== "metadata"));
+
+        seasons.forEach((season) => {
+            const seasonIssues = issuesFor(season);
+            const episodeEntriesInSeason = (season.episodes || []).map((episode) => ({ episode, issues: issuesFor(episode) }));
+            const affectedInSeason = episodeEntriesInSeason.filter(({ episode, issues }) => issues.length || hasMetadataProblem(issues, episode.fsk_status));
+            const metadataInSeason = episodeEntriesInSeason.filter(({ episode, issues }) => hasMetadataProblem(issues, episode.fsk_status));
+            if (!seasonIssues.length && !affectedInSeason.length) return;
+
+            const seasonChips = [];
+            if (metadataInSeason.length) {
+                seasonChips.push(renderMediaSummaryChip(
+                    `Metadaten: ${metadataInSeason.length} von ${episodeEntriesInSeason.length} ${metadataInSeason.length === 1 ? "Folge" : "Folgen"} unvollständig`,
+                    "warning"
+                ));
+            }
+            const seasonArtwork = issueCountForGroup(seasonIssues, "artwork");
+            const seasonFiles = issueCountForGroup(seasonIssues, "files");
+            const seasonStructure = issueCountForGroup(seasonIssues, "structure");
+            if (seasonArtwork) seasonChips.push(renderMediaSummaryChip(`Artwork: ${seasonArtwork} fehlt`, "warning"));
+            if (seasonFiles) seasonChips.push(renderMediaSummaryChip(`Dateien: ${seasonFiles} prüfen`, "warning"));
+            if (seasonStructure) seasonChips.push(renderMediaSummaryChip(`Struktur: ${seasonStructure} prüfen`, "warning"));
+
+            html += `<details class="health-media-season" data-season-path="${escapeHTML(season.path)}">
+                        <summary class="health-media-nested-summary">
+                            <span class="health-media-nested-title">📁 ${escapeHTML(season.name)}</span>
+                            <span class="health-media-summary-chips">${seasonChips.join("")}</span>
+                            <span class="health-media-nested-disclosure">Staffel anzeigen</span>
+                        </summary>
+                        <div class="health-media-nested-body">
+                            <div class="health-media-scope-action">
+                                <span><strong>${escapeHTML(season.name)}</strong><small>Optionale Staffel-NFO und betroffene Folgen prüfen</small></span>
+                                <div class="health-media-row-actions">
+                                    ${renderHealthIgnoreButton("season", season.path)}
+                                    ${renderHealthMetadataButton(season.path, "season", "", "Staffel bearbeiten")}
+                                </div>
+                            </div>
+                            ${renderHealthIssueRows(seasonIssues)}`;
+
+            if (affectedInSeason.length) {
+                html += `<div class="health-media-episode-heading">Folgen</div>`;
+            }
+            affectedInSeason.forEach(({ episode, issues }) => {
+                const metadataProblem = hasMetadataProblem(issues, episode.fsk_status);
+                const labels = getMetadataProblemLabels(issues, episode.fsk_status);
+                const episodeLabel = labels.length ? labels.join(" · ") : `${issues.length} ${issues.length === 1 ? "Hinweis" : "Hinweise"}`;
+                const agentPath = issues.find((issue) => issue.agent_path)?.agent_path || season.path;
+                html += `<details class="health-media-episode" data-episode-path="${escapeHTML(episode.path || episode.nfo_path || episode.name)}">
+                            <summary class="health-media-nested-summary health-media-episode-summary">
+                                <span class="health-media-nested-title">📄 ${escapeHTML(episode.name)}</span>
+                                <span class="health-media-chip ${metadataProblem ? "health-media-chip-warning" : ""}">${escapeHTML(episodeLabel)}</span>
+                                <span class="health-media-nested-disclosure">Folge anzeigen</span>
+                            </summary>
+                            <div class="health-media-nested-body">
+                                ${renderHealthIssueRows(issues)}
+                                <div class="health-media-episode-action">
+                                    ${renderHealthIgnoreButton("episode", episode.path || episode.nfo_path || episode.name)}
+                                    ${metadataProblem ? renderHealthMetadataButton(agentPath, "episode", episode.name) : ""}
+                                </div>
+                            </div>
+                         </details>`;
+            });
+            html += `</div></details>`;
+        });
+        html += `</div></details>`;
+    });
+
+    if (!renderedSeriesCount) html += `<p class="text-muted health-media-empty">Keine auffälligen Serien gefunden.</p>`;
+
+    const seriesHtml = html;
+    html = "";
+    let renderedMoviesCount = 0;
+    moviesList.forEach((movie) => {
+        const movieIssues = issuesFor(movie);
+        const metadataProblem = hasMetadataProblem(movieIssues, movie.fsk_status);
+        if (!movieIssues.length && !metadataProblem) return;
+        renderedMoviesCount++;
+        const chips = [];
+        if (metadataProblem) chips.push(renderMediaSummaryChip("Metadaten: prüfen", "danger"));
+        const artworkCount = issueCountForGroup(movieIssues, "artwork");
+        const fileCount = issueCountForGroup(movieIssues, "files");
+        if (artworkCount) chips.push(renderMediaSummaryChip(`Artwork: ${artworkCount} fehlen`, "warning"));
+        if (fileCount) chips.push(renderMediaSummaryChip(`Dateien: ${fileCount} prüfen`, "warning"));
+        const isMovieOpen = openTypes.includes(`movie:${movie.path}`);
+        html += `<details class="health-media-card" data-movie-path="${escapeHTML(movie.path)}" ${isMovieOpen ? "open" : ""}>
+                    <summary class="health-media-summary">
+                        <div class="health-media-summary-main"><span>${escapeHTML(movie.name)}</span></div>
+                        <div class="health-media-summary-chips">${chips.join("")}</div>
+                        <span class="health-media-disclosure"><span class="health-media-disclosure-closed">Details anzeigen</span><span class="health-media-disclosure-open">Details schließen</span></span>
+                    </summary>
+                    <div class="health-media-details">
+                        <div class="health-media-episode-action">${renderHealthIgnoreButton("movie", movie.path)}</div>`;
+        if (metadataProblem) {
+            const labels = getMetadataProblemLabels(movieIssues, movie.fsk_status);
+            const agentPath = movieIssues.find((issue) => issue.agent_path)?.agent_path || movie.path;
+            html += `<div class="health-media-detail-row health-media-primary-row">
+                        <span class="health-media-file">📄 ${escapeHTML(osBasename(movie.nfo_path || "movie.nfo"))}</span>
+                        <div class="health-media-row-actions">
+                            <span class="text-danger">${escapeHTML(labels.join(" · ") || "Metadaten unvollständig")}</span>
+                            ${renderHealthMetadataButton(agentPath, "full")}
+                        </div>
+                     </div>`;
+        }
+        html += renderHealthIssueRows(movieIssues.filter((issue) => getHealthIssueGroup(issue) !== "metadata"));
+        html += `</div></details>`;
+    });
+    if (!renderedMoviesCount) html += `<p class="text-muted health-media-empty">Keine auffälligen Filme gefunden.</p>`;
+    const moviesHtml = html;
+
+    const activeTab = healthMediaActiveTab === "movies" ? "movies" : "series";
+    return `<div class="health-media-tabs" role="tablist">
+                <button type="button" role="tab" class="health-media-tab ${activeTab === "series" ? "active" : ""}" data-media-tab="series" aria-selected="${activeTab === "series"}">Serien (${renderedSeriesCount})</button>
+                <button type="button" role="tab" class="health-media-tab ${activeTab === "movies" ? "active" : ""}" data-media-tab="movies" aria-selected="${activeTab === "movies"}">Filme (${renderedMoviesCount})</button>
+            </div>
+            <div class="health-media-tab-panel ${activeTab === "series" ? "" : "hidden"}" data-media-panel="series">${seriesHtml}</div>
+            <div class="health-media-tab-panel ${activeTab === "movies" ? "" : "hidden"}" data-media-panel="movies">${moviesHtml}</div>`;
+}
+
+function switchHealthMediaTab(tabName) {
+    healthMediaActiveTab = tabName === "movies" ? "movies" : "series";
+    document.querySelectorAll(".health-media-tab").forEach((button) => {
+        const isActive = button.getAttribute("data-media-tab") === healthMediaActiveTab;
+        button.classList.toggle("active", isActive);
+        button.setAttribute("aria-selected", String(isActive));
+    });
+    document.querySelectorAll(".health-media-tab-panel").forEach((panel) => {
+        panel.classList.toggle("hidden", panel.getAttribute("data-media-panel") !== healthMediaActiveTab);
+    });
+}
 
 window.switchLibraryTab = function(tabId) {
     document.querySelectorAll(".library-tab-content").forEach(el => el.classList.add("hidden"));
@@ -12495,12 +12824,14 @@ function initHealthDashboard() {
 
     const btnSev = document.getElementById("btn-health-group-severity");
     const btnType = document.getElementById("btn-health-group-type");
-    if (btnSev && btnType) {
+    const btnMedia = document.getElementById("btn-health-group-media");
+    if (btnSev && btnType && btnMedia) {
         btnSev.addEventListener("click", () => {
             if (window.healthGroupMode !== "severity") {
                 window.healthGroupMode = "severity";
                 btnSev.classList.add("active");
                 btnType.classList.remove("active");
+                btnMedia.classList.remove("active");
                 pollHealthStatus(false);
             }
         });
@@ -12509,6 +12840,16 @@ function initHealthDashboard() {
                 window.healthGroupMode = "type";
                 btnType.classList.add("active");
                 btnSev.classList.remove("active");
+                btnMedia.classList.remove("active");
+                pollHealthStatus(false);
+            }
+        });
+        btnMedia.addEventListener("click", () => {
+            if (window.healthGroupMode !== "media") {
+                window.healthGroupMode = "media";
+                btnMedia.classList.add("active");
+                btnSev.classList.remove("active");
+                btnType.classList.remove("active");
                 pollHealthStatus(false);
             }
         });
@@ -12734,6 +13075,7 @@ function runContextTool(toolType, path) {
 }
 
 function renderHealthStatus(data) {
+    window.currentHealthStatusData = data;
     const statusEl = document.getElementById("health-scan-status");
     const progWrap = document.getElementById("health-progress-wrap");
     const progBar = document.getElementById("health-progress-bar");
@@ -12905,6 +13247,14 @@ function renderHealthStatus(data) {
                 if (sev) openSeverities.push(sev);
                 const typ = d.getAttribute("data-type-id");
                 if (typ) openTypes.push(typ);
+                const showPath = d.getAttribute("data-show-path");
+                if (showPath) openTypes.push(`show:${showPath}`);
+                const moviePath = d.getAttribute("data-movie-path");
+                if (moviePath) openTypes.push(`movie:${moviePath}`);
+                const seasonPath = d.getAttribute("data-season-path");
+                if (seasonPath) openTypes.push(`season:${seasonPath}`);
+                const episodePath = d.getAttribute("data-episode-path");
+                if (episodePath) openTypes.push(`episode:${episodePath}`);
             }
         });
     }
@@ -12988,6 +13338,8 @@ function renderHealthStatus(data) {
                     if (it.scope_kind) scopeData += ` data-scope-kind="${escapeHTML(it.scope_kind)}"`;
                     if (it.series_path) scopeData += ` data-series-path="${escapeHTML(it.series_path)}"`;
                     if (it.season_path) scopeData += ` data-season-path="${escapeHTML(it.season_path)}"`;
+                    const nfoEditMode = it.media_kind === "series" ? "series" : (it.media_kind === "episode" ? "episode" : "full");
+                    const episodeFileData = it.episode_file ? ` data-episode-file="${escapeHTML(it.episode_file)}"` : "";
 
                     if (it.type === "nested_duplicate") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-structure-preview" data-path="${escapeHTML(it.path)}" title="Vorschau anzeigen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="height:12px; width:12px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>Vorschau</button>
@@ -12995,11 +13347,11 @@ function renderHealthStatus(data) {
                     } else if (it.type === "name_mismatch" || it.type === "bad_folder_name") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-fix-rename" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Umbenennen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit-3" style="height:12px; width:12px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Umbenennen</button>`;
                     } else if (it.type === "missing_age_rating" || it.type === "invalid_age_rating") {
-                        fixBtns = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" ${scopeData} title="FSK-Stufe setzen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>FSK setzen</button>`;
+                        fixBtns = `<button class="btn btn-accent btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" ${scopeData} title="Metadaten bearbeiten" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>Metadaten bearbeiten</button>`;
                     } else if (it.type === "missing_poster" || it.type === "missing_backdrop" || it.type === "missing_logo" || it.type === "missing_banner" || it.type === "missing_season_poster") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-artwork-search" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Bild online suchen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image" style="height:12px; width:12px;"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>Bild suchen</button>`;
                     } else if (it.type === "missing_nfo" || it.type === "incomplete_nfo") {
-                        fixBtns = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(it.path)}" title="NFO Agent für diesen Ordner öffnen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" style="height:12px; width:12px;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>NFO Agent</button>`;
+                        fixBtns = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(it.agent_path || it.path)}" data-edit-mode="${nfoEditMode}"${episodeFileData} title="Metadaten bearbeiten" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" style="height:12px; width:12px;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Metadaten bearbeiten</button>`;
                     }
                     html += `<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; font-size:0.9em; padding:8px 0; border-top:1px solid rgba(255,255,255,0.04);">
                                 <div style="flex:1; min-width:0; color:var(--text-main); font-weight:500;">
@@ -13014,7 +13366,7 @@ function renderHealthStatus(data) {
                 }
                 html += `</div></details>`;
             });
-        } else {
+        } else if (window.healthGroupMode === "type") {
             // Gruppierung nach Fehlertyp
             const grouped = {};
             data.issues.forEach(it => {
@@ -13123,17 +13475,23 @@ function renderHealthStatus(data) {
                     if (it.series_path) scopeData += ` data-series-path="${escapeHTML(it.series_path)}"`;
                     if (it.season_path) scopeData += ` data-season-path="${escapeHTML(it.season_path)}"`;
 
+                    let mediaKind = it.media_kind || "unknown";
+                    scopeData += ` data-media-kind="${mediaKind}"`;
+                    const nfoEditMode = mediaKind === "series" ? "series" : (mediaKind === "episode" ? "episode" : "full");
+                    const episodeFileData = it.episode_file ? ` data-episode-file="${escapeHTML(it.episode_file)}"` : "";
+
+
                     if (it.type === "nested_duplicate") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-structure-preview" data-path="${escapeHTML(it.path)}" title="Vorschau anzeigen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="height:12px; width:12px;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>Vorschau</button>
                                    <button class="btn btn-primary btn-sm health-structure-apply" data-path="${escapeHTML(it.path)}" title="Unterordner auflösen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height:12px; width:12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Auflösen</button>`;
                     } else if (it.type === "name_mismatch" || it.type === "bad_folder_name") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-fix-rename" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Umbenennen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-edit-3" style="height:12px; width:12px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Umbenennen</button>`;
                     } else if (it.type === "missing_age_rating" || it.type === "invalid_age_rating") {
-                        fixBtns = `<button class="btn btn-secondary btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" ${scopeData} title="FSK-Stufe setzen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>FSK setzen</button>`;
+                        fixBtns = `<button class="btn btn-accent btn-sm health-fix-fsk" data-path="${escapeHTML(it.path)}" ${scopeData} title="Metadaten bearbeiten" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" style="height:12px; width:12px;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>Metadaten bearbeiten</button>`;
                     } else if (it.type === "missing_poster" || it.type === "missing_backdrop" || it.type === "missing_logo" || it.type === "missing_banner" || it.type === "missing_season_poster") {
                         fixBtns = `<button class="btn btn-secondary btn-sm health-artwork-search" data-path="${escapeHTML(it.path)}" data-type="${escapeHTML(it.type)}" title="Bild online suchen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image" style="height:12px; width:12px;"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>Bild suchen</button>`;
                     } else if (it.type === "missing_nfo" || it.type === "incomplete_nfo") {
-                        fixBtns = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(it.path)}" title="NFO Agent für diesen Ordner öffnen" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" style="height:12px; width:12px;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>NFO Agent</button>`;
+                        fixBtns = `<button class="btn btn-accent btn-sm health-nfo-agent" data-path="${escapeHTML(it.agent_path || it.path)}" data-edit-mode="${nfoEditMode}"${episodeFileData} title="Metadaten bearbeiten" style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" style="height:12px; width:12px;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>Metadaten bearbeiten</button>`;
                     }
 
                     const m = HEALTH_SEVERITY[it.severity];
@@ -13152,7 +13510,10 @@ function renderHealthStatus(data) {
                 }
                 html += `</div></details>`;
             });
+        } else if (window.healthGroupMode === "media") {
+            html += renderHealthMediaView(data, openTypes);
         }
+
         html += renderIgnoredFooter(data.ignored_count);
         issuesEl.innerHTML = bannerHtml + html;
         if ((!data.issues || data.issues.length === 0) && structureIssues.length > 0) {
@@ -13165,9 +13526,18 @@ function renderHealthStatus(data) {
                 if (window.healthGroupMode === "severity") {
                     const sev = d.getAttribute("data-sev");
                     d.open = openSeverities.includes(sev) || (sev === "critical" && openSeverities.length === 0);
-                } else {
+                } else if (window.healthGroupMode === "type") {
                     const typ = d.getAttribute("data-type-id");
                     d.open = openTypes.includes(typ);
+                } else if (window.healthGroupMode === "media") {
+                    const showPath = d.getAttribute("data-show-path");
+                    const moviePath = d.getAttribute("data-movie-path");
+                    const seasonPath = d.getAttribute("data-season-path");
+                    const episodePath = d.getAttribute("data-episode-path");
+                    d.open = (showPath && openTypes.includes(`show:${showPath}`))
+                        || (moviePath && openTypes.includes(`movie:${moviePath}`))
+                        || (seasonPath && openTypes.includes(`season:${seasonPath}`))
+                        || (episodePath && openTypes.includes(`episode:${episodePath}`));
                 }
             });
         }
@@ -13205,9 +13575,8 @@ function renderHealthStatus(data) {
                     const detailsEl = b.closest("details");
                     const checkedItems = Array.from(detailsEl.querySelectorAll(".health-item-select:checked")).map(cb => ({
                         path: cb.getAttribute("data-path"),
-                        scope_kind: cb.getAttribute("data-scope-kind"),
-                        series_path: cb.getAttribute("data-series-path"),
-                        season_path: cb.getAttribute("data-season-path")
+                        scope_kind: "single", // Allgemeine Checkbox-Batches sind strikt single
+                        media_kind: cb.getAttribute("data-media-kind") || "unknown"
                     }));
                     const fskVal = detailsEl.querySelector(".health-batch-fsk-select")?.value;
 
@@ -13220,7 +13589,9 @@ function renderHealthStatus(data) {
                         return;
                     }
 
-                    openFskBatchModal(checkedItems, fskVal);
+                    const isMixed = new Set(checkedItems.map(i => i.media_kind)).size > 1;
+                    const mediaKind = isMixed ? "mixed" : (checkedItems.length > 0 ? checkedItems[0].media_kind : "unknown");
+                    openFskBatchModal(checkedItems, fskVal, "single", mediaKind);
                 });
             });
 
@@ -13269,19 +13640,7 @@ function renderHealthStatus(data) {
             });
         }
 
-        document.querySelectorAll("#health-issues .health-nfo-agent, #health-issues-structure .health-nfo-agent").forEach(b => {
-            b.addEventListener("click", () => {
-                const p = b.getAttribute("data-path");
-                if (p) openNfoAgentModal(p);
-            });
-        });
 
-        document.querySelectorAll("#health-issues .health-open-folder, #health-issues-structure .health-open-folder").forEach(b => {
-            b.addEventListener("click", () => {
-                const p = b.getAttribute("data-path");
-                window.openFolder({ path: p });
-            });
-        });
 
         // ==========================================================================
         // NEU: Doppelte Ordnerstruktur auflösen (Einzel & Batch)
@@ -13842,21 +14201,83 @@ function renderHealthStatus(data) {
 
         document.querySelectorAll("#health-issues .health-fix-fsk, #health-issues-structure .health-fix-fsk").forEach(b => {
             b.addEventListener("click", () => {
-                const item = {
-                    path: b.getAttribute("data-path"),
-                    scope_kind: b.getAttribute("data-scope-kind"),
-                    series_path: b.getAttribute("data-series-path"),
-                    season_path: b.getAttribute("data-season-path")
-                };
-                const input = prompt("Bitte FSK-Stufe eingeben (0, 6, 12, 16, 18):");
-                if (!input) return;
-                const fskVal = input.trim();
-                const validFsks = ["0", "6", "12", "16", "18"];
-                if (!validFsks.includes(fskVal)) {
-                    alert("Ungültiger Wert. Bitte nur 0, 6, 12, 16 oder 18 eingeben.");
+                const scopeKind = b.getAttribute("data-scope-kind") || "single";
+                const scope = (scopeKind === "series" || scopeKind === "season") ? scopeKind : "single";
+                if (scope === "single") {
+                    openNfoAgentModal(
+                        b.getAttribute("data-agent-path") || b.getAttribute("data-season-path") || b.getAttribute("data-series-path") || b.getAttribute("data-path"),
+                        scopeKind === "episode"
+                            ? { mode: "episode", episodeFile: b.getAttribute("data-episode-file") || b.getAttribute("data-path") }
+                            : { mode: "series" }
+                    );
                     return;
                 }
-                openFskBatchModal([item], fskVal);
+                const item = {
+                    path: b.getAttribute("data-path"),
+                    scope_kind: scopeKind,
+                    series_path: b.getAttribute("data-series-path"),
+                    season_path: b.getAttribute("data-season-path"),
+                    media_kind: b.getAttribute("data-media-kind") || "unknown"
+                };
+                openFskBatchModal([item], "12", scope, item.media_kind);
+            });
+        });
+
+        // Event-Listener für Serien-Gruppenaktion im Medienorientiert-Modus
+        document.querySelectorAll("#health-issues .show-group-fsk-btn").forEach(b => {
+            b.addEventListener("click", () => {
+                const path = b.getAttribute("data-path");
+                const selectEl = b.previousElementSibling;
+                const fskVal = selectEl ? selectEl.value : "12";
+                const item = {
+                    series_path: path,
+                    path: path,
+                    media_kind: "series"
+                };
+                openFskBatchModal([item], fskVal, "series", "series");
+            });
+        });
+
+        // Event-Listener für Staffel-Gruppenaktion im Medienorientiert-Modus
+        document.querySelectorAll("#health-issues .season-group-fsk-btn").forEach(b => {
+            b.addEventListener("click", () => {
+                const path = b.getAttribute("data-path");
+                const seriesPath = b.getAttribute("data-series-path");
+                const selectEl = b.previousElementSibling;
+                const fskVal = selectEl ? selectEl.value : "12";
+                const item = {
+                    season_path: path,
+                    series_path: seriesPath,
+                    path: path,
+                    media_kind: "series" // Staffel gehört zu Serien
+                };
+                openFskBatchModal([item], fskVal, "season", "series");
+            });
+        });
+
+        // Akkordeon-Zustand für Shows persistieren im Medienorientiert-Modus
+        issuesEl.querySelectorAll("details[data-show-path]").forEach(detailsEl => {
+            const path = detailsEl.getAttribute("data-show-path");
+            detailsEl.addEventListener("toggle", () => {
+                const key = `show:${path}`;
+                if (detailsEl.open) {
+                    if (!openTypes.includes(key)) openTypes.push(key);
+                } else {
+                    const idx = openTypes.indexOf(key);
+                    if (idx !== -1) openTypes.splice(idx, 1);
+                }
+            });
+        });
+        issuesEl.querySelectorAll("details[data-movie-path]").forEach(detailsEl => {
+            const path = detailsEl.getAttribute("data-movie-path");
+            detailsEl.addEventListener("toggle", () => {
+                const key = `movie:${path}`;
+                if (detailsEl.open) {
+                    if (!openTypes.includes(key)) openTypes.push(key);
+                } else {
+                    const idx = openTypes.indexOf(key);
+                    if (idx !== -1) openTypes.splice(idx, 1);
+                }
             });
         });
 
@@ -13882,6 +14303,153 @@ function renderHealthStatus(data) {
 }
 
 // Gemeinsame Helfer für die "Ignorieren"-Funktion (Health & Duplikate)
+let currentHealthIgnoreScope = null;
+
+function healthIssueBelongsToScope(issue, scopeKind, scopePath) {
+    if (scopeKind === "series") {
+        return issue.series_path === scopePath || (issue.scope_kind === "series" && issue.scope_path === scopePath);
+    }
+    if (scopeKind === "season") {
+        return issue.season_path === scopePath || (issue.scope_kind === "season" && issue.scope_path === scopePath);
+    }
+    if (scopeKind === "episode") {
+        return issue.episode_path === scopePath || (issue.scope_kind === "episode" && issue.scope_path === scopePath);
+    }
+    return issue.scope_kind === "movie" && issue.scope_path === scopePath;
+}
+
+function closeHealthIgnoreModal() {
+    const modal = document.getElementById("modal-health-ignore");
+    if (modal) {
+        modal.classList.remove("active");
+        modal.classList.add("hidden");
+    }
+    currentHealthIgnoreScope = null;
+}
+
+function updateHealthIgnoreSubmitState() {
+    const groupList = document.getElementById("health-ignore-groups");
+    const submit = document.getElementById("btn-health-ignore-submit");
+    if (!groupList || !submit) return;
+    const checked = groupList.querySelectorAll(".health-ignore-type:checked").length;
+    submit.disabled = checked === 0;
+}
+
+// Sync group toggles (checked/indeterminate) and the select-all master with
+// the individual issue-type checkboxes.
+function syncHealthIgnoreToggleStates() {
+    const groupList = document.getElementById("health-ignore-groups");
+    if (!groupList) return;
+    groupList.querySelectorAll(".health-ignore-group-toggle").forEach((toggle) => {
+        const group = toggle.getAttribute("data-group");
+        const types = Array.from(groupList.querySelectorAll(`.health-ignore-type[data-group="${group}"]`));
+        toggle.checked = types.length > 0 && types.every((input) => input.checked);
+        toggle.indeterminate = !toggle.checked && types.some((input) => input.checked);
+    });
+    const allTypes = Array.from(groupList.querySelectorAll(".health-ignore-type"));
+    const selectAll = document.getElementById("health-ignore-select-all");
+    if (selectAll) {
+        selectAll.checked = allTypes.length > 0 && allTypes.every((input) => input.checked);
+        selectAll.indeterminate = !selectAll.checked && allTypes.some((input) => input.checked);
+    }
+}
+
+function openHealthIgnoreModal(scopeKind, scopePath) {
+    const data = window.currentHealthStatusData || {};
+    const issues = (data.issues || []).filter((issue) =>
+        issue.ignoreable !== false && healthIssueBelongsToScope(issue, scopeKind, scopePath)
+    );
+    const catalogGroups = data.issue_catalog && data.issue_catalog.groups ? data.issue_catalog.groups : {};
+    const catalogTypes = data.issue_catalog && data.issue_catalog.types ? data.issue_catalog.types : {};
+    // One entry per issue type present in this scope, grouped by registry group.
+    const typeEntries = {};
+    issues.forEach((issue) => {
+        const entry = typeEntries[issue.type] || {
+            type: issue.type,
+            group: getHealthIssueGroup(issue),
+            label: catalogTypes[issue.type]?.label || issue.label || HEALTH_TYPE_LABELS[issue.type] || issue.type,
+            count: 0,
+        };
+        entry.count += 1;
+        typeEntries[issue.type] = entry;
+    });
+    const groupedTypes = {};
+    Object.values(typeEntries).forEach((entry) => {
+        (groupedTypes[entry.group] = groupedTypes[entry.group] || []).push(entry);
+    });
+    const groups = Object.keys(groupedTypes).sort((left, right) =>
+        (catalogGroups[left]?.order || 999) - (catalogGroups[right]?.order || 999)
+    );
+    groups.forEach((group) => groupedTypes[group].sort((left, right) => left.label.localeCompare(right.label, "de")));
+    currentHealthIgnoreScope = { scopeKind, scopePath };
+
+    const scopeLabels = { series: "diese Serie", season: "diese Staffel", episode: "diese Folge", movie: "diesen Film" };
+    const description = document.getElementById("health-ignore-description");
+    const groupList = document.getElementById("health-ignore-groups");
+    const error = document.getElementById("health-ignore-error");
+    const selectAll = document.getElementById("health-ignore-select-all");
+    if (description) description.textContent = `Wähle aus, welche Hinweise für ${scopeLabels[scopeKind] || "diesen Bereich"} künftig ausgeblendet werden sollen.`;
+    if (error) {
+        error.textContent = "";
+        error.style.display = "none";
+    }
+    if (selectAll) {
+        selectAll.checked = groups.length > 0;
+        selectAll.indeterminate = false;
+    }
+    if (groupList) {
+        groupList.innerHTML = groups.length
+            ? groups.map((group) => {
+                const groupLabel = catalogGroups[group]?.label || group;
+                const typeRows = groupedTypes[group].map((entry) =>
+                    `<label class="health-ignore-option"><input type="checkbox" class="health-ignore-type" value="${escapeHTML(entry.type)}" data-group="${escapeHTML(group)}" checked><span><strong>${escapeHTML(entry.label)}</strong><small>${entry.count} ${entry.count === 1 ? "Hinweis" : "Hinweise"}</small></span></label>`
+                ).join("");
+                return `<div class="health-ignore-group-block">
+                            <label class="health-ignore-group-header"><input type="checkbox" class="health-ignore-group-toggle" data-group="${escapeHTML(group)}" checked><strong>${escapeHTML(groupLabel)}</strong></label>
+                            <div class="health-ignore-group-types">${typeRows}</div>
+                        </div>`;
+            }).join("")
+            : `<p class="text-muted">Für diesen Bereich sind keine ignorierbaren Hinweise vorhanden.</p>`;
+    }
+    updateHealthIgnoreSubmitState();
+    const modal = document.getElementById("modal-health-ignore");
+    if (modal) {
+        modal.classList.remove("hidden");
+        modal.classList.add("active");
+    }
+}
+
+async function submitHealthIgnoreRule() {
+    if (!currentHealthIgnoreScope) return;
+    const groupList = document.getElementById("health-ignore-groups");
+    const submit = document.getElementById("btn-health-ignore-submit");
+    const error = document.getElementById("health-ignore-error");
+    const issueTypes = Array.from(groupList?.querySelectorAll(".health-ignore-type:checked") || []).map((input) => input.value);
+    if (!issueTypes.length) return;
+    if (submit) submit.disabled = true;
+    try {
+        const response = await fetch("/api/findings/ignore-rules", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                scope_kind: currentHealthIgnoreScope.scopeKind,
+                scope_path: currentHealthIgnoreScope.scopePath,
+                issue_types: issueTypes,
+            }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || "Die Hinweise konnten nicht ausgeblendet werden.");
+        closeHealthIgnoreModal();
+        await pollHealthStatus(false);
+    } catch (err) {
+        if (error) {
+            error.textContent = err.message;
+            error.style.display = "block";
+        }
+        if (submit) submit.disabled = false;
+    }
+}
+
 function renderIgnoredFooter(count) {
     if (!count) return "";
     return `<p class="text-muted" style="margin:10px 0 0; font-size:0.82em;">
@@ -13914,18 +14482,13 @@ function wireRestoreAll(container) {
     link.addEventListener("click", async (e) => {
         e.preventDefault();
         try {
-            const res = await fetch("/api/findings/ignored");
-            const data = await res.json();
-            for (const key of (data.ignored || [])) {
-                await fetch("/api/findings/unignore", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ key }),
-                });
-            }
+            const res = await fetch("/api/findings/ignored", { method: "DELETE" });
+            if (!res.ok) throw new Error("Ausgeblendete Hinweise konnten nicht wiederhergestellt werden.");
             pollHealthStatus(false);
             pollDuplicateStatus(false);
-        } catch (err) { /* ignore */ }
+        } catch (err) {
+            console.error(err);
+        }
     });
 }
 
@@ -14945,6 +15508,79 @@ let nfoAgentLogInterval = null;
 
 let nfoAgentProfileId = "";
 let nfoAgentProfileProvider = "";
+let nfoAgentFieldSources = {};
+let nfoAgentEditContext = { originMode: "full", mode: "full", episodeFile: "", seasonName: "" };
+let nfoAgentHasRenderedMainNfo = false;
+
+const NFO_AGENT_SOURCE_LABELS = {
+    existing_nfo: "aus vorhandener NFO",
+    metadata_provider: "vom Metadatendienst",
+    manual: "manuell",
+    profile: "aus Serienprofil",
+    missing: "Noch keine Angabe",
+    metadata_provider_missing: "Metadatensuche liefert keine Angabe"
+};
+
+function setNfoAgentFieldSource(field, source) {
+    nfoAgentFieldSources[field] = source || "missing";
+    const label = document.getElementById(`nfo-agent-${field}-source`);
+    if (label) label.textContent = NFO_AGENT_SOURCE_LABELS[nfoAgentFieldSources[field]] || "Noch keine Angabe";
+}
+
+function updateNfoAgentCompletenessWarning() {
+    const mediaType = document.getElementById("nfo-agent-media-type")?.value;
+    const mode = nfoAgentEditContext.mode;
+    // Only fields the current mode actually shows and submits count as missing.
+    const includeMainFields = mediaType !== "tvshow" || mode === "series" || mode === "full";
+    const missing = [];
+
+    if (includeMainFields) {
+        [
+            ["Titel", document.getElementById("nfo-agent-show-title")?.value],
+            ["Jahr", document.getElementById("nfo-agent-show-year")?.value],
+            ["Plot", document.getElementById("nfo-agent-show-plot")?.value],
+            ["Genre", document.getElementById("nfo-agent-show-genres")?.value],
+            ["FSK", document.getElementById("nfo-agent-show-fsk")?.value]
+        ].forEach(([label, value]) => {
+            if (!String(value || "").trim()) missing.push(label);
+        });
+    }
+
+    if (mediaType === "tvshow" && mode !== "series") {
+        document.querySelectorAll("#nfo-agent-episodes-list .nfo-episode-row").forEach((row) => {
+            if (row.style.display === "none") return;
+            const mappingSelect = row.querySelector(".nfo-agent-ep-mapping-select");
+            if (mappingSelect && mappingSelect.value === "skip") return;
+            const episodeValues = [
+                row.querySelector(".nfo-agent-ep-override-title")?.value,
+                row.querySelector(".nfo-agent-ep-override-plot")?.value,
+                row.querySelector(".nfo-agent-ep-override-fsk")?.value
+            ];
+            if (!episodeValues.every((value) => String(value || "").trim())) {
+                missing.push(row.getAttribute("data-file") || "Folge");
+            }
+        });
+    }
+
+    const submit = document.getElementById("btn-nfo-agent-submit");
+    const status = document.getElementById("nfo-agent-main-nfo-current-status");
+    if (!submit) return missing;
+
+    if (missing.length === 0) {
+        submit.textContent = "Metadaten übernehmen";
+        if (includeMainFields && status && !["missing", "unreadable"].includes(status.dataset.nfoState || "")) {
+            status.textContent = "Metadaten vollständig";
+            status.className = "nfo-agent-status nfo-agent-status-success";
+        }
+    } else {
+        submit.textContent = "Trotz unvollständiger Metadaten fortfahren";
+        if (includeMainFields && status && !["missing", "unreadable"].includes(status.dataset.nfoState || "")) {
+            status.textContent = "Metadaten unvollständig";
+            status.className = "nfo-agent-status nfo-agent-status-warning";
+        }
+    }
+    return missing;
+}
 
 function normalizeProvider(prov) {
     if (!prov) return "";
@@ -14957,16 +15593,129 @@ function normalizeProvider(prov) {
     return p;
 }
 
-function openNfoAgentModal(path) {
+let wasFskModalOpenForNfoAgent = false;
+let nfoAgentJobSuccess = false;
+let nfoAgentJobErrorMsg = null;
+
+function getEpisodeContextKey(file) {
+    const basename = String(file || "").split(/[\\/]/).pop() || "";
+    return basename.replace(/\.(?:nfo|mkv|mp4|avi|webm|mov)$/i, "").toLowerCase();
+}
+
+function episodeContextMatches(file, requestedFile) {
+    return Boolean(requestedFile) && getEpisodeContextKey(file) === getEpisodeContextKey(requestedFile);
+}
+
+function getEpisodeEditTitle(file) {
+    const basename = String(file || "").split(/[\\/]/).pop() || "";
+    const match = basename.match(/S(\d+)E(\d+)/i);
+    if (match) {
+        return `Folge S${match[1].padStart(2, "0")}E${match[2].padStart(2, "0")} bearbeiten`;
+    }
+    return `Folge ${basename.replace(/\.[^.]+$/, "") || "bearbeiten"}`.trim();
+}
+
+function getSeasonEditTitle() {
+    const seasonName = nfoAgentEditContext.seasonName || "Staffel";
+    return `${seasonName} bearbeiten`;
+}
+
+function applyNfoAgentEditMode() {
+    const mediaType = document.getElementById("nfo-agent-media-type")?.value;
+    const modeBar = document.getElementById("nfo-agent-edit-mode-bar");
+    const modeTitle = document.getElementById("nfo-agent-edit-mode-title");
+    const wholeSeriesBtn = document.getElementById("btn-nfo-agent-edit-whole-series");
+    const backBtn = document.getElementById("btn-nfo-agent-edit-back");
+    const mainSection = document.getElementById("nfo-agent-main-nfo-section");
+    const detailsSection = document.getElementById("nfo-agent-details-container");
+    const episodesSection = document.getElementById("nfo-agent-episodes-section");
+
+    if (mediaType !== "tvshow") {
+        if (modeBar) modeBar.style.display = "none";
+        return;
+    }
+
+    const mode = nfoAgentEditContext.mode;
+    if (modeBar) modeBar.style.display = "flex";
+    if (modeTitle) {
+        modeTitle.textContent = mode === "series"
+            ? "Serien-NFO bearbeiten"
+            : (mode === "episode"
+                ? getEpisodeEditTitle(nfoAgentEditContext.episodeFile)
+                : (mode === "season" ? getSeasonEditTitle() : "Ganze Serie bearbeiten"));
+    }
+    if (wholeSeriesBtn) wholeSeriesBtn.style.display = mode === "full" ? "none" : "inline-flex";
+    // Direct whole-series entry has no previous view to return to.
+    const cameFromNarrowerView = nfoAgentEditContext.originMode !== "full";
+    if (backBtn) backBtn.style.display = mode === "full" && cameFromNarrowerView ? "inline-flex" : "none";
+
+    const showMainEditor = mode === "series" || mode === "full";
+    const showEpisodes = mode !== "series";
+    if (mainSection) mainSection.style.display = showMainEditor && nfoAgentHasRenderedMainNfo ? "block" : "none";
+    if (detailsSection) detailsSection.style.display = showMainEditor ? "block" : "none";
+    if (episodesSection) episodesSection.style.display = showEpisodes ? "block" : "none";
+
+    const rows = document.querySelectorAll("#nfo-agent-episodes-list .nfo-episode-row");
+    rows.forEach(row => {
+        const isFocusedEpisode = episodeContextMatches(row.getAttribute("data-file"), nfoAgentEditContext.episodeFile);
+        row.style.display = mode === "episode" && !isFocusedEpisode ? "none" : "flex";
+        if (mode === "episode" && isFocusedEpisode) {
+            const select = row.querySelector(".nfo-agent-ep-mapping-select");
+            const overrideContainer = row.querySelector(".nfo-agent-ep-override-container");
+            const defaultMapping = row.getAttribute("data-default-mapping");
+            if (select && select.value === "skip" && defaultMapping && defaultMapping !== "skip") {
+                select.value = defaultMapping;
+            }
+            if (overrideContainer) overrideContainer.style.display = "flex";
+            if (typeof row.scrollIntoView === "function") {
+                row.scrollIntoView({ block: "nearest" });
+            }
+        }
+    });
+    document.querySelectorAll("#nfo-agent-episodes-list .nfo-agent-season-nfo-row").forEach(row => {
+        row.style.display = mode === "season" || mode === "full" ? "flex" : "none";
+    });
+
+    // After the row visibility is final: recompute the submit label for this mode.
+    updateNfoAgentCompletenessWarning();
+}
+
+function setNfoAgentEditMode(mode) {
+    nfoAgentEditContext.mode = mode;
+    applyNfoAgentEditMode();
+}
+
+function openNfoAgentModal(path, options = {}) {
     if (!path) {
         alert("Bitte gib einen Pfad an.");
         return;
     }
+
+    wasFskModalOpenForNfoAgent = false;
+    nfoAgentJobSuccess = false;
+    nfoAgentJobErrorMsg = null;
+    const requestedMode = ["series", "season", "episode", "full"].includes(options.mode) ? options.mode : "full";
+    const pathBasename = String(path).split(/[\\/]/).filter(Boolean).pop() || "";
+    nfoAgentEditContext = {
+        originMode: requestedMode,
+        mode: requestedMode,
+        episodeFile: options.episodeFile || "",
+        seasonName: options.seasonName || pathBasename
+    };
+
+    const fskModal = document.getElementById("modal-fsk-batch-preview");
+    if (fskModal && fskModal.classList.contains("active")) {
+        wasFskModalOpenForNfoAgent = true;
+        fskModal.classList.remove("active");
+        fskModal.classList.add("hidden");
+    }
+
     nfoAgentCurrentPath = path;
     const modal = document.getElementById("modal-nfo-agent");
     if (!modal) return;
 
     // Clear / reset UI
+    nfoAgentHasRenderedMainNfo = false;
     modal.classList.add("active");
     modal.classList.remove("hidden");
     document.getElementById("nfo-agent-current-path").textContent = path;
@@ -14975,6 +15724,17 @@ function openNfoAgentModal(path) {
     document.getElementById("nfo-agent-show-title").value = "";
     document.getElementById("nfo-agent-show-year").value = "";
     document.getElementById("nfo-agent-show-plot").value = "";
+    const genresInput = document.getElementById("nfo-agent-show-genres");
+    if (genresInput) genresInput.value = "";
+    const fskSelect = document.getElementById("nfo-agent-show-fsk");
+    if (fskSelect) fskSelect.value = "";
+    nfoAgentFieldSources = {};
+    ["title", "year", "plot", "genre", "fsk"].forEach(field => setNfoAgentFieldSource(field, "missing"));
+    const overwriteInput = document.getElementById("nfo-agent-overwrite-nfo");
+    if (overwriteInput) overwriteInput.checked = false;
+    document.getElementById("nfo-agent-main-nfo-status").innerHTML = "";
+    document.getElementById("nfo-agent-main-nfo-section").style.display = "none";
+    document.getElementById("nfo-agent-edit-mode-bar").style.display = "none";
     document.getElementById("nfo-agent-episodes-list").innerHTML = "";
     document.getElementById("nfo-agent-log-container").style.display = "none";
     document.getElementById("nfo-agent-log-container").textContent = "";
@@ -15049,6 +15809,15 @@ function openNfoAgentModal(path) {
                 document.getElementById("nfo-agent-show-year").value = data.metadata_year || "";
                 document.getElementById("nfo-agent-show-plot").value = data.metadata_plot || "";
             }
+            if (genresInput) genresInput.value = (data.metadata_genres || []).join(", ");
+            if (fskSelect) fskSelect.value = data.metadata_fsk || "";
+            const initialSource = data.metadata_source === "nfo" ? "existing_nfo" : (data.metadata_source || "missing");
+            setNfoAgentFieldSource("title", data.metadata_name ? initialSource : "missing");
+            setNfoAgentFieldSource("year", data.metadata_year ? initialSource : "missing");
+            setNfoAgentFieldSource("plot", data.metadata_plot ? initialSource : "missing");
+            setNfoAgentFieldSource("genre", (data.metadata_genres || []).length ? initialSource : "missing");
+            setNfoAgentFieldSource("fsk", data.metadata_fsk ? initialSource : "missing");
+            updateNfoAgentCompletenessWarning();
 
             // Fetch series profile in background (only for badge comparison "Profil abweichend")
             const showNameQuery = data.metadata_name || data.project || "";
@@ -15097,6 +15866,12 @@ function triggerNfoAgentMediaTypeChange() {
     const providerSelect = document.getElementById("nfo-agent-provider");
     const seasonContainer = document.getElementById("nfo-agent-season-container");
     const epSection = document.getElementById("nfo-agent-episodes-section");
+    const modalTitle = document.getElementById("nfo-agent-modal-title");
+    const searchLabel = document.getElementById("nfo-agent-search-label");
+    const titleLabel = document.getElementById("nfo-agent-title-label");
+    const titleLabelText = document.getElementById("nfo-agent-title-label-text");
+    const filesHeading = document.getElementById("nfo-agent-files-heading");
+    const detailsHeading = document.getElementById("nfo-agent-details-heading");
 
     // Clear and build options based on type
     providerSelect.innerHTML = "";
@@ -15108,6 +15883,12 @@ function triggerNfoAgentMediaTypeChange() {
         `;
         seasonContainer.style.display = "block";
         epSection.style.display = "block";
+        if (modalTitle) modalTitle.textContent = "NFO Agent: Serien-Metadaten";
+        if (searchLabel) searchLabel.textContent = "Name der Serie:";
+        if (titleLabelText) titleLabelText.textContent = "Serientitel (tvshow.nfo):";
+        else if (titleLabel) titleLabel.textContent = "Serientitel (tvshow.nfo):";
+        if (detailsHeading) detailsHeading.textContent = "Serien-Metadaten";
+        if (filesHeading) filesHeading.textContent = "Episoden-NFOs und Zuordnung";
     } else {
         providerSelect.innerHTML = `
             <option value="tmdb_movie">TMDb Film</option>
@@ -15116,7 +15897,14 @@ function triggerNfoAgentMediaTypeChange() {
         `;
         seasonContainer.style.display = "none";
         epSection.style.display = "none";
+        if (modalTitle) modalTitle.textContent = "NFO Agent: Film-Metadaten";
+        if (searchLabel) searchLabel.textContent = "Name des Films:";
+        if (titleLabelText) titleLabelText.textContent = "Filmtitel (movie.nfo):";
+        else if (titleLabel) titleLabel.textContent = "Filmtitel (movie.nfo):";
+        if (detailsHeading) detailsHeading.textContent = "Film-Metadaten";
     }
+
+    if (nfoAgentScanData) renderNfoAgentFiles(nfoAgentScanData);
 }
 
 function searchNfoAgentMetadata() {
@@ -15194,6 +15982,21 @@ function searchNfoAgentMetadata() {
                 `;
 
                 itemDiv.addEventListener("click", () => {
+                    // Highlight selected item by setting border-left
+                    resultsContainer.querySelectorAll(".search-result-item").forEach(el => {
+                        el.style.borderLeft = "none";
+                        el.style.background = "transparent";
+                    });
+                    itemDiv.style.borderLeft = "4px solid var(--accent)";
+                    itemDiv.style.background = "rgba(255,255,255,0.02)";
+
+                    // The free-text Mediathek entry has no service to fetch from:
+                    // switch to manual entry instead of forcing a TVDB lookup.
+                    if (String(item.id).startsWith("url_mediathek:")) {
+                        applyNfoAgentMediathekSelection(item);
+                        return;
+                    }
+
                     // Set inputs
                     let mappedProv = item.provider;
                     if (queryType === "movie" && mappedProv === "tmdb") {
@@ -15207,14 +16010,6 @@ function searchNfoAgentMetadata() {
                     }
                     document.getElementById("nfo-agent-provider").value = mappedProv;
                     document.getElementById("nfo-agent-metadata-id").value = item.id;
-
-                    // Highlight selected item by setting border-left
-                    resultsContainer.querySelectorAll(".search-result-item").forEach(el => {
-                        el.style.borderLeft = "none";
-                        el.style.background = "transparent";
-                    });
-                    itemDiv.style.borderLeft = "4px solid var(--accent)";
-                    itemDiv.style.background = "rgba(255,255,255,0.02)";
 
                     // Fetch full details
                     loadNfoAgentDetails(item.id, mappedProv, type, season);
@@ -15246,6 +16041,22 @@ function searchNfoAgentMetadata() {
         });
 }
 
+// The Mediathek search result is a free-text fallback without fetchable
+// details: use it as a manual-entry shortcut that prefills the title.
+function applyNfoAgentMediathekSelection(item) {
+    const providerSelect = document.getElementById("nfo-agent-provider");
+    if (providerSelect) providerSelect.value = "manual";
+    const idInput = document.getElementById("nfo-agent-metadata-id");
+    if (idInput) idInput.value = "";
+    const titleInput = document.getElementById("nfo-agent-show-title");
+    const queryText = String(item.id).split("url_mediathek:", 2)[1] || item.name || "";
+    if (titleInput && !titleInput.value.trim() && queryText) {
+        titleInput.value = queryText;
+        setNfoAgentFieldSource("title", "manual");
+    }
+    updateNfoAgentCompletenessWarning();
+}
+
 function loadNfoAgentDetails(id, provider, type, season) {
     let url = "";
     if (type === "tvshow") {
@@ -15257,10 +16068,22 @@ function loadNfoAgentDetails(id, provider, type, season) {
     fetch(url)
         .then(res => res.json())
         .then(meta => {
+            if (meta.error) throw new Error(meta.error);
             // Populate Show / Movie details
-            document.getElementById("nfo-agent-show-title").value = meta.name || "";
+            const metadataTitle = meta.name || meta.title || "";
+            document.getElementById("nfo-agent-show-title").value = metadataTitle;
             document.getElementById("nfo-agent-show-year").value = meta.year || "";
             document.getElementById("nfo-agent-show-plot").value = meta.plot || "";
+            const genresInput = document.getElementById("nfo-agent-show-genres");
+            if (genresInput) genresInput.value = (meta.genres || []).join(", ");
+            const fskSelect = document.getElementById("nfo-agent-show-fsk");
+            if (fskSelect) fskSelect.value = meta.fsk || "";
+            setNfoAgentFieldSource("title", metadataTitle ? "metadata_provider" : "metadata_provider_missing");
+            setNfoAgentFieldSource("year", meta.year ? "metadata_provider" : "metadata_provider_missing");
+            setNfoAgentFieldSource("plot", meta.plot ? "metadata_provider" : "metadata_provider_missing");
+            setNfoAgentFieldSource("genre", (meta.genres || []).length ? "metadata_provider" : "metadata_provider_missing");
+            setNfoAgentFieldSource("fsk", meta.fsk ? "metadata_provider" : "metadata_provider_missing");
+            updateNfoAgentCompletenessWarning();
 
             // If series, rebuild the files list with the loaded episode metadata
             if (type === "tvshow" && nfoAgentScanData) {
@@ -15269,46 +16092,60 @@ function loadNfoAgentDetails(id, provider, type, season) {
         })
         .catch(err => {
             console.error(err);
-            alert("Fehler beim Laden der Details.");
+            alert(`Fehler beim Laden der Details: ${err.message || "Unbekannter Fehler"}`);
         });
 }
 
 function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
     const listBody = document.getElementById("nfo-agent-episodes-list");
+    const mainNfoBody = document.getElementById("nfo-agent-main-nfo-status");
+    const mainNfoSection = document.getElementById("nfo-agent-main-nfo-section");
     listBody.innerHTML = "";
+    mainNfoBody.innerHTML = "";
 
     const mediaType = document.getElementById("nfo-agent-media-type").value;
 
-    // 1. Render tvshow.nfo row at the top (only for TV Shows)
-    if (mediaType === "tvshow" && scanData.show_nfo_status) {
+    // 1. Render the authoritative main NFO for the selected media type.
+    const mainNfoStatus = scanData.main_nfo_status
+        || (mediaType === "movie" ? scanData.movie_nfo_status : scanData.show_nfo_status);
+    nfoAgentHasRenderedMainNfo = Boolean(mainNfoStatus);
+    if (mainNfoStatus) {
         const showNfoRow = document.createElement("div");
-        showNfoRow.className = "nfo-episode-row show-nfo-row";
-        showNfoRow.style = "display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(255,255,255,0.06); padding: 10px; border-radius: 6px; background: rgba(var(--accent-rgb), 0.03); text-align: left; margin-bottom: 12px; border-left: 4px solid var(--accent);";
+        showNfoRow.className = "nfo-agent-main-nfo-card show-nfo-row";
 
-        const nfoStatus = scanData.show_nfo_status;
-        let statusBadge = "";
+        const nfoStatus = mainNfoStatus;
+        const mainNfoFilename = nfoStatus.filename || (mediaType === "movie" ? "movie.nfo" : "tvshow.nfo");
+        let statusLabel = "";
+        let statusTone = "warning";
+        let nfoState = "complete";
         let nfoActionOptions = "";
 
         if (!nfoStatus.exists) {
-            statusBadge = '<span style="color:#ef4444; font-size:0.8em; margin-left:6px; font-weight:600;">[Keine NFO]</span>';
+            statusLabel = "Fehlende Metadaten";
+            statusTone = "danger";
+            nfoState = "missing";
             nfoActionOptions = `
                 <option value="process" selected>⚙️ Verarbeiten</option>
                 <option value="skip">⏭️ Überspringen</option>
             `;
         } else if (!nfoStatus.parseable) {
-            statusBadge = '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO fehlerhaft]</span>';
+            statusLabel = "Metadaten nicht lesbar";
+            statusTone = "danger";
+            nfoState = "unreadable";
             nfoActionOptions = `
                 <option value="process" selected>⚙️ Verarbeiten</option>
                 <option value="skip">⏭️ Überspringen</option>
             `;
-        } else if (!nfoStatus.complete) {
-            statusBadge = '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO unvollständig]</span>';
+        } else if (nfoStatus.needs_review || !nfoStatus.complete) {
+            statusLabel = "Metadaten unvollständig";
+            nfoState = "incomplete";
             nfoActionOptions = `
                 <option value="process" selected>⚙️ Verarbeiten</option>
                 <option value="skip">⏭️ Überspringen</option>
             `;
         } else {
-            statusBadge = '<span style="color:#10b981; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO vorhanden]</span>';
+            statusLabel = "Metadaten vollständig";
+            statusTone = "success";
             nfoActionOptions = `
                 <option value="process" selected>⚙️ Verarbeiten</option>
                 <option value="skip">⏭️ Überspringen</option>
@@ -15316,21 +16153,57 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
         }
 
         showNfoRow.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-                <div style="font-weight: 600; font-size: 0.9em; word-break: break-all; color: var(--text-main); flex: 1; display: inline-flex; align-items: center; gap: 6px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-key" style="color: var(--accent);"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="16" r="2"/><path d="m16 10-4.5 4.5"/></svg>
-                    tvshow.nfo (Haupt-Metadaten)
-                    ${statusBadge}
-                </div>
-                <div style="width: 170px;">
-                    <select id="nfo-agent-show-nfo-action" style="width: 100%; padding: 6px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(30,30,45,1); color: var(--text-main);">
-                        ${nfoActionOptions}
-                    </select>
+            <div class="nfo-agent-main-nfo-content">
+                <div class="nfo-agent-main-nfo-title">
+                    <span class="nfo-agent-main-nfo-file">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-key"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="16" r="2"/><path d="m16 10-4.5 4.5"/></svg>
+                        ${escapeHTML(mainNfoFilename)}
+                    </span>
+                    <span id="nfo-agent-main-nfo-current-status" class="nfo-agent-status nfo-agent-status-${statusTone}" data-nfo-state="${nfoState}" role="status">${escapeHTML(statusLabel)}</span>
                 </div>
             </div>
+            <label class="nfo-agent-main-nfo-action">
+                <span>Aktion</span>
+                <select id="nfo-agent-show-nfo-action">
+                        ${nfoActionOptions}
+                </select>
+            </label>
         `;
-        listBody.appendChild(showNfoRow);
+        mainNfoBody.appendChild(showNfoRow);
+        mainNfoSection.style.display = "block";
+    } else {
+        mainNfoSection.style.display = "none";
     }
+
+    // A film has exactly one main metadata NFO and no episode mappings.
+    if (mediaType === "movie") {
+        applyNfoAgentEditMode();
+        return;
+    }
+
+    const seasonNfoStatuses = scanData.season_nfo_statuses || [];
+    seasonNfoStatuses.forEach(status => {
+        const row = document.createElement("div");
+        row.className = "nfo-agent-season-nfo-row";
+        row.dataset.path = status.relative_path || status.filename || "season.nfo";
+        const currentValue = String(status.raw_fsk || "").replace(/^FSK\s*/i, "");
+        row.innerHTML = `
+            <div>
+                <strong>${escapeHTML(status.relative_path || "season.nfo")}</strong>
+                <span class="nfo-agent-status nfo-agent-status-${status.needs_review ? "warning" : "success"}">
+                    ${status.needs_review ? "Metadaten prüfen" : "Metadaten vollständig"}
+                </span>
+            </div>
+            <label>
+                <span>Altersfreigabe</span>
+                <select class="nfo-agent-season-fsk">
+                    <option value="" ${currentValue ? "" : "selected"}>Keine Angabe</option>
+                    ${[0, 6, 12, 16, 18].map(value => `<option value="${value}" ${currentValue === String(value) ? "selected" : ""}>FSK ${value}</option>`).join("")}
+                </select>
+            </label>
+        `;
+        listBody.appendChild(row);
+    });
 
     const nfoStatuses = scanData.file_nfo_statuses || {};
     const files = (scanData.files || []).filter(file => nfoStatuses[file]);
@@ -15340,12 +16213,14 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
         noFilesMsg.style = "text-align: center; color: var(--text-muted); padding: 12px;";
         noFilesMsg.textContent = "Keine Videodateien in diesem Verzeichnis gefunden.";
         listBody.appendChild(noFilesMsg);
+        applyNfoAgentEditMode();
         return;
     }
 
     files.forEach(file => {
         const basename = file;
         const status = nfoStatuses[basename] || { exists: false, complete: false };
+        const episodeFsk = status.fsk || "";
 
         // Auto-detect season and episode numbers from filename
         let match = basename.match(/S(\d+)E(\d+)/i) || basename.match(/E(\d+)/i);
@@ -15381,21 +16256,30 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
                 }
             }
         }
+        const displayedTitle = status.title || metaTitle;
+        const displayedPlot = status.plot || metaPlot;
 
-        // Default dropdown value: skip if NFO exists and is complete
-        const defaultSelectValue = (status.exists && status.complete) ? "skip" : (epNum || "skip");
+        const isFocusedEpisode = nfoAgentEditContext.mode === "episode"
+            && episodeContextMatches(basename, nfoAgentEditContext.episodeFile);
+        // A directly opened episode is always selected, even when title and plot are complete
+        // but another field such as FSK still needs attention.
+        const defaultSelectValue = isFocusedEpisode
+            ? (epNum || "skip")
+            : (status.needs_review ? (epNum || "skip") : "skip");
 
         const row = document.createElement("div");
         row.className = "nfo-episode-row";
+        row.dataset.file = basename;
+        row.dataset.defaultMapping = epNum || "skip";
         row.style = "display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--border-light); padding: 10px; border-radius: 6px; background: rgba(255,255,255,0.01); text-align: left;";
         row.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                 <div style="font-weight: 500; font-size: 0.9em; word-break: break-all; color: var(--text-main); flex: 1;">
                     ${escapeHTML(basename)}
                     ${status.exists ?
-                        (status.complete ?
-                            '<span style="color:#10b981; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO vorhanden]</span>' :
-                            '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[NFO unvollständig]</span>') :
+                        (!status.needs_review && status.complete ?
+                            '<span style="color:#10b981; font-size:0.8em; margin-left:6px; font-weight:600;">[Metadaten vollständig]</span>' :
+                            '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[Metadaten unvollständig]</span>') :
                         '<span style="color:#ef4444; font-size:0.8em; margin-left:6px; font-weight:600;">[Keine NFO]</span>'
                     }
                 </div>
@@ -15410,12 +16294,19 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
                 <div style="display: flex; gap: 8px;">
                     <div style="flex: 1;">
                         <label style="display: block; font-size: 0.75em; margin-bottom: 2px; color: var(--text-muted);">Episodentitel:</label>
-                        <input type="text" class="nfo-agent-ep-override-title" data-file="${escapeHTML(basename)}" value="${escapeHTML(metaTitle)}" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.1); color: var(--text-main);">
+                        <input type="text" class="nfo-agent-ep-override-title" data-file="${escapeHTML(basename)}" value="${escapeHTML(displayedTitle)}" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.1); color: var(--text-main);">
+                    </div>
+                    <div style="width: 130px;">
+                        <label style="display: block; font-size: 0.75em; margin-bottom: 2px; color: var(--text-muted);">Altersfreigabe:</label>
+                        <select class="nfo-agent-ep-override-fsk" data-file="${escapeHTML(basename)}" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(30,30,45,1); color: var(--text-main);">
+                            <option value="" ${episodeFsk ? "" : "selected"}>Keine Angabe</option>
+                            ${[0, 6, 12, 16, 18].map(value => `<option value="${value}" ${String(episodeFsk) === String(value) ? "selected" : ""}>FSK ${value}</option>`).join("")}
+                        </select>
                     </div>
                 </div>
                 <div>
                     <label style="display: block; font-size: 0.75em; margin-bottom: 2px; color: var(--text-muted);">Beschreibung (Episoden-Plot):</label>
-                    <textarea class="nfo-agent-ep-override-plot" data-file="${escapeHTML(basename)}" rows="2" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.1); color: var(--text-main); font-family: inherit; resize: vertical;">${escapeHTML(metaPlot)}</textarea>
+                    <textarea class="nfo-agent-ep-override-plot" data-file="${escapeHTML(basename)}" rows="2" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.1); color: var(--text-main); font-family: inherit; resize: vertical;">${escapeHTML(displayedPlot)}</textarea>
                 </div>
             </div>
         `;
@@ -15471,6 +16362,8 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
             }
         });
     });
+
+    applyNfoAgentEditMode();
 }
 
 function buildEpisodeOptionsHTML(fileCount, selectedVal) {
@@ -15490,28 +16383,33 @@ function buildEpisodeOptionsHTML(fileCount, selectedVal) {
 function submitNfoAgentJob() {
     if (!nfoAgentCurrentPath) return;
 
-    const provider = document.getElementById("nfo-agent-provider").value;
+    let provider = document.getElementById("nfo-agent-provider").value;
     const mediaType = document.getElementById("nfo-agent-media-type").value;
-    const showId = document.getElementById("nfo-agent-metadata-id").value.trim();
-    const movieId = showId;
+    let showId = document.getElementById("nfo-agent-metadata-id").value.trim();
     const season = parseInt(document.getElementById("nfo-agent-season").value) || 1;
     const overwriteNfo = document.getElementById("nfo-agent-overwrite-nfo").checked;
 
+    // A provider ID is optional: without one there is nothing to fetch, so the
+    // entered form fields are written manually instead of blocking the user.
     if (provider !== "manual" && !showId) {
-        alert("Bitte gib eine Show- oder Movie-ID an.");
-        return;
+        provider = "manual";
     }
 
     // Build mappings & overrides
     const mappings = {};
     const episodesOverrides = {};
+    const episodeFingerprints = {};
 
+    const includeEpisodes = nfoAgentEditContext.mode !== "series";
     const mappingSelects = document.querySelectorAll(".nfo-agent-ep-mapping-select");
     mappingSelects.forEach(select => {
         const file = select.getAttribute("data-file");
         const val = select.value;
-        if (val !== "skip") {
+        const isSelectedContext = nfoAgentEditContext.mode !== "episode"
+            || episodeContextMatches(file, nfoAgentEditContext.episodeFile);
+        if (includeEpisodes && isSelectedContext && val !== "skip") {
             mappings[file] = val;
+            episodeFingerprints[file] = nfoAgentScanData?.file_nfo_statuses?.[file]?.fingerprint ?? null;
         }
     });
 
@@ -15521,46 +16419,74 @@ function submitNfoAgentJob() {
         const title = input.value.trim();
         const plotTextarea = document.querySelector(`.nfo-agent-ep-override-plot[data-file="${CSS.escape(file)}"]`);
         const plot = plotTextarea ? plotTextarea.value.trim() : "";
+        const fskSelect = document.querySelector(`.nfo-agent-ep-override-fsk[data-file="${CSS.escape(file)}"]`);
+        const fsk = fskSelect ? fskSelect.value : "";
 
-        if (title || plot) {
-            episodesOverrides[file] = { title, plot };
+        const originalStatus = nfoAgentScanData?.file_nfo_statuses?.[file] || {};
+        const episodeChanges = {};
+        if (title && title !== (originalStatus.title || "")) episodeChanges.title = title;
+        if (plot && plot !== (originalStatus.plot || "")) episodeChanges.plot = plot;
+        if (fsk && fsk !== (originalStatus.fsk || "")) episodeChanges.fsk = fsk;
+        const isSelectedContext = nfoAgentEditContext.mode !== "episode"
+            || episodeContextMatches(file, nfoAgentEditContext.episodeFile);
+        if (includeEpisodes && isSelectedContext && Object.keys(episodeChanges).length) {
+            episodesOverrides[file] = episodeChanges;
         }
     });
 
     const showTitle = document.getElementById("nfo-agent-show-title").value.trim();
     const showYear = document.getElementById("nfo-agent-show-year").value.trim();
     const showPlot = document.getElementById("nfo-agent-show-plot").value.trim();
+    const showGenres = (document.getElementById("nfo-agent-show-genres")?.value || "")
+        .split(/[,;]/)
+        .map(value => value.trim())
+        .filter(Boolean);
+    const showFsk = document.getElementById("nfo-agent-show-fsk")?.value || "";
+
+    if (provider === "manual" && !showId) {
+        showId = JSON.stringify({ title: showTitle, year: showYear, plot: showPlot, genres: showGenres, fsk: showFsk });
+    }
+    const movieId = showId;
 
     const showOverrides = {};
     const movieOverrides = {};
+    const existingMainNfo = Boolean(nfoAgentScanData?.main_nfo_status?.exists);
+    const originalGenres = nfoAgentScanData?.metadata_genres || [];
+    const includeMainField = (value, original) => !existingMainNfo || JSON.stringify(value) !== JSON.stringify(original);
 
-    if (nfoAgentScanData) {
-        if (showTitle !== (nfoAgentScanData.metadata_name || "")) {
-            showOverrides.title = showTitle;
-            movieOverrides.title = showTitle;
-        }
-        if (showYear !== (nfoAgentScanData.metadata_year || "").toString()) {
-            showOverrides.year = showYear;
-            movieOverrides.year = showYear;
-        }
-        if (showPlot !== (nfoAgentScanData.metadata_plot || "")) {
-            showOverrides.plot = showPlot;
-            movieOverrides.plot = showPlot;
-        }
-    } else {
-        if (showTitle) { showOverrides.title = showTitle; movieOverrides.title = showTitle; }
-        if (showYear) { showOverrides.year = showYear; movieOverrides.year = showYear; }
-        if (showPlot) { showOverrides.plot = showPlot; movieOverrides.plot = showPlot; }
-    }
+    if (showTitle && includeMainField(showTitle, nfoAgentScanData?.metadata_name || "")) { showOverrides.title = showTitle; movieOverrides.title = showTitle; }
+    if (showYear && includeMainField(showYear, String(nfoAgentScanData?.metadata_year || ""))) { showOverrides.year = showYear; movieOverrides.year = showYear; }
+    if (showPlot && includeMainField(showPlot, nfoAgentScanData?.metadata_plot || "")) { showOverrides.plot = showPlot; movieOverrides.plot = showPlot; }
+    if (showGenres.length && includeMainField(showGenres, originalGenres)) { showOverrides.genres = showGenres; movieOverrides.genres = showGenres; }
+    if (showFsk && includeMainField(showFsk, nfoAgentScanData?.metadata_fsk || "")) { showOverrides.fsk = showFsk; movieOverrides.fsk = showFsk; }
 
+    const includeMainNfo = nfoAgentEditContext.mode === "series" || nfoAgentEditContext.mode === "full";
     const nfoOverrides = {
-        show: showOverrides,
-        movie: movieOverrides,
+        show: includeMainNfo ? showOverrides : {},
+        movie: includeMainNfo ? movieOverrides : {},
         episodes: episodesOverrides
     };
 
+    const seasonNfoOverrides = {};
+    document.querySelectorAll(".nfo-agent-season-nfo-row").forEach(row => {
+        const fskValue = row.querySelector(".nfo-agent-season-fsk")?.value || "";
+        const relativePath = row.getAttribute("data-path");
+        const original = (nfoAgentScanData?.season_nfo_statuses || [])
+            .find(status => status.relative_path === relativePath);
+        const originalValue = String(original?.raw_fsk || "").replace(/^FSK\s*/i, "");
+        if (relativePath && fskValue && fskValue !== originalValue) {
+            seasonNfoOverrides[relativePath] = {
+                fields: { fsk: fskValue },
+                fingerprint: original?.fingerprint ?? null
+            };
+        }
+    });
+
     const showNfoActionSelect = document.getElementById("nfo-agent-show-nfo-action");
-    const writeShowNfo = showNfoActionSelect ? (showNfoActionSelect.value !== "skip") : true;
+    const writeShowNfo = includeMainNfo
+        && (showNfoActionSelect ? (showNfoActionSelect.value !== "skip") : true);
+    const mainNfoStatus = nfoAgentScanData?.main_nfo_status || null;
+    const nfoWriteMode = mainNfoStatus?.exists ? (overwriteNfo ? "replace" : "patch") : "create";
 
     const payload = {
         project_name: nfoAgentCurrentPath,
@@ -15571,9 +16497,13 @@ function submitNfoAgentJob() {
         movie_id: movieId,
         season: season,
         overwrite_nfo: overwriteNfo,
+        nfo_write_mode: nfoWriteMode,
+        main_nfo_fingerprint: mainNfoStatus?.fingerprint ?? null,
         write_show_nfo: writeShowNfo,
         mappings: mappings,
-        nfo_overrides: nfoOverrides
+        episode_fingerprints: episodeFingerprints,
+        nfo_overrides: nfoOverrides,
+        season_nfo_overrides: seasonNfoOverrides
     };
 
     const submitBtn = document.getElementById("btn-nfo-agent-submit");
@@ -15631,8 +16561,9 @@ function startNfoAgentLogStreaming(taskId) {
                 if (!job) {
                     // Job vanished from the queue -> treat as finished.
                     clearInterval(nfoAgentLogInterval);
-                    logContainer.textContent += "\n=== Job abgeschlossen ===\n";
+                    logContainer.textContent += "\n=== Job nicht mehr verfügbar ===\n";
                     logContainer.scrollTop = logContainer.scrollHeight;
+                    nfoAgentJobErrorMsg = "Das Ergebnis des NFO-Agenten ist nicht mehr abrufbar.";
                     showNfoAgentDone();
                     return;
                 }
@@ -15643,6 +16574,7 @@ function startNfoAgentLogStreaming(taskId) {
                 logContainer.scrollTop = logContainer.scrollHeight;
 
                 if (job.status === "done") {
+                    nfoAgentJobSuccess = true;
                     clearInterval(nfoAgentLogInterval);
                     logContainer.textContent += "\n=== ✅ NFO Agent abgeschlossen ===\n";
                     logContainer.scrollTop = logContainer.scrollHeight;
@@ -15651,6 +16583,13 @@ function startNfoAgentLogStreaming(taskId) {
                     clearInterval(nfoAgentLogInterval);
                     logContainer.textContent += `\n=== ❌ Fehler: ${job.message || "unbekannt"} ===\n`;
                     logContainer.scrollTop = logContainer.scrollHeight;
+                    nfoAgentJobErrorMsg = `Fehler beim NFO-Agent: ${job.message || "unbekannt"}`;
+                    showNfoAgentDone();
+                } else if (job.status === "cancelled") {
+                    clearInterval(nfoAgentLogInterval);
+                    logContainer.textContent += `\n=== 🛑 Abgebrochen ===\n`;
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                    nfoAgentJobErrorMsg = "NFO-Agent wurde abgebrochen.";
                     showNfoAgentDone();
                 }
             })
@@ -15665,19 +16604,70 @@ function closeNfoAgentModal() {
         modal.classList.remove("active");
         modal.classList.add("hidden");
     }
+
+    if (wasFskModalOpenForNfoAgent) {
+        const fskModal = document.getElementById("modal-fsk-batch-preview");
+        if (fskModal) {
+            fskModal.classList.remove("hidden");
+            fskModal.classList.add("active");
+        }
+        if (nfoAgentJobSuccess) {
+            loadFskBatchPreview(true);
+            if (typeof pollHealthStatus === "function") pollHealthStatus(true);
+        } else if (nfoAgentJobErrorMsg) {
+            showFskBatchError(nfoAgentJobErrorMsg);
+        }
+        wasFskModalOpenForNfoAgent = false;
+        nfoAgentJobSuccess = false;
+        nfoAgentJobErrorMsg = null;
+    }
 }
 
-// Bind DOM Events for NFO Agent Modal
-document.addEventListener("DOMContentLoaded", () => {
+let nfoAgentEventsBound = false;
+
+window.bindNfoAgentEvents = function() {
+    if (nfoAgentEventsBound) return;
+    nfoAgentEventsBound = true;
+
     document.getElementById("close-modal-nfo-agent")?.addEventListener("click", closeNfoAgentModal);
     document.getElementById("btn-nfo-agent-cancel")?.addEventListener("click", closeNfoAgentModal);
     document.getElementById("btn-nfo-agent-done")?.addEventListener("click", () => {
+        const wasFskOpen = wasFskModalOpenForNfoAgent;
         closeNfoAgentModal();
-        if (typeof startHealthScan === "function") startHealthScan();
+        if (!wasFskOpen && typeof pollHealthStatus === "function") pollHealthStatus(true);
     });
     document.getElementById("btn-nfo-agent-submit")?.addEventListener("click", submitNfoAgentJob);
     document.getElementById("btn-nfo-agent-search")?.addEventListener("click", searchNfoAgentMetadata);
     document.getElementById("nfo-agent-media-type")?.addEventListener("change", triggerNfoAgentMediaTypeChange);
+    document.getElementById("btn-nfo-agent-edit-whole-series")?.addEventListener("click", () => {
+        setNfoAgentEditMode("full");
+    });
+    document.getElementById("btn-nfo-agent-edit-back")?.addEventListener("click", () => {
+        setNfoAgentEditMode(nfoAgentEditContext.originMode);
+    });
+    [
+        ["nfo-agent-show-title", "title"],
+        ["nfo-agent-show-year", "year"],
+        ["nfo-agent-show-plot", "plot"],
+        ["nfo-agent-show-genres", "genre"],
+        ["nfo-agent-show-fsk", "fsk"]
+    ].forEach(([elementId, field]) => {
+        document.getElementById(elementId)?.addEventListener("input", () => {
+            setNfoAgentFieldSource(field, "manual");
+            updateNfoAgentCompletenessWarning();
+        });
+        document.getElementById(elementId)?.addEventListener("change", () => {
+            setNfoAgentFieldSource(field, "manual");
+            updateNfoAgentCompletenessWarning();
+        });
+    });
+    // Episode fields are rendered dynamically: one delegated listener keeps
+    // the submit label in sync while the user types.
+    ["input", "change"].forEach((eventName) => {
+        document.getElementById("nfo-agent-episodes-list")?.addEventListener(eventName, () => {
+            updateNfoAgentCompletenessWarning();
+        });
+    });
 
     // Bind Enter key inside search box
     document.getElementById("nfo-agent-search-title")?.addEventListener("keydown", (e) => {
@@ -15686,14 +16676,92 @@ document.addEventListener("DOMContentLoaded", () => {
             searchNfoAgentMetadata();
         }
     });
+};
+
+let healthActionEventsBound = false;
+
+window.bindHealthActionEvents = function() {
+    if (healthActionEventsBound) return;
+    healthActionEventsBound = true;
+
+    document.getElementById("close-modal-health-ignore")?.addEventListener("click", closeHealthIgnoreModal);
+    document.getElementById("btn-health-ignore-cancel")?.addEventListener("click", closeHealthIgnoreModal);
+    document.getElementById("btn-health-ignore-submit")?.addEventListener("click", submitHealthIgnoreRule);
+    document.getElementById("health-ignore-select-all")?.addEventListener("change", (event) => {
+        document.getElementById("health-ignore-groups")?.querySelectorAll(".health-ignore-type, .health-ignore-group-toggle").forEach((input) => {
+            input.checked = event.target.checked;
+            input.indeterminate = false;
+        });
+        event.target.indeterminate = false;
+        updateHealthIgnoreSubmitState();
+    });
+    document.getElementById("health-ignore-groups")?.addEventListener("change", (event) => {
+        const groupToggle = event.target.closest?.(".health-ignore-group-toggle");
+        if (groupToggle) {
+            const group = groupToggle.getAttribute("data-group");
+            document.getElementById("health-ignore-groups")?.querySelectorAll(`.health-ignore-type[data-group="${group}"]`).forEach((input) => {
+                input.checked = groupToggle.checked;
+            });
+        }
+        syncHealthIgnoreToggleStates();
+        updateHealthIgnoreSubmitState();
+    });
+
+    document.addEventListener("click", (e) => {
+        const mediaTabBtn = e.target.closest(".health-media-tab");
+        if (mediaTabBtn) {
+            switchHealthMediaTab(mediaTabBtn.getAttribute("data-media-tab"));
+            return;
+        }
+
+        const ignoreScopeBtn = e.target.closest(".health-ignore-scope");
+        if (ignoreScopeBtn) {
+            openHealthIgnoreModal(
+                ignoreScopeBtn.getAttribute("data-scope-kind"),
+                ignoreScopeBtn.getAttribute("data-scope-path")
+            );
+            return;
+        }
+
+        const nfoBtn = e.target.closest(".health-nfo-agent");
+        if (nfoBtn) {
+            const path = nfoBtn.getAttribute("data-path");
+            if (path) {
+                openNfoAgentModal(path, {
+                    mode: nfoBtn.getAttribute("data-edit-mode") || "full",
+                    episodeFile: nfoBtn.getAttribute("data-episode-file") || ""
+                });
+            }
+            return;
+        }
+
+        const openFolderBtn = e.target.closest(".health-open-folder");
+        if (openFolderBtn) {
+            const path = openFolderBtn.getAttribute("data-path");
+            if (path) window.openFolder({ path });
+        }
+    });
+};
+
+// Bind DOM Events for NFO Agent Modal
+document.addEventListener("DOMContentLoaded", () => {
+    if (typeof window.bindNfoAgentEvents === "function") {
+        window.bindNfoAgentEvents();
+    }
+    if (typeof window.bindHealthActionEvents === "function") {
+        window.bindHealthActionEvents();
+    }
 
     // FSK-Batch Event-Listener verdrahten
     document.getElementById("close-modal-fsk-batch-preview")?.addEventListener("click", closeFskBatchModal);
     document.getElementById("btn-fsk-batch-cancel")?.addEventListener("click", closeFskBatchModal);
-    document.getElementById("btn-fsk-batch-refresh")?.addEventListener("click", loadFskBatchPreview);
-    document.getElementById("btn-fsk-batch-confirm")?.addEventListener("click", applyFskBatch);
+    document.getElementById("btn-fsk-batch-refresh")?.addEventListener("click", () => loadFskBatchPreview());
     document.getElementById("fsk-batch-scope-select")?.addEventListener("change", (e) => {
         currentFskBatchScope = e.target.value;
+        loadFskBatchPreview();
+    });
+    document.getElementById("fsk-batch-target-select")?.addEventListener("change", (e) => {
+        currentFskBatchTarget = e.target.value;
         loadFskBatchPreview();
     });
 });
@@ -15706,12 +16774,48 @@ let currentFskBatchItems = [];
 let currentFskBatchTarget = "";
 let currentFskBatchScope = "single";
 let currentFskBatchPlan = null;
+let currentPreviewRequestId = 0;
+let isFskBatchApplying = false;
 
-function openFskBatchModal(items, fskVal) {
+let currentFskBatchMediaKind = "unknown";
+
+function openFskBatchModal(items, fskVal, scope = "single", mediaKind = "unknown") {
     currentFskBatchItems = items;
     currentFskBatchTarget = fskVal;
-    currentFskBatchScope = "single";
+    currentFskBatchScope = scope;
     currentFskBatchPlan = null;
+    currentFskBatchMediaKind = mediaKind;
+    isFskBatchApplying = false;
+    const isSingleMovie = mediaKind === "movie" && items.length === 1;
+
+    const modalTitle = document.getElementById("fsk-batch-modal-title");
+    if (modalTitle) modalTitle.textContent = isSingleMovie ? "FSK-Altersfreigabe setzen" : "FSK-Altersfreigabe: Stapeländerung";
+
+    const scopeField = document.getElementById("fsk-batch-scope-field");
+    if (scopeField) scopeField.style.display = isSingleMovie ? "none" : "block";
+
+    const cancelBtn = document.getElementById("btn-fsk-batch-cancel");
+    if (cancelBtn) {
+        cancelBtn.textContent = "Schließen";
+        cancelBtn.disabled = false;
+        cancelBtn.onclick = closeFskBatchModal;
+    }
+
+    const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
+    if (confirmBtn) {
+        confirmBtn.style.display = "";
+    }
+
+    const refreshBtn = document.getElementById("btn-fsk-batch-refresh");
+    if (refreshBtn) {
+        refreshBtn.style.display = "inline-flex";
+        refreshBtn.disabled = false;
+    }
+
+    const modalX = document.querySelector("#modal-fsk-batch-preview .modal-close");
+    if (modalX) {
+        modalX.onclick = closeFskBatchModal;
+    }
 
     const modal = document.getElementById("modal-fsk-batch-preview");
     if (modal) {
@@ -15719,14 +16823,33 @@ function openFskBatchModal(items, fskVal) {
         modal.classList.add("active");
     }
 
-    const targetValEl = document.getElementById("fsk-batch-target-val");
-    if (targetValEl) {
-        targetValEl.textContent = `FSK ${fskVal}`;
+    const targetSelect = document.getElementById("fsk-batch-target-select");
+    if (targetSelect) {
+        targetSelect.disabled = false;
+        targetSelect.value = fskVal;
     }
 
     const scopeSelect = document.getElementById("fsk-batch-scope-select");
     if (scopeSelect) {
-        scopeSelect.value = currentFskBatchScope;
+        scopeSelect.querySelectorAll("option").forEach(opt => {
+            if (opt.value === "season" || opt.value === "series") {
+                if (mediaKind !== "series") {
+                    opt.style.display = "none";
+                    if (scope === opt.value) scope = "single";
+                } else {
+                    opt.style.display = "";
+                }
+            }
+        });
+        currentFskBatchScope = scope;
+        scopeSelect.disabled = false;
+        scopeSelect.value = scope;
+    }
+
+    const errorEl = document.getElementById("fsk-batch-error-inline");
+    if (errorEl) {
+        errorEl.style.display = "none";
+        errorEl.textContent = "";
     }
 
     loadFskBatchPreview();
@@ -15753,21 +16876,36 @@ if (typeof globalThis !== 'undefined') {
     globalThis.resolveSendPaths = resolveSendPaths;
 }
 
-async function loadFskBatchPreview() {
+async function loadFskBatchPreview(keepError = false) {
     const loader = document.getElementById("fsk-batch-loader");
     const container = document.getElementById("fsk-batch-tree-container");
     const summaryEl = document.getElementById("fsk-batch-summary");
     const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
+    const errorEl = document.getElementById("fsk-batch-error-inline");
 
     if (loader) loader.style.display = "flex";
     if (container) container.innerHTML = "";
     if (summaryEl) summaryEl.innerHTML = "Wird berechnet...";
-    if (confirmBtn) confirmBtn.disabled = true;
+    if (errorEl && !keepError) {
+        errorEl.style.display = "none";
+        errorEl.textContent = "";
+    }
+    if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.onclick = applyFskBatch; // Standardaktion
+        confirmBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height: 12px; width: 12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            <span>Änderungen anwenden</span>
+        `;
+    }
+
+    const requestId = ++currentPreviewRequestId;
 
     try {
         const sendPaths = resolveSendPaths(currentFskBatchItems, currentFskBatchScope);
 
         if (sendPaths.length === 0) {
+            if (requestId !== currentPreviewRequestId) return;
             if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Fehler: Keine gültigen Zielpfade für den gewählten Scope gefunden.</div>`;
             if (summaryEl) summaryEl.innerHTML = "Aktion nicht möglich.";
             if (loader) loader.style.display = "none";
@@ -15784,15 +16922,20 @@ async function loadFskBatchPreview() {
             })
         });
 
+        if (requestId !== currentPreviewRequestId) return;
+
         if (!res.ok) {
             const errData = await res.json();
-            if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Fehler: ${escapeHTML(errData.message || "Vorschau fehlgeschlagen.")}</div>`;
+            const errMsg = errData.message || "Vorschau fehlgeschlagen.";
+            if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Fehler: ${escapeHTML(errMsg)}</div>`;
             if (summaryEl) summaryEl.innerHTML = "Fehler bei der Berechnung.";
             if (loader) loader.style.display = "none";
+            showFskBatchError(`Fehler bei der Vorschau: ${errMsg}`);
             return;
         }
 
         const data = await res.json();
+        if (requestId !== currentPreviewRequestId) return;
         currentFskBatchPlan = data;
 
         if (loader) loader.style.display = "none";
@@ -15814,15 +16957,40 @@ async function loadFskBatchPreview() {
             `;
         }
 
-        // Button nur freigeben, wenn mindestens ein File "ready" ist
+        // Button nur freigeben, wenn mindestens ein File "ready" ist, und Text anpassen
+        // Phase-Logik (preview -> terminal if ready===0)
         if (confirmBtn) {
-            confirmBtn.disabled = (sum.ready === 0);
+            if (sum.ready === 0) {
+                confirmBtn.disabled = false;
+                confirmBtn.onclick = () => {
+                    closeFskBatchModal();
+                    if (typeof pollHealthStatus === "function") pollHealthStatus(false);
+                };
+                confirmBtn.innerHTML = `<span>Fertig</span>`;
+            } else {
+                confirmBtn.disabled = false;
+                confirmBtn.onclick = applyFskBatch; // Direktbindung, globaler Eventlistener ignoriert isFskBatchApplying
+                confirmBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench" style="height: 12px; width: 12px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    <span>${sum.ready} ${sum.ready === 1 ? "NFO" : "NFOs"} auf FSK ${currentFskBatchTarget} ändern</span>
+                `;
+            }
         }
 
     } catch (err) {
+        if (requestId !== currentPreviewRequestId) return;
         if (container) container.innerHTML = `<div class="text-danger" style="padding:10px;">Netzwerkfehler: ${escapeHTML(err.message)}</div>`;
         if (summaryEl) summaryEl.innerHTML = "Netzwerkfehler.";
         if (loader) loader.style.display = "none";
+        showFskBatchError(`Netzwerkfehler bei der Vorschau: ${err.message}`);
+    }
+}
+
+function showFskBatchError(msg) {
+    const errorEl = document.getElementById("fsk-batch-error-inline");
+    if (errorEl) {
+        errorEl.textContent = msg;
+        errorEl.style.display = "block";
     }
 }
 
@@ -15838,7 +17006,7 @@ function renderFskBatchTree(files, container) {
 
     files.forEach(f => {
         const h = f.hierarchy;
-        if (!h.show && !h.season) {
+        if (f.media_kind === "movie") {
             movies.push(f);
         } else {
             const showKey = h.show || "Unbekannte Serie";
@@ -15896,51 +17064,68 @@ function renderFskFileRow(f, indent) {
     } else if (f.status === "unchanged") {
         statusBadge = `<span class="badge" style="background:rgba(255,255,255,0.05); color:var(--text-muted); font-size:10px;">Bereits FSK ${currentFskBatchTarget} (übersprungen)</span>`;
     } else if (f.status === "skipped_missing") {
-        statusBadge = `<span class="badge" style="background:rgba(245,158,11,0.1); color:#f59e0b; font-size:10px;">Übersprungen: NFO fehlt</span>`;
+        let btn = "";
+        if (f.agent_path) {
+             btn = `<button type="button" class="btn btn-sm btn-outline-primary health-nfo-agent" style="padding:1px 6px; font-size:9px;" data-path="${escapeHTML(f.agent_path)}">Metadaten bearbeiten</button>`;
+        }
+        statusBadge = `${btn} <span class="badge" style="background:rgba(245,158,11,0.1); color:#f59e0b; font-size:10px;">Übersprungen: NFO fehlt</span>`;
         rowStyle = "opacity:0.6;";
     } else if (f.status === "skipped_problematic") {
         statusBadge = `<span class="badge" style="background:rgba(239,68,68,0.1); color:#ef4444; font-size:10px;">Fehler: ${escapeHTML(f.error)}</span>`;
         rowStyle = "color:#ef4444;";
     }
 
-    const name = f.hierarchy.episode ? f.hierarchy.episode : osBasename(f.path);
+    const name = f.media_kind === "movie"
+        ? (f.hierarchy.show || osBasename(f.path))
+        : (f.hierarchy.episode ? f.hierarchy.episode : osBasename(f.path));
 
     return `
         <div style="padding-left:${padding}px; display:flex; justify-content:space-between; gap:10px; margin-bottom:2px; font-size:0.9em; ${rowStyle}">
-            <span style="color:${color}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHTML(f.path)}">📄 ${escapeHTML(name)}</span>
+            <span class="fsk-path-monospace" style="color:${color}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHTML(f.path)}">📄 ${escapeHTML(name)}</span>
             ${statusBadge}
         </div>
     `;
 }
 
 async function applyFskBatch() {
-    if (!currentFskBatchPlan) return;
+    if (!currentFskBatchPlan || isFskBatchApplying) return;
 
-    const sum = currentFskBatchPlan.summary;
-    const msg = `Möchtest du die FSK Altersfreigabe auf FSK ${currentFskBatchTarget} für ${sum.ready} Datei(en) anwenden?\n\nEs werden Backups erstellt.`;
-    if (!confirm(msg)) return;
+    isFskBatchApplying = true;
 
     const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
     const cancelBtn = document.getElementById("btn-fsk-batch-cancel");
     const refreshBtn = document.getElementById("btn-fsk-batch-refresh");
+    const scopeSelect = document.getElementById("fsk-batch-scope-select");
+    const targetSelect = document.getElementById("fsk-batch-target-select");
     const summaryEl = document.getElementById("fsk-batch-summary");
+    const errorEl = document.getElementById("fsk-batch-error-inline");
 
+    if (errorEl) {
+        errorEl.style.display = "none";
+        errorEl.textContent = "";
+    }
     if (confirmBtn) confirmBtn.disabled = true;
     if (cancelBtn) cancelBtn.disabled = true;
     if (refreshBtn) refreshBtn.disabled = true;
+    if (scopeSelect) scopeSelect.disabled = true;
+    if (targetSelect) targetSelect.disabled = true;
     if (summaryEl) summaryEl.innerHTML = "Änderungen werden angewendet. Bitte warten...";
 
     try {
         const payloadFiles = currentFskBatchPlan.files.map(f => ({
             path: f.path,
+            status: f.status,
             fingerprint: f.fingerprint
         }));
 
         const sendPaths = resolveSendPaths(currentFskBatchItems, currentFskBatchScope);
         if (sendPaths.length === 0) {
-            alert("Fehler: Keine gültigen Zielpfade gefunden.");
+            showFskBatchError("Fehler: Keine gültigen Zielpfade gefunden.");
+            isFskBatchApplying = false;
             if (cancelBtn) cancelBtn.disabled = false;
             if (refreshBtn) refreshBtn.disabled = false;
+            if (scopeSelect) scopeSelect.disabled = false;
+            if (targetSelect) targetSelect.disabled = false;
             return;
         }
 
@@ -15956,28 +17141,54 @@ async function applyFskBatch() {
         });
 
         if (res.status === 409) {
-            alert("Konflikt/Race-Condition erkannt!\nEine oder mehrere NFO-Dateien wurden zwischenzeitlich modifiziert. Die Aktion wurde komplett abgebrochen.");
-            loadFskBatchPreview();
-            if (cancelBtn) cancelBtn.disabled = false;
+            const errData = await res.json();
+            showFskBatchError(`Konflikt/Race-Condition erkannt: ${errData.message || "Eine oder mehrere NFO-Dateien wurden extern modifiziert. Die Aktion wurde komplett abgebrochen."}`);
+            isFskBatchApplying = false;
+            loadFskBatchPreview(true);
+            if (cancelBtn) {
+                cancelBtn.disabled = false;
+                cancelBtn.textContent = "Schließen";
+            }
             if (refreshBtn) refreshBtn.disabled = false;
+            if (scopeSelect) scopeSelect.disabled = false;
+            if (targetSelect) targetSelect.disabled = false;
             return;
         }
 
         if (!res.ok) {
             const errData = await res.json();
-            alert("Fehler bei der Ausführung: " + (errData.message || "Unbekannter Fehler"));
-            loadFskBatchPreview();
-            if (cancelBtn) cancelBtn.disabled = false;
+            showFskBatchError("Fehler bei der Ausführung: " + (errData.message || "Unbekannter Fehler"));
+            isFskBatchApplying = false;
+            loadFskBatchPreview(true);
+            if (cancelBtn) {
+                cancelBtn.disabled = false;
+                cancelBtn.textContent = "Schließen";
+            }
             if (refreshBtn) refreshBtn.disabled = false;
+            if (scopeSelect) scopeSelect.disabled = false;
+            if (targetSelect) targetSelect.disabled = false;
             return;
         }
 
         const data = await res.json();
         const applySum = data.summary;
+        const failedItems = data.results ? data.results.filter(r => r.status === "failed") : [];
 
-        // Ergebnisse anzeigen
-        let resultHtml = `
-            <div style="font-weight:600; margin-bottom:4px;">Zusammenfassung der Ausführung:</div>
+        // 4-Phasen-Modell: completed, partial, failed
+        let phase = "completed";
+        if (applySum.failed > 0 && applySum.success > 0) phase = "partial";
+        if (applySum.failed > 0 && applySum.success === 0) phase = "failed";
+
+        let resultHtml = `<div style="font-weight:600; margin-bottom:4px;">Zusammenfassung der Ausführung:</div>`;
+        if (phase === "failed") {
+            resultHtml += `<div style="color:var(--danger); margin-bottom:8px;">Kompletter Fehlschlag. Bitte Fehler prüfen.</div>`;
+        } else if (phase === "partial") {
+            resultHtml += `<div style="color:var(--warning); margin-bottom:8px;">Teilweise erfolgreich abgeschlossen.</div>`;
+        } else {
+            resultHtml += `<div style="color:var(--success); margin-bottom:8px;">Erfolgreich abgeschlossen.</div>`;
+        }
+
+        resultHtml += `
             <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
                 <span class="text-success">Erfolgreich geändert: <strong>${applySum.success}</strong></span>
                 <span class="text-danger">Fehlgeschlagen: <strong>${applySum.failed}</strong></span>
@@ -15985,7 +17196,6 @@ async function applyFskBatch() {
             </div>
         `;
 
-        const failedItems = data.results.filter(r => r.status === "failed");
         if (failedItems.length > 0) {
             resultHtml += `<div style="color:#ef4444; font-size:0.85em; margin-top:8px; max-height:100px; overflow-y:auto;">`;
             failedItems.forEach(fi => {
@@ -15996,24 +17206,63 @@ async function applyFskBatch() {
 
         if (summaryEl) summaryEl.innerHTML = resultHtml;
 
-        if (cancelBtn) {
-            cancelBtn.textContent = "Fertig";
-            cancelBtn.disabled = false;
-            cancelBtn.onclick = () => {
-                closeFskBatchModal();
-                if (typeof pollHealthStatus === "function") pollHealthStatus(false);
-            };
+        if (phase === "failed") {
+            // Fehlgeschlagen: Retry anbieten (Vorschau neu laden)
+            isFskBatchApplying = false;
+            if (cancelBtn) {
+                cancelBtn.textContent = "Schließen";
+                cancelBtn.disabled = false;
+            }
+            if (refreshBtn) refreshBtn.disabled = false;
+            if (scopeSelect) scopeSelect.disabled = false;
+            if (targetSelect) targetSelect.disabled = false;
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = `<span>Erneut versuchen</span>`;
+                confirmBtn.onclick = applyFskBatch;
+            }
+        } else {
+            // Completed oder Partial: Terminal-Zustand "Fertig"
+            if (typeof pollHealthStatus === "function") await pollHealthStatus(false);
+            if (cancelBtn) {
+                cancelBtn.textContent = "Fertig";
+                cancelBtn.disabled = false;
+                cancelBtn.onclick = () => {
+                    isFskBatchApplying = false;
+                    closeFskBatchModal();
+                };
+            }
+            if (confirmBtn) confirmBtn.style.display = "none";
+            if (refreshBtn) refreshBtn.style.display = "none";
+
+            const modalX = document.querySelector("#modal-fsk-batch-preview .modal-close");
+            if (modalX) {
+                modalX.onclick = () => {
+                    isFskBatchApplying = false;
+                    closeFskBatchModal();
+                };
+            }
         }
 
     } catch (err) {
-        alert("Netzwerkfehler: " + err.message);
-        loadFskBatchPreview();
-        if (cancelBtn) cancelBtn.disabled = false;
+        showFskBatchError("Netzwerkfehler: " + err.message);
+        isFskBatchApplying = false;
+        loadFskBatchPreview(true);
+        if (cancelBtn) {
+            cancelBtn.disabled = false;
+            cancelBtn.textContent = "Schließen";
+        }
         if (refreshBtn) refreshBtn.disabled = false;
+        if (scopeSelect) scopeSelect.disabled = false;
+        if (targetSelect) targetSelect.disabled = false;
+    } finally {
+        isFskBatchApplying = false;
     }
 }
 
 function closeFskBatchModal() {
+    if (isFskBatchApplying) return;
+    currentPreviewRequestId++; // Laufende Vorschau entwerten!
     const modal = document.getElementById("modal-fsk-batch-preview");
     if (modal) {
         modal.classList.remove("active");
@@ -16026,4 +17275,11 @@ function closeFskBatchModal() {
         cancelBtn.textContent = "Schließen";
         cancelBtn.onclick = closeFskBatchModal;
     }
+    const confirmBtn = document.getElementById("btn-fsk-batch-confirm");
+    if (confirmBtn) {
+        confirmBtn.style.display = "";
+        confirmBtn.onclick = null;
+    }
+    const refreshBtn = document.getElementById("btn-fsk-batch-refresh");
+    if (refreshBtn) refreshBtn.style.display = "inline-flex";
 }

@@ -1073,8 +1073,12 @@ def walk_nas_categories(settings=None, category_ids=None):
             continue
 
         cat_name = cat.get("name", "")
-        # Kategorie-Typ: Name enthält "serie" -> Serien-Kategorie
-        cat_is_series = "serie" in cat_name.lower()
+        cat_type = cat.get("type")
+        if cat_type in ["series", "movie"]:
+            cat_is_series = (cat_type == "series")
+        else:
+            # Zentraler Fallback für ältere/Legacy-Kategorien
+            cat_is_series = "serie" in cat_name.lower()
 
         try:
             entries = sorted(os.listdir(cat_path))

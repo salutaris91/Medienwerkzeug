@@ -19,7 +19,7 @@ die aktive After-Release-Roadmap übernommen.
 | 10 | Duplikat-Erkennung für Filme | geplant | mittel |
 | 11 | Inkrementeller Cache für den Duplikat-Scan | geplant | mittel |
 | 12 | Performance-Optimierung für sehr große Serienbibliotheken | geplant | mittel |
-| 13 | Komfortablere Health-Quick-Fix-Oberfläche | geplant | klein–mittel |
+| 13 | Komfortablere Health-Quick-Fix-Oberfläche | erledigt | klein–mittel |
 | 14 | Health-Status-Vertrag & Frontend-Testabdeckung | erledigt | klein–mittel |
 | 15 | FAQ sprachlich und visuell überarbeiten | erledigt | klein |
 | 16 | System Metrics Worker: Thread-Akkumulation verhindern | erledigt | klein |
@@ -57,7 +57,7 @@ die aktive After-Release-Roadmap übernommen.
 | 48 | Health-Scan: Qualitäts-, Bitrate- & Audiospur-Prüfung definieren und markieren | geplant | mittel |
 | 49 | Bibliotheks-Scan: Teilscan ohne Medienserver & dynamische Kategorieauswahl | erledigt | klein–mittel |
 | 50 | NFO-Agent: Mapping- und Review-Editor extrahieren (Ansatz C) | geplant | mittel |
-| 51 | NFO-Agent Vollständigkeit: FSK/Genre/Artwork | geplant | klein–mittel |
+| 51 | NFO-Agent Vollständigkeit: FSK/Genre/Artwork | teilweise | klein–mittel |
 
 ---
 
@@ -465,6 +465,14 @@ Analyse ~0,5 Tag; Umsetzung abhängig vom Messergebnis.
 ---
 
 ## 13. Komfortablere Health-Quick-Fix-Oberfläche
+
+> **Erledigt (14.07.2026):** Die medienorientierte Ansicht bewahrt ihren Kontext
+> über stabile Film- und Serienpfade, trennt ruhige Zusammenfassungen von exakten
+> Detailaktionen und lädt den autoritativen Health-Status nach FSK-Änderungen
+> unmittelbar neu. Gruppenaktionen ersetzen Einzelaktionen nur dann, wenn sie
+> nachweislich dieselben NFO-Dateien abdecken. Der konkrete FSK-Zustand bleibt
+> trotz der NFO-Metadaten-Gruppierung dauerhaft sichtbar; der NFO-Agent ordnet
+> Haupt-NFO-Befund, Haupt-Metadaten und Episoden-NFOs in einer klaren Reihenfolge.
 
 Für den Vor-Release reicht es, nach einem Quick-Fix Scrollposition, geöffnete
 Gruppen und den sichtbaren Kontext stabil zu halten. Später kann die Bedienung
@@ -1525,6 +1533,15 @@ Der NFO-Agent deckt aktuell nur Titel, Plot und das Erscheinungsjahr ab. Weitere
 **Ziel:**
 Erweiterung des NFO-Agenten um die Möglichkeit, auch FSK-Freigaben, Genres, Studios, Darsteller und Artworks zu laden, im Modal anzuzeigen und in die Haupt-NFO zu schreiben.
 
+**Stand 14.07.2026:**
+FSK und Genres sind für Film-, Serien- und Episoden-NFOs in den gemeinsamen
+NFO-Agenten integriert. Vorhandene Dateien werden standardmäßig feldgenau
+ergänzt; vollständiges Ersetzen ist eine ausdrückliche Option. Quellenhinweise,
+Fingerprint-Konfliktschutz und ein nicht blockierender Hinweis auf fehlende
+Kernangaben sind umgesetzt. Artwork-Auswahl sowie Studios, Regisseure und
+Darsteller bleiben offen, daher ist das Roadmap-Item noch nicht vollständig
+erledigt.
+
 **Umsetzung:**
 1. **Frontend-Erweiterung:** Hinzufügen von Eingabefeldern/Dropdowns für FSK-Freigabe, Genres und Studios im NFO-Agent-Modal.
 2. **Artwork-Vorschau:** Anzeigen von gefundenen Poster- und Fanart-URLs mit Option zum Auswählen/Abwählen des Downloads.
@@ -1534,3 +1551,25 @@ Erweiterung des NFO-Agenten um die Möglichkeit, auch FSK-Freigaben, Genres, Stu
 ### Aufwand (grob)
 Klein–mittel: UI-Erweiterung im Modal und Backend-Anpassung zur NFO-Erzeugung.
 
+---
+
+## 52. NFO-Agent: Mehrstufiger Wizard (Quelle wählen → Prüfen & Bearbeiten)
+
+**Einordnung / Priorität:** UX-Umbau des NFO-Agenten, beschlossen am 16.07.2026 als separates Follow-up nach dem Merge von `fix/fsk-workflow-final`.
+
+**Problem:**
+Das NFO-Agent-Modal mischt Metadatensuche, Optionen und die eigentliche Bearbeitung in einer langen Scroll-Ansicht. Nutzer wissen nicht, in welcher Phase sie sich befinden; nach dem Laden einer Quelle bleibt der Suchblock sichtbar und lenkt ab.
+
+**Ziel:**
+Zwei klar getrennte Schritte wie beim Onboarding:
+1. **Quelle wählen:** Suche (inkl. Hinweis auf Mediathek-Link), erweiterte Einstellungen (ID/Provider), Treffer-Auswahl. Ohne Treffer oder Eingabe führt ein Button „Weiter zur manuellen Eingabe" in Schritt 2.
+2. **Prüfen & Bearbeiten:** Die heutige Editor-Ansicht (Haupt-NFO, Staffel-/Folgenfelder) mit der Modusleiste. Der FSK-Workflow nutzt dasselbe Modal und profitiert automatisch.
+
+**Umsetzung (grob):**
+1. Modal-Inhalt in zwei Schritt-Container mit Fortschrittskopf und „Weiter/Zurück" gliedern; bestehende IDs/Logik erhalten.
+2. Suchtreffer-Auswahl schließt Schritt 1 ab und wechselt automatisch zu Schritt 2.
+3. Einstieg aus der Health-Ansicht mit bereits bekannter Quelle (vorhandene NFO/Profil) darf Schritt 1 überspringen.
+4. Frontend-Tests für Schrittwechsel, Direkteinstiege und manuelle Eingabe ohne Treffer.
+
+### Aufwand (grob)
+Mittel: reine Frontend-Umstrukturierung mit umfangreicher Testanpassung; keine Backend-Änderungen.

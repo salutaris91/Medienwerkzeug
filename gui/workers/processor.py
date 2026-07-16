@@ -3127,26 +3127,35 @@ def process_worker(params):
             overwrite_nfo = params.get("overwrite_nfo", False)
             write_show_nfo = params.get("write_show_nfo", True)
             nfo_overrides = params.get("nfo_overrides") or {}
+            nfo_write_mode = params.get("nfo_write_mode", "patch")
+            expected_main_fingerprint = params.get("main_nfo_fingerprint")
+            has_expected_main_fingerprint = "main_nfo_fingerprint" in params
+
+            if nfo_write_mode not in {"create", "patch", "replace"}:
+                raise RuntimeError(f"Ungültiger NFO-Schreibmodus: {nfo_write_mode}")
+            from gui.core.nfo_mutation import assert_nfo_fingerprint, patch_nfo_fields
 
             # Start job status
             from gui.core.jobs import update_job
             update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=10)
 
+            # (path, kind) of every successfully written NFO for the health refresh below
+            written_nfo_paths = []
+
             if nfo_type == "tvshow":
                 show_id = params.get("show_id")
                 season = params.get("season", 1)
                 mappings = params.get("mappings") or {}
+                episode_fingerprints = params.get("episode_fingerprints") or {}
+                season_nfo_overrides = params.get("season_nfo_overrides") or {}
 
                 # A. Generate show NFO (only if write_show_nfo is True)
                 if show_id and provider and write_show_nfo:
-                    show_overrides = nfo_overrides.get("show")
-                    from gui.core.health import should_overwrite_nfo
-                    should_overwrite_show = should_overwrite_nfo(
-                        overwrite_nfo,
-                        show_overrides,
-                        os.path.join(show_dir, "tvshow.nfo"),
-                        "tvshow"
-                    )
+                    show_overrides = nfo_overrides.get("show") or {}
+                    show_nfo_path = os.path.join(show_dir, "tvshow.nfo")
+                    if has_expected_main_fingerprint:
+                        assert_nfo_fingerprint(show_nfo_path, expected_main_fingerprint)
+                    should_overwrite_show = nfo_write_mode == "replace"
                     log_message(f"Prüfe tvshow.nfo in {show_dir} (overwrite: {should_overwrite_show})...")
                     res_show = mw_metadata.generate_tvshow_nfo(
                         provider, show_id, show_dir,
@@ -3154,9 +3163,53 @@ def process_worker(params):
                         overwrite=should_overwrite_show
                     )
                     log_message(f"tvshow.nfo Generierungs-Ergebnis: {res_show}")
-                
+                    if not os.path.isfile(show_nfo_path):
+                        raise RuntimeError("tvshow.nfo wurde nicht erzeugt.")
+                    patch_expected = (
+                        expected_main_fingerprint
+                        if has_expected_main_fingerprint and nfo_write_mode == "patch"
+                        else ...
+                    )
+                    patch_ok, patch_message = patch_nfo_fields(
+                        show_nfo_path,
+                        show_overrides,
+                        expected_fingerprint=patch_expected,
+                    )
+                    if not patch_ok:
+                        raise RuntimeError(patch_message)
+                    log_message(f"tvshow.nfo Feld-Patch: {patch_message}")
+                    written_nfo_paths.append((show_nfo_path, "tvshow"))
+
                 update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=30)
-                
+
+                # Existing season.nfo files are optional. When explicitly edited,
+                # patch only the selected fields and never create a missing file.
+                from gui.core.helpers import is_season_folder_name
+                current_real = os.path.realpath(current_dir)
+                for relative_path, season_change in season_nfo_overrides.items():
+                    normalized_relative = os.path.normpath(str(relative_path or ""))
+                    season_nfo_path = os.path.realpath(os.path.join(current_real, normalized_relative))
+                    if (
+                        os.path.isabs(normalized_relative)
+                        or os.path.commonpath([current_real, season_nfo_path]) != current_real
+                        or os.path.basename(season_nfo_path).lower() != "season.nfo"
+                        or not is_season_folder_name(os.path.basename(os.path.dirname(season_nfo_path)))
+                        or not os.path.isfile(season_nfo_path)
+                        or not is_path_allowed(season_nfo_path)
+                    ):
+                        raise RuntimeError(f"Ungültiger season.nfo-Pfad: {relative_path}")
+                    expected_fingerprint = season_change.get("fingerprint")
+                    assert_nfo_fingerprint(season_nfo_path, expected_fingerprint)
+                    patch_ok, patch_message = patch_nfo_fields(
+                        season_nfo_path,
+                        season_change.get("fields") or {},
+                        expected_fingerprint=expected_fingerprint,
+                    )
+                    if not patch_ok:
+                        raise RuntimeError(patch_message)
+                    log_message(f"season.nfo Feld-Patch: {patch_message}")
+                    written_nfo_paths.append((season_nfo_path, "season"))
+
                 # B. Fetch episodes list from metadata service
                 log_message("Rufe Episoden-Metadaten für Mappings ab...")
                 episodes = {}
@@ -3171,6 +3224,7 @@ def process_worker(params):
                 # C. Generate episode NFOs
                 mapping_items = list(mappings.items())
                 N = len(mapping_items)
+                episode_errors = []
                 log_message(f"Verarbeite {N} Episoden-Mappings...")
                 
                 for idx, (filename, ep_num_val) in enumerate(mapping_items):
@@ -3226,11 +3280,14 @@ def process_worker(params):
                             
                     ep_title = sanitize_filename(ep_title)
                     filename_base = os.path.splitext(filename)[0]
+                    episode_nfo_path = os.path.join(current_dir, f"{filename_base}.nfo")
                     
                     # Generate episode NFO
                     log_message(f"Generiere NFO für '{filename}' (S{ep_season:02d}E{ep_num:02d}: {ep_title})...")
                     try:
                         ep_overrides = nfo_overrides.get("episodes", {}).get(filename, {})
+                        if filename in episode_fingerprints:
+                            assert_nfo_fingerprint(episode_nfo_path, episode_fingerprints[filename])
                         res_ep = mw_metadata.generate_episode_nfo(
                             provider=provider,
                             show_id=show_id,
@@ -3242,37 +3299,87 @@ def process_worker(params):
                             overwrite=overwrite_nfo
                         )
                         log_message(f"Ergebnis für '{filename}': {res_ep}")
+                        if not os.path.isfile(episode_nfo_path):
+                            raise RuntimeError(f"Episoden-NFO für '{filename}' wurde nicht erzeugt.")
+                        episode_patch_expected = (
+                            episode_fingerprints[filename]
+                            if filename in episode_fingerprints and episode_fingerprints[filename] is not None
+                            else ...
+                        )
+                        patch_ok, patch_message = patch_nfo_fields(
+                            episode_nfo_path,
+                            ep_overrides,
+                            expected_fingerprint=episode_patch_expected,
+                        )
+                        if not patch_ok:
+                            raise RuntimeError(patch_message)
+                        log_message(f"Episoden-NFO Feld-Patch für '{filename}': {patch_message}")
+                        written_nfo_paths.append((episode_nfo_path, "episode"))
                     except Exception as e:
-                        log_message(f"❌ Fehler bei Episode '{filename}': {e}")
+                        episode_error = f"{filename}: {e}"
+                        episode_errors.append(episode_error)
+                        log_message(f"❌ Fehler bei Episode '{episode_error}'")
                         
                     progress = 30 + int(70 * (idx + 1) / max(1, N))
                     update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=progress)
+
+                if episode_errors:
+                    raise RuntimeError(
+                        f"{len(episode_errors)} Episoden-NFO(s) konnten nicht sicher aktualisiert werden: "
+                        + "; ".join(episode_errors)
+                    )
                     
             elif nfo_type == "movie":
                 movie_id = params.get("movie_id")
-                movie_overrides = nfo_overrides.get("movie")
+                movie_overrides = nfo_overrides.get("movie") or {}
                 
                 if movie_id and provider:
-                    from gui.core.health import should_overwrite_nfo, find_primary_nfo
+                    from gui.core.health import find_primary_nfo
                     nfo_path = find_primary_nfo(current_dir, is_movie=True)
-                    should_overwrite_movie = should_overwrite_nfo(
-                        overwrite_nfo,
-                        movie_overrides,
-                        nfo_path or os.path.join(current_dir, f"{os.path.basename(current_dir)}.nfo"),
-                        "movie"
-                    )
+                    target_nfo_path = nfo_path or os.path.join(current_dir, f"{os.path.basename(current_dir)}.nfo")
+                    if has_expected_main_fingerprint:
+                        assert_nfo_fingerprint(target_nfo_path, expected_main_fingerprint)
+                    should_overwrite_movie = nfo_write_mode == "replace"
                     log_message(f"Prüfe movie NFO (overwrite: {should_overwrite_movie})...")
                     
                     if provider == "ofdb":
-                        res_movie = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, os.path.basename(current_dir))
+                        if nfo_write_mode == "patch" and os.path.isfile(target_nfo_path):
+                            res_movie = {"nfo": False, "msg": "Bestehende Film-NFO wird gezielt ergänzt"}
+                        else:
+                            res_movie = mw_metadata.generate_ofdb_nfo(
+                                movie_id,
+                                current_dir,
+                                os.path.splitext(os.path.basename(target_nfo_path))[0],
+                            )
                     else:
                         res_movie = mw_metadata.generate_movie_nfo(
-                            movie_id, current_dir, os.path.basename(current_dir),
+                            movie_id, current_dir, os.path.splitext(os.path.basename(target_nfo_path))[0],
                             nfo_overrides=movie_overrides,
                             overwrite=should_overwrite_movie
                         )
                     log_message(f"Movie NFO Generierungs-Ergebnis: {res_movie}")
-                    
+                    if not os.path.isfile(target_nfo_path):
+                        raise RuntimeError("Film-NFO wurde nicht erzeugt.")
+                    patch_expected = (
+                        expected_main_fingerprint
+                        if has_expected_main_fingerprint and nfo_write_mode == "patch"
+                        else ...
+                    )
+                    patch_ok, patch_message = patch_nfo_fields(
+                        target_nfo_path,
+                        movie_overrides,
+                        expected_fingerprint=patch_expected,
+                    )
+                    if not patch_ok:
+                        raise RuntimeError(patch_message)
+                    log_message(f"Film-NFO Feld-Patch: {patch_message}")
+                    written_nfo_paths.append((target_nfo_path, "movie"))
+                else:
+                    # A silent no-op would report success without writing anything.
+                    raise RuntimeError(
+                        "Film-NFO nicht verarbeitet: weder Metadaten-ID noch manuelle Angaben übergeben."
+                    )
+
                 update_job(task_id, pipeline_step="metadata", pipeline_status="done", pipeline_progress=100)
                 
             # Invalidate the health-scan cache so repaired NFOs drop out of the health check
@@ -3285,6 +3392,15 @@ def process_worker(params):
                 _hc.invalidate_entry(os.path.dirname(current_dir))
             except Exception as cache_err:
                 log_message(f"[NFO Agent] Cache-Invalidierung übersprungen: {cache_err}")
+
+            # Drop resolved findings from the live scan result so the dashboard
+            # reflects the repair immediately (same mechanism as the FSK quick fix).
+            try:
+                from gui.core.health import refresh_issues_after_nfo_write
+                for written_path, written_kind in written_nfo_paths:
+                    refresh_issues_after_nfo_write(written_path, written_kind)
+            except Exception as refresh_err:
+                log_message(f"[NFO Agent] Health-Aktualisierung übersprungen: {refresh_err}")
 
             log_message("✅ NFO Agent erfolgreich abgeschlossen.")
             update_job(task_id, pipeline_step="metadata", pipeline_status="done", pipeline_progress=100)

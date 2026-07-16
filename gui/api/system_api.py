@@ -268,38 +268,42 @@ def handle_api_system_restart():
             "message": "Der Server kann nicht neu gestartet werden, da aktuell noch Konvertierungen oder Dateiübertragungen laufen!"
         })
 
-    # Schedule restart in a separate thread to allow response to send
-    def do_restart():
-        time.sleep(1.0)
-        print("Restarting server process via subprocess...")
-        import subprocess
-        # Get absolute path to main.py
-        main_py = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "main.py"))
-        env = os.environ.copy()
-        # Set PYTHONPATH to the parent directory of gui/
-        project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".."))
-
-        existing_pythonpath = env.get("PYTHONPATH", "")
-        pythonpath_parts = [project_root]
-        if existing_pythonpath:
-            pythonpath_parts.append(existing_pythonpath)
-
-        env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
-
-        args = [sys.executable, main_py]
-        if "--restarted" not in args:
-            args.append("--restarted")
-
-        try:
-            subprocess.Popen(args, env=env, close_fds=True, start_new_session=True)
-            sys.stdout.flush()
-            sys.stderr.flush()
-            os._exit(0)
-        except Exception as e:
-            print(f"Error spawning restart process: {e}", file=sys.stderr, flush=True)
-
-    threading.Thread(target=do_restart, daemon=True).start()
+    # Run after sending the response. Docker owns the process lifecycle and
+    # restarts the container; only the desktop runtime may spawn its successor.
+    threading.Thread(target=_restart_server_process, daemon=True).start()
     return jsonify({"status": "restarting"})
+
+
+def _restart_server_process():
+    time.sleep(1.0)
+    runtime = get_runtime_capabilities().get("runtime", "desktop")
+
+    if runtime == "docker":
+        print("Requesting container restart via Docker supervisor...", flush=True)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
+        return
+
+    print("Restarting desktop server process via subprocess...", flush=True)
+    main_py = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "main.py"))
+    env = os.environ.copy()
+    project_root = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".."))
+
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    pythonpath_parts = [project_root]
+    if existing_pythonpath:
+        pythonpath_parts.append(existing_pythonpath)
+    env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
+
+    args = [sys.executable, main_py, "--restarted"]
+    try:
+        subprocess.Popen(args, env=env, close_fds=True, start_new_session=True)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
+    except Exception as exc:
+        print(f"Error spawning restart process: {exc}", file=sys.stderr, flush=True)
 
 
 
@@ -1047,4 +1051,3 @@ def handle_api_trash_cleanup():
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": f"Fehler bei der Bereinigung: {e}"}), 500
-

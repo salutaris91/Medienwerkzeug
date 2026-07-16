@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os, sys, json, time, shutil, subprocess, urllib, threading
 from flask import Blueprint, request, jsonify, Response, send_from_directory
 from gui.core.utils import load_settings, save_settings, clean_show_name, load_show_profile, save_show_profile, load_konv_history
@@ -316,8 +317,7 @@ def handle_api_nas_seasons():
                     entry_path = os.path.join(base_path, entry)
                     if not os.path.isdir(entry_path) or entry.startswith('.'):
                         continue
-                    # Match "Staffel X" pattern
-                    if entry.lower().startswith("staffel ") or entry.lower().startswith("season ") or entry.lower().startswith("specials"):
+                    if is_season_folder_name(entry):
                         # Count video files in this season dir (including subdirs)
                         episode_count = 0
                         for root, dirs, files in os.walk(entry_path):
@@ -679,6 +679,40 @@ def handle_api_findings_ignore():
     return jsonify({"ok": ok})
 
 
+@nas_api.route('/findings/ignore-rules', methods=['POST'])
+def handle_api_findings_ignore_rules():
+    """Persist selected Health issue types for one canonical media scope."""
+    import gui.core.ignores as ignores
+
+    try:
+        params = request.get_json() or {}
+    except Exception:
+        params = {}
+    scope_kind = str(params.get("scope_kind", "")).strip()
+    scope_path = os.path.realpath(str(params.get("scope_path", "")).strip())
+    issue_types = params.get("issue_types", [])
+    allowed_types = ignores.ignoreable_issue_types()
+    if scope_kind not in ignores.ALLOWED_SCOPE_KINDS:
+        return jsonify({"ok": False, "message": "Ungültiger Geltungsbereich."}), 400
+    if (
+        not isinstance(issue_types, list)
+        or not issue_types
+        or any(issue_type not in allowed_types for issue_type in issue_types)
+    ):
+        return jsonify({"ok": False, "message": "Keine gültigen ignorierbaren Hinweisarten ausgewählt."}), 400
+    if not scope_path or not is_path_allowed(scope_path):
+        return jsonify({"ok": False, "message": "Der Pfad liegt außerhalb der freigegebenen Bibliothek."}), 403
+    if scope_kind == "season" and not is_season_folder_name(os.path.basename(scope_path)):
+        return jsonify({"ok": False, "message": "Der Pfad ist kein gültiger Staffelordner."}), 400
+    if scope_kind in {"movie", "series", "season"} and not os.path.isdir(scope_path):
+        return jsonify({"ok": False, "message": "Der Medienordner existiert nicht."}), 400
+    if scope_kind == "episode" and os.path.splitext(scope_path)[1].lower() != ".nfo":
+        return jsonify({"ok": False, "message": "Der Folgenbereich muss auf eine NFO-Datei zeigen."}), 400
+
+    ok = ignores.add_health_rule(scope_kind, scope_path, issue_types)
+    return jsonify({"ok": ok}), 200 if ok else 500
+
+
 @nas_api.route('/findings/unignore', methods=['POST'])
 def handle_api_findings_unignore():
     """Entfernt einen Befund-Schlüssel aus der Ignorier-Liste (wieder einblenden)."""
@@ -694,11 +728,15 @@ def handle_api_findings_unignore():
     return jsonify({"ok": ok})
 
 
-@nas_api.route('/findings/ignored', methods=['GET'])
+@nas_api.route('/findings/ignored', methods=['GET', 'DELETE'])
 def handle_api_findings_ignored():
-    """Liefert die Liste aller ignorierten Befund-Schlüssel."""
+    """Return persisted ignore state or restore every ignored finding."""
     import gui.core.ignores as ignores
-    return jsonify({"ignored": sorted(ignores.get_ignored())})
+    if request.method == "DELETE":
+        ok = ignores.clear_all()
+        return jsonify({"ok": ok}), 200 if ok else 500
+    state = ignores.get_ignore_state()
+    return jsonify({"ignored": state["exact_keys"], "rules": state["health_rules"], "version": state["version"]})
 
 
 
@@ -707,77 +745,11 @@ def handle_api_findings_ignored():
 # Hilfsfunktionen für FSK-Verarbeitung
 # ==========================================================================
 def write_fsk_to_nfo(nfo_path: str, fsk_str: str) -> tuple[bool, str]:
-    """Schreibt den FSK-Wert in die NFO-Datei unter Einhaltung aller Sicherheits-
-    und XML-Richtlinien (Backup, Validierung, atomares Schreiben).
-    Gibt (success, message) zurück.
-    """
-    import xml.etree.ElementTree as ET
-    import tempfile
-    import shutil
-    import time
-    import re
-    import os
+    """Compatibility wrapper around the shared field-scoped NFO writer."""
+    from gui.core.nfo_mutation import patch_nfo_fields
 
-    try:
-        with open(nfo_path, "r", encoding="utf-8", errors="ignore") as f:
-            content = f.read()
-    except Exception as e:
-        return False, f"NFO Lesefehler: {e}"
+    return patch_nfo_fields(nfo_path, {"fsk": fsk_str})
 
-    try:
-        tree = ET.fromstring(content)
-    except Exception as e:
-        return False, f"Original-XML fehlerhaft: {e}"
-
-    if tree.tag not in ["movie", "tvshow", "episodedetails"]:
-        return False, f"Ungültiges NFO Root-Tag: {tree.tag}"
-
-    mpaa_elements = tree.findall('.//mpaa')
-    if len(mpaa_elements) > 1:
-        return False, "Mehrere <mpaa>-Tags gefunden. Bitte manuell bereinigen."
-
-    if len(mpaa_elements) == 1:
-        new_content = re.sub(r'<mpaa[\s>].*?</mpaa>', f'<mpaa>{fsk_str}</mpaa>', content, count=1, flags=re.DOTALL|re.IGNORECASE)
-    else:
-        # Vor dem schließenden Tag einfügen
-        closing_tag = f"</{tree.tag}>"
-        if closing_tag not in content:
-            return False, f"NFO-Datei ist unvollständig (End-Tag {closing_tag} fehlt)."
-        new_content = content.replace(closing_tag, f"  <mpaa>{fsk_str}</mpaa>\n{closing_tag}")
-
-    # XML-Plausibilität des Ergebnisses prüfen
-    try:
-        ET.fromstring(new_content)
-    except Exception as e:
-        return False, f"Generiertes XML fehlerhaft: {e}"
-
-    temp_path = None
-    try:
-        # Backup anlegen
-        ts = time.strftime("%Y%m%d_%H%M%S")
-        bak_path = f"{nfo_path}.bak.{ts}"
-        suffix = 1
-        while os.path.exists(bak_path):
-            bak_path = f"{nfo_path}.bak.{ts}_{suffix}"
-            suffix += 1
-        shutil.copy2(nfo_path, bak_path)
-
-        # Temp file schreiben
-        fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(nfo_path), text=True)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(new_content)
-
-        os.replace(temp_path, nfo_path)
-        temp_path = None
-        return True, "FSK erfolgreich aktualisiert."
-    except Exception as e:
-        return False, f"Fehler beim Speichern: {e}"
-    finally:
-        if temp_path and os.path.exists(temp_path):
-            try:
-                os.remove(temp_path)
-            except OSError:
-                pass
 
 
 def find_cache_root_and_type(nfo_path: str, settings: dict) -> tuple[str, bool]:
@@ -807,8 +779,8 @@ def find_cache_root_and_type(nfo_path: str, settings: dict) -> tuple[str, bool]:
 
     if best_cat:
         cat_path = os.path.realpath(os.path.join(nas_root, best_cat.get("nas_sub", "").lstrip("/")))
-        cat_name = best_cat.get("name", "")
-        if "serie" in cat_name.lower():
+        cat_type = get_category_media_type(best_cat, real_nfo)
+        if cat_type == "series":
             is_movie = False
             try:
                 rel = os.path.relpath(real_nfo, cat_path)
@@ -896,12 +868,12 @@ def handle_api_health_fix():
                         continue
 
                 if best_cat:
-                    cat_name = best_cat.get("name", "")
-                    if "serie" in cat_name.lower():
+                    cat_type = get_category_media_type(best_cat, real_path)
+                    if cat_type == "series":
                         is_movie = False
                     else:
                         try:
-                            if any(os.path.isdir(os.path.join(real_path, e)) and (e.lower().startswith("staffel ") or e.lower().startswith("season ") or e.lower().startswith("specials")) for e in os.listdir(real_path)):
+                            if any(os.path.isdir(os.path.join(real_path, e)) and is_season_folder_name(e) for e in os.listdir(real_path)):
                                 is_movie = False
                         except OSError:
                             pass
@@ -920,12 +892,17 @@ def handle_api_health_fix():
             if not ok:
                 return jsonify({"ok": False, "message": msg}), 400 if "XML" in msg or "Mehrere" in msg else 500
 
-            # Serverseitige Issue-Entfernung (dateigenau für NFO, ordnergenau für Quickfix-Pfad)
-            health.remove_issue(nfo_path, "missing_age_rating")
-            health.remove_issue(nfo_path, "invalid_age_rating")
-            if not is_fsk_file:
-                health.remove_issue(real_path, "missing_age_rating")
-                health.remove_issue(real_path, "invalid_age_rating")
+            # Serverseitige Issue-Entfernung
+            if is_fsk_file:
+                if os.path.basename(nfo_path).lower() in ("movie.nfo", "tvshow.nfo", "season.nfo"):
+                    issue_path = os.path.dirname(nfo_path)
+                else:
+                    issue_path = nfo_path
+                health.remove_issue(issue_path, "missing_age_rating", nfo_path=nfo_path)
+                health.remove_issue(issue_path, "invalid_age_rating", nfo_path=nfo_path)
+            else:
+                health.remove_issue(real_path, "missing_age_rating", nfo_path=nfo_path)
+                health.remove_issue(real_path, "invalid_age_rating", nfo_path=nfo_path)
 
             # Cache des entsprechenden Serienroots oder Filmordners invalidieren
             from gui.core.health_cache import HealthCacheManager
@@ -1077,33 +1054,28 @@ def handle_api_health_fix():
 import hashlib
 
 def calculate_nfo_hash(nfo_path: str) -> str:
-    """Berechnet den SHA-256-Hash des Dateiinhalts."""
-    try:
-        with open(nfo_path, "rb") as f:
-            return hashlib.sha256(f.read()).hexdigest()
-    except Exception:
-        return ""
+    """Berechnet den SHA-256-Hash des Dateiinhalts. Wirft eine Exception bei Fehlern."""
+    with open(nfo_path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
 
-def make_file_fingerprint(nfo_path: str) -> dict:
-    """Erzeugt einen Fingerprint (Pfad, mtime_ns, Größe, SHA-256-Hash) für eine NFO."""
-    try:
-        stat = os.stat(nfo_path)
-        mtime_ns = stat.st_mtime_ns
-        size = stat.st_size
-        sha = calculate_nfo_hash(nfo_path)
-        return {
-            "path": nfo_path,
-            "mtime_ns": mtime_ns,
-            "size": size,
-            "hash": sha
-        }
-    except Exception:
-        return {
-            "path": nfo_path,
-            "mtime_ns": 0,
-            "size": 0,
-            "hash": ""
-        }
+def make_file_fingerprint(nfo_path: str) -> dict | None:
+    """Erzeugt einen Fingerprint (Pfad, mtime_ns als String, Größe, SHA-256-Hash) für eine NFO.
+    Gibt None zurück, wenn die Datei physisch nicht existiert.
+    Wirft eine Exception bei anderen Fehlern (z.B. Leseberechtigungsfehler).
+    """
+    if not os.path.exists(nfo_path):
+        return None
+
+    stat_res = os.stat(nfo_path)
+    mtime_ns = str(stat_res.st_mtime_ns)
+    size = stat_res.st_size
+    sha = calculate_nfo_hash(nfo_path)
+    return {
+        "path": nfo_path,
+        "mtime_ns": mtime_ns,
+        "size": size,
+        "hash": sha
+    }
 
 def find_category_for_path(path: str, settings: dict) -> tuple[dict, str]:
     """Ermittelt die passende Bibliothekskategorie für einen Pfad."""
@@ -1131,7 +1103,8 @@ def is_valid_series_root(path: str, settings: dict) -> bool:
     """Prüft strukturell, ob ein Pfad ein Serienhauptordner ist."""
     real_path = os.path.realpath(path)
     cat, cat_path = find_category_for_path(real_path, settings)
-    if not cat or "serie" not in cat.get("name", "").lower():
+    from gui.core.helpers import get_category_media_type
+    if not cat or get_category_media_type(cat, real_path) != "series":
         return False
     # Darf nicht der Kategorie-Root selbst sein
     if real_path == cat_path:
@@ -1141,7 +1114,7 @@ def is_valid_series_root(path: str, settings: dict) -> bool:
         return True
     # Oder besitzt mindestens einen Staffelordner
     try:
-        if any(os.path.isdir(os.path.join(real_path, e)) and bool(re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", e, re.IGNORECASE)) for e in os.listdir(real_path)):
+        if any(os.path.isdir(os.path.join(real_path, e)) and is_season_folder_name(e) for e in os.listdir(real_path)):
             return True
     except OSError:
         pass
@@ -1159,10 +1132,6 @@ def is_valid_media_nfo(nfo_path: str, settings: dict) -> bool:
 
     basename = os.path.basename(real_path).lower()
     parent_dir = os.path.dirname(real_path)
-
-    # Zusatz-NFOs strikt ablehnen
-    if basename == "season.nfo":
-        return False
 
     # Darf nicht direkt im Kategorie-Root liegen
     if parent_dir == cat_path:
@@ -1182,8 +1151,16 @@ def is_valid_media_nfo(nfo_path: str, settings: dict) -> bool:
     if basename == "tvshow.nfo":
         return is_valid_series_root(parent_dir, settings)
 
+    if basename == "season.nfo":
+        if get_category_media_type(cat, real_path) != "series":
+            return False
+        if not is_season_folder_name(os.path.basename(parent_dir)):
+            return False
+        series_dir = os.path.dirname(parent_dir)
+        return is_valid_series_root(series_dir, settings)
+
     if basename == "movie.nfo":
-        if "serie" in cat.get("name", "").lower():
+        if get_category_media_type(cat, real_path) == "series":
             return False
         return folder_has_video(parent_dir)
 
@@ -1207,6 +1184,10 @@ def collect_season_episode_nfos(season_path: str) -> list:
     import gui.core.health as health
     videos, _ = health._collect_videos(season_path)
     targets = []
+    season_nfo = os.path.join(season_path, "season.nfo")
+    if os.path.isfile(season_nfo):
+        targets.append(season_nfo)
+
     for full_video, filename in videos:
         expected_nfo = os.path.splitext(full_video)[0] + ".nfo"
         targets.append(expected_nfo)
@@ -1221,13 +1202,20 @@ def collect_series_nfos(series_path: str) -> tuple:
     except OSError:
         entries = []
 
-    # Staffeln suchen
+    # Staffeln suchen (Unterordner)
     for e in sorted(entries):
         spath = os.path.join(series_path, e)
-        if not os.path.isdir(spath):
-            continue
-        if re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", e, re.IGNORECASE):
-            episode_nfos.extend(collect_season_episode_nfos(spath))
+        if os.path.isdir(spath):
+            if is_season_folder_name(e):
+                episode_nfos.extend(collect_season_episode_nfos(spath))
+
+    # Flache Episodenvideos direkt im Serienroot suchen (nicht-rekursiv)
+    video_exts = {'.mkv', '.mp4', '.avi', '.m4v', '.ts', '.mov', '.wmv', '.iso', '.img'}
+    for e in sorted(entries):
+        fpath = os.path.join(series_path, e)
+        if os.path.isfile(fpath) and os.path.splitext(e)[1].lower() in video_exts:
+            expected_nfo = os.path.splitext(fpath)[0] + ".nfo"
+            episode_nfos.append(expected_nfo)
 
     return tvshow_nfo, sorted(list(set(episode_nfos)))
 
@@ -1235,6 +1223,7 @@ def collect_series_nfos(series_path: str) -> tuple:
 @nas_api.route('/nas/fsk-batch/preview', methods=['POST'])
 def handle_api_fsk_batch_preview():
     """Generiert eine FSK-Stapeländerungsvorschau mit semantischer Validierung."""
+    import re
     try:
         params = request.get_json() or {}
         paths = params.get("paths", [])
@@ -1287,7 +1276,7 @@ def handle_api_fsk_batch_preview():
                         return jsonify({"ok": False, "message": "NFO-Datei ist unzulässig (Sidecar-Kopplung fehlt oder falsch).", "path": real_p}), 400
                     resolved_targets.append((real_p, False))
                 elif os.path.isdir(real_p):
-                    is_movie = "serie" not in cat.get("name", "").lower()
+                    is_movie = (get_category_media_type(cat, real_p) == "movie")
                     import gui.core.health as health
                     nfo_path = health.find_primary_nfo(real_p, is_movie=is_movie)
                     if nfo_path:
@@ -1306,8 +1295,7 @@ def handle_api_fsk_batch_preview():
             elif scope == "season":
                 # root_path muss ein gültiger Staffelordner sein
                 basename = os.path.basename(real_p)
-                is_season = bool(re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", basename, re.IGNORECASE))
-                if not is_season:
+                if not is_season_folder_name(basename):
                     return jsonify({"ok": False, "message": f"Pfad ist kein gültiger Staffelordner: {basename}"}), 400
 
                 # Das Elternverzeichnis muss ein Serienhauptordner sein
@@ -1379,7 +1367,7 @@ def handle_api_fsk_batch_preview():
             parent_name = os.path.basename(parent_dir)
 
             # Checken, ob das Elternteil ein Staffelordner ist
-            is_parent_season = bool(re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", parent_name, re.IGNORECASE))
+            is_parent_season = is_season_folder_name(parent_name)
 
             if "tvshow.nfo" in nfo_path.lower():
                 show_name = os.path.basename(parent_dir)
@@ -1392,7 +1380,7 @@ def handle_api_fsk_batch_preview():
                 # Prüfen, ob Großelternteil Staffelordner ist (z.B. flaches Layout: Staffel 1/S01E01.nfo)
                 grandparent_dir = os.path.dirname(parent_dir)
                 grandparent_name = os.path.basename(grandparent_dir)
-                is_grandparent_season = bool(re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", grandparent_name, re.IGNORECASE))
+                is_grandparent_season = is_season_folder_name(grandparent_name)
                 if is_parent_season:
                     season_name = parent_name
                     show_name = os.path.basename(grandparent_dir)
@@ -1405,7 +1393,7 @@ def handle_api_fsk_batch_preview():
                 else:
                     # Film oder flach abgelegt
                     cat, _ = find_category_for_path(nfo_path, settings)
-                    if cat and "serie" in cat.get("name", "").lower():
+                    if cat and get_category_media_type(cat, nfo_path) == "series":
                         # Serie flach abgelegt (ohne Staffelordner)
                         show_name = parent_name
                         episode_name = os.path.basename(nfo_path)
@@ -1419,6 +1407,56 @@ def handle_api_fsk_batch_preview():
                 "episode": episode_name
             }
 
+            # media_kind bestimmen
+            cat_for_nfo, _ = find_category_for_path(nfo_path, settings)
+            if cat_for_nfo:
+                is_movie_nfo = (get_category_media_type(cat_for_nfo, nfo_path) == "movie")
+            else:
+                is_movie_nfo = True
+
+            if is_movie_nfo:
+                media_kind = "movie"
+            elif os.path.basename(nfo_path).lower() == "tvshow.nfo":
+                media_kind = "series"
+            elif os.path.basename(nfo_path).lower() == "season.nfo":
+                media_kind = "season"
+            else:
+                media_kind = "episode"
+
+            # Deterministischer agent_path
+            if media_kind in ("movie", "series"):
+                agent_path = os.path.dirname(nfo_path)
+            else:
+                curr = os.path.dirname(nfo_path)
+                found_season = None
+                # Bestimme Serienroot als obere Grenze
+                series_root_boundary = None
+                if cat_for_nfo:
+                    nas_sub = cat_for_nfo.get("nas_sub", "")
+                    cat_path = os.path.realpath(os.path.join(settings.get("nas_root", ""), nas_sub.lstrip("/")))
+                    try:
+                        rel = os.path.relpath(curr, cat_path).split(os.sep)
+                        if rel and rel[0] != '..' and rel[0] != '.':
+                            series_root_boundary = os.path.join(cat_path, rel[0])
+                    except ValueError:
+                        pass
+                # Suche nach oben nach dem nächsten strikt erkannten Staffel-Vorfahren
+                while curr and curr != "/" and len(curr) > 3:
+                    # Stoppe an der Serienroot-Grenze (inclusive, d.h. der Staffelordner liegt INNERHALB der Grenze)
+                    if series_root_boundary and os.path.realpath(curr) == os.path.realpath(series_root_boundary):
+                        break
+                    if is_season_folder_name(os.path.basename(curr)):
+                        found_season = curr
+                        break
+                    curr = os.path.dirname(curr)
+                if found_season:
+                    agent_path = found_season
+                elif series_root_boundary:
+                    agent_path = series_root_boundary
+                else:
+                    # Flache Episode im Serienroot (oder außerhalb von Kategorien)
+                    agent_path = os.path.dirname(nfo_path)
+
             if is_missing:
                 summary["skipped_missing"] += 1
                 files_plan.append({
@@ -1428,6 +1466,8 @@ def handle_api_fsk_batch_preview():
                     "error": "NFO-Datei fehlt.",
                     "current_fsk": None,
                     "fingerprint": make_file_fingerprint(nfo_path),
+                    "media_kind": media_kind,
+                    "agent_path": agent_path,
                     "hierarchy": hierarchy
                 })
                 continue
@@ -1445,6 +1485,7 @@ def handle_api_fsk_batch_preview():
                     "error": f"Lesefehler: {e}",
                     "current_fsk": None,
                     "fingerprint": make_file_fingerprint(nfo_path),
+                    "media_kind": media_kind,
                     "hierarchy": hierarchy
                 })
                 continue
@@ -1461,6 +1502,7 @@ def handle_api_fsk_batch_preview():
                     "error": f"XML beschädigt: {e}",
                     "current_fsk": None,
                     "fingerprint": make_file_fingerprint(nfo_path),
+                    "media_kind": media_kind,
                     "hierarchy": hierarchy
                 })
                 continue
@@ -1474,6 +1516,7 @@ def handle_api_fsk_batch_preview():
                     "error": "Mehrere <mpaa>-Tags vorhanden.",
                     "current_fsk": None,
                     "fingerprint": make_file_fingerprint(nfo_path),
+                    "media_kind": media_kind,
                     "hierarchy": hierarchy
                 })
                 continue
@@ -1490,6 +1533,7 @@ def handle_api_fsk_batch_preview():
                     "status": "unchanged",
                     "current_fsk": current_fsk_val,
                     "fingerprint": make_file_fingerprint(nfo_path),
+                    "media_kind": media_kind,
                     "hierarchy": hierarchy
                 })
             else:
@@ -1500,6 +1544,7 @@ def handle_api_fsk_batch_preview():
                     "status": "ready",
                     "current_fsk": current_fsk_val,
                     "fingerprint": make_file_fingerprint(nfo_path),
+                    "media_kind": media_kind,
                     "hierarchy": hierarchy
                 })
 
@@ -1566,7 +1611,7 @@ def handle_api_fsk_batch_apply():
                 if os.path.isfile(real_p) and real_p.lower().endswith(".nfo"):
                     resolved_targets.append(real_p)
                 elif os.path.isdir(real_p):
-                    is_movie = "serie" not in cat.get("name", "").lower()
+                    is_movie = (get_category_media_type(cat, real_p) == "movie")
                     import gui.core.health as health
                     nfo = health.find_primary_nfo(real_p, is_movie=is_movie)
                     if nfo:
@@ -1576,8 +1621,7 @@ def handle_api_fsk_batch_apply():
                         resolved_targets.append(nfo)
             elif scope == "season":
                 basename = os.path.basename(real_p)
-                is_season = bool(re.match(r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$", basename, re.IGNORECASE))
-                if not is_season:
+                if not is_season_folder_name(basename):
                     return jsonify({"ok": False, "message": "Ungültiger Staffelordner."}), 400
                 parent = os.path.dirname(real_p)
                 if not is_valid_series_root(parent, settings):
@@ -1617,26 +1661,46 @@ def handle_api_fsk_batch_apply():
                 final_targets.append(nfo_real)
 
         # Client-Plan gegen erneut aufgelösten Plan abgleichen
-        client_files_dict = {f.get("path"): f.get("fingerprint") for f in expected_files if f.get("path")}
+        # client_files_dict mappt path -> vollständiger Preview-Eintrag (inkl. status, fingerprint)
+        client_files_dict = {os.path.realpath(f.get("path")): f for f in expected_files if f.get("path")}
+
+        preview_realpath_set = set(client_files_dict.keys())
+        apply_realpath_set = set(os.path.realpath(t) for t in final_targets)
+
+        if preview_realpath_set != apply_realpath_set:
+            return jsonify({"ok": False, "message": "Zielmenge hat sich seit der Vorschau verändert (Dateien hinzugefügt oder entfernt). Bitte Vorschau neu laden."}), 409
 
         # Jede NFO, die existieren soll, muss im Client-Plan enthalten sein und die Fingerprints müssen übereinstimmen
         for nfo in final_targets:
+            client_entry = client_files_dict.get(nfo)
+            if not client_entry:
+                return jsonify({"ok": False, "message": f"Race Condition erkannt: Datei {os.path.basename(nfo)} war in der Vorschau nicht enthalten."}), 409
+
             if not os.path.exists(nfo):
-                # Wenn sie fehlt, muss sie im Client-Plan als skipped_missing aufgeführt sein
-                client_fp = client_files_dict.get(nfo)
-                if client_fp and (client_fp.get("size") != 0 or client_fp.get("mtime_ns") != 0):
+                # Wenn sie fehlt, muss sie im Client-Plan als skipped_missing und fingerprint=null deklariert sein
+                if client_entry.get("status") != "skipped_missing" or client_entry.get("fingerprint") is not None:
                     return jsonify({"ok": False, "message": f"Race Condition erkannt: Die Datei {os.path.basename(nfo)} fehlt plötzlich."}), 409
                 continue
 
-            client_fp = client_files_dict.get(nfo)
-            if not client_fp:
-                return jsonify({"ok": False, "message": f"Race Condition erkannt: Datei {os.path.basename(nfo)} war in der Vorschau nicht enthalten."}), 409
+            # Wenn sie existiert, aber laut Client-Plan fehlen sollte
+            if client_entry.get("status") == "skipped_missing" or client_entry.get("fingerprint") is None:
+                return jsonify({"ok": False, "message": f"Race Condition erkannt: Datei {os.path.basename(nfo)} existiert plötzlich wieder."}), 409
+
+            client_fp = client_entry.get("fingerprint")
 
             # Fingerprints des Servers berechnen und mit Client-Erwartung vergleichen
-            server_fp = make_file_fingerprint(nfo)
-            if (server_fp["size"] != client_fp.get("size") or
-                server_fp["mtime_ns"] != client_fp.get("mtime_ns") or
-                server_fp["hash"] != client_fp.get("hash")):
+            # make_file_fingerprint wirft Exceptions bei Lese- oder Berechtigungsfehlern
+            try:
+                server_fp = make_file_fingerprint(nfo)
+            except Exception as e:
+                return jsonify({"ok": False, "message": f"Integritätsfehler beim Lesen der Datei {os.path.basename(nfo)}: {e}"}), 409
+
+            if server_fp is None:
+                # Datei fehlt plötzlich zwischen os.path.exists und make_file_fingerprint
+                return jsonify({"ok": False, "message": f"Race Condition erkannt: Die Datei {os.path.basename(nfo)} fehlt plötzlich."}), 409
+
+            # Inhaltlicher Abgleich über Dateigröße und SHA-256-Hash
+            if server_fp["size"] != client_fp.get("size") or server_fp["hash"] != client_fp.get("hash"):
                 return jsonify({"ok": False, "message": f"Race Condition erkannt: Datei {os.path.basename(nfo)} wurde zwischenzeitlich extern modifiziert."}), 409
 
         # Phase 2: Ausführung
@@ -1680,8 +1744,14 @@ def handle_api_fsk_batch_apply():
                 results.append({"path": nfo, "status": "success", "message": msg})
 
                 # Issues dateigenau entfernen
-                health.remove_issue(nfo, "missing_age_rating")
-                health.remove_issue(nfo, "invalid_age_rating")
+                basename_lower = os.path.basename(nfo).lower()
+                if basename_lower in ["tvshow.nfo", "movie.nfo", "season.nfo"]:
+                    issue_path = os.path.dirname(nfo)
+                else:
+                    issue_path = nfo
+
+                health.remove_issue(issue_path, "missing_age_rating", nfo_path=nfo)
+                health.remove_issue(issue_path, "invalid_age_rating", nfo_path=nfo)
 
                 # Cache-Root ermitteln
                 c_root, _ = find_cache_root_and_type(nfo, settings)
@@ -1763,7 +1833,7 @@ def _get_structure_fix_preview(path: str):
         if not nas_sub: continue
         cat_path = os.path.realpath(os.path.join(nas_root, nas_sub.lstrip("/")))
         if real_path.startswith(cat_path + os.sep) or real_path == cat_path:
-            if "serie" in cat.get("name", "").lower():
+            if get_category_media_type(cat, real_path) == "series":
                 is_series_dir = True
                 break
 

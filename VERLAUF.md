@@ -1,6 +1,185 @@
 # Projektverlauf – Historie
 
-Hier befindet sich die kumulative Historie des Projektfortschritts, ausgelagert aus `STAND.md`.
+Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
+
+## Stand am 16.07.2026 (Phase 2.5c – dritte Abnahmerunde: Button-Label & Mediathek-Treffer)
+
+- **Button-Text folgt den sichtbaren Feldern:** „Trotz unvollständiger Metadaten fortfahren" bewertete bisher nur die Serien-Felder — im Staffel-/Folgenmodus sind die aber ausgeblendet, manuell ausgefüllte Episodenfelder zählten nicht. Jetzt bewertet der Button genau die Felder, die der aktive Modus anzeigt und schreibt, und aktualisiert sich live beim Tippen (auch in Episodenfeldern).
+- **Mediathek-Treffer ohne TVDB-Irrweg:** Der Freitext-Eintrag „(Freie Mediathek-Suche)" wurde beim Anklicken auf den Provider TVDB gezwungen — daher die unpassende TVDB-Fehlermeldung (die Warnung hatte Substanz, war aber ein Routing-Fehler). Der Eintrag wirkt jetzt als Abkürzung zur manuellen Eingabe: Provider „Manuell", Titel vorbefüllt, keine ID-Abfrage.
+- **Wizard als Follow-up beschlossen:** Der mehrstufige NFO-Agent-Wizard (Quelle wählen → Prüfen & Bearbeiten) ist als Roadmap-Item 52 dokumentiert und wird nach dem Merge dieses Branches separat umgesetzt.
+- **Verifikation:** 97 Frontend-Tests grün (2 neue); Backend unverändert bei 459; Image neu gebaut.
+
+## Stand am 16.07.2026 (Phase 2.5c – zweite Abnahmerunde: NFO-Agent-Korrekturen)
+
+- **Zurück-Button nur bei echtem Rückweg:** „Zur vorherigen Ansicht" erscheint im NFO-Agenten nur noch, wenn der Einstieg über eine engere Ansicht (Folge/Staffel/Serien-NFO) erfolgte — beim Direkteinstieg „Ganze Serie bearbeiten" gibt es keinen Rückweg und keinen Button.
+- **Provider-ID ist optional:** Ohne ID wird nicht mehr blockiert („Bitte gib eine Show- oder Movie-ID an"), sondern automatisch manuell verarbeitet: Die eingegebenen Formularfelder werden per Patch geschrieben, kein Metadatendienst wird abgefragt. Ein Film-Job ganz ohne Quelle schlägt sichtbar fehl statt still „Erfolg" zu melden.
+- **Befunde verschwinden nach Korrektur sofort:** Nach erfolgreichem Schreiben prüft der Prozessor jede geschriebene NFO erneut (`refresh_issues_after_nfo_write`) und entfernt nur tatsächlich behobene Befunde (unvollständig/fehlend/FSK) aus dem aktuellen Scan-Ergebnis — derselbe Mechanismus wie beim FSK-Quick-Fix. Nicht behobene Felder bleiben sichtbar.
+- **Verifikation:** Volle Test-Suiten grün (Backend + 95 Frontend-Tests, davon 4 neue); Image neu gebaut.
+
+## Stand am 15.07.2026 (Phase 2.5c – Feedback aus der visuellen Abnahme)
+
+- **Leeres Ignoriermodal behoben:** Ursache war ein Health-Cache aus einem Zwischenstand des Branches, dem die Besitzfelder (`scope_*`, `series_path`) fehlten — Version 4 wurde früh gebumpt, die Felder kamen später. Cache-Version 5 invalidiert solche Stände überall.
+- **Modusleiste oben:** Die Leiste „Staffel/Folge/Serie bearbeiten" mit dem Wechsel „Ganze Serie bearbeiten" sitzt im NFO-Agenten jetzt direkt unter der Modal-Überschrift statt zwischen Optionen und Editor.
+- **Serien/Filme-Tabs:** Die Medienansicht trennt Serien und Filme über Tabs mit Zählern; der aktive Tab bleibt über Status-Aktualisierungen erhalten. Die Emoji-Präfixe (📺/🎬) entfallen.
+- **Kräftigere Karten:** Serien- und Filmkarten haben deutlichere Rahmen, eigenen Hintergrund, mehr Abstand und einen größeren Titel über den Status-Chips.
+- **Verifikation:** 457 Backend- und 93 Frontend-Tests bestanden; Image neu gebaut, Smoke-Test grün.
+
+## Stand am 15.07.2026 (Phase 2.5c – Review-Findings: typgenaue Ignorierregeln)
+
+- **Typgenaue Ignorierregeln:** Bereichsbezogene Regeln speichern jetzt explizite Hinweisarten statt ganzer Gruppen. Eine Regel erfasst damit nie stillschweigend Hinweisarten, die erst nach dem Speichern registriert werden — die entsprechende Zusage aus dem Implementierungsplan gilt wieder.
+- **Typgenaue Migration:** Alte strikte Staffel-Schlüssel für unvollständige NFOs und kleine Dateien werden pro Hinweisart überführt; frühe Gruppenregeln aus diesem Branch werden einmalig auf die zum Zeitpunkt der Migration registrierten, ignorierbaren Typen expandiert und so persistiert.
+- **Feineres Modal:** Das Ignoriermodal zeigt jede vorhandene Hinweisart einzeln, gruppiert nach Katalog-Gruppe, mit Teilzustands-Gruppenschaltern und „Alle auswählen“. Gesendet werden ausschließlich die gewählten Hinweisarten; das Backend akzeptiert nur registrierte, ignorierbare Typen.
+- **Umgebungsunabhängiger Runtime-Test:** Der OrbStack-Worktree-Test enthält jetzt die Compose-Datei im Fixture und läuft dadurch auch bei laufendem Docker grün — zuvor war er nur bei gestopptem Docker erfolgreich.
+- **Dokumentierte Verträge:** `API.md` beschreibt jetzt die `findings`-Endpunkte (einzelne Schlüssel, bereichsbezogene Regeln, Wiederherstellen) sowie den `issue_catalog`- und Besitzpfad-Vertrag des Health-Status.
+- **Verifikation:** 457 Backend- und 92 Frontend-Tests bestanden (bei laufendem Docker verifiziert); Syntax- und Whitespace-Prüfungen fehlerfrei.
+
+## Stand am 15.07.2026 (Phase 2.5c – hierarchische Health-Ansicht und persistente Hinweisregeln)
+
+- **Ein zentraler Befundkatalog:** Jeder Health-Typ besitzt nun eine stabile Definition für Bezeichnung, Gruppe, erlaubte Medienebenen, Reparaturweg und Ignorierbarkeit. Scanner, API, Oberfläche und Tests verwenden denselben Vertrag; unbekannte Typen fallen in einen sichtbaren, nicht ignorierbaren Sicherheitszustand.
+- **Explizite Medienzugehörigkeit:** Befunde tragen kanonische Serien-, Staffel-, Folgen- beziehungsweise Filmpfade. Dadurch werden FSK-, NFO-, Artwork-, Datei- und Strukturhinweise ohne Frontend-Heuristiken der richtigen Ebene zugeordnet.
+- **Ruhige Hierarchie:** Die medienorientierte Ansicht führt von der Serienzusammenfassung über einklappbare Staffeln zu einklappbaren betroffenen Folgen. Serien-, Staffel- und Folgenbefunde bleiben getrennt; jede Ebene bietet genau ihren passenden Metadaten-Workflow.
+- **Staffel-Metadaten bearbeitbar:** Vorhandene `season.nfo` und betroffene Folgen lassen sich im Staffelkontext gemeinsam prüfen, ohne die `tvshow.nfo` unbeabsichtigt zu verändern. Eine fehlende `season.nfo` bleibt weiterhin optional.
+- **Persistente, bereichsbezogene Hinweise:** Nutzer können für Film, Serie, Staffel oder Folge gezielt vorhandene Gruppen wie Metadaten, Artwork oder Dateien ausblenden. Ein Bestätigungsmodal zeigt nur tatsächlich betroffene Gruppen; alle Regeln können über „wieder einblenden“ vollständig zurückgenommen werden.
+- **Kompatible Migration:** Alte exakte Ignorier-Schlüssel und Duplikat-Ausnahmen bleiben erhalten. Nur die früher mehrdeutigen strikten Staffel-Schlüssel für NFO- und Dateihinweise werden automatisch in das neue Regelschema überführt; ähnlich benannte Ordner wie `Staffel Backup` bleiben exakte Altregeln.
+- **Verifikation:** 456 Backend- und 92 Frontend-Tests bestanden; Syntax-, Sicherheits-, Migrations- und Whitespace-Prüfungen sind fehlerfrei.
+
+## Stand am 15.07.2026 (Phase 2.5c – vereinfachte Metadatenführung)
+
+- **Ein gemeinsamer Prüf- und Bearbeitungsbereich:** Der NFO-Agent zeigt Datei- und Vollständigkeitsstatus jetzt direkt innerhalb der Film- beziehungsweise Serien-Metadaten. Der frühere separate Prüfabschnitt und die zweite Warnbox am Formularende entfallen.
+- **Einfache Statussprache:** Statt Mengenangaben wie `2 Angaben fehlen` erscheint nur noch `Metadaten unvollständig`. Fehlende Dateien werden als `Fehlende Metadaten` und unlesbare Inhalte als `Metadaten nicht lesbar` bezeichnet.
+- **Einheitliche Aktion:** In allen Health-Ansichten führen einzelne NFO- und FSK-Probleme über den gemeinsamen Button `Metadaten bearbeiten` in denselben NFO-Workflow. Technische Zusätze wie `FSK noch nicht setzbar` entfallen.
+- **Ruhigere Darstellung:** `movie.nfo` und `tvshow.nfo` verwenden in den Health-Details dieselbe Typografie; die Zusammenfassung spricht nur noch von `Metadaten` statt von `NFO-Metadaten`.
+- **Verifikation:** 445 Backend- und 87 Frontend-Tests bestanden; Syntax- und Whitespace-Prüfung sind fehlerfrei.
+
+## Stand am 14.07.2026 (Phase 2.5c – kontextbezogene NFO-Bearbeitung)
+
+- **Passender Einstieg:** Ein Klick auf `tvshow.nfo` öffnet ausschließlich die Serien-NFO-Bearbeitung. Ein Klick auf eine Episode öffnet genau diese Folge, wählt sie aus und blendet andere NFOs zunächst aus. Das gilt in medienorientierter, Schweregrad- und Fehlertyp-Ansicht.
+- **Bewusste Erweiterung:** `Ganze Serie bearbeiten` erweitert dieselbe Ansicht um Serien-NFO und auswählbare Folgen. `Zur vorherigen Ansicht` stellt unabhängig vom Einstieg die ursprüngliche Serien- oder Folgenansicht wieder her.
+- **Sicherer Payload:** Die Folgenansicht setzt `write_show_nfo=false` und sendet nur die fokussierte Episode. Die Serien-NFO-Ansicht sendet keine Episoden-Mappings. Fingerprints und bestehender Konfliktschutz bleiben unverändert.
+- **Knappe, eindeutige Texte:** Zusätzliche Erklärungstexte entfallen. Fehlende Quellen werden als `Noch keine Angabe` beziehungsweise nach einer Suche als `Metadatensuche liefert keine Angabe` bezeichnet.
+- **Verifikation:** 445 Backend- und 87 Frontend-Tests bestanden; Syntax- und Whitespace-Prüfung sind fehlerfrei.
+
+## Stand am 14.07.2026 (Phase 2.5c – FSK als Bestandteil des NFO-Workflows)
+
+- **Ein gemeinsamer Bearbeitungspfad:** Einzelne fehlende oder ungültige FSK-Werte öffnen jetzt den NFO-Agenten. Fehlende NFOs werden erstellt, vorhandene NFOs standardmäßig nur in den ausdrücklich ausgewählten Feldern ergänzt; vollständiges Ersetzen bleibt eine bewusste Option.
+- **Transparente Metadaten:** Titel, Jahr, Plot, Genre und FSK zeigen ihre Herkunft aus vorhandener NFO, Metadatendienst oder manueller Eingabe. Fehlende Kernangaben erzeugen einen ruhigen, nicht blockierenden Hinweis und können ergänzt oder bewusst leer gelassen werden.
+- **Sicheres Schreiben:** Der gemeinsame, byteerhaltende NFO-Schreiber verändert nur `title`, `year`, `plot`, `genre` und `mpaa`, erhält sonstige XML-Inhalte, Dateirechte und deklarierte Kodierungen und legt Backups an. Fingerprints verhindern Änderungen auf veralteter Vorschau; Episodenkonflikte werden als Jobfehler sichtbar.
+- **Hierarchische Aktionen bleiben:** Staffel- und Serien-FSK-Aktionen bleiben für echte Gruppenfälle bestehen und verwenden weiterhin die sichere Stapelvorschau.
+- **Verifikation:** 445 Backend- und 83 Frontend-Tests bestanden; zusätzliche Regressionstests prüfen Byte-Treue, Einzelfeld-Patches, Kodierungserhalt, sichtbare Metadienst-Fehler und Fingerprint-Konflikte.
+
+## Stand am 14.07.2026 (Phase 2.5c – sichtbarer FSK-Status und klare NFO-Agent-Hierarchie)
+
+- **FSK bleibt sichtbar:** Der medienorientierte Überblick behandelt FSK weiterhin als Teil der NFO-Metadaten, zeigt den konkreten Zustand aber wieder in einem eigenen kompakten Chip. Serien fassen betroffene Haupt-NFOs und Episoden verständlich zusammen; Filme zeigen fehlende, ungültige oder vorhandene Freigaben direkt.
+- **Befund vor Bearbeitung:** Der NFO-Agent zeigt den Zustand der `tvshow.nfo` beziehungsweise `movie.nfo` jetzt oberhalb von Titel, Jahr und Plot. Status, kurze Erklärung und die Aktion `Verarbeiten`/`Überspringen` bilden einen gemeinsamen Befundkasten.
+- **Saubere Abschnittstrennung:** Haupt-NFO, editierbare Haupt-Metadaten und Episoden-NFOs sind visuell und semantisch getrennt. Im Film-Modus wird der Episodenabschnitt vollständig ausgeblendet.
+- **Verifikation:** 437 Backend- und 82 Frontend-Tests bestanden. Das aktuelle Image wurde in der isolierten OrbStack-Testumgebung gebaut und der Smoke-Test meldet `health=ok` sowie `runtime=docker`.
+
+## Stand am 14.07.2026 (Phase 2.5c – autoritativer NFO-Agent-Medientyp)
+
+- **Backend als Quelle der Wahrheit:** `/api/scan-project` bestimmt Film oder Serie vorrangig über die konfigurierte NAS-Kategorie. Für Inbox-Projekte bleiben NFO-Root, Dateinamen und Serienstruktur als kontrollierter Fallback erhalten.
+- **Einheitlicher Haupt-NFO-Vertrag:** Die API liefert `main_nfo_status` für `movie.nfo`, Film-Sidecars oder `tvshow.nfo`; die bisherigen typspezifischen Statusfelder bleiben kompatibel.
+- **Film-spezifischer NFO-Agent:** Filme zeigen Filmtexte, Filmprovider und genau ihre Haupt-NFO. Staffelwahl, `tvshow.nfo` und Episoden-Mappings werden nicht mehr fälschlich angezeigt.
+- **FSK als NFO-Metadatenproblem:** Die ruhige Medienzusammenfassung gruppiert fehlende oder ungültige FSK unter `NFO-Metadaten: prüfen`. In den Details bleibt die sichere, feldgenaue Aktion `FSK setzen` getrennt vom vollständigen NFO-Agenten.
+- **Verifikation:** Syntax-, Whitespace- und gezielte Regressionstests bestanden; vollständig grün mit 437 Backend- und 80 Frontend-Tests.
+
+## Stand am 14.07.2026 (Phase 2.5c – ruhige Medienübersicht und eindeutige FSK-Aktionen)
+
+- **Ruhige, klickbare Übersicht:** Der medienorientierte Health-Modus zeigt pro Film oder Serie eine dauerhaft sichtbare Zusammenfassung. Native, klar beschriftete Detailbereiche enthalten die einzelnen Befunde und Aktionen.
+- **Keine doppelten NFO-Agenten:** NFO-Agent-Aktionen stehen ausschließlich an der konkreten NFO-Detailzeile. Eine fehlende `tvshow.nfo` erzeugt genau eine Aktion statt einer doppelten Serien- und Detailaktion.
+- **Dateigenaue Episodenbefunde:** Fehlende Episoden-NFOs werden mit ihrem erwarteten NFO-Pfad und dem zugehörigen Staffelordner als Agent-Ziel erfasst. Backup-Ordner wie `Staffel Backup` sind durch eine zentrale, streng verankerte Staffelregel ausgeschlossen.
+- **Staffel-NFO-Vertrag:** Vorhandene `season.nfo` wird in Staffel- und Serien-FSK-Scopes verarbeitet. Fehlt sie, wird sie nicht als obligatorische Datei oder eigener Health-Fehler erfunden.
+- **Film-Modal und Abschlusszustand:** Einzelne Filme erhalten einen Film-spezifischen Titel ohne Serien-/Staffel-Scope, korrekte Singulartexte und ihren Mediennamen. Nach erfolgreichem Apply wird der Health-Status unmittelbar neu geladen und es bleibt genau eine Aktion `Fertig`.
+- **Aktionsregeln:** Einzel-FSK-Buttons bleiben erhalten, solange keine echte Gruppenaktion dieselben Dateien abdeckt. Fehlende oder unlesbare NFOs bieten stattdessen den passenden NFO-Agenten an.
+- **Verifikation:** 436 Backend- und 79 Frontend-Tests bestanden. Das aktuelle Image wurde in der isolierten OrbStack-Testumgebung gebaut und gestartet; Smoke meldet `health=ok` und `runtime=docker`, die Mount-Prüfung zeigt keinen NAS-Zugriff.
+
+## Stand am 14.07.2026 (Docker-Neustart in OrbStack und NAS)
+
+- **Ursache behoben:** Der In-App-Neustart beendete den Docker-Hauptprozess, während die OrbStack-Testumgebung den Container wegen `restart: "no"` ausgeschaltet ließ. Das Frontend wartete zugleich ohne Abbruchgrenze.
+- **Laufzeitgerechter Neustart:** In Docker beendet die Anwendung nur noch den Hauptprozess und überlässt den Wiederanlauf dem Container-Supervisor. Die Desktop-Laufzeit behält den bisherigen Start eines Nachfolgeprozesses.
+- **Produktionsnahe Testumgebung:** `compose.orbstack.yml` nutzt wie die NAS-Compose-Datei `restart: unless-stopped`, sodass der echte Neustartablauf vor dem Deployment geprüft werden kann.
+- **Sichtbarer Fehlerzustand:** Die Browseroberfläche wartet höchstens 60 Statusabfragen und stellt danach Button und verständliche Fehlermeldung wieder her, statt endlos zu laden.
+- **Regressionstests:** Runtime-, Backend- und Frontendtests prüfen Supervisor-Übergabe, Desktop-Kompatibilität, Compose-Policy, erfolgreichen Wiederanlauf und Zeitüberschreitung. Vollständig bestanden: 434 Backend- und 77 Frontendtests.
+
+## Stand am 14.07.2026 (OrbStack – persistente Testeinstellungen über Worktrees)
+
+- **Getrennte Lebenszyklen:** OrbStack-Testeinstellungen liegen jetzt projektweit unter `.runtime-test-shared/config`, während veränderliche Testmedien weiterhin je Worktree unter `.runtime-test/media-run` liegen.
+- **Kein erneutes Onboarding:** Neue Feature-Worktrees verwenden automatisch die bereits eingerichtete Testkonfiguration des Git-Hauptrepositorys. Die vorherige isolierte Konfiguration wurde einmalig und bytegleich migriert.
+- **Sicherer Reset:** `reset` ersetzt ausschließlich die Medien-Fixture des aktuellen Worktrees und verändert weder die gemeinsame Config noch branchbezogene Image-Metadaten.
+- **Kompatibles Runtime-Env:** Vorhandene `runtime.env`-Dateien werden um `MW_TEST_CONFIG_DIR` ergänzt, ohne Image- oder Source-Metadaten zu verlieren.
+- **Regressionstest:** Ein temporäres echtes Git-Worktree-Szenario prüft gemeinsame Config, lokale Medien, den Env-Upgradepfad und den Erhalt der Config beim Reset.
+- **Runbook:** `docs/ORBSTACK_TESTING.md` erklärt das neue mentale Modell und die Speicherorte.
+
+## Stand am 14.07.2026 (Phase 2.5c – FSK-Workflow-Abschlusskorrektur)
+
+- **Worker-Zwischenstand bereinigt:** Die durch Leerzeilen auf 1.405 Zeilen aufgeblähte Backend-Testdatei wurde auf einen lesbaren Stand zurückgeführt; fachliche Regressionen wurden gezielt statt per globalem Whitespace-Skript ergänzt.
+- **Backend-Sicherheitsverträge:** Tests sichern `agent_path` für flache und verschachtelte Episoden, Kategorie- und Serienroot-Grenzen, Symlink-Ausbrüche, vorhandene `season.nfo` sowie den Same-Count-Zielaustausch mit HTTP 409 und Schreibabbruch ab.
+- **Produktionsnaher NFO-Agent-Lifecycle:** Die Frontend-Tests verwenden die echten Event-Bindings und den produktiven `/api/queue`-Pollingweg für erfolgreiche, fehlgeschlagene, abgebrochene und nicht mehr vorhandene Jobs.
+- **Idempotente Event-Bindings:** Wiederholtes Binden erzeugt keine doppelten NFO-Agent- oder Health-Aktionslistener; Sonderzeichenpfade werden über die echte Event-Delegation korrekt an den NFO-Agenten übergeben.
+- **Automatisierte Verifikation:** `python3 -m pytest tests/` mit 430 bestandenen Tests und `npm run test:frontend` mit 74 bestandenen Tests.
+- **Projektwissen:** Der lokale Graphify-Wissensgraph und seine Wiki-/HTML-Exporte wurden nach Code und Dokumentation neu erzeugt.
+- **OrbStack-Sicherheitscheck:** Der bestehende Testcontainer meldet `health=ok` und `runtime=docker`; seine Bind-Mounts zeigen ausschließlich auf `.runtime-test/media-run` und `.runtime-test/config` des bisherigen Fix-Worktrees. Ein aktueller Branch-Build und die visuelle Abnahme bleiben deshalb getrennte nächste Schritte.
+
+## Stand am 14.07.2026 (Phase 2.5c-3 - FSK-Workflow-Integration Fix)
+
+# Aktueller Stand
+
+> Status: **FSK-Workflow-Integration (Phase 2.5c-1) fertig implementiert. Bereit für Code-Review & Tests.**
+
+---
+
+## Aktuelle Aufgabe
+
+### Phase 2.5c-1 – FSK-Batch-Modal State-Machine & Sync
+Alle 5 besprochenen Findings aus der Planungsphase wurden im Code erfolgreich behoben:
+- [x] **Medientyp-Bootstrap:** Modal erhält `media_kind` aus strukturierter Übergabe. Fehlende Hierarchie bei gemischter Selektion wird berücksichtigt.
+- [x] **Zustandsmodell (4-Phasen):** Modal verweilt im Zustand `Applying` und wechselt auf `Completed`, `Partial` oder `Failed`.
+- [x] **Problem-Badges:** Issue-Keys werden in `renderHealthStatus` ausgelesen und als Badges angezeigt.
+- [x] **NFO-Agent-Rückkehr:** FSK-Modal wird versteckt, wenn der NFO-Agent öffnet, und springt nach Erfolg des Agenten wieder auf inkl. Neu-Scan.
+- [x] **Exakte Zielmengenprüfung:** Beim Apply wird ein strikter Realpath-Vergleich zwischen Preview- und Apply-Targets (inklusive Lückenüberprüfung) durchgeführt (HTTP 409).
+
+## Erledigte Aufgaben
+
+- [x] Code-Revision gemäß Review (Phase 2.5c-2).
+- [x] Commit der Änderungen im Branch `fix/fsk-workflow-review`.
+- [x] Graphify Knowledge-Graph aktualisiert.
+
+## Nächster Schritt / Übergabe
+
+- [ ] Alex: Branch `fix/fsk-workflow-review` lokal testen.
+- [ ] Alex: Merge nach `main` (sofern alle Tests und UI-Flows passen).
+
+
+## Stand am 14.07.2026 (Phase 2.5c-2 – Schritt 2: Serienorientierte Health-Ansicht & Gruppenaktionen abgeschlossen)
+
+- **Phase 2.5c-2 (Schritt 2) – Serienorientierte Health-Ansicht & Gruppenaktionen (Branch `fix/fsk-workflow-review`):**
+  * **Medienstruktur-Aggregation:** Health-Scan sammelt Filme, Serien, Staffeln und Episoden mitsamt Pfaden, FSK-Status und zugehörigen Issue-Keys.
+  * **Cache-Upgrade:** `SCAN_VERSION` auf 3 angehoben, um alte v2-Zählerzustände im Cache zu entwerten und durch die neue medienorientierte `media_metadata` Struktur zu ersetzen.
+  * **API-Erweiterung:** `/nas/health-status` liefert die aggregierte `media_structure` für Serien und Filme.
+  * **UI-Integration:** Neue Ansicht `"Medienorientiert"` im Health-Anzeigemodus ermöglicht das Ausklappen von Serien -> Staffeln -> betroffenen Episoden.
+  * **Serien- & Staffel-Gruppenaktionen:** Direktes Aufrufen des FSK-Batch-Modals für komplette Serien oder Staffeln mit Dropdown-Vorauswahl im Dashboard.
+  * **Präzise Zähler- & Aktions-Trennung (Revision 2.2):** Die Prädikate `isEpAffectedGeneral` und `isEpFskActionable` trennen allgemeine Medienanzeige (`nfo_missing`, `unreadable`) von tatsächlichen FSK-Schreibaktionen.
+  * **Konditionales Ausblenden:** FSK-Schreib-Buttons werden für unbeschreibbare Medien konsequent unterdrückt. Fehlt die `tvshow.nfo`, zählt die Serie selbst nicht als FSK-aktionsfähig. Sind jedoch mindestens zwei Episoden FSK-aktionsfähig, wird weiterhin eine Serien-Gruppenaktion angeboten, während an der Serie zusätzlich der `NFO Agent` verfügbar bleibt.
+  * **Tests:** Python-Tests in `test_fsk_health.py` und erweiterte Node.js Frontend-DOM-Tests (69/69), welche insbesondere pfadbezogene DOM-Assertions für Mischfälle und FSK-Ausblendungen abdecken, erfolgreich umgesetzt.
+
+## Stand am 13.07.2026 (Phase 2.5c-2 – Schritt 1: FSK Altersfreigaben Stapelverarbeitung & Integrität abgeschlossen)
+
+- **Phase 2.5c-2 (Schritt 1) – FSK Altersfreigaben Stapelverarbeitung & Integrität (Branch `feature/fsk-workflow-overhaul`):**
+  * **Binäres NFO-Schreiben:** Bytegenaue, binäre Ersetzung des Werts im `<mpaa>` Tag unter Erhalt von Dateirechten, Umlauten (BOMs), Attributen und Kommentaren.
+  * **Race-Condition & mtime-Absicherung:** Präzise String-Repräsentation von `mtime_ns` im JSON-Plan zur Vermeidung von JavaScript-Rundungsfehlern. Toleranz gegenüber reinen mtime-Änderungen auf dem Server (keine Fehlalarme).
+  * **Fehlende NFOs:** Korrekte Repräsentation als `status: "skipped_missing"` und `"fingerprint": null` im Clientplan. HTTP 409 bei Widersprüchen.
+  * **Zentraler Media-Kind-Resolver:** Bestimmung von `media_kind` ausschließlich über den Resolver-Kategoriekontext (`walk_nas_categories`).
+  * **UI & Barrierefreiheit:** Umstellung des FSK-Batch-Modals auf ein `<select>` Dropdown für den FSK-Zielwert. Inline-Fehlerpanel statt nativer `alert`/`confirm` Dialoge. Dynamische Beschriftung des Apply-Buttons ("X NFOs auf FSK Y ändern"). Monospace-Schrift für Pfadangaben.
+  * **Testabdeckung:** Erstellung dedizierter Binärtests in `test_nfo_write.py` und API-Integrations- sowie UI-Tests in `test_fsk_batch.py` und `fsk_batch_dom.test.js`.
+
+## Stand am 13.07.2026 (Phase 2.5c-1 – Hierarchische FSK-Zuweisung abgeschlossen)
+
+- **Phase 2.5c-1 – Hierarchische FSK-Zuweisung (Plan v8):**
+  * Der Review-Plan v8 wurde vollständig implementiert. Alle Backend- und Frontend-Tests laufen zu 100% grün, einschließlich der neuen Sidecar-Video-Validierungen und Partial-Status-Logik.
+  * Backend-Zulässigkeitsprüfung `is_valid_media_nfo` mit strenger Video-Sidecar-Kopplung (für `/nas/health-fix` und `/nas/fsk-batch/apply`).
+  * Unterstützung von `partial`/`failed` Statuswerten im `apply`-Endpunkt, inklusive Mapping von Exceptions auf feingranulare Status-Ergebnisse.
+  * Update der Frontend-App-Logik (`app.js`) für das FSK-Batch-Modal, um dynamisch Hierarchie-Pfade (`series_path`, `season_path`) je nach Nutzer-Scope zu nutzen.
+  * Frontend HTML-Render in `app.js` mit `data-scope-kind`, `data-series-path` und `data-season-path` Attributen ausgestattet.
+  * Test-Suite für Plan v8 Lücken ergänzt (`test_fsk_batch.py`, `test_fsk_health.py`, `test_health_scan_cache.py`) und Dummy-Video-Dateien für Sidecar-Checks hinzugefügt.
 
 ## Stand am 12.07.2026 (FSK Batch: Hierarchische Zuweisung)
 

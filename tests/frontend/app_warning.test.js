@@ -113,9 +113,13 @@ globalThis.loadNormalizePreview = loadNormalizePreview;
 globalThis.renderNormalizePlan = renderNormalizePlan;
 globalThis.renderQueue = renderQueue;
 globalThis.renderNfoAgentFiles = renderNfoAgentFiles;
+globalThis.triggerNfoAgentMediaTypeChange = triggerNfoAgentMediaTypeChange;
 globalThis.submitNfoAgentJob = submitNfoAgentJob;
+globalThis.updateNfoAgentCompletenessWarning = updateNfoAgentCompletenessWarning;
 globalThis.setNfoAgentScanData = (val) => { nfoAgentScanData = val; };
 globalThis.setNfoAgentCurrentPath = (val) => { nfoAgentCurrentPath = val; };
+globalThis.waitForServerRestart = waitForServerRestart;
+globalThis.restoreServerRestartButton = restoreServerRestartButton;
 `;
 
 eval(cleanAppJs);
@@ -287,6 +291,8 @@ test('renderHealthStatus - severity grouping renders severity groups and no chec
     assert.ok(issuesEl.innerHTML.includes('data-sev="critical"'));
     // Sollte keinen Checkbox-Gruppenselector rendern
     assert.ok(!issuesEl.innerHTML.includes('class="health-group-select-all"'));
+    assert.ok(issuesEl.innerHTML.includes("Metadaten bearbeiten"));
+    assert.ok(!issuesEl.innerHTML.includes(">NFO Agent</button>"));
 });
 
 test('renderHealthStatus - type grouping renders type groups, checkboxes and tool-connectors', () => {
@@ -298,7 +304,8 @@ test('renderHealthStatus - type grouping renders type groups, checkboxes and too
         status: "done",
         message: "Scan abgeschlossen",
         issues: [
-            { key: "1", type: "missing_nfo", category: "Filme", severity: "critical", message: "Fehlende NFO", path: "/path/to/movie" }
+            { key: "1", type: "missing_nfo", category: "Filme", severity: "critical", message: "Fehlende NFO", path: "/path/to/movie" },
+            { key: "2", type: "missing_age_rating", category: "Filme", severity: "warning", message: "FSK fehlt", path: "/path/to/movie/movie.nfo", agent_path: "/path/to/movie", media_kind: "movie", scope_kind: "movie" }
         ],
         finished_at: 1719816000
     };
@@ -316,6 +323,10 @@ test('renderHealthStatus - type grouping renders type groups, checkboxes and too
     // da jede Serie eine eigene Metadatenquelle/ID braucht)
     assert.ok(issuesEl.innerHTML.includes('health-nfo-agent'));
     assert.ok(!issuesEl.innerHTML.includes('data-tool="tool_nfo_agent"'));
+    assert.ok(issuesEl.innerHTML.includes('health-fix-fsk'));
+    assert.ok(issuesEl.innerHTML.includes("Metadaten bearbeiten"));
+    assert.ok(!issuesEl.innerHTML.includes(">NFO Agent</button>"));
+    assert.ok(!issuesEl.innerHTML.includes(">FSK setzen</button>"));
 });
 
 test('renderHealthStatus - only nested_duplicate / structure issues displays tab specific empty state on media tab', () => {
@@ -461,24 +472,29 @@ test('renderHealthStatus - transition running -> warning clears loading spinner 
 test('renderNfoAgentFiles - mediaType tvshow renders tvshow.nfo status matrix', () => {
     elements["nfo-agent-media-type"] = createMockElement();
     elements["nfo-agent-media-type"].value = "tvshow";
+    elements["nfo-agent-main-nfo-section"] = createMockElement();
+    elements["nfo-agent-main-nfo-status"] = createMockElement();
     elements["nfo-agent-episodes-list"] = createMockElement();
     elements["nfo-agent-season"] = createMockElement();
     elements["nfo-agent-season"].value = "1";
 
-    const listBody = elements["nfo-agent-episodes-list"];
+    const mainNfoBody = elements["nfo-agent-main-nfo-status"];
+    const episodeList = elements["nfo-agent-episodes-list"];
+    episodeList.children = [];
+    episodeList.appendChild = (child) => episodeList.children.push(child);
 
-    // Status matrix: [exists, parseable, complete, expectedBadge]
+    // Status matrix: [exists, parseable, complete, expectedStatus]
     const testCases = [
-        [false, false, false, "[Keine NFO]"],
-        [true, false, false, "[NFO fehlerhaft]"],
-        [true, true, false, "[NFO unvollständig]"],
-        [true, true, true, "[NFO vorhanden]"]
+        [false, false, false, "Fehlende Metadaten"],
+        [true, false, false, "Metadaten nicht lesbar"],
+        [true, true, false, "Metadaten unvollständig"],
+        [true, true, true, "Metadaten vollständig"]
     ];
 
-    testCases.forEach(([exists, parseable, complete, expectedBadge]) => {
-        listBody.children = [];
-        listBody.appendChild = (child) => {
-            listBody.children.push(child);
+    testCases.forEach(([exists, parseable, complete, expectedStatus]) => {
+        mainNfoBody.children = [];
+        mainNfoBody.appendChild = (child) => {
+            mainNfoBody.children.push(child);
         };
 
         const scanData = {
@@ -494,12 +510,79 @@ test('renderNfoAgentFiles - mediaType tvshow renders tvshow.nfo status matrix', 
 
         globalThis.renderNfoAgentFiles(scanData, {});
 
-        assert.ok(listBody.children.length > 0);
-        const row = listBody.children[0];
-        assert.ok(row.innerHTML.includes("tvshow.nfo (Haupt-Metadaten)"));
-        assert.ok(row.innerHTML.includes(expectedBadge), `Expected badge ${expectedBadge} to be rendered in row HTML: ${row.innerHTML}`);
+        assert.strictEqual(mainNfoBody.children.length, 1);
+        const row = mainNfoBody.children[0];
+        assert.ok(row.innerHTML.includes("tvshow.nfo"));
+        assert.ok(row.innerHTML.includes(expectedStatus), `Expected status ${expectedStatus} to be rendered in row HTML: ${row.innerHTML}`);
         assert.ok(row.innerHTML.includes('id="nfo-agent-show-nfo-action"'));
+        assert.strictEqual(elements["nfo-agent-main-nfo-section"].style.display, "block");
+        assert.ok(!episodeList.children.some((child) => child.innerHTML.includes("tvshow.nfo")));
     });
+});
+
+test('NFO Agent combines the main NFO status with the metadata editor', () => {
+    const indexHtml = fs.readFileSync(path.resolve(__dirname, '../../gui/static/index.html'), 'utf8');
+    const findingIndex = indexHtml.indexOf('id="nfo-agent-main-nfo-section"');
+    const detailsIndex = indexHtml.indexOf('id="nfo-agent-details-container"');
+    const episodesIndex = indexHtml.indexOf('id="nfo-agent-episodes-section"');
+
+    assert.ok(findingIndex > detailsIndex, "main NFO status must live inside the metadata editor");
+    assert.ok(detailsIndex < episodesIndex, "metadata editor must precede episode mappings");
+    assert.ok(!indexHtml.includes('id="nfo-agent-completeness-warning"'));
+    assert.ok(!indexHtml.includes('id="nfo-agent-main-nfo-heading"'));
+});
+
+test('NFO Agent movie mode renders movie.nfo without series controls', () => {
+    elements["nfo-agent-media-type"] = createMockElement();
+    elements["nfo-agent-media-type"].value = "movie";
+    elements["nfo-agent-provider"] = createMockElement();
+    elements["nfo-agent-season-container"] = createMockElement();
+    elements["nfo-agent-episodes-section"] = createMockElement();
+    elements["nfo-agent-modal-title"] = createMockElement();
+    elements["nfo-agent-search-label"] = createMockElement();
+    elements["nfo-agent-title-label"] = createMockElement();
+    elements["nfo-agent-main-nfo-heading"] = createMockElement();
+    elements["nfo-agent-details-heading"] = createMockElement();
+    elements["nfo-agent-files-heading"] = createMockElement();
+    elements["nfo-agent-main-nfo-section"] = createMockElement();
+    elements["nfo-agent-main-nfo-status"] = createMockElement();
+    elements["nfo-agent-episodes-list"] = createMockElement();
+
+    const listBody = elements["nfo-agent-episodes-list"];
+    listBody.children = [];
+    listBody.appendChild = (child) => listBody.children.push(child);
+    const mainNfoBody = elements["nfo-agent-main-nfo-status"];
+    mainNfoBody.children = [];
+    mainNfoBody.appendChild = (child) => mainNfoBody.children.push(child);
+
+    globalThis.setNfoAgentScanData({
+        type: "movie",
+        files: ["Example Movie.mkv"],
+        main_nfo_status: {
+            path: "/media/Filme/Example Movie/movie.nfo",
+            filename: "movie.nfo",
+            exists: true,
+            parseable: true,
+            complete: false
+        },
+        file_nfo_statuses: {
+            "Example Movie.mkv": { exists: false, complete: false }
+        }
+    });
+
+    globalThis.triggerNfoAgentMediaTypeChange();
+
+    assert.strictEqual(elements["nfo-agent-season-container"].style.display, "none");
+    assert.strictEqual(elements["nfo-agent-episodes-section"].style.display, "none");
+    assert.strictEqual(elements["nfo-agent-modal-title"].textContent, "NFO Agent: Film-Metadaten");
+    assert.strictEqual(elements["nfo-agent-search-label"].textContent, "Name des Films:");
+    assert.strictEqual(elements["nfo-agent-title-label-text"].textContent, "Filmtitel (movie.nfo):");
+    assert.strictEqual(elements["nfo-agent-details-heading"].textContent, "Film-Metadaten");
+    assert.strictEqual(mainNfoBody.children.length, 1);
+    assert.ok(mainNfoBody.children[0].innerHTML.includes("movie.nfo"));
+    assert.ok(!mainNfoBody.children[0].innerHTML.includes("tvshow.nfo"));
+    assert.strictEqual(listBody.children.length, 0);
+    assert.ok(!listBody.children.some((child) => child.innerHTML.includes("Example Movie.mkv")));
 });
 
 test('submitNfoAgentJob - payload structures and write_show_nfo semantics', () => {
@@ -521,6 +604,10 @@ test('submitNfoAgentJob - payload structures and write_show_nfo semantics', () =
     elements["nfo-agent-show-year"].value = "2026";
     elements["nfo-agent-show-plot"] = createMockElement();
     elements["nfo-agent-show-plot"].value = "Plot description";
+    elements["nfo-agent-show-genres"] = createMockElement();
+    elements["nfo-agent-show-genres"].value = "Drama, Komödie";
+    elements["nfo-agent-show-fsk"] = createMockElement();
+    elements["nfo-agent-show-fsk"].value = "12";
 
     elements["nfo-agent-show-nfo-action"] = createMockElement();
 
@@ -529,7 +616,13 @@ test('submitNfoAgentJob - payload structures and write_show_nfo semantics', () =
     globalThis.setNfoAgentScanData({
         metadata_name: "Original Title",
         metadata_year: "2026",
-        metadata_plot: "Plot description"
+        metadata_plot: "Plot description",
+        metadata_genres: [],
+        metadata_fsk: "",
+        main_nfo_status: {
+            exists: true,
+            fingerprint: { path: "/media/Serien/Show/tvshow.nfo", size: 12, hash: "abc" }
+        }
     });
 
     let interceptedUrl = null;
@@ -556,6 +649,10 @@ test('submitNfoAgentJob - payload structures and write_show_nfo semantics', () =
     assert.strictEqual(payload.movie_id, "123456");
     assert.strictEqual(payload.season, 2);
     assert.strictEqual(payload.overwrite_nfo, true);
+    assert.strictEqual(payload.nfo_write_mode, "replace");
+    assert.deepStrictEqual(payload.nfo_overrides.show.genres, ["Drama", "Komödie"]);
+    assert.strictEqual(payload.nfo_overrides.show.fsk, "12");
+    assert.strictEqual(payload.main_nfo_fingerprint.hash, "abc");
 
     // Case B: show NFO action is "skip"
     elements["nfo-agent-show-nfo-action"].value = "skip";
@@ -564,4 +661,75 @@ test('submitNfoAgentJob - payload structures and write_show_nfo semantics', () =
     payload = JSON.parse(interceptedOptions.body);
     assert.strictEqual(payload.write_show_nfo, false);
     assert.strictEqual(payload.show_id, "123456"); // show_id remains unchanged
+});
+
+test('NFO Agent shows a calm non-blocking completeness hint', () => {
+    elements["nfo-agent-show-title"].value = "Titel";
+    elements["nfo-agent-show-year"].value = "2026";
+    elements["nfo-agent-show-plot"].value = "Beschreibung";
+    elements["nfo-agent-show-genres"].value = "";
+    elements["nfo-agent-show-fsk"].value = "";
+    elements["nfo-agent-main-nfo-current-status"] = createMockElement();
+    elements["nfo-agent-main-nfo-current-status"].dataset.nfoState = "incomplete";
+    elements["btn-nfo-agent-submit"] = createMockElement();
+
+    const missing = globalThis.updateNfoAgentCompletenessWarning();
+
+    assert.deepStrictEqual(missing, ["Genre", "FSK"]);
+    assert.strictEqual(elements["nfo-agent-main-nfo-current-status"].textContent, "Metadaten unvollständig");
+    assert.strictEqual(elements["btn-nfo-agent-submit"].textContent, "Trotz unvollständiger Metadaten fortfahren");
+
+    elements["nfo-agent-show-genres"].value = "Drama";
+    elements["nfo-agent-show-fsk"].value = "12";
+    assert.deepStrictEqual(globalThis.updateNfoAgentCompletenessWarning(), []);
+    assert.strictEqual(elements["nfo-agent-main-nfo-current-status"].textContent, "Metadaten vollständig");
+    assert.strictEqual(elements["btn-nfo-agent-submit"].textContent, "Metadaten übernehmen");
+});
+
+test('waitForServerRestart succeeds after a temporary connection failure', async () => {
+    let attempts = 0;
+    const fetchStatus = async () => {
+        attempts += 1;
+        if (attempts === 1) {
+            throw new Error("server offline");
+        }
+        return { ok: true };
+    };
+
+    const result = await globalThis.waitForServerRestart(fetchStatus, {
+        maxAttempts: 3,
+        pollDelayMs: 0,
+        sleep: async () => {}
+    });
+
+    assert.strictEqual(result, true);
+    assert.strictEqual(attempts, 2);
+});
+
+test('waitForServerRestart stops after the configured attempt limit', async () => {
+    let attempts = 0;
+    const fetchStatus = async () => {
+        attempts += 1;
+        throw new Error("server remains offline");
+    };
+
+    const result = await globalThis.waitForServerRestart(fetchStatus, {
+        maxAttempts: 3,
+        pollDelayMs: 0,
+        sleep: async () => {}
+    });
+
+    assert.strictEqual(result, false);
+    assert.strictEqual(attempts, 3);
+});
+
+test('restoreServerRestartButton clears the loading state', () => {
+    const button = createMockElement();
+    button.disabled = true;
+    button.innerHTML = "Starte neu...";
+
+    globalThis.restoreServerRestartButton(button);
+
+    assert.strictEqual(button.disabled, false);
+    assert.ok(button.innerHTML.includes("Server neu starten"));
 });

@@ -139,6 +139,17 @@ def is_path_allowed(target_path):
             
     return False
 
+SEASON_FOLDER_PATTERN = re.compile(
+    r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$",
+    re.IGNORECASE,
+)
+
+
+def is_season_folder_name(name: str) -> bool:
+    """Return True only for supported, complete season-folder names."""
+    return bool(name and SEASON_FOLDER_PATTERN.fullmatch(name.strip()))
+
+
 def resolve_series_root(path: str) -> str:
     """
     Resolves the series root folder. If path points to a season folder
@@ -150,13 +161,7 @@ def resolve_series_root(path: str) -> str:
     normalized_path = os.path.normpath(os.path.abspath(path))
     basename = os.path.basename(normalized_path)
 
-    # Vollständig verankerte Regex für Staffel- und Specials-Ordner
-    is_season = bool(re.match(
-        r"^(?:(?:staffel|season)\s*\d+(?:\s*\([^()]+\))?|s\d+|specials)$",
-        basename,
-        re.IGNORECASE
-    ))
-    if is_season:
+    if is_season_folder_name(basename):
         return os.path.dirname(normalized_path)
     return normalized_path
 
@@ -704,3 +709,87 @@ def parse_subtitle_suffix(original_name):
     return suffix
 
 
+def parse_fsk_status(nfo_path):
+    if not nfo_path or not os.path.exists(nfo_path):
+        return "nfo_missing", "Keine", None, False
+
+    try:
+        with open(nfo_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+
+        m = re.search(r'<mpaa(?:\s[^>]*)?>(.*?)</mpaa\s*>', content, re.DOTALL | re.IGNORECASE)
+        if not m:
+            return "missing_fsk", "Keine", None, True
+
+        val = m.group(1).strip()
+        if not val:
+            return "missing_fsk", "Keine", "", True
+
+        valid_values = {"FSK 0", "FSK 6", "FSK 12", "FSK 16", "FSK 18"}
+        if val in valid_values:
+            return "healthy", val, val, False
+        else:
+            return "invalid_fsk", f"Ungültig: {val}", val, True
+
+    except Exception:
+        return "unreadable", "Unlesbar", None, False
+
+
+def get_category_media_type(cat, path=None):
+    if not cat:
+        return None
+
+    # 1. Explizites type Feld
+    if "type" in cat and cat["type"] in ["series", "movie"]:
+        return cat["type"]
+
+    # 2. Bekannte IDs
+    cat_id = cat.get("id", "")
+    if cat_id in ["series", "serien"]:
+        return "series"
+    if cat_id in ["movies", "filme"]:
+        return "movie"
+
+    # 3. Eindeutige Legacy-Kategorienamen
+    cat_name = cat.get("name", "")
+    if cat_name.lower() == "serien":
+        return "series"
+    if cat_name.lower() == "filme":
+        return "movie"
+
+    # 4. Struktureller Pfad-Fallback (falls Pfad angegeben ist)
+    if path:
+        real_path = os.path.realpath(path)
+        if os.path.isfile(real_path) and real_path.lower().endswith(".nfo"):
+            # NFO-Inhaltsprüfung
+            try:
+                with open(real_path, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                if "<tvshow" in content or "<episodedetails" in content:
+                    return "series"
+                if "<movie" in content:
+                    return "movie"
+            except Exception:
+                pass
+
+        # Ordner-Strukturprüfung
+        test_dir = real_path if os.path.isdir(real_path) else os.path.dirname(real_path)
+        try:
+            entries = os.listdir(test_dir)
+            if "tvshow.nfo" in entries:
+                return "series"
+            if "movie.nfo" in entries:
+                return "movie"
+
+            # Prüfen auf Staffelordner oder Episodenmuster SxxExx
+            for e in entries:
+                ep_path = os.path.join(test_dir, e)
+                if os.path.isdir(ep_path) and is_season_folder_name(e):
+                    return "series"
+                if os.path.isfile(ep_path) and re.search(r"S\d+E\d+", e, re.IGNORECASE):
+                    return "series"
+        except OSError:
+            pass
+
+    # Mehrdeutige Kategorienamen (wie "Anime", "TV") ohne klare Struktur führen zu None (was schreibende Aktionen mit HTTP 400 abweist)
+    return None

@@ -1,0 +1,32 @@
+name: medienwerkzeug-orbstack-test
+
+services:
+  medienwerkzeug:
+    image: "${MW_TEST_IMAGE:-medienwerkzeug:orbstack-local}"
+    # GitHub Actions and the current NAS image target linux/amd64. OrbStack
+    # emulates that architecture on Apple Silicon so this tests the same image.
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: medienwerkzeug-orbstack-test
+    user: "${MW_TEST_UID:-1000}:${MW_TEST_GID:-1000}"
+    ports:
+      - "127.0.0.1:5812:5001"
+    environment:
+      TZ: Europe/Berlin
+      MW_RUNTIME: docker
+    volumes:
+      - "${MW_TEST_CONFIG_DIR:?MW_TEST_CONFIG_DIR is required}:/config"
+      - ./.runtime-test/media-run:/media
+    labels:
+      com.medienwerkzeug.purpose: local-acceptance-test
+      com.medienwerkzeug.test-source: "${MW_TEST_SOURCE:-unknown}"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:5001/api/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    # Match the NAS runtime so the in-app restart button can be tested locally.
+    restart: unless-stopped

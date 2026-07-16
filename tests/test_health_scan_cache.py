@@ -290,7 +290,7 @@ class TestHealthScanCache(unittest.TestCase):
 
         # Erstmaliger Aufruf -> cache_miss_new
         with unittest.mock.patch("gui.core.health._check_movie") as mock_check:
-            mock_check.return_value = 1
+            mock_check.return_value = (1, None)
             health._check_movie_cached([], "Filme", movie_path, mock_validator, self.cache_mgr, key, deep_dive=False, stats=stats)
             self.assertEqual(stats["cache_miss_new"], 1)
             self.assertEqual(stats["cache_hits"], 0)
@@ -308,7 +308,7 @@ class TestHealthScanCache(unittest.TestCase):
         # Dritter Aufruf mit Änderungen -> cache_miss_modified
         stats = {"cache_hits": 0, "cache_miss_modified": 0, "cache_miss_known_issues": 0, "cache_miss_new": 0}
         with unittest.mock.patch("gui.core.health._check_movie") as mock_check:
-            mock_check.return_value = 1
+            mock_check.return_value = (1, None)
             with unittest.mock.patch.object(self.cache_mgr, "calculate_hybrid_state", return_value={"folder_mtime": 999}):
                 health._check_movie_cached([], "Filme", movie_path, mock_validator, self.cache_mgr, key, deep_dive=False, stats=stats)
                 self.assertEqual(stats["cache_miss_modified"], 1)

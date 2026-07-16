@@ -235,5 +235,296 @@ class TestFSKHealthCheck(unittest.TestCase):
             movie_content = f.read()
         self.assertNotIn("<mpaa>", movie_content)
 
+
+class TestFSKHealthStructureAggregation(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.nas_root = os.path.join(self.temp_dir, "nas")
+        os.makedirs(self.nas_root)
+        self.client = app.test_client()
+
+        # Settings mock setup
+        self.settings = {
+            "nas_root": self.nas_root,
+            "sync_categories": [
+                {"id": "filme", "name": "Filme", "nas_sub": "/Filme", "type": "movie"},
+                {"id": "serien", "name": "Serien", "nas_sub": "/Serien", "type": "series"}
+            ],
+            "media_server": "none"
+        }
+        self.patcher_settings = patch('gui.core.health.utils.load_settings', return_value=self.settings)
+        self.patcher_settings.start()
+
+        self.patcher_mount = patch('gui.core.health.ensure_nas_mounted', return_value=True)
+        self.patcher_mount.start()
+
+        self.patcher_preflight = patch('gui.core.transfers.validate_nas_library_preflight', return_value=(True, ""))
+        self.patcher_preflight.start()
+
+        # Create film and series layout
+        self.movie_dir = os.path.join(self.nas_root, "Filme", "My Movie (2020)")
+        os.makedirs(self.movie_dir)
+        open(os.path.join(self.movie_dir, "My Movie (2020).mkv"), 'w').close()
+        # Invalid FSK rating in movie.nfo
+        with open(os.path.join(self.movie_dir, "movie.nfo"), 'w') as f:
+            f.write("<movie><mpaa>Unrated</mpaa></movie>")
+
+        self.show_dir = os.path.join(self.nas_root, "Serien", "My Show")
+        os.makedirs(self.show_dir)
+        # Missing tvshow.nfo (simulates missing NFO issue)
+        self.season_dir = os.path.join(self.show_dir, "Season 1")
+        os.makedirs(self.season_dir)
+        open(os.path.join(self.season_dir, "My Show - S01E01.mkv"), 'w').close()
+        open(os.path.join(self.season_dir, "My Show - S01E02.mkv"), 'w').close()
+        # Season 1 Episode NFOs
+        with open(os.path.join(self.season_dir, "My Show - S01E01.nfo"), 'w') as f:
+            f.write("<episodedetails><mpaa>FSK 12</mpaa></episodedetails>")
+        with open(os.path.join(self.season_dir, "My Show - S01E02.nfo"), 'w') as f:
+            f.write("<episodedetails><mpaa>Keine</mpaa></episodedetails>") # invalid/missing
+
+    def tearDown(self):
+        self.patcher_preflight.stop()
+        self.patcher_mount.stop()
+        self.patcher_settings.stop()
+        shutil.rmtree(self.temp_dir)
+
+    def test_cache_version_upgrade(self):
+        from gui.core.health_cache import HealthCacheManager, get_cache_key
+        cache_mgr = HealthCacheManager()
+
+        # Simulate an entry from the previous cache schema.
+        cache_mgr._cache["3:none"] = {
+            self.movie_dir: {
+                "issues": [],
+                "files_checked": 1,
+                "hybrid_state": "some-hash"
+            }
+        }
+        # The current schema must not reuse the old entry.
+        entry = cache_mgr.get_cached_entry(self.movie_dir, get_cache_key("none"))
+        self.assertIsNone(entry)
+
+    def test_run_health_scan_aggregation(self):
+        # Reset scan state
+        health._scan_state["media_structure"] = {"series": [], "movies": []}
+        health._scan_state["issues"] = []
+
+        # Run Scan
+        health._run_health_scan()
+
+        status = health.get_health_status()
+        self.assertEqual(status["status"], "done")
+
+        media_structure = status.get("media_structure")
+        self.assertIsNotNone(media_structure)
+
+        # Validate movie entry
+        movies = media_structure.get("movies", [])
+        self.assertEqual(len(movies), 1)
+        movie_meta = movies[0]
+        self.assertEqual(movie_meta["name"], "My Movie (2020)")
+        self.assertEqual(movie_meta["path"], self.movie_dir)
+        self.assertEqual(movie_meta["fsk_status"], "invalid_fsk")
+        self.assertEqual(movie_meta["current_fsk"], "Ungültig: Unrated")
+        self.assertEqual(movie_meta["raw_fsk"], "Unrated")
+        self.assertTrue(movie_meta["actionable_fsk"])
+        self.assertTrue(len(movie_meta["issue_keys"]) > 0)
+
+        # Validate series entry
+        series = media_structure.get("series", [])
+        self.assertEqual(len(series), 1)
+        show_meta = series[0]
+        self.assertEqual(show_meta["name"], "My Show")
+        self.assertEqual(show_meta["path"], self.show_dir)
+        self.assertFalse(show_meta["has_nfo"]) # tvshow.nfo is missing
+        self.assertEqual(show_meta["fsk_status"], "nfo_missing")
+
+        # Validate seasons & episodes
+        seasons = show_meta.get("seasons", [])
+        self.assertEqual(len(seasons), 1)
+        season_meta = seasons[0]
+        self.assertEqual(season_meta["name"], "Season 1")
+        self.assertEqual(season_meta["path"], self.season_dir)
+        season_issue_keys = {
+            issue["key"] for issue in status["issues"]
+            if issue.get("scope_kind") == "season"
+            and os.path.realpath(issue["scope_path"]) == os.path.realpath(self.season_dir)
+        }
+        self.assertEqual(set(season_meta["issue_keys"]), season_issue_keys)
+
+        episodes = season_meta.get("episodes", [])
+        self.assertEqual(len(episodes), 2)
+
+        # Ep 1: valid FSK 12
+        ep1 = next(e for e in episodes if "S01E01" in e["name"])
+        self.assertEqual(ep1["fsk_status"], "healthy")
+        self.assertEqual(ep1["current_fsk"], "FSK 12")
+        self.assertEqual(ep1["raw_fsk"], "FSK 12")
+        self.assertFalse(ep1["actionable_fsk"])
+        self.assertFalse(any("age_rating" in k for k in ep1["issue_keys"]))
+
+        # Ep 2: invalid FSK Keine
+        ep2 = next(e for e in episodes if "S01E02" in e["name"])
+        self.assertEqual(ep2["fsk_status"], "invalid_fsk")
+        self.assertEqual(ep2["current_fsk"], "Ungültig: Keine")
+        self.assertEqual(ep2["raw_fsk"], "Keine")
+        self.assertTrue(ep2["actionable_fsk"])
+        self.assertTrue(any("age_rating" in k for k in ep2["issue_keys"]))
+        ep2_issue = next(
+            issue for issue in status["issues"]
+            if os.path.realpath(issue["path"]) == os.path.realpath(ep2["nfo_path"])
+            and issue["type"] == "invalid_age_rating"
+        )
+        self.assertEqual(ep2_issue["media_kind"], "episode")
+        self.assertEqual(os.path.realpath(ep2_issue["agent_path"]), os.path.realpath(self.season_dir))
+        self.assertEqual(ep2_issue["episode_file"], ep2["name"])
+
+        episode_incomplete_issues = [
+            issue for issue in status["issues"]
+            if issue["type"] == "incomplete_nfo" and issue.get("scope_kind") == "episode"
+        ]
+        self.assertEqual(len(episode_incomplete_issues), 2)
+        self.assertEqual(len({issue["key"] for issue in episode_incomplete_issues}), 2)
+        self.assertTrue(all(issue["path"].endswith(".nfo") for issue in episode_incomplete_issues))
+        self.assertTrue(all(issue["details"]["missing_fields"] for issue in episode_incomplete_issues))
+        self.assertTrue(set(season_meta["issue_keys"]).isdisjoint(
+            {issue["key"] for issue in episode_incomplete_issues}
+        ))
+
+        small_file_issues = [
+            issue for issue in status["issues"]
+            if issue["type"] == "small_file" and issue.get("scope_kind") == "episode"
+        ]
+        self.assertEqual(len(small_file_issues), 2)
+        self.assertEqual(len({issue["key"] for issue in small_file_issues}), 2)
+        self.assertTrue(all(issue["path"].endswith(".mkv") for issue in small_file_issues))
+        self.assertTrue(set(season_meta["issue_keys"]).isdisjoint(
+            {issue["key"] for issue in small_file_issues}
+        ))
+
+    def test_health_scan_excludes_backup_folder_and_maps_missing_episode_nfo(self):
+        missing_video = os.path.join(self.season_dir, "My Show - S01E03.mkv")
+        open(missing_video, "w").close()
+        backup_dir = os.path.join(self.show_dir, "Staffel Backup")
+        os.makedirs(backup_dir)
+        open(os.path.join(backup_dir, "My Show Bonus.mkv"), "w").close()
+
+        health._scan_state["media_structure"] = {"series": [], "movies": []}
+        health._scan_state["issues"] = []
+        health._run_health_scan()
+
+        status = health.get_health_status()
+        show = status["media_structure"]["series"][0]
+        self.assertEqual([season["name"] for season in show["seasons"]], ["Season 1"])
+        episodes = show["seasons"][0]["episodes"]
+        self.assertEqual(len(episodes), 3)
+
+        missing_episode = next(ep for ep in episodes if "S01E03" in ep["name"])
+        expected_nfo = os.path.splitext(missing_video)[0] + ".nfo"
+        self.assertEqual(missing_episode["path"], expected_nfo)
+        self.assertEqual(missing_episode["fsk_status"], "nfo_missing")
+        self.assertTrue(any("missing_nfo" in key for key in missing_episode["issue_keys"]))
+
+        missing_issue = next(
+            issue for issue in status["issues"]
+            if os.path.realpath(issue["path"]) == os.path.realpath(expected_nfo)
+            and issue["type"] == "missing_nfo"
+        )
+        self.assertEqual(os.path.realpath(missing_issue["agent_path"]), os.path.realpath(self.season_dir))
+        self.assertEqual(missing_issue["episode_file"], os.path.basename(missing_video))
+        self.assertFalse(any("Staffel Backup" in issue.get("path", "") for issue in status["issues"]))
+
+    @patch('gui.api.nas_api.write_fsk_to_nfo')
+    @patch('gui.core.health.remove_issue')
+    @patch('gui.api.nas_api.load_settings')
+    def test_health_fix_issue_removal_args(self, mock_load_settings, mock_remove_issue, mock_write_fsk):
+        mock_load_settings.return_value = {
+            "nas_root": self.temp_dir,
+            "nas_paths": {"Filme": self.temp_dir, "Serien": self.temp_dir},
+            "sync_categories": [{"name": "Filme", "nas_sub": "/"}]
+        }
+        mock_write_fsk.return_value = (True, "")
+        import os
+        movie_dir = os.path.join(self.temp_dir, "Ein Film")
+        os.makedirs(movie_dir, exist_ok=True)
+        nfo_path = os.path.join(movie_dir, "movie.nfo")
+        with open(nfo_path, 'w') as f:
+            f.write("<movie></movie>")
+        with open(os.path.join(movie_dir, "Ein Film.mkv"), 'w') as f:
+            f.write("video")
+
+        res = self.client.post('/api/nas/health-fix', json={
+            "action": "set_fsk",
+            "path": nfo_path,
+            "new_fsk": "12"
+        })
+        self.assertEqual(res.status_code, 200)
+
+        # Überprüfen, ob remove_issue mit nfo_path Argument für das Verzeichnis (real_path) gerufen wurde
+        real_movie_dir = os.path.realpath(movie_dir)
+        real_nfo_path = os.path.realpath(nfo_path)
+        mock_remove_issue.assert_any_call(real_movie_dir, "missing_age_rating", nfo_path=real_nfo_path)
+        mock_remove_issue.assert_any_call(real_movie_dir, "invalid_age_rating", nfo_path=real_nfo_path)
+        mock_remove_issue.reset_mock()
+
+        res = self.client.post('/api/nas/health-fix', json={
+            "action": "set_fsk",
+            "path": nfo_path,
+            "new_fsk": "16"
+        })
+        self.assertEqual(res.status_code, 200)
+        # remove_issue sollte für den Verzeichnis-Issue-Pfad aufgerufen werden (da movie.nfo)
+        mock_remove_issue.assert_any_call(real_movie_dir, "missing_age_rating", nfo_path=real_nfo_path)
+
+def _seed_scan_state(monkeypatch, issues):
+    from gui.core import health
+    monkeypatch.setitem(health._scan_state, "status", "done")
+    monkeypatch.setitem(health._scan_state, "issues", issues)
+    monkeypatch.setitem(health._scan_state, "summary", {"critical": 0, "warning": 0, "info": 0})
+    monkeypatch.setitem(health._scan_state, "media_structure", {"series": [], "movies": []})
+    monkeypatch.setattr(health, "_write_cache", lambda: None)
+
+
+def test_refresh_after_nfo_write_drops_resolved_findings(tmp_path, monkeypatch):
+    from gui.core import health
+    nfo_path = tmp_path / "Show S01E01.nfo"
+    nfo_path.write_text(
+        "<episodedetails><title>T</title><plot>P</plot>"
+        "<aired>2024-01-01</aired><mpaa>FSK 12</mpaa></episodedetails>",
+        encoding="utf-8",
+    )
+    real_nfo = os.path.realpath(str(nfo_path))
+    _seed_scan_state(monkeypatch, [
+        {"key": f"health:incomplete_nfo:{real_nfo}", "type": "incomplete_nfo", "severity": "critical", "path": real_nfo},
+        {"key": f"health:missing_age_rating:{real_nfo}", "type": "missing_age_rating", "severity": "warning", "path": real_nfo},
+        {"key": f"health:small_file:{real_nfo}", "type": "small_file", "severity": "warning", "path": real_nfo},
+    ])
+
+    health.refresh_issues_after_nfo_write(str(nfo_path), "episode")
+
+    remaining = {issue["type"] for issue in health._scan_state["issues"]}
+    assert "incomplete_nfo" not in remaining
+    assert "missing_age_rating" not in remaining
+    # Unrelated findings must survive the refresh.
+    assert "small_file" in remaining
+
+
+def test_refresh_after_nfo_write_keeps_unresolved_findings(tmp_path, monkeypatch):
+    from gui.core import health
+    nfo_path = tmp_path / "Show S01E01.nfo"
+    # Plot still missing and FSK still absent: nothing may be removed.
+    nfo_path.write_text("<episodedetails><title>T</title></episodedetails>", encoding="utf-8")
+    real_nfo = os.path.realpath(str(nfo_path))
+    _seed_scan_state(monkeypatch, [
+        {"key": f"health:incomplete_nfo:{real_nfo}", "type": "incomplete_nfo", "severity": "critical", "path": real_nfo},
+        {"key": f"health:missing_age_rating:{real_nfo}", "type": "missing_age_rating", "severity": "warning", "path": real_nfo},
+    ])
+
+    health.refresh_issues_after_nfo_write(str(nfo_path), "episode")
+
+    remaining = {issue["type"] for issue in health._scan_state["issues"]}
+    assert remaining == {"incomplete_nfo", "missing_age_rating"}
+
+
 if __name__ == '__main__':
     unittest.main()

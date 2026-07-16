@@ -178,7 +178,42 @@ Importiert ausgewählte lokale Medien aus konfigurierten Quellen in die Inbox un
   `flatten` (Verschachtelung auflösen), `rename_folder`, `rename_file`,
   `rename_folder_to_file`, `rename_file_to_folder`, `rename_both`, `set_fsk`.
   Payload: `{"action": "...", "path": "...", "new_name": "...", "new_fsk": "..."}`.
-  Nur innerhalb NAS-Root, nie überschreibend (Ausnahme: FSK-Fix überschreibt <mpaa> in NFO).
+  Nur innerhalb NAS-Root, nie überschreibend. Einzelne FSK-Befunde öffnen den
+  NFO-Agenten, damit Altersfreigabe und weitere NFO-Metadaten gemeinsam geprüft
+  werden. Staffel- und Serien-Stapelaktionen ändern weiterhin ausschließlich das
+  `<mpaa>`-Feld der zuvor angezeigten NFO-Dateien und prüfen vor dem Schreiben
+  deren Fingerprints.
+
+Das `health-status`-Ergebnis enthält zusätzlich `issue_catalog` (Gruppen +
+registrierte Hinweisarten aus `health_issue_registry.py`); jedes Issue trägt
+`group`, `label`, `ignoreable` sowie strukturierte Besitzpfade
+(`scope_kind`, `scope_path`, `series_path`, `season_path`, `episode_path`).
+
+### Befunde dauerhaft ignorieren
+* `POST /api/findings/ignore` — blendet einen einzelnen Befund-Schlüssel aus.
+  Payload: `{"key": "health:<typ>:<pfad>"}` (auch `dup:<gruppe>` für Duplikate).
+* `POST /api/findings/unignore` — macht einen einzelnen Schlüssel wieder sichtbar.
+* `POST /api/findings/ignore-rules` — speichert eine bereichsbezogene Regel.
+  Payload: `{"scope_kind": "movie|series|season|episode", "scope_path": "...",
+  "issue_types": ["incomplete_nfo", ...]}`. **Sicherheit:** Pfad muss kanonisch
+  innerhalb der freigegebenen Bibliothek liegen; nur registrierte, ignorierbare
+  Hinweisarten werden akzeptiert. Regeln erfassen ausschließlich die genannten
+  Typen — später registrierte Typen bleiben sichtbar.
+* `GET /api/findings/ignored` — persistierter Zustand
+  (`{"ignored": [...], "rules": [...], "version": 2}`).
+* `DELETE /api/findings/ignored` — stellt **alle** ausgeblendeten Befunde wieder
+  her (exakte Schlüssel, Regeln und Duplikat-Ignorierungen).
+
+### NFO-Agent — gemeinsamer Metadaten-Workflow
+* `GET /api/scan-project` liefert für die Haupt-NFO und Episoden-NFOs den
+  vorhandenen Inhalt sowie einen Fingerprint der Vorschau.
+* `POST /api/process` mit `media_type: "tool_nfo_agent"` unterscheidet die
+  Schreibmodi `create`, `patch` und `replace`. `patch` verändert nur ausdrücklich
+  gewählte Felder (`title`, `year`, `plot`, `genre`, `mpaa`) und erhält alle
+  übrigen XML-Bytes. `replace` muss im Modal ausdrücklich gewählt werden.
+* Stimmen die Fingerprints beim Schreiben nicht mehr, wird der Job sichtbar
+  abgebrochen. Fehlende Angaben des Metadatendienstes sind ein nicht blockierender
+  Hinweis und können manuell ergänzt oder bewusst leer gelassen werden.
 
 ### Feature 4 — NAS-weite Duplikat-Erkennung
 * `POST /api/nas/scan-duplicates` — startet die Erkennung im Hintergrund.

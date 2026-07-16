@@ -5,7 +5,9 @@ import time
 import tempfile
 from typing import Optional
 
-SCAN_VERSION = 2
+# Bump whenever the issue schema changes, including mid-branch: version 4
+# caches from intermediate builds lack the ownership fields (scope_*, *_path).
+SCAN_VERSION = 5
 
 def get_cache_key(media_server: str) -> str:
     """Berechnet den Cache-Schlüssel basierend auf Scan-Version und Medienserver."""
@@ -60,8 +62,8 @@ class HealthCacheManager:
             return entry
         return None
 
-    def set_cached_entry(self, folder_path: str, cache_key: str, issues: list, state_data: Optional[dict] = None, files_checked: int = 0, hybrid_state: Optional[dict] = None, deep_hash: Optional[str] = None):
-        """Speichert oder aktualisiert den Cache-Eintrag für einen Ordner mit separatem Hybrid- und Deep-Dive-Zustand."""
+    def set_cached_entry(self, folder_path: str, cache_key: str, issues: list, state_data: Optional[dict] = None, files_checked: int = 0, hybrid_state: Optional[dict] = None, deep_hash: Optional[str] = None, media_metadata: Optional[dict] = None):
+        """Speichert oder aktualisiert den Cache-Eintrag für einen Ordner mit separatem Hybrid- und Deep-Dive-Zustand sowie Strukturdaten."""
         abs_path = os.path.realpath(folder_path)
         entry = self._cache.get(abs_path) or {}
 
@@ -80,6 +82,7 @@ class HealthCacheManager:
             "hybrid_state": new_hybrid if new_hybrid is not None else entry.get("hybrid_state"),
             "deep_hash": new_deep if new_deep is not None else entry.get("deep_hash"),
             "files_checked": files_checked,
+            "media_metadata": media_metadata if media_metadata is not None else entry.get("media_metadata"),
             "timestamp": time.time()
         }
 
