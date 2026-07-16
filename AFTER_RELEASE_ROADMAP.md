@@ -1573,3 +1573,23 @@ Zwei klar getrennte Schritte wie beim Onboarding:
 
 ### Aufwand (grob)
 Mittel: reine Frontend-Umstrukturierung mit umfangreicher Testanpassung; keine Backend-Änderungen.
+
+---
+
+## 54. Metadatendienste: Alle Abrufe auf den Retry-Helfer umstellen
+
+**Einordnung / Priorität:** Robustheit, Folgearbeit zum gezielten Retry-Fix vom 16.07.2026.
+
+**Problem:**
+`fetch_json_with_retry` deckt bisher nur die interaktiven Pfade des NFO-Agenten ab (TMDb-Suche, Serien-/Film-/Episoden-Details, TVDB-Details). Rund 25 weitere Abrufe in `mw_metadata.py` (Episodenlisten, Artwork-Downloads, OFDB, TVDB-Suche/-Token, fernsehserien.de u. a.) bleiben Ein-Schuss-Versuche mit 10-s-Timeout und scheitern bei transienten Hängern — teils still.
+
+**Ziel:**
+Alle externen Metadaten-Abrufe nutzen denselben Retry-Helfer (bzw. eine Binär-Variante für Artwork), loggen Fehlversuche sichtbar und wiederholen echte HTTP-Fehler nicht.
+
+**Umsetzung (grob):**
+1. Bestandsaufnahme aller `urlopen`-Stellen in `mw_metadata.py` und Kategorisierung (JSON, HTML, Binär).
+2. Helfer-Varianten für HTML-/Binär-Antworten ergänzen; Job-Pfade (Prozessor) einbeziehen.
+3. Tests je Kategorie; Prüfung, dass Batch-Jobs bei endgültigem Scheitern sichtbar fehlschlagen.
+
+### Aufwand (grob)
+Mittel: mechanische Umstellung vieler Stellen mit sorgfältiger Prüfung der bestehenden Fehlerpfade.

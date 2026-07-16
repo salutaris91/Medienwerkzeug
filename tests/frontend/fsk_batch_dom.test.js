@@ -178,6 +178,8 @@ globalThis.applyNfoAgentEditMode = applyNfoAgentEditMode;
 globalThis.setNfoAgentEditMode = setNfoAgentEditMode;
 globalThis.updateNfoAgentCompletenessWarning = updateNfoAgentCompletenessWarning;
 globalThis.applyNfoAgentMediathekSelection = applyNfoAgentMediathekSelection;
+globalThis.loadNfoAgentDetails = loadNfoAgentDetails;
+globalThis.retryNfoAgentDetails = retryNfoAgentDetails;
 globalThis.startNfoAgentLogStreaming = startNfoAgentLogStreaming;
 globalThis.searchNfoAgentMetadata = searchNfoAgentMetadata;
 globalThis.renderHealthStatus = renderHealthStatus;
@@ -1769,6 +1771,40 @@ test('Mediathek search result switches to manual entry instead of a TVDB fetch',
     assert.strictEqual(document.getElementById("nfo-agent-show-title").value, "Beispielserie (2024)");
 
     globalThis.document.querySelectorAll = originalQuerySelectorAll;
+});
+
+test('Failed detail loads render an inline retry action instead of an alert', async () => {
+    const container = document.getElementById("nfo-agent-search-results");
+    const appended = [];
+    const originalAppendChild = container.appendChild;
+    const originalQuerySelectorAll = container.querySelectorAll;
+    container.appendChild = (el) => appended.push(el);
+    container.querySelectorAll = () => [];
+    globalThis.lastAlert = null;
+    globalThis.fetchRequests = [];
+    globalThis.mockFetchResponse = () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ error: "TMDB-Filmmetadaten konnten nicht geladen werden: timed out" })
+    });
+
+    globalThis.loadNfoAgentDetails("1200320", "tmdb_movie", "movie", 1);
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.strictEqual(globalThis.lastAlert, null);
+    assert.strictEqual(appended.length, 1);
+    assert.ok(appended[0].innerHTML.includes("Erneut versuchen"));
+    assert.ok(appended[0].innerHTML.includes("timed out"));
+
+    // The retry action repeats the fetch with the remembered parameters.
+    globalThis.retryNfoAgentDetails();
+    await new Promise((resolve) => setImmediate(resolve));
+    const detailRequests = globalThis.fetchRequests.filter((item) => item.url.includes("/api/metadata/fetch"));
+    assert.strictEqual(detailRequests.length, 2);
+
+    container.appendChild = originalAppendChild;
+    container.querySelectorAll = originalQuerySelectorAll;
 });
 
 test('NFO Agent hides the back button when whole-series is the entry point', () => {
