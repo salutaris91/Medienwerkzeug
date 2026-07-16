@@ -1716,6 +1716,68 @@ test('NFO Agent switches between entry context and whole-series editing', () => 
     globalThis.document.querySelectorAll = originalQuerySelectorAll;
 });
 
+test('NFO Agent hides the back button when whole-series is the entry point', () => {
+    const originalQuerySelectorAll = globalThis.document.querySelectorAll;
+    document.getElementById("nfo-agent-media-type").value = "tvshow";
+    globalThis.document.querySelectorAll = () => [];
+    globalThis.nfoAgentEditContext = { originMode: "full", mode: "full", episodeFile: "" };
+
+    globalThis.applyNfoAgentEditMode();
+
+    assert.strictEqual(document.getElementById("nfo-agent-edit-mode-title").textContent, "Ganze Serie bearbeiten");
+    // Direct entry into whole-series mode has no previous view to return to.
+    assert.strictEqual(document.getElementById("btn-nfo-agent-edit-back").style.display, "none");
+    assert.strictEqual(document.getElementById("btn-nfo-agent-edit-whole-series").style.display, "none");
+
+    globalThis.document.querySelectorAll = originalQuerySelectorAll;
+});
+
+test('NFO Agent submits manually when no provider ID is given', () => {
+    const originalQuerySelectorAll = globalThis.document.querySelectorAll;
+    const originalQuerySelector = globalThis.document.querySelector;
+    const values = {
+        "nfo-agent-provider": "tvdb",
+        "nfo-agent-media-type": "movie",
+        "nfo-agent-metadata-id": "",
+        "nfo-agent-season": "1",
+        "nfo-agent-show-title": "My Movie",
+        "nfo-agent-show-year": "2024",
+        "nfo-agent-show-plot": "Plot",
+        "nfo-agent-show-genres": "",
+        "nfo-agent-show-fsk": "16"
+    };
+    Object.entries(values).forEach(([id, value]) => { document.getElementById(id).value = value; });
+    document.getElementById("nfo-agent-overwrite-nfo").checked = false;
+    globalThis.document.querySelectorAll = () => [];
+    globalThis.document.querySelector = () => null;
+    globalThis.setNfoAgentCurrentPath("/media/Filme/My Movie (2024)");
+    globalThis.setNfoAgentScanData({
+        metadata_name: "",
+        metadata_year: "",
+        metadata_plot: "",
+        metadata_genres: [],
+        metadata_fsk: "",
+        main_nfo_status: { exists: true, fingerprint: { hash: "movie" } },
+        file_nfo_statuses: {}
+    });
+    globalThis.nfoAgentEditContext = { originMode: "full", mode: "full", episodeFile: "" };
+    globalThis.fetchRequests = [];
+
+    globalThis.submitNfoAgentJob();
+
+    const request = globalThis.fetchRequests.find(item => item.url === "/api/process");
+    assert.ok(request, "job must start instead of demanding an ID");
+    const payload = JSON.parse(request.options.body);
+    assert.strictEqual(payload.provider, "manual");
+    const manualData = JSON.parse(payload.movie_id);
+    assert.strictEqual(manualData.title, "My Movie");
+    assert.strictEqual(manualData.fsk, "16");
+    assert.strictEqual(payload.nfo_write_mode, "patch");
+
+    globalThis.document.querySelectorAll = originalQuerySelectorAll;
+    globalThis.document.querySelector = originalQuerySelector;
+});
+
 test('NFO Agent season mode edits the season without writing the series NFO', () => {
     const originalQuerySelectorAll = globalThis.document.querySelectorAll;
     const originalQuerySelector = globalThis.document.querySelector;

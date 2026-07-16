@@ -15619,7 +15619,9 @@ function applyNfoAgentEditMode() {
                 : (mode === "season" ? getSeasonEditTitle() : "Ganze Serie bearbeiten"));
     }
     if (wholeSeriesBtn) wholeSeriesBtn.style.display = mode === "full" ? "none" : "inline-flex";
-    if (backBtn) backBtn.style.display = mode === "full" ? "inline-flex" : "none";
+    // Direct whole-series entry has no previous view to return to.
+    const cameFromNarrowerView = nfoAgentEditContext.originMode !== "full";
+    if (backBtn) backBtn.style.display = mode === "full" && cameFromNarrowerView ? "inline-flex" : "none";
 
     const showMainEditor = mode === "series" || mode === "full";
     const showEpisodes = mode !== "series";
@@ -16330,15 +16332,16 @@ function buildEpisodeOptionsHTML(fileCount, selectedVal) {
 function submitNfoAgentJob() {
     if (!nfoAgentCurrentPath) return;
 
-    const provider = document.getElementById("nfo-agent-provider").value;
+    let provider = document.getElementById("nfo-agent-provider").value;
     const mediaType = document.getElementById("nfo-agent-media-type").value;
     let showId = document.getElementById("nfo-agent-metadata-id").value.trim();
     const season = parseInt(document.getElementById("nfo-agent-season").value) || 1;
     const overwriteNfo = document.getElementById("nfo-agent-overwrite-nfo").checked;
 
+    // A provider ID is optional: without one there is nothing to fetch, so the
+    // entered form fields are written manually instead of blocking the user.
     if (provider !== "manual" && !showId) {
-        alert("Bitte gib eine Show- oder Movie-ID an.");
-        return;
+        provider = "manual";
     }
 
     // Build mappings & overrides
