@@ -1617,3 +1617,28 @@ Alle externen Metadaten-Abrufe nutzen denselben Retry-Helfer (bzw. eine Binär-V
 
 ### Aufwand (grob)
 Mittel: mechanische Umstellung vieler Stellen mit sorgfältiger Prüfung der bestehenden Fehlerpfade.
+
+---
+
+## 55. NFO-Agent: Multi-Provider-Metadatenvergleich mit Feld-Badges
+
+**Einordnung / Priorität:** Funktionserweiterung, Idee von Alex am 18.07.2026; baut auf Wizard (Item 52) und Retry-Helfer auf. Reihenfolge: nach Item 52.
+
+**Problem:**
+Kein einzelner Metadatendienst ist für deutsche Medien vollständig: TMDB liefert oft Plot/Genres, aber keine FSK (real gesehen bei „Killing Faith"); OFDb liefert FSK und Genres, aber oft keinen Plot. Heute muss der Nutzer sich für eine Quelle entscheiden und Lücken manuell füllen.
+
+**Ziel:**
+Im Wizard mehrere Dienste gleichzeitig auswählen; Schritt 2 zeigt pro Feld, welcher Dienst was anbietet (Badges), und lässt die Quelle wählen:
+
+- **Alternativ-Felder** (genau eine Quelle): Titel, Jahr, Plot, FSK — leere Angebote sichtbar („TMDB: keine FSK").
+- **Kumulativ-Felder** (Vereinigung, einzeln abwählbar): Genres, perspektivisch Schauspieler.
+- Manuelle Eingabe bleibt als weitere „Quelle" gleichberechtigt.
+
+**Umsetzung (grob):**
+1. Parallele Detail-Abrufe pro gewähltem Dienst (Retry-Helfer, Fehlerstatus je Dienst sichtbar).
+2. API liefert Felder je Provider statt eines gemergten Ergebnisses; Frontend übernimmt den Vergleich.
+3. Feldvergleichs-UI in Wizard-Schritt 2 (Badges + Auswahl); Schreiben unverändert über die bestehenden Feld-Overrides.
+4. Tests: Vergleichslogik, leere Angebote, Fehler einzelner Dienste blockieren die übrigen nicht.
+
+### Aufwand (grob)
+Mittel–groß: neue Vergleichs-UI und API-Erweiterung; Schreibpfad bleibt unverändert.
