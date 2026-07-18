@@ -2,6 +2,15 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 16.07.2026 (Metadaten-Abrufe: Retry gegen transiente Timeouts)
+
+- **Anlass:** Auf dem NAS schlugen TMDB-Suche und -Detailabruf sporadisch mit `The read operation timed out` fehl (unter Last), obwohl die Verbindung grundsätzlich in 0,2 s steht — verifiziert per Container-Test. Detail-Fehler wurden zudem nur an die UI gemeldet, nie geloggt.
+- **Retry-Helfer:** `fetch_json_with_retry` in `mw_metadata.py` wiederholt Netzwerkfehler bis zu 3-mal mit kurzem Backoff (Timeout 15 s) und loggt jeden Fehlversuch sichtbar. Echte HTTP-Antworten (4xx/5xx) werden nie wiederholt.
+- **Umgestellte Aufrufe:** TMDb-Film- und -Serien-Suche (ID- und Textsuche), TVDB- und TMDb-Serien-Details, TMDb-Film-Details, TMDb-Episoden-Details — die interaktiven Pfade des NFO-Agenten. Alle Fehlerpfade der Detail-Abrufe loggen jetzt zusätzlich per `log_message`.
+- **UI statt Alert:** Scheitert ein Detail-Abruf endgültig, erscheint im Suchbereich eine Fehlerzeile mit „Erneut versuchen"-Button statt eines blockierenden Alerts.
+- **Nicht angefasst:** Die übrigen ~25 Ein-Schuss-Abrufe (Episodenlisten, Artwork, OFDB, TVDB-Suche u. a.) — flächendeckende Umstellung siehe Roadmap-Item 54.
+- **Verifikation:** 4 neue Backend-Tests (Retry, sichtbares Aufgeben, kein HTTP-Retry, Fehlerpfad), 1 neuer Frontend-Test (Inline-Retry statt Alert); volle Suiten grün.
+
 ## Stand am 16.07.2026 (Phase 2.5c – dritte Abnahmerunde: Button-Label & Mediathek-Treffer)
 
 - **Button-Text folgt den sichtbaren Feldern:** „Trotz unvollständiger Metadaten fortfahren" bewertete bisher nur die Serien-Felder — im Staffel-/Folgenmodus sind die aber ausgeblendet, manuell ausgefüllte Episodenfelder zählten nicht. Jetzt bewertet der Button genau die Felder, die der aktive Modus anzeigt und schreibt, und aktualisiert sich live beim Tippen (auch in Episodenfeldern).

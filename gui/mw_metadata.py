@@ -118,6 +118,32 @@ def make_tmdb_request(url, headers=None):
 
     return urllib.request.Request(url, headers=headers)
 
+
+def fetch_json_with_retry(build_request, timeout=15, attempts=3, context=""):
+    """Fetch and decode a JSON metadata endpoint, retrying transient stalls.
+
+    Read timeouts on a busy NAS are usually transient, so network-level
+    failures are retried with a short backoff and logged visibly. HTTP
+    errors (4xx/5xx) are real answers and are never retried. build_request
+    is a callable so every attempt works on a fresh Request object.
+    """
+    import urllib.error
+
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        try:
+            request = build_request()
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return json.loads(response.read().decode())
+        except urllib.error.HTTPError:
+            raise
+        except (TimeoutError, ConnectionError, urllib.error.URLError, OSError) as exc:
+            last_error = exc
+            log_message(f"⚠️ [Metadaten] Versuch {attempt}/{attempts} fehlgeschlagen ({context}): {exc}")
+            if attempt < attempts:
+                time.sleep(attempt)
+    raise last_error
+
 def _handle_metadata_error(e, context=""):
     import urllib.error
     import socket
@@ -521,15 +547,13 @@ def search_tmdb_movie(query):
     if query.startswith("tt"):
         url = f"https://api.themoviedb.org/3/find/{query}?api_key={TMDB_API_KEY}&external_source=imdb_id&language=de-DE"
         try:
-            req = make_tmdb_request(url)
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode())
-                results = []
-                for item in data.get('movie_results', []):
-                    year = item.get('release_date', '')[:4] if item.get('release_date') else '????'
-                    title = item.get('title', '')
-                    results.append({'id': item['id'], 'name': f"{title} ({year})", 'genre_ids': item.get('genre_ids', [])})
-                if results: return results
+            data = fetch_json_with_retry(lambda: make_tmdb_request(url), context="TMDb Film IMDB-ID-Suche")
+            results = []
+            for item in data.get('movie_results', []):
+                year = item.get('release_date', '')[:4] if item.get('release_date') else '????'
+                title = item.get('title', '')
+                results.append({'id': item['id'], 'name': f"{title} ({year})", 'genre_ids': item.get('genre_ids', [])})
+            if results: return results
         except urllib.error.HTTPError as e:
             _handle_metadata_error(e)
             # fallback down to exception handling if not raised
@@ -544,13 +568,11 @@ def search_tmdb_movie(query):
         tmdb_id = query.replace("tmdb:", "")
         url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}&language=de-DE"
         try:
-            req = make_tmdb_request(url)
-            with urllib.request.urlopen(req, timeout=10) as response:
-                item = json.loads(response.read().decode())
-                year = item.get('release_date', '')[:4] if item.get('release_date') else '????'
-                title = item.get('title', '')
-                gids = [g.get('id') for g in item.get('genres', [])] if 'genres' in item else item.get('genre_ids', [])
-                return [{'id': item['id'], 'name': f"{title} ({year})", 'genre_ids': gids}]
+            item = fetch_json_with_retry(lambda: make_tmdb_request(url), context="TMDb Film TMDB-ID-Suche")
+            year = item.get('release_date', '')[:4] if item.get('release_date') else '????'
+            title = item.get('title', '')
+            gids = [g.get('id') for g in item.get('genres', [])] if 'genres' in item else item.get('genre_ids', [])
+            return [{'id': item['id'], 'name': f"{title} ({year})", 'genre_ids': gids}]
         except urllib.error.HTTPError as e:
             _handle_metadata_error(e)
             # fallback down to exception handling if not raised
@@ -568,19 +590,17 @@ def search_tmdb_movie(query):
     def _do_tmdb_search(q_str):
         url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={urllib.parse.quote(q_str)}&language=de-DE"
         try:
-            req = make_tmdb_request(url)
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode())
-                results = []
-                for item in data.get('results', [])[:8]:
-                    year = item.get('release_date', '')[:4] if item.get('release_date') else '????'
-                    title = item.get('title', '')
-                    results.append({
-                        'id': item['id'],
-                        'name': f"{title} ({year})",
-                        'genre_ids': item.get('genre_ids', [])
-                    })
-                return results
+            data = fetch_json_with_retry(lambda: make_tmdb_request(url), context="TMDb Film Textsuche")
+            results = []
+            for item in data.get('results', [])[:8]:
+                year = item.get('release_date', '')[:4] if item.get('release_date') else '????'
+                title = item.get('title', '')
+                results.append({
+                    'id': item['id'],
+                    'name': f"{title} ({year})",
+                    'genre_ids': item.get('genre_ids', [])
+                })
+            return results
         except Exception as e:
             _handle_metadata_error(e, context="[TMDb Movie Error]")
             raise MetadataProviderUnavailable(f"Unerwarteter Provider-Fehler: {e}", status_code=503)
@@ -607,16 +627,14 @@ def search_tmdb_tv(query, lang="de-DE"):
     if query.startswith("tt"):
         url = f"https://api.themoviedb.org/3/find/{query}?api_key={TMDB_API_KEY}&external_source=imdb_id&language={lang}"
         try:
-            req = make_tmdb_request(url)
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode())
-                results = []
-                for item in data.get('tv_results', []):
-                    year = item.get('first_air_date', '')[:4] if item.get('first_air_date') else '????'
-                    title = item.get('name', '')
-                    country = item.get('origin_country', [''])[0] if item.get('origin_country') else 'Unbekannt'
-                    results.append({'id': item['id'], 'name': f"{title} ({year}) [{country}]", 'genre_ids': item.get('genre_ids', [])})
-                if results: return results
+            data = fetch_json_with_retry(lambda: make_tmdb_request(url), context="TMDb TV IMDB-ID-Suche")
+            results = []
+            for item in data.get('tv_results', []):
+                year = item.get('first_air_date', '')[:4] if item.get('first_air_date') else '????'
+                title = item.get('name', '')
+                country = item.get('origin_country', [''])[0] if item.get('origin_country') else 'Unbekannt'
+                results.append({'id': item['id'], 'name': f"{title} ({year}) [{country}]", 'genre_ids': item.get('genre_ids', [])})
+            if results: return results
         except urllib.error.HTTPError as e:
             _handle_metadata_error(e)
             # fallback down to exception handling if not raised
@@ -631,14 +649,12 @@ def search_tmdb_tv(query, lang="de-DE"):
         tmdb_id = query.replace("tmdb:", "")
         url = f"https://api.themoviedb.org/3/tv/{tmdb_id}?api_key={TMDB_API_KEY}&language={lang}"
         try:
-            req = make_tmdb_request(url)
-            with urllib.request.urlopen(req, timeout=10) as response:
-                item = json.loads(response.read().decode())
-                year = item.get('first_air_date', '')[:4] if item.get('first_air_date') else '????'
-                title = item.get('name', '')
-                country = item.get('origin_country', [''])[0] if item.get('origin_country') else 'Unbekannt'
-                gids = [g.get('id') for g in item.get('genres', [])] if 'genres' in item else item.get('genre_ids', [])
-                return [{'id': item['id'], 'name': f"{title} ({year}) [{country}]", 'genre_ids': gids}]
+            item = fetch_json_with_retry(lambda: make_tmdb_request(url), context="TMDb TV TMDB-ID-Suche")
+            year = item.get('first_air_date', '')[:4] if item.get('first_air_date') else '????'
+            title = item.get('name', '')
+            country = item.get('origin_country', [''])[0] if item.get('origin_country') else 'Unbekannt'
+            gids = [g.get('id') for g in item.get('genres', [])] if 'genres' in item else item.get('genre_ids', [])
+            return [{'id': item['id'], 'name': f"{title} ({year}) [{country}]", 'genre_ids': gids}]
         except urllib.error.HTTPError as e:
             _handle_metadata_error(e)
             # fallback down to exception handling if not raised
@@ -653,20 +669,18 @@ def search_tmdb_tv(query, lang="de-DE"):
     # Normale Textsuche
     url = f"https://api.themoviedb.org/3/search/tv?api_key={TMDB_API_KEY}&query={urllib.parse.quote(query)}&language={lang}"
     try:
-        req = make_tmdb_request(url)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode())
-            results = []
-            for item in data.get('results', [])[:8]:
-                year = item.get('first_air_date', '')[:4] if item.get('first_air_date') else '????'
-                title = item.get('name', '')
-                country = item.get('origin_country', [''])[0] if item.get('origin_country') else 'Unbekannt'
-                results.append({
-                    'id': item['id'],
-                    'name': f"{title} ({year}) [{country}]",
-                    'genre_ids': item.get('genre_ids', [])
-                })
-            return results
+        data = fetch_json_with_retry(lambda: make_tmdb_request(url), context="TMDb TV Textsuche")
+        results = []
+        for item in data.get('results', [])[:8]:
+            year = item.get('first_air_date', '')[:4] if item.get('first_air_date') else '????'
+            title = item.get('name', '')
+            country = item.get('origin_country', [''])[0] if item.get('origin_country') else 'Unbekannt'
+            results.append({
+                'id': item['id'],
+                'name': f"{title} ({year}) [{country}]",
+                'genre_ids': item.get('genre_ids', [])
+            })
+        return results
     except urllib.error.HTTPError as e:
         _handle_metadata_error(e)
         # fallback down to exception handling if not raised
@@ -1224,9 +1238,10 @@ def fetch_show_nfo_data(provider, show_id):
         try:
             token = get_tvdb_token()
             url = f"https://api4.thetvdb.com/v4/series/{show_id}/extended?meta=translations"
-            req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode()).get('data', {})
+            data = fetch_json_with_retry(
+                lambda: urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'}),
+                context="TVDB Serien-Details",
+            ).get('data', {})
             title = data.get('name', '')
             plot = data.get('overview', '')
             trans = data.get('translations', {})
@@ -1248,6 +1263,7 @@ def fetch_show_nfo_data(provider, show_id):
             genres = [genre.get("name", "") for genre in data.get("genres", []) if genre.get("name")]
             return {"title": title, "plot": plot, "year": year, "fsk": fsk, "genres": genres}
         except Exception as e:
+            log_message(f"⚠️ [NFO Agent] TVDB-Serien-Details für '{show_id}' nicht abrufbar: {e}")
             return {
                 "title": "", "plot": "", "year": "", "fsk": "", "genres": [],
                 "error": f"TVDB-Metadaten konnten nicht geladen werden: {e}",
@@ -1256,9 +1272,7 @@ def fetch_show_nfo_data(provider, show_id):
         try:
             lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
             url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}&language={lang}&append_to_response=content_ratings"
-            req = make_tmdb_request(url)
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode())
+            data = fetch_json_with_retry(lambda: make_tmdb_request(url), context="TMDb Serien-Details")
             title = data.get('name', '')
             plot = data.get('overview', '')
             year = data.get('first_air_date', '')[:4] if data.get('first_air_date') else ''
@@ -1270,6 +1284,7 @@ def fetch_show_nfo_data(provider, show_id):
             genres = [genre.get("name", "") for genre in data.get("genres", []) if genre.get("name")]
             return {"title": title, "plot": plot, "year": year, "fsk": fsk, "genres": genres}
         except Exception as e:
+            log_message(f"⚠️ [NFO Agent] TMDb-Serien-Details für '{show_id}' nicht abrufbar: {e}")
             return {
                 "title": "", "plot": "", "year": "", "fsk": "", "genres": [],
                 "error": f"TMDB-Serienmetadaten konnten nicht geladen werden: {e}",
@@ -1331,9 +1346,7 @@ def fetch_movie_nfo_data(provider, movie_id):
     else: # TMDB
         try:
             url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&language=de-DE&append_to_response=release_dates"
-            req = make_tmdb_request(url)
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode())
+            data = fetch_json_with_retry(lambda: make_tmdb_request(url), context="TMDb Film-Details")
             title = data.get('title', '')
             plot = data.get('overview', '')
             year = data.get('release_date', '')[:4] if data.get('release_date') else ''
@@ -1349,6 +1362,7 @@ def fetch_movie_nfo_data(provider, movie_id):
             genres = [genre.get("name", "") for genre in data.get("genres", []) if genre.get("name")]
             return {"title": title, "plot": plot, "year": year, "fsk": fsk, "genres": genres}
         except Exception as e:
+            log_message(f"⚠️ [NFO Agent] TMDb-Film-Details für '{movie_id}' nicht abrufbar: {e}")
             return {
                 "title": "", "plot": "", "year": "", "fsk": "", "genres": [],
                 "error": f"TMDB-Filmmetadaten konnten nicht geladen werden: {e}",
@@ -1482,15 +1496,14 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
         try:
             lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
             url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season}/episode/{episode}?api_key={TMDB_API_KEY}&language={lang}"
-            req = make_tmdb_request(url)
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode())
+            data = fetch_json_with_retry(lambda: make_tmdb_request(url), context="TMDb Episoden-Details")
             return {
                 "title": data.get('name', f"Folge {episode}"),
                 "plot": data.get('overview', ''),
                 "aired": data.get('air_date', '')
             }
         except Exception as e:
+            log_message(f"⚠️ [NFO Agent] TMDb-Episoden-Details S{season}E{episode} für '{show_id}' nicht abrufbar: {e}")
             return {"title": f"Folge {episode}", "plot": f"Fehler: {e}", "aired": ""}
     return {"title": f"Folge {episode}", "plot": "", "aired": ""}
 

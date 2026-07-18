@@ -16057,7 +16057,35 @@ function applyNfoAgentMediathekSelection(item) {
     updateNfoAgentCompletenessWarning();
 }
 
+// Remembered parameters of the last detail fetch so the inline
+// "Erneut versuchen" button can repeat it after a transient failure.
+let nfoAgentLastDetailsRequest = null;
+
+function retryNfoAgentDetails() {
+    if (!nfoAgentLastDetailsRequest) return;
+    const { id, provider, type, season } = nfoAgentLastDetailsRequest;
+    document.getElementById("nfo-agent-search-results")?.querySelectorAll(".nfo-agent-details-error").forEach((el) => el.remove());
+    loadNfoAgentDetails(id, provider, type, season);
+}
+
+function showNfoAgentDetailsError(message) {
+    const resultsContainer = document.getElementById("nfo-agent-search-results");
+    if (!resultsContainer) {
+        alert(`Fehler beim Laden der Details: ${message}`);
+        return;
+    }
+    resultsContainer.querySelectorAll(".nfo-agent-details-error").forEach((el) => el.remove());
+    const errorBox = document.createElement("div");
+    errorBox.className = "nfo-agent-details-error";
+    errorBox.style = "display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; margin-top: 6px; border: 1px solid rgba(239,68,68,0.35); border-radius: 4px; background: rgba(239,68,68,0.08); font-size: 0.85em; color: var(--text-main);";
+    errorBox.innerHTML = `<span>${escapeHTML(`Details konnten nicht geladen werden: ${message}`)}</span>`
+        + `<button type="button" class="btn btn-secondary btn-sm" onclick="retryNfoAgentDetails()" style="flex-shrink: 0;">Erneut versuchen</button>`;
+    resultsContainer.appendChild(errorBox);
+    resultsContainer.style.display = "block";
+}
+
 function loadNfoAgentDetails(id, provider, type, season) {
+    nfoAgentLastDetailsRequest = { id, provider, type, season };
     let url = "";
     if (type === "tvshow") {
         url = `/api/metadata/fetch?media_type=tv&provider=${provider}&show_id=${id}`;
@@ -16092,7 +16120,7 @@ function loadNfoAgentDetails(id, provider, type, season) {
         })
         .catch(err => {
             console.error(err);
-            alert(`Fehler beim Laden der Details: ${err.message || "Unbekannter Fehler"}`);
+            showNfoAgentDetailsError(err.message || "Unbekannter Fehler");
         });
 }
 
