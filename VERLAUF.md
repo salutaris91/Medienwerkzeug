@@ -2,6 +2,15 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 18.07.2026 (OFDb-Filmdetails inkl. FSK im NFO-Agenten)
+
+- **Anlass:** Klick auf ein OFDb-Suchergebnis lief in einen TMDB-404, weil `fetch_movie_nfo_data` keinen OFDb-Zweig hatte und die OFDb-ID in den TMDB-Zweig fiel. Zudem lieferte TMDB für „Killing Faith" keine FSK — verifiziert gegen die Rohdaten (DE-Einträge mit leerem Zertifikat); die OFDb-Seite führt dagegen „Freigabe: FSK 16".
+- **Gemeinsamer Parser:** `_parse_ofdb_film_page` extrahiert Titel, Jahr, Plot, Schauspieler und neu FSK („Freigabe: …", validiert über `normalize_fsk`) sowie Genres; genutzt vom Detail-Abruf und von `generate_ofdb_nfo`.
+- **Neuer Detail-Zweig:** OFDb-IDs füllen jetzt das NFO-Agent-Formular (inkl. FSK und Genres); Fehler werden geloggt und als Fehlermeldung mit „Erneut versuchen" angezeigt statt als irreführender TMDB-404.
+- **Vollständigere OFDb-NFOs:** `generate_ofdb_nfo` schreibt jetzt auch `<mpaa>` und `<genre>`-Tags; der Seitenabruf nutzt den Retry-Helfer (`fetch_html_with_retry`, gemeinsame Basis `_open_with_retry`).
+- **Roadmap:** Item 55 (Multi-Provider-Metadatenvergleich mit Feld-Badges, alternativ/kumulativ je Feld) als Ausbau des Wizards notiert.
+- **Verifikation:** 5 neue OFDb-Tests (Parser, Detail-Abruf, Fehlerpfad, ungültige ID, NFO-Schreiben); volle Suiten grün.
+
 ## Stand am 16.07.2026 (Metadaten-Abrufe: Retry gegen transiente Timeouts)
 
 - **Anlass:** Auf dem NAS schlugen TMDB-Suche und -Detailabruf sporadisch mit `The read operation timed out` fehl (unter Last), obwohl die Verbindung grundsätzlich in 0,2 s steht — verifiziert per Container-Test. Detail-Fehler wurden zudem nur an die UI gemeldet, nie geloggt.

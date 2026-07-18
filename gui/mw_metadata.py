@@ -119,8 +119,8 @@ def make_tmdb_request(url, headers=None):
     return urllib.request.Request(url, headers=headers)
 
 
-def fetch_json_with_retry(build_request, timeout=15, attempts=3, context=""):
-    """Fetch and decode a JSON metadata endpoint, retrying transient stalls.
+def _open_with_retry(build_request, timeout=15, attempts=3, context=""):
+    """Read a metadata endpoint as bytes, retrying transient stalls.
 
     Read timeouts on a busy NAS are usually transient, so network-level
     failures are retried with a short backoff and logged visibly. HTTP
@@ -134,7 +134,7 @@ def fetch_json_with_retry(build_request, timeout=15, attempts=3, context=""):
         try:
             request = build_request()
             with urllib.request.urlopen(request, timeout=timeout) as response:
-                return json.loads(response.read().decode())
+                return response.read()
         except urllib.error.HTTPError:
             raise
         except (TimeoutError, ConnectionError, urllib.error.URLError, OSError) as exc:
@@ -143,6 +143,16 @@ def fetch_json_with_retry(build_request, timeout=15, attempts=3, context=""):
             if attempt < attempts:
                 time.sleep(attempt)
     raise last_error
+
+
+def fetch_json_with_retry(build_request, timeout=15, attempts=3, context=""):
+    """JSON variant of _open_with_retry (TMDB/TVDB APIs)."""
+    return json.loads(_open_with_retry(build_request, timeout=timeout, attempts=attempts, context=context).decode())
+
+
+def fetch_html_with_retry(build_request, timeout=15, attempts=3, context=""):
+    """HTML variant of _open_with_retry (scraped sources like OFDb)."""
+    return _open_with_retry(build_request, timeout=timeout, attempts=attempts, context=context).decode('utf-8', errors='ignore')
 
 def _handle_metadata_error(e, context=""):
     import urllib.error
@@ -821,22 +831,20 @@ def search_ofdb(query):
 
     return results
 
-def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=None):
-    parts = ofdb_full_id.split('_', 2)
-    if len(parts) != 3: return {}
-    ofdb_id = parts[1]
-    url_part = parts[2]
+def _ofdb_film_url(ofdb_full_id):
+    """Turn an internal 'ofdb_<id>_<urlpart>' id into the film page URL."""
+    parts = str(ofdb_full_id).split('_', 2)
+    if len(parts) != 3:
+        return None
+    return f"https://www.ofdb.de/film/{parts[1]},{parts[2]}/"
 
-    url = f"https://www.ofdb.de/film/{ofdb_id},{url_part}/"
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    try:
-        html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
-    except Exception as e:
-        print(f"[OFDb NFO Error] Filmseite für OFDb-ID {ofdb_id} nicht abrufbar: {e}", file=sys.stderr)
-        return {}
+
+def _parse_ofdb_film_page(html, fallback_title=""):
+    """Extract movie fields from an OFDb film page (shared by NFO write and detail fetch)."""
+    from gui.core.nfo_mutation import normalize_fsk
 
     title_m = re.search(r'<title>OFDb - (.*?) \(\d{4}\)</title>', html)
-    title = title_m.group(1) if title_m else filename_base
+    title = title_m.group(1) if title_m else fallback_title
 
     year_m = re.search(r'Erscheinungsjahr:.*?<a[^>]*>(\d{4})</a>', html, re.DOTALL)
     year = year_m.group(1) if year_m else ""
@@ -851,12 +859,46 @@ def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=
         if actor_name and actor_name not in actors:
             actors.append(actor_name)
 
-    xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<movie>\n  <lockdata>true</lockdata>\n'
-    xml += f"  <title>{escape_xml(title)}</title>\n"
-    xml += f"  <plot>{escape_xml(plot)}</plot>\n"
-    xml += f"  <year>{escape_xml(year)}</year>\n"
+    # "Freigabe: FSK 16" — the German certification TMDB often lacks.
+    fsk = ""
+    fsk_m = re.search(r'Freigabe:\s*([^<\n]{1,40})', html)
+    if fsk_m:
+        fsk = normalize_fsk(fsk_m.group(1).strip())
 
-    for a in actors[:15]:
+    genres = []
+    for m in re.finditer(r'\"genre\">([^<]+)<', html):
+        genre_name = m.group(1).strip()
+        if genre_name and genre_name not in genres:
+            genres.append(genre_name)
+
+    return {"title": title, "year": year, "plot": plot, "actors": actors, "fsk": fsk, "genres": genres}
+
+
+def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=None):
+    url = _ofdb_film_url(ofdb_full_id)
+    if not url: return {}
+
+    try:
+        html = fetch_html_with_retry(
+            lambda: urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'}),
+            context="OFDb Filmseite",
+        )
+    except Exception as e:
+        print(f"[OFDb NFO Error] Filmseite für OFDb-ID {ofdb_full_id} nicht abrufbar: {e}", file=sys.stderr)
+        return {}
+
+    film = _parse_ofdb_film_page(html, fallback_title=filename_base)
+
+    xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<movie>\n  <lockdata>true</lockdata>\n'
+    xml += f"  <title>{escape_xml(film['title'])}</title>\n"
+    xml += f"  <plot>{escape_xml(film['plot'])}</plot>\n"
+    xml += f"  <year>{escape_xml(film['year'])}</year>\n"
+    if film["fsk"]:
+        xml += f"  <mpaa>{escape_xml(film['fsk'])}</mpaa>\n"
+    for genre_name in film["genres"]:
+        xml += f"  <genre>{escape_xml(genre_name)}</genre>\n"
+
+    for a in film["actors"][:15]:
         xml += "  <actor>\n"
         xml += f"    <name>{escape_xml(a)}</name>\n"
         xml += "  </actor>\n"
@@ -1343,6 +1385,32 @@ def fetch_movie_nfo_data(provider, movie_id):
         except Exception as e:
             print(f"[Movie NFO Error] yt-dlp-Metadaten für '{movie_id}' nicht abrufbar: {e}", file=sys.stderr)
             return {"title": "", "plot": "", "year": "", "fsk": "", "genres": []}
+    elif provider == "ofdb" or (isinstance(movie_id, str) and movie_id.startswith("ofdb_")):
+        url = _ofdb_film_url(movie_id)
+        if not url:
+            return {
+                "title": "", "plot": "", "year": "", "fsk": "", "genres": [],
+                "error": f"Ungültige OFDb-ID: {movie_id}",
+            }
+        try:
+            html = fetch_html_with_retry(
+                lambda: urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'}),
+                context="OFDb Film-Details",
+            )
+            film = _parse_ofdb_film_page(html)
+            return {
+                "title": film["title"],
+                "plot": film["plot"],
+                "year": film["year"],
+                "fsk": film["fsk"].replace("FSK ", ""),
+                "genres": film["genres"],
+            }
+        except Exception as e:
+            log_message(f"⚠️ [NFO Agent] OFDb-Film-Details für '{movie_id}' nicht abrufbar: {e}")
+            return {
+                "title": "", "plot": "", "year": "", "fsk": "", "genres": [],
+                "error": f"OFDb-Filmmetadaten konnten nicht geladen werden: {e}",
+            }
     else: # TMDB
         try:
             url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}&language=de-DE&append_to_response=release_dates"
