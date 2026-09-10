@@ -66,7 +66,7 @@ die aktive After-Release-Roadmap übernommen.
 | 59 | API-Key löschen: expliziter UI-Weg (statt nur Ersetzen) | geplant | klein–mittel |
 | 60 | Theme-Autosave: Fehler sichtbar statt nur in Browser-Konsole | erledigt | klein |
 | 61 | Cache-Busting-Test erzwingt keine Erhöhung bei geänderter Datei | geplant | klein–mittel |
-| 62 | Theme-Autosave: kein Request-Guard bei schnellen Themenwechseln | geplant | klein |
+| 62 | Theme-Autosave: kein Request-Guard bei schnellen Themenwechseln | erledigt (2026-09-10) | klein |
 
 ---
 
@@ -1748,6 +1748,8 @@ Ein zentrales Hilfsskript (z. B. `scripts/bump_version.sh` oder ähnlich), das d
 ---
 
 ## 62. Theme-Autosave: kein Request-Guard bei schnellen Themenwechseln
+
+**Status:** Erledigt (2026-09-10)
 
 **Einordnung / Priorität:** Befund des `advocatus` aus der Rückkanal-Abnahme zu Item #60 (08.09.2026), ausdrücklich als Nicht-Blocker eingestuft. Rohoutput: `docs/sessions/2026-09-08-theme-autosave-rueckblick/advocatus.md`.
 

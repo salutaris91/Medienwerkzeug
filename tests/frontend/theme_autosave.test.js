@@ -285,3 +285,154 @@ test('Roadmap: Item 60 retains deferred context and reason in ROADMAP.md', () =>
     assert.ok(item60Section.includes('localhost'), 'Item 60 must mention localhost rationale');
     assert.ok(item60Section.includes('Status:** Erledigt'), 'Item 60 status must remain Erledigt');
 });
+
+test('Theme Autosave Guard: second theme change aborts previous in-flight request and shows no error', async () => {
+    const env = setupThemeAutosaveEnvironment();
+
+    const originalFetch = globalThis.fetch;
+    const originalConsoleError = console.error;
+
+    const consoleErrors = [];
+    console.error = (...args) => {
+        consoleErrors.push(args);
+    };
+
+    const fetchInvocations = [];
+    const mockFetch = (url, options) => {
+        let resolveFn, rejectFn;
+        const promise = new Promise((resolve, reject) => {
+            resolveFn = resolve;
+            rejectFn = reject;
+            if (options.signal) {
+                options.signal.addEventListener('abort', () => {
+                    const abortErr = new Error('The user aborted a request.');
+                    abortErr.name = 'AbortError';
+                    reject(abortErr);
+                });
+            }
+        });
+        fetchInvocations.push({
+            url,
+            options,
+            signal: options.signal,
+            resolve: resolveFn,
+            reject: rejectFn,
+            promise
+        });
+        return promise;
+    };
+
+    const runner = new Function('document', 'fetch', 'applyTheme', 'currentSettings', 'console', env.themeHandlerCode);
+    runner(
+        env.mockDoc,
+        mockFetch,
+        () => {},
+        { app_theme: 'deep-space', import_sources: [], sync_categories: [], local_download_folders: [] },
+        console
+    );
+
+    try {
+        // 1. First theme selection starts in-flight request
+        env.themeSelect.value = 'nordic-slate';
+        const firstChangePromise = env.themeSelect.dispatchEvent({ type: 'change' });
+
+        assert.strictEqual(fetchInvocations.length, 1, 'First change must trigger 1 fetch request');
+        assert.ok(fetchInvocations[0].signal, 'First fetch request must have an AbortSignal');
+        assert.strictEqual(fetchInvocations[0].signal.aborted, false, 'First request signal is initially active');
+
+        // 2. Second theme selection happens while first is in-flight
+        env.themeSelect.value = 'amber-warmth';
+        const secondChangePromise = env.themeSelect.dispatchEvent({ type: 'change' });
+
+        assert.strictEqual(fetchInvocations.length, 2, 'Second change must trigger 2nd fetch request');
+        // AK: First request must be aborted
+        assert.strictEqual(fetchInvocations[0].signal.aborted, true, 'First request signal must be aborted upon second change');
+        assert.ok(fetchInvocations[1].signal, 'Second fetch request must have an AbortSignal');
+        assert.strictEqual(fetchInvocations[1].signal.aborted, false, 'Second request signal is active');
+
+        // Allow first aborted promise rejection to process in event loop
+        await firstChangePromise;
+
+        // AK: Aborted request must NOT show any error and must not log console.error
+        assert.strictEqual(
+            env.themeError.classList.contains('hidden'),
+            true,
+            'Error element must remain hidden when first request is aborted'
+        );
+        assert.strictEqual(env.themeError.textContent, '', 'Error element textContent must be empty on abort');
+        assert.strictEqual(consoleErrors.length, 0, 'Abort must not emit console.error');
+
+        // Resolve 2nd fetch successfully
+        fetchInvocations[1].resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ success: true })
+        });
+        await secondChangePromise;
+
+        // Verify final state remains hidden and error-free
+        assert.strictEqual(
+            env.themeError.classList.contains('hidden'),
+            true,
+            'Error element must remain hidden after second request succeeds'
+        );
+        assert.strictEqual(env.themeError.textContent, '', 'Error element textContent must remain empty on success');
+        assert.strictEqual(consoleErrors.length, 0, 'No console.error on success');
+    } finally {
+        globalThis.fetch = originalFetch;
+        console.error = originalConsoleError;
+    }
+});
+
+test('Theme Autosave Guard: AbortError from fetch does not trigger error message or console.error', async () => {
+    const env = setupThemeAutosaveEnvironment();
+
+    const originalFetch = globalThis.fetch;
+    const originalConsoleError = console.error;
+
+    const consoleErrors = [];
+    console.error = (...args) => {
+        consoleErrors.push(args);
+    };
+
+    const abortError = new Error('The operation was aborted.');
+    abortError.name = 'AbortError';
+    const mockFetch = () => {
+        return Promise.reject(abortError);
+    };
+
+    const runner = new Function('document', 'fetch', 'applyTheme', 'currentSettings', 'console', env.themeHandlerCode);
+    runner(
+        env.mockDoc,
+        mockFetch,
+        () => {},
+        { app_theme: 'deep-space', import_sources: [], sync_categories: [], local_download_folders: [] },
+        console
+    );
+
+    try {
+        env.themeSelect.value = 'nordic-slate';
+        await env.themeSelect.dispatchEvent({ type: 'change' });
+
+        // Error banner remains hidden
+        assert.strictEqual(
+            env.themeError.classList.contains('hidden'),
+            true,
+            'Error element must remain hidden when AbortError occurs'
+        );
+        assert.strictEqual(env.themeError.textContent, '', 'Error element textContent must be empty on AbortError');
+        assert.strictEqual(consoleErrors.length, 0, 'No console.error should be emitted for AbortError');
+    } finally {
+        globalThis.fetch = originalFetch;
+        console.error = originalConsoleError;
+    }
+});
+
+test('Roadmap: Item 62 retains deferred context and reason in ROADMAP.md', () => {
+    const roadmap = fs.readFileSync(roadmapPath, 'utf8');
+    assert.ok(roadmap.includes('## 62. Theme-Autosave: kein Request-Guard bei schnellen Themenwechseln'), 'ROADMAP.md must contain Item 62');
+    const item62Section = roadmap.substring(roadmap.indexOf('## 62. Theme-Autosave'));
+    assert.ok(item62Section.includes('advocatus'), 'Item 62 must retain advocatus reference');
+    assert.ok(item62Section.includes('AbortController'), 'Item 62 must mention AbortController');
+    assert.ok(item62Section.includes('Erledigt'), 'Item 62 status must be marked as Erledigt');
+});
