@@ -478,6 +478,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const themeSelect = document.getElementById("settings-app-theme");
     if (themeSelect) {
+        let themeSaveController = null;
         themeSelect.addEventListener("change", async function() {
             const newTheme = this.value;
             applyTheme(newTheme);
@@ -490,6 +491,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
             // Auto-save setting to backend settings.json
             if (currentSettings) {
+                if (themeSaveController) {
+                    themeSaveController.abort();
+                }
+                themeSaveController = new AbortController();
+                const signal = themeSaveController.signal;
+
                 currentSettings.app_theme = newTheme;
                 try {
                     const keyFields = [
@@ -513,7 +520,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     const response = await fetch("/api/settings", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(payload)
+                        body: JSON.stringify(payload),
+                        signal: signal
                     });
                     if (!response.ok) {
                         console.error("Fehler beim automatischen Speichern des Themes:", response.status, response.statusText);
@@ -523,6 +531,9 @@ document.addEventListener("DOMContentLoaded", () => {
                         }
                     }
                 } catch (e) {
+                    if (e && (e.name === "AbortError" || signal.aborted)) {
+                        return;
+                    }
                     console.error("Fehler beim automatischen Speichern des Themes:", e);
                     if (themeError) {
                         themeError.textContent = "Farbthema konnte nicht gespeichert werden.";
