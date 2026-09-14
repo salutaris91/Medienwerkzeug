@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import {
     isMaskedValue,
     updateMaskedInputState,
@@ -8,6 +11,9 @@ import {
     validateMaskedInput,
     validateAllMaskedFields
 } from "../../gui/static/js/masked_input.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function createMockInput(id = "settings-tmdb-key") {
     const listeners = {};
@@ -56,6 +62,62 @@ function createMockInput(id = "settings-tmdb-key") {
     return element;
 }
 
+function createMockButton(id = "") {
+    const listeners = {};
+    const classSet = new Set();
+    const attributes = {};
+
+    return {
+        id,
+        style: { display: "none" },
+        disabled: false,
+        attributes,
+        classList: {
+            add(cls) { classSet.add(cls); },
+            remove(cls) { classSet.delete(cls); },
+            contains(cls) { return classSet.has(cls); }
+        },
+        setAttribute(name, val) {
+            attributes[name] = String(val);
+            if (name === "disabled") this.disabled = true;
+        },
+        getAttribute(name) { return attributes[name]; },
+        removeAttribute(name) {
+            delete attributes[name];
+            if (name === "disabled") this.disabled = false;
+        },
+        addEventListener(event, handler) {
+            if (!listeners[event]) listeners[event] = [];
+            listeners[event].push(handler);
+        },
+        click() {
+            let prevented = false;
+            const e = { type: "click", preventDefault: () => { prevented = true; }, defaultPrevented: () => prevented };
+            if (listeners["click"]) {
+                for (const handler of listeners["click"]) {
+                    handler(e);
+                }
+            }
+            return e;
+        },
+        dispatch(event, eventObj = {}) {
+            let prevented = false;
+            const e = {
+                type: event,
+                preventDefault: () => { prevented = true; },
+                defaultPrevented: () => prevented,
+                ...eventObj
+            };
+            if (listeners[event]) {
+                for (const handler of listeners[event]) {
+                    handler(e);
+                }
+            }
+            return e;
+        }
+    };
+}
+
 function createMockDOM(fieldIds) {
     const elements = {};
     for (const id of fieldIds) {
@@ -71,9 +133,23 @@ function createMockDOM(fieldIds) {
             id: `${id}-error`,
             textContent: ""
         };
+        const deleteBtn = createMockButton(`${id}-delete`);
+        const confirmEl = {
+            id: `${id}-confirm`,
+            style: { display: "none" },
+            attributes: {},
+            setAttribute(name, val) { this.attributes[name] = String(val); }
+        };
+        const confirmYesBtn = createMockButton(`${id}-confirm-yes`);
+        const confirmNoBtn = createMockButton(`${id}-confirm-no`);
+
         elements[id] = input;
         elements[`${id}-badge`] = badge;
         elements[`${id}-error`] = errorEl;
+        elements[`${id}-delete`] = deleteBtn;
+        elements[`${id}-confirm`] = confirmEl;
+        elements[`${id}-confirm-yes`] = confirmYesBtn;
+        elements[`${id}-confirm-no`] = confirmNoBtn;
     }
 
     const previousDoc = globalThis.document;
@@ -431,5 +507,282 @@ test("W1 / Decision A: Cleared input badge does not claim key removal (Roadmap I
         assert.strictEqual(badge.textContent, "○");
     } finally {
         dom.restore();
+    }
+});
+
+// ============================================================================
+// Roadmap Item #59: Expliziter Löschweg für maskierte Key-Felder (AK1–AK7)
+// ============================================================================
+
+test("Item 59 AK1: Configured key (dataset.hasKey='true') offers visible delete button", () => {
+    const dom = createMockDOM(["settings-tmdb-key", "settings-telegram-token"]);
+    try {
+        const tmdbInput = dom.elements["settings-tmdb-key"];
+        const tmdbDeleteBtn = dom.elements["settings-tmdb-key-delete"];
+        setupMaskedInput(tmdbInput);
+        setMaskedInputValue(tmdbInput, "****1234", { configured: "Hinterlegt" });
+
+        assert.strictEqual(tmdbInput.dataset.hasKey, "true");
+        assert.strictEqual(tmdbDeleteBtn.style.display, "");
+        assert.strictEqual(tmdbDeleteBtn.disabled, false);
+        assert.strictEqual(tmdbDeleteBtn.attributes["aria-hidden"], "false");
+    } finally {
+        dom.restore();
+    }
+});
+
+test("Item 59 AK2: Unconfigured key (dataset.hasKey='false') does not offer active delete button", () => {
+    const dom = createMockDOM(["settings-whatsapp-apikey"]);
+    try {
+        const waInput = dom.elements["settings-whatsapp-apikey"];
+        const waDeleteBtn = dom.elements["settings-whatsapp-apikey-delete"];
+        setupMaskedInput(waInput);
+        setMaskedInputValue(waInput, "", { unconfigured: "Nicht konfiguriert" });
+
+        assert.strictEqual(waInput.dataset.hasKey, "false");
+        assert.strictEqual(waDeleteBtn.style.display, "none");
+        assert.strictEqual(waDeleteBtn.disabled, true);
+        assert.strictEqual(waDeleteBtn.attributes["aria-hidden"], "true");
+    } finally {
+        dom.restore();
+    }
+});
+
+test("Item 59 AK3: First click on delete button opens confirmation prompt without clearing input", () => {
+    const dom = createMockDOM(["settings-tmdb-key"]);
+    try {
+        const input = dom.elements["settings-tmdb-key"];
+        const deleteBtn = dom.elements["settings-tmdb-key-delete"];
+        const confirmEl = dom.elements["settings-tmdb-key-confirm"];
+        setupMaskedInput(input);
+        setMaskedInputValue(input, "****tmdb_secret", { configured: "Hinterlegt" });
+
+        // First click on delete button (×)
+        deleteBtn.click();
+
+        // Must show confirmation prompt
+        assert.strictEqual(confirmEl.style.display, "flex");
+        // Must hide delete button while confirmation is open
+        assert.strictEqual(deleteBtn.style.display, "none");
+        // Must NOT change input value yet
+        assert.strictEqual(input.value, "****tmdb_secret");
+        // Must NOT mark as deleted yet
+        assert.notStrictEqual(input.dataset.deleted, "true");
+    } finally {
+        dom.restore();
+    }
+});
+
+test("Item 59 AK4: Canceling confirmation prompt restores field to original state", () => {
+    const dom = createMockDOM(["settings-telegram-token"]);
+    try {
+        const input = dom.elements["settings-telegram-token"];
+        const deleteBtn = dom.elements["settings-telegram-token-delete"];
+        const confirmEl = dom.elements["settings-telegram-token-confirm"];
+        const cancelBtn = dom.elements["settings-telegram-token-confirm-no"];
+        setupMaskedInput(input);
+        setMaskedInputValue(input, "****tg_token", { configured: "Hinterlegt" });
+
+        // Step 1: Click delete button
+        deleteBtn.click();
+        assert.strictEqual(confirmEl.style.display, "flex");
+
+        // Step 2: Click cancel (Abbrechen)
+        cancelBtn.click();
+
+        // Confirmation prompt must be hidden
+        assert.strictEqual(confirmEl.style.display, "none");
+        // Delete button visible again
+        assert.strictEqual(deleteBtn.style.display, "");
+        // Original value unchanged
+        assert.strictEqual(input.value, "****tg_token");
+        assert.strictEqual(input.dataset.deleted, "false");
+
+        // Validation gate treats it as unchanged
+        const res = validateMaskedInput(input);
+        assert.strictEqual(res.valid, true);
+        assert.strictEqual(res.changed, false);
+        assert.strictEqual(res.value, "****tg_token");
+    } finally {
+        dom.restore();
+    }
+});
+
+test("Item 59 AK5: Confirming deletion clears input, marks delete flag, and validateMaskedInput reports changed=true with value=''", () => {
+    const dom = createMockDOM(["settings-tmdb-key"]);
+    try {
+        const input = dom.elements["settings-tmdb-key"];
+        const deleteBtn = dom.elements["settings-tmdb-key-delete"];
+        const confirmEl = dom.elements["settings-tmdb-key-confirm"];
+        const confirmYesBtn = dom.elements["settings-tmdb-key-confirm-yes"];
+        const badge = dom.elements["settings-tmdb-key-badge"];
+        setupMaskedInput(input);
+        setMaskedInputValue(input, "****tmdb_key", { configured: "Hinterlegt" });
+
+        // Step 1: Click delete button
+        deleteBtn.click();
+        // Step 2: Click confirm delete (Löschen)
+        confirmYesBtn.click();
+
+        // Confirmation prompt closed
+        assert.strictEqual(confirmEl.style.display, "none");
+        // Delete button hidden
+        assert.strictEqual(deleteBtn.style.display, "none");
+        // Value cleared
+        assert.strictEqual(input.value, "");
+        assert.strictEqual(input.dataset.deleted, "true");
+        assert.strictEqual(badge.textContent, "○");
+        assert.strictEqual(badge.attributes["title"], "Wird beim Speichern gelöscht");
+
+        // Validation returns valid=true, changed=true, value=""
+        const res = validateMaskedInput(input);
+        assert.strictEqual(res.valid, true);
+        assert.strictEqual(res.changed, true);
+        assert.strictEqual(res.value, "");
+
+        // validateAllMaskedFields includes key with empty string payload
+        const allRes = validateAllMaskedFields(["settings-tmdb-key"]);
+        assert.strictEqual(allRes.valid, true);
+        assert.strictEqual(allRes.changedFields["settings-tmdb-key"], "");
+
+        // Blur does NOT restore original value
+        input.blur();
+        assert.strictEqual(input.value, "");
+        assert.strictEqual(input.dataset.deleted, "true");
+    } finally {
+        dom.restore();
+    }
+});
+
+test("Item 59 AK6: Clear-on-Edit without delete confirmation preserves W1 protection (changed=false)", () => {
+    const dom = createMockDOM(["settings-tvdb-key"]);
+    try {
+        const input = dom.elements["settings-tvdb-key"];
+        const badge = dom.elements["settings-tvdb-key-badge"];
+        setupMaskedInput(input);
+        setMaskedInputValue(input, "****tvdb_key", { configured: "Hinterlegt" });
+
+        // User triggers Clear-on-Edit via keypress without using explicit delete button
+        input.focus();
+        input.dispatch("keydown", { key: "Backspace" });
+        assert.strictEqual(input.value, "");
+        assert.strictEqual(input.dataset.editing, "true");
+        assert.notStrictEqual(input.dataset.deleted, "true");
+
+        // Direct validation before blur: treated as unchanged
+        const res = validateMaskedInput(input);
+        assert.strictEqual(res.valid, true);
+        assert.strictEqual(res.changed, false);
+        assert.strictEqual(res.value, "****tvdb_key");
+
+        // On blur: restored
+        input.blur();
+        assert.strictEqual(input.value, "****tvdb_key");
+        assert.strictEqual(input.dataset.editing, "false");
+    } finally {
+        dom.restore();
+    }
+});
+
+test("Item 59 AK7: Masked value with **** is rejected and marked invalid regardless of delete flow", () => {
+    const dom = createMockDOM(["settings-telegram-chat-id"]);
+    try {
+        const input = dom.elements["settings-telegram-chat-id"];
+        const errorEl = dom.elements["settings-telegram-chat-id-error"];
+        setupMaskedInput(input);
+        setMaskedInputValue(input, "****chat_123");
+
+        // User typed masking chars
+        input.value = "****invalid";
+        const res = validateMaskedInput(input);
+        assert.strictEqual(res.valid, false);
+        assert.strictEqual(res.changed, true);
+        assert.ok(res.error && res.error.includes("Maskierungszeichen"));
+        assert.ok(errorEl.textContent.includes("Maskierungszeichen"));
+    } finally {
+        dom.restore();
+    }
+});
+
+test("Item 59: Escape key resets delete confirmation and restores original value", () => {
+    const dom = createMockDOM(["settings-whatsapp-phone"]);
+    try {
+        const input = dom.elements["settings-whatsapp-phone"];
+        const deleteBtn = dom.elements["settings-whatsapp-phone-delete"];
+        const confirmEl = dom.elements["settings-whatsapp-phone-confirm"];
+        setupMaskedInput(input);
+        setMaskedInputValue(input, "****phone_456");
+
+        deleteBtn.click();
+        assert.strictEqual(confirmEl.style.display, "flex");
+
+        // User presses Escape
+        input.dispatch("keydown", { key: "Escape" });
+        assert.strictEqual(confirmEl.style.display, "none");
+        assert.strictEqual(input.value, "****phone_456");
+        assert.strictEqual(input.dataset.deleted, "false");
+    } finally {
+        dom.restore();
+    }
+});
+
+test("Item 59: Typing a new value after delete confirmation resets delete flag", () => {
+    const dom = createMockDOM(["settings-tmdb-key"]);
+    try {
+        const input = dom.elements["settings-tmdb-key"];
+        const deleteBtn = dom.elements["settings-tmdb-key-delete"];
+        const confirmYesBtn = dom.elements["settings-tmdb-key-confirm-yes"];
+        setupMaskedInput(input);
+        setMaskedInputValue(input, "****old_key");
+
+        // Delete key
+        deleteBtn.click();
+        confirmYesBtn.click();
+        assert.strictEqual(input.dataset.deleted, "true");
+
+        // User changes mind and types a new key
+        input.value = "my_brand_new_key_789";
+        input.dispatch("input");
+        assert.strictEqual(input.dataset.deleted, "false");
+
+        const res = validateMaskedInput(input);
+        assert.strictEqual(res.valid, true);
+        assert.strictEqual(res.changed, true);
+        assert.strictEqual(res.value, "my_brand_new_key_789");
+    } finally {
+        dom.restore();
+    }
+});
+
+test("Item 59 DOM Structure: All 6 masked-key-field blocks in index.html contain delete button and confirmation dialog", () => {
+    const indexHtmlPath = path.resolve(__dirname, "../../gui/static/index.html");
+    const indexHtml = fs.readFileSync(indexHtmlPath, "utf8");
+
+    const expectedFieldIds = [
+        "settings-tmdb-key",
+        "settings-tvdb-key",
+        "settings-telegram-token",
+        "settings-telegram-chat-id",
+        "settings-whatsapp-apikey",
+        "settings-whatsapp-phone"
+    ];
+
+    for (const fieldId of expectedFieldIds) {
+        assert.ok(
+            indexHtml.includes(`id="${fieldId}-delete"`),
+            `index.html must contain delete button for field ${fieldId}`
+        );
+        assert.ok(
+            indexHtml.includes(`id="${fieldId}-confirm"`),
+            `index.html must contain confirmation container for field ${fieldId}`
+        );
+        assert.ok(
+            indexHtml.includes(`id="${fieldId}-confirm-yes"`),
+            `index.html must contain confirmation Yes button for field ${fieldId}`
+        );
+        assert.ok(
+            indexHtml.includes(`id="${fieldId}-confirm-no"`),
+            `index.html must contain confirmation No button for field ${fieldId}`
+        );
     }
 });

@@ -1,8 +1,9 @@
 /**
- * masked_input.js — API Key Masking UX (Roadmap Item #24)
+ * masked_input.js — API Key Masking UX (Roadmap Item #24 & #59)
  *
  * Provides Clear-on-Edit, Blur-Restore, decoupled key presence indicator,
- * dirty tracking, and frontend validation gate for masked secret fields.
+ * explicit delete flow with two-step inline confirmation, dirty tracking,
+ * and frontend validation gate for masked secret fields.
  */
 
 /**
@@ -16,7 +17,7 @@ export function isMaskedValue(val) {
 }
 
 /**
- * Updates the visual badge, border, and error state for a masked input element.
+ * Updates the visual badge, border, error state, and delete button for a masked input element.
  * @param {HTMLInputElement} inputEl
  */
 export function updateMaskedInputState(inputEl) {
@@ -25,18 +26,43 @@ export function updateMaskedInputState(inputEl) {
     const val = inputEl.value;
     const orig = inputEl.dataset.original || "";
     const hasKey = inputEl.dataset.hasKey === "true";
-    const isPristine = (val === orig);
+    const isDeleted = inputEl.dataset.deleted === "true" || inputEl.dataset.pendingDelete === "true";
+    const isPristine = (val === orig) && !isDeleted;
 
-    // Find wrapper, badge, and error elements
+    // Find wrapper, badge, error, delete button, and confirm elements
     const fieldId = inputEl.id;
     const wrapper = inputEl.closest ? inputEl.closest(".masked-key-field") : null;
     const badge = (typeof document !== "undefined" && document.getElementById(`${fieldId}-badge`)) ||
                   (wrapper && wrapper.querySelector ? wrapper.querySelector(".masked-key-badge") : null);
     const errorEl = (typeof document !== "undefined" && document.getElementById(`${fieldId}-error`)) ||
                     (wrapper && wrapper.querySelector ? wrapper.querySelector(".masked-key-error") : null);
+    const deleteBtn = (typeof document !== "undefined" && document.getElementById(`${fieldId}-delete`)) ||
+                      (wrapper && wrapper.querySelector ? wrapper.querySelector(".masked-key-delete-btn") : null);
+    const confirmEl = (typeof document !== "undefined" && document.getElementById(`${fieldId}-confirm`)) ||
+                      (wrapper && wrapper.querySelector ? wrapper.querySelector(".masked-key-confirm") : null);
 
     if (wrapper) {
         wrapper.dataset.hasKey = hasKey ? "true" : "false";
+    }
+
+    // Update delete button visibility & accessibility
+    if (deleteBtn) {
+        if (hasKey && !isDeleted) {
+            deleteBtn.style.display = "";
+            if (deleteBtn.removeAttribute) deleteBtn.removeAttribute("disabled");
+            if (deleteBtn.setAttribute) deleteBtn.setAttribute("aria-hidden", "false");
+        } else {
+            deleteBtn.style.display = "none";
+            if (deleteBtn.setAttribute) {
+                deleteBtn.setAttribute("disabled", "true");
+                deleteBtn.setAttribute("aria-hidden", "true");
+            }
+        }
+    }
+
+    // Ensure confirm prompt is closed if key is removed or deleted
+    if (confirmEl && (!hasKey || isDeleted)) {
+        confirmEl.style.display = "none";
     }
 
     if (isPristine) {
@@ -56,8 +82,18 @@ export function updateMaskedInputState(inputEl) {
             }
         }
     } else {
-        // User edited the field
-        if (isMaskedValue(val)) {
+        // User edited the field or confirmed deletion
+        if (isDeleted && val === "") {
+            // Explicit deletion confirmed (Roadmap Item #59)
+            if (inputEl.classList) inputEl.classList.remove("is-invalid");
+            if (inputEl.setAttribute) inputEl.setAttribute("aria-invalid", "false");
+            if (errorEl) errorEl.textContent = "";
+            if (badge) {
+                badge.textContent = "○";
+                badge.className = "masked-key-badge badge-unconfigured";
+                if (badge.setAttribute) badge.setAttribute("title", "Wird beim Speichern gelöscht");
+            }
+        } else if (isMaskedValue(val)) {
             if (inputEl.classList) inputEl.classList.add("is-invalid");
             if (inputEl.setAttribute) inputEl.setAttribute("aria-invalid", "true");
             if (badge) {
@@ -84,11 +120,8 @@ export function updateMaskedInputState(inputEl) {
                 if (badge.setAttribute) badge.setAttribute("title", "Wird neu gespeichert");
             }
         } else {
-            // Field emptied during edit (val === "").
-            // Note: Deleting/clearing an API key via the UI is currently not supported
-            // because empty inputs restore the original value on blur / are treated as
-            // unchanged by the W1 fix. Explicit key deletion via the UI is tracked in
-            // Roadmap Item #59. We show the unconfigured badge with a neutral title.
+            // Field emptied during edit (val === "") without explicit deletion confirmation.
+            // Preserved by W1 fix: treated as unchanged unless confirmed via delete flow.
             if (inputEl.classList) inputEl.classList.remove("is-invalid");
             if (inputEl.setAttribute) inputEl.setAttribute("aria-invalid", "false");
             if (errorEl) errorEl.textContent = "";
@@ -118,6 +151,8 @@ export function setMaskedInputValue(inputEl, value, placeholderConfig = {}) {
     inputEl.dataset.hasKey = hasKey ? "true" : "false";
     inputEl.dataset.masked = isMasked ? "true" : "false";
     inputEl.dataset.editing = "false";
+    inputEl.dataset.deleted = "false";
+    inputEl.dataset.pendingDelete = "false";
     inputEl.value = valStr;
 
     if (hasKey) {
@@ -126,16 +161,73 @@ export function setMaskedInputValue(inputEl, value, placeholderConfig = {}) {
         inputEl.placeholder = placeholderConfig.unconfigured || "Nicht konfiguriert";
     }
 
+    const fieldId = inputEl.id;
+    const wrapper = inputEl.closest ? inputEl.closest(".masked-key-field") : null;
+    const confirmEl = (typeof document !== "undefined" && document.getElementById(`${fieldId}-confirm`)) ||
+                      (wrapper && wrapper.querySelector ? wrapper.querySelector(".masked-key-confirm") : null);
+    if (confirmEl) {
+        confirmEl.style.display = "none";
+    }
+
     updateMaskedInputState(inputEl);
 }
 
 /**
- * Initializes Clear-on-Edit and Blur-Restore event listeners for a masked input.
+ * Initializes Clear-on-Edit, Blur-Restore, and explicit delete flow event listeners for a masked input.
  * @param {HTMLInputElement} inputEl
  */
 export function setupMaskedInput(inputEl) {
     if (!inputEl || inputEl._maskedInputInitialized) return;
     inputEl._maskedInputInitialized = true;
+
+    const fieldId = inputEl.id;
+    const wrapper = inputEl.closest ? inputEl.closest(".masked-key-field") : null;
+    const deleteBtn = (typeof document !== "undefined" && document.getElementById(`${fieldId}-delete`)) ||
+                      (wrapper && wrapper.querySelector ? wrapper.querySelector(".masked-key-delete-btn") : null);
+    const confirmEl = (typeof document !== "undefined" && document.getElementById(`${fieldId}-confirm`)) ||
+                      (wrapper && wrapper.querySelector ? wrapper.querySelector(".masked-key-confirm") : null);
+    const confirmYesBtn = (typeof document !== "undefined" && document.getElementById(`${fieldId}-confirm-yes`)) ||
+                          (confirmEl && confirmEl.querySelector ? confirmEl.querySelector(".btn-confirm-delete") : null);
+    const confirmNoBtn = (typeof document !== "undefined" && document.getElementById(`${fieldId}-confirm-no`)) ||
+                         (confirmEl && confirmEl.querySelector ? confirmEl.querySelector(".btn-confirm-cancel") : null);
+
+    // Two-step inline delete button setup (Roadmap Item #59)
+    if (deleteBtn) {
+        deleteBtn.addEventListener("click", (e) => {
+            if (e && e.preventDefault) e.preventDefault();
+            if (confirmEl) {
+                confirmEl.style.display = "flex";
+            }
+            deleteBtn.style.display = "none";
+        });
+    }
+
+    if (confirmNoBtn) {
+        confirmNoBtn.addEventListener("click", (e) => {
+            if (e && e.preventDefault) e.preventDefault();
+            if (confirmEl) {
+                confirmEl.style.display = "none";
+            }
+            inputEl.dataset.deleted = "false";
+            inputEl.dataset.pendingDelete = "false";
+            updateMaskedInputState(inputEl);
+        });
+    }
+
+    if (confirmYesBtn) {
+        confirmYesBtn.addEventListener("click", (e) => {
+            if (e && e.preventDefault) e.preventDefault();
+            if (confirmEl) {
+                confirmEl.style.display = "none";
+            }
+            inputEl.value = "";
+            inputEl.dataset.deleted = "true";
+            inputEl.dataset.pendingDelete = "true";
+            inputEl.dataset.editing = "true";
+            inputEl.dataset.masked = "false";
+            updateMaskedInputState(inputEl);
+        });
+    }
 
     // Keys that should NOT trigger clear-on-edit
     const ignoredKeys = new Set([
@@ -155,13 +247,20 @@ export function setupMaskedInput(inputEl) {
 
     inputEl.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
-            // Escape restores original value
+            // Escape restores original value and resets delete state
             inputEl.value = inputEl.dataset.original || "";
             inputEl.dataset.editing = "false";
+            inputEl.dataset.deleted = "false";
+            inputEl.dataset.pendingDelete = "false";
             inputEl.dataset.masked = isMaskedValue(inputEl.dataset.original) ? "true" : "false";
+
+            const cEl = (typeof document !== "undefined" && document.getElementById(`${fieldId}-confirm`)) ||
+                        (wrapper && wrapper.querySelector ? wrapper.querySelector(".masked-key-confirm") : null);
+            if (cEl) cEl.style.display = "none";
+
             updateMaskedInputState(inputEl);
             inputEl.blur();
-            e.preventDefault();
+            if (e.preventDefault) e.preventDefault();
             return;
         }
 
@@ -175,16 +274,20 @@ export function setupMaskedInput(inputEl) {
             inputEl.value = "";
             inputEl.dataset.masked = "false";
             inputEl.dataset.editing = "true";
+            inputEl.dataset.deleted = "false";
+            inputEl.dataset.pendingDelete = "false";
 
             if (e.key === "Backspace" || e.key === "Delete") {
                 // Whole mask is already cleared, prevent deleting from newly emptied input
-                e.preventDefault();
+                if (e.preventDefault) e.preventDefault();
                 updateMaskedInputState(inputEl);
             }
         }
     });
 
     inputEl.addEventListener("paste", () => {
+        inputEl.dataset.deleted = "false";
+        inputEl.dataset.pendingDelete = "false";
         if (inputEl.dataset.masked === "true") {
             inputEl.value = "";
             inputEl.dataset.masked = "false";
@@ -193,6 +296,10 @@ export function setupMaskedInput(inputEl) {
     });
 
     inputEl.addEventListener("input", () => {
+        if (inputEl.dataset.deleted === "true" || inputEl.dataset.pendingDelete === "true") {
+            inputEl.dataset.deleted = "false";
+            inputEl.dataset.pendingDelete = "false";
+        }
         if (inputEl.dataset.masked === "true" && inputEl.value !== inputEl.dataset.original) {
             inputEl.dataset.masked = "false";
             inputEl.dataset.editing = "true";
@@ -201,6 +308,12 @@ export function setupMaskedInput(inputEl) {
     });
 
     inputEl.addEventListener("blur", () => {
+        // If explicitly deleted, keep empty value and do not restore original (Roadmap Item #59)
+        if (inputEl.dataset.deleted === "true" || inputEl.dataset.pendingDelete === "true") {
+            updateMaskedInputState(inputEl);
+            return;
+        }
+
         // Blur-Restore: If user left empty after clear-on-edit without real new value, or focused without editing, restore original value
         if (inputEl.dataset.editing !== "true" || inputEl.dataset.masked === "true" || inputEl.value === "" || inputEl.value.trim() === "") {
             inputEl.value = inputEl.dataset.original || "";
@@ -227,11 +340,12 @@ export function validateMaskedInput(inputEl) {
     const fieldId = inputEl.id;
     const val = inputEl.value;
     const orig = inputEl.dataset.original || "";
+    const isExplicitDelete = inputEl.dataset.deleted === "true" || inputEl.dataset.pendingDelete === "true";
     const wrapper = inputEl.closest ? inputEl.closest(".masked-key-field") : null;
     const errorEl = (typeof document !== "undefined" && document.getElementById(`${fieldId}-error`)) ||
                     (wrapper && wrapper.querySelector ? wrapper.querySelector(".masked-key-error") : null);
 
-    if (val === orig) {
+    if (val === orig && !isExplicitDelete) {
         if (errorEl) errorEl.textContent = "";
         if (inputEl.classList) inputEl.classList.remove("is-invalid");
         if (inputEl.setAttribute) inputEl.setAttribute("aria-invalid", "false");
@@ -258,7 +372,16 @@ export function validateMaskedInput(inputEl) {
         return { valid: false, changed: true, error: errMsg, fieldId };
     }
 
-    // Empty after Clear-on-Edit without new value: treat as unchanged (preserve original)
+    // Explicit deletion via UI (Roadmap Item #59)
+    if (val.trim() === "" && isExplicitDelete) {
+        if (errorEl) errorEl.textContent = "";
+        if (inputEl.classList) inputEl.classList.remove("is-invalid");
+        if (inputEl.setAttribute) inputEl.setAttribute("aria-invalid", "false");
+        updateMaskedInputState(inputEl);
+        return { valid: true, changed: true, value: "", fieldId };
+    }
+
+    // Empty after Clear-on-Edit without new value: treat as unchanged (preserve original, W1)
     if (val.trim() === "") {
         if (errorEl) errorEl.textContent = "";
         if (inputEl.classList) inputEl.classList.remove("is-invalid");
