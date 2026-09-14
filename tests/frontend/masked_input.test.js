@@ -53,9 +53,15 @@ function createMockInput(id = "settings-tmdb-key") {
             return e;
         },
         blur() {
+            if (globalThis.document && globalThis.document.activeElement === this) {
+                globalThis.document.activeElement = null;
+            }
             this.dispatch("blur");
         },
         focus() {
+            if (globalThis.document) {
+                globalThis.document.activeElement = this;
+            }
             this.dispatch("focus");
         }
     };
@@ -72,6 +78,7 @@ function createMockButton(id = "") {
         style: { display: "none" },
         disabled: false,
         attributes,
+        parentElement: null,
         classList: {
             add(cls) { classSet.add(cls); },
             remove(cls) { classSet.delete(cls); },
@@ -90,6 +97,18 @@ function createMockButton(id = "") {
             if (!listeners[event]) listeners[event] = [];
             listeners[event].push(handler);
         },
+        focus() {
+            if (globalThis.document) {
+                globalThis.document.activeElement = this;
+            }
+            this.dispatch("focus");
+        },
+        blur() {
+            if (globalThis.document && globalThis.document.activeElement === this) {
+                globalThis.document.activeElement = null;
+            }
+            this.dispatch("blur");
+        },
         click() {
             let prevented = false;
             const e = { type: "click", preventDefault: () => { prevented = true; }, defaultPrevented: () => prevented };
@@ -102,16 +121,22 @@ function createMockButton(id = "") {
         },
         dispatch(event, eventObj = {}) {
             let prevented = false;
+            let stopped = false;
             const e = {
                 type: event,
+                target: this,
                 preventDefault: () => { prevented = true; },
                 defaultPrevented: () => prevented,
+                stopPropagation: () => { stopped = true; },
                 ...eventObj
             };
             if (listeners[event]) {
                 for (const handler of listeners[event]) {
                     handler(e);
                 }
+            }
+            if (!stopped && this.parentElement && typeof this.parentElement.dispatch === "function") {
+                this.parentElement.dispatch(event, e);
             }
             return e;
         }
@@ -138,10 +163,35 @@ function createMockDOM(fieldIds) {
             id: `${id}-confirm`,
             style: { display: "none" },
             attributes: {},
-            setAttribute(name, val) { this.attributes[name] = String(val); }
+            listeners: {},
+            setAttribute(name, val) { this.attributes[name] = String(val); },
+            addEventListener(event, handler) {
+                if (!this.listeners[event]) this.listeners[event] = [];
+                this.listeners[event].push(handler);
+            },
+            dispatch(event, eventObj = {}) {
+                let prevented = false;
+                let stopped = false;
+                const e = {
+                    type: event,
+                    target: eventObj.target || this,
+                    preventDefault: () => { prevented = true; },
+                    defaultPrevented: () => prevented,
+                    stopPropagation: () => { stopped = true; },
+                    ...eventObj
+                };
+                if (this.listeners[event]) {
+                    for (const handler of this.listeners[event]) {
+                        handler(e);
+                    }
+                }
+                return e;
+            }
         };
         const confirmYesBtn = createMockButton(`${id}-confirm-yes`);
         const confirmNoBtn = createMockButton(`${id}-confirm-no`);
+        confirmYesBtn.parentElement = confirmEl;
+        confirmNoBtn.parentElement = confirmEl;
 
         elements[id] = input;
         elements[`${id}-badge`] = badge;
@@ -154,6 +204,7 @@ function createMockDOM(fieldIds) {
 
     const previousDoc = globalThis.document;
     globalThis.document = {
+        activeElement: null,
         getElementById(id) {
             return elements[id] || null;
         }
@@ -704,23 +755,34 @@ test("Item 59 AK7: Masked value with **** is rejected and marked invalid regardl
     }
 });
 
-test("Item 59: Escape key resets delete confirmation and restores original value", () => {
+test("Item 59: Escape key resets delete confirmation and restores original value without bypassing focus path", () => {
+    // Restrisiko-Hinweis (ADR 5): Node-Mock prueft logische Verdrahtung und Fokus-Weitergabe
+    // im DOM-Modell, ersetzt jedoch keinen vollstaendigen Browser-Integrationstest.
     const dom = createMockDOM(["settings-whatsapp-phone"]);
     try {
         const input = dom.elements["settings-whatsapp-phone"];
         const deleteBtn = dom.elements["settings-whatsapp-phone-delete"];
         const confirmEl = dom.elements["settings-whatsapp-phone-confirm"];
+        const confirmNoBtn = dom.elements["settings-whatsapp-phone-confirm-no"];
         setupMaskedInput(input);
         setMaskedInputValue(input, "****phone_456");
 
         deleteBtn.click();
         assert.strictEqual(confirmEl.style.display, "flex");
+        assert.strictEqual(deleteBtn.style.display, "none");
 
-        // User presses Escape
-        input.dispatch("keydown", { key: "Escape" });
+        // AK3: Focus must be transferred to confirmNoBtn (Abbrechen), NOT left on inputEl
+        assert.strictEqual(globalThis.document.activeElement, confirmNoBtn);
+        assert.notStrictEqual(globalThis.document.activeElement, input);
+
+        // AK4: Dispatch Escape from the currently focused element (confirmNoBtn, not input)
+        globalThis.document.activeElement.dispatch("keydown", { key: "Escape" });
         assert.strictEqual(confirmEl.style.display, "none");
         assert.strictEqual(input.value, "****phone_456");
         assert.strictEqual(input.dataset.deleted, "false");
+
+        // AK5: Focus returned to inputEl after cancellation
+        assert.strictEqual(globalThis.document.activeElement, input);
     } finally {
         dom.restore();
     }

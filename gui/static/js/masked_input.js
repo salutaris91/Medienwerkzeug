@@ -191,12 +191,29 @@ export function setupMaskedInput(inputEl) {
     const confirmNoBtn = (typeof document !== "undefined" && document.getElementById(`${fieldId}-confirm-no`)) ||
                          (confirmEl && confirmEl.querySelector ? confirmEl.querySelector(".btn-confirm-cancel") : null);
 
+    const cancelDeleteConfirm = () => {
+        if (confirmEl) {
+            confirmEl.style.display = "none";
+        }
+        inputEl.dataset.deleted = "false";
+        inputEl.dataset.pendingDelete = "false";
+        updateMaskedInputState(inputEl);
+        if (inputEl && typeof inputEl.focus === "function") {
+            inputEl.focus();
+        }
+    };
+
     // Two-step inline delete button setup (Roadmap Item #59)
     if (deleteBtn) {
         deleteBtn.addEventListener("click", (e) => {
             if (e && e.preventDefault) e.preventDefault();
+            // Show confirmation dialog before moving focus
             if (confirmEl) {
                 confirmEl.style.display = "flex";
+            }
+            // Move focus to the safe "Abbrechen" button
+            if (confirmNoBtn && typeof confirmNoBtn.focus === "function") {
+                confirmNoBtn.focus();
             }
             deleteBtn.style.display = "none";
         });
@@ -205,12 +222,7 @@ export function setupMaskedInput(inputEl) {
     if (confirmNoBtn) {
         confirmNoBtn.addEventListener("click", (e) => {
             if (e && e.preventDefault) e.preventDefault();
-            if (confirmEl) {
-                confirmEl.style.display = "none";
-            }
-            inputEl.dataset.deleted = "false";
-            inputEl.dataset.pendingDelete = "false";
-            updateMaskedInputState(inputEl);
+            cancelDeleteConfirm();
         });
     }
 
@@ -226,6 +238,26 @@ export function setupMaskedInput(inputEl) {
             inputEl.dataset.editing = "true";
             inputEl.dataset.masked = "false";
             updateMaskedInputState(inputEl);
+        });
+    }
+
+    // Escape listener on confirmation dialog / wrapper for keyboard accessibility
+    if (confirmEl && typeof confirmEl.addEventListener === "function") {
+        confirmEl.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") {
+                if (e.preventDefault) e.preventDefault();
+                if (e.stopPropagation) e.stopPropagation();
+                cancelDeleteConfirm();
+            }
+        });
+    }
+    if (wrapper && typeof wrapper.addEventListener === "function") {
+        wrapper.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && confirmEl && confirmEl.style && confirmEl.style.display === "flex") {
+                if (e.preventDefault) e.preventDefault();
+                if (e.stopPropagation) e.stopPropagation();
+                cancelDeleteConfirm();
+            }
         });
     }
 

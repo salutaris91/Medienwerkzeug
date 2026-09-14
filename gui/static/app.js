@@ -1,12 +1,12 @@
-import { applyTheme } from './js/theme.js?v=92';
-import { cleanSeriesName } from './js/utils.js?v=92';
-import { formatBytes } from './js/format.js?v=92';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=92';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=92';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=92';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=92';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=92';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=92';
+import { applyTheme } from './js/theme.js?v=93';
+import { cleanSeriesName } from './js/utils.js?v=93';
+import { formatBytes } from './js/format.js?v=93';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=93';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=93';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=93';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=93';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=93';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=93';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER

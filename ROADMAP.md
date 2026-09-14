@@ -1772,3 +1772,18 @@ Praktische Auswirkung heute gering (Theme-Save schlägt auf `localhost` praktisc
 - Alternativ ein kurzer Debounce vor dem Speichern.
 
 **Aufwand (grob):** Klein.
+
+---
+
+## 63. Rückkanal-Kandidaten zu Item #59: Save-Atomarität, E2E-Löschkette, hasKey-Konsistenz und Flag-Bereinigung
+
+**Einordnung / Priorität:** Zurückgestellte Erwägungen aus der Rückkanal-Abnahme zu Item #59 (14.09.2026, advocatus/produktberater/scout). Bewusst außerhalb des Nachzugs gehalten (Briefing Abschnitt 4).
+
+**Kontext / Herkunft:**
+- **Nicht-atomarer Save (advocatus):** Telegram/WhatsApp werden über `/api/settings` gespeichert, TMDb/TVDb erst danach über `/api/keys`. Schlägt der zweite Request fehl, ist Telegram bereits gelöscht, TMDb nicht (partielle Löschung).
+- **End-to-End-Verifikation Frontend → Backend (advocatus):** Frontend-Validierung liefert leeren Wert, Backend `persistence.py` löscht bei Leerstring. Die durchgehende Integration der Kette ist bisher nicht durch einen automatisierten Test abgesichert.
+- **`dataset.hasKey`-Zustand nach Löschen (advocatus):** Nach Klick auf „Löschen" wird `dataset.deleted = "true"` gesetzt, `dataset.hasKey` verbleibt jedoch bis zum nächsten Reload auf `"true"`.
+- **Doppelte Flags `deleted` und `pendingDelete` (scout/advocatus):** Beide Flags werden an allen Fundstellen gemeinsam gesetzt und abgefragt — Bereinigung auf ein einheitliches Flag empfohlen.
+- **Undo nach dem Speichern (produktberater/scout):** Nach dem Speichern ist der Key weg; ein Undo-Fenster ("Key gelöscht – Rückgängig") wäre ein Komfortgewinn.
+
+**Aufwand (grob):** Mittel (Save-Atomarität / E2E-Test) bis klein (Flags / hasKey).

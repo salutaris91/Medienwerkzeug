@@ -2,6 +2,15 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 14.09.2026 (Nachzüge zu Item #59: Cache-Busting 92→93 & 46→47, Escape-Abbruch Weg A mit Fokus-Transfer)
+
+- **Zwei Nachzüge aus der Rückkanal-Abnahme zu Item #59 umgesetzt:**
+  - **P1 (Cache-Busting nachgezogen):** `gui/static/index.html` auf `style.css?v=47` und `app.js?v=93` angehoben; alle 9 relativen Modul-Importe in `gui/static/app.js` konsistent auf `?v=93` gebumpt (`utilities.css?v=1` bleibt unverändert). Verhindert Auslieferung veralteter Caches im Browser.
+  - **P2 (Escape-Abbruch real repariert):** In `gui/static/js/masked_input.js` wird nach `display: flex` des Confirm-Dialogs der Fokus sofort auf den Abbrechen-Button `confirmNoBtn` gelegt (vor dem Ausblenden des `×`-Buttons), wodurch der Fokus nicht auf `body` abstürzt. Tastatur-Listener am Dialog und Wrapper fangen `Escape` ab, schließen den Dialog, setzen die Flags zurück und fokussieren das Eingabefeld.
+  - **Falsch-positiver Test behoben:** Test-Mock in `tests/frontend/masked_input.test.js` mit `focus()`/`blur()`, `document.activeElement` und Bubbling ausgestattet. Der Test sendet `Escape` an das fokussierte Element (nicht künstlich an das Input) und verifiziert Schließen, Rücksetzen und Fokus-Rückkehr.
+  - **Scope-Treue (Abschnitt 4):** Weitere Rückkanal-Punkte (Save-Atomarität, E2E-Kette, hasKey, doppelte Flags, Undo) in `ROADMAP.md` als Item #63 festgehalten, nicht in diesem Nachzug vermischt.
+  - 134 Frontend-Tests grün (inkl. 25 in `masked_input.test.js` und 3 in `cache_busting.test.js`; `cache_busting.test.js` unverändert belassen, da Item #61 vorbehalten).
+
 ## Stand am 14.09.2026 (Roadmap-Item #59 umgesetzt: Expliziter Löschweg für maskierte Key-Felder)
 
 - **Roadmap-Item #59 (Expliziter Löschweg für maskierte Key-Felder) umgesetzt**:
