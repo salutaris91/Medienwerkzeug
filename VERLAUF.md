@@ -2,6 +2,25 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 14.09.2026 (Nachzüge zu Item #59: Cache-Busting 92→93 & 46→47, Escape-Abbruch Weg A mit Fokus-Transfer)
+
+- **Zwei Nachzüge aus der Rückkanal-Abnahme zu Item #59 umgesetzt:**
+  - **P1 (Cache-Busting nachgezogen):** `gui/static/index.html` auf `style.css?v=47` und `app.js?v=93` angehoben; alle 9 relativen Modul-Importe in `gui/static/app.js` konsistent auf `?v=93` gebumpt (`utilities.css?v=1` bleibt unverändert). Verhindert Auslieferung veralteter Caches im Browser.
+  - **P2 (Escape-Abbruch real repariert):** In `gui/static/js/masked_input.js` wird nach `display: flex` des Confirm-Dialogs der Fokus sofort auf den Abbrechen-Button `confirmNoBtn` gelegt (vor dem Ausblenden des `×`-Buttons), wodurch der Fokus nicht auf `body` abstürzt. Tastatur-Listener am Dialog und Wrapper fangen `Escape` ab, schließen den Dialog, setzen die Flags zurück und fokussieren das Eingabefeld.
+  - **Falsch-positiver Test behoben:** Test-Mock in `tests/frontend/masked_input.test.js` mit `focus()`/`blur()`, `document.activeElement` und Bubbling ausgestattet. Der Test sendet `Escape` an das fokussierte Element (nicht künstlich an das Input) und verifiziert Schließen, Rücksetzen und Fokus-Rückkehr.
+  - **Scope-Treue (Abschnitt 4):** Weitere Rückkanal-Punkte (Save-Atomarität, E2E-Kette, hasKey, doppelte Flags, Undo) in `ROADMAP.md` als Item #63 festgehalten, nicht in diesem Nachzug vermischt.
+  - 134 Frontend-Tests grün (inkl. 25 in `masked_input.test.js` und 3 in `cache_busting.test.js`; `cache_busting.test.js` unverändert belassen, da Item #61 vorbehalten).
+
+## Stand am 14.09.2026 (Roadmap-Item #59 umgesetzt: Expliziter Löschweg für maskierte Key-Felder)
+
+- **Roadmap-Item #59 (Expliziter Löschweg für maskierte Key-Felder) umgesetzt**:
+  - Zweistufiger Inline-Lösch-Button (`.masked-key-delete-btn`) neben dem Badge in allen 6 `.masked-key-field`-Blöcken in `gui/static/index.html`.
+  - Inline-Bestätigungsdialog (`.masked-key-confirm`) mit Bestätigen/Abbrechen direkt unter dem Feld, gesteuert über `gui/static/js/masked_input.js`.
+  - Bei Abbruch oder `Escape`: Ausgangszustand wird wiederhergestellt.
+  - Bei Bestätigung: Feld wird geleert, `dataset.deleted = "true"` gesetzt; `validateMaskedInput` liefert `{ valid: true, changed: true, value: "" }`, wodurch der leere Wert im bestehenden Save-Payload landet.
+  - W1-Schutzwirkung für normales Leeren/Editieren ohne Löschbestätigung bleibt vollständig erhalten (`changed: false`, Blur-Restore).
+  - Vollständige Frontend-Testsuite in `tests/frontend/masked_input.test.js` (AK1–AK7 + DOM-Struktur, 25 Tests in masked_input.test.js, 134 Tests gesamt grün).
+
 ## Stand am 08.09.2026 (Item #60 umgesetzt; Rückblick-Abnahme der zwei Nachzüge, Rückkanal ohne Blocker)
 
 - **Roadmap-Item #60 (Theme-Autosave-Fehler sichtbar) umgesetzt** (Hauptimplementierung auf Branch `a2/20260908T063755Z`, Rückblick dazu unter `docs/sessions/2026-09-08-theme-autosave-rueckblick/`). Diese Session behandelt die **zwei Nachzüge** auf Branch `a2/20260908T095833Z` (ungemergt, kein Push — Git-Zustand hier nicht selbst verifizierbar): (1) hartcodiertes `style`-Attribut am Fehler-Element durch theme-fähige CSS-Klasse `.theme-autosave-error` mit `var(--danger, #ef4444)` ersetzt (`index.html:1729`, `style.css:3752-3756`), (2) in `ROADMAP.md` Item 60 die beim Abhaken gelöschte Zurückstellungs-Begründung wiederhergestellt (Zeile 1720).

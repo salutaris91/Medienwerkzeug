@@ -63,7 +63,7 @@ die aktive After-Release-Roadmap übernommen.
 | 54 | Metadatendienste: Alle Abrufe auf den Retry-Helfer umstellen | geplant | mittel |
 | 55 | NFO-Agent: Multi-Provider-Metadatenvergleich mit Feld-Badges | geplant | mittel–groß |
 | 58 | Auth-Härtung: offener Default-Endpoint + fehlende Server-Whitelist | geplant | mittel |
-| 59 | API-Key löschen: expliziter UI-Weg (statt nur Ersetzen) | geplant | klein–mittel |
+| 59 | API-Key löschen: expliziter UI-Weg (statt nur Ersetzen) | erledigt (2026-09-14) | klein–mittel |
 | 60 | Theme-Autosave: Fehler sichtbar statt nur in Browser-Konsole | erledigt | klein |
 | 61 | Cache-Busting-Test erzwingt keine Erhöhung bei geänderter Datei | geplant | klein–mittel |
 | 62 | Theme-Autosave: kein Request-Guard bei schnellen Themenwechseln | erledigt (2026-09-10) | klein |
@@ -1700,6 +1700,8 @@ Ein zentrales Hilfsskript (z. B. `scripts/bump_version.sh` oder ähnlich), das d
 
 ## 59. API-Key löschen: expliziter UI-Weg (statt nur Ersetzen)
 
+**Status:** Erledigt (2026-09-14).
+
 **Einordnung / Priorität:** Folge-Item aus der Rückkanal-Konsultation (06.09.2026) zum W1-Fix von Item #24 (API-Key-Maskierung UX), siehe `docs/sessions/2026-09-06-rueckblick-abnahme-apikey-maskierung/`.
 
 **Kontext / Herkunft:** Der W1-Fix (Blur-Restore/Validierung gegen versehentliches Löschen durch einen einzelnen Tastendruck) hat als Nebenwirkung die zuvor im Briefing dokumentierte Semantik „leeres Feld speichern = Key löschen" vollständig deaktiviert. Alle drei Kreativteam-Rollen (advocatus, produktberater, scout) haben das unabhängig voneinander bestätigt. Bewusstes Löschen eines Keys ist über die Web-UI aktuell nicht mehr möglich, nur noch durch direktes Editieren der `.env`-Datei.
@@ -1708,6 +1710,14 @@ Ein zentrales Hilfsskript (z. B. `scripts/bump_version.sh` oder ähnlich), das d
 
 **Lösungsidee:**
 - Expliziter „×"-Löschen-Button pro Key-Feld mit kurzer Bestätigung, statt die Lösch-Absicht implizit aus einem leeren gespeicherten Feld abzuleiten (das genau der Mechanismus war, den W1 aus gutem Grund abgeschaltet hat).
+
+**Umsetzung:**
+- Zweistufiger Inline-Lösch-Button (`.masked-key-delete-btn`) neben dem Badge in allen 6 `.masked-key-field`-Blöcken in `gui/static/index.html`.
+- Inline-Bestätigungsdialog (`.masked-key-confirm`) mit Bestätigen/Abbrechen direkt unter dem Feld, gesteuert über `gui/static/js/masked_input.js`.
+- Bei Abbruch oder `Escape`: Ausgangszustand wird wiederhergestellt.
+- Bei Bestätigung: Feld wird geleert, `dataset.deleted = "true"` gesetzt; `validateMaskedInput` liefert `{ valid: true, changed: true, value: "" }`, wodurch der leere Wert im bestehenden Save-Payload landet.
+- W1-Schutzwirkung für normales Leeren/Editieren ohne Löschbestätigung bleibt vollständig erhalten (`changed: false`, Blur-Restore).
+- Vollständige Frontend-Testsuite in `tests/frontend/masked_input.test.js` (AK1–AK7 + DOM-Struktur).
 
 **Aufwand (grob):** Klein–mittel.
 
@@ -1762,3 +1772,18 @@ Praktische Auswirkung heute gering (Theme-Save schlägt auf `localhost` praktisc
 - Alternativ ein kurzer Debounce vor dem Speichern.
 
 **Aufwand (grob):** Klein.
+
+---
+
+## 63. Rückkanal-Kandidaten zu Item #59: Save-Atomarität, E2E-Löschkette, hasKey-Konsistenz und Flag-Bereinigung
+
+**Einordnung / Priorität:** Zurückgestellte Erwägungen aus der Rückkanal-Abnahme zu Item #59 (14.09.2026, advocatus/produktberater/scout). Bewusst außerhalb des Nachzugs gehalten (Briefing Abschnitt 4).
+
+**Kontext / Herkunft:**
+- **Nicht-atomarer Save (advocatus):** Telegram/WhatsApp werden über `/api/settings` gespeichert, TMDb/TVDb erst danach über `/api/keys`. Schlägt der zweite Request fehl, ist Telegram bereits gelöscht, TMDb nicht (partielle Löschung).
+- **End-to-End-Verifikation Frontend → Backend (advocatus):** Frontend-Validierung liefert leeren Wert, Backend `persistence.py` löscht bei Leerstring. Die durchgehende Integration der Kette ist bisher nicht durch einen automatisierten Test abgesichert.
+- **`dataset.hasKey`-Zustand nach Löschen (advocatus):** Nach Klick auf „Löschen" wird `dataset.deleted = "true"` gesetzt, `dataset.hasKey` verbleibt jedoch bis zum nächsten Reload auf `"true"`.
+- **Doppelte Flags `deleted` und `pendingDelete` (scout/advocatus):** Beide Flags werden an allen Fundstellen gemeinsam gesetzt und abgefragt — Bereinigung auf ein einheitliches Flag empfohlen.
+- **Undo nach dem Speichern (produktberater/scout):** Nach dem Speichern ist der Key weg; ein Undo-Fenster ("Key gelöscht – Rückgängig") wäre ein Komfortgewinn.
+
+**Aufwand (grob):** Mittel (Save-Atomarität / E2E-Test) bis klein (Flags / hasKey).
