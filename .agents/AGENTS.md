@@ -58,10 +58,6 @@ KI ausschließlich prüfend:
 - Vorschläge dürfen gemacht werden, bleiben aber Empfehlungen. Die Umsetzung
   startet erst nach Alex' expliziter Entscheidung.
 
-> Das vollständige Reviewer-Protokoll für Multi-Agent-Setups (inkl. der Regel,
-> dass kein Eingabetext automatisch als Nutzer-Aussage gilt) steht in
-> `08-multi-agent.md`.
-
 ## Bestätigungspflicht
 
 Vor diesen Aktionen stoppen, genau auflisten, was betroffen ist, und auf explizite Bestätigung warten:
@@ -235,15 +231,7 @@ Daraus folgt für **jeden** Agenten, besonders den Reviewer:
 
 ### OpenCode Go Reviewer (Claude Code)
 
-Wenn Claude Code als Reviewer eingesetzt wird und das Projekt über die nötigen Capabilities verfügt (gekennzeichnet durch das Vorhandensein von `scripts/opencode-reviewer.sh` und konfigurierten `OPENCODE_`-Variablen in der `.env`), **muss** der Reviewer über dieses Wrapper-Skript gestartet werden:
-
-```bash
-./scripts/opencode-reviewer.sh -p "Führe ein Review durch..."
-```
-
-Das Skript sorgt dafür, dass Claude Code sicher gegen den OpenCode Go Endpoint geroutet wird, die korrekte Modell-ID verwendet und der dedizierte `reviewer` Subagent erzwungen wird.
-
-> **Sicherheits-Nachtrag (07/2026):** Ein anfänglicher Konfigurationsfehler (`permissions:` statt `permission:`) führte dazu, dass Subagents auf unsichere Defaults zurückfielen. **Dieser Fehler wurde behoben und die Sandbox-Grenzen (`ask` / `deny`) wurden am 08.07.2026 erfolgreich nachgewiesen (siehe `docs/werkzeuggrenzen.md`).** Die Zwei-Ebenen-Architektur (Cockpit beaufsichtigt, Autonomie in Sandbox) ist damit für die dokumentierten Testpfade technisch abgesichert; neue Agenten, Rechte oder OpenCode-Versionen müssen erneut gegen `docs/werkzeuggrenzen.md` geprüft werden.
+Wenn Claude Code als Reviewer eingesetzt wird und das Projekt über die nötigen Capabilities verfügt (Vorhandensein von `scripts/opencode-reviewer.sh` und konfigurierte `OPENCODE_`-Variablen in der `.env`), **muss** der Reviewer über dieses Wrapper-Skript gestartet werden (Details und Sicherheits-Nachtrag: siehe `docs/betriebsanleitung.md` im ai-coding-starter-kit).
 
 ## Planung und Workflow
 
@@ -315,17 +303,8 @@ fuer diese Aufgabe sinnvoll sind.
 
 ### VERLAUF.md — die kumulative Historie
 
-- `VERLAUF.md` ist die **eingecheckte, fortlaufende Historie** des Projekts —
-  wie `STAND.md`, nur dass nichts gelöscht wird. So lässt sich der gesamte
-  Verlauf lückenlos nachvollziehen, ohne `git log` durchforsten zu müssen.
-- **Gleiches Format wie `STAND.md`** (minimaler Aufwand): Beim Abschluss eines
-  Schritts den `STAND.md`-Block mit Datums-Überschrift **oben** in `VERLAUF.md`
-  einfügen, dann `STAND.md` leeren. Reines Copy-Paste, keine Umformatierung.
-- Abgrenzung: `STAND.md` = nur Jetzt-Zustand, flüchtig. `VERLAUF.md` = gesamte
-  Historie, versioniert.
-- Für reine Werkzeug-/Meta-Repos genügt oft die Git-Historie allein; `VERLAUF.md`
-  lohnt sich vor allem bei echter Feature-Arbeit.
-- Vorlage: `VERLAUF.template.md`.
+- `VERLAUF.md` ist die **eingecheckte, fortlaufende Historie** des Projekts (Vorlage: `VERLAUF.template.md`). Beim Abschluss eines Schritts wird der `STAND.md`-Block mit Datums-Überschrift oben eingefügt (gleiches Format wie `STAND.md`, reines Copy-Paste, keine Umformatierung); bei direkter Arbeit ohne PR wird `STAND.md` danach geleert.
+- **Huckepack-Regel bei PR-Workflows:** Ein reiner VERLAUF-Nachtrag erhält keinen separaten PR, sondern reist als Anhang in `STAND.md` und als eigener Commit im ersten PR des nächsten Zyklus mit. Der Reviewer prüft die Übernahme dort byte-genau. Nach dem Merge dieses PRs und erbrachtem Deckungsnachweis (z. B. `git diff <PR-Head> <Merge-Commit>` leer) wird der Anhang aus `STAND.md` gelöscht. Details, Ablauf und Ausnahmen: siehe `docs/huckepack-workflow.md` im ai-coding-starter-kit.
 
 ### ROADMAP.md — Zurückgestellte Erwägungen & Backlog
 
@@ -338,11 +317,6 @@ fuer diese Aufgabe sinnvoll sind.
   gehören zwingend in `ROADMAP.md`, damit sie bei künftigen Entwicklungs-
   schritten nicht verloren gehen.
 - Vorlage: `ROADMAP.template.md`.
-
-### Abschluss jeder Coding-Aufgabe
-
-Am Ende jeder Coding-Aufgabe die Abschluss-Routine abarbeiten (siehe
-`12-abschluss.md`): Abschlusszusammenfassung + Checkliste vor jedem "Fertig".
 
 ## graphify
 
