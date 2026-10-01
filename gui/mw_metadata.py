@@ -179,12 +179,14 @@ def get_tvdb_token():
     try:
         url = "https://api4.thetvdb.com/v4/login"
         data = json.dumps({"apikey": TVDB_API_KEY}).encode('utf-8')
-        req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=10) as response:
-            res = json.loads(response.read().decode())
-            tvdb_token = res.get('data', {}).get('token')
-            tvdb_token_time = time.time()
-            return tvdb_token
+        res = fetch_json_with_retry(
+            lambda: urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}),
+            timeout=10,
+            context="TVDB Login",
+        )
+        tvdb_token = res.get('data', {}).get('token')
+        tvdb_token_time = time.time()
+        return tvdb_token
     except urllib.error.HTTPError as e:
         _handle_metadata_error(e)
         # fallback down to exception handling if not raised
@@ -213,23 +215,25 @@ def search_tvdb(query, lang="deu"):
     if not token: return []
     url = f"https://api4.thetvdb.com/v4/search?query={urllib.parse.quote(query)}&type=series&language={lang}"
     try:
-        req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode())
-            results = []
-            for item in data.get('data', [])[:25]:
-                year = item.get('year', '????')
-                title = item.get('name', '')
-                trans = item.get('translations', {})
-                if isinstance(trans, dict) and 'deu' in trans:
-                    title = trans['deu']
-                country = item.get('country', 'Unbekannt')
-                results.append({
-                    'id': str(item.get('tvdb_id')),
-                    'name': f"{title} ({year}) [{country}]",
-                    'provider': 'tvdb'
-                })
-            return results
+        data = fetch_json_with_retry(
+            lambda: urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'}),
+            timeout=10,
+            context=f"TVDB Suche '{query}'",
+        )
+        results = []
+        for item in data.get('data', [])[:25]:
+            year = item.get('year', '????')
+            title = item.get('name', '')
+            trans = item.get('translations', {})
+            if isinstance(trans, dict) and 'deu' in trans:
+                title = trans['deu']
+            country = item.get('country', 'Unbekannt')
+            results.append({
+                'id': str(item.get('tvdb_id')),
+                'name': f"{title} ({year}) [{country}]",
+                'provider': 'tvdb'
+            })
+        return results
     except urllib.error.HTTPError as e:
         _handle_metadata_error(e)
         # fallback down to exception handling if not raised
@@ -256,39 +260,41 @@ def fetch_tvdb(show_id, season, lang="deu"):
     while True:
         url = f"https://api4.thetvdb.com/v4/series/{show_id}/episodes/default/{lang}?page={page}"
         try:
-            req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode())
-                episodes = data.get('data', {}).get('episodes', [])
-                if not episodes:
-                    break
-                for ep in episodes:
-                    ep_season = ep.get('seasonNumber')
-                    if ep_season is None or int(ep_season) <= 0:
-                        continue
+            data = fetch_json_with_retry(
+                lambda: urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'}),
+                timeout=10,
+                context=f"TVDB Episoden {show_id} S{season} p{page}",
+            )
+            episodes = data.get('data', {}).get('episodes', [])
+            if not episodes:
+                break
+            for ep in episodes:
+                ep_season = ep.get('seasonNumber')
+                if ep_season is None or int(ep_season) <= 0:
+                    continue
 
-                    if is_all or str(ep_season) == str(season):
-                        ep_num = str(ep.get('number'))
-                        title = ep.get('name', '').replace('/', '-').replace(':', '').strip()
-                        date_str = ep.get('aired', '')
+                if is_all or str(ep_season) == str(season):
+                    ep_num = str(ep.get('number'))
+                    title = ep.get('name', '').replace('/', '-').replace(':', '').strip()
+                    date_str = ep.get('aired', '')
 
-                        abs_val = ep.get('absoluteNumber')
-                        if is_all:
-                            s_str = str(ep_season)
-                            if len(s_str) < 2:
-                                s_str = s_str.zfill(2)
-                            e_str = str(ep_num)
-                            if len(e_str) < 2:
-                                e_str = e_str.zfill(2)
-                            key = f"S{s_str}E{e_str}"
-                            result[key] = {"title": title, "date": date_str, "absolute_number": abs_val}
-                        else:
-                            result[ep_num] = {"title": title, "date": date_str, "absolute_number": abs_val}
-                links = data.get('links', {})
-                if links.get('next') and links['next'] != links.get('self'):
-                    page += 1
-                else:
-                    break
+                    abs_val = ep.get('absoluteNumber')
+                    if is_all:
+                        s_str = str(ep_season)
+                        if len(s_str) < 2:
+                            s_str = s_str.zfill(2)
+                        e_str = str(ep_num)
+                        if len(e_str) < 2:
+                            e_str = e_str.zfill(2)
+                        key = f"S{s_str}E{e_str}"
+                        result[key] = {"title": title, "date": date_str, "absolute_number": abs_val}
+                    else:
+                        result[ep_num] = {"title": title, "date": date_str, "absolute_number": abs_val}
+            links = data.get('links', {})
+            if links.get('next') and links['next'] != links.get('self'):
+                page += 1
+            else:
+                break
         except urllib.error.HTTPError as e:
             _handle_metadata_error(e)
             # fallback down to exception handling if not raised
@@ -413,23 +419,29 @@ def get_all_season_numbers(provider, show_id):
     try:
         if provider in ["tmdb_tv", "tmdb_tv_en"]:
             url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}"
-            req = make_tmdb_request(url)
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode())
-                seasons = [s['season_number'] for s in data.get('seasons', []) if s.get('season_number', 0) > 0]
+            data = fetch_json_with_retry(
+                lambda: make_tmdb_request(url),
+                timeout=10,
+                context=f"TMDb TV Staffeln {show_id}",
+            )
+            seasons = [s['season_number'] for s in data.get('seasons', []) if s.get('season_number', 0) > 0]
         elif provider == "tvdb":
             token = get_tvdb_token()
             url = f"https://api4.thetvdb.com/v4/series/{show_id}/extended"
-            req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode()).get('data', {})
-                seasons = [s['number'] for s in data.get('seasons', []) if s.get('type', {}).get('id') == 1 and s.get('number', 0) > 0]
+            data = fetch_json_with_retry(
+                lambda: urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'}),
+                timeout=10,
+                context=f"TVDB Staffeln {show_id}",
+            ).get('data', {})
+            seasons = [s['number'] for s in data.get('seasons', []) if s.get('type', {}).get('id') == 1 and s.get('number', 0) > 0]
         elif provider == "tvmaze":
             url = f"https://api.tvmaze.com/shows/{show_id}/seasons"
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode())
-                seasons = [s['number'] for s in data if s.get('number', 0) > 0]
+            data = fetch_json_with_retry(
+                lambda: urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'}),
+                timeout=10,
+                context=f"TVmaze Staffeln {show_id}",
+            )
+            seasons = [s['number'] for s in data if s.get('number', 0) > 0]
     except Exception as e:
         print(f"[get_all_season_numbers Error] {e}", file=sys.stderr)
     return sorted(list(set(seasons)))
@@ -470,23 +482,25 @@ def search_tvmaze(query):
     for q in queries_to_try:
         search_url = f"https://api.tvmaze.com/search/shows?q={urllib.parse.quote(q)}"
         try:
-            req = urllib.request.Request(search_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode())
-                for item in data:
-                    show = item['show']
-                    if show['id'] not in all_results:
-                        year = show.get('premiered', '')[:4] if show.get('premiered') else '?'
+            data = fetch_json_with_retry(
+                lambda: urllib.request.Request(search_url, headers={'User-Agent': 'Mozilla/5.0'}),
+                timeout=10,
+                context=f"TVmaze Suche '{q}'",
+            )
+            for item in data:
+                show = item['show']
+                if show['id'] not in all_results:
+                    year = show.get('premiered', '')[:4] if show.get('premiered') else '?'
 
-                        # Land ermitteln (aus Network oder WebChannel)
-                        network = show.get('network') or show.get('webChannel') or {}
-                        country = network.get('country') or {}
-                        country_name = country.get('name') or 'Unbekannt'
+                    # Land ermitteln (aus Network oder WebChannel)
+                    network = show.get('network') or show.get('webChannel') or {}
+                    country = network.get('country') or {}
+                    country_name = country.get('name') or 'Unbekannt'
 
-                        all_results[show['id']] = {
-                            'id': show['id'],
-                            'name': f"{show['name']} ({year}) [{country_name}]"
-                        }
+                    all_results[show['id']] = {
+                        'id': show['id'],
+                        'name': f"{show['name']} ({year}) [{country_name}]"
+                    }
         except Exception as e:
             print(f"[TVMaze Search Error] Suchvariante '{q}' fehlgeschlagen: {e}", file=sys.stderr)
             continue
@@ -497,9 +511,11 @@ def fetch_tvmaze(show_id, season):
     is_all = (str(season).lower() == "all")
     episodes_url = f"https://api.tvmaze.com/shows/{show_id}/episodes"
     try:
-        req = urllib.request.Request(episodes_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=10) as response:
-            episodes_data = json.loads(response.read().decode())
+        episodes_data = fetch_json_with_retry(
+            lambda: urllib.request.Request(episodes_url, headers={'User-Agent': 'Mozilla/5.0'}),
+            timeout=10,
+            context=f"TVmaze Episoden {show_id}",
+        )
 
         result = {}
         for ep in episodes_data:
@@ -724,16 +740,18 @@ def fetch_tmdb_tv(show_id, season, lang="de-DE"):
 
     url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season}?api_key={TMDB_API_KEY}&language={lang}"
     try:
-        req = make_tmdb_request(url)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode())
-            result = {}
-            for ep in data.get('episodes', []):
-                ep_num = str(ep['episode_number'])
-                title = ep.get('name', '').replace('/', '-').replace(':', '')
-                date_str = ep.get('air_date', '')
-                result[ep_num] = {"title": title, "date": date_str}
-            return result
+        data = fetch_json_with_retry(
+            lambda: make_tmdb_request(url),
+            timeout=10,
+            context=f"TMDb TV Episoden {show_id} S{season}",
+        )
+        result = {}
+        for ep in data.get('episodes', []):
+            ep_num = str(ep['episode_number'])
+            title = ep.get('name', '').replace('/', '-').replace(':', '')
+            date_str = ep.get('air_date', '')
+            result[ep_num] = {"title": title, "date": date_str}
+        return result
     except Exception as e:
         print(f"[TMDB TV Fetch Error] Episoden für Show {show_id}, Staffel {season} nicht abrufbar: {e}", file=sys.stderr)
         return {}
@@ -921,36 +939,38 @@ def fetch_tmdb_images(media_type, tmdb_id):
         return {}
     url = f"https://api.themoviedb.org/3/{media_type}/{tmdb_id}/images?api_key={TMDB_API_KEY}&include_image_language=de,en,null"
     try:
-        req = make_tmdb_request(url)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode())
+        data = fetch_json_with_retry(
+            lambda: make_tmdb_request(url),
+            timeout=10,
+            context=f"TMDb {media_type} Bilder {tmdb_id}",
+        )
 
-            def find_best_image(items):
-                if not items:
-                    return None
-                for item in items:
-                    if item.get('iso_639_1') == 'de':
-                        return item.get('file_path')
-                for item in items:
-                    if not item.get('iso_639_1'):
-                        return item.get('file_path')
-                for item in items:
-                    if item.get('iso_639_1') == 'en':
-                        return item.get('file_path')
-                return items[0].get('file_path')
+        def find_best_image(items):
+            if not items:
+                return None
+            for item in items:
+                if item.get('iso_639_1') == 'de':
+                    return item.get('file_path')
+            for item in items:
+                if not item.get('iso_639_1'):
+                    return item.get('file_path')
+            for item in items:
+                if item.get('iso_639_1') == 'en':
+                    return item.get('file_path')
+            return items[0].get('file_path')
 
-            poster_path = find_best_image(data.get('posters', []))
-            backdrop_path = find_best_image(data.get('backdrops', []))
-            logo_path = find_best_image(data.get('logos', []))
+        poster_path = find_best_image(data.get('posters', []))
+        backdrop_path = find_best_image(data.get('backdrops', []))
+        logo_path = find_best_image(data.get('logos', []))
 
-            res = {}
-            if poster_path:
-                res['poster'] = f"https://image.tmdb.org/t/p/original{poster_path}"
-            if backdrop_path:
-                res['backdrop'] = f"https://image.tmdb.org/t/p/original{backdrop_path}"
-            if logo_path:
-                res['logo'] = f"https://image.tmdb.org/t/p/original{logo_path}"
-            return res
+        res = {}
+        if poster_path:
+            res['poster'] = f"https://image.tmdb.org/t/p/original{poster_path}"
+        if backdrop_path:
+            res['backdrop'] = f"https://image.tmdb.org/t/p/original{backdrop_path}"
+        if logo_path:
+            res['logo'] = f"https://image.tmdb.org/t/p/original{logo_path}"
+        return res
     except Exception as e:
         print(f"[TMDB Images Error] Failed to fetch images for {media_type}/{tmdb_id}: {e}")
         return {}
@@ -1108,9 +1128,11 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
 
     url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}&language=de-DE&append_to_response=credits,release_dates"
     try:
-        req = make_tmdb_request(url)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode())
+        data = fetch_json_with_retry(
+            lambda: make_tmdb_request(url),
+            timeout=10,
+            context=f"TMDb Film NFO {tmdb_id}",
+        )
     except Exception as e:
         return {"error": str(e)}
 
@@ -1508,17 +1530,19 @@ def fetch_episode_nfo_data(provider, show_id, season, episode):
                     while True:
                         url = f"https://api4.thetvdb.com/v4/series/{sid}/episodes/default/{lang_code}?page={pg}"
                         try:
-                            req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-                            with urllib.request.urlopen(req, timeout=10) as response:
-                                d = json.loads(response.read().decode())
-                                batch = d.get('data', {}).get('episodes', [])
-                                if not batch: break
-                                eps.extend(batch)
-                                lnk = d.get('links', {})
-                                if lnk.get('next') and lnk['next'] != lnk.get('self'):
-                                    pg += 1
-                                else:
-                                    break
+                            d = fetch_json_with_retry(
+                                lambda: urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'}),
+                                timeout=10,
+                                context=f"TVDB Episoden {sid} ({lang_code}) p{pg}",
+                            )
+                            batch = d.get('data', {}).get('episodes', [])
+                            if not batch: break
+                            eps.extend(batch)
+                            lnk = d.get('links', {})
+                            if lnk.get('next') and lnk['next'] != lnk.get('self'):
+                                pg += 1
+                            else:
+                                break
                         except Exception as e:
                             print(f"[TVDB Fetch Error] Episodenliste ({lang_code}) für Serie {sid}, Seite {pg} abgebrochen: {e}", file=sys.stderr)
                             break
@@ -1751,9 +1775,11 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
         token = get_tvdb_token()
         url = f"https://api4.thetvdb.com/v4/series/{show_id}/extended?meta=translations"
         try:
-            req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode()).get('data', {})
+            data = fetch_json_with_retry(
+                lambda: urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'}),
+                timeout=10,
+                context=f"TVDB Serie NFO {show_id}",
+            ).get('data', {})
         except Exception as e:
             return {"error": str(e)}
 
@@ -1878,9 +1904,11 @@ def generate_tvshow_nfo(provider, show_id, target_folder, nfo_overrides=None, so
     lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
     url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}&language={lang}&append_to_response=credits,content_ratings"
     try:
-        req = make_tmdb_request(url)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode())
+        data = fetch_json_with_retry(
+            lambda: make_tmdb_request(url),
+            timeout=10,
+            context=f"TMDb TV Serie NFO {show_id}",
+        )
     except Exception as e:
         return {"error": str(e)}
 
@@ -2140,17 +2168,19 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
                 while True:
                     url = f"https://api4.thetvdb.com/v4/series/{sid}/episodes/default/{lang_code}?page={pg}"
                     try:
-                        req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-                        with urllib.request.urlopen(req, timeout=10) as response:
-                            d = json.loads(response.read().decode())
-                            batch = d.get('data', {}).get('episodes', [])
-                            if not batch: break
-                            eps.extend(batch)
-                            lnk = d.get('links', {})
-                            if lnk.get('next') and lnk['next'] != lnk.get('self'):
-                                pg += 1
-                            else:
-                                break
+                        d = fetch_json_with_retry(
+                            lambda: urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'}),
+                            timeout=10,
+                            context=f"TVDB Episoden {sid} ({lang_code}) p{pg}",
+                        )
+                        batch = d.get('data', {}).get('episodes', [])
+                        if not batch: break
+                        eps.extend(batch)
+                        lnk = d.get('links', {})
+                        if lnk.get('next') and lnk['next'] != lnk.get('self'):
+                            pg += 1
+                        else:
+                            break
                     except Exception as e:
                         print(f"[TVDB Fetch Error] Episodenliste ({lang_code}) für Serie {sid}, Seite {pg} abgebrochen: {e}", file=sys.stderr)
                         break
@@ -2243,9 +2273,11 @@ def generate_episode_nfo(provider, show_id, season, episode, target_folder, file
     lang = "en-US" if provider == "tmdb_tv_en" else "de-DE"
     url = f"https://api.themoviedb.org/3/tv/{show_id}/season/{season}/episode/{episode}?api_key={TMDB_API_KEY}&language={lang}"
     try:
-        req = make_tmdb_request(url)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode())
+        data = fetch_json_with_retry(
+            lambda: make_tmdb_request(url),
+            timeout=10,
+            context=f"TMDb TV Episode S{season}E{episode} ({show_id})",
+        )
     except Exception as e:
         if needs_nfo:
             try:
@@ -2364,23 +2396,29 @@ def guess_season(provider, show_id, filenames_json_or_list):
     try:
         if provider in ["tmdb_tv", "tmdb_tv_en", "tmdb"]:
             url = f"https://api.themoviedb.org/3/tv/{show_id}?api_key={TMDB_API_KEY}"
-            req = make_tmdb_request(url)
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode())
-                seasons = [str(s['season_number']) for s in data.get('seasons', []) if s.get('season_number', 0) > 0]
+            data = fetch_json_with_retry(
+                lambda: make_tmdb_request(url),
+                timeout=10,
+                context=f"TMDb TV Staffeln {show_id}",
+            )
+            seasons = [str(s['season_number']) for s in data.get('seasons', []) if s.get('season_number', 0) > 0]
         elif provider == "tvdb":
             token = get_tvdb_token()
             url = f"https://api4.thetvdb.com/v4/series/{show_id}/extended"
-            req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode()).get('data', {})
-                seasons = [str(s['number']) for s in data.get('seasons', []) if s.get('type', {}).get('id') == 1 and s.get('number', 0) > 0]
+            data = fetch_json_with_retry(
+                lambda: urllib.request.Request(url, headers={'Authorization': f'Bearer {token}', 'User-Agent': 'Mozilla/5.0'}),
+                timeout=10,
+                context=f"TVDB Staffeln {show_id}",
+            ).get('data', {})
+            seasons = [str(s['number']) for s in data.get('seasons', []) if s.get('type', {}).get('id') == 1 and s.get('number', 0) > 0]
         elif provider == "tvmaze":
             url = f"https://api.tvmaze.com/shows/{show_id}/seasons"
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode())
-                seasons = [str(s['number']) for s in data if s.get('number', 0) > 0]
+            data = fetch_json_with_retry(
+                lambda: urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'}),
+                timeout=10,
+                context=f"TVmaze Staffeln {show_id}",
+            )
+            seasons = [str(s['number']) for s in data if s.get('number', 0) > 0]
     except Exception as e:
         print(f"[Season Guess Error] Staffelliste für '{show_id}' ({provider}) nicht abrufbar: {e}", file=sys.stderr)
 
@@ -2672,34 +2710,35 @@ def search_mediathek(query):
         "size": 50
     }
 
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
-        },
-        method="POST"
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=10) as response:
-            res_data = json.loads(response.read().decode("utf-8"))
-            results = []
-            seen_topics = set()
-            for item in res_data.get("result", {}).get("results", []):
-                topic = item.get("topic") or item.get("title")
-                if not topic: continue
-                topic_clean = topic.strip()
-                if topic_clean not in seen_topics:
-                    seen_topics.add(topic_clean)
-                    channel = item.get("channel", "Mediathek")
-                    results.append({
-                        "id": topic_clean,
-                        "name": f"{topic_clean} [{channel}]",
-                        "provider": "mediathek"
-                    })
-            return results
+        res_data = fetch_json_with_retry(
+            lambda: urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+                },
+                method="POST"
+            ),
+            timeout=10,
+            context=f"Mediathek Suche '{query}'",
+        )
+        results = []
+        seen_topics = set()
+        for item in res_data.get("result", {}).get("results", []):
+            topic = item.get("topic") or item.get("title")
+            if not topic: continue
+            topic_clean = topic.strip()
+            if topic_clean not in seen_topics:
+                seen_topics.add(topic_clean)
+                channel = item.get("channel", "Mediathek")
+                results.append({
+                    "id": topic_clean,
+                    "name": f"{topic_clean} [{channel}]",
+                    "provider": "mediathek"
+                })
+        return results
     except Exception as e:
         print(f"[search_mediathek] Error: {e}", file=sys.stderr)
         return []
@@ -2735,25 +2774,27 @@ def fetch_mediathek_episodes(topic):
         "size": 100
     }
 
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
-        },
-        method="POST"
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=10) as response:
-            res_data = json.loads(response.read().decode("utf-8"))
-            episodes = {}
-            results = res_data.get("result", {}).get("results", [])
+        res_data = fetch_json_with_retry(
+            lambda: urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+                },
+                method="POST"
+            ),
+            timeout=10,
+            context=f"Mediathek Episoden '{topic}'",
+        )
+        episodes = {}
+        results = res_data.get("result", {}).get("results", [])
 
-            if not results:
-                payload["queries"][0]["exact"] = False
-                req = urllib.request.Request(
+        if not results:
+            payload["queries"][0]["exact"] = False
+            res_data = fetch_json_with_retry(
+                lambda: urllib.request.Request(
                     url,
                     data=json.dumps(payload).encode("utf-8"),
                     headers={
@@ -2761,29 +2802,30 @@ def fetch_mediathek_episodes(topic):
                         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
                     },
                     method="POST"
-                )
-                with urllib.request.urlopen(req, timeout=10) as fallback_response:
-                    res_data = json.loads(fallback_response.read().decode("utf-8"))
-                    results = res_data.get("result", {}).get("results", [])
+                ),
+                timeout=10,
+                context=f"Mediathek Episoden Fallback '{topic}'",
+            )
+            results = res_data.get("result", {}).get("results", [])
 
-            for idx, item in enumerate(results):
-                title = item.get("title") or f"Folge {idx+1}"
-                date_str = ""
-                ts = item.get("timestamp")
-                if ts:
-                    try:
-                        import datetime
-                        date_str = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
-                    except Exception:
-                        pass
+        for idx, item in enumerate(results):
+            title = item.get("title") or f"Folge {idx+1}"
+            date_str = ""
+            ts = item.get("timestamp")
+            if ts:
+                try:
+                    import datetime
+                    date_str = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+                except Exception:
+                    pass
 
-                ep_num = str(idx + 1)
-                episodes[ep_num] = {
-                    "title": title.replace('/', '-').replace(':', '').strip(),
-                    "date": date_str,
-                    "plot": item.get("description", "")
-                }
-            return episodes
+            ep_num = str(idx + 1)
+            episodes[ep_num] = {
+                "title": title.replace('/', '-').replace(':', '').strip(),
+                "date": date_str,
+                "plot": item.get("description", "")
+            }
+        return episodes
     except Exception as e:
         print(f"[fetch_mediathek_episodes] Error: {e}", file=sys.stderr)
         return {}
