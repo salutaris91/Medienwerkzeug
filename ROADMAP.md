@@ -60,7 +60,7 @@ die aktive After-Release-Roadmap übernommen.
 | 51 | NFO-Agent Vollständigkeit: FSK/Genre/Artwork | teilweise | klein–mittel |
 | 52 | NFO-Agent: Mehrstufiger Wizard (Quelle wählen → Prüfen & Bearbeiten) | geplant | mittel |
 | 53 | Health-Check: Schweregrade aus der Oberfläche entfernen | geplant | klein–mittel |
-| 54 | Metadatendienste: Alle Abrufe auf den Retry-Helfer umstellen | geplant | mittel |
+| 54 | Metadatendienste: Alle Abrufe auf den Retry-Helfer umstellen | teilweise (Teil 1 erledigt) | mittel |
 | 55 | NFO-Agent: Multi-Provider-Metadatenvergleich mit Feld-Badges | geplant | mittel–groß |
 | 58 | Auth-Härtung: offener Default-Endpoint + fehlende Server-Whitelist | geplant | mittel |
 | 59 | API-Key löschen: expliziter UI-Weg (statt nur Ersetzen) | erledigt (2026-09-14) | klein–mittel |
@@ -1628,6 +1628,10 @@ Alle externen Metadaten-Abrufe nutzen denselben Retry-Helfer (bzw. eine Binär-V
 
 ### Aufwand (grob)
 Mittel: mechanische Umstellung vieler Stellen mit sorgfältiger Prüfung der bestehenden Fehlerpfade.
+
+**Stand (Teil 1 erledigt):**
+- **Teil 1 (JSON-Abrufe) erledigt:** Alle direkten `urllib.request.urlopen`-Aufrufe in `gui/mw_metadata.py`, deren Antwort als JSON verarbeitet wird, wurden auf `fetch_json_with_retry` umgestellt (`timeout=10`, frische `build_request`-Callables). Testabdeckung in `tests/test_metadata_retry.py`.
+- **Teil 2 (HTML- und Binär-Abrufe) offen:** Artwork-Downloads (`_download_with_timeout`) und HTML-Scraping (`fernsehserien.de`, `search_ofdb`, `resolve_mediathek_url_topic`) bleiben als Teil 2 offen.
 
 ---
 
