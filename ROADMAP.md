@@ -46,7 +46,7 @@ die aktive After-Release-Roadmap übernommen.
 | 37 | Docker-Schonmodus bei UI-Aktivität (Transfers drosseln) | geplant | klein–mittel |
 | 38 | Intelligente Pipeline-Parallelisierung bei langen Uploads | geplant | mittel |
 | 39 | Frontend-Resilienz: Double-Check bei vereinzelten 401-Fehlern | geplant | klein |
-| 40 | Mediathek-Episoden-Sync: Vorzeitiger Abbruch bei unauflösbaren URLs | geplant | klein |
+| 40 | Mediathek-Episoden-Sync: Vorzeitiger Abbruch bei unauflösbaren URLs | erledigt | klein |
 | 41 | Explizites Umbenennen bestehender NAS-Serienordner | geplant | mittel |
 | 42 | Absolute Nummerierung: Episoden einschieben und nachfolgende Folgen verschieben | geplant | mittel |
 | 43 | Film-Überschreibschutz auf dem NAS (Warnung & Quarantäne-Absicherung) | erledigt | klein–mittel |
@@ -1178,7 +1178,7 @@ Ein einzelnes 401 soll nicht mehr sofort zum Login-Screen führen, solange die S
 
 ---
 
-## 40. Mediathek-Episoden-Sync: Vorzeitiger Abbruch bei unauflösbaren URLs
+## 40. Mediathek-Episoden-Sync: Vorzeitiger Abbruch bei unauflösbaren URLs (erledigt)
 
 **Einordnung / Priorität:** Klein, funktionale Absicherung.
 

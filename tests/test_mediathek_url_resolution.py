@@ -126,6 +126,36 @@ def test_fetch_mediathek_episodes_with_url():
         assert len(res) == 1
         assert res["1"]["title"] == "Tatort 1"
 
+def test_fetch_mediathek_episodes_unresolvable_url(capsys):
+    # Test fetch_mediathek_episodes when passed an unresolvable URL (with url_mediathek prefix).
+    # It should return {} immediately and not make any urlopen API calls.
+    with patch('gui.mw_metadata.resolve_mediathek_url_topic', return_value=None) as mock_resolve, \
+         patch('urllib.request.urlopen') as mock_urlopen:
+
+        url_input = "https://www.zdf.de/unresolvable"
+        res = fetch_mediathek_episodes(f"url_mediathek:{url_input}")
+
+        mock_resolve.assert_called_once_with(url_input)
+        assert res == {}
+        mock_urlopen.assert_not_called()
+        captured = capsys.readouterr()
+        assert "Skipping episode sync: URL https://www.zdf.de/unresolvable could not be resolved" in captured.err
+
+def test_fetch_mediathek_episodes_unresolvable_raw_url(capsys):
+    # Test fetch_mediathek_episodes when passed a raw unresolvable URL directly.
+    # It should return {} immediately and not make any urlopen API calls.
+    with patch('gui.mw_metadata.resolve_mediathek_url_topic', return_value=None) as mock_resolve, \
+         patch('urllib.request.urlopen') as mock_urlopen:
+
+        url_input = "https://www.zdf.de/unresolvable"
+        res = fetch_mediathek_episodes(url_input)
+
+        mock_resolve.assert_called_once_with(url_input)
+        assert res == {}
+        mock_urlopen.assert_not_called()
+        captured = capsys.readouterr()
+        assert "Skipping episode sync: URL https://www.zdf.de/unresolvable could not be resolved" in captured.err
+
 def test_api_search_url_resolution():
     # Test /api/search using Flask test client
     app.config['TESTING'] = True
