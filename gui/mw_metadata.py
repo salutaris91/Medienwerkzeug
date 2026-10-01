@@ -2715,6 +2715,9 @@ def fetch_mediathek_episodes(topic):
         if resolved:
             topic = resolved
             is_query_search = True
+        else:
+            print(f"[fetch_mediathek_episodes] Skipping episode sync: URL {topic} could not be resolved to a topic", file=sys.stderr)
+            return {}
 
     url = "https://mediathekviewweb.de/api/query"
     payload = {
