@@ -108,6 +108,8 @@ Freigabepunkte sind: Plan-Freigabe, PR-Merge, ausgelöste `design-frage` /
 - Logging an wichtigen Stellen einbauen.
 - Variablen- und Funktionsnamen beschreiben, was sie tun: `fetchUserData()` statt `getData()`.
 - Keine Einbuchstaben-Variablen außer in kurzen Schleifen (`i`, `j`).
+- **Testinfrastruktur-Regel:** Erkennt Produktivcode seine Testumgebung, ist der Test falsch, nicht der Code — Tests anpassen, nicht den Produktivcode. Das gilt auch für Test-Backdoors (Env-Overrides nur für Testzwecke).
+- **Test-Artefakte-Regel:** Tests schreiben ihre Artefakte in temporäre Verzeichnisse (tmp_path / mktemp), nie ins Arbeitsverzeichnis.
 <!-- WORKER-SAFE:END -->
 
 ## Git und Commits
@@ -216,6 +218,13 @@ Daraus folgt für **jeden** Agenten, besonders den Reviewer:
    nächster Schritt, offene Entscheidungen.
 4. **Findings des Reviewers** werden abgearbeitet oder begründet zurückgewiesen —
    die Entscheidung über strittige Punkte trifft Alex.
+5. **Freigabe-Zitatpflicht.** Jede Freigabe von Alex wird im Bericht wörtlich
+   zitiert („Alex: ‚…'"). Fehlt das Zitat, gilt sie als unbelegt → nachfragen.
+6. **Seiteneffekt-Nennung.** Befehle mit Wirkung außerhalb des eigenen
+   Worktrees (git push, git push --delete, gh pr create/close/reopen,
+   gh run rerun, git remote prune, Löschen von Dateien/Branches/Worktrees)
+   werden in der Abschlusszusammenfassung mit exaktem Befehl genannt;
+   Sammelformulierungen wie „aufgeräumt“ genügen nicht.
 
 ### Eskalation an Alex
 
@@ -285,6 +294,9 @@ fuer diese Aufgabe sinnvoll sind.
 - Wenn `graphify-out/` existiert, Codebase-/Doku-Fragen bevorzugt ueber
   `graphify query` beantworten. Wenn kein Graph existiert, Graphify nur als
   optionale Empfehlung nennen, bis Alex die Initialisierung bestaetigt.
+- Falls `scripts/check_updates.py` im Projekt existiert, zu Sessionbeginn
+  `python3 scripts/check_updates.py` ausführen und das Ergebnis in einer Zeile
+  nennen. Exit 2 (nicht prüfbar / offline) ist dabei kein Blocker.
 
 ## Aufgabenwechsel und Übergabe
 
