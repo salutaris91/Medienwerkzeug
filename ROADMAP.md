@@ -1394,6 +1394,9 @@ neue Installationen diese Entscheidung bewusst treffen.
   harmonieren und darf keine Host-Pfade außerhalb der erlaubten Mounts anfassen.
 - Die Speicherberechnung darf bei großen Ordnern die Oberfläche nicht blockieren;
   ggf. Cache oder Hintergrundberechnung nutzen.
+- **Nachtrag 08.10.2026 (Rückkanal-Abnahme #64, `docs/sessions/2026-10-08-roadmap64-65-inbox/rueckkanal-64.md`):**
+  - Seit #64 liefert `/api/inbox/analyze` je Eintrag `total_size`; eine Summenzeile „Inbox: N GB in M Projekten“ (K2), optional nach Medientyp aufgeschlüsselt (K3), ist damit als kleine Vorstufe zu Punkt 1 („#45 light“, ohne Löschaktionen) möglich.
+  - Größen-Semantik vereinheitlichen (R1): `total_size` zählt nur Videodateien, die Kopf-Größe `inbox_size_gb` (`gui/core/helpers.py:514–530`) alle Dateien. Bei der Umsetzung von Punkt 1 eine einheitliche, beschriftete Größe festlegen.
 
 ### Aufwand (grob)
 Klein–mittel: Dashboard-Metriken, Startseitenbuttons, Bestätigungsdialog,
@@ -1930,3 +1933,26 @@ Mehrere Film-Einträge ankreuzen und in einem Schritt als **Film**-Aufträge nac
 
 ### Aufwand (grob)
 Mittel (UI-Sammeldialog ist der Hauptteil).
+
+---
+
+## 70. Inbox: Filter nach Medientyp (Film/Serie/Doku/Anime)
+
+**Einordnung / Priorität:** Kleine UX-Ergänzung zu #64 (Rückkanal-Abnahme #64, Kandidat K1, 08.10.2026; Alex: „1–3 wie empfohlen“).
+
+**Problem:**
+Die Typ-Kennzeichen der Inbox-Einträge sind sichtbar, aber nicht bedienbar. Bei vielen Einträgen hilft Sortieren (#64) nicht bei der Frage „zeig mir nur Filme“.
+
+**Ziel:**
+Ein Klick auf ein Typ-Kennzeichen filtert die Liste auf diesen Typ, ein zweiter Klick hebt den Filter auf; kombinierbar mit der Sortierung aus #64.
+
+**Umsetzung:**
+1. Filter vor dem Rendern in `renderSmartInboxList` anwenden (`media_type` liegt bereits in der Payload, kein Backend-Change).
+2. Filter-Zustand sichtbar machen und per `sessionStorage` wie die Sortierung erhalten.
+3. Frontend-Tests nach dem Muster `tests/frontend/inbox_sort.test.js`.
+
+### Risiken & Hinweise
+- Zusammenspiel mit #65 (Gruppenzeilen) klären: Eine Seriengruppe gilt als Typ „Serie“.
+
+### Aufwand (grob)
+Klein (Click-Handler + Filter + Tests).
