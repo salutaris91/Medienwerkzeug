@@ -1,12 +1,12 @@
-import { applyTheme } from './js/theme.js?v=94';
-import { cleanSeriesName } from './js/utils.js?v=94';
-import { formatBytes } from './js/format.js?v=94';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=94';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=94';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=94';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=94';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=94';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=94';
+import { applyTheme } from './js/theme.js?v=95';
+import { cleanSeriesName } from './js/utils.js?v=95';
+import { formatBytes } from './js/format.js?v=95';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=95';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=95';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=95';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=95';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=95';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=95';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -12248,82 +12248,251 @@ async function updateHomepageData(statusData) {
         const cardSmartInbox = document.getElementById("card-smart-inbox");
         const smartInboxList = document.getElementById("smart-inbox-list");
         if (analyzeData && cardSmartInbox && smartInboxList) {
-            const suggestions = analyzeData.suggestions || [];
-            cardSmartInbox.style.display = "block";
-            if (suggestions.length > 0) {
-                smartInboxList.innerHTML = "";
-                suggestions.forEach(item => {
-                    let typeBadge = "";
-                    let badgeColor = "";
-                    if (item.media_type === "movie") {
-                        typeBadge = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film" style="height:12px; width:12px;"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 17h4"/><path d="M17 17h4"/><path d="M17 7h4"/><path d="M7 12h10"/></svg>Film</span>`;
-                        badgeColor = "background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);";
-                    } else if (item.media_type === "tv") {
-                        typeBadge = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="height:12px; width:12px;"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>Serie</span>`;
-                        badgeColor = "background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);";
-                    } else if (item.media_type === "doku") {
-                        typeBadge = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-leaf" style="height:12px; width:12px;"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.3 5.45-6"/></svg>Doku</span>`;
-                        badgeColor = "background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);";
-                    } else if (item.media_type === "anime") {
-                        typeBadge = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles" style="height:12px; width:12px;"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>Anime</span>`;
-                        badgeColor = "background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);";
-                    }
-
-                    const reasonsHtml = (item.reasons || []).map(r => `<span style="font-size: 0.8em; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.05); color: var(--text-muted);">${escapeHTML(r)}</span>`).join(" ");
-
-                    const isProcessing = activeProjectsProcessing && activeProjectsProcessing.has(item.project);
-                    const borderStyle = isProcessing ? "border: 1px solid rgba(0, 229, 255, 0.3);" : "border: 1px solid var(--border-light);";
-                    const bgStyle = isProcessing ? "background: rgba(0, 229, 255, 0.03);" : "background: rgba(255,255,255,0.02);";
-
-                    const itemDiv = document.createElement("div");
-                    itemDiv.className = "smart-inbox-item";
-                    itemDiv.setAttribute("data-project", item.project);
-                    itemDiv.style.cssText = `${bgStyle} ${borderStyle} border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; transition: all 0.2s ease;`;
-                    itemDiv.innerHTML = `
-                        <div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1;">
-                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                                <strong style="font-size: 1rem; color: var(--text-main);">${escapeHTML(item.project)}</strong>
-                                <span style="font-size: 0.75em; padding: 2px 8px; border-radius: 12px; font-weight: 500; ${badgeColor}">${typeBadge}</span>
-                                <span style="font-size: 0.8em; color: var(--text-muted);">${item.video_count} Datei(en)</span>
-                            </div>
-                            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;">
-                                ${reasonsHtml}
-                            </div>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <button class="btn btn-danger btn-sm btn-delete-smart"
-                                    title="In Quarantäne verschieben"
-                                    ${isProcessing ? 'disabled style="padding: 6px 10px; font-size: 11px; white-space: nowrap; font-weight: 500; height: 32px; opacity: 0.5; cursor: not-allowed;"' : 'style="padding: 6px 10px; font-size: 11px; white-space: nowrap; font-weight: 500; height: 32px;"'}>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>Quarantäne
-                            </button>
-                            <button class="btn btn-select-smart"
-                                    data-media-type="${escapeHTML(item.media_type || "")}"
-                                    data-suggested-query="${escapeHTML(item.suggested_query || "")}"></button>
-                        </div>
-                    `;
-
-                    const btn = itemDiv.querySelector(".btn-select-smart");
-                    configureSmartInboxButton(btn, item.project, isProcessing);
-
-                    if (!isProcessing) {
-                        const deleteBtn = itemDiv.querySelector(".btn-delete-smart");
-                        if (deleteBtn) {
-                            deleteBtn.onclick = () => {
-                                if (confirm(`Möchtest du das gesamte Inbox-Projekt "${item.project}" wirklich in die Quarantäne verschieben?`)) {
-                                    deleteProject(item.project);
-                                }
-                            };
-                        }
-                    }
-
-                    smartInboxList.appendChild(itemDiv);
-                });
-            } else {
-                smartInboxList.innerHTML = `<div style="color:var(--text-muted); font-size:13px; text-align:center; padding:20px; background: rgba(255,255,255,0.01); border: 1px dashed var(--border-light); border-radius: 8px;">Keine verarbeitbaren Film- oder Serienprojekte in der Inbox gefunden.</div>`;
-            }
+            currentSmartInboxRawSuggestions = analyzeData.suggestions || [];
+            renderSmartInboxList(currentSmartInboxRawSuggestions, activeProjectsProcessing);
         }
     } catch (e) {
         console.error("Error fetching smart inbox suggestions:", e);
+    }
+}
+
+function sortInboxSuggestions(items, field, dir) {
+    if (!Array.isArray(items)) return [];
+    const normalizedField = field || 'date';
+    const normalizedDir = dir || 'desc';
+
+    return [...items].sort((a, b) => {
+        let cmp = 0;
+        if (normalizedField === 'name') {
+            cmp = (a.project || '').localeCompare(b.project || '', 'de', { numeric: true, sensitivity: 'base' });
+            if (normalizedDir === 'desc') {
+                cmp = -cmp;
+            }
+        } else if (normalizedField === 'date') {
+            const aVal = a.modified_at;
+            const bVal = b.modified_at;
+            if (aVal === null || aVal === undefined) {
+                if (bVal === null || bVal === undefined) {
+                    cmp = 0;
+                } else {
+                    return 1;
+                }
+            } else if (bVal === null || bVal === undefined) {
+                return -1;
+            } else {
+                cmp = normalizedDir === 'asc' ? (aVal - bVal) : (bVal - aVal);
+            }
+        } else if (normalizedField === 'size') {
+            const aVal = a.total_size;
+            const bVal = b.total_size;
+            if (aVal === null || aVal === undefined) {
+                if (bVal === null || bVal === undefined) {
+                    cmp = 0;
+                } else {
+                    return 1;
+                }
+            } else if (bVal === null || bVal === undefined) {
+                return -1;
+            } else {
+                cmp = normalizedDir === 'asc' ? (aVal - bVal) : (bVal - aVal);
+            }
+        }
+
+        if (cmp === 0) {
+            return (a.project || '').localeCompare(b.project || '', 'de', { numeric: true, sensitivity: 'base' });
+        }
+        return cmp;
+    });
+}
+
+function getInboxSortState() {
+    try {
+        if (typeof sessionStorage !== 'undefined') {
+            const raw = sessionStorage.getItem('smart-inbox-sort');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && (parsed.field === 'name' || parsed.field === 'date' || parsed.field === 'size') &&
+                    (parsed.direction === 'asc' || parsed.direction === 'desc')) {
+                    return parsed;
+                }
+            }
+        }
+    } catch (e) {
+        console.warn("Could not read inbox sort state from sessionStorage:", e);
+    }
+    return { field: 'date', direction: 'desc' };
+}
+
+function setInboxSortState(field, direction) {
+    try {
+        if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem('smart-inbox-sort', JSON.stringify({ field, direction }));
+        }
+    } catch (e) {
+        console.warn("Could not save inbox sort state to sessionStorage:", e);
+    }
+}
+
+function formatDateDe(timestamp) {
+    if (timestamp === null || timestamp === undefined || typeof timestamp !== 'number' || isNaN(timestamp)) {
+        return null;
+    }
+    try {
+        return new Date(timestamp * 1000).toLocaleDateString('de-DE', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+    } catch (e) {
+        return null;
+    }
+}
+
+let currentSmartInboxRawSuggestions = [];
+
+function updateSmartInboxSortBarUI(activeField, activeDir) {
+    const sortBar = document.getElementById("smart-inbox-sort-bar");
+    if (!sortBar) return;
+    const buttons = sortBar.querySelectorAll(".smart-inbox-sort-btn");
+    const labelMap = {
+        name: "Name",
+        date: "Datum",
+        size: "Größe"
+    };
+    buttons.forEach(btn => {
+        const f = btn.getAttribute("data-field");
+        const baseLabel = labelMap[f] || f;
+        if (f === activeField) {
+            btn.setAttribute("aria-pressed", "true");
+            const arrow = activeDir === "asc" ? "▲" : "▼";
+            btn.innerHTML = `${baseLabel} <span aria-hidden="true">${arrow}</span>`;
+        } else {
+            btn.setAttribute("aria-pressed", "false");
+            btn.textContent = baseLabel;
+        }
+    });
+}
+
+function initSmartInboxSortBar() {
+    const sortBar = document.getElementById("smart-inbox-sort-bar");
+    if (!sortBar || sortBar.dataset.initialized === "true") return;
+    sortBar.dataset.initialized = "true";
+
+    const buttons = sortBar.querySelectorAll(".smart-inbox-sort-btn");
+    buttons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const field = btn.getAttribute("data-field");
+            const currentState = getInboxSortState();
+            let newDir = "asc";
+            if (currentState.field === field) {
+                newDir = currentState.direction === "asc" ? "desc" : "asc";
+            }
+            setInboxSortState(field, newDir);
+            renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+        });
+    });
+}
+
+function renderSmartInboxList(rawSuggestions, processingSet) {
+    const cardSmartInbox = document.getElementById("card-smart-inbox");
+    const smartInboxList = document.getElementById("smart-inbox-list");
+    const sortBar = document.getElementById("smart-inbox-sort-bar");
+    if (!cardSmartInbox || !smartInboxList) return;
+
+    currentSmartInboxRawSuggestions = rawSuggestions || [];
+    const suggestions = currentSmartInboxRawSuggestions;
+    cardSmartInbox.style.display = "block";
+
+    if (suggestions.length > 0) {
+        if (sortBar) sortBar.style.display = "flex";
+        initSmartInboxSortBar();
+        const sortState = getInboxSortState();
+        updateSmartInboxSortBarUI(sortState.field, sortState.direction);
+
+        const sortedSuggestions = sortInboxSuggestions(suggestions, sortState.field, sortState.direction);
+        smartInboxList.innerHTML = "";
+
+        sortedSuggestions.forEach(item => {
+            let typeBadge = "";
+            let badgeColor = "";
+            if (item.media_type === "movie") {
+                typeBadge = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-film" style="height:12px; width:12px;"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M3 7h4"/><path d="M3 17h4"/><path d="M17 17h4"/><path d="M17 7h4"/><path d="M7 12h10"/></svg>Film</span>`;
+                badgeColor = "background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3);";
+            } else if (item.media_type === "tv") {
+                typeBadge = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-tv" style="height:12px; width:12px;"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>Serie</span>`;
+                badgeColor = "background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);";
+            } else if (item.media_type === "doku") {
+                typeBadge = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-leaf" style="height:12px; width:12px;"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.3 5.45-6"/></svg>Doku</span>`;
+                badgeColor = "background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);";
+            } else if (item.media_type === "anime") {
+                typeBadge = `<span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles" style="height:12px; width:12px;"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>Anime</span>`;
+                badgeColor = "background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);";
+            }
+
+            const reasonsHtml = (item.reasons || []).map(r => `<span style="font-size: 0.8em; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.05); color: var(--text-muted);">${escapeHTML(r)}</span>`).join(" ");
+
+            const metaSegments = [`${escapeHTML(String(item.video_count))} Datei(en)`];
+            if (item.total_size !== null && item.total_size !== undefined && typeof item.total_size === 'number') {
+                metaSegments.push(formatBytes(item.total_size));
+            }
+            if (item.modified_at !== null && item.modified_at !== undefined && typeof item.modified_at === 'number') {
+                const formattedDate = formatDateDe(item.modified_at);
+                if (formattedDate) {
+                    metaSegments.push(formattedDate);
+                }
+            }
+            const metaHtml = metaSegments.join(" · ");
+
+            const isProcessing = processingSet && processingSet.has(item.project);
+            const borderStyle = isProcessing ? "border: 1px solid rgba(0, 229, 255, 0.3);" : "border: 1px solid var(--border-light);";
+            const bgStyle = isProcessing ? "background: rgba(0, 229, 255, 0.03);" : "background: rgba(255,255,255,0.02);";
+
+            const itemDiv = document.createElement("div");
+            itemDiv.className = "smart-inbox-item";
+            itemDiv.setAttribute("data-project", item.project);
+            itemDiv.style.cssText = `${bgStyle} ${borderStyle} border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; transition: all 0.2s ease;`;
+            itemDiv.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1;">
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <strong style="font-size: 1rem; color: var(--text-main);">${escapeHTML(item.project)}</strong>
+                        <span style="font-size: 0.75em; padding: 2px 8px; border-radius: 12px; font-weight: 500; ${badgeColor}">${typeBadge}</span>
+                        <span style="font-size: 0.8em; color: var(--text-muted);">${metaHtml}</span>
+                    </div>
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;">
+                        ${reasonsHtml}
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button class="btn btn-danger btn-sm btn-delete-smart"
+                            title="In Quarantäne verschieben"
+                            ${isProcessing ? 'disabled style="padding: 6px 10px; font-size: 11px; white-space: nowrap; font-weight: 500; height: 32px; opacity: 0.5; cursor: not-allowed;"' : 'style="padding: 6px 10px; font-size: 11px; white-space: nowrap; font-weight: 500; height: 32px;"'}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>Quarantäne
+                    </button>
+                    <button class="btn btn-select-smart"
+                            data-media-type="${escapeHTML(item.media_type || "")}"
+                            data-suggested-query="${escapeHTML(item.suggested_query || "")}"></button>
+                </div>
+            `;
+
+            const btn = itemDiv.querySelector(".btn-select-smart");
+            configureSmartInboxButton(btn, item.project, isProcessing);
+
+            if (!isProcessing) {
+                const deleteBtn = itemDiv.querySelector(".btn-delete-smart");
+                if (deleteBtn) {
+                    deleteBtn.onclick = () => {
+                        if (confirm(`Möchtest du das gesamte Inbox-Projekt "${item.project}" wirklich in die Quarantäne verschieben?`)) {
+                            deleteProject(item.project);
+                        }
+                    };
+                }
+            }
+
+            smartInboxList.appendChild(itemDiv);
+        });
+    } else {
+        if (sortBar) sortBar.style.display = "none";
+        smartInboxList.innerHTML = `<div style="color:var(--text-muted); font-size:13px; text-align:center; padding:20px; background: rgba(255,255,255,0.01); border: 1px dashed var(--border-light); border-radius: 8px;">Keine verarbeitbaren Film- oder Serienprojekte in der Inbox gefunden.</div>`;
     }
 }
 
