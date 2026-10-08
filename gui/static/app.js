@@ -1,12 +1,12 @@
-import { applyTheme } from './js/theme.js?v=93';
-import { cleanSeriesName } from './js/utils.js?v=93';
-import { formatBytes } from './js/format.js?v=93';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=93';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=93';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=93';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=93';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=93';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=93';
+import { applyTheme } from './js/theme.js?v=94';
+import { cleanSeriesName } from './js/utils.js?v=94';
+import { formatBytes } from './js/format.js?v=94';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=94';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=94';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=94';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=94';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=94';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=94';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -10566,7 +10566,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const pcloud_destination_id = document.getElementById("series-pcloud-destination").value;
                 const force_absolute_season_1 = document.getElementById("series-option-absolute-numbering")?.checked || false;
 
-                await fetch("/api/profile", {
+                const response = await fetch("/api/profile", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -10586,8 +10586,20 @@ document.addEventListener("DOMContentLoaded", () => {
                         }
                     })
                 });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.success === true) {
+                        populateLocalProfilesDropdown();
+                    } else {
+                        appendConsoleLog("[System]: ❌ Profil wurde nicht gespeichert. Einstellungen gelten nur für diesen Lauf. Nach Neuladen erneut versuchen.");
+                    }
+                } else {
+                    appendConsoleLog("[System]: ❌ Profil konnte nicht gespeichert werden (Verbindungsfehler). Einstellungen gelten nur für diesen Lauf.");
+                }
             } catch (err) {
                 console.error("Error saving show profile on execution:", err);
+                appendConsoleLog("[System]: ❌ Profil konnte nicht gespeichert werden (Verbindungsfehler). Einstellungen gelten nur für diesen Lauf.");
             }
         }
 

@@ -3662,5 +3662,289 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                     process_worker(params)
                 self.assertIn("Access Denied", str(context.exception))
 
+    def test_show_name_mismatch_override_with_nas_folder(self):
+        """AK2: nas_show_folder equals NAS folder name (even with bracket tags, underscores, or trailing spaces) suppresses mismatch warning."""
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+
+        nas_root = os.path.join(self.test_dir, "nas_ak2_test")
+        inbox_dir = os.path.join(self.test_dir, "inbox_ak2_test")
+        os.makedirs(nas_root, exist_ok=True)
+        os.makedirs(inbox_dir, exist_ok=True)
+
+        # Create folder on NAS with bracket tags and underscores
+        raw_nas_name = "Yu_Gi_Oh! [TMDB_TV]"
+        nas_show_dir = os.path.join(nas_root, "Serien", raw_nas_name)
+        os.makedirs(nas_show_dir, exist_ok=True)
+        with open(os.path.join(nas_show_dir, "tvshow.nfo"), "w") as f:
+            f.write("<tvshow><tmdbid>12345</tmdbid><title>Yu-Gi-Oh!</title></tvshow>")
+
+        utils._MOCK_SETTINGS = {
+            "inbox_dir": inbox_dir,
+            "outbox_dir": os.path.join(self.test_dir, "outbox_ak2_test"),
+            "nas_root": nas_root,
+            "sync_categories": [
+                {"id": "2", "name": "Serien", "nas_sub": "/Serien"}
+            ]
+        }
+
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+
+        project_dir = os.path.join(inbox_dir, "Yu-Gi-Oh!")
+        os.makedirs(project_dir, exist_ok=True)
+        with open(os.path.join(project_dir, "ep1.mp4"), "w") as f:
+            f.write("content")
+
+        orig_fetch = server.mw_metadata.fetch_tmdb_tv
+        server.mw_metadata.fetch_tmdb_tv = lambda show_id, season, lang: {
+            "1": {"title": "First Episode"}
+        }
+
+        try:
+            # Control Assert: without nas_show_folder, mismatch is present
+            dummy_ctrl = DummyHandler()
+            base_params = {
+                "media_type": "tv",
+                "project_name": "Yu-Gi-Oh!",
+                "show_name": "Yu-Gi-Oh! Duel Monsters",
+                "show_id": "12345",
+                "provider": "tmdb_tv",
+                "season": "1",
+                "copy_to_nas": True,
+                "mappings": {"ep1.mp4": "1"}
+            }
+            GUIRequestHandler.handle_api_preview_process(dummy_ctrl, base_params)
+            ctrl_result = dummy_ctrl.sent_json
+            self.assertIsNotNone(ctrl_result)
+            self.assertIsNotNone(ctrl_result.get("show_name_mismatch"), "Control assert: mismatch must be present when nas_show_folder is missing")
+
+            # Variant 1: exact raw nas_name
+            dummy_test1 = DummyHandler()
+            params1 = dict(base_params)
+            params1["nas_show_folder"] = raw_nas_name
+            GUIRequestHandler.handle_api_preview_process(dummy_test1, params1)
+            result1 = dummy_test1.sent_json
+            self.assertIsNotNone(result1)
+            self.assertNotIn("show_name_mismatch", result1, "Mismatch must be suppressed when nas_show_folder equals NAS folder name")
+
+            # Variant 2 (produktberater-Zusatz): nas_name with trailing spaces
+            dummy_test2 = DummyHandler()
+            params2 = dict(base_params)
+            params2["nas_show_folder"] = raw_nas_name + "   "
+            GUIRequestHandler.handle_api_preview_process(dummy_test2, params2)
+            result2 = dummy_test2.sent_json
+            self.assertIsNotNone(result2)
+            self.assertNotIn("show_name_mismatch", result2, "Mismatch must be suppressed when nas_show_folder has trailing spaces")
+        finally:
+            server.mw_metadata.fetch_tmdb_tv = orig_fetch
+            utils._MOCK_SETTINGS = None
+
+    def test_show_name_mismatch_override_with_metadata_name(self):
+        """AK3: nas_show_folder equals metadata_show_name suppresses mismatch warning."""
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+
+        nas_root = os.path.join(self.test_dir, "nas_ak3_test")
+        inbox_dir = os.path.join(self.test_dir, "inbox_ak3_test")
+        os.makedirs(nas_root, exist_ok=True)
+        os.makedirs(inbox_dir, exist_ok=True)
+
+        raw_nas_name = "Yu-Gi-Oh! (2000)"
+        nas_show_dir = os.path.join(nas_root, "Serien", raw_nas_name)
+        os.makedirs(nas_show_dir, exist_ok=True)
+        with open(os.path.join(nas_show_dir, "tvshow.nfo"), "w") as f:
+            f.write("<tvshow><tmdbid>12345</tmdbid><title>Yu-Gi-Oh! (2000)</title></tvshow>")
+
+        utils._MOCK_SETTINGS = {
+            "inbox_dir": inbox_dir,
+            "outbox_dir": os.path.join(self.test_dir, "outbox_ak3_test"),
+            "nas_root": nas_root,
+            "sync_categories": [
+                {"id": "2", "name": "Serien", "nas_sub": "/Serien"}
+            ]
+        }
+
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+
+        project_dir = os.path.join(inbox_dir, "Yu-Gi-Oh!")
+        os.makedirs(project_dir, exist_ok=True)
+        with open(os.path.join(project_dir, "ep1.mp4"), "w") as f:
+            f.write("content")
+
+        orig_fetch = server.mw_metadata.fetch_tmdb_tv
+        server.mw_metadata.fetch_tmdb_tv = lambda show_id, season, lang: {
+            "1": {"title": "First Episode"}
+        }
+
+        try:
+            # Control Assert: without nas_show_folder, mismatch is present
+            dummy_ctrl = DummyHandler()
+            base_params = {
+                "media_type": "tv",
+                "project_name": "Yu-Gi-Oh!",
+                "show_name": "Yu-Gi-Oh! Duel Monsters",
+                "show_id": "12345",
+                "provider": "tmdb_tv",
+                "season": "1",
+                "copy_to_nas": True,
+                "mappings": {"ep1.mp4": "1"}
+            }
+            GUIRequestHandler.handle_api_preview_process(dummy_ctrl, base_params)
+            ctrl_result = dummy_ctrl.sent_json
+            self.assertIsNotNone(ctrl_result)
+            self.assertIsNotNone(ctrl_result.get("show_name_mismatch"), "Control assert: mismatch must be present when nas_show_folder is missing")
+
+            # Override equals metadata name
+            dummy_test = DummyHandler()
+            params = dict(base_params)
+            params["nas_show_folder"] = "Yu-Gi-Oh! Duel Monsters"
+            GUIRequestHandler.handle_api_preview_process(dummy_test, params)
+            result = dummy_test.sent_json
+            self.assertIsNotNone(result)
+            self.assertNotIn("show_name_mismatch", result, "Mismatch must be suppressed when nas_show_folder equals metadata_name")
+        finally:
+            server.mw_metadata.fetch_tmdb_tv = orig_fetch
+            utils._MOCK_SETTINGS = None
+
+    def test_show_name_mismatch_override_third_name(self):
+        """AK4: nas_show_folder set to a completely different third name retains mismatch warning."""
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+
+        nas_root = os.path.join(self.test_dir, "nas_ak4_test")
+        inbox_dir = os.path.join(self.test_dir, "inbox_ak4_test")
+        os.makedirs(nas_root, exist_ok=True)
+        os.makedirs(inbox_dir, exist_ok=True)
+
+        raw_nas_name = "Yu-Gi-Oh! (2000)"
+        nas_show_dir = os.path.join(nas_root, "Serien", raw_nas_name)
+        os.makedirs(nas_show_dir, exist_ok=True)
+        with open(os.path.join(nas_show_dir, "tvshow.nfo"), "w") as f:
+            f.write("<tvshow><tmdbid>12345</tmdbid><title>Yu-Gi-Oh! (2000)</title></tvshow>")
+
+        utils._MOCK_SETTINGS = {
+            "inbox_dir": inbox_dir,
+            "outbox_dir": os.path.join(self.test_dir, "outbox_ak4_test"),
+            "nas_root": nas_root,
+            "sync_categories": [
+                {"id": "2", "name": "Serien", "nas_sub": "/Serien"}
+            ]
+        }
+
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+
+        project_dir = os.path.join(inbox_dir, "Yu-Gi-Oh!")
+        os.makedirs(project_dir, exist_ok=True)
+        with open(os.path.join(project_dir, "ep1.mp4"), "w") as f:
+            f.write("content")
+
+        orig_fetch = server.mw_metadata.fetch_tmdb_tv
+        server.mw_metadata.fetch_tmdb_tv = lambda show_id, season, lang: {
+            "1": {"title": "First Episode"}
+        }
+
+        try:
+            dummy_test = DummyHandler()
+            params = {
+                "media_type": "tv",
+                "project_name": "Yu-Gi-Oh!",
+                "show_name": "Yu-Gi-Oh! Duel Monsters",
+                "show_id": "12345",
+                "provider": "tmdb_tv",
+                "season": "1",
+                "copy_to_nas": True,
+                "nas_show_folder": "Komplettnamens-Ausweichwert",
+                "mappings": {"ep1.mp4": "1"}
+            }
+            GUIRequestHandler.handle_api_preview_process(dummy_test, params)
+            result = dummy_test.sent_json
+            self.assertIsNotNone(result)
+            mismatch = result.get("show_name_mismatch")
+            self.assertIsNotNone(mismatch, "Mismatch must NOT be suppressed for a completely third name")
+            self.assertEqual(mismatch["nas_name"], "Yu-Gi-Oh! (2000)")
+            self.assertEqual(mismatch["metadata_name"], "Yu-Gi-Oh! Duel Monsters")
+        finally:
+            server.mw_metadata.fetch_tmdb_tv = orig_fetch
+            utils._MOCK_SETTINGS = None
+
+    def test_show_name_mismatch_empty_and_non_string_guards(self):
+        """AK5: nas_show_folder missing, empty, whitespace-only, or non-string types behave identically to legacy mismatch logic."""
+        import gui.server as server
+        from gui.server import GUIRequestHandler
+
+        nas_root = os.path.join(self.test_dir, "nas_ak5_test")
+        inbox_dir = os.path.join(self.test_dir, "inbox_ak5_test")
+        os.makedirs(nas_root, exist_ok=True)
+        os.makedirs(inbox_dir, exist_ok=True)
+
+        raw_nas_name = "Yu-Gi-Oh! (2000)"
+        nas_show_dir = os.path.join(nas_root, "Serien", raw_nas_name)
+        os.makedirs(nas_show_dir, exist_ok=True)
+        with open(os.path.join(nas_show_dir, "tvshow.nfo"), "w") as f:
+            f.write("<tvshow><tmdbid>12345</tmdbid><title>Yu-Gi-Oh! (2000)</title></tvshow>")
+
+        utils._MOCK_SETTINGS = {
+            "inbox_dir": inbox_dir,
+            "outbox_dir": os.path.join(self.test_dir, "outbox_ak5_test"),
+            "nas_root": nas_root,
+            "sync_categories": [
+                {"id": "2", "name": "Serien", "nas_sub": "/Serien"}
+            ]
+        }
+
+        class DummyHandler:
+            def __init__(self):
+                self.sent_json = None
+            def send_json(self, data):
+                self.sent_json = data
+
+        project_dir = os.path.join(inbox_dir, "Yu-Gi-Oh!")
+        os.makedirs(project_dir, exist_ok=True)
+        with open(os.path.join(project_dir, "ep1.mp4"), "w") as f:
+            f.write("content")
+
+        orig_fetch = server.mw_metadata.fetch_tmdb_tv
+        server.mw_metadata.fetch_tmdb_tv = lambda show_id, season, lang: {
+            "1": {"title": "First Episode"}
+        }
+
+        try:
+            test_values = [None, "", "   ", "\t\n", 123, ["Yu-Gi-Oh! (2000)"], {"folder": "Yu-Gi-Oh! (2000)"}]
+            for val in test_values:
+                dummy = DummyHandler()
+                params = {
+                    "media_type": "tv",
+                    "project_name": "Yu-Gi-Oh!",
+                    "show_name": "Yu-Gi-Oh! Duel Monsters",
+                    "show_id": "12345",
+                    "provider": "tmdb_tv",
+                    "season": "1",
+                    "copy_to_nas": True,
+                    "nas_show_folder": val,
+                    "mappings": {"ep1.mp4": "1"}
+                }
+                GUIRequestHandler.handle_api_preview_process(dummy, params)
+                result = dummy.sent_json
+                self.assertIsNotNone(result)
+                mismatch = result.get("show_name_mismatch")
+                self.assertIsNotNone(mismatch, f"Mismatch must be present for guard value: {repr(val)}")
+                self.assertEqual(mismatch["nas_name"], "Yu-Gi-Oh! (2000)")
+                self.assertEqual(mismatch["metadata_name"], "Yu-Gi-Oh! Duel Monsters")
+        finally:
+            server.mw_metadata.fetch_tmdb_tv = orig_fetch
+            utils._MOCK_SETTINGS = None
+
 if __name__ == "__main__":
     unittest.main()

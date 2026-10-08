@@ -756,10 +756,18 @@ def handle_api_preview_process():
             metadata_show_name = limit_filename_length(clean_series_name_for_fs(show_name))
 
             if nas_match_folder and nas_match_folder != metadata_show_name:
-                preview["show_name_mismatch"] = {
-                    "nas_name": nas_match_folder,
-                    "metadata_name": metadata_show_name
-                }
+                suppress_mismatch = False
+                if isinstance(nas_show_folder, str) and nas_show_folder.strip():
+                    norm_override = limit_filename_length(clean_series_name_for_fs(nas_show_folder.strip()))
+                    norm_nas_match = limit_filename_length(clean_series_name_for_fs(nas_match_folder.strip()))
+                    if norm_override == norm_nas_match or norm_override == metadata_show_name:
+                        suppress_mismatch = True
+
+                if not suppress_mismatch:
+                    preview["show_name_mismatch"] = {
+                        "nas_name": nas_match_folder,
+                        "metadata_name": metadata_show_name
+                    }
 
     return jsonify(preview)
 
