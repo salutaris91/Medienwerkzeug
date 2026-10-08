@@ -121,7 +121,7 @@ liefert `suggested_query`. Liest den Parameter aus der **Query** (GET).
 
 ### `GET /api/inbox/analyze` *(Feature 1 — Smart Inbox)*
 Analysiert alle Inbox-Projekte und liefert Vorschläge mit Typ, Profil-Match,
-Codec-Status und Begründungs-Chips (`reasons`).
+Codec-Status, Begründungs-Chips (`reasons`), Änderungsdatum und Gesamtgröße.
 ```json
 {
   "suggestions": [{
@@ -132,10 +132,15 @@ Codec-Status und Begründungs-Chips (`reasons`).
     "suggested_query": "Heroes",
     "video_count": 1,
     "has_inefficient_codec": true,
-    "reasons": ["Profil gefunden", "Serie erkannt", "Codec ineffizient (H.265 empfohlen)"]
+    "reasons": ["Profil gefunden", "Serie erkannt", "Codec ineffizient (H.265 empfohlen)"],
+    "modified_at": 1728381200,
+    "total_size": 1548291000
   }]
 }
 ```
+Liefert pro Eintrag zusätzlich:
+- `modified_at` (`int` Unix-Sekunden oder `null`): Größte `st_mtime` aller Videodateien im Projekt.
+- `total_size` (`int` in Bytes): Summe aller Dateigrößen (`st_size`) der Videodateien im Projekt.
 
 ### `GET|POST /api/paths-preview-clean` · `POST /api/paths-clean`
 Vorschau (GET/POST) bzw. Ausführung der Bereinigung von Inbox/Outbox (POST, Payload: `inbox_files`,

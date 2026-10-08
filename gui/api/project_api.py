@@ -1358,6 +1358,19 @@ def get_inbox_suggestions():
                     break
         except Exception as e:
             print(f"Error checking codecs in suggestions: {e}")
+
+        # Compute total_size and modified_at via os.stat over video_files
+        total_size = 0
+        mtimes = []
+        for vf in video_files:
+            try:
+                st = os.stat(vf)
+                total_size += st.st_size
+                mtimes.append(st.st_mtime)
+            except OSError as e:
+                log_message(f"⚠️ Datei konnte für Größen-/Datums-Berechnung nicht gelesen werden ({vf}): {e}")
+
+        modified_at = int(max(mtimes)) if mtimes else None
             
         # Check NFO files for Doku keywords
         is_doku = False
@@ -1483,7 +1496,9 @@ def get_inbox_suggestions():
             "suggested_query": suggested_query,
             "video_count": video_count,
             "has_inefficient_codec": has_inefficient,
-            "reasons": reasons
+            "reasons": reasons,
+            "modified_at": modified_at,
+            "total_size": total_size
         })
             
     _inbox_cache = suggestions

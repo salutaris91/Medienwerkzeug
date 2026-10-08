@@ -6,7 +6,7 @@
     <meta name="description" content="Medienwerkzeug - Automatisches Umbennen, Konvertieren und Kopieren von Filmen und Serien auf das NAS.">
     <meta name="color-scheme" content="dark">
     <title>Medienwerkzeug v5.0 (Master-Detail)</title>
-    <link rel="stylesheet" href="style.css?v=47">
+    <link rel="stylesheet" href="style.css?v=48">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -457,6 +457,12 @@
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
                             <h4 style="margin: 0; font-size: 0.95em; color: var(--text-main); font-weight: 600;">Erkannte Projekte in der Inbox</h4>
                             <button class="btn btn-danger btn-xs" id="btn-paths-clean-trigger" style="padding: 4px 10px; font-size: 11px;"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2" style="display:inline-block; vertical-align:middle; margin-right: 4px; height: 10px; width: 10px;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> BEREINIGEN</button>
+                        </div>
+                        <div id="smart-inbox-sort-bar" role="toolbar" style="display: none;">
+                            <span style="font-size: 0.8em; color: var(--text-muted); font-weight: 500;">Sortieren:</span>
+                            <button class="btn btn-secondary btn-xs smart-inbox-sort-btn" data-field="name" aria-pressed="false">Name</button>
+                            <button class="btn btn-secondary btn-xs smart-inbox-sort-btn" data-field="date" aria-pressed="false">Datum</button>
+                            <button class="btn btn-secondary btn-xs smart-inbox-sort-btn" data-field="size" aria-pressed="false">Größe</button>
                         </div>
                         <div id="smart-inbox-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
                     </div>
@@ -2749,7 +2755,7 @@ group_add:
     </div>
 </div>
 
-    <script type="module" src="app.js?v=94"></script>
+    <script type="module" src="app.js?v=95"></script>
 
     <!-- Modal: Confirm Merge -->
     <div id="modal-confirm-merge" class="mw-modal-overlay">

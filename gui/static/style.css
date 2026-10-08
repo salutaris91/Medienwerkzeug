@@ -3831,3 +3831,33 @@ body.runtime-docker .docker-only-info {
     color: var(--danger, #ef4444);
     margin-top: 6px;
 }
+
+/* Smart Inbox Sort Bar */
+#smart-inbox-sort-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.smart-inbox-sort-btn {
+    min-height: 28px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    transition: all 0.15s ease;
+}
+
+.smart-inbox-sort-btn[aria-pressed="true"] {
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.12);
+    border-color: var(--accent, #00e5ff);
+    color: var(--accent, #00e5ff);
+}
+
+.smart-inbox-sort-btn:hover,
+.smart-inbox-sort-btn:focus-visible {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.25);
+}
