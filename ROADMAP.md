@@ -1886,3 +1886,47 @@ Der Hinweis rendert beide Namen rein als Text; HTML-Sonderzeichen werden escaped
 
 ### Aufwand (grob)
 Klein (eine Zeile + ein Test).
+
+---
+
+## 68. Inbox-Aufräumen: leere Ordner fremder Projekte nicht in die Quarantäne verschieben
+
+**Einordnung / Priorität:** Daten-Hygiene (vorbestehender Befund, gefunden 08.10.2026 in der #64/#65-Session, von Claude Code im Code verifiziert). Berührt sich mit #65 (Weg 2: Dateiliste an den Server); bei der #65-Umsetzung mitentscheiden.
+
+**Problem:**
+Verarbeitet ein Auftrag eine einzelne Videodatei direkt im Inbox-Ordner, ist sein Arbeitsordner die gesamte Inbox (`gui/workers/processor.py:846–856`: `is_single_file` → `current_dir = dirname(...)`). Nach den Vorschau-Zuweisungen räumt der Processor leere Unterordner auf (`processor.py:974–980`, `os.walk(current_dir)` → `trash.send_to_trash`). Dadurch landen auch leere Ordner **anderer** Inbox-Projekte in der Quarantäne. Die Quarantäne ist umkehrbar, gewollt ist das aber nicht.
+
+**Ziel:**
+Das Aufräumen leerer Ordner beschränkt sich auf Ordner, die der aktuelle Auftrag selbst geleert hat (bzw. auf den Projektordner des Auftrags).
+
+**Umsetzung:**
+1. Bei Einzeldatei-Aufträgen (Arbeitsordner = Inbox-Root) das Leere-Ordner-Aufräumen überspringen oder auf die vom Auftrag berührten Pfade begrenzen.
+2. Regressionstest: Inbox mit Einzeldatei + fremdem leeren Ordner → nach dem Auftrag existiert der fremde Ordner noch.
+
+### Risiken & Hinweise
+- Mit #65 Weg 2 (`files[]`, Scope auf die Gruppe begrenzt) entsteht dieselbe Frage für Gruppen-Aufträge; gemeinsam lösen, nicht doppelt.
+
+### Aufwand (grob)
+Klein (Bedingung + ein Test).
+
+---
+
+## 69. Filmreihe am Stück verarbeiten (mehrere Filme auswählen, nacheinander als Filme einreihen)
+
+**Einordnung / Priorität:** Komfort für den Filmimport. Aus der #65-Planung ausgegliedert (Alex, 08.10.2026: „1–4 ja, Regeln 1–3 ja“). Bezug zu #65 (Auswahlkästchen) und #20.
+
+**Problem:**
+Mehrere Filme einer Reihe (z. B. Teil 1–8) liegen als einzelne Einträge in der Inbox und müssen heute einzeln verarbeitet werden. „Als Serie gruppieren“ (#65) ist für Filme bewusst gesperrt (Filme sollen nie versehentlich durch den Serien-Ablauf laufen).
+
+**Ziel:**
+Mehrere Film-Einträge ankreuzen und in einem Schritt als **Film**-Aufträge nacheinander einreihen, jeweils mit eigener Metadaten-Zuordnung.
+
+**Umsetzung:**
+1. Mehrfachauswahl (Auswahlkästchen aus #65 wiederverwenden) mit Aktion „Als Filme einreihen“.
+2. Je Film eigene Vorschau/Metadaten-Bestätigung oder ein kompakter Sammeldialog — Detail in eigener Planung.
+
+### Risiken & Hinweise
+- N Aufträge = N Metadaten-Abfragen; Rate-Limits beachten (Bezug #54).
+
+### Aufwand (grob)
+Mittel (UI-Sammeldialog ist der Hauptteil).
