@@ -41,6 +41,12 @@ class TestInboxSuggestions(unittest.TestCase):
         self.client = app.test_client()
 
     def tearDown(self):
+        os.environ.pop("MW_SETTINGS_FILE", None)
+        os.environ.pop("MW_JOBS_STATE_FILE", None)
+        os.environ.pop("MW_ENV_FILE", None)
+        os.environ.pop("MW_DATA_DIR", None)
+        os.environ.pop("FLASK_SECRET_KEY", None)
+        self.persistence._cached_settings = None
         project_api._inbox_cache = {}
         project_api._inbox_cache_time = 0
         self.temp_dir.cleanup()
