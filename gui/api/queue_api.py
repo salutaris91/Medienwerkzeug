@@ -73,6 +73,9 @@ def handle_api_preview_process():
     files_param = params.get("files")
     validated_files = None
     if files_param is not None:
+        if media_type != "tv":
+            msg = "files[] wird nur für media_type 'tv' unterstützt."
+            return jsonify({"status": "error", "error": msg, "message": msg}), 400
         from gui.core.helpers import validate_group_files, find_group_companion_files
         try:
             validated_files = validate_group_files(inbox_root, files_param)
@@ -808,8 +811,12 @@ def handle_api_process():
     settings = load_settings()
     inbox_root = settings.get("inbox_dir", "")
 
+    media_type = params.get("media_type", "unknown")
     files_param = params.get("files")
     if files_param is not None:
+        if media_type != "tv":
+            msg = "files[] wird nur für media_type 'tv' unterstützt."
+            return jsonify({"status": "error", "error": msg, "message": msg}), 400
         from gui.core.helpers import validate_group_files
         try:
             validated_files = validate_group_files(inbox_root, files_param)
@@ -827,7 +834,6 @@ def handle_api_process():
 
     task_id = str(uuid.uuid4())
     params["task_id"] = task_id
-    media_type = params.get("media_type", "unknown")
 
     name = params.get("project_name", "Unbekannt")
     if name.endswith("/"): name = name[:-1]

@@ -410,6 +410,8 @@ def move_with_fallback(src_path, dest_dir, fallback_basename, whitelist=None):
             is_metadata = False
             if ext == '.nfo':
                 is_metadata = True
+            elif fallback_basename and filename.startswith(fallback_basename):
+                target_name = filename
             else:
                 metadata_keywords = ['poster', 'fanart', 'backdrop', 'folder', 'logo', 'banner', 'clearlogo', 'cover', 'background', 'art', 'default']
                 for kw in metadata_keywords:
@@ -866,6 +868,8 @@ def process_worker(params):
     scope_files = None
 
     if files_param is not None:
+        if media_type != "tv":
+            raise RuntimeError(f"files[] wird nur für media_type 'tv' unterstützt, erhalten: '{media_type}'.")
         if not isinstance(files_param, list) or len(files_param) == 0:
             raise RuntimeError("files-Parameter muss eine nicht-leere Liste sein.")
         current_dir = inbox_root
@@ -949,19 +953,19 @@ def process_worker(params):
         if explicit_junk:
             for j in explicit_junk:
                 norm_j = os.path.normpath(j)
-                if norm_j not in scope_files and os.path.basename(j) not in scope_files and j not in scope_files:
+                if norm_j not in scope_files:
                     raise RuntimeError(f"Sicherheitsabbruch: Junk-Datei '{j}' liegt außerhalb des Job-Scopes.")
         if explicit_subs:
             for s in explicit_subs:
                 old_s = s.get("old") if isinstance(s, dict) else s
                 norm_s = os.path.normpath(old_s)
-                if norm_s not in scope_files and os.path.basename(old_s) not in scope_files and old_s not in scope_files:
+                if norm_s not in scope_files:
                     raise RuntimeError(f"Sicherheitsabbruch: Untertitel-Datei '{old_s}' liegt außerhalb des Job-Scopes.")
         if explicit_renames:
             for r in explicit_renames:
                 old_r = r.get("old") if isinstance(r, dict) else r
                 norm_r = os.path.normpath(old_r)
-                if norm_r not in scope_files and os.path.basename(old_r) not in scope_files and old_r not in scope_files:
+                if norm_r not in scope_files:
                     raise RuntimeError(f"Sicherheitsabbruch: Rename-Datei '{old_r}' liegt außerhalb des Job-Scopes.")
 
     # 0. Apply explicit user choices from preview if provided
@@ -1044,8 +1048,8 @@ def process_worker(params):
                     os.rename(old_path, new_path)
                     log_message(f"Umbenannt/Hochgezogen (Extra): {s['old']} -> {s['new']}")
 
-        # Cleanup empty subdirectories (skip for files_param and inbox_root)
-        if files_param is None and current_dir != inbox_root:
+        # Cleanup empty subdirectories (skip for files-Jobs)
+        if files_param is None:
             for root, dirs, files in os.walk(current_dir, topdown=False):
                 if root == current_dir: continue
                 if not os.listdir(root):
@@ -1458,18 +1462,52 @@ def process_worker(params):
                                 continue
 
                     # Rename subtitles
-                    base_old = os.path.splitext(filename)[0]
-                    for f in os.listdir(current_dir):
-                        if f.startswith(base_old) and f != filename:
-                            sub_ext = os.path.splitext(f)[1].lower()
-                            if sub_ext in ['.srt', '.vtt', '.ass', '.ssa', '.sub', '.idx']:
-                                sub_old_path = os.path.join(current_dir, f)
-                                sub_new_path = os.path.join(current_dir, f"{clean_title}{sub_ext}")
-                                log_message(f"Benenne Untertitel um: {f} -> {clean_title}{sub_ext}")
-                                try:
-                                    os.rename(sub_old_path, sub_new_path)
-                                except Exception as e:
-                                    log_message(f"Fehler: {e}")
+                    if files_param is not None:
+                        filename_dir = os.path.dirname(filename)
+                        vstem = os.path.splitext(os.path.basename(filename))[0]
+                        vprefix = vstem + "."
+                        seen_sub_targets = set()
+                        if companion_files:
+                            for comp in companion_files:
+                                comp_dir = os.path.dirname(comp)
+                                comp_name = os.path.basename(comp)
+                                if os.path.normpath(comp_dir) == os.path.normpath(filename_dir):
+                                    if comp_name.startswith(vprefix) or os.path.splitext(comp_name)[0] == vstem:
+                                        sub_ext = os.path.splitext(comp_name)[1].lower()
+                                        if sub_ext in ['.srt', '.vtt', '.ass', '.ssa', '.sub', '.idx']:
+                                            comp_base_no_ext = os.path.splitext(comp_name)[0]
+                                            suffix_after_stem = comp_base_no_ext[len(vstem):]
+                                            sub_new_name = f"{clean_title}{suffix_after_stem}{sub_ext}"
+                                            if sub_new_name in seen_sub_targets:
+                                                raise RuntimeError(
+                                                    f"Kollision beim Umbenennen von Untertitel: Mehrere Dateien ergeben '{sub_new_name}'."
+                                                )
+                                            seen_sub_targets.add(sub_new_name)
+                                            sub_old_path = os.path.join(current_dir, comp)
+                                            sub_new_path = os.path.join(current_dir, sub_new_name)
+                                            if os.path.exists(sub_old_path):
+                                                if os.path.exists(sub_new_path) and sub_old_path != sub_new_path:
+                                                    raise RuntimeError(
+                                                        f"Kollision beim Umbenennen von Untertitel: Ziel '{sub_new_name}' existiert bereits."
+                                                    )
+                                                log_message(f"Benenne Untertitel um: {comp} -> {sub_new_name}")
+                                                try:
+                                                    os.rename(sub_old_path, sub_new_path)
+                                                except Exception as e:
+                                                    log_message(f"Fehler: {e}")
+                    else:
+                        base_old = os.path.splitext(filename)[0]
+                        for f in os.listdir(current_dir):
+                            if f.startswith(base_old) and f != filename:
+                                sub_ext = os.path.splitext(f)[1].lower()
+                                if sub_ext in ['.srt', '.vtt', '.ass', '.ssa', '.sub', '.idx']:
+                                    sub_old_path = os.path.join(current_dir, f)
+                                    sub_new_path = os.path.join(current_dir, f"{clean_title}{sub_ext}")
+                                    log_message(f"Benenne Untertitel um: {f} -> {clean_title}{sub_ext}")
+                                    try:
+                                        os.rename(sub_old_path, sub_new_path)
+                                    except Exception as e:
+                                        log_message(f"Fehler: {e}")
 
                 # Generate Episode NFO
                 if show_id and provider:
@@ -1582,21 +1620,30 @@ def process_worker(params):
                         if files_param is not None:
                             episode_allowed_files = set()
                             episode_allowed_files.add(filename)
+                            episode_allowed_files.add(os.path.basename(filename))
                             episode_allowed_files.add(target_filename)
                             episode_allowed_files.add(f"{clean_title}.nfo")
-                            base_old = os.path.splitext(filename)[0]
+                            filename_dir = os.path.dirname(filename)
+                            vstem = os.path.splitext(os.path.basename(filename))[0]
+                            vprefix = vstem + "."
                             if companion_files:
                                 for comp in companion_files:
-                                    comp_base = os.path.basename(comp)
-                                    if comp_base.startswith(base_old):
-                                        episode_allowed_files.add(comp)
-                                        episode_allowed_files.add(comp_base)
-                                        comp_ext = os.path.splitext(comp)[1]
-                                        episode_allowed_files.add(f"{clean_title}{comp_ext}")
+                                    comp_dir = os.path.dirname(comp)
+                                    comp_name = os.path.basename(comp)
+                                    if os.path.normpath(comp_dir) == os.path.normpath(filename_dir):
+                                        if comp_name.startswith(vprefix) or os.path.splitext(comp_name)[0] == vstem:
+                                            episode_allowed_files.add(comp)
+                                            episode_allowed_files.add(comp_name)
+                                            comp_base_no_ext = os.path.splitext(comp_name)[0]
+                                            suffix_after_stem = comp_base_no_ext[len(vstem):]
+                                            comp_ext = os.path.splitext(comp_name)[1]
+                                            episode_allowed_files.add(f"{clean_title}{suffix_after_stem}{comp_ext}")
+                                            episode_allowed_files.add(f"{clean_title}{comp_ext}")
                             if whitelist_tv:
                                 for item in whitelist_tv:
                                     if item.get("new", "").startswith(clean_title) or path_endswith(filename, item.get("old", "")):
                                         episode_allowed_files.add(item["old"])
+                                        episode_allowed_files.add(os.path.basename(item["old"]))
                                         episode_allowed_files.add(item["new"])
 
                         safe_move_recursive(
@@ -1607,7 +1654,7 @@ def process_worker(params):
                             whitelist=whitelist_tv,
                             junk_list=explicit_junk,
                             allowed_files=episode_allowed_files,
-                            cleanup_empty_dirs=(files_param is None and current_dir != inbox_root)
+                            cleanup_empty_dirs=(files_param is None)
                         )
                     except Exception as e:
                         log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")

@@ -329,7 +329,7 @@ class TestInboxGroupFiles(unittest.TestCase):
         outbox_show = os.path.join(self.outbox_dir, "Serien", "MyShow")
         outbox_s1_e1 = os.path.join(outbox_show, "Staffel 1", "MyShow - S01E01 - Pilot")
         self.assertTrue(os.path.exists(os.path.join(outbox_s1_e1, "MyShow - S01E01 - Pilot.mkv")))
-        self.assertTrue(os.path.exists(os.path.join(outbox_s1_e1, "MyShow - S01E01 - Pilot.srt")))
+        self.assertTrue(os.path.exists(os.path.join(outbox_s1_e1, "MyShow - S01E01 - Pilot.de.srt")))
 
         # B. Group files removed from Inbox
         self.assertFalse(os.path.exists(ep1))
@@ -471,6 +471,257 @@ class TestInboxGroupFiles(unittest.TestCase):
 
         out_movie = os.path.join(self.outbox_dir, "Filme", "SingleMovie (2023)", "SingleMovie (2023).mkv")
         self.assertTrue(os.path.exists(out_movie))
+
+    # =========================================================================
+    # Review Round 2 Fixes (R1, R2, R3, R4, D1/D3)
+    # =========================================================================
+    def test_r1_files_param_with_non_tv_media_type_rejected(self):
+        """
+        R1: /preview_process and /process reject files[] with media_type != 'tv' (HTTP 400);
+        process_worker raises RuntimeError and leaves files untouched.
+        """
+        mov_file = os.path.join(self.inbox_dir, "MyMovie.mkv")
+        with open(mov_file, "wb") as f: f.write(b"movie_data")
+
+        # 1. /preview_process with movie -> 400
+        res = self.client.post('/api/preview-process', json={
+            "media_type": "movie",
+            "files": ["MyMovie.mkv"],
+            "movie_name": "MyMovie"
+        })
+        self.assertEqual(res.status_code, 400)
+        data = res.get_json()
+        self.assertIn("files[]", data.get("error") or data.get("message"))
+
+        # 2. /process with movie -> 400
+        res = self.client.post('/api/process', json={
+            "media_type": "movie",
+            "files": ["MyMovie.mkv"],
+            "movie_name": "MyMovie"
+        })
+        self.assertEqual(res.status_code, 400)
+        data = res.get_json()
+        self.assertIn("files[]", data.get("error") or data.get("message"))
+
+        # 3. process_worker with movie and files -> RuntimeError, no files moved
+        with self.assertRaises(RuntimeError) as ctx:
+            processor.process_worker({
+                "media_type": "movie",
+                "files": ["MyMovie.mkv"],
+                "movie_name": "MyMovie"
+            })
+        self.assertIn("files[] wird nur für media_type 'tv' unterstützt", str(ctx.exception))
+        self.assertTrue(os.path.exists(mov_file))
+
+    def test_r2_explicit_junk_same_basename_in_other_folder_aborts_loudly(self):
+        """
+        R2: Scope check requires exact normalized relative path match against scope_files;
+        having the same basename in another folder triggers a loud safety abort without touching files.
+        """
+        ep1 = os.path.join(self.inbox_dir, "Folge 1.mkv")
+        sub1 = os.path.join(self.inbox_dir, "Folge 1.srt")
+        with open(ep1, "wb") as f: f.write(b"ep1")
+        with open(sub1, "wb") as f: f.write(b"sub1")
+
+        foreign_dir = os.path.join(self.inbox_dir, "Fremdordner")
+        os.makedirs(foreign_dir, exist_ok=True)
+        foreign_sub = os.path.join(foreign_dir, "Folge 1.srt")
+        with open(foreign_sub, "wb") as f: f.write(b"foreign_sub")
+
+        params = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": ["Folge 1.mkv"],
+            "mappings": {"Folge 1.mkv": 1},
+            "explicit_junk": ["Fremdordner/Folge 1.srt"]  # Outside scope despite matching basename!
+        }
+
+        with self.assertRaises(RuntimeError) as ctx:
+            processor.process_worker(params)
+        self.assertIn("Sicherheitsabbruch", str(ctx.exception))
+        self.assertTrue(os.path.exists(ep1))
+        self.assertTrue(os.path.exists(sub1))
+        self.assertTrue(os.path.exists(foreign_sub))
+
+    def test_r3_fallback_subtitle_rename_boundary_and_foreign_file_untouched(self):
+        """
+        R3: Group ['Folge 1.mkv'] without explicit_renames renames only companion subtitles
+        respecting word/dot boundary; foreign 'Folge 10.srt' in inbox root remains untouched.
+        """
+        ep1 = os.path.join(self.inbox_dir, "Folge 1.mkv")
+        sub1 = os.path.join(self.inbox_dir, "Folge 1.de.srt")
+        foreign_sub = os.path.join(self.inbox_dir, "Folge 10.srt")
+        foreign_vid = os.path.join(self.inbox_dir, "Folge 10.mkv")
+
+        with open(ep1, "wb") as f: f.write(b"ep1")
+        with open(sub1, "wb") as f: f.write(b"sub1")
+        with open(foreign_sub, "wb") as f: f.write(b"foreign_sub")
+        with open(foreign_vid, "wb") as f: f.write(b"foreign_vid")
+
+        params = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": ["Folge 1.mkv"],
+            "mappings": {"Folge 1.mkv": 1}
+            # explicit_renames is None!
+        }
+
+        with patch("gui.workers.processor.ensure_nas_mounted", return_value=True), \
+             patch("gui.mw_metadata.generate_tvshow_nfo", return_value={"nfo": True}), \
+             patch("gui.mw_metadata.generate_episode_nfo", return_value={"nfo": True}):
+            processor.process_worker(params)
+
+        # Companion subtitle was renamed and moved to outbox preserving language suffix
+        out_sub = os.path.join(self.outbox_dir, "Serien", "MyShow", "Staffel 1", "MyShow - S01E01", "MyShow - S01E01.de.srt")
+        self.assertTrue(os.path.exists(out_sub))
+
+        # Foreign files in root remain completely untouched
+        self.assertTrue(os.path.exists(foreign_sub))
+        self.assertTrue(os.path.exists(foreign_vid))
+        with open(foreign_sub, "rb") as f:
+            self.assertEqual(f.read(), b"foreign_sub")
+
+    def test_r4_subfolder_group_with_companion_file_moved_to_outbox(self):
+        """
+        R4: Group located in a subfolder with companion subtitle moves both video and subtitle to outbox.
+        """
+        sub_dir = os.path.join(self.inbox_dir, "Season 1")
+        os.makedirs(sub_dir, exist_ok=True)
+        ep1 = os.path.join(sub_dir, "Episode 01.mkv")
+        sub1 = os.path.join(sub_dir, "Episode 01.de.srt")
+
+        with open(ep1, "wb") as f: f.write(b"ep1")
+        with open(sub1, "wb") as f: f.write(b"sub1")
+
+        params = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": ["Season 1/Episode 01.mkv"],
+            "mappings": {"Season 1/Episode 01.mkv": {"season": 1, "episode": 1, "title": "SubTest"}}
+        }
+
+        with patch("gui.workers.processor.ensure_nas_mounted", return_value=True), \
+             patch("gui.mw_metadata.generate_tvshow_nfo", return_value={"nfo": True}), \
+             patch("gui.mw_metadata.generate_episode_nfo", return_value={"nfo": True}):
+            processor.process_worker(params)
+
+        out_ep = os.path.join(self.outbox_dir, "Serien", "MyShow", "Staffel 1", "MyShow - S01E01 - SubTest", "MyShow - S01E01 - SubTest.mkv")
+        out_sub = os.path.join(self.outbox_dir, "Serien", "MyShow", "Staffel 1", "MyShow - S01E01 - SubTest", "MyShow - S01E01 - SubTest.de.srt")
+        self.assertTrue(os.path.exists(out_ep))
+        self.assertTrue(os.path.exists(out_sub))
+        self.assertFalse(os.path.exists(ep1))
+        self.assertFalse(os.path.exists(sub1))
+
+    def test_d3_regression_tv_single_file_job_without_files_cleans_empty_dirs(self):
+        """
+        D3 / D1: Regression test for TV single file job WITHOUT files param (direct file in inbox root).
+        Behaves exactly as pre-#65, including cleaning empty subdirectories in inbox.
+        """
+        ep = os.path.join(self.inbox_dir, "SingleShow.S01E01.mkv")
+        with open(ep, "wb") as f: f.write(b"single_show")
+
+        empty_subdir = os.path.join(self.inbox_dir, "LeftoverEmptyDir")
+        os.makedirs(empty_subdir, exist_ok=True)
+
+        params = {
+            "media_type": "tv",
+            "project_name": "SingleShow.S01E01.mkv",
+            "show_name": "SingleShow",
+            "season": 1,
+            "copy_to_nas": False,
+            "mappings": {"SingleShow.S01E01.mkv": 1}
+        }
+
+        with patch("gui.workers.processor.ensure_nas_mounted", return_value=True), \
+             patch("gui.mw_metadata.generate_tvshow_nfo", return_value={"nfo": True}), \
+             patch("gui.mw_metadata.generate_episode_nfo", return_value={"nfo": True}):
+            processor.process_worker(params)
+
+        out_ep = os.path.join(self.outbox_dir, "Serien", "SingleShow", "Staffel 1", "SingleShow - S01E01", "SingleShow - S01E01.mkv")
+        self.assertTrue(os.path.exists(out_ep))
+        # Empty directory was cleaned up as pre-#65 behavior
+        self.assertFalse(os.path.exists(empty_subdir))
+
+    def test_fallback_subtitle_rename_multiple_languages_preserved(self):
+        """
+        R3: Multiple subtitle files with different language tags (de, en, forced)
+        are all preserved and moved to outbox without collision or silent overwriting.
+        """
+        ep1 = os.path.join(self.inbox_dir, "Folge 1.mkv")
+        sub_de = os.path.join(self.inbox_dir, "Folge 1.de.srt")
+        sub_en = os.path.join(self.inbox_dir, "Folge 1.en.srt")
+        sub_forced = os.path.join(self.inbox_dir, "Folge 1.forced.de.srt")
+
+        with open(ep1, "wb") as f: f.write(b"ep1")
+        with open(sub_de, "wb") as f: f.write(b"sub_de")
+        with open(sub_en, "wb") as f: f.write(b"sub_en")
+        with open(sub_forced, "wb") as f: f.write(b"sub_forced")
+
+        params = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": ["Folge 1.mkv"],
+            "mappings": {"Folge 1.mkv": 1}
+        }
+
+        with patch("gui.workers.processor.ensure_nas_mounted", return_value=True), \
+             patch("gui.mw_metadata.generate_tvshow_nfo", return_value={"nfo": True}), \
+             patch("gui.mw_metadata.generate_episode_nfo", return_value={"nfo": True}):
+            processor.process_worker(params)
+
+        out_dir = os.path.join(self.outbox_dir, "Serien", "MyShow", "Staffel 1", "MyShow - S01E01")
+        self.assertTrue(os.path.exists(os.path.join(out_dir, "MyShow - S01E01.mkv")))
+        self.assertTrue(os.path.exists(os.path.join(out_dir, "MyShow - S01E01.de.srt")))
+        self.assertTrue(os.path.exists(os.path.join(out_dir, "MyShow - S01E01.en.srt")))
+        self.assertTrue(os.path.exists(os.path.join(out_dir, "MyShow - S01E01.forced.de.srt")))
+
+        # Inbox has all companion subtitles removed
+        self.assertFalse(os.path.exists(sub_de))
+        self.assertFalse(os.path.exists(sub_en))
+        self.assertFalse(os.path.exists(sub_forced))
+
+    def test_explicit_subs_and_renames_outside_scope_aborts_loudly(self):
+        """
+        R2: Scope checks for explicit_subs and explicit_renames abort loudly when referencing foreign files.
+        """
+        ep1 = os.path.join(self.inbox_dir, "Folge 1.mkv")
+        with open(ep1, "wb") as f: f.write(b"ep1")
+
+        # 1. explicit_subs with out-of-scope file
+        params_subs = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": ["Folge 1.mkv"],
+            "mappings": {"Folge 1.mkv": 1},
+            "explicit_subs": [{"old": "ForeignSub.srt", "new": "MyShow - S01E01.srt"}]
+        }
+        with self.assertRaises(RuntimeError) as ctx:
+            processor.process_worker(params_subs)
+        self.assertIn("Sicherheitsabbruch", str(ctx.exception))
+
+        # 2. explicit_renames with out-of-scope file
+        params_renames = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": ["Folge 1.mkv"],
+            "mappings": {"Folge 1.mkv": 1},
+            "explicit_renames": [{"old": "ForeignEp.mkv", "new": "MyShow - S01E01.mkv"}]
+        }
+        with self.assertRaises(RuntimeError) as ctx:
+            processor.process_worker(params_renames)
+        self.assertIn("Sicherheitsabbruch", str(ctx.exception))
 
 
 if __name__ == "__main__":
