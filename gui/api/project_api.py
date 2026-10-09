@@ -1498,7 +1498,8 @@ def get_inbox_suggestions():
             "has_inefficient_codec": has_inefficient,
             "reasons": reasons,
             "modified_at": modified_at,
-            "total_size": total_size
+            "total_size": total_size,
+            "is_dir": is_dir
         })
             
     _inbox_cache = suggestions

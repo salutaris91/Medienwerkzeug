@@ -70,22 +70,43 @@ def handle_api_preview_process():
         from gui.core.transfers import resolve_category_target_path
         explicit_pcloud_base = resolve_category_target_path(pcloud_destination_id, "pcloud", media_type)
 
-    is_single_file = False
-    if project_name:
-        current_dir = os.path.join(inbox_root, project_name)
-        if os.path.isfile(current_dir):
-            is_single_file = True
-    else:
+    files_param = params.get("files")
+    validated_files = None
+    if files_param is not None:
+        from gui.core.helpers import validate_group_files, find_group_companion_files
+        try:
+            validated_files = validate_group_files(inbox_root, files_param)
+        except ValueError as ve:
+            return jsonify({"status": "error", "error": str(ve), "message": str(ve)}), 400
+
+        if mappings:
+            files_set = set(validated_files)
+            for k in mappings.keys():
+                if k not in files_set:
+                    msg = f"Ungültiger Mapping-Schlüssel '{k}': Nicht in files[] enthalten."
+                    return jsonify({"status": "error", "error": msg, "message": msg}), 400
+
+        is_single_file = False
         current_dir = inbox_root
-
-    if not os.path.exists(current_dir):
-        return jsonify({"error": "Ordner existiert nicht."})
-
-    if is_single_file:
-        all_files = [os.path.basename(current_dir)]
-        current_dir = os.path.dirname(current_dir)
+        companion_files = find_group_companion_files(inbox_root, validated_files)
+        all_files = list(validated_files) + companion_files
     else:
-        all_files = sorted(find_files_recursively(current_dir))
+        is_single_file = False
+        if project_name:
+            current_dir = os.path.join(inbox_root, project_name)
+            if os.path.isfile(current_dir):
+                is_single_file = True
+        else:
+            current_dir = inbox_root
+
+        if not os.path.exists(current_dir):
+            return jsonify({"error": "Ordner existiert nicht."})
+
+        if is_single_file:
+            all_files = [os.path.basename(current_dir)]
+            current_dir = os.path.dirname(current_dir)
+        else:
+            all_files = sorted(find_files_recursively(current_dir))
     video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
     sub_exts = ('.srt', '.vtt', '.ass', '.ssa', '.sub', '.idx')
     from gui.core.artwork_validators import get_all_allowed_metadata_names
@@ -470,8 +491,11 @@ def handle_api_preview_process():
             ext = os.path.splitext(f)[1].lower()
 
             if ext in video_exts:
-                rel_f = os.path.relpath(f, current_dir)
-                ep_num = mappings.get(rel_f) or mappings.get(f) or mappings.get(basename)
+                if files_param is not None:
+                    ep_num = mappings.get(f)
+                else:
+                    rel_f = os.path.relpath(f, current_dir)
+                    ep_num = mappings.get(rel_f) or mappings.get(f) or mappings.get(basename)
                 if ep_num is not None and ep_num != "":
                     if isinstance(ep_num, dict):
                         curr_season = ep_num.get("season", season)
@@ -780,6 +804,27 @@ def handle_api_process():
     except Exception:
         params = {}
     query = request.args
+
+    settings = load_settings()
+    inbox_root = settings.get("inbox_dir", "")
+
+    files_param = params.get("files")
+    if files_param is not None:
+        from gui.core.helpers import validate_group_files
+        try:
+            validated_files = validate_group_files(inbox_root, files_param)
+        except ValueError as ve:
+            return jsonify({"status": "error", "error": str(ve), "message": str(ve)}), 400
+
+        mappings = params.get("mappings", {})
+        if mappings:
+            files_set = set(validated_files)
+            for k in mappings.keys():
+                if k not in files_set:
+                    msg = f"Ungültiger Mapping-Schlüssel '{k}': Nicht in files[] enthalten."
+                    return jsonify({"status": "error", "error": msg, "message": msg}), 400
+        params["files"] = validated_files
+
     task_id = str(uuid.uuid4())
     params["task_id"] = task_id
     media_type = params.get("media_type", "unknown")

@@ -121,7 +121,7 @@ liefert `suggested_query`. Liest den Parameter aus der **Query** (GET).
 
 ### `GET /api/inbox/analyze` *(Feature 1 — Smart Inbox)*
 Analysiert alle Inbox-Projekte und liefert Vorschläge mit Typ, Profil-Match,
-Codec-Status, Begründungs-Chips (`reasons`), Änderungsdatum und Gesamtgröße.
+Codec-Status, Begründungs-Chips (`reasons`), Änderungsdatum, Gesamtgröße und Verzeichnis-Status.
 ```json
 {
   "suggestions": [{
@@ -134,13 +134,15 @@ Codec-Status, Begründungs-Chips (`reasons`), Änderungsdatum und Gesamtgröße.
     "has_inefficient_codec": true,
     "reasons": ["Profil gefunden", "Serie erkannt", "Codec ineffizient (H.265 empfohlen)"],
     "modified_at": 1728381200,
-    "total_size": 1548291000
+    "total_size": 1548291000,
+    "is_dir": false
   }]
 }
 ```
 Liefert pro Eintrag zusätzlich:
 - `modified_at` (`int` Unix-Sekunden oder `null`): Größte `st_mtime` aller Videodateien im Projekt.
 - `total_size` (`int` in Bytes): Summe aller Dateigrößen (`st_size`) der Videodateien im Projekt.
+- `is_dir` (`bool`): `true` für Verzeichnisse (auch mit nur 1 Video), `false` für einzelne Videodateien in der Inbox-Root.
 
 ### `GET|POST /api/paths-preview-clean` · `POST /api/paths-clean`
 Vorschau (GET/POST) bzw. Ausführung der Bereinigung von Inbox/Outbox (POST, Payload: `inbox_files`,
@@ -258,10 +260,12 @@ UI-Beiwerk und Sichtbarkeits-Toggles.
 
 ### `GET|POST /api/preview-process`
 Erzeugt die detaillierte Zuordnungs-Vorschau (Umbenennung/Ziele) vor dem Job.
+Optionaler Parameter `files` (Array relativer Pfade): Behandelt eine Liste von Einzeldateien als virtuellen Serien-Auftrag auf Basis des Inbox-Roots. Alle Einträge in `mappings` müssen in `files` enthalten sein. Ungültige Pfade (Traversals, Ordner, Nicht-Videos, fehlende Dateien) werden mit HTTP 400 abgewiesen.
 
 ### `POST /api/process`
 Reiht einen Verarbeitungs-Job in die Queue ein (Payload: `media_type`,
-`mappings`, Ziel-IDs, `copy_to_nas`/`copy_to_pcloud`, `is_anime` etc.).
+`mappings`, Ziel-IDs, `copy_to_nas`/`copy_to_pcloud`, `is_anime`, optional `files` etc.).
+Bei gesetztem `files`-Parameter wird der Job mit striktem Scope auf die übergebenen Dateien und deren Begleitdateien ausgeführt.
 ```json
 { "status": "ok", "task_id": "<uuid>" }
 ```
