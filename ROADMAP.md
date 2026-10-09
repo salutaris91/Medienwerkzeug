@@ -1956,3 +1956,27 @@ Ein Klick auf ein Typ-Kennzeichen filtert die Liste auf diesen Typ, ein zweiter 
 
 ### Aufwand (grob)
 Klein (Click-Handler + Filter + Tests).
+
+---
+
+## 71. Inbox: Ordner aufklappen und Videodateien einzeln auswählen
+
+**Einordnung / Priorität:** Folge-Feature zu #65 (Rückkanal-Abnahme #65 Lauf A, Kandidat P1 des Planungsteams, 09.10.2026; Alex: „Ja, wie von dir empfohlen“). Erst nach #65 Lauf B.
+
+**Problem:**
+Ordner-Einträge der Inbox lassen sich nur als Ganzes verarbeiten. Teil-Verarbeitung (z. B. nur Staffel 1 eines Serienordners) oder eine Serie, die über zwei heruntergeladene Ordner verteilt ist, geht nur über Einzelaufträge.
+
+**Ziel:**
+Ein Ordner-Eintrag lässt sich aufklappen; seine Videodateien (auch in Unterordnern) werden als auswählbare Kandidaten angezeigt und können über den `files[]`-Weg aus #65 als eine Gruppe verarbeitet werden (enthält: Staffel-übergreifende Gruppe, Cross-Directory-Serie, Rest-Folgen einer halb verarbeiteten Serie).
+
+**Umsetzung:**
+1. Backend: rekursive Auflistung der Videodateien eines Ordners mit Tiefenbegrenzung.
+2. Frontend: Aufklapp-Chevron am Ordner-Eintrag, Auswahl wie #65 (Auswahlkästchen).
+3. Tests für Rekursion, Tiefenbegrenzung und Scope.
+
+### Risiken & Hinweise
+- **Voraussetzung:** Die Scope-Lücken aus der Rückkanal-Abnahme #65 Lauf A (insbesondere R1: `files` bei Nicht-Serien-Aufträgen) müssen geschlossen sein; sonst wäre die Auswahl aus Unterordnern ein direkter Hebel auf ungesicherte Pfade.
+- Automatischer Abgleich Inbox gegen Outbox („was fehlt noch?“) wurde vom Planungsteam bewusst verworfen (Komplexität vs. Nutzen).
+
+### Aufwand (grob)
+Mittel (Rekursion mit Tiefenbegrenzung + Aufklapp-UI, 2–3 Gate-A2-Runden).
