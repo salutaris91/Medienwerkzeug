@@ -506,8 +506,6 @@ def safe_move_recursive(src_dir, dest_dir, prefix_filter=None, fallback_basename
                 allowed_set.add(os.path.realpath(af))
             else:
                 allowed_set.add(os.path.realpath(os.path.join(src_dir, af)))
-                allowed_set.add(af)
-                allowed_set.add(os.path.basename(af))
 
     # Process files
     for f_path in files_to_process:
@@ -517,8 +515,7 @@ def safe_move_recursive(src_dir, dest_dir, prefix_filter=None, fallback_basename
 
         if allowed_set is not None:
             f_real = os.path.realpath(f_path)
-            f_rel = os.path.relpath(f_path, src_dir)
-            if f_real not in allowed_set and f_rel not in allowed_set and filename not in allowed_set:
+            if f_real not in allowed_set:
                 continue
 
         # Check junk list

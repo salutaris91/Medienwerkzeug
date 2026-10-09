@@ -870,8 +870,9 @@ def validate_group_files(inbox_root: str, files: list) -> list:
 def find_group_companion_files(inbox_root: str, validated_files: list) -> list:
     """
     Determines companion files for a group of video files.
-    Only finds same-directory siblings whose name starts with the video base name (stem).
-    Excludes the video files themselves and dotfiles.
+    Only finds same-directory siblings whose name starts with the video base name (stem)
+    followed by a dot separator (e.g. 'Folge 1.srt', 'Folge 1.de.srt').
+    Excludes video files (GROUP_VIDEO_EXTENSIONS) and dotfiles.
     Returns list of paths relative to inbox_root.
     """
     if not inbox_root or not validated_files:
@@ -898,13 +899,16 @@ def find_group_companion_files(inbox_root: str, validated_files: list) -> list:
         except OSError:
             continue
 
+        prefix = vstem + "."
         for entry in entries:
             if entry.startswith('.'):
+                continue
+            if entry.lower().endswith(GROUP_VIDEO_EXTENSIONS):
                 continue
             entry_full = os.path.join(vdir, entry)
             if entry_full == full_vpath or not os.path.isfile(entry_full):
                 continue
-            if entry.startswith(vstem):
+            if entry.startswith(prefix):
                 rel_companion = os.path.relpath(entry_full, inbox_root)
                 norm_key = os.path.normpath(rel_companion).lower()
                 if norm_key not in seen:

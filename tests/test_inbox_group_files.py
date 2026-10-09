@@ -138,6 +138,67 @@ class TestInboxGroupFiles(unittest.TestCase):
         self.assertNotIn("Show.S01E01.mkv", companions)
         self.assertNotIn("Foreign.txt", companions)
 
+    def test_find_group_companion_files_stem_boundary_numeric_prefix(self):
+        """F1: Group ['Folge 1.mkv'] with 'Folge 1.srt', 'Folge 10.mkv', 'Folge 10.srt' -> companions are exactly ['Folge 1.srt']."""
+        f1_vid = os.path.join(self.inbox_dir, "Folge 1.mkv")
+        f1_srt = os.path.join(self.inbox_dir, "Folge 1.srt")
+        f10_vid = os.path.join(self.inbox_dir, "Folge 10.mkv")
+        f10_srt = os.path.join(self.inbox_dir, "Folge 10.srt")
+
+        for p in [f1_vid, f1_srt, f10_vid, f10_srt]:
+            with open(p, "wb") as f: f.write(b"data")
+
+        companions = helpers.find_group_companion_files(self.inbox_dir, ["Folge 1.mkv"])
+        self.assertEqual(companions, ["Folge 1.srt"])
+
+    def test_find_group_companion_files_sample_video_exclusion(self):
+        """F1: 'Show.S01E01-sample.mkv' is not a companion of 'Show.S01E01.mkv', 'Show.S01E01.de.srt' is."""
+        v1 = os.path.join(self.inbox_dir, "Show.S01E01.mkv")
+        sample_vid = os.path.join(self.inbox_dir, "Show.S01E01-sample.mkv")
+        sub = os.path.join(self.inbox_dir, "Show.S01E01.de.srt")
+
+        for p in [v1, sample_vid, sub]:
+            with open(p, "wb") as f: f.write(b"data")
+
+        companions = helpers.find_group_companion_files(self.inbox_dir, ["Show.S01E01.mkv"])
+        self.assertIn("Show.S01E01.de.srt", companions)
+        self.assertNotIn("Show.S01E01-sample.mkv", companions)
+        self.assertEqual(companions, ["Show.S01E01.de.srt"])
+
+    def test_safe_move_recursive_allowed_files_same_name_in_subfolder_remains(self):
+        """F2: safe_move_recursive with allowed_files leaves identically named file in a foreign subfolder untouched."""
+        root_sub = os.path.join(self.inbox_dir, "Show.S01E01.de.srt")
+        foreign_sub_dir = os.path.join(self.inbox_dir, "OtherShowFolder")
+        os.makedirs(foreign_sub_dir, exist_ok=True)
+        foreign_sub = os.path.join(foreign_sub_dir, "Show.S01E01.de.srt")
+
+        dest_dir = os.path.join(self.outbox_dir, "TargetFolder")
+        os.makedirs(dest_dir, exist_ok=True)
+
+        with open(root_sub, "wb") as f: f.write(b"root_sub")
+        with open(foreign_sub, "wb") as f: f.write(b"foreign_sub")
+
+        # allowed_files only specifies the root file
+        processor.safe_move_recursive(
+            self.inbox_dir,
+            dest_dir,
+            prefix_filter=None,
+            whitelist=[{"old": "Show.S01E01.de.srt", "new": "Show.S01E01.de.srt"}],
+            allowed_files=["Show.S01E01.de.srt"],
+            cleanup_empty_dirs=False
+        )
+
+        # Root file was moved to dest_dir
+        self.assertFalse(os.path.exists(root_sub))
+        self.assertTrue(os.path.exists(os.path.join(dest_dir, "Show.S01E01.de.srt")))
+        with open(os.path.join(dest_dir, "Show.S01E01.de.srt"), "rb") as f:
+            self.assertEqual(f.read(), b"root_sub")
+
+        # Foreign subfolder file remains untouched in inbox
+        self.assertTrue(os.path.exists(foreign_sub))
+        with open(foreign_sub, "rb") as f:
+            self.assertEqual(f.read(), b"foreign_sub")
+
     def test_preview_process_files_validation_endpoints(self):
         """AK5: /preview_process returns HTTP 400 on invalid files and mismatched mappings."""
         v1 = os.path.join(self.inbox_dir, "Ep01.mkv")
