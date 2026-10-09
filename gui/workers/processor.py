@@ -410,6 +410,8 @@ def move_with_fallback(src_path, dest_dir, fallback_basename, whitelist=None):
             is_metadata = False
             if ext == '.nfo':
                 is_metadata = True
+            elif fallback_basename and filename.startswith(fallback_basename):
+                target_name = filename
             else:
                 metadata_keywords = ['poster', 'fanart', 'backdrop', 'folder', 'logo', 'banner', 'clearlogo', 'cover', 'background', 'art', 'default']
                 for kw in metadata_keywords:
@@ -476,11 +478,12 @@ def move_with_fallback(src_path, dest_dir, fallback_basename, whitelist=None):
     except Exception as e:
         log_message(f"❌ Fehler bei Fallback-Verschiebung von {src_path} nach {dest_dir}: {e}")
 
-def safe_move_recursive(src_dir, dest_dir, prefix_filter=None, fallback_basename=None, whitelist=None, junk_list=None):
+def safe_move_recursive(src_dir, dest_dir, prefix_filter=None, fallback_basename=None, whitelist=None, junk_list=None, allowed_files=None, cleanup_empty_dirs=True):
     """
     Recursively walks src_dir and moves files to dest_dir.
     If prefix_filter is provided, only files whose name starts with prefix_filter
     (or are whitelisted to a name starting with prefix_filter) are moved.
+    If allowed_files is provided, only files in allowed_files are moved.
     """
     video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
     if not os.path.exists(src_dir):
@@ -496,11 +499,26 @@ def safe_move_recursive(src_dir, dest_dir, prefix_filter=None, fallback_basename
             f_path = os.path.join(root, f)
             files_to_process.append(f_path)
 
+    # Normalize allowed_files set
+    allowed_set = None
+    if allowed_files is not None:
+        allowed_set = set()
+        for af in allowed_files:
+            if os.path.isabs(af):
+                allowed_set.add(os.path.realpath(af))
+            else:
+                allowed_set.add(os.path.realpath(os.path.join(src_dir, af)))
+
     # Process files
     for f_path in files_to_process:
         filename = os.path.basename(f_path)
         if filename.lower().endswith(video_exts):
             continue
+
+        if allowed_set is not None:
+            f_real = os.path.realpath(f_path)
+            if f_real not in allowed_set:
+                continue
 
         # Check junk list
         is_junk = False
@@ -531,16 +549,17 @@ def safe_move_recursive(src_dir, dest_dir, prefix_filter=None, fallback_basename
             move_with_fallback(f_path, dest_dir, fb, whitelist=whitelist)
 
     # Cleanup empty subdirectories
-    for root, dirs, files in os.walk(src_dir, topdown=False):
-        if root == src_dir:
-            continue
-        try:
-            non_dot_files = [f for f in os.listdir(root) if not f.startswith('.')]
-            if not non_dot_files:
-                trash.send_to_trash(root)
-                log_message(f"[Safe Move] Leeren Unterordner entfernt: {os.path.basename(root)}")
-        except Exception as e:
-            log_message(f"[Safe Move] Fehler beim Entfernen des Ordners {root}: {e}")
+    if cleanup_empty_dirs:
+        for root, dirs, files in os.walk(src_dir, topdown=False):
+            if root == src_dir:
+                continue
+            try:
+                non_dot_files = [f for f in os.listdir(root) if not f.startswith('.')]
+                if not non_dot_files:
+                    trash.send_to_trash(root)
+                    log_message(f"[Safe Move] Leeren Unterordner entfernt: {os.path.basename(root)}")
+            except Exception as e:
+                log_message(f"[Safe Move] Fehler beim Entfernen des Ordners {root}: {e}")
 
 JOB_QUEUE = []
 SYSTEM_STATUS = {'running': True}
@@ -843,21 +862,49 @@ def process_worker(params):
             except (ValueError, IndexError):
                 pass
 
-    is_single_file = False
-    if project_name:
-        if os.path.isabs(project_name):
-            current_dir = os.path.abspath(project_name)
-        else:
-            current_dir = os.path.join(inbox_root, project_name)
-        if os.path.isfile(current_dir):
-            is_single_file = True
-            current_dir = os.path.dirname(current_dir)
-    else:
+    files_param = params.get("files")
+    validated_files = None
+    companion_files = None
+    scope_files = None
+
+    if files_param is not None:
+        if media_type != "tv":
+            raise RuntimeError(f"files[] wird nur für media_type 'tv' unterstützt, erhalten: '{media_type}'.")
+        if not isinstance(files_param, list) or len(files_param) == 0:
+            raise RuntimeError("files-Parameter muss eine nicht-leere Liste sein.")
         current_dir = inbox_root
+        is_single_file = False
+        from gui.core.helpers import validate_group_files, find_group_companion_files
+        try:
+            validated_files = validate_group_files(inbox_root, files_param)
+        except ValueError as ve:
+            raise RuntimeError(f"Validierungsfehler in files: {ve}")
+
+        companion_files = find_group_companion_files(inbox_root, validated_files)
+        scope_files = set(validated_files) | set(companion_files)
+    else:
+        is_single_file = False
+        if project_name:
+            if os.path.isabs(project_name):
+                current_dir = os.path.abspath(project_name)
+            else:
+                current_dir = os.path.join(inbox_root, project_name)
+            if os.path.isfile(current_dir):
+                is_single_file = True
+                current_dir = os.path.dirname(current_dir)
+        else:
+            current_dir = inbox_root
 
     job_size_gb = 0.0
     try:
-        if project_name:
+        if files_param is not None:
+            total_bytes = 0
+            for f in validated_files:
+                fp = os.path.join(current_dir, f)
+                if os.path.exists(fp):
+                    total_bytes += os.path.getsize(fp)
+            job_size_gb = total_bytes / (1024 * 1024 * 1024)
+        elif project_name:
             if is_single_file:
                 job_size_gb = os.path.getsize(os.path.join(current_dir, project_name)) / (1024 * 1024 * 1024)
             else:
@@ -895,6 +942,59 @@ def process_worker(params):
     explicit_renames = params.get("explicit_renames")
     explicit_subs = params.get("explicit_subs")
     explicit_junk = params.get("explicit_junk")
+
+    # Scope validation for explicit_* (AK6(d)) and TOCTOU check for files_param (AK7)
+    if files_param is not None:
+        for f in validated_files:
+            fp = os.path.join(current_dir, f)
+            if not os.path.exists(fp):
+                raise RuntimeError(f"Datei nicht gefunden (TOCTOU): '{f}' existiert nicht mehr.")
+
+        if explicit_junk:
+            for j in explicit_junk:
+                if os.path.isabs(j):
+                    raise RuntimeError(f"Sicherheitsabbruch: Junk-Datei '{j}' ist ein absoluter Pfad.")
+                norm_j = os.path.normpath(j)
+                if norm_j == ".." or norm_j.startswith(".." + os.sep) or norm_j not in scope_files:
+                    raise RuntimeError(f"Sicherheitsabbruch: Junk-Datei '{j}' liegt außerhalb des Job-Scopes.")
+        if explicit_subs:
+            for s in explicit_subs:
+                old_s = s.get("old") if isinstance(s, dict) else s
+                new_s = s.get("new") if isinstance(s, dict) else None
+                if os.path.isabs(old_s):
+                    raise RuntimeError(f"Sicherheitsabbruch: Untertitel-Datei '{old_s}' ist ein absoluter Pfad.")
+                norm_s = os.path.normpath(old_s)
+                if norm_s == ".." or norm_s.startswith(".." + os.sep) or norm_s not in scope_files:
+                    raise RuntimeError(f"Sicherheitsabbruch: Untertitel-Datei '{old_s}' liegt außerhalb des Job-Scopes.")
+                if new_s:
+                    if os.path.isabs(new_s):
+                        raise RuntimeError(f"Sicherheitsabbruch: Untertitel-Ziel '{new_s}' ist ein absoluter Pfad.")
+                    norm_new_s = os.path.normpath(new_s)
+                    if norm_new_s == ".." or norm_new_s.startswith(".." + os.sep) or os.path.relpath(os.path.join(current_dir, norm_new_s), current_dir).startswith(".."):
+                        raise RuntimeError(f"Sicherheitsabbruch: Untertitel-Ziel '{new_s}' liegt außerhalb des Verzeichnisses.")
+                    old_path = os.path.join(current_dir, norm_s)
+                    new_path = os.path.join(current_dir, norm_new_s)
+                    if os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
+                        raise RuntimeError(f"Kollision beim Umbenennen von Untertitel: Ziel '{new_s}' existiert bereits.")
+        if explicit_renames:
+            for r in explicit_renames:
+                old_r = r.get("old") if isinstance(r, dict) else r
+                new_r = r.get("new") if isinstance(r, dict) else None
+                if os.path.isabs(old_r):
+                    raise RuntimeError(f"Sicherheitsabbruch: Rename-Datei '{old_r}' ist ein absoluter Pfad.")
+                norm_r = os.path.normpath(old_r)
+                if norm_r == ".." or norm_r.startswith(".." + os.sep) or norm_r not in scope_files:
+                    raise RuntimeError(f"Sicherheitsabbruch: Rename-Datei '{old_r}' liegt außerhalb des Job-Scopes.")
+                if new_r:
+                    if os.path.isabs(new_r):
+                        raise RuntimeError(f"Sicherheitsabbruch: Rename-Ziel '{new_r}' ist ein absoluter Pfad.")
+                    norm_new_r = os.path.normpath(new_r)
+                    if norm_new_r == ".." or norm_new_r.startswith(".." + os.sep) or os.path.relpath(os.path.join(current_dir, norm_new_r), current_dir).startswith(".."):
+                        raise RuntimeError(f"Sicherheitsabbruch: Rename-Ziel '{new_r}' liegt außerhalb des Verzeichnisses.")
+                    old_path = os.path.join(current_dir, norm_r)
+                    new_path = os.path.join(current_dir, norm_new_r)
+                    if os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
+                        raise RuntimeError(f"Kollision beim Umbenennen von Video: Ziel '{new_r}' existiert bereits.")
 
     # 0. Apply explicit user choices from preview if provided
     if explicit_renames is not None:
@@ -958,7 +1058,12 @@ def process_worker(params):
             for r in filtered_renames:
                 old_path = os.path.join(current_dir, r["old"])
                 new_path = os.path.join(current_dir, r["new"])
+                if not os.path.exists(old_path) and old_path != new_path:
+                    if files_param is not None:
+                        raise RuntimeError(f"Datei nicht gefunden (TOCTOU): '{r['old']}' existiert nicht mehr.")
                 if os.path.exists(old_path) and old_path != new_path:
+                    if files_param is not None and os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
+                        raise RuntimeError(f"Kollision beim Umbenennen von Video: Ziel '{r['new']}' existiert bereits.")
                     os.rename(old_path, new_path)
                     log_message(f"Umbenannt/Hochgezogen: {r['old']} -> {r['new']}")
 
@@ -966,18 +1071,24 @@ def process_worker(params):
             for s in explicit_subs:
                 old_path = os.path.join(current_dir, s["old"])
                 new_path = os.path.join(current_dir, s["new"])
+                if not os.path.exists(old_path) and old_path != new_path:
+                    if files_param is not None:
+                        raise RuntimeError(f"Datei nicht gefunden (TOCTOU): '{s['old']}' existiert nicht mehr.")
                 if os.path.exists(old_path) and old_path != new_path:
+                    if files_param is not None and os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
+                        raise RuntimeError(f"Kollision beim Umbenennen von Untertitel: Ziel '{s['new']}' existiert bereits.")
                     os.rename(old_path, new_path)
                     log_message(f"Umbenannt/Hochgezogen (Extra): {s['old']} -> {s['new']}")
 
-        # Cleanup empty subdirectories
-        for root, dirs, files in os.walk(current_dir, topdown=False):
-            if root == current_dir: continue
-            if not os.listdir(root):
-                try:
-                    trash.send_to_trash(root)
-                    log_message(f"Leeren Unterordner entfernt: {os.path.basename(root)}")
-                except Exception as e: print(f"Warning: Ignored exception {e}")
+        # Cleanup empty subdirectories (skip for files-Jobs)
+        if files_param is None:
+            for root, dirs, files in os.walk(current_dir, topdown=False):
+                if root == current_dir: continue
+                if not os.listdir(root):
+                    try:
+                        trash.send_to_trash(root)
+                        log_message(f"Leeren Unterordner entfernt: {os.path.basename(root)}")
+                    except Exception as e: print(f"Warning: Ignored exception {e}")
 
     if media_type == "tv":
         from gui.core.jobs import get_job, update_job
@@ -1018,6 +1129,11 @@ def process_worker(params):
         log_message(f"Typ: Serie | Name: {show_name} (Bereinigt: {clean_show_name}) | Staffel: {season}")
 
         # 1. Generate tvshow.nfo and download show artwork (poster.jpg, fanart.jpg)
+        dest_show_dir_outbox = os.path.join(outbox_serien, clean_show_name)
+        show_target_dir = dest_show_dir_outbox if files_param is not None else current_dir
+        if files_param is not None:
+            os.makedirs(dest_show_dir_outbox, exist_ok=True)
+
         if not is_metadata_done:
             from gui.core.jobs import update_job
             update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=50)
@@ -1029,11 +1145,11 @@ def process_worker(params):
                     should_overwrite_show = should_overwrite_nfo(
                         overwrite_nfo,
                         show_overrides,
-                        os.path.join(current_dir, "tvshow.nfo"),
+                        os.path.join(show_target_dir, "tvshow.nfo"),
                         "tvshow"
                     )
                                 
-                    res = mw_metadata.generate_tvshow_nfo(provider, show_id, current_dir, nfo_overrides=show_overrides, overwrite=should_overwrite_show)
+                    res = mw_metadata.generate_tvshow_nfo(provider, show_id, show_target_dir, nfo_overrides=show_overrides, overwrite=should_overwrite_show)
                     log_message(f"tvshow.nfo Status: {res}")
                 except Exception as e:
                     log_message(f"Fehler bei tvshow.nfo: {e}")
@@ -1363,31 +1479,77 @@ def process_worker(params):
                         if file_already_in_outbox:
                             log_message(f"Originaldatei {filename} ist nicht mehr in Inbox, aber bereits verarbeitet in Outbox. Überspringe Umbenennung.")
                         else:
+                            if files_param is not None:
+                                raise RuntimeError(f"Datei nicht gefunden (TOCTOU): '{filename}' existiert nicht mehr.")
                             continue
                     else:
                         if file_already_in_outbox and is_metadata_done:
                             log_message(f"Episode {filename} ist bereits verarbeitet. Überspringe Umbenennung.")
                         else:
+                            if files_param is not None and os.path.exists(target_filepath) and os.path.abspath(filepath) != os.path.abspath(target_filepath):
+                                raise RuntimeError(
+                                    f"Kollision beim Umbenennen von Video: Ziel '{target_filename}' existiert bereits."
+                                )
                             log_message(f"Benenne um: {filename} -> {target_filename}")
                             try:
                                 os.rename(filepath, target_filepath)
                             except Exception as e:
+                                if files_param is not None:
+                                    raise
                                 log_message(f"Fehler beim Umbenennen: {e}")
                                 continue
 
                     # Rename subtitles
-                    base_old = os.path.splitext(filename)[0]
-                    for f in os.listdir(current_dir):
-                        if f.startswith(base_old) and f != filename:
-                            sub_ext = os.path.splitext(f)[1].lower()
-                            if sub_ext in ['.srt', '.vtt', '.ass', '.ssa', '.sub', '.idx']:
-                                sub_old_path = os.path.join(current_dir, f)
-                                sub_new_path = os.path.join(current_dir, f"{clean_title}{sub_ext}")
-                                log_message(f"Benenne Untertitel um: {f} -> {clean_title}{sub_ext}")
-                                try:
-                                    os.rename(sub_old_path, sub_new_path)
-                                except Exception as e:
-                                    log_message(f"Fehler: {e}")
+                    if files_param is not None:
+                        filename_dir = os.path.dirname(filename)
+                        vstem = os.path.splitext(os.path.basename(filename))[0]
+                        vprefix = vstem + "."
+                        seen_sub_targets = set()
+                        if companion_files:
+                            for comp in companion_files:
+                                comp_dir = os.path.dirname(comp)
+                                comp_name = os.path.basename(comp)
+                                if os.path.normpath(comp_dir) == os.path.normpath(filename_dir):
+                                    if comp_name.startswith(vprefix) or os.path.splitext(comp_name)[0] == vstem:
+                                        sub_ext = os.path.splitext(comp_name)[1].lower()
+                                        if sub_ext in ['.srt', '.vtt', '.ass', '.ssa', '.sub', '.idx']:
+                                            comp_base_no_ext = os.path.splitext(comp_name)[0]
+                                            suffix_after_stem = comp_base_no_ext[len(vstem):]
+                                            sub_new_name = f"{clean_title}{suffix_after_stem}{sub_ext}"
+                                            if sub_new_name in seen_sub_targets:
+                                                raise RuntimeError(
+                                                    f"Kollision beim Umbenennen von Untertitel: Mehrere Dateien ergeben '{sub_new_name}'."
+                                                )
+                                            seen_sub_targets.add(sub_new_name)
+                                            sub_old_path = os.path.join(current_dir, comp)
+                                            sub_new_path = os.path.join(current_dir, sub_new_name)
+                                            if not os.path.exists(sub_old_path):
+                                                raise RuntimeError(f"Datei nicht gefunden (TOCTOU): '{comp}' existiert nicht mehr.")
+                                            if os.path.exists(sub_old_path):
+                                                if os.path.exists(sub_new_path) and os.path.abspath(sub_old_path) != os.path.abspath(sub_new_path):
+                                                    raise RuntimeError(
+                                                        f"Kollision beim Umbenennen von Untertitel: Ziel '{sub_new_name}' existiert bereits."
+                                                    )
+                                                log_message(f"Benenne Untertitel um: {comp} -> {sub_new_name}")
+                                                try:
+                                                    os.rename(sub_old_path, sub_new_path)
+                                                except Exception as e:
+                                                    if files_param is not None:
+                                                        raise
+                                                    log_message(f"Fehler: {e}")
+                    else:
+                        base_old = os.path.splitext(filename)[0]
+                        for f in os.listdir(current_dir):
+                            if f.startswith(base_old) and f != filename:
+                                sub_ext = os.path.splitext(f)[1].lower()
+                                if sub_ext in ['.srt', '.vtt', '.ass', '.ssa', '.sub', '.idx']:
+                                    sub_old_path = os.path.join(current_dir, f)
+                                    sub_new_path = os.path.join(current_dir, f"{clean_title}{sub_ext}")
+                                    log_message(f"Benenne Untertitel um: {f} -> {clean_title}{sub_ext}")
+                                    try:
+                                        os.rename(sub_old_path, sub_new_path)
+                                    except Exception as e:
+                                        log_message(f"Fehler: {e}")
 
                 # Generate Episode NFO
                 if show_id and provider:
@@ -1395,6 +1557,12 @@ def process_worker(params):
                         log_message(f"Episode NFO für {ep_str} existiert bereits. Überspringe Generierung.")
                     else:
                         log_message(f"Generiere Episoden-NFO für {ep_str}...")
+                        if files_param is not None:
+                            nfo_target_path = os.path.join(current_dir, f"{clean_title}.nfo")
+                            if os.path.exists(nfo_target_path):
+                                raise RuntimeError(
+                                    f"Kollision beim Generieren von NFO: Ziel '{clean_title}.nfo' existiert bereits."
+                                )
                         try:
                             ep_overrides = None
                             if "episodes" in nfo_overrides:
@@ -1406,6 +1574,8 @@ def process_worker(params):
                             )
                             log_message(f"Episode NFO Status: {res}")
                         except Exception as e:
+                            if files_param is not None:
+                                raise
                             log_message(f"Fehler bei Episode NFO: {e}")
                 current_prog = 50 + int(50 * (file_idx + 1) / N)
                 _update_pipeline_metadata_progress(task_id, current_prog)
@@ -1432,6 +1602,16 @@ def process_worker(params):
                         conv_pct[file_idx] = 100
                     else:
                         temp_output = os.path.join(current_dir, f"{clean_title}_neu.mkv")
+                        final_conv_output = os.path.join(current_dir, f"{clean_title}.mkv")
+                        if files_param is not None:
+                            if os.path.exists(temp_output) and os.path.abspath(temp_output) != os.path.abspath(target_filepath):
+                                raise RuntimeError(
+                                    f"Kollision bei Konvertierung: Temp-Ziel '{clean_title}_neu.mkv' existiert bereits."
+                                )
+                            if os.path.exists(final_conv_output) and os.path.abspath(final_conv_output) != os.path.abspath(target_filepath):
+                                raise RuntimeError(
+                                    f"Kollision bei Konvertierung: Ziel '{clean_title}.mkv' existiert bereits."
+                                )
                         convert_message = f"Konvertierung gestartet: {final_filename}"
                         current_convert_progress = _calculate_average_progress(conv_pct, N)
                         if task_id:
@@ -1495,13 +1675,46 @@ def process_worker(params):
                             whitelist_tv.extend(explicit_renames)
                         if explicit_subs:
                             whitelist_tv.extend(explicit_subs)
+
+                        episode_allowed_files = None
+                        if files_param is not None:
+                            episode_allowed_files = set()
+                            episode_allowed_files.add(filename)
+                            episode_allowed_files.add(os.path.basename(filename))
+                            episode_allowed_files.add(target_filename)
+                            episode_allowed_files.add(f"{clean_title}.nfo")
+                            filename_dir = os.path.dirname(filename)
+                            vstem = os.path.splitext(os.path.basename(filename))[0]
+                            vprefix = vstem + "."
+                            if companion_files:
+                                for comp in companion_files:
+                                    comp_dir = os.path.dirname(comp)
+                                    comp_name = os.path.basename(comp)
+                                    if os.path.normpath(comp_dir) == os.path.normpath(filename_dir):
+                                        if comp_name.startswith(vprefix) or os.path.splitext(comp_name)[0] == vstem:
+                                            episode_allowed_files.add(comp)
+                                            episode_allowed_files.add(comp_name)
+                                            comp_base_no_ext = os.path.splitext(comp_name)[0]
+                                            suffix_after_stem = comp_base_no_ext[len(vstem):]
+                                            comp_ext = os.path.splitext(comp_name)[1]
+                                            episode_allowed_files.add(f"{clean_title}{suffix_after_stem}{comp_ext}")
+                                            episode_allowed_files.add(f"{clean_title}{comp_ext}")
+                            if whitelist_tv:
+                                for item in whitelist_tv:
+                                    if item.get("new", "").startswith(clean_title) or path_endswith(filename, item.get("old", "")):
+                                        episode_allowed_files.add(item["old"])
+                                        episode_allowed_files.add(os.path.basename(item["old"]))
+                                        episode_allowed_files.add(item["new"])
+
                         safe_move_recursive(
                             current_dir,
                             dest_dir_outbox,
                             prefix_filter=clean_title,
                             fallback_basename=None,
                             whitelist=whitelist_tv,
-                            junk_list=explicit_junk
+                            junk_list=explicit_junk,
+                            allowed_files=episode_allowed_files,
+                            cleanup_empty_dirs=(files_param is None)
                         )
                     except Exception as e:
                         log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
@@ -1561,46 +1774,50 @@ def process_worker(params):
 
             _mark_convert_step_done(task_id)
 
-            # Move show-level files to local Output
-            nas_serien = destination if destination else f"{nas_root}/Serien"
-            rel_dest = os.path.relpath(nas_serien, nas_root)
-            outbox_serien = os.path.join(outbox_root, rel_dest)
-            dest_show_dir_outbox = os.path.join(outbox_serien, clean_show_name)
-            try:
-                os.makedirs(dest_show_dir_outbox, exist_ok=True)
-                meta_files = _get_series_meta_files(settings)
-                for f in meta_files:
-                    p_src = os.path.join(current_dir, f)
-                    if os.path.exists(p_src):
-                        p_dest = os.path.join(dest_show_dir_outbox, f)
-                        if os.path.exists(p_dest):
-                            log_message(f"Serien-Metadatei existiert bereits im Output-Ordner und wird nicht überschrieben: {f}")
-                        else:
-                            shutil.move(p_src, p_dest)
-                            log_message(f"Serien-Metadatei in Output-Ordner verschoben: {f}")
-                # Open local destination in Finder
+            # Move show-level files to local Output (only for non-files_param jobs, as files_param writes directly to dest_show_dir_outbox)
+            if files_param is None:
+                nas_serien = destination if destination else f"{nas_root}/Serien"
+                rel_dest = os.path.relpath(nas_serien, nas_root)
+                outbox_serien = os.path.join(outbox_root, rel_dest)
+                dest_show_dir_outbox = os.path.join(outbox_serien, clean_show_name)
+                try:
+                    os.makedirs(dest_show_dir_outbox, exist_ok=True)
+                    meta_files = _get_series_meta_files(settings)
+                    for f in meta_files:
+                        p_src = os.path.join(current_dir, f)
+                        if os.path.exists(p_src):
+                            p_dest = os.path.join(dest_show_dir_outbox, f)
+                            if os.path.exists(p_dest):
+                                log_message(f"Serien-Metadatei existiert bereits im Output-Ordner und wird nicht überschrieben: {f}")
+                            else:
+                                shutil.move(p_src, p_dest)
+                                log_message(f"Serien-Metadatei in Output-Ordner verschoben: {f}")
+                    # Open local destination in Finder
+                    if settings.get("open_outbox_finder"):
+                        open_folder_in_finder(dest_show_dir_outbox)
+                except Exception as e:
+                    log_message(f"Fehler beim Verschieben der Serien-Metadaten in Output-Ordner: {e}")
+
+                # Auffangregel: Move any remaining non-video, non-dot files to the show folder
+                try:
+                    whitelist_show = []
+                    if explicit_renames:
+                        whitelist_show.extend(explicit_renames)
+                    if explicit_subs:
+                        whitelist_show.extend(explicit_subs)
+                    safe_move_recursive(
+                        current_dir,
+                        dest_show_dir_outbox,
+                        prefix_filter=None,
+                        fallback_basename=clean_show_name,
+                        whitelist=whitelist_show,
+                        junk_list=explicit_junk
+                    )
+                except Exception as e:
+                    log_message(f"Fehler bei finaler Safe-Move-Bereinigung: {e}")
+            else:
                 if settings.get("open_outbox_finder"):
                     open_folder_in_finder(dest_show_dir_outbox)
-            except Exception as e:
-                log_message(f"Fehler beim Verschieben der Serien-Metadaten in Output-Ordner: {e}")
-
-            # Auffangregel: Move any remaining non-video, non-dot files to the show folder
-            try:
-                whitelist_show = []
-                if explicit_renames:
-                    whitelist_show.extend(explicit_renames)
-                if explicit_subs:
-                    whitelist_show.extend(explicit_subs)
-                safe_move_recursive(
-                    current_dir,
-                    dest_show_dir_outbox,
-                    prefix_filter=None,
-                    fallback_basename=clean_show_name,
-                    whitelist=whitelist_show,
-                    junk_list=explicit_junk
-                )
-            except Exception as e:
-                log_message(f"Fehler bei finaler Safe-Move-Bereinigung: {e}")
 
             # Copy show-level files to NAS targets if requested
             for target in settings.get("storage_targets", []):

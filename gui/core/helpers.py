@@ -793,3 +793,137 @@ def get_category_media_type(cat, path=None):
 
     # Mehrdeutige Kategorienamen (wie "Anime", "TV") ohne klare Struktur führen zu None (was schreibende Aktionen mit HTTP 400 abweist)
     return None
+
+
+GROUP_VIDEO_EXTENSIONS = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
+
+
+def validate_group_files(inbox_root: str, files: list) -> list:
+    """
+    Validates a list of relative video file paths for grouped inbox processing.
+    Raises ValueError on any violation (absolute paths, traversals, outside inbox_root,
+    non-existent files, directories, non-video extensions).
+    Performs case-insensitive deduplication while preserving input order.
+    """
+    if not isinstance(files, list) or len(files) == 0:
+        raise ValueError("files-Parameter muss eine nicht-leere Liste sein.")
+
+    if not inbox_root or not os.path.exists(inbox_root):
+        raise ValueError("Inbox-Verzeichnis existiert nicht oder ist nicht konfiguriert.")
+
+    inbox_real = os.path.realpath(inbox_root)
+
+    validated = []
+    seen_keys = set()
+
+    for f in files:
+        if not isinstance(f, str) or not f.strip():
+            raise ValueError("Ungültiger Eintrag im files-Parameter (muss ein nicht-leerer String sein).")
+
+        f_clean = f.strip()
+
+        if os.path.isabs(f_clean):
+            raise ValueError(f"Absolute Pfade sind im files-Parameter nicht erlaubt: {f_clean}")
+
+        norm_parts = os.path.normpath(f_clean).replace('\\', '/').split('/')
+        if '..' in norm_parts:
+            raise ValueError(f"Pfad-Traversal ('..') ist im files-Parameter nicht erlaubt: {f_clean}")
+
+        dedup_key = os.path.normpath(f_clean).lower()
+        if dedup_key in seen_keys:
+            continue
+
+        full_path = os.path.join(inbox_root, f_clean)
+
+        try:
+            target_real = os.path.realpath(full_path)
+            if os.path.commonpath([target_real, inbox_real]) != inbox_real or target_real == inbox_real:
+                raise ValueError(f"Datei liegt außerhalb des Inbox-Verzeichnisses: {f_clean}")
+        except (ValueError, OSError):
+            raise ValueError(f"Datei liegt außerhalb des Inbox-Verzeichnisses: {f_clean}")
+
+        if not is_path_allowed(full_path):
+            raise ValueError(f"Zugriff auf Pfad nicht erlaubt: {f_clean}")
+
+        if not os.path.exists(full_path):
+            raise ValueError(f"Datei existiert nicht: {f_clean}")
+
+        if os.path.isdir(full_path):
+            raise ValueError(f"Ordner sind im files-Parameter nicht erlaubt: {f_clean}")
+
+        if not os.path.isfile(full_path):
+            raise ValueError(f"Ungültiger Dateityp (keine reguläre Datei): {f_clean}")
+
+        ext = os.path.splitext(f_clean)[1].lower()
+        if ext not in GROUP_VIDEO_EXTENSIONS:
+            raise ValueError(f"Datei '{f_clean}' ist keine unterstützte Videodatei (Endung: '{ext}').")
+
+        seen_keys.add(dedup_key)
+        validated.append(f_clean)
+
+    if not validated:
+        raise ValueError("Keine gültigen Dateien im files-Parameter gefunden.")
+
+    return validated
+
+
+def find_group_companion_files(inbox_root: str, validated_files: list) -> list:
+    """
+    Determines companion files for a group of video files.
+    Only finds same-directory siblings whose name starts with the video base name (stem)
+    followed by a dot separator (e.g. 'Folge 1.srt', 'Folge 1.de.srt').
+    Excludes video files (GROUP_VIDEO_EXTENSIONS) and dotfiles.
+    Returns list of paths relative to inbox_root.
+    """
+    if not inbox_root or not validated_files:
+        return []
+
+    companion_files = []
+    seen = set()
+
+    # Pre-populate seen with all validated video relative paths (normalized)
+    for vf in validated_files:
+        seen.add(os.path.normpath(vf).lower())
+
+    for vf in validated_files:
+        full_vpath = os.path.join(inbox_root, vf)
+        vdir = os.path.dirname(full_vpath)
+        vbasename = os.path.basename(full_vpath)
+        vstem = os.path.splitext(vbasename)[0]
+
+        if not os.path.isdir(vdir):
+            continue
+
+        try:
+            entries = sorted(os.listdir(vdir))
+        except OSError:
+            continue
+
+        prefix = vstem + "."
+        for entry in entries:
+            if entry.startswith('.'):
+                continue
+            if entry.lower().endswith(GROUP_VIDEO_EXTENSIONS):
+                continue
+            entry_full = os.path.join(vdir, entry)
+            if entry_full == full_vpath or not os.path.isfile(entry_full):
+                continue
+            if entry.startswith(prefix):
+                rel_companion = os.path.relpath(entry_full, inbox_root)
+                norm_key = os.path.normpath(rel_companion).lower()
+                if norm_key not in seen:
+                    seen.add(norm_key)
+                    companion_files.append(rel_companion)
+
+    return companion_files
+
+
+def get_group_scope_files(inbox_root: str, files: list) -> tuple:
+    """
+    Validates group files and determines companions.
+    Returns (validated_files, companion_files, scope_files_set).
+    """
+    validated = validate_group_files(inbox_root, files)
+    companions = find_group_companion_files(inbox_root, validated)
+    scope_set = set(validated) | set(companions)
+    return validated, companions, scope_set
