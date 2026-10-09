@@ -952,21 +952,49 @@ def process_worker(params):
 
         if explicit_junk:
             for j in explicit_junk:
+                if os.path.isabs(j):
+                    raise RuntimeError(f"Sicherheitsabbruch: Junk-Datei '{j}' ist ein absoluter Pfad.")
                 norm_j = os.path.normpath(j)
-                if norm_j not in scope_files:
+                if norm_j == ".." or norm_j.startswith(".." + os.sep) or norm_j not in scope_files:
                     raise RuntimeError(f"Sicherheitsabbruch: Junk-Datei '{j}' liegt außerhalb des Job-Scopes.")
         if explicit_subs:
             for s in explicit_subs:
                 old_s = s.get("old") if isinstance(s, dict) else s
+                new_s = s.get("new") if isinstance(s, dict) else None
+                if os.path.isabs(old_s):
+                    raise RuntimeError(f"Sicherheitsabbruch: Untertitel-Datei '{old_s}' ist ein absoluter Pfad.")
                 norm_s = os.path.normpath(old_s)
-                if norm_s not in scope_files:
+                if norm_s == ".." or norm_s.startswith(".." + os.sep) or norm_s not in scope_files:
                     raise RuntimeError(f"Sicherheitsabbruch: Untertitel-Datei '{old_s}' liegt außerhalb des Job-Scopes.")
+                if new_s:
+                    if os.path.isabs(new_s):
+                        raise RuntimeError(f"Sicherheitsabbruch: Untertitel-Ziel '{new_s}' ist ein absoluter Pfad.")
+                    norm_new_s = os.path.normpath(new_s)
+                    if norm_new_s == ".." or norm_new_s.startswith(".." + os.sep) or os.path.relpath(os.path.join(current_dir, norm_new_s), current_dir).startswith(".."):
+                        raise RuntimeError(f"Sicherheitsabbruch: Untertitel-Ziel '{new_s}' liegt außerhalb des Verzeichnisses.")
+                    old_path = os.path.join(current_dir, norm_s)
+                    new_path = os.path.join(current_dir, norm_new_s)
+                    if os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
+                        raise RuntimeError(f"Kollision beim Umbenennen von Untertitel: Ziel '{new_s}' existiert bereits.")
         if explicit_renames:
             for r in explicit_renames:
                 old_r = r.get("old") if isinstance(r, dict) else r
+                new_r = r.get("new") if isinstance(r, dict) else None
+                if os.path.isabs(old_r):
+                    raise RuntimeError(f"Sicherheitsabbruch: Rename-Datei '{old_r}' ist ein absoluter Pfad.")
                 norm_r = os.path.normpath(old_r)
-                if norm_r not in scope_files:
+                if norm_r == ".." or norm_r.startswith(".." + os.sep) or norm_r not in scope_files:
                     raise RuntimeError(f"Sicherheitsabbruch: Rename-Datei '{old_r}' liegt außerhalb des Job-Scopes.")
+                if new_r:
+                    if os.path.isabs(new_r):
+                        raise RuntimeError(f"Sicherheitsabbruch: Rename-Ziel '{new_r}' ist ein absoluter Pfad.")
+                    norm_new_r = os.path.normpath(new_r)
+                    if norm_new_r == ".." or norm_new_r.startswith(".." + os.sep) or os.path.relpath(os.path.join(current_dir, norm_new_r), current_dir).startswith(".."):
+                        raise RuntimeError(f"Sicherheitsabbruch: Rename-Ziel '{new_r}' liegt außerhalb des Verzeichnisses.")
+                    old_path = os.path.join(current_dir, norm_r)
+                    new_path = os.path.join(current_dir, norm_new_r)
+                    if os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
+                        raise RuntimeError(f"Kollision beim Umbenennen von Video: Ziel '{new_r}' existiert bereits.")
 
     # 0. Apply explicit user choices from preview if provided
     if explicit_renames is not None:
@@ -1034,6 +1062,8 @@ def process_worker(params):
                     if files_param is not None:
                         raise RuntimeError(f"Datei nicht gefunden (TOCTOU): '{r['old']}' existiert nicht mehr.")
                 if os.path.exists(old_path) and old_path != new_path:
+                    if files_param is not None and os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
+                        raise RuntimeError(f"Kollision beim Umbenennen von Video: Ziel '{r['new']}' existiert bereits.")
                     os.rename(old_path, new_path)
                     log_message(f"Umbenannt/Hochgezogen: {r['old']} -> {r['new']}")
 
@@ -1045,6 +1075,8 @@ def process_worker(params):
                     if files_param is not None:
                         raise RuntimeError(f"Datei nicht gefunden (TOCTOU): '{s['old']}' existiert nicht mehr.")
                 if os.path.exists(old_path) and old_path != new_path:
+                    if files_param is not None and os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
+                        raise RuntimeError(f"Kollision beim Umbenennen von Untertitel: Ziel '{s['new']}' existiert bereits.")
                     os.rename(old_path, new_path)
                     log_message(f"Umbenannt/Hochgezogen (Extra): {s['old']} -> {s['new']}")
 
@@ -1454,10 +1486,16 @@ def process_worker(params):
                         if file_already_in_outbox and is_metadata_done:
                             log_message(f"Episode {filename} ist bereits verarbeitet. Überspringe Umbenennung.")
                         else:
+                            if files_param is not None and os.path.exists(target_filepath) and os.path.abspath(filepath) != os.path.abspath(target_filepath):
+                                raise RuntimeError(
+                                    f"Kollision beim Umbenennen von Video: Ziel '{target_filename}' existiert bereits."
+                                )
                             log_message(f"Benenne um: {filename} -> {target_filename}")
                             try:
                                 os.rename(filepath, target_filepath)
                             except Exception as e:
+                                if files_param is not None:
+                                    raise
                                 log_message(f"Fehler beim Umbenennen: {e}")
                                 continue
 
@@ -1485,8 +1523,10 @@ def process_worker(params):
                                             seen_sub_targets.add(sub_new_name)
                                             sub_old_path = os.path.join(current_dir, comp)
                                             sub_new_path = os.path.join(current_dir, sub_new_name)
+                                            if not os.path.exists(sub_old_path):
+                                                raise RuntimeError(f"Datei nicht gefunden (TOCTOU): '{comp}' existiert nicht mehr.")
                                             if os.path.exists(sub_old_path):
-                                                if os.path.exists(sub_new_path) and sub_old_path != sub_new_path:
+                                                if os.path.exists(sub_new_path) and os.path.abspath(sub_old_path) != os.path.abspath(sub_new_path):
                                                     raise RuntimeError(
                                                         f"Kollision beim Umbenennen von Untertitel: Ziel '{sub_new_name}' existiert bereits."
                                                     )
@@ -1494,6 +1534,8 @@ def process_worker(params):
                                                 try:
                                                     os.rename(sub_old_path, sub_new_path)
                                                 except Exception as e:
+                                                    if files_param is not None:
+                                                        raise
                                                     log_message(f"Fehler: {e}")
                     else:
                         base_old = os.path.splitext(filename)[0]
@@ -1515,6 +1557,12 @@ def process_worker(params):
                         log_message(f"Episode NFO für {ep_str} existiert bereits. Überspringe Generierung.")
                     else:
                         log_message(f"Generiere Episoden-NFO für {ep_str}...")
+                        if files_param is not None:
+                            nfo_target_path = os.path.join(current_dir, f"{clean_title}.nfo")
+                            if os.path.exists(nfo_target_path):
+                                raise RuntimeError(
+                                    f"Kollision beim Generieren von NFO: Ziel '{clean_title}.nfo' existiert bereits."
+                                )
                         try:
                             ep_overrides = None
                             if "episodes" in nfo_overrides:
@@ -1526,6 +1574,8 @@ def process_worker(params):
                             )
                             log_message(f"Episode NFO Status: {res}")
                         except Exception as e:
+                            if files_param is not None:
+                                raise
                             log_message(f"Fehler bei Episode NFO: {e}")
                 current_prog = 50 + int(50 * (file_idx + 1) / N)
                 _update_pipeline_metadata_progress(task_id, current_prog)
@@ -1552,6 +1602,16 @@ def process_worker(params):
                         conv_pct[file_idx] = 100
                     else:
                         temp_output = os.path.join(current_dir, f"{clean_title}_neu.mkv")
+                        final_conv_output = os.path.join(current_dir, f"{clean_title}.mkv")
+                        if files_param is not None:
+                            if os.path.exists(temp_output) and os.path.abspath(temp_output) != os.path.abspath(target_filepath):
+                                raise RuntimeError(
+                                    f"Kollision bei Konvertierung: Temp-Ziel '{clean_title}_neu.mkv' existiert bereits."
+                                )
+                            if os.path.exists(final_conv_output) and os.path.abspath(final_conv_output) != os.path.abspath(target_filepath):
+                                raise RuntimeError(
+                                    f"Kollision bei Konvertierung: Ziel '{clean_title}.mkv' existiert bereits."
+                                )
                         convert_message = f"Konvertierung gestartet: {final_filename}"
                         current_convert_progress = _calculate_average_progress(conv_pct, N)
                         if task_id:

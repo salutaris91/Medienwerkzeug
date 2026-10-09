@@ -723,6 +723,285 @@ class TestInboxGroupFiles(unittest.TestCase):
             processor.process_worker(params_renames)
         self.assertIn("Sicherheitsabbruch", str(ctx.exception))
 
+    # =========================================================================
+    # N1, N2, N3: Target collision and destination boundary security tests
+    # =========================================================================
+    def test_n1_fallback_video_target_collision_with_foreign_file_aborts_loudly(self):
+        """
+        N1: Fallback video rename (explicit_renames=None) detects existing foreign file
+        with the exact target name in inbox root and aborts with RuntimeError without overwriting it.
+        """
+        ep1 = os.path.join(self.inbox_dir, "Show.S01E01.mkv")
+        with open(ep1, "wb") as f:
+            f.write(b"ep1_original_content")
+
+        foreign_target = os.path.join(self.inbox_dir, "MyShow - S01E01 - Pilot.mkv")
+        with open(foreign_target, "wb") as f:
+            f.write(b"foreign_target_do_not_overwrite")
+
+        params = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": ["Show.S01E01.mkv"],
+            "mappings": {"Show.S01E01.mkv": {"season": 1, "episode": 1, "title": "Pilot"}}
+            # explicit_renames is None
+        }
+
+        with patch("gui.workers.processor.ensure_nas_mounted", return_value=True), \
+             patch("gui.mw_metadata.generate_tvshow_nfo", return_value={"nfo": True}), \
+             patch("gui.mw_metadata.generate_episode_nfo", return_value={"nfo": True}):
+            with self.assertRaises(RuntimeError) as ctx:
+                processor.process_worker(params)
+
+        self.assertIn("Kollision", str(ctx.exception))
+        self.assertIn("MyShow - S01E01 - Pilot.mkv", str(ctx.exception))
+
+        # Foreign file must remain completely untouched with its original content
+        self.assertTrue(os.path.exists(foreign_target))
+        with open(foreign_target, "rb") as f:
+            self.assertEqual(f.read(), b"foreign_target_do_not_overwrite")
+        # Original file also remains
+        self.assertTrue(os.path.exists(ep1))
+
+    def test_n1_nfo_target_collision_with_foreign_file_aborts_loudly(self):
+        """
+        N1: Episode NFO generation in files-job detects existing foreign .nfo in inbox root
+        and aborts with RuntimeError without overwriting it.
+        """
+        ep1 = os.path.join(self.inbox_dir, "Show.S01E01.mkv")
+        with open(ep1, "wb") as f:
+            f.write(b"ep1_original_content")
+
+        foreign_nfo = os.path.join(self.inbox_dir, "MyShow - S01E01 - Pilot.nfo")
+        with open(foreign_nfo, "wb") as f:
+            f.write(b"foreign_nfo_content_do_not_touch")
+
+        params = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "provider": "tvdb",
+            "show_id": "12345",
+            "copy_to_nas": False,
+            "files": ["Show.S01E01.mkv"],
+            "mappings": {"Show.S01E01.mkv": {"season": 1, "episode": 1, "title": "Pilot"}}
+        }
+
+        with patch("gui.workers.processor.ensure_nas_mounted", return_value=True), \
+             patch("gui.mw_metadata.generate_tvshow_nfo", return_value={"nfo": True}):
+            with self.assertRaises(RuntimeError) as ctx:
+                processor.process_worker(params)
+
+        self.assertIn("Kollision", str(ctx.exception))
+        self.assertIn("MyShow - S01E01 - Pilot.nfo", str(ctx.exception))
+
+        # Foreign NFO must remain completely untouched
+        self.assertTrue(os.path.exists(foreign_nfo))
+        with open(foreign_nfo, "rb") as f:
+            self.assertEqual(f.read(), b"foreign_nfo_content_do_not_touch")
+
+    def test_n2_explicit_renames_destination_validation_and_collisions(self):
+        """
+        N2: explicit_renames target 'new' is validated:
+        (a) absolute path rejected, (b) '..' traversal rejected, (c) existing foreign target causes loud abort before move.
+        """
+        ep1 = os.path.join(self.inbox_dir, "Show.S01E01.mkv")
+        with open(ep1, "wb") as f:
+            f.write(b"ep1_content")
+
+        foreign_dir = os.path.join(self.inbox_dir, "Fremdordner")
+        os.makedirs(foreign_dir, exist_ok=True)
+        foreign_file = os.path.join(foreign_dir, "Target.mkv")
+        with open(foreign_file, "wb") as f:
+            f.write(b"foreign_target_content")
+
+        # 1. 'new' is an absolute path
+        params_abs = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": ["Show.S01E01.mkv"],
+            "mappings": {"Show.S01E01.mkv": 1},
+            "explicit_renames": [{"old": "Show.S01E01.mkv", "new": "/tmp/evil/Absolute.mkv"}]
+        }
+        with self.assertRaises(RuntimeError) as ctx:
+            processor.process_worker(params_abs)
+        self.assertIn("Sicherheitsabbruch", str(ctx.exception))
+        self.assertIn("absoluter Pfad", str(ctx.exception))
+        self.assertTrue(os.path.exists(ep1))
+
+        # 2. 'new' contains '..' traversal
+        params_traversal = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": ["Show.S01E01.mkv"],
+            "mappings": {"Show.S01E01.mkv": 1},
+            "explicit_renames": [{"old": "Show.S01E01.mkv", "new": "../outside.mkv"}]
+        }
+        with self.assertRaises(RuntimeError) as ctx:
+            processor.process_worker(params_traversal)
+        self.assertIn("Sicherheitsabbruch", str(ctx.exception))
+        self.assertTrue(os.path.exists(ep1))
+
+        # 3. 'new' points to an existing foreign file -> collision abort before any move
+        params_collision = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": ["Show.S01E01.mkv"],
+            "mappings": {"Show.S01E01.mkv": 1},
+            "explicit_renames": [{"old": "Show.S01E01.mkv", "new": "Fremdordner/Target.mkv"}]
+        }
+        with self.assertRaises(RuntimeError) as ctx:
+            processor.process_worker(params_collision)
+        self.assertIn("Kollision", str(ctx.exception))
+        self.assertIn("Fremdordner/Target.mkv", str(ctx.exception))
+
+        # Foreign file and source file must remain untouched
+        self.assertTrue(os.path.exists(foreign_file))
+        with open(foreign_file, "rb") as f:
+            self.assertEqual(f.read(), b"foreign_target_content")
+        self.assertTrue(os.path.exists(ep1))
+
+    def test_n2_explicit_subs_destination_validation_and_collisions(self):
+        """
+        N2: explicit_subs target 'new' is validated:
+        (a) absolute path rejected, (b) '..' traversal rejected, (c) existing foreign target causes loud abort.
+        """
+        ep1 = os.path.join(self.inbox_dir, "Show.S01E01.mkv")
+        sub1 = os.path.join(self.inbox_dir, "Show.S01E01.srt")
+        with open(ep1, "wb") as f:
+            f.write(b"ep1_content")
+        with open(sub1, "wb") as f:
+            f.write(b"sub1_content")
+
+        foreign_sub = os.path.join(self.inbox_dir, "ExistingSub.srt")
+        with open(foreign_sub, "wb") as f:
+            f.write(b"foreign_sub_content")
+
+        # 1. 'new' is an absolute path
+        params_abs = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": ["Show.S01E01.mkv"],
+            "mappings": {"Show.S01E01.mkv": 1},
+            "explicit_subs": [{"old": "Show.S01E01.srt", "new": "/tmp/evil/Absolute.srt"}]
+        }
+        with self.assertRaises(RuntimeError) as ctx:
+            processor.process_worker(params_abs)
+        self.assertIn("Sicherheitsabbruch", str(ctx.exception))
+        self.assertIn("absoluter Pfad", str(ctx.exception))
+
+        # 2. 'new' contains '..' traversal
+        params_traversal = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": ["Show.S01E01.mkv"],
+            "mappings": {"Show.S01E01.mkv": 1},
+            "explicit_subs": [{"old": "Show.S01E01.srt", "new": "../outside.srt"}]
+        }
+        with self.assertRaises(RuntimeError) as ctx:
+            processor.process_worker(params_traversal)
+        self.assertIn("Sicherheitsabbruch", str(ctx.exception))
+
+        # 3. 'new' points to an existing foreign subtitle file
+        params_collision = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": ["Show.S01E01.mkv"],
+            "mappings": {"Show.S01E01.mkv": 1},
+            "explicit_subs": [{"old": "Show.S01E01.srt", "new": "ExistingSub.srt"}]
+        }
+        with self.assertRaises(RuntimeError) as ctx:
+            processor.process_worker(params_collision)
+        self.assertIn("Kollision", str(ctx.exception))
+        self.assertIn("ExistingSub.srt", str(ctx.exception))
+
+        # Foreign sub remains untouched
+        self.assertTrue(os.path.exists(foreign_sub))
+        with open(foreign_sub, "rb") as f:
+            self.assertEqual(f.read(), b"foreign_sub_content")
+
+    def test_n3_convert_temp_target_collision_aborts_loudly(self):
+        """
+        N3: convert=True with files-job checks that temp target ('{clean_title}_neu.mkv')
+        does not collide with an existing foreign file in inbox root.
+        """
+        ep1 = os.path.join(self.inbox_dir, "Show.S01E01.mp4")
+        with open(ep1, "wb") as f:
+            f.write(b"mp4_video_content")
+
+        foreign_temp = os.path.join(self.inbox_dir, "MyShow - S01E01 - Pilot_neu.mkv")
+        with open(foreign_temp, "wb") as f:
+            f.write(b"foreign_temp_content")
+
+        params = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "convert": True,
+            "copy_to_nas": False,
+            "files": ["Show.S01E01.mp4"],
+            "mappings": {"Show.S01E01.mp4": {"season": 1, "episode": 1, "title": "Pilot"}}
+        }
+
+        with patch("gui.workers.processor.ensure_nas_mounted", return_value=True), \
+             patch("gui.mw_metadata.generate_tvshow_nfo", return_value={"nfo": True}), \
+             patch("gui.mw_metadata.generate_episode_nfo", return_value={"nfo": True}):
+            with self.assertRaises(RuntimeError) as ctx:
+                processor.process_worker(params)
+
+        self.assertIn("Kollision bei Konvertierung: Temp-Ziel", str(ctx.exception))
+        self.assertTrue(os.path.exists(foreign_temp))
+        with open(foreign_temp, "rb") as f:
+            self.assertEqual(f.read(), b"foreign_temp_content")
+
+    def test_n3_convert_final_target_collision_aborts_loudly(self):
+        """
+        N3: convert=True with files-job checks that final target ('{clean_title}.mkv')
+        does not collide with an existing foreign file in inbox root when converting non-mkv (.mp4).
+        """
+        ep1 = os.path.join(self.inbox_dir, "Show.S01E01.mp4")
+        with open(ep1, "wb") as f:
+            f.write(b"mp4_video_content")
+
+        foreign_final = os.path.join(self.inbox_dir, "MyShow - S01E01 - Pilot.mkv")
+        with open(foreign_final, "wb") as f:
+            f.write(b"foreign_final_content")
+
+        params = {
+            "media_type": "tv",
+            "show_name": "MyShow",
+            "season": 1,
+            "convert": True,
+            "copy_to_nas": False,
+            "files": ["Show.S01E01.mp4"],
+            "mappings": {"Show.S01E01.mp4": {"season": 1, "episode": 1, "title": "Pilot"}}
+        }
+
+        with patch("gui.workers.processor.ensure_nas_mounted", return_value=True), \
+             patch("gui.mw_metadata.generate_tvshow_nfo", return_value={"nfo": True}), \
+             patch("gui.mw_metadata.generate_episode_nfo", return_value={"nfo": True}):
+            with self.assertRaises(RuntimeError) as ctx:
+                processor.process_worker(params)
+
+        self.assertIn("Kollision bei Konvertierung: Ziel", str(ctx.exception))
+        self.assertTrue(os.path.exists(foreign_final))
+        with open(foreign_final, "rb") as f:
+            self.assertEqual(f.read(), b"foreign_final_content")
+
 
 if __name__ == "__main__":
     unittest.main()

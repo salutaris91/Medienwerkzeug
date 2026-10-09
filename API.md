@@ -260,12 +260,12 @@ UI-Beiwerk und Sichtbarkeits-Toggles.
 
 ### `GET|POST /api/preview-process`
 Erzeugt die detaillierte Zuordnungs-Vorschau (Umbenennung/Ziele) vor dem Job.
-Optionaler Parameter `files` (Array relativer Pfade): Behandelt eine Liste von Einzeldateien als virtuellen Serien-Auftrag auf Basis des Inbox-Roots. Alle Einträge in `mappings` müssen in `files` enthalten sein. Ungültige Pfade (Traversals, Ordner, Nicht-Videos, fehlende Dateien) werden mit HTTP 400 abgewiesen.
+Optionaler Parameter `files` (Array relativer Pfade): Behandelt eine Liste von Einzeldateien als virtuellen Serien-Auftrag auf Basis des Inbox-Roots. Nur für `media_type` `'tv'` erlaubt (andere Medientypen werden mit HTTP 400 abgewiesen). Alle Einträge in `mappings` müssen in `files` enthalten sein. Ungültige Pfade (Traversals, Ordner, Nicht-Videos, fehlende Dateien) werden mit HTTP 400 abgewiesen.
 
 ### `POST /api/process`
 Reiht einen Verarbeitungs-Job in die Queue ein (Payload: `media_type`,
 `mappings`, Ziel-IDs, `copy_to_nas`/`copy_to_pcloud`, `is_anime`, optional `files` etc.).
-Bei gesetztem `files`-Parameter wird der Job mit striktem Scope auf die übergebenen Dateien und deren Begleitdateien ausgeführt.
+Der optionale Parameter `files` ist nur für `media_type` `'tv'` erlaubt (andere Medientypen werden mit HTTP 400 abgewiesen). Bei gesetztem `files`-Parameter wird der Job mit striktem Scope auf die übergebenen Dateien und deren Begleitdateien ausgeführt.
 ```json
 { "status": "ok", "task_id": "<uuid>" }
 ```
