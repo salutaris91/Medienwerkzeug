@@ -1,12 +1,12 @@
-import { applyTheme } from './js/theme.js?v=95';
-import { cleanSeriesName } from './js/utils.js?v=95';
-import { formatBytes } from './js/format.js?v=95';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=95';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=95';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=95';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=95';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=95';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=95';
+import { applyTheme } from './js/theme.js?v=96';
+import { cleanSeriesName } from './js/utils.js?v=96';
+import { formatBytes } from './js/format.js?v=96';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=96';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=96';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=96';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=96';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=96';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=96';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -2457,10 +2457,23 @@ function updateProjectProcessingStatus(activeProjects) {
     // Update Smart Inbox items in DOM reactively
     const smartItems = document.querySelectorAll("#smart-inbox-list .smart-inbox-item");
     smartItems.forEach(item => {
+        if (!item.hasAttribute("data-project") || item.classList.contains("smart-inbox-group-row")) return;
         const p = item.getAttribute("data-project") || "";
         const isProcessing = activeProjects.has(p);
         const btn = item.querySelector(".btn-select-smart");
         const deleteBtn = item.querySelector(".btn-delete-smart");
+        const cb = item.querySelector(".smart-inbox-cb");
+
+        if (cb) {
+            cb.disabled = isProcessing;
+            if (isProcessing) {
+                cb.style.opacity = "0.5";
+                cb.style.cursor = "not-allowed";
+            } else {
+                cb.style.opacity = "1";
+                cb.style.cursor = "pointer";
+            }
+        }
 
         if (isProcessing) {
             item.style.border = "1px solid rgba(0, 229, 255, 0.3)";
@@ -2854,6 +2867,10 @@ async function scanProject(project) {
         const data = await response.json();
         path.textContent = `Pfad: ${data.current_dir}`;
         projectFiles = data.files || [];
+        activeSeriesGroupFiles = null;
+        if (typeof globalThis !== 'undefined') {
+            globalThis.activeSeriesGroupFiles = null;
+        }
         window.currentProjectFileNfoStatuses = data.file_nfo_statuses || {};
         currentProjectIsDoku = data.is_doku || false;
         currentProjectSuggestedQuery = data.suggested_query || "";
@@ -4404,6 +4421,9 @@ async function executeSeriesWorkflow() {
         is_anime: document.getElementById("series-is-anime")?.checked || false,
         overwrite_nfo: false
     };
+    if (activeSeriesGroupFiles && activeSeriesGroupFiles.length > 0) {
+        payload.files = [...activeSeriesGroupFiles];
+    }
     if (nasShowFolder) {
         payload.nas_show_folder = nasShowFolder;
     }
@@ -12349,6 +12369,254 @@ function formatDateDe(timestamp) {
 }
 
 let currentSmartInboxRawSuggestions = [];
+let selectedInboxProjects = new Set();
+let unlockedMovieProjects = new Set();
+let appliedInboxGroups = new Set();
+let activeSeriesGroupFiles = null;
+
+function extractStrictSeasonEpisode(filename) {
+    if (!filename || typeof filename !== 'string') return null;
+    const match = filename.match(/(?:^|[._\s\-\[])[sS](\d{1,2})[eE](\d{1,3})(?:[._\s\-\]]|$)/i);
+    if (!match) return null;
+    const sNum = parseInt(match[1], 10);
+    const eNum = parseInt(match[2], 10);
+    if (isNaN(sNum) || isNaN(eNum)) return null;
+    const sFormatted = `S${String(sNum).padStart(2, '0')}E${String(eNum).padStart(2, '0')}`;
+    return {
+        season: sNum,
+        episode: eNum,
+        formatted: sFormatted
+    };
+}
+
+function detectInboxGroups(suggestions) {
+    if (!Array.isArray(suggestions)) return {};
+    const groups = {};
+    suggestions.forEach(item => {
+        if (item.media_type !== "tv" || item.is_dir === true) return;
+        const query = (item.suggested_query || "").trim();
+        if (!query || query === "__inbox_recursive__") return;
+        const se = extractStrictSeasonEpisode(item.project);
+        if (!se) return;
+
+        if (!groups[query]) {
+            groups[query] = [];
+        }
+        groups[query].push({ ...item, _se: se });
+    });
+
+    const validGroups = {};
+    for (const [key, items] of Object.entries(groups)) {
+        if (items.length >= 2) {
+            validGroups[key] = items;
+        }
+    }
+    return validGroups;
+}
+
+function buildGroupedInboxSuggestions(suggestions, appliedGroups) {
+    if (!Array.isArray(suggestions)) return [];
+    const validGroups = detectInboxGroups(suggestions);
+    const groupedItemsByProject = new Map();
+    const groupPseudoEntries = [];
+
+    for (const [groupKey, members] of Object.entries(validGroups)) {
+        if (appliedGroups && appliedGroups.has(groupKey)) {
+            members.forEach(m => groupedItemsByProject.set(m.project, groupKey));
+
+            const maxModifiedAt = members.reduce((max, m) => {
+                if (m.modified_at === null || m.modified_at === undefined) return max;
+                return max === null ? m.modified_at : Math.max(max, m.modified_at);
+            }, null);
+
+            const totalSize = members.reduce((sum, m) => {
+                if (m.total_size === null || m.total_size === undefined) return sum;
+                return sum + m.total_size;
+            }, 0);
+
+            const sortedMembers = [...members].sort((a, b) => {
+                if (a._se.season !== b._se.season) return a._se.season - b._se.season;
+                return a._se.episode - b._se.episode;
+            });
+
+            groupPseudoEntries.push({
+                is_group: true,
+                project: groupKey,
+                group_key: groupKey,
+                media_type: "tv",
+                is_dir: false,
+                modified_at: maxModifiedAt,
+                total_size: totalSize,
+                video_count: members.length,
+                items: sortedMembers,
+                reasons: [`Seriengruppe (${members.length} Folgen)`]
+            });
+        }
+    }
+
+    const result = [];
+    suggestions.forEach(item => {
+        if (groupedItemsByProject.has(item.project)) {
+            return;
+        }
+        result.push(item);
+    });
+
+    result.push(...groupPseudoEntries);
+    return result;
+}
+
+function updateGroupBannerUI(validGroups) {
+    const banner = document.getElementById("smart-inbox-group-banner");
+    if (!banner) return;
+
+    let bannerCandidate = null;
+    for (const [groupKey, members] of Object.entries(validGroups)) {
+        let isIgnored = false;
+        try {
+            if (typeof sessionStorage !== 'undefined') {
+                isIgnored = sessionStorage.getItem('smart-inbox-ignore-group-' + groupKey) === 'true';
+            }
+        } catch (e) {}
+        if (!appliedInboxGroups.has(groupKey) && !isIgnored) {
+            bannerCandidate = { groupKey, members };
+            break;
+        }
+    }
+
+    if (!bannerCandidate) {
+        banner.style.display = "none";
+        banner.innerHTML = "";
+        return;
+    }
+
+    const { groupKey, members } = bannerCandidate;
+    const seasons = Array.from(new Set(members.map(m => m._se.season))).sort((a, b) => a - b);
+    const seasonsStr = seasons.length > 1 ? `Staffeln ${seasons.join(', ')}` : `Staffel ${seasons[0]}`;
+
+    banner.style.display = "flex";
+    banner.innerHTML = `
+        <div class="smart-inbox-group-banner-content">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers" style="color: #c4b5fd;"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+            <span>Als Serie gruppieren: <strong>${escapeHTML(groupKey)}</strong> (${members.length} Folgen, ${seasonsStr})</span>
+        </div>
+        <div class="smart-inbox-group-banner-actions">
+            <button class="btn btn-primary btn-xs btn-banner-apply-group" data-group-key="${escapeHTML(groupKey)}">Als Serie gruppieren</button>
+            <button class="btn btn-secondary btn-xs btn-banner-ignore-group" data-group-key="${escapeHTML(groupKey)}">Ignorieren</button>
+        </div>
+    `;
+
+    banner.querySelector(".btn-banner-ignore-group")?.addEventListener("click", () => {
+        try {
+            if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.setItem('smart-inbox-ignore-group-' + groupKey, 'true');
+            }
+        } catch (e) {}
+        renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+    });
+
+    banner.querySelector(".btn-banner-apply-group")?.addEventListener("click", () => {
+        appliedInboxGroups.add(groupKey);
+        renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+        const files = members.map(m => m.project);
+        startSeriesGroupWorkflow(groupKey, files);
+    });
+}
+
+function updateBulkActionsBarUI() {
+    const bulkBar = document.getElementById("smart-inbox-bulk-actions");
+    if (!bulkBar) return;
+    const count = selectedInboxProjects.size;
+    if (count >= 1) {
+        bulkBar.style.display = "flex";
+        bulkBar.innerHTML = `
+            <div class="smart-inbox-bulk-info">
+                <span id="smart-inbox-bulk-count">${count} ausgewählt</span>
+            </div>
+            <div class="smart-inbox-bulk-buttons">
+                <button class="btn btn-secondary btn-xs" id="btn-bulk-deselect">Auswahl aufheben</button>
+                <button class="btn btn-primary btn-xs" id="btn-bulk-group-series">Ausgewählte als Serie gruppieren</button>
+            </div>
+        `;
+        bulkBar.querySelector("#btn-bulk-deselect")?.addEventListener("click", () => {
+            selectedInboxProjects.clear();
+            updateBulkActionsBarUI();
+            const smartInboxList = document.getElementById("smart-inbox-list");
+            if (smartInboxList) {
+                smartInboxList.querySelectorAll(".smart-inbox-cb").forEach(cb => {
+                    cb.checked = false;
+                });
+            }
+        });
+        bulkBar.querySelector("#btn-bulk-group-series")?.addEventListener("click", () => {
+            const files = Array.from(selectedInboxProjects);
+            if (files.length === 0) return;
+            const firstItem = currentSmartInboxRawSuggestions.find(s => s.project === files[0]);
+            let groupName = firstItem ? (firstItem.suggested_query || cleanSeriesName(firstItem.project)) : cleanSeriesName(files[0]);
+            startSeriesGroupWorkflow(groupName, files);
+        });
+    } else {
+        bulkBar.style.display = "none";
+        bulkBar.innerHTML = "";
+    }
+}
+
+function startSeriesGroupWorkflow(groupName, files) {
+    if (!Array.isArray(files) || files.length === 0) return;
+    activeSeriesGroupFiles = [...files];
+    if (typeof globalThis !== 'undefined') {
+        globalThis.activeSeriesGroupFiles = activeSeriesGroupFiles;
+    }
+    currentProject = "";
+    projectFiles = [...files];
+
+    const modeCard = document.getElementById("mode-series");
+    if (modeCard) {
+        modeCard.click();
+    }
+
+    const searchInput = document.getElementById("series-search-query");
+    if (searchInput) {
+        searchInput.value = groupName || "";
+    }
+
+    if (typeof searchSeries === "function" && groupName) {
+        searchSeries();
+    }
+}
+
+function createSeriesGroupPayload(groupName, files, mappings = null, extra = {}) {
+    if (!Array.isArray(files) || files.length === 0) {
+        throw new Error("files must be a non-empty array");
+    }
+    const resolvedMappings = {};
+    if (mappings && typeof mappings === 'object') {
+        for (const [k, v] of Object.entries(mappings)) {
+            resolvedMappings[k] = v;
+        }
+    } else {
+        files.forEach(f => {
+            const se = extractStrictSeasonEpisode(f);
+            if (se) {
+                resolvedMappings[f] = se.formatted;
+            } else {
+                resolvedMappings[f] = 1;
+            }
+        });
+    }
+
+    return {
+        media_type: "tv",
+        project_name: groupName || "",
+        show_name: groupName || "",
+        show_id: extra.show_id || "group-id",
+        provider: extra.provider || "tmdb",
+        season: "all",
+        files: [...files],
+        mappings: resolvedMappings,
+        ...extra
+    };
+}
 
 function updateSmartInboxSortBarUI(activeField, activeDir) {
     const sortBar = document.getElementById("smart-inbox-sort-bar");
@@ -12409,10 +12677,102 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
         const sortState = getInboxSortState();
         updateSmartInboxSortBarUI(sortState.field, sortState.direction);
 
-        const sortedSuggestions = sortInboxSuggestions(suggestions, sortState.field, sortState.direction);
+        const validGroups = detectInboxGroups(suggestions);
+        updateGroupBannerUI(validGroups);
+
+        const processedSuggestions = buildGroupedInboxSuggestions(suggestions, appliedInboxGroups);
+        const sortedSuggestions = sortInboxSuggestions(processedSuggestions, sortState.field, sortState.direction);
         smartInboxList.innerHTML = "";
 
         sortedSuggestions.forEach(item => {
+            if (item.is_group === true) {
+                // Group pseudo-row (AK11: own class, data-group-key, NO data-project, NO quarantine button)
+                const groupDiv = document.createElement("div");
+                groupDiv.className = "smart-inbox-group-row";
+                groupDiv.setAttribute("data-group-key", item.group_key);
+                groupDiv.style.cssText = "background: rgba(139, 92, 246, 0.04); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 8px; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; transition: all 0.2s ease;";
+
+                const metaSegments = [`${escapeHTML(String(item.video_count))} Folgen`];
+                if (item.total_size !== null && item.total_size !== undefined && typeof item.total_size === 'number') {
+                    metaSegments.push(formatBytes(item.total_size));
+                }
+                if (item.modified_at !== null && item.modified_at !== undefined && typeof item.modified_at === 'number') {
+                    const formattedDate = formatDateDe(item.modified_at);
+                    if (formattedDate) metaSegments.push(formattedDate);
+                }
+                const metaHtml = metaSegments.join(" · ");
+
+                const headerDiv = document.createElement("div");
+                headerDiv.className = "smart-inbox-group-header";
+                headerDiv.style.cssText = "display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%;";
+
+                headerDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px; flex-grow: 1; flex-wrap: wrap;">
+                        <button type="button" class="smart-inbox-group-toggle" aria-expanded="false" aria-label="Folgen anzeigen" style="background:none; border:none; color:var(--text-muted); cursor:pointer; padding:4px; display:inline-flex; align-items:center;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right" style="transition: transform 0.2s ease;"><polyline points="9 18 15 12 9 6"/></svg>
+                        </button>
+                        <strong class="smart-inbox-group-title" style="font-size: 1rem; color: var(--text-main); overflow-wrap: break-word;">${escapeHTML(item.project)}</strong>
+                        <span style="font-size: 0.75em; padding: 2px 8px; border-radius: 12px; font-weight: 500; background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);">Serie (Gruppe)</span>
+                        <span style="font-size: 0.8em; color: var(--text-muted);">${metaHtml}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <button class="btn btn-primary btn-sm btn-select-group" data-group-key="${escapeHTML(item.group_key)}" style="white-space: nowrap;">
+                            <span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="height: 12px; width: 12px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Als Serie gruppieren</span>
+                        </button>
+                    </div>
+                `;
+
+                const membersDiv = document.createElement("div");
+                membersDiv.className = "smart-inbox-group-members";
+                membersDiv.style.cssText = "display: none; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 10px; border-top: 1px dashed rgba(139, 92, 246, 0.2);";
+
+                item.items.forEach(m => {
+                    const memberEl = document.createElement("div");
+                    memberEl.className = "smart-inbox-group-member-item";
+                    memberEl.style.cssText = "display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-light); border-radius: 6px; font-size: 0.85rem;";
+                    memberEl.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+                            <span class="badge-season-episode">${m._se ? m._se.formatted : 'Folge'}</span>
+                            <span style="overflow-wrap: break-word; font-weight: 500; color: var(--text-main);">${escapeHTML(m.project)}</span>
+                        </div>
+                        <div style="font-size: 0.8em; color: var(--text-muted); flex-shrink: 0;">
+                            ${m.total_size ? formatBytes(m.total_size) : ''}
+                        </div>
+                    `;
+                    membersDiv.appendChild(memberEl);
+                });
+
+                const toggleBtn = headerDiv.querySelector(".smart-inbox-group-toggle");
+                const chevronIcon = toggleBtn ? toggleBtn.querySelector("svg") : null;
+                const toggleHandler = () => {
+                    const isExpanded = toggleBtn.getAttribute("aria-expanded") === "true";
+                    toggleBtn.setAttribute("aria-expanded", isExpanded ? "false" : "true");
+                    membersDiv.style.display = isExpanded ? "none" : "flex";
+                    if (chevronIcon) {
+                        chevronIcon.style.transform = isExpanded ? "rotate(0deg)" : "rotate(90deg)";
+                    }
+                };
+                if (toggleBtn) {
+                    toggleBtn.addEventListener("click", toggleHandler);
+                    toggleBtn.addEventListener("keydown", (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleHandler();
+                        }
+                    });
+                }
+
+                headerDiv.querySelector(".btn-select-group")?.addEventListener("click", () => {
+                    const files = item.items.map(m => m.project);
+                    startSeriesGroupWorkflow(item.group_key, files);
+                });
+
+                groupDiv.appendChild(headerDiv);
+                groupDiv.appendChild(membersDiv);
+                smartInboxList.appendChild(groupDiv);
+                return;
+            }
+
             let typeBadge = "";
             let badgeColor = "";
             if (item.media_type === "movie") {
@@ -12447,19 +12807,45 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
             const borderStyle = isProcessing ? "border: 1px solid rgba(0, 229, 255, 0.3);" : "border: 1px solid var(--border-light);";
             const bgStyle = isProcessing ? "background: rgba(0, 229, 255, 0.03);" : "background: rgba(255,255,255,0.02);";
 
+            // Checkbox eligibility check (AK12, AK13)
+            const isTvSingle = (item.media_type === "tv" && item.is_dir === false);
+            const isUnlockedMovie = (item.media_type === "movie" && item.is_dir === false && unlockedMovieProjects.has(item.project));
+            const isEligible = (isTvSingle || isUnlockedMovie);
+
+            let checkboxHtml = "";
+            if (isEligible) {
+                const isChecked = selectedInboxProjects.has(item.project);
+                const disabledAttr = isProcessing ? 'disabled style="cursor: not-allowed; opacity: 0.5;"' : 'style="cursor: pointer;"';
+                checkboxHtml = `<input type="checkbox" class="smart-inbox-cb" data-project="${escapeHTML(item.project)}" ${isChecked ? 'checked' : ''} ${disabledAttr} aria-label="Auswählen für Serie">`;
+            }
+
+            // Movie lock notice / unlock link (AK3, AK13)
+            let movieLockHtml = "";
+            if (item.media_type === "movie" && item.is_dir === false) {
+                if (isUnlockedMovie) {
+                    movieLockHtml = `<span class="badge-movie-unlocked">Als Serie freigegeben</span>`;
+                } else {
+                    movieLockHtml = `<span class="movie-series-lock-notice">Film (für Serie gesperrt)</span><a href="#" class="btn-unlock-movie-series" data-project="${escapeHTML(item.project)}">Trotzdem als Serie freigeben</a>`;
+                }
+            }
+
             const itemDiv = document.createElement("div");
             itemDiv.className = "smart-inbox-item";
             itemDiv.setAttribute("data-project", item.project);
             itemDiv.style.cssText = `${bgStyle} ${borderStyle} border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; transition: all 0.2s ease;`;
             itemDiv.innerHTML = `
-                <div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1;">
-                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                        <strong style="font-size: 1rem; color: var(--text-main);">${escapeHTML(item.project)}</strong>
-                        <span style="font-size: 0.75em; padding: 2px 8px; border-radius: 12px; font-weight: 500; ${badgeColor}">${typeBadge}</span>
-                        <span style="font-size: 0.8em; color: var(--text-muted);">${metaHtml}</span>
-                    </div>
-                    <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;">
-                        ${reasonsHtml}
+                <div style="display: flex; align-items: center; gap: 12px; flex-grow: 1;">
+                    ${checkboxHtml}
+                    <div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1;">
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <strong style="font-size: 1rem; color: var(--text-main); overflow-wrap: break-word;">${escapeHTML(item.project)}</strong>
+                            <span style="font-size: 0.75em; padding: 2px 8px; border-radius: 12px; font-weight: 500; ${badgeColor}">${typeBadge}</span>
+                            <span style="font-size: 0.8em; color: var(--text-muted);">${metaHtml}</span>
+                            ${movieLockHtml}
+                        </div>
+                        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;">
+                            ${reasonsHtml}
+                        </div>
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
@@ -12488,15 +12874,64 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                 }
             }
 
+            const cb = itemDiv.querySelector(".smart-inbox-cb");
+            if (cb) {
+                cb.addEventListener("change", () => {
+                    if (cb.checked) {
+                        selectedInboxProjects.add(item.project);
+                    } else {
+                        selectedInboxProjects.delete(item.project);
+                    }
+                    updateBulkActionsBarUI();
+                });
+            }
+
+            const unlockLink = itemDiv.querySelector(".btn-unlock-movie-series");
+            if (unlockLink) {
+                unlockLink.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    unlockedMovieProjects.add(item.project);
+                    renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+                });
+            }
+
             smartInboxList.appendChild(itemDiv);
         });
+
+        updateBulkActionsBarUI();
     } else {
         if (sortBar) sortBar.style.display = "none";
+        const groupBanner = document.getElementById("smart-inbox-group-banner");
+        if (groupBanner) {
+            groupBanner.style.display = "none";
+            groupBanner.innerHTML = "";
+        }
+        const bulkBar = document.getElementById("smart-inbox-bulk-actions");
+        if (bulkBar) {
+            bulkBar.style.display = "none";
+            bulkBar.innerHTML = "";
+        }
         smartInboxList.innerHTML = `<div style="color:var(--text-muted); font-size:13px; text-align:center; padding:20px; background: rgba(255,255,255,0.01); border: 1px dashed var(--border-light); border-radius: 8px;">Keine verarbeitbaren Film- oder Serienprojekte in der Inbox gefunden.</div>`;
     }
 }
 
+if (typeof globalThis !== 'undefined') {
+    globalThis.extractStrictSeasonEpisode = extractStrictSeasonEpisode;
+    globalThis.detectInboxGroups = detectInboxGroups;
+    globalThis.buildGroupedInboxSuggestions = buildGroupedInboxSuggestions;
+    globalThis.startSeriesGroupWorkflow = startSeriesGroupWorkflow;
+    globalThis.createSeriesGroupPayload = createSeriesGroupPayload;
+    globalThis.selectedInboxProjects = selectedInboxProjects;
+    globalThis.unlockedMovieProjects = unlockedMovieProjects;
+    globalThis.appliedInboxGroups = appliedInboxGroups;
+    globalThis.updateBulkActionsBarUI = updateBulkActionsBarUI;
+}
+
 function handleSmartInboxClick(projectName, mediaType, suggestionTitle) {
+    activeSeriesGroupFiles = null;
+    if (typeof globalThis !== 'undefined') {
+        globalThis.activeSeriesGroupFiles = null;
+    }
     selectProject(projectName);
 
     setTimeout(() => {

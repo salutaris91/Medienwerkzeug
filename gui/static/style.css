@@ -3861,3 +3861,208 @@ body.runtime-docker .docker-only-info {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.25);
 }
+
+/* Smart Inbox Grouping & Bulk Actions (ROADMAP #65) */
+#smart-inbox-group-banner {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: var(--radius-md, 8px);
+    font-size: 0.85rem;
+    color: var(--text-main, #f1f5f9);
+}
+
+.smart-inbox-group-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.smart-inbox-group-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+#smart-inbox-bulk-actions {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    background: rgba(0, 229, 255, 0.06);
+    border: 1px solid rgba(0, 229, 255, 0.25);
+    border-radius: var(--radius-md, 8px);
+    font-size: 0.85rem;
+}
+
+.smart-inbox-bulk-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-main, #f1f5f9);
+    font-weight: 500;
+}
+
+.smart-inbox-bulk-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.smart-inbox-cb {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent, #00e5ff);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.smart-inbox-cb:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.smart-inbox-cb:focus-visible {
+    outline: 2px solid var(--accent, #00e5ff);
+    outline-offset: 2px;
+}
+
+.smart-inbox-group-row {
+    background: rgba(139, 92, 246, 0.04);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+    border-radius: 8px;
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: all 0.2s ease;
+}
+
+.smart-inbox-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+}
+
+.smart-inbox-group-title {
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.smart-inbox-group-toggle {
+    background: none;
+    border: none;
+    color: var(--text-muted, #94a3b8);
+    cursor: pointer;
+    padding: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease, color 0.15s ease;
+    border-radius: 4px;
+}
+
+.smart-inbox-group-toggle:hover,
+.smart-inbox-group-toggle:focus-visible {
+    color: var(--text-main, #f1f5f9);
+    background: rgba(255, 255, 255, 0.05);
+    outline: none;
+}
+
+.smart-inbox-group-toggle:focus-visible {
+    box-shadow: 0 0 0 2px var(--accent, #00e5ff);
+}
+
+.smart-inbox-group-toggle[aria-expanded="true"] svg {
+    transform: rotate(90deg);
+}
+
+.smart-inbox-group-members {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+    padding-top: 10px;
+    border-top: 1px dashed rgba(139, 92, 246, 0.2);
+}
+
+.smart-inbox-group-member-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+.badge-season-episode {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: var(--font-mono, monospace);
+    background: rgba(139, 92, 246, 0.2);
+    color: #c4b5fd;
+    border: 1px solid rgba(139, 92, 246, 0.35);
+}
+
+.movie-series-lock-notice {
+    font-size: 0.75em;
+    color: var(--text-muted, #94a3b8);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.btn-unlock-movie-series {
+    font-size: 0.75em;
+    color: var(--accent, #00e5ff);
+    text-decoration: underline;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+}
+
+.btn-unlock-movie-series:hover,
+.btn-unlock-movie-series:focus-visible {
+    color: #fff;
+    outline: none;
+}
+
+.badge-movie-unlocked {
+    font-size: 0.75em;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+@media (max-width: 600px) {
+    .smart-inbox-item,
+    .smart-inbox-group-header,
+    #smart-inbox-group-banner,
+    #smart-inbox-bulk-actions {
+        flex-wrap: wrap;
+    }
+}
