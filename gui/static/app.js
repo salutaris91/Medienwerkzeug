@@ -1,12 +1,12 @@
-import { applyTheme } from './js/theme.js?v=95';
-import { cleanSeriesName } from './js/utils.js?v=95';
-import { formatBytes } from './js/format.js?v=95';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=95';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=95';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=95';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=95';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=95';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=95';
+import { applyTheme } from './js/theme.js?v=99';
+import { cleanSeriesName } from './js/utils.js?v=99';
+import { formatBytes } from './js/format.js?v=99';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=99';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=99';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=99';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=99';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=99';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=99';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -2281,6 +2281,10 @@ async function loadStatus(forceNasCheck = false) {
 }
 
 let activeProjectsProcessing = new Set();
+let currentQueueJobs = [];
+if (typeof globalThis !== 'undefined') {
+    globalThis.currentQueueJobs = currentQueueJobs;
+}
 let lastProjectListJson = "";
 let lastActiveProject = "";
 
@@ -2457,10 +2461,23 @@ function updateProjectProcessingStatus(activeProjects) {
     // Update Smart Inbox items in DOM reactively
     const smartItems = document.querySelectorAll("#smart-inbox-list .smart-inbox-item");
     smartItems.forEach(item => {
+        if (!item.hasAttribute("data-project") || item.classList.contains("smart-inbox-group-row")) return;
         const p = item.getAttribute("data-project") || "";
         const isProcessing = activeProjects.has(p);
         const btn = item.querySelector(".btn-select-smart");
         const deleteBtn = item.querySelector(".btn-delete-smart");
+        const cb = item.querySelector(".smart-inbox-cb");
+
+        if (cb) {
+            cb.disabled = isProcessing;
+            if (isProcessing) {
+                cb.style.opacity = "0.5";
+                cb.style.cursor = "not-allowed";
+            } else {
+                cb.style.opacity = "1";
+                cb.style.cursor = "pointer";
+            }
+        }
 
         if (isProcessing) {
             item.style.border = "1px solid rgba(0, 229, 255, 0.3)";
@@ -2854,6 +2871,12 @@ async function scanProject(project) {
         const data = await response.json();
         path.textContent = `Pfad: ${data.current_dir}`;
         projectFiles = data.files || [];
+        activeSeriesGroupFiles = null;
+        activeSeriesGroupName = "";
+        if (typeof globalThis !== 'undefined') {
+            globalThis.activeSeriesGroupFiles = null;
+            globalThis.activeSeriesGroupName = "";
+        }
         window.currentProjectFileNfoStatuses = data.file_nfo_statuses || {};
         currentProjectIsDoku = data.is_doku || false;
         currentProjectSuggestedQuery = data.suggested_query || "";
@@ -3538,7 +3561,7 @@ async function selectShow(show) {
             const isDir = f.endsWith("/");
             if (isDir) return false;
             const ext = f.split('.').pop().toLowerCase();
-            return ['mp4', 'mkv', 'avi', 'webm', 'mov'].includes(ext);
+            return ['mp4', 'mkv', 'avi', 'webm', 'mov', 'ts', 'm2ts', 'flv', '3gp', 'wmv'].includes(ext);
         });
 
         if (videoFiles.length > 0) {
@@ -3610,7 +3633,7 @@ async function fetchEpisodes(requestId = null) {
             const isDir = f.endsWith("/");
             if (isDir) return false;
             const ext = f.split('.').pop().toLowerCase();
-            return ['mp4', 'mkv', 'avi', 'webm', 'mov'].includes(ext);
+            return ['mp4', 'mkv', 'avi', 'webm', 'mov', 'ts', 'm2ts', 'flv', '3gp', 'wmv'].includes(ext);
         });
 
         let matches = {};
@@ -3661,7 +3684,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
         const isDir = f.endsWith("/");
         if (isDir) return false;
         const ext = f.split('.').pop().toLowerCase();
-        return ['mp4', 'mkv', 'avi', 'webm', 'mov'].includes(ext);
+        return ['mp4', 'mkv', 'avi', 'webm', 'mov', 'ts', 'm2ts', 'flv', '3gp', 'wmv'].includes(ext);
     });
 
     if (videoFiles.length === 0) {
@@ -3695,8 +3718,8 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
             const cleanTitle = cleanFilenameForManualTitle(file);
 
             html += `
-                <div class="matching-row manual-matching-row" data-file="${file}" style="display: flex; flex-direction: column; gap: 10px; padding: 15px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); margin-bottom: 15px; background: rgba(255,255,255,0.02);">
-                    <div style="font-weight: bold; color: var(--text-main); word-break: break-all;">${file}</div>
+                <div class="matching-row manual-matching-row" data-file="${escapeHTML(file)}" style="display: flex; flex-direction: column; gap: 10px; padding: 15px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); margin-bottom: 15px; background: rgba(255,255,255,0.02);">
+                    <div style="font-weight: bold; color: var(--text-main); word-break: break-all;">${escapeHTML(file)}</div>
 
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px;">
                         <div>
@@ -3798,11 +3821,11 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
         }
 
         html += `
-            <div class="matching-row" data-file="${file}">
-                <div class="match-file" title="${file}">
-                    <div style="word-break: break-all;">${file}</div>
+            <div class="matching-row" data-file="${escapeHTML(file)}">
+                <div class="match-file" title="${escapeHTML(file)}">
+                    <div style="word-break: break-all;">${escapeHTML(file)}</div>
                     <div class="duplicate-badge-container" id="dup-badge-${index}">${duplicates[file] ? `
-                        <div class="duplicate-badge" data-existing-path="${duplicates[file].path}" data-existing-filename="${duplicates[file].filename}" data-new-file="${file}" data-badge-id="dup-badge-${index}" style="margin-top: 5px; font-size: 11px; color: #ffb300; background: rgba(255, 179, 0, 0.08); border: 1px solid rgba(255, 179, 0, 0.25); padding: 4px 8px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 6px; font-weight: normal; line-height: 1.2; max-width: 100%; box-sizing: border-box; cursor: pointer;" title="Klicken für Video-Vergleich & Upgrade">
+                        <div class="duplicate-badge" data-existing-path="${duplicates[file].path}" data-existing-filename="${duplicates[file].filename}" data-new-file="${escapeHTML(file)}" data-badge-id="dup-badge-${index}" style="margin-top: 5px; font-size: 11px; color: #ffb300; background: rgba(255, 179, 0, 0.08); border: 1px solid rgba(255, 179, 0, 0.25); padding: 4px 8px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 6px; font-weight: normal; line-height: 1.2; max-width: 100%; box-sizing: border-box; cursor: pointer;" title="Klicken für Video-Vergleich & Upgrade">
                             <span><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: #ffb300; height: 12px; width: 12px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>Bereits auf NAS:</span>
                             <span style="font-weight: 500; opacity: 0.9; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 150px;" title="${duplicates[file].filename}">${duplicates[file].filename}</span>
                             <span style="opacity: 0.6; font-size: 10px;">(${duplicates[file].size_gb.toFixed(2)} GB${duplicates[file].resolution ? `, ${duplicates[file].resolution}` : ''})</span>
@@ -4288,9 +4311,26 @@ function selectMovie(movie) {
 // CORE EXECUTION HANDLERS (SERIES & MOVIES & YOUTUBE & TOOLS)
 // ==========================================================================
 async function executeSeriesWorkflow() {
-    if (activeProjectsProcessing && activeProjectsProcessing.has(currentProject || "")) {
-        alert("Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!");
-        return;
+    const isGroupWorkflow = Boolean(typeof activeSeriesGroupFiles !== "undefined" && activeSeriesGroupFiles && activeSeriesGroupFiles.length > 0);
+    if (isGroupWorkflow) {
+        const queueList = (typeof currentQueueJobs !== "undefined" && currentQueueJobs) || (typeof globalThis !== "undefined" && globalThis.currentQueueJobs) || [];
+        const activeJobs = queueList.filter(j => j.status === "queued" || j.status === "running");
+        const activeFilesSet = new Set();
+        activeJobs.forEach(job => {
+            if (Array.isArray(job.files)) {
+                job.files.forEach(f => activeFilesSet.add(f));
+            }
+        });
+        const overlapping = activeSeriesGroupFiles.filter(f => activeFilesSet.has(f));
+        if (overlapping.length > 0) {
+            alert(`Folgende Dateien werden bereits verarbeitet oder befinden sich in der Warteschlange: ${overlapping.join(", ")}`);
+            return;
+        }
+    } else {
+        if (currentProject && activeProjectsProcessing && activeProjectsProcessing.has(currentProject)) {
+            alert("Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!");
+            return;
+        }
     }
     if (!selectedShow) return;
 
@@ -4404,6 +4444,9 @@ async function executeSeriesWorkflow() {
         is_anime: document.getElementById("series-is-anime")?.checked || false,
         overwrite_nfo: false
     };
+    if (activeSeriesGroupFiles && activeSeriesGroupFiles.length > 0) {
+        payload.files = [...activeSeriesGroupFiles];
+    }
     if (nasShowFolder) {
         payload.nas_show_folder = nasShowFolder;
     }
@@ -4447,7 +4490,7 @@ async function executeSeriesWorkflow() {
 }
 
 async function executeMovieWorkflow() {
-    if (activeProjectsProcessing && activeProjectsProcessing.has(currentProject || "")) {
+    if (currentProject && activeProjectsProcessing && activeProjectsProcessing.has(currentProject)) {
         alert("Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!");
         return;
     }
@@ -7605,8 +7648,17 @@ function initEventListeners() {
 
     const updateSelectedShowFromInputs = () => {
         if (isManualSeriesMode) {
-            const titleVal = document.getElementById("manual-series-title").value.trim() || currentProject || "Manuelle Serie";
-            const plotVal = document.getElementById("manual-series-plot").value.trim() || "";
+            const mTitleEl = document.getElementById("manual-series-title");
+            let titleVal = (mTitleEl && mTitleEl.value) ? mTitleEl.value.trim() : "";
+            if (!titleVal) {
+                if (typeof activeSeriesGroupFiles !== "undefined" && activeSeriesGroupFiles && activeSeriesGroupFiles.length > 0) {
+                    const grpName = (typeof activeSeriesGroupName !== "undefined" && activeSeriesGroupName) ? activeSeriesGroupName.trim() : "";
+                    titleVal = (grpName ? grpName.replace(/\s*\(Gruppe\)$/, "").trim() : "") || "Serie";
+                } else {
+                    titleVal = currentProject || "Manuelle Serie";
+                }
+            }
+            const plotVal = document.getElementById("manual-series-plot")?.value?.trim() || "";
 
             const showMetaObj = {
                 title: titleVal,
@@ -10178,6 +10230,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // PREVIEW MODAL LOGIC
 // ==========================================================================
 let currentPreviewPayload = null;
+let isExecutingPreview = false;
 
 async function openPreviewModal(basePayload) {
     expandConsole();
@@ -10247,6 +10300,14 @@ async function openPreviewModal(basePayload) {
     listSubs.innerHTML = "";
     listJunk.innerHTML = "";
     dest.textContent = "Wird berechnet...";
+    isExecutingPreview = false;
+    const executeBtn = document.getElementById("btn-preview-execute");
+    if (executeBtn) {
+        executeBtn.disabled = false;
+        if (executeBtn.textContent && executeBtn.textContent.includes("wird gestartet")) {
+            executeBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play" style="display:inline-block; vertical-align:middle; margin-right: 6px;"><polygon points="6 3 20 12 6 21 6 3"/></svg>Jetzt final verarbeiten`;
+        }
+    }
 
     // Show modal
     overlay.classList.remove("hidden");
@@ -10263,7 +10324,16 @@ async function openPreviewModal(basePayload) {
             body: JSON.stringify(basePayload)
         });
 
-        if (!response.ok) throw new Error("Fehler beim Abrufen der Vorschau");
+        if (!response.ok) {
+            let errorMsg = "Fehler beim Abrufen der Vorschau";
+            try {
+                const errData = await response.json();
+                if (errData && (errData.error || errData.message)) {
+                    errorMsg = errData.error || errData.message;
+                }
+            } catch (_) {}
+            throw new Error(errorMsg);
+        }
         const data = await response.json();
 
         if (data.error) {
@@ -10322,12 +10392,16 @@ async function openPreviewModal(basePayload) {
         dest.innerHTML = data.destination.replace(/\n/g, '<br>');
 
         const createCheckbox = (item, checked, groupName) => {
+            const rawOld = (typeof item === 'object' && item !== null) ? (item.old || '') : (item || '');
+            const rawNew = (typeof item === 'object' && item !== null) ? (item.new || '') : '';
+            const safeOld = escapeHTML(rawOld);
+            const safeNew = escapeHTML(rawNew);
             return `
                 <label style="display:flex; align-items:center; gap:10px; background:rgba(0,0,0,0.2); padding:8px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.05); cursor:pointer;">
-                    <input type="checkbox" class="preview-cb-${groupName}" data-old="${item.old || item}" data-new="${item.new || ''}" ${checked ? 'checked' : ''} style="accent-color:var(--accent);">
+                    <input type="checkbox" class="preview-cb-${groupName}" data-old="${safeOld}" data-new="${safeNew}" ${checked ? 'checked' : ''} style="accent-color:var(--accent);">
                     <div style="flex:1; overflow:hidden;">
-                        <div style="font-size:11px; color:var(--text-muted); text-decoration:line-through; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.old || item}</div>
-                        ${item.new ? `<div style="font-size:13px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.new}</div>` : ''}
+                        <div style="font-size:11px; color:var(--text-muted); text-decoration:line-through; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeOld}</div>
+                        ${rawNew ? `<div style="font-size:13px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeNew}</div>` : ''}
                     </div>
                 </label>
             `;
@@ -10349,6 +10423,7 @@ async function openPreviewModal(basePayload) {
 
     } catch (e) {
         alert("Fehler: " + e.message);
+        appendConsoleLog("[System]: Fehler: " + e.message);
         closePreviewModal();
     }
 }
@@ -10538,12 +10613,33 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("btn-preview-cancel")?.addEventListener("click", closePreviewModal);
 
     document.getElementById("btn-preview-execute")?.addEventListener("click", async () => {
-        if (!currentPreviewPayload) return;
+        if (!currentPreviewPayload || isExecutingPreview) return;
+        const executeBtn = document.getElementById("btn-preview-execute");
+        if (executeBtn && executeBtn.disabled) return;
 
-        // Collect checked items
-        const explicitRenames = Array.from(document.querySelectorAll(".preview-cb-renames:checked")).map(cb => ({ old: cb.dataset.old, new: cb.dataset.new }));
-        const explicitSubs = Array.from(document.querySelectorAll(".preview-cb-subs:checked")).map(cb => ({ old: cb.dataset.old, new: cb.dataset.new }));
-        const explicitJunk = Array.from(document.querySelectorAll(".preview-cb-junk:checked")).map(cb => cb.dataset.old);
+        isExecutingPreview = true;
+        let originalContent = "";
+        if (executeBtn) {
+            executeBtn.disabled = true;
+            originalContent = executeBtn.innerHTML;
+            executeBtn.textContent = "wird gestartet…";
+        }
+
+        const resetExecuteBtn = () => {
+            isExecutingPreview = false;
+            if (executeBtn) {
+                executeBtn.disabled = false;
+                executeBtn.innerHTML = originalContent;
+            }
+        };
+
+        // Collect checked items using full original names
+        const getOld = (cb) => (cb.dataset && cb.dataset.old !== undefined ? cb.dataset.old : cb.getAttribute("data-old")) || "";
+        const getNew = (cb) => (cb.dataset && cb.dataset.new !== undefined ? cb.dataset.new : cb.getAttribute("data-new")) || "";
+
+        const explicitRenames = Array.from(document.querySelectorAll(".preview-cb-renames:checked")).map(cb => ({ old: getOld(cb), new: getNew(cb) }));
+        const explicitSubs = Array.from(document.querySelectorAll(".preview-cb-subs:checked")).map(cb => ({ old: getOld(cb), new: getNew(cb) }));
+        const explicitJunk = Array.from(document.querySelectorAll(".preview-cb-junk:checked")).map(cb => getOld(cb));
 
         const finalPayload = {
             ...currentPreviewPayload,
@@ -10603,9 +10699,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-
-
-        closePreviewModal();
         appendConsoleLog("[System]: Starte finalen Verarbeitungsprozess...");
 
         try {
@@ -10616,11 +10709,31 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             if (response.ok) {
+                if (executeBtn) {
+                    executeBtn.disabled = false;
+                    executeBtn.innerHTML = originalContent;
+                }
+                isExecutingPreview = false;
+                closePreviewModal();
                 connectLogStream();
             } else {
-                appendConsoleLog("[System] Fehler beim Starten des Prozesses.");
+                resetExecuteBtn();
+                let errorMsg = "";
+                try {
+                    const errData = await response.json();
+                    if (errData && (errData.error || errData.message)) {
+                        errorMsg = errData.error || errData.message;
+                    }
+                } catch (_) {}
+                if (errorMsg) {
+                    appendConsoleLog(`[System] Fehler beim Starten des Prozesses: ${errorMsg}`);
+                    alert(`Fehler beim Starten des Prozesses: ${errorMsg}`);
+                } else {
+                    appendConsoleLog("[System] Fehler beim Starten des Prozesses.");
+                }
             }
         } catch (e) {
+            resetExecuteBtn();
             appendConsoleLog(`[System] Fehler: ${e}`);
         }
     });
@@ -10739,11 +10852,16 @@ function renderQueue(jobs) {
     const badge = document.getElementById("queue-badge");
     const headerBadge = document.getElementById("header-queue-badge");
 
+    currentQueueJobs = Array.isArray(jobs) ? jobs : [];
+    if (typeof globalThis !== 'undefined') {
+        globalThis.currentQueueJobs = currentQueueJobs;
+    }
+
     const activeSet = new Set();
     jobs.forEach(j => {
         if (j.status === "queued" || j.status === "running") {
             const p = j.project_name;
-            if (p !== undefined && p !== null) {
+            if (p !== undefined && p !== null && p !== "") {
                 activeSet.add(p);
             }
         }
@@ -12349,6 +12467,444 @@ function formatDateDe(timestamp) {
 }
 
 let currentSmartInboxRawSuggestions = [];
+let selectedInboxProjects = new Set();
+let unlockedMovieProjects = new Set();
+let appliedInboxGroups = new Set();
+let expandedInboxGroups = new Set();
+let activeSeriesGroupFiles = null;
+let activeSeriesGroupName = "";
+
+function extractStrictSeasonEpisode(filename) {
+    if (!filename || typeof filename !== 'string') return null;
+    const match = filename.match(/(?:^|[._\s\-\[])[sS](\d{1,2})[eE](\d{1,3})(?:[._\s\-\]]|$)/i);
+    if (!match) return null;
+    const sNum = parseInt(match[1], 10);
+    const eNum = parseInt(match[2], 10);
+    if (isNaN(sNum) || isNaN(eNum)) return null;
+    const sFormatted = `S${String(sNum).padStart(2, '0')}E${String(eNum).padStart(2, '0')}`;
+    return {
+        season: sNum,
+        episode: eNum,
+        formatted: sFormatted
+    };
+}
+
+function detectInboxGroups(suggestions) {
+    if (!Array.isArray(suggestions)) return {};
+    const groups = {};
+    suggestions.forEach(item => {
+        if (item.media_type !== "tv" || item.is_dir === true) return;
+        const query = (item.suggested_query || "").trim();
+        if (!query || query === "__inbox_recursive__") return;
+        const se = extractStrictSeasonEpisode(item.project);
+        if (!se) return;
+
+        if (!groups[query]) {
+            groups[query] = [];
+        }
+        groups[query].push({ ...item, _se: se });
+    });
+
+    const validGroups = {};
+    for (const [key, items] of Object.entries(groups)) {
+        if (items.length >= 2) {
+            validGroups[key] = items;
+        }
+    }
+    return validGroups;
+}
+
+function buildGroupedInboxSuggestions(suggestions, appliedGroups) {
+    if (!Array.isArray(suggestions)) return [];
+    const validGroups = detectInboxGroups(suggestions);
+    const groupedItemsByProject = new Map();
+    const groupPseudoEntries = [];
+
+    for (const [groupKey, members] of Object.entries(validGroups)) {
+        if (appliedGroups && appliedGroups.has(groupKey)) {
+            members.forEach(m => groupedItemsByProject.set(m.project, groupKey));
+
+            const maxModifiedAt = members.reduce((max, m) => {
+                if (m.modified_at === null || m.modified_at === undefined) return max;
+                return max === null ? m.modified_at : Math.max(max, m.modified_at);
+            }, null);
+
+            const totalSize = members.reduce((sum, m) => {
+                if (m.total_size === null || m.total_size === undefined) return sum;
+                return sum + m.total_size;
+            }, 0);
+
+            const sortedMembers = [...members].sort((a, b) => {
+                if (a._se.season !== b._se.season) return a._se.season - b._se.season;
+                return a._se.episode - b._se.episode;
+            });
+
+            groupPseudoEntries.push({
+                is_group: true,
+                project: groupKey,
+                group_key: groupKey,
+                media_type: "tv",
+                is_dir: false,
+                modified_at: maxModifiedAt,
+                total_size: totalSize,
+                video_count: members.length,
+                items: sortedMembers,
+                reasons: [`Seriengruppe (${members.length} Folgen)`]
+            });
+        }
+    }
+
+    const result = [];
+    suggestions.forEach(item => {
+        if (groupedItemsByProject.has(item.project)) {
+            return;
+        }
+        result.push(item);
+    });
+
+    result.push(...groupPseudoEntries);
+    return result;
+}
+
+function updateGroupBannerUI(validGroups) {
+    const banner = document.getElementById("smart-inbox-group-banner");
+    if (!banner) return;
+
+    let bannerCandidate = null;
+    for (const [groupKey, members] of Object.entries(validGroups)) {
+        let isIgnored = false;
+        try {
+            if (typeof sessionStorage !== 'undefined') {
+                isIgnored = sessionStorage.getItem('smart-inbox-ignore-group-' + groupKey) === 'true';
+            }
+        } catch (e) {}
+        if (!appliedInboxGroups.has(groupKey) && !isIgnored) {
+            bannerCandidate = { groupKey, members };
+            break;
+        }
+    }
+
+    if (!bannerCandidate) {
+        banner.style.display = "none";
+        banner.innerHTML = "";
+        return;
+    }
+
+    const { groupKey, members } = bannerCandidate;
+    const seasons = Array.from(new Set(members.map(m => m._se.season))).sort((a, b) => a - b);
+    const seasonsStr = seasons.length > 1 ? `Staffeln ${seasons.join(', ')}` : `Staffel ${seasons[0]}`;
+
+    banner.style.display = "flex";
+    banner.innerHTML = `
+        <div class="smart-inbox-group-banner-content">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers" style="color: #c4b5fd;"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+            <span>Als Serie gruppieren: <strong>${escapeHTML(groupKey)}</strong> (${members.length} Folgen, ${seasonsStr})</span>
+        </div>
+        <div class="smart-inbox-group-banner-actions">
+            <button class="btn btn-primary btn-xs btn-banner-apply-group" data-group-key="${escapeHTML(groupKey)}">Als Serie gruppieren</button>
+            <button class="btn btn-secondary btn-xs btn-banner-ignore-group" data-group-key="${escapeHTML(groupKey)}">Ignorieren</button>
+        </div>
+    `;
+
+    banner.querySelector(".btn-banner-ignore-group")?.addEventListener("click", () => {
+        try {
+            if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.setItem('smart-inbox-ignore-group-' + groupKey, 'true');
+            }
+        } catch (e) {}
+        renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+    });
+
+    banner.querySelector(".btn-banner-apply-group")?.addEventListener("click", async (e) => {
+        const btn = e.currentTarget || e.target;
+        if (btn && btn.disabled) return;
+        let originalContent = "";
+        if (btn) {
+            btn.disabled = true;
+            originalContent = btn.innerHTML;
+            btn.textContent = "wird gestartet…";
+        }
+        try {
+            appliedInboxGroups.add(groupKey);
+            renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+            const files = members.map(m => m.project);
+            await startSeriesGroupWorkflow(groupKey, files);
+        } catch (err) {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
+            }
+        }
+    });
+}
+
+function detectManualGroupSeriesName(files, fallbackName) {
+    if (!Array.isArray(files) || files.length === 0) return fallbackName || "";
+    const episodeRegex = /(?:[._\s\-]+|\b)(?:[sS]\d{1,4}[eE]\d{1,4}|\d{1,3}x\d{1,4}|(?:staffel|season)\s*\d+\s*(?:folge|episode)\s*\d+|(?:staffel|season)\s*\d+|(?:folge|episode)\s*\d+)(?:[._\s\-]+|\b|$)/i;
+    const prefixes = files.map(f => {
+        let base = String(f || '').replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '');
+        const match = base.match(episodeRegex);
+        if (match && match.index !== undefined) {
+            base = base.slice(0, match.index);
+        }
+        return base.replace(/[\s._-]+$/, '').trim();
+    });
+
+    let common = prefixes[0] || "";
+    for (let i = 1; i < prefixes.length; i++) {
+        while (common && !prefixes[i].toLowerCase().startsWith(common.toLowerCase())) {
+            common = common.slice(0, -1);
+        }
+    }
+    common = common.replace(/[\s._-]+$/, '').trim();
+    return common || fallbackName || "";
+}
+
+function updateBulkActionsBarUI() {
+    const bulkBar = document.getElementById("smart-inbox-bulk-actions");
+    if (!bulkBar) return;
+    const count = selectedInboxProjects.size;
+    if (count >= 1) {
+        bulkBar.style.display = "flex";
+        bulkBar.innerHTML = `
+            <div class="smart-inbox-bulk-info">
+                <span id="smart-inbox-bulk-count">${count} ausgewählt</span>
+            </div>
+            <div class="smart-inbox-bulk-buttons">
+                <button class="btn btn-secondary btn-xs" id="btn-bulk-deselect">Auswahl aufheben</button>
+                <button class="btn btn-primary btn-xs" id="btn-bulk-group-series">Ausgewählte als Serie verarbeiten</button>
+            </div>
+        `;
+        bulkBar.querySelector("#btn-bulk-deselect")?.addEventListener("click", () => {
+            selectedInboxProjects.clear();
+            updateBulkActionsBarUI();
+            const smartInboxList = document.getElementById("smart-inbox-list");
+            if (smartInboxList) {
+                smartInboxList.querySelectorAll(".smart-inbox-cb").forEach(cb => {
+                    cb.checked = false;
+                });
+            }
+        });
+        bulkBar.querySelector("#btn-bulk-group-series")?.addEventListener("click", async (e) => {
+            const btn = e.currentTarget || e.target;
+            if (btn && btn.disabled) return;
+            let originalContent = "";
+            if (btn) {
+                btn.disabled = true;
+                originalContent = btn.innerHTML;
+                btn.textContent = "wird gestartet…";
+            }
+            try {
+                const files = Array.from(selectedInboxProjects);
+                if (files.length === 0) {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = originalContent;
+                    }
+                    return;
+                }
+                const firstItem = currentSmartInboxRawSuggestions.find(s => s.project === files[0]);
+                const fallbackName = firstItem ? (firstItem.suggested_query || cleanSeriesName(firstItem.project)) : cleanSeriesName(files[0]);
+                const groupName = detectManualGroupSeriesName(files, fallbackName);
+                await startSeriesGroupWorkflow(groupName, files);
+            } catch (err) {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalContent;
+                }
+            }
+        });
+    } else {
+        bulkBar.style.display = "none";
+        bulkBar.innerHTML = "";
+    }
+}
+
+function startSeriesGroupWorkflow(groupName, files) {
+    if (!Array.isArray(files) || files.length === 0) return Promise.resolve();
+    activeSeriesGroupFiles = [...files];
+    activeSeriesGroupName = groupName || "";
+    if (typeof globalThis !== 'undefined') {
+        globalThis.activeSeriesGroupFiles = activeSeriesGroupFiles;
+        globalThis.activeSeriesGroupName = activeSeriesGroupName;
+    }
+    currentProject = "";
+    projectFiles = [...files];
+
+    if (typeof window !== "undefined") {
+        window.isNfoAgentMode = false;
+        window.nasFolderSelected = null;
+        window.ytNasFolderSelected = null;
+    }
+
+    // Reset local profile search
+    const profileSearchInput = document.getElementById("series-local-profile-search");
+    if (profileSearchInput) {
+        profileSearchInput.value = "";
+    }
+    if (typeof allLocalProfiles !== "undefined" && typeof renderLocalProfilesDropdown === "function") {
+        renderLocalProfilesDropdown(allLocalProfiles);
+    }
+
+    // Reset manual mode variables
+    isManualMovieMode = false;
+    isManualSeriesMode = false;
+
+    const manualMovieContainer = document.getElementById("manual-movie-container");
+    if (manualMovieContainer) manualMovieContainer.classList.add("hidden");
+    const manualSeriesContainer = document.getElementById("manual-series-container");
+    if (manualSeriesContainer) manualSeriesContainer.classList.add("hidden");
+
+    const btnManualMovie = document.getElementById("btn-manual-movie");
+    if (btnManualMovie) {
+        btnManualMovie.classList.remove("active");
+        btnManualMovie.textContent = "Manuell eintragen";
+    }
+    const btnManualSeries = document.getElementById("btn-manual-series");
+    if (btnManualSeries) {
+        btnManualSeries.classList.remove("active");
+        btnManualSeries.textContent = "Manuell eintragen";
+    }
+
+    const mMovieTitle = document.getElementById("manual-movie-title");
+    if (mMovieTitle) mMovieTitle.value = "";
+    const mMovieYear = document.getElementById("manual-movie-year");
+    if (mMovieYear) mMovieYear.value = "";
+    const mMoviePlot = document.getElementById("manual-movie-plot");
+    if (mMoviePlot) mMoviePlot.value = "";
+    const mSeriesTitle = document.getElementById("manual-series-title");
+    if (mSeriesTitle) mSeriesTitle.value = "";
+    const mSeriesPlot = document.getElementById("manual-series-plot");
+    if (mSeriesPlot) mSeriesPlot.value = "";
+
+    selectedMovie = null;
+    selectedShow = null;
+    const moviePanel = document.getElementById("selected-movie-panel");
+    if (moviePanel) moviePanel.classList.add("hidden");
+    const showPanel = document.getElementById("selected-show-panel");
+    if (showPanel) showPanel.classList.add("hidden");
+    const movieResults = document.getElementById("movie-search-results");
+    if (movieResults) movieResults.innerHTML = "";
+    const seriesResults = document.getElementById("series-search-results");
+    if (seriesResults) seriesResults.innerHTML = "";
+    const matchContainer = document.getElementById("matching-panel-container");
+    if (matchContainer) matchContainer.innerHTML = "";
+    const seriesExec = document.getElementById("series-execution-panel");
+    if (seriesExec) seriesExec.classList.add("hidden");
+
+    // Update active state in UI list and navs
+    document.querySelectorAll(".project-item").forEach(item => {
+        item.classList.remove("active");
+    });
+    ["nav-youtube-downloader", "nav-tools-dashboard", "nav-settings-dashboard", "nav-youtube-abos", "nav-dashboard"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove("active");
+    });
+
+    // Hide context panels and reset mode cards on new project selection
+    document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
+    ["movie", "series", "doku", "tools"].forEach(m => {
+        const el = document.getElementById(`mode-${m}`);
+        if (el) {
+            el.classList.remove("active");
+            el.setAttribute("aria-checked", "false");
+        }
+    });
+
+    // Close NFO details panels by default
+    const movieDetails = document.getElementById("movie-nfo-details");
+    if (movieDetails) movieDetails.removeAttribute("open");
+    const seriesDetails = document.getElementById("series-nfo-details");
+    if (seriesDetails) seriesDetails.removeAttribute("open");
+
+    if (typeof triggerQualityHintUpdates === "function") {
+        triggerQualityHintUpdates();
+    }
+
+    // UI View Switching: Arbeitsansicht zeigen
+    document.querySelectorAll(".view-panel").forEach(p => {
+        p.classList.add("hidden");
+        p.classList.remove("active");
+    });
+    const viewFolder = document.getElementById("view-folder");
+    if (viewFolder) {
+        viewFolder.classList.remove("hidden");
+        viewFolder.classList.add("active");
+    }
+    if (typeof scrollToDetailTop === "function" && typeof document !== "undefined" && document.body) {
+        scrollToDetailTop();
+    }
+
+    const title = document.getElementById("current-project-title");
+    if (title) {
+        title.textContent = groupName ? `Gruppe: ${groupName}` : "Serie (Gruppe)";
+    }
+    const path = document.getElementById("current-project-path");
+    if (path) {
+        path.textContent = `${files.length} Datei(en) ausgewählt`;
+    }
+    const statsContainer = document.getElementById("project-stats-container");
+    if (statsContainer) {
+        statsContainer.style.display = "none";
+    }
+
+    // Modus-Auswahl sichtbar
+    const modeSelector = document.getElementById("folder-mode-selector");
+    const recursiveNotice = document.getElementById("recursive-mode-notice");
+    if (modeSelector) modeSelector.classList.remove("hidden");
+    if (recursiveNotice) recursiveNotice.classList.add("hidden");
+
+    // Dateiliste in view-folder füllen
+    const tbody = document.getElementById("files-table-body");
+    if (tbody) {
+        let rowsHtml = "";
+        files.forEach(f => {
+            const isDir = f.endsWith("/");
+            const name = isDir ? f.slice(0, -1) : f;
+            const ext = isDir ? "ordner" : f.split('.').pop().toLowerCase();
+            const isVideo = ['mp4', 'mkv', 'avi', 'webm', 'mov'].includes(ext);
+
+            let badgeClass = "file-type-badge";
+            if (isDir) badgeClass += " dir";
+            else if (isVideo) badgeClass += " video";
+            else if (['srt', 'vtt', 'ass', 'ssa', 'sub', 'idx'].includes(ext)) badgeClass += " subtitle";
+            else if (ext === 'nfo') badgeClass += " nfo";
+
+            rowsHtml += `
+                <tr>
+                    <td>${escapeHTML(name)}</td>
+                    <td><span class="${badgeClass}">${isDir ? "ORDNER" : ext.toUpperCase()}</span></td>
+                    <td style="text-align:right;"></td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = rowsHtml;
+    }
+
+    // Modus 'Serie' aktivieren
+    const modeCard = document.getElementById("mode-series");
+    if (modeCard) {
+        modeCard.classList.add("active");
+        modeCard.setAttribute("aria-checked", "true");
+        modeCard.click();
+    }
+
+    const seriesContext = document.getElementById("context-series");
+    if (seriesContext) {
+        seriesContext.classList.remove("hidden");
+    }
+
+    const searchInput = document.getElementById("series-search-query");
+    if (searchInput) {
+        searchInput.value = groupName || "";
+    }
+
+    if (typeof searchSeries === "function" && groupName) {
+        return searchSeries();
+    }
+    return Promise.resolve();
+}
+
 
 function updateSmartInboxSortBarUI(activeField, activeDir) {
     const sortBar = document.getElementById("smart-inbox-sort-bar");
@@ -12409,10 +12965,129 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
         const sortState = getInboxSortState();
         updateSmartInboxSortBarUI(sortState.field, sortState.direction);
 
-        const sortedSuggestions = sortInboxSuggestions(suggestions, sortState.field, sortState.direction);
+        const validGroups = detectInboxGroups(suggestions);
+        updateGroupBannerUI(validGroups);
+
+        const processedSuggestions = buildGroupedInboxSuggestions(suggestions, appliedInboxGroups);
+        const sortedSuggestions = sortInboxSuggestions(processedSuggestions, sortState.field, sortState.direction);
         smartInboxList.innerHTML = "";
 
         sortedSuggestions.forEach(item => {
+            if (item.is_group === true) {
+                // Group pseudo-row (AK11: own class, data-group-key, NO data-project, NO quarantine button)
+                const groupDiv = document.createElement("div");
+                groupDiv.className = "smart-inbox-group-row";
+                groupDiv.setAttribute("data-group-key", item.group_key);
+                groupDiv.style.cssText = "background: rgba(139, 92, 246, 0.04); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 8px; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; transition: all 0.2s ease;";
+
+                const metaSegments = [`${escapeHTML(String(item.video_count))} Folgen`];
+                if (item.total_size !== null && item.total_size !== undefined && typeof item.total_size === 'number') {
+                    metaSegments.push(formatBytes(item.total_size));
+                }
+                if (item.modified_at !== null && item.modified_at !== undefined && typeof item.modified_at === 'number') {
+                    const formattedDate = formatDateDe(item.modified_at);
+                    if (formattedDate) metaSegments.push(formattedDate);
+                }
+                const metaHtml = metaSegments.join(" · ");
+
+                const isGroupExpanded = expandedInboxGroups.has(item.group_key);
+
+                const headerDiv = document.createElement("div");
+                headerDiv.className = "smart-inbox-group-header";
+                headerDiv.style.cssText = "display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%;";
+
+                headerDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px; flex-grow: 1; flex-wrap: wrap;">
+                        <button type="button" class="smart-inbox-group-toggle" aria-expanded="${isGroupExpanded ? 'true' : 'false'}" aria-label="Folgen anzeigen" style="background:none; border:none; color:var(--text-muted); cursor:pointer; padding:4px; display:inline-flex; align-items:center;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right" style="transition: transform 0.2s ease; ${isGroupExpanded ? 'transform: rotate(90deg);' : ''}"><polyline points="9 18 15 12 9 6"/></svg>
+                        </button>
+                        <strong class="smart-inbox-group-title" style="font-size: 1rem; color: var(--text-main); overflow-wrap: break-word;">${escapeHTML(item.project)}</strong>
+                        <span style="font-size: 0.75em; padding: 2px 8px; border-radius: 12px; font-weight: 500; background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);">Serie (Gruppe)</span>
+                        <span style="font-size: 0.8em; color: var(--text-muted);">${metaHtml}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <button class="btn btn-primary btn-sm btn-select-group" data-group-key="${escapeHTML(item.group_key)}" style="white-space: nowrap;">
+                            <span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="height: 12px; width: 12px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Auswählen</span>
+                        </button>
+                    </div>
+                `;
+
+                const membersDiv = document.createElement("div");
+                membersDiv.className = "smart-inbox-group-members";
+                membersDiv.style.cssText = `display: ${isGroupExpanded ? 'flex' : 'none'}; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 10px; border-top: 1px dashed rgba(139, 92, 246, 0.2);`;
+
+                item.items.forEach(m => {
+                    const memberEl = document.createElement("div");
+                    memberEl.className = "smart-inbox-group-member-item";
+                    memberEl.style.cssText = "display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-light); border-radius: 6px; font-size: 0.85rem;";
+                    memberEl.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+                            <span class="badge-season-episode">${m._se ? m._se.formatted : 'Folge'}</span>
+                            <span style="overflow-wrap: break-word; font-weight: 500; color: var(--text-main);">${escapeHTML(m.project)}</span>
+                        </div>
+                        <div style="font-size: 0.8em; color: var(--text-muted); flex-shrink: 0;">
+                            ${m.total_size ? formatBytes(m.total_size) : ''}
+                        </div>
+                    `;
+                    membersDiv.appendChild(memberEl);
+                });
+
+                const toggleBtn = headerDiv.querySelector(".smart-inbox-group-toggle");
+                const chevronIcon = toggleBtn ? toggleBtn.querySelector("svg") : null;
+                const toggleHandler = () => {
+                    const isExpanded = toggleBtn.getAttribute("aria-expanded") === "true";
+                    if (isExpanded) {
+                        expandedInboxGroups.delete(item.group_key);
+                        toggleBtn.setAttribute("aria-expanded", "false");
+                        membersDiv.style.display = "none";
+                        if (chevronIcon) {
+                            chevronIcon.style.transform = "rotate(0deg)";
+                        }
+                    } else {
+                        expandedInboxGroups.add(item.group_key);
+                        toggleBtn.setAttribute("aria-expanded", "true");
+                        membersDiv.style.display = "flex";
+                        if (chevronIcon) {
+                            chevronIcon.style.transform = "rotate(90deg)";
+                        }
+                    }
+                };
+                if (toggleBtn) {
+                    toggleBtn.addEventListener("click", toggleHandler);
+                    toggleBtn.addEventListener("keydown", (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleHandler();
+                        }
+                    });
+                }
+
+                headerDiv.querySelector(".btn-select-group")?.addEventListener("click", async (e) => {
+                    const btn = e.currentTarget || e.target;
+                    if (btn && btn.disabled) return;
+                    let originalContent = "";
+                    if (btn) {
+                        btn.disabled = true;
+                        originalContent = btn.innerHTML;
+                        btn.textContent = "wird gestartet…";
+                    }
+                    try {
+                        const files = item.items.map(m => m.project);
+                        await startSeriesGroupWorkflow(item.group_key, files);
+                    } catch (err) {
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = originalContent;
+                        }
+                    }
+                });
+
+                groupDiv.appendChild(headerDiv);
+                groupDiv.appendChild(membersDiv);
+                smartInboxList.appendChild(groupDiv);
+                return;
+            }
+
             let typeBadge = "";
             let badgeColor = "";
             if (item.media_type === "movie") {
@@ -12447,19 +13122,45 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
             const borderStyle = isProcessing ? "border: 1px solid rgba(0, 229, 255, 0.3);" : "border: 1px solid var(--border-light);";
             const bgStyle = isProcessing ? "background: rgba(0, 229, 255, 0.03);" : "background: rgba(255,255,255,0.02);";
 
+            // Checkbox eligibility check (AK12, AK13)
+            const isTvSingle = (item.media_type === "tv" && item.is_dir === false);
+            const isUnlockedMovie = (item.media_type === "movie" && item.is_dir === false && unlockedMovieProjects.has(item.project));
+            const isEligible = (isTvSingle || isUnlockedMovie);
+
+            let checkboxHtml = "";
+            if (isEligible) {
+                const isChecked = selectedInboxProjects.has(item.project);
+                const disabledAttr = isProcessing ? 'disabled style="cursor: not-allowed; opacity: 0.5;"' : 'style="cursor: pointer;"';
+                checkboxHtml = `<input type="checkbox" class="smart-inbox-cb" data-project="${escapeHTML(item.project)}" ${isChecked ? 'checked' : ''} ${disabledAttr} aria-label="Auswählen für Serie">`;
+            }
+
+            // Movie lock notice / unlock link (AK3, AK13)
+            let movieLockHtml = "";
+            if (item.media_type === "movie" && item.is_dir === false) {
+                if (isUnlockedMovie) {
+                    movieLockHtml = `<span class="badge-movie-unlocked">Als Serie freigegeben</span>`;
+                } else {
+                    movieLockHtml = `<span class="movie-series-lock-notice">Film (für Serie gesperrt)</span><a href="#" class="btn-unlock-movie-series" data-project="${escapeHTML(item.project)}">Als Serie / Folge behandeln</a>`;
+                }
+            }
+
             const itemDiv = document.createElement("div");
             itemDiv.className = "smart-inbox-item";
             itemDiv.setAttribute("data-project", item.project);
             itemDiv.style.cssText = `${bgStyle} ${borderStyle} border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; transition: all 0.2s ease;`;
             itemDiv.innerHTML = `
-                <div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1;">
-                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                        <strong style="font-size: 1rem; color: var(--text-main);">${escapeHTML(item.project)}</strong>
-                        <span style="font-size: 0.75em; padding: 2px 8px; border-radius: 12px; font-weight: 500; ${badgeColor}">${typeBadge}</span>
-                        <span style="font-size: 0.8em; color: var(--text-muted);">${metaHtml}</span>
-                    </div>
-                    <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;">
-                        ${reasonsHtml}
+                <div style="display: flex; align-items: center; gap: 12px; flex-grow: 1;">
+                    ${checkboxHtml}
+                    <div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1;">
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <strong style="font-size: 1rem; color: var(--text-main); overflow-wrap: break-word;">${escapeHTML(item.project)}</strong>
+                            <span style="font-size: 0.75em; padding: 2px 8px; border-radius: 12px; font-weight: 500; ${badgeColor}">${typeBadge}</span>
+                            <span style="font-size: 0.8em; color: var(--text-muted);">${metaHtml}</span>
+                            ${movieLockHtml}
+                        </div>
+                        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;">
+                            ${reasonsHtml}
+                        </div>
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
@@ -12488,15 +13189,80 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                 }
             }
 
+            const cb = itemDiv.querySelector(".smart-inbox-cb");
+            if (cb) {
+                cb.addEventListener("change", () => {
+                    if (cb.checked) {
+                        selectedInboxProjects.add(item.project);
+                    } else {
+                        selectedInboxProjects.delete(item.project);
+                    }
+                    updateBulkActionsBarUI();
+                });
+            }
+
+            const unlockLink = itemDiv.querySelector(".btn-unlock-movie-series");
+            if (unlockLink) {
+                unlockLink.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    unlockedMovieProjects.add(item.project);
+                    renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+                });
+            }
+
             smartInboxList.appendChild(itemDiv);
         });
+
+        updateBulkActionsBarUI();
     } else {
         if (sortBar) sortBar.style.display = "none";
+        const groupBanner = document.getElementById("smart-inbox-group-banner");
+        if (groupBanner) {
+            groupBanner.style.display = "none";
+            groupBanner.innerHTML = "";
+        }
+        const bulkBar = document.getElementById("smart-inbox-bulk-actions");
+        if (bulkBar) {
+            bulkBar.style.display = "none";
+            bulkBar.innerHTML = "";
+        }
         smartInboxList.innerHTML = `<div style="color:var(--text-muted); font-size:13px; text-align:center; padding:20px; background: rgba(255,255,255,0.01); border: 1px dashed var(--border-light); border-radius: 8px;">Keine verarbeitbaren Film- oder Serienprojekte in der Inbox gefunden.</div>`;
     }
 }
 
+if (typeof globalThis !== 'undefined') {
+    globalThis.extractStrictSeasonEpisode = extractStrictSeasonEpisode;
+    globalThis.detectInboxGroups = detectInboxGroups;
+    globalThis.buildGroupedInboxSuggestions = buildGroupedInboxSuggestions;
+    globalThis.startSeriesGroupWorkflow = startSeriesGroupWorkflow;
+    globalThis.selectedInboxProjects = selectedInboxProjects;
+    globalThis.unlockedMovieProjects = unlockedMovieProjects;
+    globalThis.appliedInboxGroups = appliedInboxGroups;
+    globalThis.expandedInboxGroups = expandedInboxGroups;
+    globalThis.updateBulkActionsBarUI = updateBulkActionsBarUI;
+    globalThis.executeSeriesWorkflow = executeSeriesWorkflow;
+    globalThis.openPreviewModal = openPreviewModal;
+    globalThis.renderMatchingMatrix = renderMatchingMatrix;
+    globalThis.setSelectedShow = (val) => { selectedShow = val; };
+    globalThis.getSelectedShow = () => selectedShow;
+    globalThis.setEpisodesData = (val) => { episodesData = val; };
+    globalThis.detectManualGroupSeriesName = detectManualGroupSeriesName;
+    globalThis.activeSeriesGroupName = activeSeriesGroupName;
+    globalThis.setCurrentPreviewPayload = (val) => { currentPreviewPayload = val; };
+    globalThis.getCurrentPreviewPayload = () => currentPreviewPayload;
+    globalThis.renderQueue = renderQueue;
+    globalThis.currentQueueJobs = currentQueueJobs;
+    globalThis.setCurrentQueueJobs = (val) => { currentQueueJobs = val; };
+    globalThis.getCurrentQueueJobs = () => currentQueueJobs;
+}
+
 function handleSmartInboxClick(projectName, mediaType, suggestionTitle) {
+    activeSeriesGroupFiles = null;
+    activeSeriesGroupName = "";
+    if (typeof globalThis !== 'undefined') {
+        globalThis.activeSeriesGroupFiles = null;
+        globalThis.activeSeriesGroupName = "";
+    }
     selectProject(projectName);
 
     setTimeout(() => {

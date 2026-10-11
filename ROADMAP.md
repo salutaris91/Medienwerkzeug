@@ -1908,6 +1908,7 @@ Das Aufräumen leerer Ordner beschränkt sich auf Ordner, die der aktuelle Auftr
 
 ### Risiken & Hinweise
 - Mit #65 Weg 2 (`files[]`, Scope auf die Gruppe begrenzt) entsteht dieselbe Frage für Gruppen-Aufträge; gemeinsam lösen, nicht doppelt.
+- **Nachtrag 11.10.2026 (#65 Lauf A, PR #149):** Für `files[]`-Aufträge ist das Aufräumen der Inbox-Wurzel bereits abgeschaltet; offen bleibt hier nur der Fall der Aufträge ohne `files[]`. Mitbedenken (Rückkanal #65, N4): Bricht ein Auftrag mittendrin laut ab, bleibt das Video halb umbenannt in der Inbox, ggf. mit einer verwaisten `{clean_title}_neu.mkv` aus einer abgebrochenen Konvertierung; ein Wiederholungslauf läuft dann in die neuen Kollisions-Abbrüche. Wiederaufnahme bzw. Aufräumen dieses Zustands gehört zu #68.
 
 ### Aufwand (grob)
 Klein (Bedingung + ein Test).
@@ -1980,3 +1981,29 @@ Ein Ordner-Eintrag lässt sich aufklappen; seine Videodateien (auch in Unterordn
 
 ### Aufwand (grob)
 Mittel (Rekursion mit Tiefenbegrenzung + Aufklapp-UI, 2–3 Gate-A2-Runden).
+
+---
+
+## 72. Härtung `files[]`-Pfad: Restpunkte aus #65
+
+**Einordnung / Priorität:** Nicht blockierende Restpunkte aus den Rückkanal-Abnahmen zu #65 Lauf A (`docs/sessions/2026-10-08-roadmap64-65-inbox/rueckkanal-65a-r3.md`, Abschnitt 3; Alex, 11.10.2026: „super ja, die beiden sachen jetzt angehen“). Kein Punkt ist über einen legitimen Client erreichbar oder führt zu stillem Datenverlust.
+
+**Problem / Punkte:**
+1. **Ziel in fremdem Unterordner:** `explicit_renames`/`explicit_subs` mit relativem `new` in einen existierenden Inbox-Unterordner (kein `..`, nicht absolut, Ziel existiert noch nicht) passiert die Prüfung; die Datei würde in einen fremden Ordner gelegt (nur mit manipulierten Parametern).
+2. **Zeitfenster Prüfung → Schreiben:** Zwischen `os.path.exists(Ziel)` und `os.rename`/Konvertierungsstart kann lokal eine neue Datei entstehen (Restrisiko auf einem Einzelplatz-Server).
+3. **Pfad-Normalisierung:** `scope_files` mischt Roh- und `normpath`-Einträge; Rohstrings konsequent normalisieren. Der Konfinement-Check lehnt Dateinamen wie `..foo.mkv` konservativ ab.
+4. **Aufräumen:** Endungsliste doppelt (`gui/core/helpers.py` `GROUP_VIDEO_EXTENSIONS` ≡ Liste in `gui/api/queue_api.py`); toter Code `get_group_scope_files` in `helpers.py`.
+5. **Test-Hygiene:** `test_n1_nfo_…` in `tests/test_inbox_group_files.py` schaltet den TVDb-Abruf nicht per Mock ab (potenziell flaky).
+6. **Wiederholungsläufe:** Die Revalidierung bei Retry ist statisch geprüft, aber ohne Test.
+7. **Oberfläche (#65 Lauf B, `rueckkanal-65b.md` / `rueckkanal-65b-r2.md`):** kein `isProcessing`-Schutz an Gruppen-Knopf und Banner gegen schnellen Doppelklick (der Server bricht laut ab); Anime-Einträge ohne Hinweis, warum sie nicht gruppierbar sind; `is_dir`-Prüfung an zwei Stellen unterschiedlich formuliert (`=== true` vs. `=== false`); Folgen-Regex im Client `\d{1,3}` vs. Server `\d{1,2}`.
+8. **Endungslisten bündeln:** In `gui/static/app.js` steht die 10er-Liste dreimal, an vier weiteren Stellen noch die alte 5er-Liste (u. a. Sichtbarkeit des Qualitäts-/Konvertierungs-Panels, Badge-Farbe) → eine gemeinsame Konstante; Ordner nur mit `.ts`-Dateien sollen das Konvertierungs-Panel nicht ausblenden.
+
+**Ziel:**
+Die Punkte schließen, ohne das Verhalten der Aufträge ohne `files[]` zu ändern.
+
+### Risiken & Hinweise
+- Punkt 1 vor bzw. mit #71 (Ordner aufklappen) mitdenken, weil dort Pfade mit Unterordnern regulär auftreten.
+- Halb umbenannter Zustand nach Abbruch: siehe #68.
+
+### Aufwand (grob)
+Klein bis mittel (Prüfungen schärfen, Duplikate zusammenführen, 2–3 Tests).
