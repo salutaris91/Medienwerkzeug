@@ -159,6 +159,47 @@ class TestInboxSuggestions(unittest.TestCase):
             self.assertIsNone(sug["modified_at"])
             mock_log.assert_called()
 
+    def test_inbox_suggestions_is_dir(self):
+        """AK1b: is_dir is True for directories (even with 1 video), False for single files."""
+        # 1. Folder with exactly 1 video file -> is_dir: True
+        single_video_folder = os.path.join(self.inbox_dir, "SingleVideoFolder")
+        os.makedirs(single_video_folder, exist_ok=True)
+        vf1 = os.path.join(single_video_folder, "Video.mp4")
+        with open(vf1, "wb") as f:
+            f.write(b"x" * 100)
+
+        # 2. Folder with multiple video files -> is_dir: True
+        multi_video_folder = os.path.join(self.inbox_dir, "MultiVideoFolder")
+        os.makedirs(multi_video_folder, exist_ok=True)
+        vf2 = os.path.join(multi_video_folder, "Ep01.mp4")
+        vf3 = os.path.join(multi_video_folder, "Ep02.mp4")
+        with open(vf2, "wb") as f:
+            f.write(b"x" * 100)
+        with open(vf3, "wb") as f:
+            f.write(b"x" * 100)
+
+        # 3. Standalone video file in inbox root -> is_dir: False
+        standalone_file = os.path.join(self.inbox_dir, "StandaloneFile.mkv")
+        with open(standalone_file, "wb") as f:
+            f.write(b"x" * 100)
+
+        res = self.client.get('/api/inbox/analyze')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        suggestions = {s["project"]: s for s in data["suggestions"]}
+
+        self.assertIn("SingleVideoFolder", suggestions)
+        self.assertEqual(suggestions["SingleVideoFolder"]["video_count"], 1)
+        self.assertIs(suggestions["SingleVideoFolder"]["is_dir"], True)
+
+        self.assertIn("MultiVideoFolder", suggestions)
+        self.assertEqual(suggestions["MultiVideoFolder"]["video_count"], 2)
+        self.assertIs(suggestions["MultiVideoFolder"]["is_dir"], True)
+
+        self.assertIn("StandaloneFile.mkv", suggestions)
+        self.assertEqual(suggestions["StandaloneFile.mkv"]["video_count"], 1)
+        self.assertIs(suggestions["StandaloneFile.mkv"]["is_dir"], False)
+
 
 if __name__ == "__main__":
     unittest.main()
