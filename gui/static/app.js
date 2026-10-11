@@ -3555,7 +3555,7 @@ async function selectShow(show) {
             const isDir = f.endsWith("/");
             if (isDir) return false;
             const ext = f.split('.').pop().toLowerCase();
-            return ['mp4', 'mkv', 'avi', 'webm', 'mov'].includes(ext);
+            return ['mp4', 'mkv', 'avi', 'webm', 'mov', 'ts', 'm2ts', 'flv', '3gp', 'wmv'].includes(ext);
         });
 
         if (videoFiles.length > 0) {
@@ -3627,7 +3627,7 @@ async function fetchEpisodes(requestId = null) {
             const isDir = f.endsWith("/");
             if (isDir) return false;
             const ext = f.split('.').pop().toLowerCase();
-            return ['mp4', 'mkv', 'avi', 'webm', 'mov'].includes(ext);
+            return ['mp4', 'mkv', 'avi', 'webm', 'mov', 'ts', 'm2ts', 'flv', '3gp', 'wmv'].includes(ext);
         });
 
         let matches = {};
@@ -3678,7 +3678,7 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
         const isDir = f.endsWith("/");
         if (isDir) return false;
         const ext = f.split('.').pop().toLowerCase();
-        return ['mp4', 'mkv', 'avi', 'webm', 'mov'].includes(ext);
+        return ['mp4', 'mkv', 'avi', 'webm', 'mov', 'ts', 'm2ts', 'flv', '3gp', 'wmv'].includes(ext);
     });
 
     if (videoFiles.length === 0) {
@@ -3712,8 +3712,8 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
             const cleanTitle = cleanFilenameForManualTitle(file);
 
             html += `
-                <div class="matching-row manual-matching-row" data-file="${file}" style="display: flex; flex-direction: column; gap: 10px; padding: 15px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); margin-bottom: 15px; background: rgba(255,255,255,0.02);">
-                    <div style="font-weight: bold; color: var(--text-main); word-break: break-all;">${file}</div>
+                <div class="matching-row manual-matching-row" data-file="${escapeHTML(file)}" style="display: flex; flex-direction: column; gap: 10px; padding: 15px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); margin-bottom: 15px; background: rgba(255,255,255,0.02);">
+                    <div style="font-weight: bold; color: var(--text-main); word-break: break-all;">${escapeHTML(file)}</div>
 
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px;">
                         <div>
@@ -3815,11 +3815,11 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
         }
 
         html += `
-            <div class="matching-row" data-file="${file}">
-                <div class="match-file" title="${file}">
-                    <div style="word-break: break-all;">${file}</div>
+            <div class="matching-row" data-file="${escapeHTML(file)}">
+                <div class="match-file" title="${escapeHTML(file)}">
+                    <div style="word-break: break-all;">${escapeHTML(file)}</div>
                     <div class="duplicate-badge-container" id="dup-badge-${index}">${duplicates[file] ? `
-                        <div class="duplicate-badge" data-existing-path="${duplicates[file].path}" data-existing-filename="${duplicates[file].filename}" data-new-file="${file}" data-badge-id="dup-badge-${index}" style="margin-top: 5px; font-size: 11px; color: #ffb300; background: rgba(255, 179, 0, 0.08); border: 1px solid rgba(255, 179, 0, 0.25); padding: 4px 8px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 6px; font-weight: normal; line-height: 1.2; max-width: 100%; box-sizing: border-box; cursor: pointer;" title="Klicken für Video-Vergleich & Upgrade">
+                        <div class="duplicate-badge" data-existing-path="${duplicates[file].path}" data-existing-filename="${duplicates[file].filename}" data-new-file="${escapeHTML(file)}" data-badge-id="dup-badge-${index}" style="margin-top: 5px; font-size: 11px; color: #ffb300; background: rgba(255, 179, 0, 0.08); border: 1px solid rgba(255, 179, 0, 0.25); padding: 4px 8px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 6px; font-weight: normal; line-height: 1.2; max-width: 100%; box-sizing: border-box; cursor: pointer;" title="Klicken für Video-Vergleich & Upgrade">
                             <span><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: #ffb300; height: 12px; width: 12px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>Bereits auf NAS:</span>
                             <span style="font-weight: 500; opacity: 0.9; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 150px;" title="${duplicates[file].filename}">${duplicates[file].filename}</span>
                             <span style="opacity: 0.6; font-size: 10px;">(${duplicates[file].size_gb.toFixed(2)} GB${duplicates[file].resolution ? `, ${duplicates[file].resolution}` : ''})</span>
@@ -10283,7 +10283,16 @@ async function openPreviewModal(basePayload) {
             body: JSON.stringify(basePayload)
         });
 
-        if (!response.ok) throw new Error("Fehler beim Abrufen der Vorschau");
+        if (!response.ok) {
+            let errorMsg = "Fehler beim Abrufen der Vorschau";
+            try {
+                const errData = await response.json();
+                if (errData && (errData.error || errData.message)) {
+                    errorMsg = errData.error || errData.message;
+                }
+            } catch (_) {}
+            throw new Error(errorMsg);
+        }
         const data = await response.json();
 
         if (data.error) {
@@ -10369,6 +10378,7 @@ async function openPreviewModal(basePayload) {
 
     } catch (e) {
         alert("Fehler: " + e.message);
+        appendConsoleLog("[System]: Fehler: " + e.message);
         closePreviewModal();
     }
 }
@@ -10638,7 +10648,19 @@ document.addEventListener("DOMContentLoaded", () => {
             if (response.ok) {
                 connectLogStream();
             } else {
-                appendConsoleLog("[System] Fehler beim Starten des Prozesses.");
+                let errorMsg = "";
+                try {
+                    const errData = await response.json();
+                    if (errData && (errData.error || errData.message)) {
+                        errorMsg = errData.error || errData.message;
+                    }
+                } catch (_) {}
+                if (errorMsg) {
+                    appendConsoleLog(`[System] Fehler beim Starten des Prozesses: ${errorMsg}`);
+                    alert(`Fehler beim Starten des Prozesses: ${errorMsg}`);
+                } else {
+                    appendConsoleLog("[System] Fehler beim Starten des Prozesses.");
+                }
             }
         } catch (e) {
             appendConsoleLog(`[System] Fehler: ${e}`);
@@ -12372,6 +12394,7 @@ let currentSmartInboxRawSuggestions = [];
 let selectedInboxProjects = new Set();
 let unlockedMovieProjects = new Set();
 let appliedInboxGroups = new Set();
+let expandedInboxGroups = new Set();
 let activeSeriesGroupFiles = null;
 
 function extractStrictSeasonEpisode(filename) {
@@ -12585,38 +12608,6 @@ function startSeriesGroupWorkflow(groupName, files) {
     }
 }
 
-function createSeriesGroupPayload(groupName, files, mappings = null, extra = {}) {
-    if (!Array.isArray(files) || files.length === 0) {
-        throw new Error("files must be a non-empty array");
-    }
-    const resolvedMappings = {};
-    if (mappings && typeof mappings === 'object') {
-        for (const [k, v] of Object.entries(mappings)) {
-            resolvedMappings[k] = v;
-        }
-    } else {
-        files.forEach(f => {
-            const se = extractStrictSeasonEpisode(f);
-            if (se) {
-                resolvedMappings[f] = se.formatted;
-            } else {
-                resolvedMappings[f] = 1;
-            }
-        });
-    }
-
-    return {
-        media_type: "tv",
-        project_name: groupName || "",
-        show_name: groupName || "",
-        show_id: extra.show_id || "group-id",
-        provider: extra.provider || "tmdb",
-        season: "all",
-        files: [...files],
-        mappings: resolvedMappings,
-        ...extra
-    };
-}
 
 function updateSmartInboxSortBarUI(activeField, activeDir) {
     const sortBar = document.getElementById("smart-inbox-sort-bar");
@@ -12702,14 +12693,16 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                 }
                 const metaHtml = metaSegments.join(" · ");
 
+                const isGroupExpanded = expandedInboxGroups.has(item.group_key);
+
                 const headerDiv = document.createElement("div");
                 headerDiv.className = "smart-inbox-group-header";
                 headerDiv.style.cssText = "display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%;";
 
                 headerDiv.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 10px; flex-grow: 1; flex-wrap: wrap;">
-                        <button type="button" class="smart-inbox-group-toggle" aria-expanded="false" aria-label="Folgen anzeigen" style="background:none; border:none; color:var(--text-muted); cursor:pointer; padding:4px; display:inline-flex; align-items:center;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right" style="transition: transform 0.2s ease;"><polyline points="9 18 15 12 9 6"/></svg>
+                        <button type="button" class="smart-inbox-group-toggle" aria-expanded="${isGroupExpanded ? 'true' : 'false'}" aria-label="Folgen anzeigen" style="background:none; border:none; color:var(--text-muted); cursor:pointer; padding:4px; display:inline-flex; align-items:center;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right" style="transition: transform 0.2s ease; ${isGroupExpanded ? 'transform: rotate(90deg);' : ''}"><polyline points="9 18 15 12 9 6"/></svg>
                         </button>
                         <strong class="smart-inbox-group-title" style="font-size: 1rem; color: var(--text-main); overflow-wrap: break-word;">${escapeHTML(item.project)}</strong>
                         <span style="font-size: 0.75em; padding: 2px 8px; border-radius: 12px; font-weight: 500; background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3);">Serie (Gruppe)</span>
@@ -12724,7 +12717,7 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
 
                 const membersDiv = document.createElement("div");
                 membersDiv.className = "smart-inbox-group-members";
-                membersDiv.style.cssText = "display: none; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 10px; border-top: 1px dashed rgba(139, 92, 246, 0.2);";
+                membersDiv.style.cssText = `display: ${isGroupExpanded ? 'flex' : 'none'}; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 10px; border-top: 1px dashed rgba(139, 92, 246, 0.2);`;
 
                 item.items.forEach(m => {
                     const memberEl = document.createElement("div");
@@ -12746,10 +12739,20 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                 const chevronIcon = toggleBtn ? toggleBtn.querySelector("svg") : null;
                 const toggleHandler = () => {
                     const isExpanded = toggleBtn.getAttribute("aria-expanded") === "true";
-                    toggleBtn.setAttribute("aria-expanded", isExpanded ? "false" : "true");
-                    membersDiv.style.display = isExpanded ? "none" : "flex";
-                    if (chevronIcon) {
-                        chevronIcon.style.transform = isExpanded ? "rotate(0deg)" : "rotate(90deg)";
+                    if (isExpanded) {
+                        expandedInboxGroups.delete(item.group_key);
+                        toggleBtn.setAttribute("aria-expanded", "false");
+                        membersDiv.style.display = "none";
+                        if (chevronIcon) {
+                            chevronIcon.style.transform = "rotate(0deg)";
+                        }
+                    } else {
+                        expandedInboxGroups.add(item.group_key);
+                        toggleBtn.setAttribute("aria-expanded", "true");
+                        membersDiv.style.display = "flex";
+                        if (chevronIcon) {
+                            chevronIcon.style.transform = "rotate(90deg)";
+                        }
                     }
                 };
                 if (toggleBtn) {
@@ -12920,11 +12923,19 @@ if (typeof globalThis !== 'undefined') {
     globalThis.detectInboxGroups = detectInboxGroups;
     globalThis.buildGroupedInboxSuggestions = buildGroupedInboxSuggestions;
     globalThis.startSeriesGroupWorkflow = startSeriesGroupWorkflow;
-    globalThis.createSeriesGroupPayload = createSeriesGroupPayload;
     globalThis.selectedInboxProjects = selectedInboxProjects;
     globalThis.unlockedMovieProjects = unlockedMovieProjects;
     globalThis.appliedInboxGroups = appliedInboxGroups;
+    globalThis.expandedInboxGroups = expandedInboxGroups;
     globalThis.updateBulkActionsBarUI = updateBulkActionsBarUI;
+    globalThis.executeSeriesWorkflow = executeSeriesWorkflow;
+    globalThis.openPreviewModal = openPreviewModal;
+    globalThis.renderMatchingMatrix = renderMatchingMatrix;
+    globalThis.setSelectedShow = (val) => { selectedShow = val; };
+    globalThis.getSelectedShow = () => selectedShow;
+    globalThis.setEpisodesData = (val) => { episodesData = val; };
+    globalThis.setCurrentPreviewPayload = (val) => { currentPreviewPayload = val; };
+    globalThis.getCurrentPreviewPayload = () => currentPreviewPayload;
 }
 
 function handleSmartInboxClick(projectName, mediaType, suggestionTitle) {

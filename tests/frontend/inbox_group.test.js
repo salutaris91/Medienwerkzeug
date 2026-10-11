@@ -127,9 +127,13 @@ function parseHtmlToMockElements(html) {
     const elements = [];
     const tagRegex = /<([a-z0-9\-]+)([^>]*)>/gi;
     let match;
+    let lastSelect = null;
     while ((match = tagRegex.exec(html)) !== null) {
         const tagName = match[1].toLowerCase();
-        if (tagName.startsWith('/')) continue;
+        if (tagName.startsWith('/')) {
+            if (tagName === '/select') lastSelect = null;
+            continue;
+        }
         const attrStr = match[2];
         const el = createMockElement(tagName);
 
@@ -149,7 +153,39 @@ function parseHtmlToMockElements(html) {
         const dataRegex = /data-([a-z0-9\-]+)=["']([^"']*)["']/gi;
         let dMatch;
         while ((dMatch = dataRegex.exec(attrStr)) !== null) {
-            el.setAttribute(`data-${dMatch[1]}`, dMatch[2]);
+            const rawVal = dMatch[2]
+                .replace(/&quot;/g, '"')
+                .replace(/&#039;/g, "'")
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&amp;/g, '&');
+            el.setAttribute(`data-${dMatch[1]}`, rawVal);
+        }
+
+        const valMatch = attrStr.match(/value=["']([^"']*)["']/i);
+        if (valMatch) {
+            el.value = valMatch[1]
+                .replace(/&quot;/g, '"')
+                .replace(/&#039;/g, "'")
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&amp;/g, '&');
+        }
+
+        if (tagName === 'select') {
+            lastSelect = el;
+            el.options = [];
+            el.selectedIndex = 0;
+        } else if (tagName === 'option') {
+            const innerMatch = html.slice(match.index).match(/>([^<]*)</);
+            el.text = innerMatch ? innerMatch[1].trim() : el.value;
+            if (lastSelect) {
+                lastSelect.options.push(el);
+                if (lastSelect.value === '' || /\bselected\b/i.test(attrStr)) {
+                    lastSelect.value = el.value;
+                    lastSelect.selectedIndex = lastSelect.options.length - 1;
+                }
+            }
         }
 
         const typeMatch = attrStr.match(/type=["']([^"']+)["']/i);
@@ -190,6 +226,9 @@ function createMockElement(tagName = 'div', attributes = {}) {
         checked: false,
         disabled: false,
         textContent: '',
+        options: [],
+        selectedIndex: 0,
+        text: '',
         get className() {
             return Array.from(classSet).join(' ');
         },
@@ -210,7 +249,19 @@ function createMockElement(tagName = 'div', attributes = {}) {
                 parsed.forEach(c => children.push(c));
             }
         },
-        style: {},
+        style: {
+            display: '',
+            get cssText() {
+                return this._cssText || '';
+            },
+            set cssText(val) {
+                this._cssText = String(val);
+                const match = this._cssText.match(/\bdisplay\s*:\s*([^;]+)/i);
+                if (match) {
+                    this.display = match[1].trim();
+                }
+            }
+        },
         dataset,
         __listeners: listeners,
         __children: children,
@@ -246,17 +297,20 @@ function createMockElement(tagName = 'div', attributes = {}) {
             if (!listeners[event]) listeners[event] = [];
             listeners[event].push(handler);
         },
-        click: () => {
-            if (listeners['click']) {
-                listeners['click'].forEach(h => h.call(el, { type: 'click', target: el, preventDefault: () => {} }));
+        click: async function() {
+            const handlers = listeners['click'] || [];
+            for (const handler of handlers) {
+                await handler.call(el, { type: 'click', target: el, preventDefault: () => {} });
             }
             if (typeof el.onclick === 'function') {
-                el.onclick.call(el, { type: 'click', target: el, preventDefault: () => {} });
+                await el.onclick.call(el, { type: 'click', target: el, preventDefault: () => {} });
             }
         },
-        dispatchEvent: (event) => {
+        dispatchEvent: async function(event) {
             const handlers = listeners[event.type] || [];
-            handlers.forEach(h => h.call(el, event));
+            for (const handler of handlers) {
+                await handler.call(el, event);
+            }
         },
         querySelector: (sel) => {
             const parts = splitSelectorParts(sel);
@@ -352,6 +406,13 @@ function setupTestEnvironment() {
         deletedProjects.push(p);
     };
 
+    globalThis.localStorage = {
+        getItem: () => null,
+        setItem: () => {},
+        removeItem: () => {}
+    };
+
+    const docListeners = {};
     globalThis.document = {
         cookie: '',
         documentElement: {
@@ -367,14 +428,72 @@ function setupTestEnvironment() {
             if (parts.length > 0 && parts[0] === '#smart-inbox-list') {
                 return findDescendants(smartInboxList, parts.slice(1));
             }
-            return [];
+            const matchingContainer = elementsById['matching-panel-container'];
+            if (matchingContainer) {
+                const found = findDescendants(matchingContainer, parts);
+                if (found.length > 0) return found;
+            }
+            const all = [];
+            for (const root of Object.values(elementsById)) {
+                if (matchesSelector(root, parts[0])) {
+                    if (parts.length === 1) all.push(root);
+                    else all.push(...findDescendants(root, parts.slice(1)));
+                } else {
+                    all.push(...findDescendants(root, parts));
+                }
+            }
+            return all;
         },
         querySelector: (sel) => {
             if (sel.startsWith('#')) return getOrCreateElement(sel.slice(1));
-            return null;
+            const all = globalThis.document.querySelectorAll(sel);
+            return all[0] || null;
         },
-        addEventListener: () => {}
+        addEventListener: (event, handler) => {
+            if (!docListeners[event]) docListeners[event] = [];
+            docListeners[event].push(handler);
+        },
+        dispatchEvent: (eventObj) => {
+            const list = docListeners[eventObj.type] || [];
+            for (const handler of list) {
+                try {
+                    handler(eventObj);
+                } catch (_) {
+                    // ignore secondary DOM setup errors
+                }
+            }
+        }
     };
+
+    // Ensure common UI elements exist before app.js binds listeners
+    getOrCreateElement('matching-panel-container');
+    getOrCreateElement('series-execution-panel');
+    getOrCreateElement('btn-preview-execute', 'button');
+    getOrCreateElement('preview-modal-overlay');
+    getOrCreateElement('preview-modal');
+    getOrCreateElement('preview-destination');
+    getOrCreateElement('preview-list-renames');
+    getOrCreateElement('preview-list-subs');
+    getOrCreateElement('preview-list-junk');
+    getOrCreateElement('series-all-seasons', 'input');
+    getOrCreateElement('series-option-convert', 'input');
+    getOrCreateElement('series-option-delete', 'input');
+    getOrCreateElement('series-option-copy-nas', 'input');
+    getOrCreateElement('series-option-copy-pcloud', 'input');
+    getOrCreateElement('series-nas-destination', 'select');
+    getOrCreateElement('series-pcloud-destination', 'select');
+
+    // Timer mocks ensuring no real timers run in tests
+    globalThis.setTimeout = (fn) => { if (typeof fn === 'function') fn(); return 0; };
+    globalThis.clearTimeout = () => {};
+    globalThis.setInterval = () => 0;
+    globalThis.clearInterval = () => {};
+
+    const alerts = [];
+    globalThis.alert = (msg) => { alerts.push(msg); };
+    const consoleLogs = [];
+    globalThis.appendConsoleLog = (msg) => { consoleLogs.push(msg); };
+    globalThis.onConsoleLog = (msg) => { consoleLogs.push(msg); };
 
     globalThis.window = {
         fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }),
@@ -385,8 +504,31 @@ function setupTestEnvironment() {
 
     const appJsContent = fs.readFileSync(appJsPath, 'utf8');
     let cleanAppJs = appJsContent.replace(/import\s+[\s\S]*?from\s+['"].*?['"];?/g, "");
+    cleanAppJs = cleanAppJs.replace(
+        "function appendConsoleLog(line) {",
+        "function appendConsoleLog(line) { if (globalThis.onConsoleLog) globalThis.onConsoleLog(line);"
+    );
     cleanAppJs = `
 const cleanSeriesName = globalThis.cleanSeriesName;
+const prepareSeriesPayload = globalThis.prepareSeriesPayload || ((show, payload) => ({ ...payload }));
+const updateMwDataPanel = globalThis.updateMwDataPanel || (() => {});
+const triggerQualityHintUpdates = globalThis.triggerQualityHintUpdates || (() => {});
+const loadConversionRecommendations = globalThis.loadConversionRecommendations || (() => {});
+const applyTheme = globalThis.applyTheme || (() => {});
+const setupMaskedInput = globalThis.setupMaskedInput || (() => {});
+const setMaskedInputValue = globalThis.setMaskedInputValue || (() => {});
+const validateAllMaskedFields = globalThis.validateAllMaskedFields || (() => true);
+const osBasename = (p) => String(p || '').replace(/^.*[\\/\\\\]/, '');
+const formatFskLabel = (f) => f;
+const guessEpisodeNumber = (filename) => {
+    const m = String(filename).match(/[eE](\d+)/);
+    return m ? parseInt(m[1], 10) : 1;
+};
+const guessSeasonAndEpisode = (filename) => {
+    const m = String(filename).match(/[sS](\d+)[eE](\d+)/);
+    return m ? ('S' + String(parseInt(m[1], 10)).padStart(2, '0') + 'E' + String(parseInt(m[2], 10)).padStart(2, '0')) : null;
+};
+const cleanFilenameForManualTitle = (filename) => String(filename).replace(/\\.[^/.]+$/, '');
 ` + cleanAppJs;
 
     cleanAppJs += `
@@ -396,18 +538,28 @@ globalThis.buildGroupedInboxSuggestions = buildGroupedInboxSuggestions;
 globalThis.updateGroupBannerUI = updateGroupBannerUI;
 globalThis.updateBulkActionsBarUI = updateBulkActionsBarUI;
 globalThis.startSeriesGroupWorkflow = startSeriesGroupWorkflow;
-globalThis.createSeriesGroupPayload = createSeriesGroupPayload;
 globalThis.selectedInboxProjects = selectedInboxProjects;
 globalThis.unlockedMovieProjects = unlockedMovieProjects;
 globalThis.appliedInboxGroups = appliedInboxGroups;
+globalThis.expandedInboxGroups = expandedInboxGroups;
 globalThis.activeSeriesGroupFiles = activeSeriesGroupFiles;
 globalThis.renderSmartInboxList = renderSmartInboxList;
 globalThis.sortInboxSuggestions = sortInboxSuggestions;
 globalThis.getInboxSortState = getInboxSortState;
 globalThis.setInboxSortState = setInboxSortState;
+globalThis.executeSeriesWorkflow = executeSeriesWorkflow;
+globalThis.openPreviewModal = openPreviewModal;
+globalThis.renderMatchingMatrix = renderMatchingMatrix;
+globalThis.setSelectedShow = (val) => { selectedShow = val; };
+globalThis.getSelectedShow = () => selectedShow;
+globalThis.setEpisodesData = (val) => { episodesData = val; };
+globalThis.setCurrentPreviewPayload = (val) => { currentPreviewPayload = val; };
+globalThis.getCurrentPreviewPayload = () => currentPreviewPayload;
 `;
 
     eval(cleanAppJs);
+
+    globalThis.document.dispatchEvent({ type: 'DOMContentLoaded' });
 
     return {
         cardSmartInbox,
@@ -418,7 +570,10 @@ globalThis.setInboxSortState = setInboxSortState;
         modeSeries,
         modeMovie,
         seriesSearchQuery,
-        deletedProjects
+        deletedProjects,
+        alerts,
+        consoleLogs,
+        getOrCreateElement
     };
 }
 
@@ -883,20 +1038,208 @@ test('AK11: Sentinel values ("" and "__inbox_recursive__") are never automatical
 });
 
 // --------------------------------------------------------------------------
-// AK4: Workflow Handover & Key-Contract V1
+// H2 (B2 / AK4): Productive Workflow Handover & Key-Contract V1
 // --------------------------------------------------------------------------
-test('AK4: Both handover paths transition to series mode and create basePayload with matching files and mappings', () => {
+test('H2 (B2/AK4): Productive series workflow handover via executeSeriesWorkflow creates request body with files + mappings + media_type "tv", mappings-Schlüssel ⊆ files, and correctly escaped quotes in data-file', async () => {
     const env = setupTestEnvironment();
-    const files = ['Show.S01E01.mkv', 'Show.S01E02.mkv'];
+    const files = ['Show.S01E01.mkv', 'Show.S01E02."Special".mkv'];
 
     globalThis.startSeriesGroupWorkflow('Show', files);
     assert.strictEqual(env.seriesSearchQuery.value, 'Show', 'Search input must be prefilled with group name');
     assert.deepStrictEqual(globalThis.activeSeriesGroupFiles, files);
 
-    const payload = globalThis.createSeriesGroupPayload('Show', files);
-    assert.strictEqual(payload.media_type, 'tv');
-    assert.deepStrictEqual(payload.files, files);
-    assert.deepStrictEqual(Object.keys(payload.mappings), files, 'Mappings keys must match files strings exactly (Contract V1)');
-    assert.strictEqual(payload.mappings['Show.S01E01.mkv'], 'S01E01');
-    assert.strictEqual(payload.mappings['Show.S01E02.mkv'], 'S01E02');
+    globalThis.setSelectedShow({ name: 'Show', id: '123', provider: 'tvdb' });
+    globalThis.setEpisodesData({ '1': { title: 'Episode 1' }, '2': { title: 'Episode 2' } });
+
+    // Render matrix from projectFiles
+    globalThis.renderMatchingMatrix();
+
+    // Verify rows rendered and data-file attribute escaped correctly
+    const rows = globalThis.document.querySelectorAll('.matching-row');
+    assert.strictEqual(rows.length, 2, 'Two matching rows must be rendered');
+    assert.strictEqual(rows[0].getAttribute('data-file'), 'Show.S01E01.mkv');
+    assert.strictEqual(rows[1].getAttribute('data-file'), 'Show.S01E02."Special".mkv', 'data-file must not be truncated by quotes');
+
+    // Intercept fetch for /api/preview_process
+    let capturedUrl = null;
+    let capturedBody = null;
+    globalThis.fetch = (url, options) => {
+        capturedUrl = url;
+        if (options && options.body) {
+            capturedBody = JSON.parse(options.body);
+        }
+        return Promise.resolve({
+            ok: true,
+            json: async () => ({ destination: 'Show', renames: [], subs: [], junk: [] })
+        });
+    };
+
+    await globalThis.executeSeriesWorkflow();
+
+    assert.strictEqual(capturedUrl, '/api/preview_process', 'executeSeriesWorkflow must call /api/preview_process');
+    assert.ok(capturedBody, 'Captured request body must exist');
+    assert.strictEqual(capturedBody.media_type, 'tv', 'media_type must be "tv"');
+    assert.deepStrictEqual(capturedBody.files, files, 'files must contain activeSeriesGroupFiles');
+    assert.ok(capturedBody.mappings && typeof capturedBody.mappings === 'object', 'mappings must be an object');
+
+    // Verify mappings-Schlüssel ⊆ files
+    const mappingKeys = Object.keys(capturedBody.mappings);
+    assert.ok(mappingKeys.length > 0, 'mappings must not be empty');
+    for (const key of mappingKeys) {
+        assert.ok(capturedBody.files.includes(key), `Mapping key "${key}" must be in files[]`);
+    }
+
+    // Explicitly verify the quote-containing filename is a key in mappings intact
+    assert.ok('Show.S01E02."Special".mkv' in capturedBody.mappings, 'Filename with quotes must be present as mapping key intact');
+});
+
+// --------------------------------------------------------------------------
+// H1 (B1): Video Extension Coverage (.ts, .m2ts, .flv, .3gp, .wmv)
+// --------------------------------------------------------------------------
+test('H1 (B1): Matching matrix includes all 10 video extensions (.ts, .m2ts, etc.) matching server GROUP_VIDEO_EXTENSIONS', () => {
+    setupTestEnvironment();
+    const files = [
+        'Show.S01E01.ts',
+        'Show.S01E02.m2ts',
+        'Show.S01E03.flv',
+        'Show.S01E04.3gp',
+        'Show.S01E05.wmv',
+        'Show.S01E06.mp4',
+        'Show.S01E07.mkv',
+        'Show.S01E08.avi',
+        'Show.S01E09.webm',
+        'Show.S01E10.mov'
+    ];
+
+    globalThis.startSeriesGroupWorkflow('Show', files);
+    globalThis.setSelectedShow({ name: 'Show', id: '123', provider: 'tvdb' });
+    globalThis.setEpisodesData({
+        '1': 'Ep 1', '2': 'Ep 2', '3': 'Ep 3', '4': 'Ep 4', '5': 'Ep 5',
+        '6': 'Ep 6', '7': 'Ep 7', '8': 'Ep 8', '9': 'Ep 9', '10': 'Ep 10'
+    });
+
+    globalThis.renderMatchingMatrix();
+
+    const rows = globalThis.document.querySelectorAll('.matching-row');
+    assert.strictEqual(rows.length, 10, 'All 10 video files must be rendered in matching matrix');
+    const renderedFiles = rows.map(r => r.getAttribute('data-file'));
+    assert.deepStrictEqual(renderedFiles, files, 'All extensions including .ts and .m2ts must be preserved in matrix');
+});
+
+// --------------------------------------------------------------------------
+// H3 (B3): Preserving Expanded State of Groups Across Re-Render
+// --------------------------------------------------------------------------
+test('H3 (B3): Group row expanded state persists across 6-second re-render (renderSmartInboxList)', () => {
+    const env = setupTestEnvironment();
+    const suggestions = [
+        { project: 'Show.S01E01.mkv', suggested_query: 'Show', media_type: 'tv', is_dir: false },
+        { project: 'Show.S01E02.mkv', suggested_query: 'Show', media_type: 'tv', is_dir: false }
+    ];
+
+    globalThis.appliedInboxGroups.add('Show');
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    const groupRow = env.smartInboxList.querySelector('.smart-inbox-group-row');
+    assert.ok(groupRow, 'Group row must be rendered');
+    const toggleBtn = groupRow.querySelector('.smart-inbox-group-toggle');
+    const membersDiv = groupRow.querySelector('.smart-inbox-group-members');
+    assert.ok(toggleBtn && membersDiv);
+
+    // Initial state: collapsed
+    assert.strictEqual(toggleBtn.getAttribute('aria-expanded'), 'false');
+    assert.strictEqual(membersDiv.style.display, 'none');
+
+    // Expand
+    toggleBtn.click();
+    assert.strictEqual(toggleBtn.getAttribute('aria-expanded'), 'true');
+    assert.strictEqual(membersDiv.style.display, 'flex');
+    assert.ok(globalThis.expandedInboxGroups.has('Show'), 'Show must be in expandedInboxGroups');
+
+    // Simulate 6-second poll rebuild (renderSmartInboxList)
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    const reRenderedGroupRow = env.smartInboxList.querySelector('.smart-inbox-group-row');
+    const reToggleBtn = reRenderedGroupRow.querySelector('.smart-inbox-group-toggle');
+    const reMembersDiv = reRenderedGroupRow.querySelector('.smart-inbox-group-members');
+
+    // State must persist!
+    assert.strictEqual(reToggleBtn.getAttribute('aria-expanded'), 'true', 'aria-expanded must remain true after re-render');
+    assert.strictEqual(reMembersDiv.style.display, 'flex', 'Members list must remain visible after re-render');
+
+    // Collapse
+    reToggleBtn.click();
+    assert.strictEqual(reToggleBtn.getAttribute('aria-expanded'), 'false');
+    assert.strictEqual(reMembersDiv.style.display, 'none');
+    assert.strictEqual(globalThis.expandedInboxGroups.has('Show'), false);
+
+    // Re-render again: remains collapsed
+    globalThis.renderSmartInboxList(suggestions, new Set());
+    const collapsedRow = env.smartInboxList.querySelector('.smart-inbox-group-row');
+    assert.strictEqual(collapsedRow.querySelector('.smart-inbox-group-toggle').getAttribute('aria-expanded'), 'false');
+    assert.strictEqual(collapsedRow.querySelector('.smart-inbox-group-members').style.display, 'none');
+});
+
+// --------------------------------------------------------------------------
+// H4 (B4): Reading 400 Error Message Bodies
+// --------------------------------------------------------------------------
+test('H4 (B4): /preview_process HTTP 400 response body (error/message) is visibly displayed', async () => {
+    const env = setupTestEnvironment();
+    const serverErrorMessage = "Ungültiger Mapping-Schlüssel 'Broken': Nicht in files[] enthalten.";
+
+    globalThis.fetch = () => Promise.resolve({
+        ok: false,
+        status: 400,
+        json: async () => ({ status: 'error', error: serverErrorMessage, message: serverErrorMessage })
+    });
+
+    const payload = {
+        media_type: 'tv',
+        project_name: '',
+        show_name: 'Show',
+        files: ['Show.S01E01.mkv'],
+        mappings: { 'Broken': 1 }
+    };
+
+    await globalThis.openPreviewModal(payload);
+
+    assert.ok(
+        env.alerts.some(a => a.includes(serverErrorMessage)),
+        `Alert must visibly contain server error message. Alerts: ${JSON.stringify(env.alerts)}`
+    );
+});
+
+test('H4 (B4): /process HTTP 400 response body (error/message) is visibly displayed in console and alert', async () => {
+    const env = setupTestEnvironment();
+    const serverErrorMessage = "files[] wird nur für media_type 'tv' unterstützt.";
+
+    globalThis.fetch = () => Promise.resolve({
+        ok: false,
+        status: 400,
+        json: async () => ({ status: 'error', error: serverErrorMessage, message: serverErrorMessage })
+    });
+
+    globalThis.setCurrentPreviewPayload({
+        media_type: 'tv',
+        project_name: '',
+        show_name: 'Show',
+        files: ['Show.S01E01.mkv'],
+        mappings: { 'Show.S01E01.mkv': 1 }
+    });
+
+    const noProfileCb = env.getOrCreateElement('series-option-no-profile', 'input');
+    noProfileCb.checked = true;
+
+    const previewExecuteBtn = env.getOrCreateElement('btn-preview-execute');
+    assert.ok(previewExecuteBtn, 'btn-preview-execute element must exist');
+
+    await previewExecuteBtn.dispatchEvent({ type: 'click' });
+
+    assert.ok(
+        env.consoleLogs.some(log => log.includes(serverErrorMessage)),
+        `Console log must visibly contain server message. Logs: ${JSON.stringify(env.consoleLogs)}`
+    );
+    assert.ok(
+        env.alerts.some(a => a.includes(serverErrorMessage)),
+        `Alert must visibly contain server message. Alerts: ${JSON.stringify(env.alerts)}`
+    );
 });
