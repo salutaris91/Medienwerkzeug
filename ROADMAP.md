@@ -1995,6 +1995,8 @@ Mittel (Rekursion mit Tiefenbegrenzung + Aufklapp-UI, 2–3 Gate-A2-Runden).
 4. **Aufräumen:** Endungsliste doppelt (`gui/core/helpers.py` `GROUP_VIDEO_EXTENSIONS` ≡ Liste in `gui/api/queue_api.py`); toter Code `get_group_scope_files` in `helpers.py`.
 5. **Test-Hygiene:** `test_n1_nfo_…` in `tests/test_inbox_group_files.py` schaltet den TVDb-Abruf nicht per Mock ab (potenziell flaky).
 6. **Wiederholungsläufe:** Die Revalidierung bei Retry ist statisch geprüft, aber ohne Test.
+7. **Oberfläche (#65 Lauf B, `rueckkanal-65b.md` / `rueckkanal-65b-r2.md`):** kein `isProcessing`-Schutz an Gruppen-Knopf und Banner gegen schnellen Doppelklick (der Server bricht laut ab); Anime-Einträge ohne Hinweis, warum sie nicht gruppierbar sind; `is_dir`-Prüfung an zwei Stellen unterschiedlich formuliert (`=== true` vs. `=== false`); Folgen-Regex im Client `\d{1,3}` vs. Server `\d{1,2}`.
+8. **Endungslisten bündeln:** In `gui/static/app.js` steht die 10er-Liste dreimal, an vier weiteren Stellen noch die alte 5er-Liste (u. a. Sichtbarkeit des Qualitäts-/Konvertierungs-Panels, Badge-Farbe) → eine gemeinsame Konstante; Ordner nur mit `.ts`-Dateien sollen das Konvertierungs-Panel nicht ausblenden.
 
 **Ziel:**
 Die Punkte schließen, ohne das Verhalten der Aufträge ohne `files[]` zu ändern.
