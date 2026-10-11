@@ -895,7 +895,7 @@ def handle_api_queue():
     jobs_list = []
     for j in all_jobs:
         params = j.get("params") or {}
-        jobs_list.append({
+        job_item = {
             "id": j.get("id", ""),
             "type": j.get("type", "unknown"),
             "name": j.get("name", ""),
@@ -905,7 +905,10 @@ def handle_api_queue():
             "timestamp": j.get("timestamp", 0),
             "pipeline": j.get("pipeline"),
             "project_name": params.get("project_name", "")
-        })
+        }
+        if params.get("files") is not None:
+            job_item["files"] = params.get("files")
+        jobs_list.append(job_item)
     jobs_list.sort(key=lambda x: x.get("timestamp", 0))
     return jsonify({"jobs": jobs_list})
 

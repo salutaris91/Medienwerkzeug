@@ -601,8 +601,14 @@ globalThis.setCurrentPreviewPayload = (val) => { currentPreviewPayload = val; };
 globalThis.getCurrentPreviewPayload = () => currentPreviewPayload;
 globalThis.detectManualGroupSeriesName = detectManualGroupSeriesName;
 globalThis.getActiveSeriesGroupName = () => activeSeriesGroupName;
-globalThis.setActiveSeriesGroupName = (val) => { activeSeriesGroupName = val; };
-globalThis.setActiveSeriesGroupFiles = (val) => { activeSeriesGroupFiles = val; };
+globalThis.setActiveSeriesGroupName = (val) => { activeSeriesGroupName = val; if (typeof globalThis !== 'undefined') globalThis.activeSeriesGroupName = val; };
+globalThis.setActiveSeriesGroupFiles = (val) => { activeSeriesGroupFiles = val; if (typeof globalThis !== 'undefined') globalThis.activeSeriesGroupFiles = val; };
+globalThis.renderQueue = renderQueue;
+globalThis.setCurrentProject = (val) => { currentProject = val; };
+globalThis.getCurrentProject = () => currentProject;
+globalThis.getActiveProjectsProcessing = () => activeProjectsProcessing;
+globalThis.setCurrentQueueJobs = (val) => { currentQueueJobs = val; };
+globalThis.getCurrentQueueJobs = () => currentQueueJobs;
 globalThis.initEventListeners = initEventListeners;
 `;
 
@@ -1686,7 +1692,7 @@ test('3(b): Gruppenname bei manueller Auswahl = gemeinsamer Namensanfang ohne Fo
 });
 
 // 4. Name in der Warteschlange
-test('4: Name in der Warteschlange: im manuellen Serien-Modus im Gruppen-Ablauf den Gruppennamen verwenden ("Testserie (Gruppe)"), sonst unverändert', async () => {
+test('4: Name in der Warteschlange: im manuellen Serien-Modus im Gruppen-Ablauf den Gruppennamen ohne Zusatz ("Testserie") verwenden, /process-Request enthält genau Gruppennamen', async () => {
     const env = setupTestEnvironment();
 
     // 1. Start group workflow with groupName "Testserie"
@@ -1696,20 +1702,63 @@ test('4: Name in der Warteschlange: im manuellen Serien-Modus im Gruppen-Ablauf 
     const btnManualSeries = env.getOrCreateElement('btn-manual-series', 'button');
     await btnManualSeries.click();
 
-    // With manual-series-title empty: selectedShow.name must be "Testserie (Gruppe)"
+    // With manual-series-title empty: selectedShow.name must be "Testserie" without any "(Gruppe)" suffix
     const manualTitleInput = env.getOrCreateElement('manual-series-title', 'input');
     manualTitleInput.value = '';
     await manualTitleInput.dispatchEvent({ type: 'input' });
 
     const showInGroup = globalThis.getSelectedShow();
     assert.ok(showInGroup, 'selectedShow must be set');
-    assert.strictEqual(showInGroup.name, 'Testserie (Gruppe)', 'Group workflow manual mode must use "Testserie (Gruppe)" as show name');
+    assert.strictEqual(showInGroup.name, 'Testserie', 'Group workflow manual mode must use "Testserie" as show name without "(Gruppe)"');
+    assert.ok(!showInGroup.name.includes('(Gruppe)'), 'show name must not contain "(Gruppe)"');
 
     // With manual-series-title entered: uses the custom title
     manualTitleInput.value = 'Eigener Serientitel';
     await manualTitleInput.dispatchEvent({ type: 'input' });
     const showCustom = globalThis.getSelectedShow();
     assert.strictEqual(showCustom.name, 'Eigener Serientitel');
+
+    // Reset to empty to verify /process request contains "Testserie"
+    manualTitleInput.value = '';
+    await manualTitleInput.dispatchEvent({ type: 'input' });
+
+    // Render matching matrix and trigger executeSeriesWorkflow -> preview execute
+    globalThis.renderMatchingMatrix();
+
+    let capturedProcessPayload = null;
+    globalThis.fetch = (url, options) => {
+        if (url === '/api/preview_process') {
+            return Promise.resolve({
+                ok: true,
+                json: async () => ({ destination: 'Testserie', renames: [], subs: [], junk: [] })
+            });
+        }
+        if (url === '/api/process') {
+            if (options && options.body) {
+                capturedProcessPayload = JSON.parse(options.body);
+            }
+            return Promise.resolve({
+                ok: true,
+                json: async () => ({ status: 'started', task_id: 'task-123' })
+            });
+        }
+        if (url === '/api/profile') {
+            return Promise.resolve({ ok: true, json: async () => ({ success: true }) });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+    };
+
+    await globalThis.executeSeriesWorkflow();
+    // Allow async openPreviewModal to complete fetch('/api/preview_process')
+    await new Promise(r => setImmediate(r));
+
+    // Click btn-preview-execute to send /process request
+    const btnPreviewExecute = env.getOrCreateElement('btn-preview-execute', 'button');
+    await btnPreviewExecute.click();
+
+    assert.ok(capturedProcessPayload, '/process request must be executed');
+    assert.strictEqual(capturedProcessPayload.show_name, 'Testserie', '/process-Request must contain exactly the group name without addition');
+    assert.ok(!JSON.stringify(capturedProcessPayload).includes('(Gruppe)'), 'Request must not contain "(Gruppe)" anywhere');
 
     // 2. Non-group workflow with currentProject empty
     globalThis.setActiveSeriesGroupFiles(null);
@@ -1718,4 +1767,99 @@ test('4: Name in der Warteschlange: im manuellen Serien-Modus im Gruppen-Ablauf 
     await manualTitleInput.dispatchEvent({ type: 'input' });
     const showNonGroup = globalThis.getSelectedShow();
     assert.strictEqual(showNonGroup.name, 'Manuelle Serie', 'Non-group workflow with empty project must fall back to "Manuelle Serie"');
+});
+
+// 5. Warteschlangen-Prüfung bei Gruppen-Aufträgen
+test('5: Warteschlangen-Prüfung: laufender Gruppen-Job mit anderen Dateien blockiert nicht, mit überschneidenden Dateien blockiert; normale Projekte unverändert', async () => {
+    const env = setupTestEnvironment();
+
+    // Setup running queue jobs with files
+    const runningGroupJob = {
+        id: 'job-group-1',
+        status: 'running',
+        project_name: '',
+        name: 'VorherigeSerie',
+        files: ['ShowA.S01E01.mkv', 'ShowA.S01E02.mkv']
+    };
+    const runningNormalJob = {
+        id: 'job-normal-1',
+        status: 'queued',
+        project_name: 'ExistingNormalProject',
+        name: 'ExistingNormalProject'
+    };
+
+    globalThis.renderQueue([runningGroupJob, runningNormalJob]);
+
+    let previewCalls = 0;
+    globalThis.fetch = (url, options) => {
+        if (url === '/api/preview_process') {
+            previewCalls++;
+            return Promise.resolve({
+                ok: true,
+                json: async () => ({ destination: 'Test', renames: [], subs: [], junk: [] })
+            });
+        }
+        if (url === '/api/queue') {
+            return Promise.resolve({
+                ok: true,
+                json: async () => ({ jobs: [runningGroupJob, runningNormalJob] })
+            });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+    };
+
+    // Case A: Group job with DIFFERENT files (ShowB.S01E01.mkv, ShowB.S01E02.mkv) -> MUST NOT BLOCK
+    await globalThis.startSeriesGroupWorkflow('SerieB', ['ShowB.S01E01.mkv', 'ShowB.S01E02.mkv']);
+    globalThis.setSelectedShow({ name: 'SerieB', id: 'b1', provider: 'tvdb' });
+    globalThis.setEpisodesData({ '1': { title: 'B1' }, '2': { title: 'B2' } });
+    globalThis.renderMatchingMatrix();
+
+    env.alerts.length = 0;
+    previewCalls = 0;
+    await globalThis.executeSeriesWorkflow();
+
+    assert.strictEqual(env.alerts.length, 0, 'Running group job with different files must NOT block new group job');
+    assert.strictEqual(previewCalls, 1, 'Preview process must be called when files do not overlap');
+
+    // Case B: Group job with OVERLAPPING files (ShowA.S01E02.mkv, ShowB.S01E03.mkv) -> MUST BLOCK and name overlapping files
+    await globalThis.startSeriesGroupWorkflow('SerieOverlap', ['ShowA.S01E02.mkv', 'ShowB.S01E03.mkv']);
+    globalThis.setSelectedShow({ name: 'SerieOverlap', id: 'o1', provider: 'tvdb' });
+    globalThis.setEpisodesData({ '2': { title: 'A2' }, '3': { title: 'B3' } });
+    globalThis.renderMatchingMatrix();
+
+    env.alerts.length = 0;
+    previewCalls = 0;
+    await globalThis.executeSeriesWorkflow();
+
+    assert.strictEqual(env.alerts.length, 1, 'Running group job with overlapping files MUST block');
+    assert.strictEqual(previewCalls, 0, 'Preview process must NOT be called when files overlap');
+    assert.ok(env.alerts[0].includes('ShowA.S01E02.mkv'), 'Alert message must name the overlapping file(s)');
+
+    // Case C: Normal project (currentProject in activeProjectsProcessing) -> BLOCKS
+    globalThis.setActiveSeriesGroupFiles(null);
+    globalThis.setActiveSeriesGroupName('');
+    globalThis.setCurrentProject('ExistingNormalProject');
+    globalThis.setSelectedShow({ name: 'ExistingNormalProject', id: 'norm1', provider: 'tvdb' });
+    globalThis.renderMatchingMatrix();
+
+    env.alerts.length = 0;
+    previewCalls = 0;
+    await globalThis.executeSeriesWorkflow();
+
+    assert.strictEqual(env.alerts.length, 1, 'Normal project in activeProjectsProcessing must block');
+    assert.strictEqual(previewCalls, 0, 'Preview process must NOT be called for duplicate normal project');
+    assert.strictEqual(env.alerts[0], 'Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!');
+
+    // Case D: Normal project NOT in activeProjectsProcessing -> DOES NOT BLOCK
+    globalThis.setCurrentProject('BrandNewProject');
+    globalThis.setSelectedShow({ name: 'BrandNewProject', id: 'norm2', provider: 'tvdb' });
+    globalThis.setEpisodesData({ '1': { title: 'D1' }, '2': { title: 'D2' } });
+    globalThis.renderMatchingMatrix({ 'ShowA.S01E02.mkv': 2 });
+
+    env.alerts.length = 0;
+    previewCalls = 0;
+    await globalThis.executeSeriesWorkflow();
+
+    assert.strictEqual(env.alerts.length, 0, 'Normal project NOT in active projects must not block');
+    assert.strictEqual(previewCalls, 1, 'Preview process must be called for non-duplicate normal project');
 });

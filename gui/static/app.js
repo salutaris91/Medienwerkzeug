@@ -1,12 +1,12 @@
-import { applyTheme } from './js/theme.js?v=98';
-import { cleanSeriesName } from './js/utils.js?v=98';
-import { formatBytes } from './js/format.js?v=98';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=98';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=98';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=98';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=98';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=98';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=98';
+import { applyTheme } from './js/theme.js?v=99';
+import { cleanSeriesName } from './js/utils.js?v=99';
+import { formatBytes } from './js/format.js?v=99';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=99';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=99';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=99';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=99';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=99';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=99';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -2281,6 +2281,10 @@ async function loadStatus(forceNasCheck = false) {
 }
 
 let activeProjectsProcessing = new Set();
+let currentQueueJobs = [];
+if (typeof globalThis !== 'undefined') {
+    globalThis.currentQueueJobs = currentQueueJobs;
+}
 let lastProjectListJson = "";
 let lastActiveProject = "";
 
@@ -4307,9 +4311,26 @@ function selectMovie(movie) {
 // CORE EXECUTION HANDLERS (SERIES & MOVIES & YOUTUBE & TOOLS)
 // ==========================================================================
 async function executeSeriesWorkflow() {
-    if (activeProjectsProcessing && activeProjectsProcessing.has(currentProject || "")) {
-        alert("Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!");
-        return;
+    const isGroupWorkflow = Boolean(typeof activeSeriesGroupFiles !== "undefined" && activeSeriesGroupFiles && activeSeriesGroupFiles.length > 0);
+    if (isGroupWorkflow) {
+        const queueList = (typeof currentQueueJobs !== "undefined" && currentQueueJobs) || (typeof globalThis !== "undefined" && globalThis.currentQueueJobs) || [];
+        const activeJobs = queueList.filter(j => j.status === "queued" || j.status === "running");
+        const activeFilesSet = new Set();
+        activeJobs.forEach(job => {
+            if (Array.isArray(job.files)) {
+                job.files.forEach(f => activeFilesSet.add(f));
+            }
+        });
+        const overlapping = activeSeriesGroupFiles.filter(f => activeFilesSet.has(f));
+        if (overlapping.length > 0) {
+            alert(`Folgende Dateien werden bereits verarbeitet oder befinden sich in der Warteschlange: ${overlapping.join(", ")}`);
+            return;
+        }
+    } else {
+        if (currentProject && activeProjectsProcessing && activeProjectsProcessing.has(currentProject)) {
+            alert("Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!");
+            return;
+        }
     }
     if (!selectedShow) return;
 
@@ -4469,7 +4490,7 @@ async function executeSeriesWorkflow() {
 }
 
 async function executeMovieWorkflow() {
-    if (activeProjectsProcessing && activeProjectsProcessing.has(currentProject || "")) {
+    if (currentProject && activeProjectsProcessing && activeProjectsProcessing.has(currentProject)) {
         alert("Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!");
         return;
     }
@@ -7631,8 +7652,8 @@ function initEventListeners() {
             let titleVal = (mTitleEl && mTitleEl.value) ? mTitleEl.value.trim() : "";
             if (!titleVal) {
                 if (typeof activeSeriesGroupFiles !== "undefined" && activeSeriesGroupFiles && activeSeriesGroupFiles.length > 0) {
-                    const grpName = (typeof activeSeriesGroupName !== "undefined" && activeSeriesGroupName) ? activeSeriesGroupName : "";
-                    titleVal = grpName ? (grpName.endsWith("(Gruppe)") ? grpName : `${grpName} (Gruppe)`) : "Serie (Gruppe)";
+                    const grpName = (typeof activeSeriesGroupName !== "undefined" && activeSeriesGroupName) ? activeSeriesGroupName.trim() : "";
+                    titleVal = (grpName ? grpName.replace(/\s*\(Gruppe\)$/, "").trim() : "") || "Serie";
                 } else {
                     titleVal = currentProject || "Manuelle Serie";
                 }
@@ -10831,11 +10852,16 @@ function renderQueue(jobs) {
     const badge = document.getElementById("queue-badge");
     const headerBadge = document.getElementById("header-queue-badge");
 
+    currentQueueJobs = Array.isArray(jobs) ? jobs : [];
+    if (typeof globalThis !== 'undefined') {
+        globalThis.currentQueueJobs = currentQueueJobs;
+    }
+
     const activeSet = new Set();
     jobs.forEach(j => {
         if (j.status === "queued" || j.status === "running") {
             const p = j.project_name;
-            if (p !== undefined && p !== null) {
+            if (p !== undefined && p !== null && p !== "") {
                 activeSet.add(p);
             }
         }
@@ -13224,6 +13250,10 @@ if (typeof globalThis !== 'undefined') {
     globalThis.activeSeriesGroupName = activeSeriesGroupName;
     globalThis.setCurrentPreviewPayload = (val) => { currentPreviewPayload = val; };
     globalThis.getCurrentPreviewPayload = () => currentPreviewPayload;
+    globalThis.renderQueue = renderQueue;
+    globalThis.currentQueueJobs = currentQueueJobs;
+    globalThis.setCurrentQueueJobs = (val) => { currentQueueJobs = val; };
+    globalThis.getCurrentQueueJobs = () => currentQueueJobs;
 }
 
 function handleSmartInboxClick(projectName, mediaType, suggestionTitle) {

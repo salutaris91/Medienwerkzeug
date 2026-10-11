@@ -1002,6 +1002,45 @@ class TestInboxGroupFiles(unittest.TestCase):
         with open(foreign_final, "rb") as f:
             self.assertEqual(f.read(), b"foreign_final_content")
 
+    def test_api_queue_returns_files_for_job_with_files_param(self):
+        """Lauf B: /api/queue liefert 'files' für einen Job mit files-Parameter."""
+        # 1. Video file in inbox for /api/process
+        ep1 = os.path.join(self.inbox_dir, "Show.S01E01.mkv")
+        with open(ep1, "wb") as f:
+            f.write(b"ep1")
+
+        # Submit job with files parameter via /api/process
+        res_proc = self.client.post("/api/process", json={
+            "media_type": "tv",
+            "show_name": "MyQueueShow",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": ["Show.S01E01.mkv"],
+            "mappings": {"Show.S01E01.mkv": 1}
+        })
+        self.assertEqual(res_proc.status_code, 200)
+
+        # Query GET /api/queue
+        res_queue = self.client.get("/api/queue")
+        self.assertEqual(res_queue.status_code, 200)
+        jobs = res_queue.get_json().get("jobs", [])
+        matched = next((j for j in jobs if j.get("name") == "MyQueueShow"), None)
+        self.assertIsNotNone(matched, "Job mit Name 'MyQueueShow' muss in der Queue sein")
+        self.assertEqual(matched.get("files"), ["Show.S01E01.mkv"])
+
+        # Also verify with patch on get_all_jobs directly
+        mock_jobs = [
+            {"id": "job-with-files", "status": "queued", "name": "ShowA", "params": {"files": ["A.mkv", "B.mkv"]}},
+            {"id": "job-without-files", "status": "queued", "name": "ShowB", "params": {}}
+        ]
+        with patch("gui.core.jobs.get_all_jobs", return_value=mock_jobs):
+            res_mock = self.client.get("/api/queue")
+            self.assertEqual(res_mock.status_code, 200)
+            mock_payload = res_mock.get_json().get("jobs", [])
+            self.assertEqual(len(mock_payload), 2)
+            self.assertEqual(mock_payload[0].get("files"), ["A.mkv", "B.mkv"])
+            self.assertNotIn("files", mock_payload[1])
+
 
 if __name__ == "__main__":
     unittest.main()
