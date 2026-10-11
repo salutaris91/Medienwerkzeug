@@ -206,6 +206,14 @@ function parseHtmlToMockElements(html) {
             el.disabled = true;
         }
 
+        const closeTag = `</${tagName}>`;
+        const rest = html.slice(match.index + match[0].length);
+        const closeIndex = rest.indexOf(closeTag);
+        if (closeIndex !== -1) {
+            const innerChunk = rest.slice(0, closeIndex);
+            el._setInnerHtmlDirect(innerChunk);
+        }
+
         elements.push(el);
     }
     return elements;
@@ -226,6 +234,10 @@ function createMockElement(tagName = 'div', attributes = {}) {
         checked: false,
         disabled: false,
         textContent: '',
+        _setInnerHtmlDirect: (val) => {
+            innerHtmlVal = String(val);
+            el.textContent = innerHtmlVal.replace(/<[^>]*>/g, '').trim();
+        },
         options: [],
         selectedIndex: 0,
         text: '',
@@ -367,6 +379,15 @@ function setupTestEnvironment() {
     sortBar.appendChild(btnDate);
     sortBar.appendChild(btnSize);
 
+    const viewEmpty = getOrCreateElement('view-empty');
+    viewEmpty.className = 'view-panel active';
+
+    const viewFolder = getOrCreateElement('view-folder');
+    viewFolder.className = 'view-panel hidden';
+
+    const folderModeSelector = getOrCreateElement('folder-mode-selector');
+    folderModeSelector.className = '';
+
     const modeSeries = getOrCreateElement('mode-series');
     const modeMovie = getOrCreateElement('mode-movie');
     const seriesSearchQuery = getOrCreateElement('series-search-query', 'input');
@@ -416,11 +437,13 @@ function setupTestEnvironment() {
     globalThis.document = {
         cookie: '',
         documentElement: {
+            scrollTop: 0,
             style: {
                 setProperty: () => {},
                 removeProperty: () => {}
             }
         },
+        body: { scrollTop: 0 },
         getElementById: (id) => getOrCreateElement(id),
         createElement: (tag) => createMockElement(tag),
         querySelectorAll: (sel) => {
@@ -573,7 +596,10 @@ globalThis.getCurrentPreviewPayload = () => currentPreviewPayload;
         deletedProjects,
         alerts,
         consoleLogs,
-        getOrCreateElement
+        getOrCreateElement,
+        viewEmpty,
+        viewFolder,
+        folderModeSelector
     };
 }
 
@@ -797,7 +823,7 @@ test('AK3: Banner "Ignorieren" saves to sessionStorage and hides banner for sess
     assert.strictEqual(env.groupBanner.style.display, 'none', 'Banner must be hidden after ignore');
 });
 
-test('AK3 & AK13: Film entries show lock notice and "Trotzdem als Serie freigeben" link', () => {
+test('AK3 & AK13: Film entries show lock notice and "Als Serie / Folge behandeln" link', () => {
     const env = setupTestEnvironment();
     const suggestions = [
         {
@@ -815,7 +841,9 @@ test('AK3 & AK13: Film entries show lock notice and "Trotzdem als Serie freigebe
     assert.ok(item);
     assert.ok(item.innerHTML.includes('Film (für Serie gesperrt)'));
     const unlockLink = item.querySelector('.btn-unlock-movie-series');
-    assert.ok(unlockLink, 'Must provide "Trotzdem als Serie freigeben" link');
+    assert.ok(unlockLink, 'Must provide unlock link');
+    assert.ok(unlockLink.innerHTML.includes('Als Serie / Folge behandeln'), 'Must show "Als Serie / Folge behandeln"');
+    assert.strictEqual(unlockLink.innerHTML.includes('Trotzdem als Serie freigeben'), false, 'Must not show "Trotzdem als Serie freigeben"');
 });
 
 // --------------------------------------------------------------------------
@@ -1242,4 +1270,145 @@ test('H4 (B4): /process HTTP 400 response body (error/message) is visibly displa
         env.alerts.some(a => a.includes(serverErrorMessage)),
         `Alert must visibly contain server message. Alerts: ${JSON.stringify(env.alerts)}`
     );
+});
+
+// --------------------------------------------------------------------------
+// F1 & F2: Lauf B Nachbesserungen (View-Umschaltung & Beschriftungen)
+// --------------------------------------------------------------------------
+test('F1: nach Klick auf Gruppenzeilen-Knopf, Sammelknopf und Banner ist view-folder sichtbar (nicht hidden), die Startseiten-Ansicht ausgeblendet und mode-series aktiv', async () => {
+    const env = setupTestEnvironment();
+    const suggestions = [
+        {
+            project: 'Show.S01E01.mkv',
+            suggested_query: 'Show',
+            media_type: 'tv',
+            is_dir: false,
+            video_count: 1
+        },
+        {
+            project: 'Show.S01E02.mkv',
+            suggested_query: 'Show',
+            media_type: 'tv',
+            is_dir: false,
+            video_count: 1
+        }
+    ];
+
+    // --- Case 1: Gruppenzeilen-Knopf ---
+    env.viewEmpty.className = 'view-panel active';
+    env.viewFolder.className = 'view-panel hidden';
+    env.modeSeries.classList.remove('active');
+
+    globalThis.appliedInboxGroups.add('Show');
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    const groupRow = env.smartInboxList.querySelector('.smart-inbox-group-row');
+    assert.ok(groupRow, 'Group row must be rendered');
+    const groupSelectBtn = groupRow.querySelector('.btn-select-group');
+    assert.ok(groupSelectBtn, 'Group row must have .btn-select-group button');
+    await groupSelectBtn.click();
+
+    assert.strictEqual(env.viewFolder.classList.contains('hidden'), false, 'view-folder must not be hidden after group row click');
+    assert.strictEqual(env.viewFolder.classList.contains('active'), true, 'view-folder must be active after group row click');
+    assert.strictEqual(env.viewEmpty.classList.contains('hidden'), true, 'view-empty must be hidden after group row click');
+    assert.strictEqual(env.viewEmpty.classList.contains('active'), false, 'view-empty must not be active after group row click');
+    assert.strictEqual(env.modeSeries.classList.contains('active'), true, 'mode-series must be active after group row click');
+
+    // --- Case 2: Sammelknopf ---
+    env.viewEmpty.className = 'view-panel active';
+    env.viewFolder.className = 'view-panel hidden';
+    env.modeSeries.classList.remove('active');
+
+    globalThis.selectedInboxProjects.clear();
+    globalThis.selectedInboxProjects.add('Show.S01E01.mkv');
+    globalThis.selectedInboxProjects.add('Show.S01E02.mkv');
+    globalThis.updateBulkActionsBarUI();
+
+    const bulkGroupBtn = env.bulkBar.querySelector('#btn-bulk-group-series');
+    assert.ok(bulkGroupBtn, 'Bulk bar must have group series button');
+    await bulkGroupBtn.click();
+
+    assert.strictEqual(env.viewFolder.classList.contains('hidden'), false, 'view-folder must not be hidden after bulk button click');
+    assert.strictEqual(env.viewFolder.classList.contains('active'), true, 'view-folder must be active after bulk button click');
+    assert.strictEqual(env.viewEmpty.classList.contains('hidden'), true, 'view-empty must be hidden after bulk button click');
+    assert.strictEqual(env.viewEmpty.classList.contains('active'), false, 'view-empty must not be active after bulk button click');
+    assert.strictEqual(env.modeSeries.classList.contains('active'), true, 'mode-series must be active after bulk button click');
+
+    // --- Case 3: Banner ---
+    env.viewEmpty.className = 'view-panel active';
+    env.viewFolder.className = 'view-panel hidden';
+    env.modeSeries.classList.remove('active');
+
+    globalThis.appliedInboxGroups.clear();
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    const bannerBtn = env.groupBanner.querySelector('.btn-banner-apply-group');
+    assert.ok(bannerBtn, 'Banner must have apply button');
+    await bannerBtn.click();
+
+    assert.strictEqual(env.viewFolder.classList.contains('hidden'), false, 'view-folder must not be hidden after banner click');
+    assert.strictEqual(env.viewFolder.classList.contains('active'), true, 'view-folder must be active after banner click');
+    assert.strictEqual(env.viewEmpty.classList.contains('hidden'), true, 'view-empty must be hidden after banner click');
+    assert.strictEqual(env.viewEmpty.classList.contains('active'), false, 'view-empty must not be active after banner click');
+    assert.strictEqual(env.modeSeries.classList.contains('active'), true, 'mode-series must be active after banner click');
+});
+
+test('F2: Beschriftungen - Gruppenzeile "Auswählen", Banner "Als Serie gruppieren", Sammelknopf "Ausgewählte als Serie gruppieren", gesperrte Filme "Als Serie / Folge behandeln"', () => {
+    const env = setupTestEnvironment();
+    const suggestions = [
+        {
+            project: 'Show.S01E01.mkv',
+            suggested_query: 'Show',
+            media_type: 'tv',
+            is_dir: false,
+            video_count: 1
+        },
+        {
+            project: 'Show.S01E02.mkv',
+            suggested_query: 'Show',
+            media_type: 'tv',
+            is_dir: false,
+            video_count: 1
+        },
+        {
+            project: 'LockedMovie.mkv',
+            suggested_query: 'Locked Movie',
+            media_type: 'movie',
+            is_dir: false,
+            video_count: 1
+        }
+    ];
+
+    // (b) Banner: "Als Serie gruppieren"
+    globalThis.appliedInboxGroups.clear();
+    globalThis.renderSmartInboxList(suggestions, new Set());
+    const bannerBtn = env.groupBanner.querySelector('.btn-banner-apply-group');
+    assert.ok(bannerBtn);
+    assert.ok(bannerBtn.innerHTML.includes('Als Serie gruppieren'), 'Banner button must retain text "Als Serie gruppieren"');
+
+    // (b) Gruppenzeile: "Auswählen" statt "Als Serie gruppieren"
+    globalThis.appliedInboxGroups.add('Show');
+    globalThis.renderSmartInboxList(suggestions, new Set());
+    const groupRow = env.smartInboxList.querySelector('.smart-inbox-group-row');
+    assert.ok(groupRow);
+    const groupSelectBtn = groupRow.querySelector('.btn-select-group');
+    assert.ok(groupSelectBtn);
+    assert.ok(groupSelectBtn.innerHTML.includes('Auswählen'), 'Group row button must be labeled "Auswählen"');
+    assert.strictEqual(groupSelectBtn.innerHTML.includes('Als Serie gruppieren'), false, 'Group row button must NOT be labeled "Als Serie gruppieren"');
+
+    // (b) Sammelknopf: "Ausgewählte als Serie gruppieren"
+    globalThis.selectedInboxProjects.clear();
+    globalThis.selectedInboxProjects.add('Show.S01E01.mkv');
+    globalThis.updateBulkActionsBarUI();
+    const bulkBtn = env.bulkBar.querySelector('#btn-bulk-group-series');
+    assert.ok(bulkBtn);
+    assert.ok(bulkBtn.innerHTML.includes('Ausgewählte als Serie gruppieren'), 'Bulk button must retain text "Ausgewählte als Serie gruppieren"');
+
+    // (a) Link 'Als Serie / Folge behandeln' bei gesperrten Filmen
+    const movieItem = env.smartInboxList.querySelector('[data-project="LockedMovie.mkv"]');
+    assert.ok(movieItem);
+    const unlockLink = movieItem.querySelector('.btn-unlock-movie-series');
+    assert.ok(unlockLink);
+    assert.ok(unlockLink.innerHTML.includes('Als Serie / Folge behandeln'), 'Locked movie link must be "Als Serie / Folge behandeln"');
+    assert.strictEqual(unlockLink.innerHTML.includes('Trotzdem als Serie freigeben'), false, 'Locked movie link must NOT be "Trotzdem als Serie freigeben"');
 });

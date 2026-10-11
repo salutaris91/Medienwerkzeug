@@ -1,12 +1,12 @@
-import { applyTheme } from './js/theme.js?v=96';
-import { cleanSeriesName } from './js/utils.js?v=96';
-import { formatBytes } from './js/format.js?v=96';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=96';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=96';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=96';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=96';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=96';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=96';
+import { applyTheme } from './js/theme.js?v=97';
+import { cleanSeriesName } from './js/utils.js?v=97';
+import { formatBytes } from './js/format.js?v=97';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=97';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=97';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=97';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=97';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=97';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=97';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -12593,9 +12593,167 @@ function startSeriesGroupWorkflow(groupName, files) {
     currentProject = "";
     projectFiles = [...files];
 
+    if (typeof window !== "undefined") {
+        window.isNfoAgentMode = false;
+        window.nasFolderSelected = null;
+        window.ytNasFolderSelected = null;
+    }
+
+    // Reset local profile search
+    const profileSearchInput = document.getElementById("series-local-profile-search");
+    if (profileSearchInput) {
+        profileSearchInput.value = "";
+    }
+    if (typeof allLocalProfiles !== "undefined" && typeof renderLocalProfilesDropdown === "function") {
+        renderLocalProfilesDropdown(allLocalProfiles);
+    }
+
+    // Reset manual mode variables
+    isManualMovieMode = false;
+    isManualSeriesMode = false;
+
+    const manualMovieContainer = document.getElementById("manual-movie-container");
+    if (manualMovieContainer) manualMovieContainer.classList.add("hidden");
+    const manualSeriesContainer = document.getElementById("manual-series-container");
+    if (manualSeriesContainer) manualSeriesContainer.classList.add("hidden");
+
+    const btnManualMovie = document.getElementById("btn-manual-movie");
+    if (btnManualMovie) {
+        btnManualMovie.classList.remove("active");
+        btnManualMovie.textContent = "Manuell eintragen";
+    }
+    const btnManualSeries = document.getElementById("btn-manual-series");
+    if (btnManualSeries) {
+        btnManualSeries.classList.remove("active");
+        btnManualSeries.textContent = "Manuell eintragen";
+    }
+
+    const mMovieTitle = document.getElementById("manual-movie-title");
+    if (mMovieTitle) mMovieTitle.value = "";
+    const mMovieYear = document.getElementById("manual-movie-year");
+    if (mMovieYear) mMovieYear.value = "";
+    const mMoviePlot = document.getElementById("manual-movie-plot");
+    if (mMoviePlot) mMoviePlot.value = "";
+    const mSeriesTitle = document.getElementById("manual-series-title");
+    if (mSeriesTitle) mSeriesTitle.value = "";
+    const mSeriesPlot = document.getElementById("manual-series-plot");
+    if (mSeriesPlot) mSeriesPlot.value = "";
+
+    selectedMovie = null;
+    selectedShow = null;
+    const moviePanel = document.getElementById("selected-movie-panel");
+    if (moviePanel) moviePanel.classList.add("hidden");
+    const showPanel = document.getElementById("selected-show-panel");
+    if (showPanel) showPanel.classList.add("hidden");
+    const movieResults = document.getElementById("movie-search-results");
+    if (movieResults) movieResults.innerHTML = "";
+    const seriesResults = document.getElementById("series-search-results");
+    if (seriesResults) seriesResults.innerHTML = "";
+    const matchContainer = document.getElementById("matching-panel-container");
+    if (matchContainer) matchContainer.innerHTML = "";
+    const seriesExec = document.getElementById("series-execution-panel");
+    if (seriesExec) seriesExec.classList.add("hidden");
+
+    // Update active state in UI list and navs
+    document.querySelectorAll(".project-item").forEach(item => {
+        item.classList.remove("active");
+    });
+    ["nav-youtube-downloader", "nav-tools-dashboard", "nav-settings-dashboard", "nav-youtube-abos", "nav-dashboard"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove("active");
+    });
+
+    // Hide context panels and reset mode cards on new project selection
+    document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
+    ["movie", "series", "doku", "tools"].forEach(m => {
+        const el = document.getElementById(`mode-${m}`);
+        if (el) {
+            el.classList.remove("active");
+            el.setAttribute("aria-checked", "false");
+        }
+    });
+
+    // Close NFO details panels by default
+    const movieDetails = document.getElementById("movie-nfo-details");
+    if (movieDetails) movieDetails.removeAttribute("open");
+    const seriesDetails = document.getElementById("series-nfo-details");
+    if (seriesDetails) seriesDetails.removeAttribute("open");
+
+    if (typeof triggerQualityHintUpdates === "function") {
+        triggerQualityHintUpdates();
+    }
+
+    // UI View Switching: Arbeitsansicht zeigen
+    document.querySelectorAll(".view-panel").forEach(p => {
+        p.classList.add("hidden");
+        p.classList.remove("active");
+    });
+    const viewFolder = document.getElementById("view-folder");
+    if (viewFolder) {
+        viewFolder.classList.remove("hidden");
+        viewFolder.classList.add("active");
+    }
+    if (typeof scrollToDetailTop === "function" && typeof document !== "undefined" && document.body) {
+        scrollToDetailTop();
+    }
+
+    const title = document.getElementById("current-project-title");
+    if (title) {
+        title.textContent = groupName ? `Gruppe: ${groupName}` : "Serie (Gruppe)";
+    }
+    const path = document.getElementById("current-project-path");
+    if (path) {
+        path.textContent = `${files.length} Datei(en) ausgewählt`;
+    }
+    const statsContainer = document.getElementById("project-stats-container");
+    if (statsContainer) {
+        statsContainer.style.display = "none";
+    }
+
+    // Modus-Auswahl sichtbar
+    const modeSelector = document.getElementById("folder-mode-selector");
+    const recursiveNotice = document.getElementById("recursive-mode-notice");
+    if (modeSelector) modeSelector.classList.remove("hidden");
+    if (recursiveNotice) recursiveNotice.classList.add("hidden");
+
+    // Dateiliste in view-folder füllen
+    const tbody = document.getElementById("files-table-body");
+    if (tbody) {
+        let rowsHtml = "";
+        files.forEach(f => {
+            const isDir = f.endsWith("/");
+            const name = isDir ? f.slice(0, -1) : f;
+            const ext = isDir ? "ordner" : f.split('.').pop().toLowerCase();
+            const isVideo = ['mp4', 'mkv', 'avi', 'webm', 'mov'].includes(ext);
+
+            let badgeClass = "file-type-badge";
+            if (isDir) badgeClass += " dir";
+            else if (isVideo) badgeClass += " video";
+            else if (['srt', 'vtt', 'ass', 'ssa', 'sub', 'idx'].includes(ext)) badgeClass += " subtitle";
+            else if (ext === 'nfo') badgeClass += " nfo";
+
+            rowsHtml += `
+                <tr>
+                    <td>${escapeHTML(name)}</td>
+                    <td><span class="${badgeClass}">${isDir ? "ORDNER" : ext.toUpperCase()}</span></td>
+                    <td style="text-align:right;"></td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = rowsHtml;
+    }
+
+    // Modus 'Serie' aktivieren
     const modeCard = document.getElementById("mode-series");
     if (modeCard) {
+        modeCard.classList.add("active");
+        modeCard.setAttribute("aria-checked", "true");
         modeCard.click();
+    }
+
+    const seriesContext = document.getElementById("context-series");
+    if (seriesContext) {
+        seriesContext.classList.remove("hidden");
     }
 
     const searchInput = document.getElementById("series-search-query");
@@ -12710,7 +12868,7 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                     </div>
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <button class="btn btn-primary btn-sm btn-select-group" data-group-key="${escapeHTML(item.group_key)}" style="white-space: nowrap;">
-                            <span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="height: 12px; width: 12px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Als Serie gruppieren</span>
+                            <span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="height: 12px; width: 12px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Auswählen</span>
                         </button>
                     </div>
                 `;
@@ -12828,7 +12986,7 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                 if (isUnlockedMovie) {
                     movieLockHtml = `<span class="badge-movie-unlocked">Als Serie freigegeben</span>`;
                 } else {
-                    movieLockHtml = `<span class="movie-series-lock-notice">Film (für Serie gesperrt)</span><a href="#" class="btn-unlock-movie-series" data-project="${escapeHTML(item.project)}">Trotzdem als Serie freigeben</a>`;
+                    movieLockHtml = `<span class="movie-series-lock-notice">Film (für Serie gesperrt)</span><a href="#" class="btn-unlock-movie-series" data-project="${escapeHTML(item.project)}">Als Serie / Folge behandeln</a>`;
                 }
             }
 
