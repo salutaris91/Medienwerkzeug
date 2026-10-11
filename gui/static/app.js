@@ -1,12 +1,12 @@
-import { applyTheme } from './js/theme.js?v=97';
-import { cleanSeriesName } from './js/utils.js?v=97';
-import { formatBytes } from './js/format.js?v=97';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=97';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=97';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=97';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=97';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=97';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=97';
+import { applyTheme } from './js/theme.js?v=98';
+import { cleanSeriesName } from './js/utils.js?v=98';
+import { formatBytes } from './js/format.js?v=98';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=98';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=98';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=98';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=98';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=98';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=98';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -2868,8 +2868,10 @@ async function scanProject(project) {
         path.textContent = `Pfad: ${data.current_dir}`;
         projectFiles = data.files || [];
         activeSeriesGroupFiles = null;
+        activeSeriesGroupName = "";
         if (typeof globalThis !== 'undefined') {
             globalThis.activeSeriesGroupFiles = null;
+            globalThis.activeSeriesGroupName = "";
         }
         window.currentProjectFileNfoStatuses = data.file_nfo_statuses || {};
         currentProjectIsDoku = data.is_doku || false;
@@ -7625,8 +7627,17 @@ function initEventListeners() {
 
     const updateSelectedShowFromInputs = () => {
         if (isManualSeriesMode) {
-            const titleVal = document.getElementById("manual-series-title").value.trim() || currentProject || "Manuelle Serie";
-            const plotVal = document.getElementById("manual-series-plot").value.trim() || "";
+            const mTitleEl = document.getElementById("manual-series-title");
+            let titleVal = (mTitleEl && mTitleEl.value) ? mTitleEl.value.trim() : "";
+            if (!titleVal) {
+                if (typeof activeSeriesGroupFiles !== "undefined" && activeSeriesGroupFiles && activeSeriesGroupFiles.length > 0) {
+                    const grpName = (typeof activeSeriesGroupName !== "undefined" && activeSeriesGroupName) ? activeSeriesGroupName : "";
+                    titleVal = grpName ? (grpName.endsWith("(Gruppe)") ? grpName : `${grpName} (Gruppe)`) : "Serie (Gruppe)";
+                } else {
+                    titleVal = currentProject || "Manuelle Serie";
+                }
+            }
+            const plotVal = document.getElementById("manual-series-plot")?.value?.trim() || "";
 
             const showMetaObj = {
                 title: titleVal,
@@ -10198,6 +10209,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // PREVIEW MODAL LOGIC
 // ==========================================================================
 let currentPreviewPayload = null;
+let isExecutingPreview = false;
 
 async function openPreviewModal(basePayload) {
     expandConsole();
@@ -10267,6 +10279,14 @@ async function openPreviewModal(basePayload) {
     listSubs.innerHTML = "";
     listJunk.innerHTML = "";
     dest.textContent = "Wird berechnet...";
+    isExecutingPreview = false;
+    const executeBtn = document.getElementById("btn-preview-execute");
+    if (executeBtn) {
+        executeBtn.disabled = false;
+        if (executeBtn.textContent && executeBtn.textContent.includes("wird gestartet")) {
+            executeBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play" style="display:inline-block; vertical-align:middle; margin-right: 6px;"><polygon points="6 3 20 12 6 21 6 3"/></svg>Jetzt final verarbeiten`;
+        }
+    }
 
     // Show modal
     overlay.classList.remove("hidden");
@@ -10351,12 +10371,16 @@ async function openPreviewModal(basePayload) {
         dest.innerHTML = data.destination.replace(/\n/g, '<br>');
 
         const createCheckbox = (item, checked, groupName) => {
+            const rawOld = (typeof item === 'object' && item !== null) ? (item.old || '') : (item || '');
+            const rawNew = (typeof item === 'object' && item !== null) ? (item.new || '') : '';
+            const safeOld = escapeHTML(rawOld);
+            const safeNew = escapeHTML(rawNew);
             return `
                 <label style="display:flex; align-items:center; gap:10px; background:rgba(0,0,0,0.2); padding:8px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.05); cursor:pointer;">
-                    <input type="checkbox" class="preview-cb-${groupName}" data-old="${item.old || item}" data-new="${item.new || ''}" ${checked ? 'checked' : ''} style="accent-color:var(--accent);">
+                    <input type="checkbox" class="preview-cb-${groupName}" data-old="${safeOld}" data-new="${safeNew}" ${checked ? 'checked' : ''} style="accent-color:var(--accent);">
                     <div style="flex:1; overflow:hidden;">
-                        <div style="font-size:11px; color:var(--text-muted); text-decoration:line-through; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.old || item}</div>
-                        ${item.new ? `<div style="font-size:13px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.new}</div>` : ''}
+                        <div style="font-size:11px; color:var(--text-muted); text-decoration:line-through; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeOld}</div>
+                        ${rawNew ? `<div style="font-size:13px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeNew}</div>` : ''}
                     </div>
                 </label>
             `;
@@ -10568,12 +10592,33 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("btn-preview-cancel")?.addEventListener("click", closePreviewModal);
 
     document.getElementById("btn-preview-execute")?.addEventListener("click", async () => {
-        if (!currentPreviewPayload) return;
+        if (!currentPreviewPayload || isExecutingPreview) return;
+        const executeBtn = document.getElementById("btn-preview-execute");
+        if (executeBtn && executeBtn.disabled) return;
 
-        // Collect checked items
-        const explicitRenames = Array.from(document.querySelectorAll(".preview-cb-renames:checked")).map(cb => ({ old: cb.dataset.old, new: cb.dataset.new }));
-        const explicitSubs = Array.from(document.querySelectorAll(".preview-cb-subs:checked")).map(cb => ({ old: cb.dataset.old, new: cb.dataset.new }));
-        const explicitJunk = Array.from(document.querySelectorAll(".preview-cb-junk:checked")).map(cb => cb.dataset.old);
+        isExecutingPreview = true;
+        let originalContent = "";
+        if (executeBtn) {
+            executeBtn.disabled = true;
+            originalContent = executeBtn.innerHTML;
+            executeBtn.textContent = "wird gestartet…";
+        }
+
+        const resetExecuteBtn = () => {
+            isExecutingPreview = false;
+            if (executeBtn) {
+                executeBtn.disabled = false;
+                executeBtn.innerHTML = originalContent;
+            }
+        };
+
+        // Collect checked items using full original names
+        const getOld = (cb) => (cb.dataset && cb.dataset.old !== undefined ? cb.dataset.old : cb.getAttribute("data-old")) || "";
+        const getNew = (cb) => (cb.dataset && cb.dataset.new !== undefined ? cb.dataset.new : cb.getAttribute("data-new")) || "";
+
+        const explicitRenames = Array.from(document.querySelectorAll(".preview-cb-renames:checked")).map(cb => ({ old: getOld(cb), new: getNew(cb) }));
+        const explicitSubs = Array.from(document.querySelectorAll(".preview-cb-subs:checked")).map(cb => ({ old: getOld(cb), new: getNew(cb) }));
+        const explicitJunk = Array.from(document.querySelectorAll(".preview-cb-junk:checked")).map(cb => getOld(cb));
 
         const finalPayload = {
             ...currentPreviewPayload,
@@ -10633,9 +10678,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-
-
-        closePreviewModal();
         appendConsoleLog("[System]: Starte finalen Verarbeitungsprozess...");
 
         try {
@@ -10646,8 +10688,15 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             if (response.ok) {
+                if (executeBtn) {
+                    executeBtn.disabled = false;
+                    executeBtn.innerHTML = originalContent;
+                }
+                isExecutingPreview = false;
+                closePreviewModal();
                 connectLogStream();
             } else {
+                resetExecuteBtn();
                 let errorMsg = "";
                 try {
                     const errData = await response.json();
@@ -10663,6 +10712,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             }
         } catch (e) {
+            resetExecuteBtn();
             appendConsoleLog(`[System] Fehler: ${e}`);
         }
     });
@@ -12396,6 +12446,7 @@ let unlockedMovieProjects = new Set();
 let appliedInboxGroups = new Set();
 let expandedInboxGroups = new Set();
 let activeSeriesGroupFiles = null;
+let activeSeriesGroupName = "";
 
 function extractStrictSeasonEpisode(filename) {
     if (!filename || typeof filename !== 'string') return null;
@@ -12538,12 +12589,49 @@ function updateGroupBannerUI(validGroups) {
         renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
     });
 
-    banner.querySelector(".btn-banner-apply-group")?.addEventListener("click", () => {
-        appliedInboxGroups.add(groupKey);
-        renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
-        const files = members.map(m => m.project);
-        startSeriesGroupWorkflow(groupKey, files);
+    banner.querySelector(".btn-banner-apply-group")?.addEventListener("click", async (e) => {
+        const btn = e.currentTarget || e.target;
+        if (btn && btn.disabled) return;
+        let originalContent = "";
+        if (btn) {
+            btn.disabled = true;
+            originalContent = btn.innerHTML;
+            btn.textContent = "wird gestartet…";
+        }
+        try {
+            appliedInboxGroups.add(groupKey);
+            renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+            const files = members.map(m => m.project);
+            await startSeriesGroupWorkflow(groupKey, files);
+        } catch (err) {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
+            }
+        }
     });
+}
+
+function detectManualGroupSeriesName(files, fallbackName) {
+    if (!Array.isArray(files) || files.length === 0) return fallbackName || "";
+    const episodeRegex = /(?:[._\s\-]+|\b)(?:[sS]\d{1,4}[eE]\d{1,4}|\d{1,3}x\d{1,4}|(?:staffel|season)\s*\d+\s*(?:folge|episode)\s*\d+|(?:staffel|season)\s*\d+|(?:folge|episode)\s*\d+)(?:[._\s\-]+|\b|$)/i;
+    const prefixes = files.map(f => {
+        let base = String(f || '').replace(/^.*[\\/]/, '').replace(/\.[^/.]+$/, '');
+        const match = base.match(episodeRegex);
+        if (match && match.index !== undefined) {
+            base = base.slice(0, match.index);
+        }
+        return base.replace(/[\s._-]+$/, '').trim();
+    });
+
+    let common = prefixes[0] || "";
+    for (let i = 1; i < prefixes.length; i++) {
+        while (common && !prefixes[i].toLowerCase().startsWith(common.toLowerCase())) {
+            common = common.slice(0, -1);
+        }
+    }
+    common = common.replace(/[\s._-]+$/, '').trim();
+    return common || fallbackName || "";
 }
 
 function updateBulkActionsBarUI() {
@@ -12558,7 +12646,7 @@ function updateBulkActionsBarUI() {
             </div>
             <div class="smart-inbox-bulk-buttons">
                 <button class="btn btn-secondary btn-xs" id="btn-bulk-deselect">Auswahl aufheben</button>
-                <button class="btn btn-primary btn-xs" id="btn-bulk-group-series">Ausgewählte als Serie gruppieren</button>
+                <button class="btn btn-primary btn-xs" id="btn-bulk-group-series">Ausgewählte als Serie verarbeiten</button>
             </div>
         `;
         bulkBar.querySelector("#btn-bulk-deselect")?.addEventListener("click", () => {
@@ -12571,12 +12659,34 @@ function updateBulkActionsBarUI() {
                 });
             }
         });
-        bulkBar.querySelector("#btn-bulk-group-series")?.addEventListener("click", () => {
-            const files = Array.from(selectedInboxProjects);
-            if (files.length === 0) return;
-            const firstItem = currentSmartInboxRawSuggestions.find(s => s.project === files[0]);
-            let groupName = firstItem ? (firstItem.suggested_query || cleanSeriesName(firstItem.project)) : cleanSeriesName(files[0]);
-            startSeriesGroupWorkflow(groupName, files);
+        bulkBar.querySelector("#btn-bulk-group-series")?.addEventListener("click", async (e) => {
+            const btn = e.currentTarget || e.target;
+            if (btn && btn.disabled) return;
+            let originalContent = "";
+            if (btn) {
+                btn.disabled = true;
+                originalContent = btn.innerHTML;
+                btn.textContent = "wird gestartet…";
+            }
+            try {
+                const files = Array.from(selectedInboxProjects);
+                if (files.length === 0) {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = originalContent;
+                    }
+                    return;
+                }
+                const firstItem = currentSmartInboxRawSuggestions.find(s => s.project === files[0]);
+                const fallbackName = firstItem ? (firstItem.suggested_query || cleanSeriesName(firstItem.project)) : cleanSeriesName(files[0]);
+                const groupName = detectManualGroupSeriesName(files, fallbackName);
+                await startSeriesGroupWorkflow(groupName, files);
+            } catch (err) {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalContent;
+                }
+            }
         });
     } else {
         bulkBar.style.display = "none";
@@ -12585,10 +12695,12 @@ function updateBulkActionsBarUI() {
 }
 
 function startSeriesGroupWorkflow(groupName, files) {
-    if (!Array.isArray(files) || files.length === 0) return;
+    if (!Array.isArray(files) || files.length === 0) return Promise.resolve();
     activeSeriesGroupFiles = [...files];
+    activeSeriesGroupName = groupName || "";
     if (typeof globalThis !== 'undefined') {
         globalThis.activeSeriesGroupFiles = activeSeriesGroupFiles;
+        globalThis.activeSeriesGroupName = activeSeriesGroupName;
     }
     currentProject = "";
     projectFiles = [...files];
@@ -12762,8 +12874,9 @@ function startSeriesGroupWorkflow(groupName, files) {
     }
 
     if (typeof searchSeries === "function" && groupName) {
-        searchSeries();
+        return searchSeries();
     }
+    return Promise.resolve();
 }
 
 
@@ -12923,9 +13036,24 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                     });
                 }
 
-                headerDiv.querySelector(".btn-select-group")?.addEventListener("click", () => {
-                    const files = item.items.map(m => m.project);
-                    startSeriesGroupWorkflow(item.group_key, files);
+                headerDiv.querySelector(".btn-select-group")?.addEventListener("click", async (e) => {
+                    const btn = e.currentTarget || e.target;
+                    if (btn && btn.disabled) return;
+                    let originalContent = "";
+                    if (btn) {
+                        btn.disabled = true;
+                        originalContent = btn.innerHTML;
+                        btn.textContent = "wird gestartet…";
+                    }
+                    try {
+                        const files = item.items.map(m => m.project);
+                        await startSeriesGroupWorkflow(item.group_key, files);
+                    } catch (err) {
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = originalContent;
+                        }
+                    }
                 });
 
                 groupDiv.appendChild(headerDiv);
@@ -13092,14 +13220,18 @@ if (typeof globalThis !== 'undefined') {
     globalThis.setSelectedShow = (val) => { selectedShow = val; };
     globalThis.getSelectedShow = () => selectedShow;
     globalThis.setEpisodesData = (val) => { episodesData = val; };
+    globalThis.detectManualGroupSeriesName = detectManualGroupSeriesName;
+    globalThis.activeSeriesGroupName = activeSeriesGroupName;
     globalThis.setCurrentPreviewPayload = (val) => { currentPreviewPayload = val; };
     globalThis.getCurrentPreviewPayload = () => currentPreviewPayload;
 }
 
 function handleSmartInboxClick(projectName, mediaType, suggestionTitle) {
     activeSeriesGroupFiles = null;
+    activeSeriesGroupName = "";
     if (typeof globalThis !== 'undefined') {
         globalThis.activeSeriesGroupFiles = null;
+        globalThis.activeSeriesGroupName = "";
     }
     selectProject(projectName);
 

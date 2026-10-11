@@ -22,6 +22,11 @@ function matchesSelector(el, sel) {
     if (!sel || !el) return false;
     sel = sel.trim();
 
+    if (sel.includes(':checked')) {
+        const baseSel = sel.replace(':checked', '').trim();
+        return (!baseSel || matchesSelector(el, baseSel)) && Boolean(el.checked);
+    }
+
     if (sel.startsWith('[') && sel.endsWith(']')) {
         const inner = sel.slice(1, -1);
         if (inner.includes('=')) {
@@ -226,6 +231,7 @@ function createMockElement(tagName = 'div', attributes = {}) {
     const dataset = {};
     const attrs = { ...attributes };
     let innerHtmlVal = '';
+    let textContentVal = '';
 
     const el = {
         tagName: tagName.toUpperCase(),
@@ -233,10 +239,17 @@ function createMockElement(tagName = 'div', attributes = {}) {
         value: '',
         checked: false,
         disabled: false,
-        textContent: '',
+        get textContent() {
+            return textContentVal;
+        },
+        set textContent(val) {
+            textContentVal = String(val);
+            innerHtmlVal = String(val);
+            children.length = 0;
+        },
         _setInnerHtmlDirect: (val) => {
             innerHtmlVal = String(val);
-            el.textContent = innerHtmlVal.replace(/<[^>]*>/g, '').trim();
+            textContentVal = innerHtmlVal.replace(/<[^>]*>/g, '').trim();
         },
         options: [],
         selectedIndex: 0,
@@ -255,6 +268,7 @@ function createMockElement(tagName = 'div', attributes = {}) {
         },
         set innerHTML(val) {
             innerHtmlVal = String(val);
+            textContentVal = innerHtmlVal.replace(/<[^>]*>/g, '').trim();
             children.length = 0;
             if (val) {
                 const parsed = parseHtmlToMockElements(val);
@@ -310,15 +324,18 @@ function createMockElement(tagName = 'div', attributes = {}) {
             listeners[event].push(handler);
         },
         click: async function() {
+            if (el.disabled) return;
             const handlers = listeners['click'] || [];
             for (const handler of handlers) {
-                await handler.call(el, { type: 'click', target: el, preventDefault: () => {} });
+                await handler.call(el, { type: 'click', target: el, currentTarget: el, preventDefault: () => {} });
             }
             if (typeof el.onclick === 'function') {
-                await el.onclick.call(el, { type: 'click', target: el, preventDefault: () => {} });
+                await el.onclick.call(el, { type: 'click', target: el, currentTarget: el, preventDefault: () => {} });
             }
         },
         dispatchEvent: async function(event) {
+            if (event.type === 'click' && el.disabled) return;
+            if (!event.currentTarget) event.currentTarget = el;
             const handlers = listeners[event.type] || [];
             for (const handler of handlers) {
                 await handler.call(el, event);
@@ -505,6 +522,10 @@ function setupTestEnvironment() {
     getOrCreateElement('series-option-copy-pcloud', 'input');
     getOrCreateElement('series-nas-destination', 'select');
     getOrCreateElement('series-pcloud-destination', 'select');
+    getOrCreateElement('btn-manual-series', 'button');
+    getOrCreateElement('manual-series-container');
+    getOrCreateElement('manual-series-title', 'input');
+    getOrCreateElement('manual-series-plot', 'input');
 
     // Timer mocks ensuring no real timers run in tests
     globalThis.setTimeout = (fn) => { if (typeof fn === 'function') fn(); return 0; };
@@ -578,11 +599,21 @@ globalThis.getSelectedShow = () => selectedShow;
 globalThis.setEpisodesData = (val) => { episodesData = val; };
 globalThis.setCurrentPreviewPayload = (val) => { currentPreviewPayload = val; };
 globalThis.getCurrentPreviewPayload = () => currentPreviewPayload;
+globalThis.detectManualGroupSeriesName = detectManualGroupSeriesName;
+globalThis.getActiveSeriesGroupName = () => activeSeriesGroupName;
+globalThis.setActiveSeriesGroupName = (val) => { activeSeriesGroupName = val; };
+globalThis.setActiveSeriesGroupFiles = (val) => { activeSeriesGroupFiles = val; };
+globalThis.initEventListeners = initEventListeners;
 `;
 
     eval(cleanAppJs);
 
     globalThis.document.dispatchEvent({ type: 'DOMContentLoaded' });
+    try {
+        if (typeof globalThis.initEventListeners === 'function') {
+            globalThis.initEventListeners();
+        }
+    } catch (_) {}
 
     return {
         cardSmartInbox,
@@ -1353,7 +1384,7 @@ test('F1: nach Klick auf Gruppenzeilen-Knopf, Sammelknopf und Banner ist view-fo
     assert.strictEqual(env.modeSeries.classList.contains('active'), true, 'mode-series must be active after banner click');
 });
 
-test('F2: Beschriftungen - Gruppenzeile "Auswählen", Banner "Als Serie gruppieren", Sammelknopf "Ausgewählte als Serie gruppieren", gesperrte Filme "Als Serie / Folge behandeln"', () => {
+test('F2: Beschriftungen - Gruppenzeile "Auswählen", Banner "Als Serie gruppieren", Sammelknopf "Ausgewählte als Serie verarbeiten", gesperrte Filme "Als Serie / Folge behandeln"', () => {
     const env = setupTestEnvironment();
     const suggestions = [
         {
@@ -1396,13 +1427,14 @@ test('F2: Beschriftungen - Gruppenzeile "Auswählen", Banner "Als Serie gruppier
     assert.ok(groupSelectBtn.innerHTML.includes('Auswählen'), 'Group row button must be labeled "Auswählen"');
     assert.strictEqual(groupSelectBtn.innerHTML.includes('Als Serie gruppieren'), false, 'Group row button must NOT be labeled "Als Serie gruppieren"');
 
-    // (b) Sammelknopf: "Ausgewählte als Serie gruppieren"
+    // (b) Sammelknopf: "Ausgewählte als Serie verarbeiten"
     globalThis.selectedInboxProjects.clear();
     globalThis.selectedInboxProjects.add('Show.S01E01.mkv');
     globalThis.updateBulkActionsBarUI();
     const bulkBtn = env.bulkBar.querySelector('#btn-bulk-group-series');
     assert.ok(bulkBtn);
-    assert.ok(bulkBtn.innerHTML.includes('Ausgewählte als Serie gruppieren'), 'Bulk button must retain text "Ausgewählte als Serie gruppieren"');
+    assert.ok(bulkBtn.innerHTML.includes('Ausgewählte als Serie verarbeiten'), 'Bulk button must have text "Ausgewählte als Serie verarbeiten"');
+    assert.strictEqual(bulkBtn.innerHTML.includes('Ausgewählte als Serie gruppieren'), false, 'Bulk button must NOT have old text "Ausgewählte als Serie gruppieren"');
 
     // (a) Link 'Als Serie / Folge behandeln' bei gesperrten Filmen
     const movieItem = env.smartInboxList.querySelector('[data-project="LockedMovie.mkv"]');
@@ -1411,4 +1443,279 @@ test('F2: Beschriftungen - Gruppenzeile "Auswählen", Banner "Als Serie gruppier
     assert.ok(unlockLink);
     assert.ok(unlockLink.innerHTML.includes('Als Serie / Folge behandeln'), 'Locked movie link must be "Als Serie / Folge behandeln"');
     assert.strictEqual(unlockLink.innerHTML.includes('Trotzdem als Serie freigeben'), false, 'Locked movie link must NOT be "Trotzdem als Serie freigeben"');
+});
+
+// --------------------------------------------------------------------------
+// Lauf B Nachbesserung (Alex Handtest 2026-10-11): Tasks 1 - 4
+// --------------------------------------------------------------------------
+
+// 1. Vorschau-Fenster: Quoted / Brackets Filename Preservation & No HTML Injection
+test('1: Vorschau-Fenster: Dateiname mit " (und mit < >) bleibt vom Rendern bis in explicit_renames/explicit_subs des /process-Requests vollständig erhalten; kein HTML wird eingeschleust', async () => {
+    const env = setupTestEnvironment();
+    const maliciousNameOld = 'Testserie.S02E07."Spezial".<script>alert(1)</script>.mkv';
+    const specialNameNew = 'Testserie - S02E07 - "Spezial" & <Bonus>.mkv';
+    const subNameOld = 'Testserie.S02E07."Spezial".<script>.de.srt';
+    const subNameNew = 'Testserie - S02E07 - "Spezial" <Bonus>.de.srt';
+    const junkNameOld = 'Testserie.S02E07."Spezial".<script>.nfo';
+
+    let capturedProcessBody = null;
+    globalThis.fetch = (url, options) => {
+        if (url === '/api/preview_process') {
+            return Promise.resolve({
+                ok: true,
+                json: async () => ({
+                    destination: 'Serien/Testserie',
+                    renames: [{ old: maliciousNameOld, new: specialNameNew }],
+                    subs: [{ old: subNameOld, new: subNameNew }],
+                    junk: [{ old: junkNameOld }]
+                })
+            });
+        }
+        if (url === '/api/process') {
+            capturedProcessBody = JSON.parse(options.body);
+            return Promise.resolve({
+                ok: true,
+                json: async () => ({ status: 'started' })
+            });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+    };
+
+    await globalThis.openPreviewModal({
+        media_type: 'tv',
+        project_name: '',
+        show_name: 'Testserie',
+        files: [maliciousNameOld, subNameOld, junkNameOld]
+    });
+
+    const renamesList = env.getOrCreateElement('preview-list-renames');
+    // Verify no script tag was injected into DOM
+    assert.strictEqual(renamesList.querySelectorAll('script').length, 0, 'No script elements must be injected into preview');
+
+    // Verify checkbox rendered data-old and data-new
+    const renameCb = renamesList.querySelector('.preview-cb-renames');
+    assert.ok(renameCb, 'Rename checkbox must exist');
+    assert.strictEqual(renameCb.getAttribute('data-old'), maliciousNameOld, 'data-old attribute must retain full name with quotes and brackets intact');
+    assert.strictEqual(renameCb.getAttribute('data-new'), specialNameNew, 'data-new attribute must retain full name with quotes and brackets intact');
+
+    const subsList = env.getOrCreateElement('preview-list-subs');
+    const subCb = subsList.querySelector('.preview-cb-subs');
+    assert.ok(subCb, 'Sub checkbox must exist');
+    assert.strictEqual(subCb.getAttribute('data-old'), subNameOld);
+
+    // Disable profile save to keep test focused
+    const noProfileCb = env.getOrCreateElement('series-option-no-profile', 'input');
+    noProfileCb.checked = true;
+
+    // Click execute
+    const executeBtn = env.getOrCreateElement('btn-preview-execute', 'button');
+    await executeBtn.click();
+
+    // Verify explicit_renames, explicit_subs, and explicit_junk in /process request
+    assert.ok(capturedProcessBody, 'Request body to /process must be sent');
+    assert.ok(Array.isArray(capturedProcessBody.explicit_renames));
+    assert.strictEqual(capturedProcessBody.explicit_renames[0].old, maliciousNameOld, 'explicit_renames[0].old must retain quotes and angle brackets intact');
+    assert.strictEqual(capturedProcessBody.explicit_renames[0].new, specialNameNew, 'explicit_renames[0].new must retain quotes and angle brackets intact');
+
+    assert.ok(Array.isArray(capturedProcessBody.explicit_subs));
+    assert.strictEqual(capturedProcessBody.explicit_subs[0].old, subNameOld, 'explicit_subs[0].old must retain quotes and angle brackets intact');
+    assert.strictEqual(capturedProcessBody.explicit_subs[0].new, subNameNew, 'explicit_subs[0].new must retain quotes and angle brackets intact');
+
+    assert.ok(Array.isArray(capturedProcessBody.explicit_junk));
+    assert.strictEqual(capturedProcessBody.explicit_junk[0], junkNameOld, 'explicit_junk[0] must retain quotes and angle brackets intact');
+});
+
+// 2. Doppelstart-Schutz und sofortige Rückmeldung
+test('2: Doppelstart-Schutz: zwei schnelle Klicks auf Ausführen -> genau ein /process-Request', async () => {
+    const env = setupTestEnvironment();
+    let processCalls = 0;
+    let resolveProcessPromise = null;
+
+    globalThis.fetch = (url) => {
+        if (url === '/api/process') {
+            processCalls++;
+            return new Promise(resolve => {
+                resolveProcessPromise = () => resolve({ ok: true, json: async () => ({ status: 'started' }) });
+            });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+    };
+
+    globalThis.setCurrentPreviewPayload({
+        media_type: 'tv',
+        project_name: '',
+        show_name: 'Testserie',
+        files: ['file1.mkv']
+    });
+
+    const noProfileCb = env.getOrCreateElement('series-option-no-profile', 'input');
+    noProfileCb.checked = true;
+
+    const executeBtn = env.getOrCreateElement('btn-preview-execute', 'button');
+    executeBtn.disabled = false;
+    executeBtn.innerHTML = 'Jetzt final verarbeiten';
+
+    // Click once
+    const clickPromise1 = executeBtn.click();
+    assert.strictEqual(executeBtn.disabled, true, 'Ausführen-Knopf must be disabled immediately on first click');
+    assert.strictEqual(executeBtn.textContent, 'wird gestartet…', 'Ausführen-Knopf must show "wird gestartet…" immediately on first click');
+
+    // Click second time while first is in-flight
+    const clickPromise2 = executeBtn.click();
+
+    // Now resolve the in-flight process request
+    assert.ok(resolveProcessPromise, 'Process fetch must have been initiated');
+    resolveProcessPromise();
+    await Promise.all([clickPromise1, clickPromise2]);
+
+    assert.strictEqual(processCalls, 1, 'Two fast clicks on Ausführen must result in exactly one /process request');
+});
+
+test('2: Doppelstart-Schutz: bei Fehler im /process-Request wird der Ausführen-Knopf wieder aktiv', async () => {
+    const env = setupTestEnvironment();
+
+    globalThis.fetch = (url) => {
+        if (url === '/api/process') {
+            return Promise.resolve({
+                ok: false,
+                status: 500,
+                json: async () => ({ error: 'Serverfehler' })
+            });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+    };
+
+    globalThis.setCurrentPreviewPayload({
+        media_type: 'tv',
+        project_name: '',
+        show_name: 'Testserie',
+        files: ['file1.mkv']
+    });
+
+    const noProfileCb = env.getOrCreateElement('series-option-no-profile', 'input');
+    noProfileCb.checked = true;
+
+    const executeBtn = env.getOrCreateElement('btn-preview-execute', 'button');
+    executeBtn.disabled = false;
+    executeBtn.innerHTML = 'Jetzt final verarbeiten';
+
+    await executeBtn.click();
+
+    // On error, executeBtn must be re-enabled and restored
+    assert.strictEqual(executeBtn.disabled, false, 'Ausführen-Knopf must be re-enabled on error');
+    assert.strictEqual(executeBtn.textContent, 'Jetzt final verarbeiten', 'Ausführen-Knopf text must be restored on error');
+});
+
+test('2: Doppelstart-Schutz: Banner-Knopf, Gruppenzeilen-Knopf und Sammelknopf werden beim ersten Klick deaktiviert und zeigen "wird gestartet…"', async () => {
+    const env = setupTestEnvironment();
+    const suggestions = [
+        { project: 'Show.S01E05.mkv', suggested_query: 'Show', media_type: 'tv', is_dir: false, video_count: 1 },
+        { project: 'Show.S01E06.mkv', suggested_query: 'Show', media_type: 'tv', is_dir: false, video_count: 1 }
+    ];
+
+    let searchResolve = null;
+    globalThis.fetch = (url) => {
+        if (url.includes('/api/search')) {
+            return new Promise(resolve => {
+                searchResolve = () => resolve({ ok: true, json: async () => [] });
+            });
+        }
+        return Promise.resolve({ ok: true, json: async () => [] });
+    };
+
+    // 1. Sammelknopf
+    globalThis.selectedInboxProjects.clear();
+    globalThis.selectedInboxProjects.add('Show.1x05.mkv');
+    globalThis.selectedInboxProjects.add('Show.1x06.mkv');
+    globalThis.updateBulkActionsBarUI();
+
+    const bulkBtn = env.bulkBar.querySelector('#btn-bulk-group-series');
+    assert.ok(bulkBtn);
+    const bulkPromise = bulkBtn.click();
+    assert.strictEqual(bulkBtn.disabled, true, 'Sammelknopf must be disabled on click');
+    assert.strictEqual(bulkBtn.textContent, 'wird gestartet…', 'Sammelknopf must show "wird gestartet…" on click');
+    if (searchResolve) searchResolve();
+    await bulkPromise;
+
+    // 2. Gruppenzeilen-Knopf
+    searchResolve = null;
+    globalThis.appliedInboxGroups.add('Show');
+    globalThis.renderSmartInboxList(suggestions, new Set());
+    const groupRow = env.smartInboxList.querySelector('.smart-inbox-group-row');
+    const groupSelectBtn = groupRow.querySelector('.btn-select-group');
+    assert.ok(groupSelectBtn);
+
+    const groupPromise = groupSelectBtn.click();
+    assert.strictEqual(groupSelectBtn.disabled, true, 'Gruppenzeilen-Knopf must be disabled on click');
+    assert.strictEqual(groupSelectBtn.textContent, 'wird gestartet…', 'Gruppenzeilen-Knopf must show "wird gestartet…" on click');
+    if (searchResolve) searchResolve();
+    await groupPromise;
+});
+
+// 3. Alex-Entscheidungen: (b) Gruppenname bei manueller Auswahl
+test('3(b): Gruppenname bei manueller Auswahl = gemeinsamer Namensanfang ohne Folgenkennung und ohne Trennzeichen am Ende; Fallback wie bisher', () => {
+    setupTestEnvironment();
+
+    // Case 1: 'Andere Show.1x05.mkv' + 'Andere Show.1x06.mkv' -> 'Andere Show'
+    const name1 = globalThis.detectManualGroupSeriesName(
+        ['Andere Show.1x05.mkv', 'Andere Show.1x06.mkv'],
+        'Fallback'
+    );
+    assert.strictEqual(name1, 'Andere Show');
+
+    // Case 2: SxxExx: 'Show.S01E05.720p.mkv' + 'Show.S01E06.1080p.mkv' -> 'Show'
+    const name2 = globalThis.detectManualGroupSeriesName(
+        ['Show.S01E05.720p.mkv', 'Show.S01E06.1080p.mkv'],
+        'Fallback'
+    );
+    assert.strictEqual(name2, 'Show');
+
+    // Case 3: 'Staffel 2 Folge 3'
+    const name3 = globalThis.detectManualGroupSeriesName(
+        ['Cool Series - Staffel 2 Folge 3.mkv', 'Cool Series - Staffel 2 Folge 4.mkv'],
+        'Fallback'
+    );
+    assert.strictEqual(name3, 'Cool Series');
+
+    // Case 4: Fallback if no common prefix
+    const nameFallback = globalThis.detectManualGroupSeriesName(
+        ['Alfa.mkv', 'Beta.mkv'],
+        'Mein Fallback'
+    );
+    assert.strictEqual(nameFallback, 'Mein Fallback');
+});
+
+// 4. Name in der Warteschlange
+test('4: Name in der Warteschlange: im manuellen Serien-Modus im Gruppen-Ablauf den Gruppennamen verwenden ("Testserie (Gruppe)"), sonst unverändert', async () => {
+    const env = setupTestEnvironment();
+
+    // 1. Start group workflow with groupName "Testserie"
+    await globalThis.startSeriesGroupWorkflow('Testserie', ['Testserie.S01E01.mkv', 'Testserie.S01E02.mkv']);
+
+    // Switch to manual series mode
+    const btnManualSeries = env.getOrCreateElement('btn-manual-series', 'button');
+    await btnManualSeries.click();
+
+    // With manual-series-title empty: selectedShow.name must be "Testserie (Gruppe)"
+    const manualTitleInput = env.getOrCreateElement('manual-series-title', 'input');
+    manualTitleInput.value = '';
+    await manualTitleInput.dispatchEvent({ type: 'input' });
+
+    const showInGroup = globalThis.getSelectedShow();
+    assert.ok(showInGroup, 'selectedShow must be set');
+    assert.strictEqual(showInGroup.name, 'Testserie (Gruppe)', 'Group workflow manual mode must use "Testserie (Gruppe)" as show name');
+
+    // With manual-series-title entered: uses the custom title
+    manualTitleInput.value = 'Eigener Serientitel';
+    await manualTitleInput.dispatchEvent({ type: 'input' });
+    const showCustom = globalThis.getSelectedShow();
+    assert.strictEqual(showCustom.name, 'Eigener Serientitel');
+
+    // 2. Non-group workflow with currentProject empty
+    globalThis.setActiveSeriesGroupFiles(null);
+    globalThis.setActiveSeriesGroupName('');
+    manualTitleInput.value = '';
+    await manualTitleInput.dispatchEvent({ type: 'input' });
+    const showNonGroup = globalThis.getSelectedShow();
+    assert.strictEqual(showNonGroup.name, 'Manuelle Serie', 'Non-group workflow with empty project must fall back to "Manuelle Serie"');
 });
