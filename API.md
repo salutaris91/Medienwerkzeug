@@ -143,6 +143,8 @@ Liefert pro Eintrag zusätzlich:
 - `modified_at` (`int` Unix-Sekunden oder `null`): Größte `st_mtime` aller Videodateien im Projekt.
 - `total_size` (`int` in Bytes): Summe aller Dateigrößen (`st_size`) der Videodateien im Projekt.
 - `is_dir` (`bool`): `true` für Verzeichnisse (auch mit nur 1 Video), `false` für einzelne Videodateien in der Inbox-Root.
+- `single_video_relpath` (`string` oder abwesend): Relativer Pfad zur einzigen Videodatei bei Einzelvideo-Ordnern (nach 10er-Liste `GROUP_VIDEO_EXTENSIONS`), z. B. `"ShowS01E01/Show.S01E01.mkv"`.
+- `single_video_query` (`string` oder abwesend): Aus dem inneren Dateinamen extrahierter Serienname (mit Fallback auf `suggested_query` des Ordners, falls kein Episodenmuster im Dateinamen matcht).
 
 ### `GET|POST /api/paths-preview-clean` · `POST /api/paths-clean`
 Vorschau (GET/POST) bzw. Ausführung der Bereinigung von Inbox/Outbox (POST, Payload: `inbox_files`,
@@ -265,7 +267,7 @@ Optionaler Parameter `files` (Array relativer Pfade): Behandelt eine Liste von E
 ### `POST /api/process`
 Reiht einen Verarbeitungs-Job in die Queue ein (Payload: `media_type`,
 `mappings`, Ziel-IDs, `copy_to_nas`/`copy_to_pcloud`, `is_anime`, optional `files` etc.).
-Der optionale Parameter `files` ist nur für `media_type` `'tv'` erlaubt (andere Medientypen werden mit HTTP 400 abgewiesen). Bei gesetztem `files`-Parameter wird der Job mit striktem Scope auf die übergebenen Dateien und deren Begleitdateien ausgeführt.
+Der optionale Parameter `files` ist nur für `media_type` `'tv'` erlaubt (andere Medientypen werden mit HTTP 400 abgewiesen). Bei gesetztem `files`-Parameter wird der Job mit striktem Scope auf die übergebenen Dateien und deren Begleitdateien ausgeführt. Bei Aufträgen mit `files` dürfen explizite Zielangaben (`new` in `explicit_renames` oder `explicit_subs`) keine Pfadtrennzeichen (`/` oder `\`) enthalten und nicht leer sein; andernfalls bricht der Job vor jeder Dateibewegung laut ab.
 ```json
 { "status": "ok", "task_id": "<uuid>" }
 ```

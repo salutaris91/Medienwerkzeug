@@ -204,6 +204,11 @@ function parseHtmlToMockElements(html) {
             el.setAttribute(`aria-${aMatch[1]}`, aMatch[2]);
         }
 
+        const titleMatch = attrStr.match(/title=["']([^"']*)["']/i);
+        if (titleMatch) {
+            el.setAttribute('title', titleMatch[1]);
+        }
+
         if (/\bchecked\b/i.test(attrStr)) {
             el.checked = true;
         }
@@ -1862,4 +1867,229 @@ test('5: Warteschlangen-Prüfung: laufender Gruppen-Job mit anderen Dateien bloc
 
     assert.strictEqual(env.alerts.length, 0, 'Normal project NOT in active projects must not block');
     assert.strictEqual(previewCalls, 1, 'Preview process must be called for non-duplicate normal project');
+});
+
+// --------------------------------------------------------------------------
+// ROADMAP #71 & #72 Tests: Single-Video Folder Grouping & AK1/AK4/AK5
+// --------------------------------------------------------------------------
+test('AK1: Pattern (a) in extractStrictSeasonEpisode handles all AK1a-f cases', () => {
+    setupTestEnvironment();
+    // (a) ThWaDeS11E23 -> {season: 11, episode: 23, formatted: "S11E23"}
+    const resA = globalThis.extractStrictSeasonEpisode('ThWaDeS11E23');
+    assert.ok(resA !== null, 'ThWaDeS11E23 must match strict pattern');
+    assert.strictEqual(resA.season, 11);
+    assert.strictEqual(resA.episode, 23);
+    assert.strictEqual(resA.formatted, 'S11E23');
+
+    // (b) ThWaDeS11E24720p -> null (greedy \\d{1,3} followed by (?!\\d))
+    assert.strictEqual(globalThis.extractStrictSeasonEpisode('ThWaDeS11E24720p'), null);
+
+    // (c) Existing positive cases and existing null expectations
+    const resC1 = globalThis.extractStrictSeasonEpisode('Show.S01E01.720p.mkv');
+    assert.ok(resC1 !== null);
+    assert.strictEqual(resC1.formatted, 'S01E01');
+    const resC2 = globalThis.extractStrictSeasonEpisode('Show_S02E15_1080p.mkv');
+    assert.ok(resC2 !== null);
+    assert.strictEqual(resC2.formatted, 'S02E15');
+    assert.strictEqual(globalThis.extractStrictSeasonEpisode('Movie.1920x1080.x264.mkv'), null);
+    assert.strictEqual(globalThis.extractStrictSeasonEpisode('The Rock (1996).mkv'), null);
+    assert.strictEqual(globalThis.extractStrictSeasonEpisode('Show.1x05.mkv'), null);
+    assert.strictEqual(globalThis.extractStrictSeasonEpisode('Staffel 2 Folge 3 – Show.mkv'), null);
+
+    // (d) Documented behavior change: The.Show.S01E01PROPER.mkv matches S01E01
+    const resD = globalThis.extractStrictSeasonEpisode('The.Show.S01E01PROPER.mkv');
+    assert.ok(resD !== null, 'The.Show.S01E01PROPER.mkv must match');
+    assert.strictEqual(resD.formatted, 'S01E01');
+
+    // (e) Digit directly on the left returns null: Show.1080S02E03.mkv -> null
+    assert.strictEqual(globalThis.extractStrictSeasonEpisode('Show.1080S02E03.mkv'), null);
+
+    // (f) Lowercase letter directly on the left matches: shows01e02.mkv -> S01E02
+    const resF = globalThis.extractStrictSeasonEpisode('shows01e02.mkv');
+    assert.ok(resF !== null, 'shows01e02.mkv must match');
+    assert.strictEqual(resF.formatted, 'S01E02');
+});
+
+test('AK4: Folder grouping, mixed groups, and fallback key extraction (AK4a-e)', () => {
+    setupTestEnvironment();
+
+    // (a) tv folder with single_video_relpath + single_video_query participates; key is single_video_query
+    // (b) mixed group: loose file and single-video folder with identical key form ONE group
+    const mixedSuggestions = [
+        {
+            project: 'ThWaDeS11E23',
+            suggested_query: 'ThWaDe',
+            single_video_relpath: 'ThWaDeS11E23/The.Walking.Dead.S11E23.720p.mkv',
+            single_video_query: 'The.Walking.Dead',
+            media_type: 'tv',
+            is_dir: true,
+            video_count: 1
+        },
+        {
+            project: 'The.Walking.Dead.S11E24.mkv',
+            suggested_query: 'The.Walking.Dead',
+            media_type: 'tv',
+            is_dir: false,
+            video_count: 1
+        }
+    ];
+
+    const mixedGroups = globalThis.detectInboxGroups(mixedSuggestions);
+    assert.ok(mixedGroups['The.Walking.Dead'], 'Must form group under key The.Walking.Dead');
+    assert.strictEqual(mixedGroups['The.Walking.Dead'].length, 2, 'Mixed group must contain both members');
+    assert.strictEqual(mixedGroups['The.Walking.Dead'][0]._se.formatted, 'S11E23');
+    assert.strictEqual(mixedGroups['The.Walking.Dead'][1]._se.formatted, 'S11E24');
+
+    // (c) S/E extraction on folder checks basename(single_video_relpath) first, falls back to item.project
+    const fallbackSuggestions = [
+        {
+            project: 'ThWaDeS11E23',
+            single_video_relpath: 'ThWaDeS11E23/video.mkv',
+            single_video_query: 'The.Walking.Dead',
+            media_type: 'tv',
+            is_dir: true,
+            video_count: 1
+        },
+        {
+            project: 'The.Walking.Dead.S11E24.mkv',
+            suggested_query: 'The.Walking.Dead',
+            media_type: 'tv',
+            is_dir: false,
+            video_count: 1
+        }
+    ];
+    const fallbackGroups = globalThis.detectInboxGroups(fallbackSuggestions);
+    assert.ok(fallbackGroups['The.Walking.Dead']);
+    assert.strictEqual(fallbackGroups['The.Walking.Dead'][0]._se.formatted, 'S11E23', 'S/E must fallback to folder name ThWaDeS11E23');
+
+    // (d) tv folder without single_video_relpath (>=2 videos) is never grouped
+    const multiVideoSuggestions = [
+        {
+            project: 'Show.S01E01.Folder',
+            suggested_query: 'Show',
+            media_type: 'tv',
+            is_dir: true,
+            video_count: 2
+        },
+        {
+            project: 'Show.S01E02.Folder',
+            suggested_query: 'Show',
+            media_type: 'tv',
+            is_dir: true,
+            video_count: 2
+        }
+    ];
+    const multiGroups = globalThis.detectInboxGroups(multiVideoSuggestions);
+    assert.deepStrictEqual(multiGroups, {}, 'Multi-video folders must never be grouped');
+
+    // (e) Empty key / sentinel rules apply
+    const sentinelSuggestions = [
+        {
+            project: 'FolderA',
+            single_video_relpath: 'FolderA/Show.S01E01.mkv',
+            single_video_query: '__inbox_recursive__',
+            media_type: 'tv',
+            is_dir: true,
+            video_count: 1
+        },
+        {
+            project: 'FolderB',
+            single_video_relpath: 'FolderB/Show.S01E02.mkv',
+            single_video_query: '   ',
+            media_type: 'tv',
+            is_dir: true,
+            video_count: 1
+        }
+    ];
+    const sentinelGroups = globalThis.detectInboxGroups(sentinelSuggestions);
+    assert.deepStrictEqual(sentinelGroups, {}, 'Empty or sentinel keys must be ignored');
+});
+
+test('AK5: Checkbox, delegation via inboxFilesEntryForItem, and bulk group name (AK5a-e)', async () => {
+    const env = setupTestEnvironment();
+
+    const suggestions = [
+        {
+            project: 'ThWaDeS11E23',
+            single_video_relpath: 'ThWaDeS11E23/The.Walking.Dead.S11E23.mkv',
+            single_video_query: 'The.Walking.Dead',
+            media_type: 'tv',
+            is_dir: true,
+            video_count: 1
+        },
+        {
+            project: 'ThWaDeS11E24',
+            single_video_relpath: 'ThWaDeS11E24/The.Walking.Dead.S11E24.mkv',
+            single_video_query: 'The.Walking.Dead',
+            media_type: 'tv',
+            is_dir: true,
+            video_count: 1
+        },
+        {
+            project: 'MultiVidFolder',
+            media_type: 'tv',
+            is_dir: true,
+            video_count: 2
+        },
+        {
+            project: 'DokuFolder',
+            media_type: 'doku',
+            is_dir: true,
+            video_count: 1
+        },
+        {
+            project: 'MovieFolder',
+            media_type: 'movie',
+            is_dir: true,
+            video_count: 1
+        }
+    ];
+
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    // (a) Single-video folder gets active checkbox with aria-label and title
+    const item1 = env.smartInboxList.querySelector('[data-project="ThWaDeS11E23"]');
+    const cb1 = item1.querySelector('.smart-inbox-cb');
+    assert.ok(cb1, 'Single-video folder must have a checkbox');
+    assert.strictEqual(cb1.getAttribute('aria-label'), 'Ordner mit einer Folge auswählen');
+    assert.strictEqual(cb1.getAttribute('title'), 'Verarbeitet wird: ThWaDeS11E23/The.Walking.Dead.S11E23.mkv');
+
+    // Folders without single_video_relpath, dokus, and movies have no checkboxes
+    const multiItem = env.smartInboxList.querySelector('[data-project="MultiVidFolder"]');
+    assert.strictEqual(multiItem.querySelector('.smart-inbox-cb'), null);
+    const dokuItem = env.smartInboxList.querySelector('[data-project="DokuFolder"]');
+    assert.strictEqual(dokuItem.querySelector('.smart-inbox-cb'), null);
+    const movieItem = env.smartInboxList.querySelector('[data-project="MovieFolder"]');
+    assert.strictEqual(movieItem.querySelector('.smart-inbox-cb'), null);
+
+    // (b) & (c) Selection set is keyed by item.project, translation via inboxFilesEntryForItem
+    cb1.checked = true;
+    cb1.dispatchEvent({ type: 'change', target: cb1 });
+    assert.ok(globalThis.selectedInboxProjects.has('ThWaDeS11E23'));
+
+    const item2 = env.smartInboxList.querySelector('[data-project="ThWaDeS11E24"]');
+    const cb2 = item2.querySelector('.smart-inbox-cb');
+    cb2.checked = true;
+    cb2.dispatchEvent({ type: 'change', target: cb2 });
+    assert.ok(globalThis.selectedInboxProjects.has('ThWaDeS11E24'));
+
+    // (d) Bulk action creates group name from single_video_query / inner filename
+    // Test detectManualGroupSeriesName with files list containing relpaths
+    const files = [
+        'ThWaDeS11E23/The.Walking.Dead.S11E23.mkv',
+        'ThWaDeS11E24/The.Walking.Dead.S11E24.mkv'
+    ];
+    const groupName = globalThis.detectManualGroupSeriesName(files, 'Fallback');
+    assert.strictEqual(groupName, 'The.Walking.Dead', 'Bulk group name must be The.Walking.Dead, not ThWaDeS');
+
+    // Trigger Bulk Button click
+    const bulkBtn = env.bulkBar.querySelector('#btn-bulk-group-series');
+    assert.ok(bulkBtn, 'Bulk action button must exist');
+    await bulkBtn.click();
+
+    assert.strictEqual(globalThis.activeSeriesGroupName, 'The.Walking.Dead');
+    assert.deepStrictEqual(globalThis.activeSeriesGroupFiles, [
+        'ThWaDeS11E23/The.Walking.Dead.S11E23.mkv',
+        'ThWaDeS11E24/The.Walking.Dead.S11E24.mkv'
+    ], 'files[] for single-video folder members must be single_video_relpath');
 });

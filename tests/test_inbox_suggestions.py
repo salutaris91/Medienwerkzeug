@@ -200,6 +200,102 @@ class TestInboxSuggestions(unittest.TestCase):
         self.assertEqual(suggestions["StandaloneFile.mkv"]["video_count"], 1)
         self.assertIs(suggestions["StandaloneFile.mkv"]["is_dir"], False)
 
+    def test_inbox_suggestions_single_video_folder_fields_ak2(self):
+        """AK2: Folder with exactly 1 video per 10-ext list has single_video_relpath and single_video_query; others don't."""
+        # 1. Folder with exactly 1 video in subfolder (nested)
+        single_nested_folder = os.path.join(self.inbox_dir, "ThWaDeS11E23")
+        nested_sub = os.path.join(single_nested_folder, "Sub")
+        os.makedirs(nested_sub, exist_ok=True)
+        vf_nested = os.path.join(nested_sub, "The.Walking.Dead.S11E23.720p.mkv")
+        with open(vf_nested, "wb") as f:
+            f.write(b"x" * 100)
+
+        # 2. Folder with 2 videos by 10-ext list (.mp4 + .wmv), where 6-ext list only counts 1 (.mp4)
+        mixed_folder = os.path.join(self.inbox_dir, "MixedFolder.S01")
+        os.makedirs(mixed_folder, exist_ok=True)
+        with open(os.path.join(mixed_folder, "Ep01.mp4"), "wb") as f:
+            f.write(b"x" * 100)
+        with open(os.path.join(mixed_folder, "Ep02.wmv"), "wb") as f:
+            f.write(b"x" * 100)
+
+        # 3. Folder with 0 videos by 6-ext list (e.g. only .flv) -> must not appear in suggestions
+        flv_only_folder = os.path.join(self.inbox_dir, "FlvOnlyFolder")
+        os.makedirs(flv_only_folder, exist_ok=True)
+        with open(os.path.join(flv_only_folder, "Video.flv"), "wb") as f:
+            f.write(b"x" * 100)
+
+        # 4. Standalone file in inbox root
+        standalone_file = os.path.join(self.inbox_dir, "The.Walking.Dead.S11E24.mkv")
+        with open(standalone_file, "wb") as f:
+            f.write(b"x" * 100)
+
+        res = self.client.get('/api/inbox/analyze')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        suggestions = {s["project"]: s for s in data["suggestions"]}
+
+        # (a) Folder with 1 video delivers single_video_relpath and single_video_query
+        self.assertIn("ThWaDeS11E23", suggestions)
+        single_sug = suggestions["ThWaDeS11E23"]
+        self.assertEqual(single_sug["single_video_relpath"], "ThWaDeS11E23/Sub/The.Walking.Dead.S11E23.720p.mkv")
+        self.assertEqual(single_sug["single_video_query"], "The.Walking.Dead")
+        self.assertEqual(single_sug["video_count"], 1)
+
+        # (b) Folder with 2 videos by 10-ext list does NOT have either field; video_count is 1 (6-ext list)
+        self.assertIn("MixedFolder.S01", suggestions)
+        mixed_sug = suggestions["MixedFolder.S01"]
+        self.assertNotIn("single_video_relpath", mixed_sug)
+        self.assertNotIn("single_video_query", mixed_sug)
+        self.assertEqual(mixed_sug["video_count"], 1)
+
+        # (c) Folder with 0 videos by 6-ext list does not appear at all
+        self.assertNotIn("FlvOnlyFolder", suggestions)
+
+        # (d) Standalone file does NOT have the additive fields
+        self.assertIn("The.Walking.Dead.S11E24.mkv", suggestions)
+        stand_sug = suggestions["The.Walking.Dead.S11E24.mkv"]
+        self.assertNotIn("single_video_relpath", stand_sug)
+        self.assertNotIn("single_video_query", stand_sug)
+        self.assertEqual(stand_sug["suggested_query"], "The.Walking.Dead")
+
+    def test_inbox_suggestions_single_video_query_pipeline_ak3(self):
+        """AK3: single_video_query byte-identical to root suggested_query, fallback to folder suggested_query."""
+        filename = "The.Walking.Dead.S11E23.720p.mkv"
+
+        # 1. Single file in root
+        root_file = os.path.join(self.inbox_dir, filename)
+        with open(root_file, "wb") as f:
+            f.write(b"x" * 100)
+
+        # 2. Same filename inside single-video folder
+        folder = os.path.join(self.inbox_dir, "ThWaDeS11E23")
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, filename), "wb") as f:
+            f.write(b"x" * 100)
+
+        # 3. Single-video folder with filename lacking SxxExx (e.g. video.mkv) -> fallback to folder query
+        fallback_folder = os.path.join(self.inbox_dir, "ThWaDeS11E24")
+        os.makedirs(fallback_folder, exist_ok=True)
+        with open(os.path.join(fallback_folder, "video.mkv"), "wb") as f:
+            f.write(b"x" * 100)
+
+        res = self.client.get('/api/inbox/analyze')
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        suggestions = {s["project"]: s for s in data["suggestions"]}
+
+        root_sug = suggestions[filename]
+        folder_sug = suggestions["ThWaDeS11E23"]
+        fallback_sug = suggestions["ThWaDeS11E24"]
+
+        # Byte-identical query
+        self.assertEqual(folder_sug["single_video_query"], root_sug["suggested_query"])
+        self.assertEqual(folder_sug["single_video_query"], "The.Walking.Dead")
+
+        # Fallback when filename has no SxxExx: fallback to folder's suggested_query
+        self.assertEqual(fallback_sug["single_video_query"], fallback_sug["suggested_query"])
+        self.assertEqual(fallback_sug["single_video_query"], "ThWaDe")
+
 
 if __name__ == "__main__":
     unittest.main()

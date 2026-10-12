@@ -1041,6 +1041,126 @@ class TestInboxGroupFiles(unittest.TestCase):
             self.assertEqual(mock_payload[0].get("files"), ["A.mkv", "B.mkv"])
             self.assertNotIn("files", mock_payload[1])
 
+    def test_ak6_single_video_folder_job_execution(self):
+        """AK6: Single-video folder job moves only video + companion, leaves foreign/show files, folder remains."""
+        folder_path = os.path.join(self.inbox_dir, "XyzS01E01")
+        os.makedirs(folder_path, exist_ok=True)
+
+        video_file = os.path.join(folder_path, "Xyz.Show.S01E01.Titel.mkv")
+        with open(video_file, "wb") as f: f.write(b"video_data")
+
+        companion_sub = os.path.join(folder_path, "Xyz.Show.S01E01.Titel.de.srt")
+        with open(companion_sub, "wb") as f: f.write(b"sub_data")
+
+        foreign_nfo = os.path.join(folder_path, "movie.nfo")
+        with open(foreign_nfo, "wb") as f: f.write(b"nfo_data")
+
+        foreign_poster = os.path.join(folder_path, "poster.jpg")
+        with open(foreign_poster, "wb") as f: f.write(b"poster_data")
+
+        show_nfo = os.path.join(folder_path, "tvshow.nfo")
+        with open(show_nfo, "wb") as f: f.write(b"show_nfo_data")
+
+        params = {
+            "media_type": "tv",
+            "show_name": "Xyz.Show",
+            "season": 1,
+            "copy_to_nas": False,
+            "copy_to_pcloud": False,
+            "files": ["XyzS01E01/Xyz.Show.S01E01.Titel.mkv"],
+            "mappings": {
+                "XyzS01E01/Xyz.Show.S01E01.Titel.mkv": {"season": 1, "episode": 1, "title": "Titel"}
+            }
+        }
+
+        with patch("gui.workers.processor.ensure_nas_mounted", return_value=True), \
+             patch("gui.mw_metadata.generate_tvshow_nfo", return_value={"nfo": True}), \
+             patch("gui.mw_metadata.generate_episode_nfo", return_value={"nfo": True}):
+            processor.process_worker(params)
+
+        # 1. Video and companion moved
+        self.assertFalse(os.path.exists(video_file), "Video file must be moved")
+        self.assertFalse(os.path.exists(companion_sub), "Companion subtitle must be moved")
+
+        # 2. Foreign and show-level files remain untouched
+        self.assertTrue(os.path.exists(foreign_nfo), "movie.nfo must remain untouched")
+        self.assertTrue(os.path.exists(foreign_poster), "poster.jpg must remain untouched")
+        self.assertTrue(os.path.exists(show_nfo), "tvshow.nfo must remain untouched")
+
+        # 3. Folder still exists on disk
+        self.assertTrue(os.path.exists(folder_path), "Directory must remain on disk")
+
+        # 4. Outbox received video and subtitle
+        outbox_dir = os.path.join(self.outbox_dir, "Serien", "Xyz.Show", "Staffel 1", "Xyz.Show - S01E01 - Titel")
+        self.assertTrue(os.path.exists(os.path.join(outbox_dir, "Xyz.Show - S01E01 - Titel.mkv")))
+        self.assertTrue(os.path.exists(os.path.join(outbox_dir, "Xyz.Show - S01E01 - Titel.de.srt")))
+
+    def test_ak7_explicit_targets_path_separator_hardening(self):
+        """AK7: explicit_renames and explicit_subs with separators ('/', '\\') or empty string abort loudly before movement."""
+        folder_path = os.path.join(self.inbox_dir, "XyzS01E01")
+        os.makedirs(folder_path, exist_ok=True)
+
+        vid_file = os.path.join(folder_path, "Datei.mkv")
+        sub_file = os.path.join(folder_path, "Datei.srt")
+        with open(vid_file, "wb") as f: f.write(b"vid")
+        with open(sub_file, "wb") as f: f.write(b"sub")
+
+        invalid_targets = [
+            "Sub/Neuer.Name.mkv",
+            "Sub\\Neuer.Name.mkv",
+            "./x.mkv",
+            ""
+        ]
+
+        for bad_target in invalid_targets:
+            # 1. In explicit_renames
+            params_rename = {
+                "media_type": "tv",
+                "show_name": "Xyz",
+                "season": 1,
+                "copy_to_nas": False,
+                "files": ["XyzS01E01/Datei.mkv"],
+                "explicit_renames": [{"old": "XyzS01E01/Datei.mkv", "new": bad_target}],
+                "mappings": {"XyzS01E01/Datei.mkv": {"season": 1, "episode": 1, "title": "T"}}
+            }
+            with self.assertRaises(RuntimeError, msg=f"Should reject explicit_rename with target {bad_target}"):
+                processor.process_worker(params_rename)
+            self.assertTrue(os.path.exists(vid_file), "File must not be moved when rename target is invalid")
+
+            # 2. In explicit_subs
+            bad_sub_target = bad_target.replace(".mkv", ".srt") if bad_target else ""
+            params_sub = {
+                "media_type": "tv",
+                "show_name": "Xyz",
+                "season": 1,
+                "copy_to_nas": False,
+                "files": ["XyzS01E01/Datei.mkv"],
+                "explicit_subs": [{"old": "XyzS01E01/Datei.srt", "new": bad_sub_target}],
+                "mappings": {"XyzS01E01/Datei.mkv": {"season": 1, "episode": 1, "title": "T"}}
+            }
+            with self.assertRaises(RuntimeError, msg=f"Should reject explicit_sub with target {bad_sub_target}"):
+                processor.process_worker(params_sub)
+            self.assertTrue(os.path.exists(sub_file), "Subtitle must not be moved when sub target is invalid")
+
+        # 3. Legitimate case: old in subfolder, pure new filename without path separators
+        params_valid = {
+            "media_type": "tv",
+            "show_name": "Xyz",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": ["XyzS01E01/Datei.mkv"],
+            "explicit_renames": [{"old": "XyzS01E01/Datei.mkv", "new": "Xyz - S01E01 - T.mkv"}],
+            "explicit_subs": [{"old": "XyzS01E01/Datei.srt", "new": "Xyz - S01E01 - T.srt"}],
+            "mappings": {"XyzS01E01/Datei.mkv": {"season": 1, "episode": 1, "title": "T"}}
+        }
+        with patch("gui.workers.processor.ensure_nas_mounted", return_value=True), \
+             patch("gui.mw_metadata.generate_tvshow_nfo", return_value={"nfo": True}), \
+             patch("gui.mw_metadata.generate_episode_nfo", return_value={"nfo": True}):
+            processor.process_worker(params_valid)
+
+        outbox_file = os.path.join(self.outbox_dir, "Serien", "Xyz", "Staffel 1", "Xyz - S01E01 - T", "Xyz - S01E01 - T.mkv")
+        self.assertTrue(os.path.exists(outbox_file), "Legitimate rename must succeed")
+
 
 if __name__ == "__main__":
     unittest.main()
