@@ -187,6 +187,34 @@ Der Compose-Healthcheck wartet auf `/api/healthz`. Häufige Ursachen sind ein
 fehlgeschlagener Build, nicht beschreibbare Testordner oder ein bereits belegter
 Port `5812`.
 
+### Anwendung hängt komplett (bekannt bei AMD64-Emulation)
+
+Symptom: Eine Aktion bleibt bei „Wird berechnet…“ stehen, `/api/healthz`
+antwortet nicht mehr, die CPU-Last des Containers fällt auf 0 % und ein
+`docker kill --signal=SIGABRT` bleibt ohne Wirkung. Im Handtest zu ROADMAP #65
+trat das zweimal in der emulierten `linux/amd64`-Umgebung auf; derselbe Stand
+lief in einem nativen ARM64-Container ohne Hänger. Das spricht für ein
+Emulationsproblem und nicht für einen Fehler im Anwendungscode, ist aber nicht
+abschließend bewiesen.
+
+Vorgehen:
+
+1. Prüfen, ob der hängende Vorgang schon Dateien bewegt hat (Inbox/Output der
+   Testbibliothek vergleichen).
+2. Testinstanz stoppen und neu starten:
+
+   ```bash
+   scripts/orbstack-test.sh stop
+   scripts/orbstack-test.sh start
+   ```
+
+3. Hängt es erneut, den Funktionstest in einem nativen ARM64-Container
+   wiederholen. Dafür gibt es noch keine fertige Variante im Repository (siehe
+   ROADMAP #73): Bis dahin ein eigenes Image aus einer Dockerfile-Kopie ohne die
+   Intel-VAAPI-Pakete bauen und per Compose-Override mit
+   `platform: linux/arm64` starten. Hardware-Transkodierung wird damit nicht
+   geprüft; das bleibt dem Live-Test auf dem NAS vorbehalten.
+
 ### Port `5812` ist belegt
 
 Stoppe zunächst nur eine eventuell ältere Medienwerkzeug-Testinstanz:

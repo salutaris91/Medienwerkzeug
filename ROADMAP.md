@@ -1799,6 +1799,8 @@ Praktische Auswirkung heute gering (Theme-Save schlägt auf `localhost` praktisc
 
 ## 64. Inbox: Sortierbare Liste
 
+**Status:** Erledigt (2026-10-11, PR #148).
+
 **Einordnung / Priorität:** UX-Verbesserung für die Startseite (Inbox). Bezug zu Item #45 (Inbox/Outbox aufräumen).
 
 **Problem:**
@@ -1820,6 +1822,8 @@ Klein bis mittel (reine Frontend-Logik, DOM-Tests wie bei bestehenden Inbox-Test
 ---
 
 ## 65. „Als Serie gruppieren": SxxExx-Erkennung mit Vorschlag Serie → Staffeln
+
+**Status:** Erledigt (2026-10-11, PR #149 Lauf A + PR #150 Lauf B).
 
 **Einordnung / Priorität:** Komfort/KI-Assistenz für den Serienimport. Bezug zu Item #45 (Inbox) und Item #20 (Drag & Drop als Ausweichmechanik).
 
@@ -2007,3 +2011,27 @@ Die Punkte schließen, ohne das Verhalten der Aufträge ohne `files[]` zu änder
 
 ### Aufwand (grob)
 Klein bis mittel (Prüfungen schärfen, Duplikate zusammenführen, 2–3 Tests).
+
+---
+
+## 73. OrbStack-Testumgebung: native ARM64-Variante für Handtests
+
+**Einordnung / Priorität:** Werkzeug für lokale Handtests, Befund aus dem Handtest #65 Lauf B (11.10.2026; Alex: „1–2 wie empfohlen“).
+
+**Problem:**
+Die Testumgebung läuft bewusst als `linux/amd64` (wie das NAS-Image) und wird auf Apple-Silicon-Macs emuliert. Im Handtest #65 hing der Server zweimal komplett (Vorschau „Wird berechnet…“, `/api/healthz` ohne Antwort, fast alle Threads in `rt_mutex_schedule`, CPU 0 %, Signale an PID 1 wirkungslos). Derselbe Stand lief in einem nativen ARM64-Container ohne Hänger. Das stützt die Annahme eines Emulationsproblems, ist aber kein abschließender Beweis.
+
+**Ziel:**
+Eine dokumentierte, wiederholbare native Variante (`linux/arm64`) für Funktions-Handtests, ohne die amd64-Variante als Plattform-Prüfung zu verlieren.
+
+**Umsetzung:**
+1. Override-Datei (z. B. `compose.orbstack-arm64.yml`) mit `platform: linux/arm64` und eigenem Image-Tag.
+2. Build ohne die Intel-VAAPI-Pakete (`intel-media-va-driver`, `i965-va-driver` gibt es für ARM64 nicht), z. B. über ein Build-Argument im `Dockerfile`, damit keine Dockerfile-Kopie nötig ist.
+3. `scripts/orbstack-test.sh` um einen Schalter für die native Variante erweitern; Runbook `docs/ORBSTACK_TESTING.md` ergänzen.
+
+### Risiken & Hinweise
+- Die native Variante prüft keine Hardware-Transkodierung und nicht die Produktionsplattform; die Abnahme der Plattform bleibt beim amd64-Test bzw. beim Live-Test auf dem NAS.
+- Das Build-Argument darf das veröffentlichte NAS-Image nicht verändern (Standardwert = heutiges Verhalten).
+
+### Aufwand (grob)
+Klein (Override-Datei, Build-Argument, Skript-Schalter, Runbook).
