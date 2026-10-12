@@ -1983,6 +1983,7 @@ Ein Ordner-Eintrag lässt sich aufklappen; seine Videodateien (auch in Unterordn
 - **Voraussetzung:** Die Scope-Lücken aus der Rückkanal-Abnahme #65 Lauf A (insbesondere R1: `files` bei Nicht-Serien-Aufträgen) müssen geschlossen sein; sonst wäre die Auswahl aus Unterordnern ein direkter Hebel auf ungesicherte Pfade.
 - Automatischer Abgleich Inbox gegen Outbox („was fehlt noch?“) wurde vom Planungsteam bewusst verworfen (Komplexität vs. Nutzen).
 - **Folgepunkt (Kette Ordner-Folgen, 12.10.2026; Alex: „F1 wie empfohlen nicht mitnehmen“):** Ordner mit genau einer Videodatei, deren *Ordnername* kein `SxxExx` enthält (z. B. `CD1/Show.S01E01.mkv`), bleiben „Film“; die Typ-Erkennung über den Dateinamen würde auch Einzelaufträge ohne `files[]` ändern und wurde deshalb zurückgestellt (`docs/sessions/2026-10-12-inbox-ordnerfolgen/00-kickoff.md`, F1).
+- **Skalierung sehr großer Gruppen (Rückkanal Ordner-Folgen F3, Alex, 12.10.2026: „1–3 wie empfohlen, übernimm den Patch und bereite den Handtest vor“):** Eine Gruppe aus 173 Einzelvideo-Ordnern rendert in der Zuordnungstabelle 173 Zeilen × alle Folgen als `<option>` → mögliches Einfrieren der Oberfläche; ein Fehler im 173er-Auftrag ist all-or-nothing. Bis dahin staffelweise verarbeiten (siehe #74).
 
 ### Aufwand (grob)
 Mittel (Rekursion mit Tiefenbegrenzung + Aufklapp-UI, 2–3 Gate-A2-Runden).
@@ -2002,6 +2003,7 @@ Mittel (Rekursion mit Tiefenbegrenzung + Aufklapp-UI, 2–3 Gate-A2-Runden).
 6. **Wiederholungsläufe:** Die Revalidierung bei Retry ist statisch geprüft, aber ohne Test.
 7. **Oberfläche (#65 Lauf B, `rueckkanal-65b.md` / `rueckkanal-65b-r2.md`):** kein `isProcessing`-Schutz an Gruppen-Knopf und Banner gegen schnellen Doppelklick (der Server bricht laut ab); Anime-Einträge ohne Hinweis, warum sie nicht gruppierbar sind; `is_dir`-Prüfung an zwei Stellen unterschiedlich formuliert (`=== true` vs. `=== false`); Folgen-Regex im Client `\d{1,3}` vs. Server `\d{1,2}`.
 8. **Endungslisten bündeln:** In `gui/static/app.js` steht die 10er-Liste dreimal, an vier weiteren Stellen noch die alte 5er-Liste (u. a. Sichtbarkeit des Qualitäts-/Konvertierungs-Panels, Badge-Farbe) → eine gemeinsame Konstante; Ordner nur mit `.ts`-Dateien sollen das Konvertierungs-Panel nicht ausblenden.
+9. **Überlappung `files[]`-Aufträge ↔ Ordner-Aufträge (Rückkanal Ordner-Folgen R1/R2, Alex, 12.10.2026: „1–3 wie empfohlen, übernimm den Patch und bereite den Handtest vor“):** (a) Die Doppelstart-Sperre ist zwischen Gruppen- und Ordneraufträgen in beide Richtungen blind: Gruppen-Aufträge vergleichen nur `job.files` (`gui/static/app.js` `executeSeriesWorkflow`), Ordner-Aufträge nur `project_name`, und Gruppen-Aufträge haben `project_name: ""` (`renderQueue` übernimmt leere Namen nicht in `activeProjectsProcessing`). (b) Ein laufender Gruppen-Auftrag sperrt die Inbox-Zeile eines betroffenen Ordners nicht (`processingSet.has(item.project)`); Auswahlkästchen und Quarantäne bleiben aktiv, Quarantäne bricht den Auftrag ab. Kein Quell-Datenverlust (laute Abbrüche), aber seit den Einzelvideo-Ordnern über die Oberfläche erreichbar. Fix-Idee: Gruppen-Aufträge mit den Ordnernamen ihrer `files` in `activeProjectsProcessing` registrieren. Details: `docs/sessions/2026-10-12-inbox-ordnerfolgen/rueckkanal.md` Abschnitt 2.
 
 **Ziel:**
 Die Punkte schließen, ohne das Verhalten der Aufträge ohne `files[]` zu ändern.
@@ -2036,3 +2038,26 @@ Eine dokumentierte, wiederholbare native Variante (`linux/arm64`) für Funktions
 
 ### Aufwand (grob)
 Klein (Override-Datei, Build-Argument, Skript-Schalter, Runbook).
+
+---
+
+## 74. Inbox-Gruppen: Staffel-Schnellauswahl
+
+**Einordnung / Priorität:** Kandidat K1 aus der Rückkanal-Abnahme der Kette Ordner-Folgen (`docs/sessions/2026-10-12-inbox-ordnerfolgen/rueckkanal.md` Abschnitt 4; Alex, 12.10.2026: „1–3 wie empfohlen, übernimm den Patch und bereite den Handtest vor“). Nach dem NAS-Live-Test mit Staffel 11 bewerten.
+
+**Problem:**
+Eine Seriengruppe mit vielen Folgen (Live-Fall: 173 Ordner, 11 Staffeln) lässt sich nur als Ganzes oder per Einzelklick auf jedes Auswahlkästchen staffelweise verarbeiten (23 Klicks für eine Staffel). Nach „Als Serie gruppieren“ im Banner sind die Einzelkästchen weg.
+
+**Ziel:**
+Im Gruppenkopf ein Klick pro Staffel, der genau deren Folgen auswählt; Verarbeitung dann über den bestehenden Weg „Ausgewählte als Serie verarbeiten“.
+
+**Umsetzung:**
+1. Staffel-Liste aus den bereits ermittelten `_se.season` der Gruppenmitglieder.
+2. Auswahl setzt `selectedInboxProjects` für die Mitglieder dieser Staffel; keine Server-Änderung.
+3. Frontend-Tests (Auswahl je Staffel, Zusammenspiel mit Sortierung und Banner).
+
+### Risiken & Hinweise
+- Verwandt: K2 „Rest der Gruppe auswählen“ (erst nach Live-Test bewerten); #72 Punkt 9 (Doppelstart-Sperre).
+
+### Aufwand (grob)
+Klein (reine Oberfläche, ein Gate-A2-Lauf).
