@@ -1982,6 +1982,7 @@ Ein Ordner-Eintrag lässt sich aufklappen; seine Videodateien (auch in Unterordn
 ### Risiken & Hinweise
 - **Voraussetzung:** Die Scope-Lücken aus der Rückkanal-Abnahme #65 Lauf A (insbesondere R1: `files` bei Nicht-Serien-Aufträgen) müssen geschlossen sein; sonst wäre die Auswahl aus Unterordnern ein direkter Hebel auf ungesicherte Pfade.
 - Automatischer Abgleich Inbox gegen Outbox („was fehlt noch?“) wurde vom Planungsteam bewusst verworfen (Komplexität vs. Nutzen).
+- **Folgepunkt (Kette Ordner-Folgen, 12.10.2026; Alex: „F1 wie empfohlen nicht mitnehmen“):** Ordner mit genau einer Videodatei, deren *Ordnername* kein `SxxExx` enthält (z. B. `CD1/Show.S01E01.mkv`), bleiben „Film“; die Typ-Erkennung über den Dateinamen würde auch Einzelaufträge ohne `files[]` ändern und wurde deshalb zurückgestellt (`docs/sessions/2026-10-12-inbox-ordnerfolgen/00-kickoff.md`, F1).
 
 ### Aufwand (grob)
 Mittel (Rekursion mit Tiefenbegrenzung + Aufklapp-UI, 2–3 Gate-A2-Runden).
