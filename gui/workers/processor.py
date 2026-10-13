@@ -976,6 +976,10 @@ def process_worker(params):
                     new_path = os.path.join(current_dir, norm_new_s)
                     if os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
                         raise RuntimeError(f"Kollision beim Umbenennen von Untertitel: Ziel '{new_s}' existiert bereits.")
+                    if "/" in new_s or "\\" in new_s:
+                        raise RuntimeError(f"Sicherheitsabbruch: Untertitel-Ziel '{new_s}' darf keine Pfadtrennzeichen enthalten.")
+                elif new_s is not None and new_s == "":
+                    raise RuntimeError(f"Sicherheitsabbruch: Untertitel-Ziel '{new_s}' darf nicht leer sein.")
         if explicit_renames:
             for r in explicit_renames:
                 old_r = r.get("old") if isinstance(r, dict) else r
@@ -995,6 +999,10 @@ def process_worker(params):
                     new_path = os.path.join(current_dir, norm_new_r)
                     if os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
                         raise RuntimeError(f"Kollision beim Umbenennen von Video: Ziel '{new_r}' existiert bereits.")
+                    if "/" in new_r or "\\" in new_r:
+                        raise RuntimeError(f"Sicherheitsabbruch: Rename-Ziel '{new_r}' darf keine Pfadtrennzeichen enthalten.")
+                elif new_r is not None and new_r == "":
+                    raise RuntimeError(f"Sicherheitsabbruch: Rename-Ziel '{new_r}' darf nicht leer sein.")
 
     # 0. Apply explicit user choices from preview if provided
     if explicit_renames is not None:

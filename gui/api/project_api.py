@@ -1328,6 +1328,7 @@ def get_inbox_suggestions():
         # Count and collect all videos
         video_files = []
         nfo_files = []
+        group_video_files = []
 
         if is_dir:
             for root, dirs, files in os.walk(full_path):
@@ -1338,6 +1339,8 @@ def get_inbox_suggestions():
                             video_files.append(os.path.join(root, f))
                         elif f_ext == '.nfo':
                             nfo_files.append(os.path.join(root, f))
+                        if f_ext in GROUP_VIDEO_EXTENSIONS:
+                            group_video_files.append(os.path.join(root, f))
         else:
             video_files.append(full_path)
 
@@ -1487,7 +1490,7 @@ def get_inbox_suggestions():
         if has_inefficient:
             reasons.append("Codec ineffizient (H.265 empfohlen)")
 
-        suggestions.append({
+        suggestion_entry = {
             "project": item,
             "media_type": media_type,
             "confidence": confidence,
@@ -1500,7 +1503,24 @@ def get_inbox_suggestions():
             "modified_at": modified_at,
             "total_size": total_size,
             "is_dir": is_dir
-        })
+        }
+
+        if is_dir and len(group_video_files) == 1:
+            single_file = group_video_files[0]
+            single_relpath = os.path.relpath(single_file, inbox_dir).replace('\\', '/')
+            single_filename = os.path.basename(single_file)
+            m = tv_pattern.search(single_filename)
+            if m:
+                raw_q = single_filename[:m.start()].strip(' ._-')
+                clean_q = clean_show_name(raw_q)
+                single_query = clean_q if clean_q else raw_q
+            else:
+                single_query = suggested_query
+
+            suggestion_entry["single_video_relpath"] = single_relpath
+            suggestion_entry["single_video_query"] = single_query
+
+        suggestions.append(suggestion_entry)
             
     _inbox_cache = suggestions
     _inbox_cache_time = now

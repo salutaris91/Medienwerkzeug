@@ -3895,12 +3895,15 @@ body.runtime-docker .docker-only-info {
 
 #smart-inbox-bulk-actions {
     display: none;
+    position: sticky;
+    top: 0;
+    z-index: 10;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     padding: 8px 12px;
     margin-bottom: 12px;
-    background: rgba(0, 229, 255, 0.06);
+    background: linear-gradient(rgba(0, 229, 255, 0.06), rgba(0, 229, 255, 0.06)), var(--bg-sticky, var(--bg-surface, #18181b));
     border: 1px solid rgba(0, 229, 255, 0.25);
     border-radius: var(--radius-md, 8px);
     font-size: 0.85rem;

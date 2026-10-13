@@ -1,12 +1,12 @@
-import { applyTheme } from './js/theme.js?v=99';
-import { cleanSeriesName } from './js/utils.js?v=99';
-import { formatBytes } from './js/format.js?v=99';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=99';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=99';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=99';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=99';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=99';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=99';
+import { applyTheme } from './js/theme.js?v=101';
+import { cleanSeriesName } from './js/utils.js?v=101';
+import { formatBytes } from './js/format.js?v=101';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=101';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=101';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=101';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=101';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=101';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=101';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -3699,9 +3699,10 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
         videoFiles.forEach((file, index) => {
             let seasonVal = defaultSeason;
             let episodeVal = (index + 1).toString();
+            const fileName = file ? file.split(/[/\\]/).pop() : file;
 
             // Try to parse season and episode from filename
-            const guessedStr = guessSeasonAndEpisode(file);
+            const guessedStr = guessSeasonAndEpisode(fileName);
             if (guessedStr) {
                 const s_e_match = guessedStr.match(/^S(\d+)E(\d+)$/i);
                 if (s_e_match) {
@@ -3709,13 +3710,13 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     episodeVal = parseInt(s_e_match[2], 10).toString();
                 }
             } else {
-                const guessedEp = guessEpisodeNumber(file);
+                const guessedEp = guessEpisodeNumber(fileName);
                 if (guessedEp !== null && !isNaN(guessedEp)) {
                     episodeVal = guessedEp.toString();
                 }
             }
 
-            const cleanTitle = cleanFilenameForManualTitle(file);
+            const cleanTitle = cleanFilenameForManualTitle(fileName);
 
             html += `
                 <div class="matching-row manual-matching-row" data-file="${escapeHTML(file)}" style="display: flex; flex-direction: column; gap: 10px; padding: 15px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); margin-bottom: 15px; background: rgba(255,255,255,0.02);">
@@ -3810,13 +3811,14 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
 
     let html = "";
     videoFiles.forEach((file, index) => {
+        const fileName = file ? file.split(/[/\\]/).pop() : file;
         // Try backend match first, fallback to frontend guess
         let guessedEp = matches[file];
         if (guessedEp === undefined || guessedEp === null) {
             if (isAllSeasons) {
-                guessedEp = guessSeasonAndEpisode(file);
+                guessedEp = guessSeasonAndEpisode(fileName);
             } else {
-                guessedEp = guessEpisodeNumber(file);
+                guessedEp = guessEpisodeNumber(fileName);
             }
         }
 
@@ -12476,7 +12478,7 @@ let activeSeriesGroupName = "";
 
 function extractStrictSeasonEpisode(filename) {
     if (!filename || typeof filename !== 'string') return null;
-    const match = filename.match(/(?:^|[._\s\-\[])[sS](\d{1,2})[eE](\d{1,3})(?:[._\s\-\]]|$)/i);
+    const match = filename.match(/(?<!\d)[sS](\d{1,2})[eE](\d{1,3})(?!\d)/i);
     if (!match) return null;
     const sNum = parseInt(match[1], 10);
     const eNum = parseInt(match[2], 10);
@@ -12489,14 +12491,30 @@ function extractStrictSeasonEpisode(filename) {
     };
 }
 
+function inboxFilesEntryForItem(item) {
+    if (!item) return "";
+    if (item.is_dir === true && item.single_video_relpath) {
+        return item.single_video_relpath;
+    }
+    return item.project;
+}
+
 function detectInboxGroups(suggestions) {
     if (!Array.isArray(suggestions)) return {};
     const groups = {};
     suggestions.forEach(item => {
-        if (item.media_type !== "tv" || item.is_dir === true) return;
-        const query = (item.suggested_query || "").trim();
+        if (item.media_type !== "tv") return;
+        if (item.is_dir === true && !item.single_video_relpath) return;
+        const rawKey = item.is_dir === true ? item.single_video_query : item.suggested_query;
+        const query = (rawKey || "").trim();
         if (!query || query === "__inbox_recursive__") return;
-        const se = extractStrictSeasonEpisode(item.project);
+        let se = null;
+        if (item.is_dir === true && item.single_video_relpath) {
+            const filename = item.single_video_relpath.split('/').pop().split('\\').pop();
+            se = extractStrictSeasonEpisode(filename) || extractStrictSeasonEpisode(item.project);
+        } else {
+            se = extractStrictSeasonEpisode(item.project);
+        }
         if (!se) return;
 
         if (!groups[query]) {
@@ -12627,7 +12645,7 @@ function updateGroupBannerUI(validGroups) {
         try {
             appliedInboxGroups.add(groupKey);
             renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
-            const files = members.map(m => m.project);
+            const files = members.map(m => inboxFilesEntryForItem(m));
             await startSeriesGroupWorkflow(groupKey, files);
         } catch (err) {
             if (btn) {
@@ -12695,7 +12713,10 @@ function updateBulkActionsBarUI() {
                 btn.textContent = "wird gestartet…";
             }
             try {
-                const files = Array.from(selectedInboxProjects);
+                const selectedItems = Array.from(selectedInboxProjects).map(proj => {
+                    return (Array.isArray(currentSmartInboxRawSuggestions) ? currentSmartInboxRawSuggestions.find(s => s.project === proj) : null) || { project: proj };
+                });
+                const files = selectedItems.map(item => inboxFilesEntryForItem(item));
                 if (files.length === 0) {
                     if (btn) {
                         btn.disabled = false;
@@ -12703,8 +12724,8 @@ function updateBulkActionsBarUI() {
                     }
                     return;
                 }
-                const firstItem = currentSmartInboxRawSuggestions.find(s => s.project === files[0]);
-                const fallbackName = firstItem ? (firstItem.suggested_query || cleanSeriesName(firstItem.project)) : cleanSeriesName(files[0]);
+                const firstItem = selectedItems[0];
+                const fallbackName = firstItem ? (firstItem.single_video_query || firstItem.suggested_query || cleanSeriesName(firstItem.project)) : cleanSeriesName(files[0]);
                 const groupName = detectManualGroupSeriesName(files, fallbackName);
                 await startSeriesGroupWorkflow(groupName, files);
             } catch (err) {
@@ -13072,7 +13093,7 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                         btn.textContent = "wird gestartet…";
                     }
                     try {
-                        const files = item.items.map(m => m.project);
+                        const files = item.items.map(m => inboxFilesEntryForItem(m));
                         await startSeriesGroupWorkflow(item.group_key, files);
                     } catch (err) {
                         if (btn) {
@@ -13122,8 +13143,8 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
             const borderStyle = isProcessing ? "border: 1px solid rgba(0, 229, 255, 0.3);" : "border: 1px solid var(--border-light);";
             const bgStyle = isProcessing ? "background: rgba(0, 229, 255, 0.03);" : "background: rgba(255,255,255,0.02);";
 
-            // Checkbox eligibility check (AK12, AK13)
-            const isTvSingle = (item.media_type === "tv" && item.is_dir === false);
+            // Checkbox eligibility check (AK12, AK13, ROADMAP #71)
+            const isTvSingle = (item.media_type === "tv" && (item.is_dir === false || (item.is_dir === true && Boolean(item.single_video_relpath))));
             const isUnlockedMovie = (item.media_type === "movie" && item.is_dir === false && unlockedMovieProjects.has(item.project));
             const isEligible = (isTvSingle || isUnlockedMovie);
 
@@ -13131,7 +13152,11 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
             if (isEligible) {
                 const isChecked = selectedInboxProjects.has(item.project);
                 const disabledAttr = isProcessing ? 'disabled style="cursor: not-allowed; opacity: 0.5;"' : 'style="cursor: pointer;"';
-                checkboxHtml = `<input type="checkbox" class="smart-inbox-cb" data-project="${escapeHTML(item.project)}" ${isChecked ? 'checked' : ''} ${disabledAttr} aria-label="Auswählen für Serie">`;
+                if (item.is_dir === true && item.single_video_relpath) {
+                    checkboxHtml = `<input type="checkbox" class="smart-inbox-cb" data-project="${escapeHTML(item.project)}" ${isChecked ? 'checked' : ''} ${disabledAttr} aria-label="Ordner mit einer Folge auswählen" title="Verarbeitet wird: ${escapeHTML(item.single_video_relpath)}">`;
+                } else {
+                    checkboxHtml = `<input type="checkbox" class="smart-inbox-cb" data-project="${escapeHTML(item.project)}" ${isChecked ? 'checked' : ''} ${disabledAttr} aria-label="Auswählen für Serie">`;
+                }
             }
 
             // Movie lock notice / unlock link (AK3, AK13)
@@ -13147,6 +13172,11 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
             const itemDiv = document.createElement("div");
             itemDiv.className = "smart-inbox-item";
             itemDiv.setAttribute("data-project", item.project);
+            if (item.is_dir === true && item.single_video_relpath) {
+                const singleVideoTitle = `Verarbeitet wird: ${escapeHTML(item.single_video_relpath)}`;
+                itemDiv.title = singleVideoTitle;
+                itemDiv.setAttribute("title", singleVideoTitle);
+            }
             itemDiv.style.cssText = `${bgStyle} ${borderStyle} border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; transition: all 0.2s ease;`;
             itemDiv.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 12px; flex-grow: 1;">
@@ -13232,6 +13262,7 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
 
 if (typeof globalThis !== 'undefined') {
     globalThis.extractStrictSeasonEpisode = extractStrictSeasonEpisode;
+    globalThis.inboxFilesEntryForItem = inboxFilesEntryForItem;
     globalThis.detectInboxGroups = detectInboxGroups;
     globalThis.buildGroupedInboxSuggestions = buildGroupedInboxSuggestions;
     globalThis.startSeriesGroupWorkflow = startSeriesGroupWorkflow;
