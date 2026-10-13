@@ -1,12 +1,12 @@
-import { applyTheme } from './js/theme.js?v=100';
-import { cleanSeriesName } from './js/utils.js?v=100';
-import { formatBytes } from './js/format.js?v=100';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=100';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=100';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=100';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=100';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=100';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=100';
+import { applyTheme } from './js/theme.js?v=101';
+import { cleanSeriesName } from './js/utils.js?v=101';
+import { formatBytes } from './js/format.js?v=101';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=101';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=101';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=101';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=101';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=101';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=101';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -3699,9 +3699,10 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
         videoFiles.forEach((file, index) => {
             let seasonVal = defaultSeason;
             let episodeVal = (index + 1).toString();
+            const fileName = file ? file.split(/[/\\]/).pop() : file;
 
             // Try to parse season and episode from filename
-            const guessedStr = guessSeasonAndEpisode(file);
+            const guessedStr = guessSeasonAndEpisode(fileName);
             if (guessedStr) {
                 const s_e_match = guessedStr.match(/^S(\d+)E(\d+)$/i);
                 if (s_e_match) {
@@ -3709,13 +3710,13 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
                     episodeVal = parseInt(s_e_match[2], 10).toString();
                 }
             } else {
-                const guessedEp = guessEpisodeNumber(file);
+                const guessedEp = guessEpisodeNumber(fileName);
                 if (guessedEp !== null && !isNaN(guessedEp)) {
                     episodeVal = guessedEp.toString();
                 }
             }
 
-            const cleanTitle = cleanFilenameForManualTitle(file);
+            const cleanTitle = cleanFilenameForManualTitle(fileName);
 
             html += `
                 <div class="matching-row manual-matching-row" data-file="${escapeHTML(file)}" style="display: flex; flex-direction: column; gap: 10px; padding: 15px; border: 1px solid var(--border-glass); border-radius: var(--radius-md); margin-bottom: 15px; background: rgba(255,255,255,0.02);">
@@ -3810,13 +3811,14 @@ function renderMatchingMatrix(matches = {}, duplicates = {}) {
 
     let html = "";
     videoFiles.forEach((file, index) => {
+        const fileName = file ? file.split(/[/\\]/).pop() : file;
         // Try backend match first, fallback to frontend guess
         let guessedEp = matches[file];
         if (guessedEp === undefined || guessedEp === null) {
             if (isAllSeasons) {
-                guessedEp = guessSeasonAndEpisode(file);
+                guessedEp = guessSeasonAndEpisode(fileName);
             } else {
-                guessedEp = guessEpisodeNumber(file);
+                guessedEp = guessEpisodeNumber(fileName);
             }
         }
 
@@ -13170,6 +13172,11 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
             const itemDiv = document.createElement("div");
             itemDiv.className = "smart-inbox-item";
             itemDiv.setAttribute("data-project", item.project);
+            if (item.is_dir === true && item.single_video_relpath) {
+                const singleVideoTitle = `Verarbeitet wird: ${escapeHTML(item.single_video_relpath)}`;
+                itemDiv.title = singleVideoTitle;
+                itemDiv.setAttribute("title", singleVideoTitle);
+            }
             itemDiv.style.cssText = `${bgStyle} ${borderStyle} border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; transition: all 0.2s ease;`;
             itemDiv.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 12px; flex-grow: 1;">
