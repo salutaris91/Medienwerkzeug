@@ -2004,6 +2004,7 @@ Mittel (Rekursion mit Tiefenbegrenzung + Aufklapp-UI, 2–3 Gate-A2-Runden).
 7. **Oberfläche (#65 Lauf B, `rueckkanal-65b.md` / `rueckkanal-65b-r2.md`):** kein `isProcessing`-Schutz an Gruppen-Knopf und Banner gegen schnellen Doppelklick (der Server bricht laut ab); Anime-Einträge ohne Hinweis, warum sie nicht gruppierbar sind; `is_dir`-Prüfung an zwei Stellen unterschiedlich formuliert (`=== true` vs. `=== false`); Folgen-Regex im Client `\d{1,3}` vs. Server `\d{1,2}`.
 8. **Endungslisten bündeln:** In `gui/static/app.js` steht die 10er-Liste dreimal, an vier weiteren Stellen noch die alte 5er-Liste (u. a. Sichtbarkeit des Qualitäts-/Konvertierungs-Panels, Badge-Farbe) → eine gemeinsame Konstante; Ordner nur mit `.ts`-Dateien sollen das Konvertierungs-Panel nicht ausblenden.
 9. **Überlappung `files[]`-Aufträge ↔ Ordner-Aufträge (Rückkanal Ordner-Folgen R1/R2, Alex, 12.10.2026: „1–3 wie empfohlen, übernimm den Patch und bereite den Handtest vor“):** (a) Die Doppelstart-Sperre ist zwischen Gruppen- und Ordneraufträgen in beide Richtungen blind: Gruppen-Aufträge vergleichen nur `job.files` (`gui/static/app.js` `executeSeriesWorkflow`), Ordner-Aufträge nur `project_name`, und Gruppen-Aufträge haben `project_name: ""` (`renderQueue` übernimmt leere Namen nicht in `activeProjectsProcessing`). (b) Ein laufender Gruppen-Auftrag sperrt die Inbox-Zeile eines betroffenen Ordners nicht (`processingSet.has(item.project)`); Auswahlkästchen und Quarantäne bleiben aktiv, Quarantäne bricht den Auftrag ab. Kein Quell-Datenverlust (laute Abbrüche), aber seit den Einzelvideo-Ordnern über die Oberfläche erreichbar. Fix-Idee: Gruppen-Aufträge mit den Ordnernamen ihrer `files` in `activeProjectsProcessing` registrieren. Details: `docs/sessions/2026-10-12-inbox-ordnerfolgen/rueckkanal.md` Abschnitt 2.
+10. **Oberfläche, Restpunkte Kette Ordner-Folgen (Rückkanal Handtest-Nachbesserung, `docs/sessions/2026-10-12-inbox-ordnerfolgen/rueckkanal-nachbesserung.md`; Alex, 13.10.2026: „wie empfohlen, Befund 1 in die ROADMAP und weitermachen“):** (a) Zeilen-Tooltip „Verarbeitet wird: …“ bei Einzelvideo-Ordnern wird doppelt maskiert (`escapeHTML` + Setzen per DOM-Eigenschaft in `renderSmartInboxList`): `Law & Order` erscheint als `Law &amp; Order`; Fix: Rohwert setzen, `setAttribute`-Doppelung entfernen, Test mit `&`. Eine Gate-A2-Nachbesserung dafür scheiterte am entfernten Worker-Modell (Kit-Befund). (b) Die Auswahlleiste `#smart-inbox-bulk-actions` klebt nur in Fenstern breiter als 1024 px; darunter behält `.master-detail-layout` `overflow: hidden`, `position: sticky` wirkt nicht. (c) Im manuellen Serienmodus wird die Titel-Vorbelegung unmaskiert in `value="${cleanTitle}"` geschrieben (vorbestehend, Klasse wie #67); ein `"` im Dateinamen bricht das Eingabefeld. (d) Im manuellen Modus übernimmt der Serienordner den Gruppennamen mit Punkten (`Xyz.Show`); mit TMDB-/TVDB-Auswahl nicht betroffen.
 
 **Ziel:**
 Die Punkte schließen, ohne das Verhalten der Aufträge ohne `files[]` zu ändern.
@@ -2061,3 +2062,28 @@ Im Gruppenkopf ein Klick pro Staffel, der genau deren Folgen auswählt; Verarbei
 
 ### Aufwand (grob)
 Klein (reine Oberfläche, ein Gate-A2-Lauf).
+
+---
+
+## 75. Inbox-Gruppen: alle Vorschläge sichtbar, „Ignorieren“ umkehrbar
+
+**Einordnung / Priorität:** Wunsch von Alex aus dem Handtest der Kette Ordner-Folgen (13.10.2026, wörtlich: „perspektivisch sollten wir auch dafür sorgen, dass ähm, alle Zusammenziehvorschläge ähm, darstellbar sind. Und auch es bei selbst wenn man auf Ignorieren klickt, vielleicht weil ähm, noch nicht alle Folgen vorhanden sind, ähm, und man es trotzdem dann ähm, erstmal raushaben möchte, dass es dann sozusagen auch einen Weg zurück gibt.“). Zusammen mit #74 als kleine Kette „Gruppen-Bedienung“ nach dem NAS-Live-Test.
+
+**Problem:**
+1. Das Banner „Als Serie gruppieren“ zeigt immer nur einen Vorschlag; weitere erscheinen erst nach „Ignorieren“.
+2. „Ignorieren“ wird nur im `sessionStorage` des Tabs gemerkt (`smart-inbox-ignore-group-<Schlüssel>`); in der Oberfläche gibt es keinen Weg zurück (nur neuer Tab oder Entwicklerwerkzeuge).
+
+**Ziel:**
+Alle erkannten Gruppenvorschläge sind sichtbar (z. B. aufklappbare Liste im Banner); ausgeblendete Vorschläge lassen sich über „Ausgeblendete Vorschläge (n) – wieder anzeigen“ zurückholen.
+
+**Umsetzung:**
+1. Banner: Liste aller nicht angewendeten Gruppen statt erster Treffer.
+2. Ausgeblendet-Zähler mit „wieder anzeigen“ (einzeln und alle).
+3. Frontend-Tests (mehrere Gruppen, Ignorieren und Zurückholen, Sortierung).
+
+### Risiken & Hinweise
+- Sehr viele Vorschläge: Liste begrenzen bzw. einklappen.
+- Verwandt: #74 (Staffel-Schnellauswahl), #72 Punkt 10 (Tooltip/Leiste).
+
+### Aufwand (grob)
+Klein bis mittel (reine Oberfläche, ein Gate-A2-Lauf).
