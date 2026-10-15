@@ -2087,3 +2087,46 @@ Alle erkannten Gruppenvorschläge sind sichtbar (z. B. aufklappbare Liste im Ban
 
 ### Aufwand (grob)
 Klein bis mittel (reine Oberfläche, ein Gate-A2-Lauf).
+
+## 76. Bugfix: Folgenzuordnung ignoriert die Staffel bei „Alle Staffeln“
+
+**Einordnung / Priorität:** Hoch. Befund aus dem NAS-Live-Test der Kette Ordner-Folgen (13.10.2026, Staffel 11 „The Walking Dead“); vorbestehend, vor dem Ausführen erkannt. Alex: „1 wie empfohlen, pCloud war gewollt“.
+
+**Problem:**
+Im Serien-Ablauf mit Anbieter- oder Profilauswahl und aktivem „Alle Staffeln“ liefert die Server-Zuordnung (`gui/api/search_api.py`, `guess_ep_num` + Schlüsselsuche) für `S11E01` nur die Folgennummer 1 und wählt den ersten Schlüssel mit dieser Nummer (`S01E01`). Ergebnis im Live-Test: S11E01→S01E01, S11E07→S02E07, S11E14→S03E14, S11E17→S10E17. Die Server-Zuordnung hat Vorrang vor der korrekten Client-Erkennung (`guessSeasonAndEpisode`, `gui/static/app.js` `renderMatchingMatrix`). Würde ausgeführt, landen Folgen falsch benannt in fremden Staffelordnern (namensgleiche Bestandsfolgen gehen per Transfer-Schutz in die Quarantäne).
+
+**Ziel (präzisiert, Alex 2026-10-15: „1–3 wie empfohlen, starte die Kette“):**
+Trägt der Dateiname eine Staffel (`SxxEyy`, auch `xxXyy`), wird zuerst exakt der Schlüssel `S{xx}E{yy}` gesucht (unabhängig von führenden Nullen). Fehlt er und die Folgenliste nutzt Staffel-Schlüssel, bleibt die Datei **ohne Zuordnung** (manuell zuordnen) — ein Schlüssel einer anderen Staffel wird nie gewählt, auch nicht über `absolute_number` oder die Folgennummer im Schlüssel. Folgenlisten mit einfachen Nummern (Einzelstaffel) und Dateinamen ohne Staffel (absolute Nummern, `(381)`, `ep 05`) verhalten sich wie bisher.
+
+**Umsetzung:**
+1. `guess_ep_num` um die Staffel erweitern (oder eigener Pfad für `SxxEyy`/`xxXyy`): exakte Schlüsselsuche zuerst; bei Staffel-Schlüsseln ohne Treffer keine Zuordnung. Ursache sitzt an zwei Stellen: `absolute_number`-Prüfung und Suffix-Suche im Schlüssel greifen beide nur die Folgennummer.
+2. Backend-Tests: Mehrstaffel-Folgenliste, `S11E01` → `S11E01`; Einzelstaffel-Liste unverändert; absolute Nummern unverändert.
+3. Handtest im Anbieter-/Profilmodus mit „Alle Staffeln“ (nicht nur manueller Modus).
+
+### Risiken & Hinweise
+- Workaround bis zum Fix: staffelweise verarbeiten (Staffel einstellen statt „Alle Staffeln“) und die Zuordnungstabelle vor dem Ausführen prüfen.
+- Umsetzung über Gate-A2 erst nach Reparatur des Worker-Modells (Kit).
+
+### Aufwand (grob)
+Klein (eine Funktion, 3–4 Tests, ein Gate-A2-Lauf).
+## 77. Inbox: Auswahl nach Auftragsstart leeren bzw. auf sichtbare Einträge beschränken
+
+**Einordnung / Priorität:** Mittel bis hoch (Bedienung). Befund aus dem NAS-Betrieb nach dem Live-Test der Kette Ordner-Folgen (13.10.2026). Vorbestehend seit #65 (auch lose Dateien), durch die Einzelvideo-Ordner bei jeder Staffel sichtbar.
+
+**Problem:**
+`selectedInboxProjects` (`gui/static/app.js`) wird nur über „Auswahl aufheben“ oder Abhaken geleert, nicht nach dem Start eines Auftrags. Verarbeitete Einträge verschwinden aus der Liste (Ordner leer, `video_count == 0`), bleiben aber unsichtbar ausgewählt. Beim nächsten „Ausgewählte als Serie verarbeiten“ findet der Bulk-Weg für sie keinen Inbox-Eintrag und schickt den nackten Ordnernamen (`|| { project: proj }`) → Server lehnt mit „Ordner sind im files-Parameter nicht erlaubt: ThWaDeS11E01“ ab (laut, keine Dateibewegung). Workaround: Seite neu laden oder „Auswahl aufheben“.
+
+**Ziel:**
+Nach erfolgreichem Auftragsstart ist die Auswahl leer; beim Rendern der Inbox werden Auswahl-Einträge ohne aktuellen Listeneintrag entfernt; der Bulk-Weg schickt nie einen Eintrag ohne aktuellen Inbox-Treffer.
+
+**Umsetzung:**
+1. Auswahl nach erfolgreichem Einreihen leeren (Bulk-, Banner- und Gruppen-Weg).
+2. In `renderSmartInboxList` die Auswahl auf aktuell gelieferte Einträge beschneiden; Zähler der Leiste entsprechend.
+3. Bulk-Weg: Einträge ohne Treffer in `currentSmartInboxRawSuggestions` verwerfen und sichtbar melden statt Ordnernamen zu senden.
+4. Frontend-Tests (Auswahl nach Job, verschwundene Einträge, Zähler).
+
+### Risiken & Hinweise
+- Verwandt: #72 Punkt 9 (Doppelstart-Sperre), #74 (Staffel-Schnellauswahl).
+
+### Aufwand (grob)
+Klein (reine Oberfläche, ein Gate-A2-Lauf).
