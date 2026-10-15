@@ -41,6 +41,7 @@ def handle_api_guess_season():
 
 @search_api.route('/match-episodes', methods=['GET', 'POST'])
 def handle_api_match_episodes():
+    import re
     try:
         params = request.get_json() or {}
     except Exception:
@@ -114,8 +115,54 @@ def handle_api_match_episodes():
         words = set(re.findall(r'\w+', text.lower()))
         return {w for w in words if w not in ['der', 'die', 'das', 'in', 'im', 'teil', 'part', 'von', 'und', 'folge', 'episode']}
         
+    def parse_season_episode(filename):
+        clean_name = filename.lower()
+        match = re.search(r's(\d+)e(\d+)', clean_name)
+        if match:
+            return int(match.group(1)), int(match.group(2))
+        match = re.search(r'(?<!\d)(\d+)x(\d+)(?!\d)', clean_name)
+        if match:
+            return int(match.group(1)), int(match.group(2))
+        return None
+
     for file in filenames:
         basename = os.path.basename(file)
+        clean_name = basename.lower()
+
+        # R4a: Bracket numbers in 1900-2100 are years, not absolute episode numbers.
+        # But bracket numbers outside 1900-2100 have priority over season/episode matching.
+        has_bracket_abs_num = False
+        for b_match in re.finditer(r'(?:\(|\[)(?:folge\s+)?(\d+)(?:\)|\])', clean_name):
+            b_val = int(b_match.group(1))
+            if b_val < 1900 or b_val > 2100:
+                has_bracket_abs_num = True
+                break
+
+        if not has_bracket_abs_num:
+            parsed_se = parse_season_episode(clean_name)
+            if parsed_se is not None:
+                file_s, file_e = parsed_se
+                season_keys = []
+                exact_key = None
+                for k in episodes.keys():
+                    m = re.match(r"^s(\d+)e(\d+)$", str(k), re.IGNORECASE)
+                    if m:
+                        k_s = int(m.group(1))
+                        k_e = int(m.group(2))
+                        if k_s == file_s:
+                            season_keys.append(k)
+                            if k_e == file_e and exact_key is None:
+                                exact_key = k
+                if exact_key is not None:
+                    # R1: Exact match first
+                    matches[file] = exact_key
+                    continue
+                elif season_keys:
+                    # R2: Season exists in episodes, but episode is missing -> None
+                    matches[file] = None
+                    continue
+                # R3: Season not present in episodes -> continue to existing behavior below
+
         # 1. Hard match based on filename patterns
         ep_num = guess_ep_num(basename)
         if ep_num is not None:
