@@ -66,7 +66,7 @@ Drei Freigabe-Klassen (im Zweifel gilt die höhere). Vor Aktionen der Klassen B 
 - **Klasse B (Alex-Go je Kette):** Ein Go je Kette. Planung, `rules/`-Änderungen, `build-global.sh`, Zielprojekt bis PR, Token-Läufe, Services, Installationen/Abhängigkeiten.
 - **Klasse C (Einzel-Go von Alex):** PR-Merge; Löschen/Überschreiben fremder bzw. nicht selbst erzeugter Daten; DB-Einträge entfernen; Secrets; Force-Push/Reset/History-Rewrite; irreversible Befehle (Deployments, Migrationen, externe API-Aufrufe mit Seiteneffekten); Sicherheitsgrenzen.
 
-Leitplanken: 1. Approvter Head setzt Reviewer voraus (sonst Klasse B). 2. Autonome Abläufe (Gate-A2-Worker, n8n, künftiger PM-Agent) haben Klasse A nur in der Sandbox; Host-Aktionen (Push/Rollout/Host-Aufräumen) bleiben beaufsichtigten Agenten oder Alex vorbehalten.
+Leitplanken: 1. Approvter Head setzt Reviewer voraus (sonst Klasse B). 2. Autonome Abläufe (Gate-A2-Worker, n8n, künftiger PM-Agent) haben Klasse A nur in der Sandbox; Host-Aktionen (Push/Rollout/Host-Aufräumen) bleiben beaufsichtigten Agenten oder Alex vorbehalten (Ausnahme: `kit-push-approved-head` mit Reviewer-Freigabe, siehe `docs/betriebsanleitung.md`).
 
 ### Freigabepunkte (unantastbar)
 
