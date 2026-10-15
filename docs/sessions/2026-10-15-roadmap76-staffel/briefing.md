@@ -9,7 +9,7 @@ source: roadmap#76
 
 # Feature Briefing: #76 — Folgenzuordnung berücksichtigt die Staffel („Alle Staffeln“)
 
-**Bindende Alex-Entscheidungen (wörtlich, 2026-10-15):** „1–3 wie empfohlen, starte die Kette“ (Plan ADR 1–5: strenge Staffelregel, Ablauf Gate-A2 → Plausibilität → Rückkanal → Handtest → `kit-push-approved-head`, kein Ausweichen auf Handweg) und „ja, ADR 1 so verfeinern wie empfohlen“ (Strenge nur, wenn die Folgenliste die Staffel der Datei enthält).
+**Bindende Alex-Entscheidungen (wörtlich, 2026-10-15):** „1–3 wie empfohlen, starte die Kette“ (Plan ADR 1–5: strenge Staffelregel, Ablauf Gate-A2 → Plausibilität → Rückkanal → Handtest → `kit-push-approved-head`, kein Ausweichen auf Handweg) und „ja, ADR 1 so verfeinern wie empfohlen“ (Strenge nur, wenn die Folgenliste die Staffel der Datei enthält). Nach dem ersten Gate-A2-Lauf (Worker grün, Reviewer am Gateway-Guthaben gescheitert, Lücke bei Jahreszahlen in Klammern gefunden): „Guthaben ist aufgeladen, 1 und 2 wie empfohlen“ (R4a + AK10, vollständig neuer Lauf).
 
 ## 1. Problem
 
@@ -29,7 +29,9 @@ Für einen Dateinamen mit erkennbarer Staffel und Folge — `s(\d+)e(\d+)` oder 
 - **R3 Staffel nicht vorhanden:** Enthält `episodes` keinen Schlüssel mit Staffel `S` (z. B. nur einfache Nummern `1…23` oder Jahres-Schlüssel `S2010E39`), gilt das **bisherige** Verhalten unverändert (Direktprüfung, `absolute_number`, Suffix-Suche, Fuzzy).
 - **R4 Ohne Staffel im Namen:** Dateinamen ohne `SxxEyy`/`xxXyy` (absolute Nummern `(381)`, `[381]`, `ep 05`, isolierte Zahlen) → **unverändert**.
 
-Die Klammer-Prüfung für absolute Nummern in `guess_ep_num` (Z. 84–87) hat heute Vorrang vor `sXXeYY`; dieses Verhalten bleibt für R4 unverändert. Enthält ein Name beides (`(381)` **und** `S11E01`), entscheidet weiterhin die Klammer (bisheriges Verhalten) — kein neuer Sonderfall.
+- **R4a Jahreszahlen in Klammern:** Eine Zahl in runden oder eckigen Klammern im Bereich **1900–2100** (z. B. `(2010)` in `The Walking Dead (2010) - S11E01 - Acheron.mkv`, das eigene Ausgabeschema des Medienwerkzeugs) ist ein **Jahr**, keine absolute Folgennummer. Für die Staffel-Erkennung (R1–R3) wird sie ignoriert; trägt der Name zusätzlich `SxxEyy`/`xxXyy`, greifen R1–R3.
+
+Die Klammer-Prüfung für absolute Nummern in `guess_ep_num` (Z. 84–87) hat für Zahlen **außerhalb** 1900–2100 weiterhin Vorrang vor `sXXeYY`. Enthält ein Name eine solche absolute Nummer **und** `S11E01` (z. B. `(381)`), entscheidet weiterhin die Klammer (bisheriges Verhalten). `guess_ep_num` selbst bleibt unverändert; R4a gilt nur für die neue Staffel-Erkennung.
 
 ## Akzeptanzkriterien
 
@@ -42,6 +44,7 @@ Die Klammer-Prüfung für absolute Nummern in `guess_ep_num` (Z. 84–87) hat he
 - AK6 Jahres-Liste nur `S2010E39`, `S2011E40`, Datei `…S01E39…` → `S2010E39` (R3, bisheriges Verhalten).
 - AK7 Bestehender Test `tests/test_utils.py::…::test_api_match_episodes` (Absolute `(381)` → `S2010E39`, `S01E05` → `S01E05`) bleibt unverändert grün.
 - AK8 Führende Nullen: Datei `…S11E1…` bzw. `…s11e01…` gegen Schlüssel `S11E01` → `S11E01`.
+- AK10 Liste aus AK1, Datei `The Walking Dead (2010) - S11E01 - Acheron.mkv` → `S11E01`; Datei `Show (381) S11E01.mkv` → bisheriges Verhalten (Klammer-Pfad, keine Staffel-Logik).
 - AK9 Gesamte Suite grün (`pytest` ohne den bekannten Umgebungs-Test, Frontend-Tests), `git diff --check` sauber.
 
 ## Worker-Auftrag
