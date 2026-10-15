@@ -2090,6 +2090,8 @@ Klein bis mittel (reine Oberfläche, ein Gate-A2-Lauf).
 
 ## 76. Bugfix: Folgenzuordnung ignoriert die Staffel bei „Alle Staffeln“
 
+**Status:** Erledigt (2026-10-15, Branch `fix/roadmap-76-staffel-zuordnung`; Gate-A2 APPROVED nach 2 Runden, Rückkanal ABNAHME: JA, Handtest Alex im Anbieter-Modus TMDB mit „Alle Staffeln“ bestanden: S11E01/E02/E07/E14/E17 alle in Staffel 11).
+
 **Einordnung / Priorität:** Hoch. Befund aus dem NAS-Live-Test der Kette Ordner-Folgen (13.10.2026, Staffel 11 „The Walking Dead“); vorbestehend, vor dem Ausführen erkannt. Alex: „1 wie empfohlen, pCloud war gewollt“.
 
 **Problem:**
@@ -2130,3 +2132,16 @@ Nach erfolgreichem Auftragsstart ist die Auswahl leer; beim Rendern der Inbox we
 
 ### Aufwand (grob)
 Klein (reine Oberfläche, ein Gate-A2-Lauf).
+
+## 78. Folgenzuordnung: Dateinamen „Staffel X Folge Y“ serverseitig erkennen
+
+**Einordnung / Priorität:** Mittel. Befund aus dem Rückkanal zu #76 (2026-10-15, `docs/sessions/2026-10-15-roadmap76-staffel/rueckkanal.md`, Befund 3).
+
+**Problem:**
+Die Server-Zuordnung (`gui/api/search_api.py`, `/match-episodes`) erkennt Staffel und Folge nur bei `SxxEyy` und `xxXyy`. Namen wie „Staffel 11 Folge 14“ fallen in den alten Pfad (isolierte Zahl → `absolute_number`/Suffix) und können bei „Alle Staffeln“ weiterhin einer fremden Staffel zugeordnet werden; der Client könnte das Muster (`gui/static/js/parse.js`), verliert aber gegen den Server-Wert.
+
+**Ziel:**
+Die Staffel-Regeln R1–R3 aus #76 auch für „Staffel X Folge Y“ (und ggf. „Season X Episode Y“) anwenden.
+
+### Aufwand (grob)
+Klein (Muster in `parse_season_episode` ergänzen, 2–3 Tests, ein Gate-A2-Lauf).
