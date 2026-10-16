@@ -12736,10 +12736,14 @@ function updateBulkActionsBarUI() {
                 }
 
                 if (skippedProjects.length > 0) {
+                    const allCheckboxes = document.querySelectorAll(".smart-inbox-cb");
                     for (const proj of skippedProjects) {
                         selectedInboxProjects.delete(proj);
-                        const cb = document.querySelector(`.smart-inbox-cb[data-project="${proj}"]`);
-                        if (cb) cb.checked = false;
+                        allCheckboxes.forEach(cb => {
+                            if (cb.dataset?.project === proj) {
+                                cb.checked = false;
+                            }
+                        });
                     }
                     const countEl = document.getElementById("smart-inbox-bulk-count");
                     if (countEl) {
@@ -12748,12 +12752,13 @@ function updateBulkActionsBarUI() {
                 }
 
                 if (validItems.length === 0) {
-                    await Promise.resolve();
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.innerHTML = originalContent;
-                    }
                     alert("Keine der ausgewählten Dateien ist noch in der Inbox – nichts gestartet.");
+                    if (btn) {
+                        queueMicrotask(() => {
+                            btn.disabled = false;
+                            btn.innerHTML = originalContent;
+                        });
+                    }
                     return;
                 }
 
@@ -13319,8 +13324,6 @@ if (typeof globalThis !== 'undefined') {
     globalThis.selectedInboxProjects = selectedInboxProjects;
     globalThis.unlockedMovieProjects = unlockedMovieProjects;
     globalThis.isInboxProjectEligibleForSelection = isInboxProjectEligibleForSelection;
-    globalThis.setCurrentSmartInboxRawSuggestions = (val) => { currentSmartInboxRawSuggestions = val; };
-    globalThis.getCurrentSmartInboxRawSuggestions = () => currentSmartInboxRawSuggestions;
     globalThis.appliedInboxGroups = appliedInboxGroups;
     globalThis.expandedInboxGroups = expandedInboxGroups;
     globalThis.updateBulkActionsBarUI = updateBulkActionsBarUI;

@@ -17,6 +17,46 @@ const mockSessionStorage = {
     clear: () => { sessionStore = {}; }
 };
 
+function validateSelector(sel) {
+    if (typeof sel !== 'string') return;
+    // Check for unbalanced quotes overall
+    const doubleQuotes = (sel.match(/(?<!\\)"/g) || []).length;
+    const singleQuotes = (sel.match(/(?<!\\)'/g) || []).length;
+    if (doubleQuotes % 2 !== 0 || singleQuotes % 2 !== 0) {
+        const err = new Error(`Failed to execute 'querySelector': '${sel}' is not a valid selector.`);
+        err.name = 'SyntaxError';
+        throw err;
+    }
+    // Check for unescaped quotes or unexpected tokens inside attribute selector
+    const rawAttrs = sel.match(/\[[^\]]*\]/g) || [];
+    for (const raw of rawAttrs) {
+        const eqIdx = raw.indexOf('=');
+        if (eqIdx !== -1) {
+            const afterEq = raw.slice(eqIdx + 1, -1).trim();
+            if (afterEq.startsWith('"')) {
+                if (!/^"([^"\\]|\\.)*"\s*[is]?$/.test(afterEq)) {
+                    const err = new Error(`Failed to execute 'querySelector': '${sel}' is not a valid selector.`);
+                    err.name = 'SyntaxError';
+                    throw err;
+                }
+            } else if (afterEq.startsWith("'")) {
+                if (!/^'([^'\\]|\\.)*'\s*[is]?$/.test(afterEq)) {
+                    const err = new Error(`Failed to execute 'querySelector': '${sel}' is not a valid selector.`);
+                    err.name = 'SyntaxError';
+                    throw err;
+                }
+            }
+        }
+    }
+    const openBrackets = (sel.match(/\[/g) || []).length;
+    const closeBrackets = (sel.match(/\]/g) || []).length;
+    if (openBrackets !== closeBrackets) {
+        const err = new Error(`Failed to execute 'querySelector': '${sel}' is not a valid selector.`);
+        err.name = 'SyntaxError';
+        throw err;
+    }
+}
+
 function matchesSelector(el, sel) {
     if (!sel || !el) return false;
     sel = sel.trim();
@@ -326,11 +366,13 @@ function createMockElement(tagName = 'div', attributes = {}) {
             }
         },
         querySelector: (sel) => {
+            validateSelector(sel);
             const parts = splitSelectorParts(sel);
             const res = findDescendants(el, parts);
             return res[0] || null;
         },
         querySelectorAll: (sel) => {
+            validateSelector(sel);
             const parts = splitSelectorParts(sel);
             return findDescendants(el, parts);
         },
@@ -448,6 +490,7 @@ function setupTestEnvironment() {
         getElementById: (id) => getOrCreateElement(id),
         createElement: (tag) => createMockElement(tag),
         querySelectorAll: (sel) => {
+            validateSelector(sel);
             const parts = splitSelectorParts(sel);
             if (parts.length > 0 && parts[0] === '#smart-inbox-list') {
                 return findDescendants(smartInboxList, parts.slice(1));
@@ -469,6 +512,7 @@ function setupTestEnvironment() {
             return all;
         },
         querySelector: (sel) => {
+            validateSelector(sel);
             if (sel.startsWith('#')) return getOrCreateElement(sel.slice(1));
             const all = globalThis.document.querySelectorAll(sel);
             return all[0] || null;
@@ -905,4 +949,101 @@ test('R1(c): Auswählbarkeit - Nicht auswählbare Einträge (gesperrter Film, Mu
     globalThis.renderSmartInboxList(suggestions, new Set());
     assert.strictEqual(globalThis.selectedInboxProjects.has('LockedMovie.mkv'), true, 'Unlocked movie is eligible and remains selected');
     assert.strictEqual(globalThis.selectedInboxProjects.size, 2);
+});
+
+// --------------------------------------------------------------------------
+// AK9: Bulk-Klick mit {A, Show "X".mkv}, Name mit Anführungszeichen ohne Treffer
+// --------------------------------------------------------------------------
+test('AK9: Bulk-Klick mit {A, Show "X".mkv} ohne Treffer für den zweiten: maskiert/sicher gegen SyntaxError, nur A geht an Workflow, Meldung "1 Eintrag ...", Show "X".mkv abgewählt und Kästchen unchecked', async () => {
+    const env = setupTestEnvironment();
+
+    const projA = 'ShowA.S01E01.mkv';
+    const projX = 'Show "X".mkv';
+
+    // Initial render where both items exist so that checkboxes for both are created in the DOM
+    const initialSuggestions = [
+        { project: projA, media_type: 'tv', is_dir: false, video_count: 1 },
+        { project: projX, media_type: 'tv', is_dir: false, video_count: 1 }
+    ];
+    globalThis.renderSmartInboxList(initialSuggestions, new Set());
+
+    // Both are selected and checked in DOM
+    globalThis.selectedInboxProjects.add(projA);
+    globalThis.selectedInboxProjects.add(projX);
+
+    const allCheckboxes = globalThis.document.querySelectorAll('.smart-inbox-cb');
+    let cbX = null;
+    let cbA = null;
+    for (const cb of allCheckboxes) {
+        if (cb.dataset?.project === projX) {
+            cb.checked = true;
+            cbX = cb;
+        }
+        if (cb.dataset?.project === projA) {
+            cb.checked = true;
+            cbA = cb;
+        }
+    }
+    assert.ok(cbX, 'Checkbox for Show "X".mkv must exist in DOM');
+    assert.strictEqual(cbX.checked, true, 'Checkbox for Show "X".mkv must initially be checked');
+    assert.ok(cbA, 'Checkbox for ShowA must exist in DOM');
+    assert.strictEqual(cbA.checked, true);
+
+    // Stale state: currentSmartInboxRawSuggestions only contains A (X disappeared / no hit), without prior redraw
+    globalThis.setCurrentSmartInboxRawSuggestions([
+        { project: projA, media_type: 'tv', is_dir: false, video_count: 1 }
+    ]);
+    globalThis.updateBulkActionsBarUI();
+
+    assert.strictEqual(globalThis.selectedInboxProjects.size, 2);
+
+    globalThis.activeSeriesGroupFiles = null;
+    globalThis.activeSeriesGroupName = null;
+
+    const bulkBtn = env.bulkBar.querySelector('#btn-bulk-group-series');
+    assert.ok(bulkBtn, 'Bulk action button must exist');
+
+    await bulkBtn.click();
+
+    // 1. Kein Fehler, nur A geht an startSeriesGroupWorkflow
+    assert.ok(globalThis.activeSeriesGroupFiles, 'startSeriesGroupWorkflow must be called');
+    assert.deepStrictEqual(globalThis.activeSeriesGroupFiles, [projA]);
+
+    // 2. Meldung „1 Eintrag …“
+    assert.strictEqual(env.alerts.length, 1, 'Alert must be displayed');
+    assert.ok(
+        env.alerts[0].includes('1 Eintrag') && env.alerts[0].includes('übersprungen'),
+        `Alert must mention 1 skipped entry, got: "${env.alerts[0]}"`
+    );
+
+    // 3. Show "X".mkv nicht mehr ausgewählt
+    assert.strictEqual(globalThis.selectedInboxProjects.has(projX), false, 'Show "X".mkv must be removed from selectedInboxProjects');
+    assert.strictEqual(globalThis.selectedInboxProjects.has(projA), true, 'ShowA must remain in selectedInboxProjects');
+    assert.strictEqual(globalThis.selectedInboxProjects.size, 1);
+
+    // 4. sein Kästchen nicht mehr checked
+    assert.strictEqual(cbX.checked, false, 'Checkbox for Show "X".mkv must no longer be checked');
+    assert.strictEqual(cbA.checked, true, 'Checkbox for ShowA must remain checked');
+
+    // Zähler aktualisiert
+    const countEl = env.bulkBar.querySelector('#smart-inbox-bulk-count');
+    assert.ok(countEl);
+    assert.strictEqual(countEl.textContent, '1 ausgewählt');
+});
+
+// --------------------------------------------------------------------------
+// AK10: Test-Hintertüren wurden aus gui/static/app.js entfernt
+// --------------------------------------------------------------------------
+test('AK10: gui/static/app.js enthält weder setCurrentSmartInboxRawSuggestions noch getCurrentSmartInboxRawSuggestions', () => {
+    const rawContent = fs.readFileSync(appJsPath, 'utf8');
+    assert.strictEqual(
+        rawContent.includes('setCurrentSmartInboxRawSuggestions'),
+        false,
+        'app.js must not contain setCurrentSmartInboxRawSuggestions'
+    );
+    assert.strictEqual(
+        rawContent.includes('getCurrentSmartInboxRawSuggestions'),
+        false,
+        'app.js must not contain getCurrentSmartInboxRawSuggestions'
+    );
 });
