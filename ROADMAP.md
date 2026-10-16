@@ -2113,6 +2113,8 @@ Trägt der Dateiname eine Staffel (`SxxEyy`, auch `xxXyy`), wird zuerst exakt de
 Klein (eine Funktion, 3–4 Tests, ein Gate-A2-Lauf).
 ## 77. Inbox: Auswahl nach Auftragsstart leeren bzw. auf sichtbare Einträge beschränken
 
+**Status:** Erledigt (2026-10-16, Branch `fix/roadmap-77-inbox-auswahl`; Variante A: Auswahl bereinigt sich beim Neuzeichnen, Bulk-Weg sendet nie Einträge ohne aktuellen Inbox-Treffer, sichtbare Meldung bei übersprungenen Einträgen, Cache-Buster v102. Gate-A2 Lauf 1 + Nachbesserungslauf 2 (F1 unmaskierter Selektor bei `"` im Namen, F2 Test-Hintertür, F3) je APPROVED nach 1 Runde, Rückkanal ABNAHME: JA, Handtest Alex bestanden). Folgepunkte → #80, #81.
+
 **Einordnung / Priorität:** Mittel bis hoch (Bedienung). Befund aus dem NAS-Betrieb nach dem Live-Test der Kette Ordner-Folgen (13.10.2026). Vorbestehend seit #65 (auch lose Dateien), durch die Einzelvideo-Ordner bei jeder Staffel sichtbar.
 
 **Problem:**
@@ -2162,3 +2164,29 @@ Je Punkt entscheiden, ob eine Regel nötig ist oder die Grenze dokumentiert blei
 
 ### Aufwand (grob)
 Klein bis mittel (Punkt 1 braucht Metadaten-Kontext).
+
+## 80. Inbox: stille `catch`-Blöcke in Bulk-Weg, Gruppen-Banner und Gruppenzeile
+
+**Einordnung / Priorität:** Mittel. Befund aus dem Rückkanal zu #77 (2026-10-16, `docs/sessions/2026-10-16-roadmap77-inbox-auswahl/rueckkanal.md`, Hinweis d); vorbestehend.
+
+**Problem:**
+Scheitert der Start des Serien-Workflows, geben die `catch`-Blöcke in `updateBulkActionsBarUI` (Bulk-Weg), im Gruppen-Banner und in der Gruppenzeile (`gui/static/app.js`) nur den Knopf wieder frei — ohne Meldung und ohne Log. Der Nutzer sieht „nichts passiert“ (Verstoß gegen „Fehler müssen sichtbar sein“). In #77 hat genau dieses Muster den Selektor-Fehler bei `"` im Namen verborgen.
+
+**Ziel:**
+Alle drei Stellen melden Fehler sichtbar (Meldung mit kurzer Beschreibung) und protokollieren sie (`console.error`).
+
+### Aufwand (grob)
+Klein (drei Stellen, Frontend-Tests, ein Gate-A2-Lauf).
+
+## 81. Einzelvideo-Ordner: Reste in der Inbox nach der Verarbeitung
+
+**Einordnung / Priorität:** Mittel, Ursache ungeklärt. Beobachtung im Handtest zu #77 (2026-10-16, lokale OrbStack-Testumgebung, Einzelvideo-Ordner `The.Walking.Dead.S11E01…04`, Serien-Ablauf über die Bulk-Leiste).
+
+**Beobachtung:**
+Nach erfolgreicher Verarbeitung (Videos und NFOs korrekt in `Output/Serien/The Walking Dead (2010)/Staffel 11/…`) bleiben in der Inbox die leeren Ordner `The.Walking.Dead.S11E01` … `S11E04` zurück, und die Folgen-Vorschaubilder (`The Walking Dead (2010) - S11E0x - …-thumb.jpg`) liegen lose im Inbox-Wurzelordner statt neben der Folge in der Ausgabe.
+
+**Ziel:**
+Klären, ob vorbestehend (seit #71 Einzelvideo-Ordner) und ob Vorschaubild-Ziel und Aufräumen leerer Quellordner bei `files[]` mit `single_video_relpath` fehlen. Verwandt: #68 (Inbox-Aufräumen fremder leerer Ordner).
+
+### Aufwand (grob)
+Erst Diagnose (Live-Prüfung auf dem NAS, Code `processor.py`), dann eigener Lauf.
