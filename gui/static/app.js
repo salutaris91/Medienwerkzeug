@@ -1,12 +1,12 @@
-import { applyTheme } from './js/theme.js?v=101';
-import { cleanSeriesName } from './js/utils.js?v=101';
-import { formatBytes } from './js/format.js?v=101';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=101';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=101';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=101';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=101';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=101';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=101';
+import { applyTheme } from './js/theme.js?v=102';
+import { cleanSeriesName } from './js/utils.js?v=102';
+import { formatBytes } from './js/format.js?v=102';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=102';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=102';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=102';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=102';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=102';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=102';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -12499,6 +12499,13 @@ function inboxFilesEntryForItem(item) {
     return item.project;
 }
 
+function isInboxProjectEligibleForSelection(item) {
+    if (!item) return false;
+    const isTvSingle = (item.media_type === "tv" && (item.is_dir === false || (item.is_dir === true && Boolean(item.single_video_relpath))));
+    const isUnlockedMovie = (item.media_type === "movie" && item.is_dir === false && unlockedMovieProjects.has(item.project));
+    return Boolean(isTvSingle || isUnlockedMovie);
+}
+
 function detectInboxGroups(suggestions) {
     if (!Array.isArray(suggestions)) return {};
     const groups = {};
@@ -12713,18 +12720,52 @@ function updateBulkActionsBarUI() {
                 btn.textContent = "wird gestartet…";
             }
             try {
-                const selectedItems = Array.from(selectedInboxProjects).map(proj => {
-                    return (Array.isArray(currentSmartInboxRawSuggestions) ? currentSmartInboxRawSuggestions.find(s => s.project === proj) : null) || { project: proj };
-                });
-                const files = selectedItems.map(item => inboxFilesEntryForItem(item));
-                if (files.length === 0) {
+                const rawSuggestions = Array.isArray(currentSmartInboxRawSuggestions) ? currentSmartInboxRawSuggestions : [];
+                const processing = (typeof activeProjectsProcessing !== "undefined" && activeProjectsProcessing) ? activeProjectsProcessing : new Set();
+
+                const validItems = [];
+                const skippedProjects = [];
+
+                for (const proj of Array.from(selectedInboxProjects)) {
+                    const match = rawSuggestions.find(s => s && s.project === proj);
+                    if (match && !processing.has(proj)) {
+                        validItems.push(match);
+                    } else {
+                        skippedProjects.push(proj);
+                    }
+                }
+
+                if (skippedProjects.length > 0) {
+                    for (const proj of skippedProjects) {
+                        selectedInboxProjects.delete(proj);
+                        const cb = document.querySelector(`.smart-inbox-cb[data-project="${proj}"]`);
+                        if (cb) cb.checked = false;
+                    }
+                    const countEl = document.getElementById("smart-inbox-bulk-count");
+                    if (countEl) {
+                        countEl.textContent = `${selectedInboxProjects.size} ausgewählt`;
+                    }
+                }
+
+                if (validItems.length === 0) {
+                    await Promise.resolve();
                     if (btn) {
                         btn.disabled = false;
                         btn.innerHTML = originalContent;
                     }
+                    alert("Keine der ausgewählten Dateien ist noch in der Inbox – nichts gestartet.");
                     return;
                 }
-                const firstItem = selectedItems[0];
+
+                if (skippedProjects.length > 0) {
+                    const skippedCount = skippedProjects.length;
+                    alert(skippedCount === 1
+                        ? "1 Eintrag ist nicht mehr in der Inbox und wurde übersprungen."
+                        : `${skippedCount} Einträge sind nicht mehr in der Inbox und wurden übersprungen.`);
+                }
+
+                const files = validItems.map(item => inboxFilesEntryForItem(item));
+                const firstItem = validItems[0];
                 const fallbackName = firstItem ? (firstItem.single_video_query || firstItem.suggested_query || cleanSeriesName(firstItem.project)) : cleanSeriesName(files[0]);
                 const groupName = detectManualGroupSeriesName(files, fallbackName);
                 await startSeriesGroupWorkflow(groupName, files);
@@ -12978,6 +13019,16 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
 
     currentSmartInboxRawSuggestions = rawSuggestions || [];
     const suggestions = currentSmartInboxRawSuggestions;
+    const currentProcessing = processingSet || new Set();
+
+    for (const proj of Array.from(selectedInboxProjects)) {
+        const item = suggestions.find(s => s && s.project === proj);
+        if (!item || currentProcessing.has(proj) || !isInboxProjectEligibleForSelection(item)) {
+            selectedInboxProjects.delete(proj);
+        }
+    }
+    updateBulkActionsBarUI();
+
     cardSmartInbox.style.display = "block";
 
     if (suggestions.length > 0) {
@@ -13143,10 +13194,9 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
             const borderStyle = isProcessing ? "border: 1px solid rgba(0, 229, 255, 0.3);" : "border: 1px solid var(--border-light);";
             const bgStyle = isProcessing ? "background: rgba(0, 229, 255, 0.03);" : "background: rgba(255,255,255,0.02);";
 
-            // Checkbox eligibility check (AK12, AK13, ROADMAP #71)
-            const isTvSingle = (item.media_type === "tv" && (item.is_dir === false || (item.is_dir === true && Boolean(item.single_video_relpath))));
+            // Checkbox eligibility check (AK12, AK13, ROADMAP #71, ROADMAP #77)
             const isUnlockedMovie = (item.media_type === "movie" && item.is_dir === false && unlockedMovieProjects.has(item.project));
-            const isEligible = (isTvSingle || isUnlockedMovie);
+            const isEligible = isInboxProjectEligibleForSelection(item);
 
             let checkboxHtml = "";
             if (isEligible) {
@@ -13268,6 +13318,9 @@ if (typeof globalThis !== 'undefined') {
     globalThis.startSeriesGroupWorkflow = startSeriesGroupWorkflow;
     globalThis.selectedInboxProjects = selectedInboxProjects;
     globalThis.unlockedMovieProjects = unlockedMovieProjects;
+    globalThis.isInboxProjectEligibleForSelection = isInboxProjectEligibleForSelection;
+    globalThis.setCurrentSmartInboxRawSuggestions = (val) => { currentSmartInboxRawSuggestions = val; };
+    globalThis.getCurrentSmartInboxRawSuggestions = () => currentSmartInboxRawSuggestions;
     globalThis.appliedInboxGroups = appliedInboxGroups;
     globalThis.expandedInboxGroups = expandedInboxGroups;
     globalThis.updateBulkActionsBarUI = updateBulkActionsBarUI;
