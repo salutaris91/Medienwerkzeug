@@ -3,7 +3,7 @@ kind: plan
 status: approved
 approved_by: alex
 approved_on: 2026-10-16
-approval_quote: "A und ADR 2–4 wie empfohlen, starte die Kette"
+approval_quote: "ja, Nachtrag F1–F3 und Lauf 2 wie empfohlen"
 source: roadmap#77
 ---
 
@@ -44,3 +44,17 @@ source: roadmap#77
 ## Freigabe- und Merge-Pfad
 
 Gate-A2-Lauf → Plausibilitätsprüfung (Claude Code) → Rückkanal (`ceo-planner` über `scripts/opencode-guarded-run.py`, Ergebnis `docs/sessions/2026-10-16-roadmap77-inbox-auswahl/rueckkanal.md` mit `ABNAHME: JA|NEIN`) → Handtest Alex (OrbStack, mehrere Einzelvideo-Ordner, zwei Bulk-Aufträge nacheinander, Zähler, keine Server-Ablehnung) → Freigabe-Datei (Reviewer, nach dem Rückkanal-Commit) → `ceo-planner` (minimaler Prompt) → `pr-operator` → `kit-push-approved-head` → PR → Merge Alex → NAS-Update (Klasse C).
+
+## Nachtrag Lauf 2 (Alex, wörtlich, 2026-10-16: „ja, Nachtrag F1–F3 und Lauf 2 wie empfohlen“)
+
+Ausgangsstand: Commit mit dem Ergebnis von Lauf 1 (R1–R5 umgesetzt, `tests/frontend/inbox_selection.test.js`). Lauf 2 ändert **nur** Folgendes:
+
+- **F1 [wichtig] Selektor maskieren:** Im Bulk-Weg (`updateBulkActionsBarUI`) wird das Kästchen eines übersprungenen Eintrags mit unmaskiertem Namen gesucht (`` `.smart-inbox-cb[data-project="${proj}"]` ``). Bei `"` im Namen wirft der Browser `SyntaxError`; der vorhandene `catch` gibt nur den Knopf frei → stilles Scheitern (Verstoß gegen R3). Fix: `CSS.escape(proj)` verwenden **oder** die Kästchen per `querySelectorAll(".smart-inbox-cb")` durchlaufen und `cb.dataset.project === proj` vergleichen (bevorzugt, da ohne `CSS`-Abhängigkeit testbar).
+- **F2 [wichtig] Test-Hintertür entfernen:** Die in Lauf 1 neu in `gui/static/app.js` eingefügten Zeilen `globalThis.setCurrentSmartInboxRawSuggestions = …` und `globalThis.getCurrentSmartInboxRawSuggestions = …` entfernen (Testinfrastruktur-Regel; das Test-Gerüst in `inbox_selection.test.js` definiert sie bereits selbst).
+- **F3 [kosmetisch]:** `await Promise.resolve();` vor der Meldung „nichts gestartet“ streichen.
+
+Zusätzliche Akzeptanzkriterien:
+- AK9 Bulk-Klick mit {A, `Show "X".mkv`}, der zweite ohne Treffer: kein Fehler, nur A geht an `startSeriesGroupWorkflow`, Meldung „1 Eintrag …“, `Show "X".mkv` nicht mehr ausgewählt, sein Kästchen nicht mehr `checked`. Der Test muss bei unmaskiertem Selektor rot werden (z. B. DOM-Mock, dessen `querySelector`/`querySelectorAll` bei unausgeglichenen Anführungszeichen wie ein Browser `SyntaxError` wirft, oder Spion, der den übergebenen Selektor prüft).
+- AK10 `gui/static/app.js` enthält weder `setCurrentSmartInboxRawSuggestions` noch `getCurrentSmartInboxRawSuggestions`; die Tests AK1–AK8 bleiben grün.
+
+Schreibgrenzen Lauf 2: nur `gui/static/app.js` (nur `updateBulkActionsBarUI` und der `globalThis`-Block am Dateiende) und `tests/frontend/inbox_selection.test.js` (Test für AK9 ergänzen; Harness darf angepasst werden, bestehende Testfälle inhaltlich unverändert). Cache-Buster bleibt `v=102`. Alles andere wie oben.
