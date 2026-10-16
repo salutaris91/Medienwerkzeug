@@ -3,13 +3,15 @@ kind: plan
 status: approved
 approved_by: alex
 approved_on: 2026-10-16
-approval_quote: "1–3 wie empfohlen, starte die Kette"
+approval_quote: "ja, R3a übernehmen wie empfohlen, starte den Lauf"
 source: roadmap#78
 ---
 
 # Feature Briefing: #78 — Folgenzuordnung erkennt „Staffel X Folge Y“ serverseitig
 
 **Bindende Alex-Entscheidungen (wörtlich, 2026-10-16):** „1–3 wie empfohlen, starte die Kette“ — (1) **enges** Server-Muster statt Kopie des Client-Musters, (2) Ablauf Gate-A2 → Plausibilität → Rückkanal → Handtest (TMDB-Anbietermodus, „Alle Staffeln“) → `kit-push-approved-head`, (3) Push mit minimalem Planer-Prompt (Test der neuen `ceo-planner`-Anweisung).
+
+**Nachtrag (Alex, wörtlich, 2026-10-16):** „ja, R3a übernehmen wie empfohlen, starte den Lauf“ — R3a gehört zum Umfang; der Worker darf dafür zusätzlich den R3-Zweig in `handle_api_match_episodes` ändern.
 
 ## 1. Problem
 
@@ -41,7 +43,7 @@ source: roadmap#78
 
 ## Worker-Auftrag
 
-1. Nur `gui/api/search_api.py` ändern, und dort nur `parse_season_episode` (drittes Muster ergänzen); keine anderen Stellen.
+1. Nur `gui/api/search_api.py` ändern, und dort nur (a) `parse_season_episode` (drittes Muster R6 ergänzen) und (b) den R3-Zweig in `handle_api_match_episodes` (Staffel nicht in der Liste → R3a vor dem bisherigen Pfad); keine anderen Stellen, `guess_ep_num` unverändert.
 2. Neue Tests **ergänzend** in `tests/test_match_episodes_season.py` (bestehende Tests nicht ändern) für AK1–AK7, Muster wie die vorhandenen Tests (`fetch_*` mocken, im `tearDown`/`finally` zurücksetzen, keine Netzwerkzugriffe, keine Dateien außerhalb von `tmp_path`).
 3. Nicht anfassen: `gui/static/**`, `tests/test_utils.py`, `ROADMAP.md`, `API.md`, `docs/**`, `scripts/**`, übrige `gui/**`, `data/**`; `.env` nie lesen. Kein Cache-Buster.
 
