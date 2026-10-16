@@ -123,6 +123,14 @@ def handle_api_match_episodes():
         match = re.search(r'(?<!\d)(\d+)x(\d+)(?!\d)', clean_name)
         if match:
             return int(match.group(1)), int(match.group(2))
+        norm_name = clean_name.replace('_', ' ')
+        match = re.search(
+            r'\b(?:staffel|season)[\s._-]*(\d{1,3})\b.{0,40}?\b(?:folge|episode|ep)[\s._-]*(\d{1,4})\b',
+            norm_name,
+            re.IGNORECASE,
+        )
+        if match:
+            return int(match.group(1)), int(match.group(2))
         return None
 
     for file in filenames:
@@ -162,6 +170,11 @@ def handle_api_match_episodes():
                     matches[file] = None
                     continue
                 # R3: Season not present in episodes -> continue to existing behavior below
+                # R3a: If season/episode was parsed, but season is not in episodes (e.g. single season list),
+                # and str(episode) is in episodes, match it directly before falling through to legacy path.
+                if str(file_e) in episodes:
+                    matches[file] = str(file_e)
+                    continue
 
         # 1. Hard match based on filename patterns
         ep_num = guess_ep_num(basename)
