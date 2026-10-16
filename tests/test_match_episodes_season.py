@@ -199,5 +199,146 @@ class TestMatchEpisodesSeason(unittest.TestCase):
         self.assertEqual(matches.get("Show (381) S11E01.mkv"), "S2010E39")
 
 
+    def test_r6_ak1_spelled_out_season_episode_matching(self):
+        """AK1: Liste S01E01 ... S11E24, Datei The Walking Dead Staffel 11 Folge 14.mkv -> S11E14."""
+        episodes = self._make_ak1_episodes()
+        server.mw_metadata.fetch_tvdb = lambda show_id, season, lang: episodes
+
+        filename = "The Walking Dead Staffel 11 Folge 14.mkv"
+        params = {
+            "provider": "tvdb",
+            "show_id": "153021",
+            "season": "all",
+            "filenames": [filename],
+        }
+        GUIRequestHandler.handle_api_match_episodes(self.dummy, params)
+        matches = (self.dummy.sent_json or {}).get("matches", {})
+        self.assertEqual(matches.get(filename), "S11E14")
+
+    def test_r6_ak2_spelled_out_syntax_variants(self):
+        """AK2: Schreibweisen -> S11E14: Dots, hyphens, underscores, uppercase."""
+        episodes = self._make_ak1_episodes()
+        server.mw_metadata.fetch_tvdb = lambda show_id, season, lang: episodes
+
+        filenames = [
+            "The.Walking.Dead.Staffel.11.Folge.14.mkv",
+            "The Walking Dead - Season 11 - Episode 14.mkv",
+            "twd_staffel_11_ep_14.mkv",
+            "THE WALKING DEAD STAFFEL 11 FOLGE 14.mkv",
+        ]
+        params = {
+            "provider": "tvdb",
+            "show_id": "153021",
+            "season": "all",
+            "filenames": filenames,
+        }
+        GUIRequestHandler.handle_api_match_episodes(self.dummy, params)
+        matches = (self.dummy.sent_json or {}).get("matches", {})
+        for fn in filenames:
+            self.assertEqual(matches.get(fn), "S11E14", f"Failed for {fn}")
+
+    def test_r6_ak3_season_present_but_episode_missing_returns_none(self):
+        """AK3: Liste mit S11E01..S11E10 und S01E01..S01E20, Datei ...Staffel 11 Folge 14... -> None (R2)."""
+        episodes = {}
+        for e in range(1, 21):
+            episodes[f"S01E{e:02d}"] = {"title": f"S01E{e:02d}", "absolute_number": e}
+        for e in range(1, 11):
+            episodes[f"S11E{e:02d}"] = {"title": f"S11E{e:02d}", "absolute_number": 20 + e}
+        server.mw_metadata.fetch_tvdb = lambda show_id, season, lang: episodes
+
+        filename = "The Walking Dead Staffel 11 Folge 14.mkv"
+        params = {
+            "provider": "tvdb",
+            "show_id": "153021",
+            "season": "all",
+            "filenames": [filename],
+        }
+        GUIRequestHandler.handle_api_match_episodes(self.dummy, params)
+        matches = (self.dummy.sent_json or {}).get("matches", {})
+        self.assertIn(filename, matches)
+        self.assertIsNone(matches.get(filename))
+
+    def test_r6_ak4_r3a_single_season_numerical_keys(self):
+        """AK4: Einzelstaffel-Liste '1'..'23', Datei ...Staffel 11 Folge 14... -> '14' (R3a).
+
+        Zusätzlich: ...S11E14... gegen dieselbe Liste -> '14' (unverändert).
+        """
+        episodes = {str(i): {"title": f"Episode {i}"} for i in range(1, 24)}
+        server.mw_metadata.fetch_tvdb = lambda show_id, season, lang: episodes
+
+        filenames = [
+            "The Walking Dead Staffel 11 Folge 14.mkv",
+            "The.Walking.Dead.S11E14.GERMAN.mkv",
+        ]
+        params = {
+            "provider": "tvdb",
+            "show_id": "153021",
+            "season": "1",
+            "filenames": filenames,
+        }
+        GUIRequestHandler.handle_api_match_episodes(self.dummy, params)
+        matches = (self.dummy.sent_json or {}).get("matches", {})
+        self.assertEqual(matches.get("The Walking Dead Staffel 11 Folge 14.mkv"), "14")
+        self.assertEqual(matches.get("The.Walking.Dead.S11E14.GERMAN.mkv"), "14")
+
+    def test_r6_ak5_unchanged_legacy_paths(self):
+        """AK5: Unverändert: Folge 381.mkv, Show (381).mkv, Show Staffel 2.mkv, Show Staffel 2 (Folge 14).mkv."""
+        episodes = self._make_ak1_episodes()
+        episodes["S2010E39"] = {"title": "Special 381", "absolute_number": 381}
+        server.mw_metadata.fetch_tvdb = lambda show_id, season, lang: episodes
+
+        filenames = [
+            "Folge 381.mkv",
+            "Show (381).mkv",
+            "Show Staffel 2.mkv",
+            "Show Staffel 2 (Folge 14).mkv",
+        ]
+        params = {
+            "provider": "tvdb",
+            "show_id": "153021",
+            "season": "all",
+            "filenames": filenames,
+        }
+        GUIRequestHandler.handle_api_match_episodes(self.dummy, params)
+        matches = (self.dummy.sent_json or {}).get("matches", {})
+        self.assertEqual(matches.get("Folge 381.mkv"), "S2010E39")
+        self.assertEqual(matches.get("Show (381).mkv"), "S2010E39")
+        self.assertEqual(matches.get("Show Staffel 2.mkv"), "S01E02")
+        self.assertEqual(matches.get("Show Staffel 2 (Folge 14).mkv"), "S01E14")
+
+    def test_r6_ak6_distance_limit_exceeded_falls_back_to_legacy(self):
+        """AK6: Abstandsgrenze: Staffel 11 <mehr als 40 Zeichen Text> Folge 14 -> R6 greift nicht."""
+        episodes = self._make_ak1_episodes()
+        server.mw_metadata.fetch_tvdb = lambda show_id, season, lang: episodes
+
+        long_distance_filename = "Staffel 11 " + ("x" * 41) + " Folge 14.mkv"
+        params = {
+            "provider": "tvdb",
+            "show_id": "153021",
+            "season": "all",
+            "filenames": [long_distance_filename],
+        }
+        GUIRequestHandler.handle_api_match_episodes(self.dummy, params)
+        matches = (self.dummy.sent_json or {}).get("matches", {})
+        self.assertEqual(matches.get(long_distance_filename), "S01E11")
+        self.assertNotEqual(matches.get(long_distance_filename), "S11E14")
+
+    def test_r6_ak7_sxxeyy_precedence_over_spelled_out(self):
+        """AK7: Vorrang: The.Walking.Dead.S10E18.Staffel.11.Folge.14.mkv -> S10E18."""
+        episodes = self._make_ak1_episodes()
+        server.mw_metadata.fetch_tvdb = lambda show_id, season, lang: episodes
+
+        filename = "The.Walking.Dead.S10E18.Staffel.11.Folge.14.mkv"
+        params = {
+            "provider": "tvdb",
+            "show_id": "153021",
+            "season": "all",
+            "filenames": [filename],
+        }
+        GUIRequestHandler.handle_api_match_episodes(self.dummy, params)
+        matches = (self.dummy.sent_json or {}).get("matches", {})
+        self.assertEqual(matches.get(filename), "S10E18")
+
+
 if __name__ == "__main__":
     unittest.main()
