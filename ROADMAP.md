@@ -2135,6 +2135,8 @@ Klein (reine Oberfläche, ein Gate-A2-Lauf).
 
 ## 78. Folgenzuordnung: Dateinamen „Staffel X Folge Y“ serverseitig erkennen
 
+**Status:** Erledigt (2026-10-16, Branch `fix/roadmap-78-staffel-folge`; Regeln R6 + R3a, Gate-A2 APPROVED nach 1 Runde, Rückkanal ABNAHME: JA, Handtest Alex im Anbieter-Modus TMDB mit „Alle Staffeln“ bestanden: 7 Schreibweisen inkl. `twd_staffel_11_ep_7` und `Staffel 10 Folge 18` korrekt). Folgepunkte → #79.
+
 **Einordnung / Priorität:** Mittel. Befund aus dem Rückkanal zu #76 (2026-10-15, `docs/sessions/2026-10-15-roadmap76-staffel/rueckkanal.md`, Befund 3).
 
 **Problem:**
@@ -2145,3 +2147,18 @@ Die Staffel-Regeln R1–R3 aus #76 auch für „Staffel X Folge Y“ (und ggf. �
 
 ### Aufwand (grob)
 Klein (Muster in `parse_season_episode` ergänzen, 2–3 Tests, ein Gate-A2-Lauf).
+
+## 79. Folgenzuordnung: Restgrenzen nach #78
+
+**Einordnung / Priorität:** Niedrig. Befunde aus dem Rückkanal zu #78 (2026-10-16, `docs/sessions/2026-10-16-roadmap78-staffel-folge/rueckkanal.md`, Befunde 3 und 4); Verhalten durch #78 nicht verschlechtert.
+
+**Problem:**
+1. Listen mit reinen Nummern-Schlüsseln und absoluter Zählung (Anime, Mediathek/yt-dlp `"1"…"N"`): `Staffel 11 Folge 30` wird über R3a `"30"` zugeordnet (vorher `"11"`); richtig wäre die absolute Nummer der Folge. Dafür fehlt der Zusammenhang Staffel → absolute Nummer.
+2. Umgekehrte Reihenfolge (`Folge 14 Staffel 11`) wird nicht als Staffel/Folge erkannt (Server und Client).
+3. `(\d+)x(\d+)` liest Auflösungen wie `1920x1080` als Staffel 1920 (seit #76, folgenlos, solange die Liste keine solche Staffel hat).
+
+**Ziel:**
+Je Punkt entscheiden, ob eine Regel nötig ist oder die Grenze dokumentiert bleibt.
+
+### Aufwand (grob)
+Klein bis mittel (Punkt 1 braucht Metadaten-Kontext).
