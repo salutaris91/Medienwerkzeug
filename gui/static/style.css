@@ -3862,12 +3862,13 @@ body.runtime-docker .docker-only-info {
     border-color: rgba(255, 255, 255, 0.25);
 }
 
-/* Smart Inbox Grouping & Bulk Actions (ROADMAP #65) */
+/* Smart Inbox Grouping & Bulk Actions (ROADMAP #65 / #75 / #80) */
 #smart-inbox-group-banner {
     display: none;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 10px;
     padding: 10px 14px;
     margin-bottom: 12px;
     background: rgba(139, 92, 246, 0.1);
@@ -3875,6 +3876,31 @@ body.runtime-docker .docker-only-info {
     border-radius: var(--radius-md, 8px);
     font-size: 0.85rem;
     color: var(--text-main, #f1f5f9);
+}
+
+.smart-inbox-group-banner-primary {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+
+.smart-inbox-group-banner-row,
+.smart-inbox-group-banner-ignored-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    flex-wrap: wrap;
+}
+
+.smart-inbox-group-banner-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    padding: 4px 0;
 }
 
 .smart-inbox-group-banner-content {
@@ -3891,6 +3917,70 @@ body.runtime-docker .docker-only-info {
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
+}
+
+.smart-inbox-group-banner-more,
+.smart-inbox-group-banner-ignored {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(139, 92, 246, 0.25);
+}
+
+.smart-inbox-group-banner-ignored:first-child {
+    padding-top: 0;
+    border-top: none;
+}
+
+.smart-inbox-group-banner-toggle {
+    background: none;
+    border: none;
+    color: var(--text-muted, #94a3b8);
+    cursor: pointer;
+    padding: 2px 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    border-radius: var(--radius-md, 8px);
+    text-align: left;
+}
+
+.smart-inbox-group-banner-toggle:hover,
+.smart-inbox-group-banner-toggle:focus-visible {
+    color: var(--text-main, #f1f5f9);
+    outline: none;
+}
+
+.smart-inbox-group-banner-toggle svg {
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+
+.smart-inbox-group-banner-toggle[aria-expanded="true"] svg {
+    transform: rotate(90deg);
+}
+
+.smart-inbox-group-banner-more-list,
+.smart-inbox-group-banner-ignored-list {
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 240px;
+    overflow-y: auto;
+    padding-top: 4px;
+}
+
+.smart-inbox-group-banner-error {
+    color: var(--danger, #ef4444);
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius-md, 8px);
+    padding: 6px 10px;
+    font-size: 0.8rem;
 }
 
 #smart-inbox-bulk-actions {

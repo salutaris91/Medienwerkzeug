@@ -2067,6 +2067,8 @@ Klein (reine Oberfläche, ein Gate-A2-Lauf).
 
 ## 75. Inbox-Gruppen: alle Vorschläge sichtbar, „Ignorieren“ umkehrbar
 
+**Status:** Erledigt (2026-10-17, Branch `feat/roadmap-75-inbox-gruppen`; Banner zeigt alle offenen Vorschläge mit aufklappbarer Liste „Weitere Vorschläge (n)“, „Ignorieren“ in `localStorage` mit Rückweg „Ausgeblendete Vorschläge (n) – wieder anzeigen“ einzeln und für alle, Banner-Fehlerfall aus #80 mit Rücknahme, Inline-Meldung und `console.error`, Doppelstart-Sperre, Cache-Buster app.js v103 / style.css v51. Volles Planungsteam, Gate-A2 Lauf 1 + Lauf 2 (Rückkanal-Auflage F-A, F-G, F-H) + Lauf 3 (Handtest: Aufklapp-Zustand über den 6-Sekunden-Takt) je APPROVED nach 1 Runde, Rückkanal ABNAHME: JA, Handtest Alex bestanden). Folgepunkte → #82–#84, #86.
+
 **Einordnung / Priorität:** Wunsch von Alex aus dem Handtest der Kette Ordner-Folgen (13.10.2026, wörtlich: „perspektivisch sollten wir auch dafür sorgen, dass ähm, alle Zusammenziehvorschläge ähm, darstellbar sind. Und auch es bei selbst wenn man auf Ignorieren klickt, vielleicht weil ähm, noch nicht alle Folgen vorhanden sind, ähm, und man es trotzdem dann ähm, erstmal raushaben möchte, dass es dann sozusagen auch einen Weg zurück gibt.“). Zusammen mit #74 als kleine Kette „Gruppen-Bedienung“ nach dem NAS-Live-Test.
 
 **Problem:**
@@ -2167,6 +2169,8 @@ Klein bis mittel (Punkt 1 braucht Metadaten-Kontext).
 
 ## 80. Inbox: stille `catch`-Blöcke in Bulk-Weg, Gruppen-Banner und Gruppenzeile
 
+**Status:** Teilweise erledigt — Banner-Stelle in #75 umgesetzt (2026-10-17); offen bleiben Bulk-Weg und Gruppenzeile.
+
 **Einordnung / Priorität:** Mittel. Befund aus dem Rückkanal zu #77 (2026-10-16, `docs/sessions/2026-10-16-roadmap77-inbox-auswahl/rueckkanal.md`, Hinweis d); vorbestehend.
 
 **Problem:**
@@ -2190,3 +2194,76 @@ Klären, ob vorbestehend (seit #71 Einzelvideo-Ordner) und ob Vorschaubild-Ziel 
 
 ### Aufwand (grob)
 Erst Diagnose (Live-Prüfung auf dem NAS, Code `processor.py`), dann eigener Lauf.
+
+---
+
+## 82. Inbox-Gruppen: ignorierte Vorschläge bei neuen Folgen automatisch zurückholen
+
+**Einordnung / Priorität:** Niedrig bis mittel. Entscheidung von Alex in der Kette #75 (Freigabepunkt 1, 2026-10-17, wörtlich: „Q1 C, Q2 A, Q3 A, Q4 A – starte Akt 2.“): in #75 nur manuelles Wiederanzeigen, automatisches Zurückholen als eigener Punkt. Sinnvoll erst nach #74 und nach Live-Erfahrung mit #75.
+
+**Ziel:**
+Ein ignorierter Gruppenvorschlag erscheint wieder als offener Vorschlag, wenn seit dem Ignorieren neue Folgen dieser Gruppe in der Inbox liegen (Alex' Anlass: Serie „erstmal raushaben“, solange Folgen fehlen).
+
+**Umsetzung (Skizze):**
+1. Ignorier-Wert `{"ignored": true}` (#75, ADR-75-2) um z. B. `episodeCount` bzw. die Folgenliste beim Ignorieren erweitern; fehlendes Feld = altes Verhalten.
+2. Beim Rendern vergleichen; bei Zuwachs Schlüssel entfernen und den Vorschlag als „neu“ markieren.
+3. Frontend-Tests (Zuwachs, gleiche Anzahl, Folgen entfernt).
+
+### Aufwand (grob)
+Klein (reine Oberfläche, ein Gate-A2-Lauf).
+
+---
+
+## 83. Inbox-Gruppen: Apply-Sperre bei hängender Seriensuche
+
+**Einordnung / Priorität:** Mittel. Befund F-B aus dem Rückkanal zu #75 (2026-10-17, `docs/sessions/2026-10-16-roadmap75-inbox-vorschlaege/rueckkanal.md`).
+
+**Problem:**
+Die Banner-Sperre `groupWorkflowRunning` (#75, ADR-75-4) wird erst zurückgesetzt, wenn `startSeriesGroupWorkflow` samt `searchSeries()` aufgelöst ist. `searchSeries` hat einen `AbortController`, aber keinen Timeout. Hängt `/api/search`, sind alle weiteren Starts aus dem Banner bis zum Neuladen gesperrt (Ignorieren/Wiederanzeigen bleiben nutzbar).
+
+**Ziel:**
+Timeout für die Seriensuche (mit sichtbarer Meldung im Suchbereich) oder Watchdog, der die Sperre nach einer Höchstdauer freigibt.
+
+### Aufwand (grob)
+Klein (Frontend, ein Gate-A2-Lauf).
+
+---
+
+## 84. Gruppenschlüssel: Sonderzeichen und Mehrfach-Leerzeichen aus Dateinamen
+
+**Einordnung / Priorität:** Niedrig bis mittel, vorbestehend. Befund F-F aus dem Rückkanal zu #75 (2026-10-17) und der Browser-Probe von Claude Code.
+
+**Problem:**
+Der Gruppenschlüssel kommt aus `suggested_query`/`single_video_query`; das Backend bereinigt über `clean_show_name` (`gui/core/utils.py`, entfernt alles außer `[a-zA-Z0-9\s._-]`). Aus `Delta <&> Show.S01E01.mkv` wird „Delta  Show“ (Doppel-Leerzeichen), aus `Law & Order` wird „Law  Order“. Das beeinträchtigt Anzeige und Seriensuche legitimer Namen.
+
+**Ziel:**
+Legitime Zeichen (z. B. `&`, `'`) erhalten, Mehrfach-Leerzeichen zusammenfassen; Ignorier-Schlüssel aus #75 bleiben kompatibel oder werden bewusst migriert.
+
+### Aufwand (grob)
+Klein bis mittel (Backend + Tests; Auswirkungen auf bestehende Profile/Zuordnung prüfen).
+
+---
+
+## 85. Inbox-Gruppen-Banner: Aufklapp-Zustand innerhalb der Sitzung halten
+
+**Status:** [x] erledigt in der Kette #75 (Lauf 3, 2026-10-17) — Handtest Alex: Banner klappte durch den 6-Sekunden-Takt (`loadStatus` → `renderSmartInboxList`) von selbst zu.
+
+**Einordnung / Priorität:** Niedrig. Befund F-E aus dem Rückkanal zu #75 (2026-10-17), Vorschlag des produktberater.
+
+**Problem:**
+Jede Aktion im Banner (Ignorieren, Wiederanzeigen) zeichnet es neu und klappt „Weitere Vorschläge“ und „Ausgeblendete Vorschläge“ wieder zu (in #75 bewusst so entschieden, Briefing Abschnitt 4). Wer mehrere Vorschläge nacheinander ignoriert, muss jedes Mal neu aufklappen.
+
+**Ziel:**
+Aufklapp-Zustand im Modulzustand merken, solange die Seite offen ist (nicht über Neuladen).
+
+### Aufwand (grob)
+Klein.
+
+---
+
+## 86. Inbox-Gruppen-Banner: Architektur-Notizen für künftige Umbauten
+
+**Einordnung / Priorität:** Notiz, kein eigener Lauf. Befunde F-C und F-D aus dem Rückkanal zu #75 (2026-10-17).
+
+- **F-C:** `updateGroupBannerUI` prüft „ignoriert“ vor „angewendet“. Heute unkritisch, weil `appliedInboxGroups` nur im Banner-Apply-Handler beschrieben wird. Kommt ein zweiter Schreiber hinzu (z. B. Rest von #80, #82), Reihenfolge prüfen bzw. Ignorier-Schlüssel beim Anwenden bereinigen.
+- **F-D:** Klick-Handler werden per Index (`querySelectorAll(...)[i]` ↔ `openGroups[i]`/`ignoredGroups[i]`) gebunden. Korrekt, solange jede Zone pro Gruppe genau einen Knopf je Typ rendert. Beim nächsten Banner-Umbau (z. B. #74) Handler direkt beim Erzeugen des Knotens binden.
