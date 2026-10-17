@@ -12612,11 +12612,13 @@ function isInboxGroupIgnored(groupKey) {
 }
 
 function setInboxGroupIgnored(groupKey) {
+    bannerApplyErrors.delete(groupKey);
     try {
         if (typeof localStorage !== "undefined" && localStorage !== null) {
             localStorage.setItem("smart-inbox-ignore-group-" + groupKey, JSON.stringify({ ignored: true }));
         } else {
             ignoredInboxGroupsFallback.add(groupKey);
+            console.warn("localStorage nicht verfügbar; Ignorier-Zustand für Inbox-Gruppe wird nur für die Sitzung gespeichert.");
         }
     } catch (err) {
         ignoredInboxGroupsFallback.add(groupKey);
@@ -12625,6 +12627,7 @@ function setInboxGroupIgnored(groupKey) {
 }
 
 function clearInboxGroupIgnored(groupKey) {
+    bannerApplyErrors.delete(groupKey);
     ignoredInboxGroupsFallback.delete(groupKey);
     try {
         if (typeof localStorage !== "undefined" && localStorage !== null) {
@@ -12819,10 +12822,8 @@ function updateGroupBannerUI(validGroups) {
             const targetBtn = e.currentTarget || e.target;
             if (targetBtn && targetBtn.disabled) return;
             groupWorkflowRunning = true;
-            let originalContent = "";
             if (targetBtn) {
                 targetBtn.disabled = true;
-                originalContent = targetBtn.innerHTML;
                 targetBtn.textContent = "wird gestartet…";
             }
             try {
@@ -12836,10 +12837,6 @@ function updateGroupBannerUI(validGroups) {
                 console.error("Serien-Start aus Gruppenbanner fehlgeschlagen:", err);
                 bannerApplyErrors.set(groupKey, "Serien-Start fehlgeschlagen. Bitte erneut versuchen.");
                 renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
-                if (targetBtn) {
-                    targetBtn.disabled = false;
-                    targetBtn.innerHTML = originalContent;
-                }
             } finally {
                 groupWorkflowRunning = false;
             }

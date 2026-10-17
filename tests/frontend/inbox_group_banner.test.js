@@ -1276,3 +1276,147 @@ test('AK10: Werfendes localStorage crasht nicht, blendet Gruppe per In-Memory-Fa
     assert.strictEqual(env.groupBanner.querySelectorAll('.btn-banner-apply-group').length, 2, 'Alpha must be restored in session');
     globalThis.localStorage = mockLocalStorage;
 });
+
+// --------------------------------------------------------------------------
+// AK15: Banner-Fehlermeldung wird beim Ignorieren und Wiederanzeigen (einzeln & alle) gelöscht (F-A)
+// --------------------------------------------------------------------------
+test('AK15: Nach gescheitertem Start, "Ignorieren" und "Wieder anzeigen" (einzeln sowie "Alle wieder anzeigen") steht keine Fehlermeldung mehr im Banner', async () => {
+    mockLocalStorage.clear();
+    mockSessionStorage.clear();
+    const env = setupTestEnvironment();
+    const suggestions = makeThreeGroupsSuggestions().slice(0, 4); // Alpha and Beta
+
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    // 1. Einzelnes "Wieder anzeigen": Trigger failed start on Alpha -> Ignore Alpha -> Unignore Alpha
+    shouldThrowInQualityHint = true;
+    const applyBtn1 = env.groupBanner.querySelector('.btn-banner-apply-group');
+    await applyBtn1.click();
+
+    let errorEl = env.groupBanner.querySelector('.smart-inbox-group-banner-error');
+    assert.ok(errorEl, 'Inline error must appear after failed start');
+    assert.strictEqual(errorEl.textContent, 'Serien-Start fehlgeschlagen. Bitte erneut versuchen.');
+
+    // Ignore Alpha
+    const ignoreBtn1 = env.groupBanner.querySelector('.btn-banner-ignore-group');
+    assert.strictEqual(ignoreBtn1.textContent, 'Ignorieren');
+    await ignoreBtn1.click();
+    assert.strictEqual(env.groupBanner.querySelector('.smart-inbox-group-banner-error'), null, 'No error must be shown while Alpha is ignored');
+
+    // Unignore Alpha via single "Wieder anzeigen"
+    const unignoreBtn = env.groupBanner.querySelector('.btn-banner-unignore-group');
+    assert.ok(unignoreBtn);
+    assert.strictEqual(unignoreBtn.textContent, 'Wieder anzeigen');
+    await unignoreBtn.click();
+
+    assert.strictEqual(
+        env.groupBanner.querySelector('.smart-inbox-group-banner-error'),
+        null,
+        'Stale error message must not reappear after single "Wieder anzeigen"'
+    );
+    assert.strictEqual(
+        env.groupBanner.innerHTML.includes('Serien-Start fehlgeschlagen. Bitte erneut versuchen.'),
+        false,
+        'Banner HTML must not contain stale error message after single "Wieder anzeigen"'
+    );
+
+    // 2. "Alle wieder anzeigen": Trigger failed start on Alpha -> Ignore Alpha -> Click "Alle wieder anzeigen"
+    const applyBtn2 = env.groupBanner.querySelector('.btn-banner-apply-group');
+    await applyBtn2.click();
+
+    errorEl = env.groupBanner.querySelector('.smart-inbox-group-banner-error');
+    assert.ok(errorEl, 'Inline error must appear after second failed start');
+    assert.strictEqual(errorEl.textContent, 'Serien-Start fehlgeschlagen. Bitte erneut versuchen.');
+
+    const ignoreBtn2 = env.groupBanner.querySelector('.btn-banner-ignore-group');
+    await ignoreBtn2.click();
+
+    const unignoreAllBtn = env.groupBanner.querySelector('.btn-banner-unignore-all');
+    assert.ok(unignoreAllBtn);
+    assert.strictEqual(unignoreAllBtn.textContent, 'Alle wieder anzeigen');
+    await unignoreAllBtn.click();
+
+    assert.strictEqual(
+        env.groupBanner.querySelector('.smart-inbox-group-banner-error'),
+        null,
+        'Stale error message must not reappear after "Alle wieder anzeigen"'
+    );
+    assert.strictEqual(
+        env.groupBanner.innerHTML.includes('Serien-Start fehlgeschlagen. Bitte erneut versuchen.'),
+        false,
+        'Banner HTML must not contain stale error message after "Alle wieder anzeigen"'
+    );
+
+    // 3. Verify that "Ignorieren" alone and "Wieder anzeigen" (single & all) alone each clear the error
+    await env.groupBanner.querySelector('.btn-banner-apply-group').click();
+    assert.ok(env.groupBanner.querySelector('.smart-inbox-group-banner-error'));
+    await env.groupBanner.querySelector('.btn-banner-ignore-group').click();
+    mockLocalStorage.removeItem('smart-inbox-ignore-group-Alpha');
+    globalThis.renderSmartInboxList(suggestions, new Set());
+    assert.strictEqual(
+        env.groupBanner.querySelector('.smart-inbox-group-banner-error'),
+        null,
+        'Ignorieren alone must already clear bannerApplyErrors for the group'
+    );
+
+    await env.groupBanner.querySelector('.btn-banner-apply-group').click();
+    assert.ok(env.groupBanner.querySelector('.smart-inbox-group-banner-error'));
+    mockLocalStorage.setItem('smart-inbox-ignore-group-Alpha', '{"ignored":true}');
+    globalThis.renderSmartInboxList(suggestions, new Set());
+    await env.groupBanner.querySelector('.btn-banner-unignore-group').click();
+    assert.strictEqual(
+        env.groupBanner.querySelector('.smart-inbox-group-banner-error'),
+        null,
+        'Single "Wieder anzeigen" alone must clear bannerApplyErrors for the group'
+    );
+
+    await env.groupBanner.querySelector('.btn-banner-apply-group').click();
+    assert.ok(env.groupBanner.querySelector('.smart-inbox-group-banner-error'));
+    mockLocalStorage.setItem('smart-inbox-ignore-group-Alpha', '{"ignored":true}');
+    globalThis.renderSmartInboxList(suggestions, new Set());
+    await env.groupBanner.querySelector('.btn-banner-unignore-all').click();
+    assert.strictEqual(
+        env.groupBanner.querySelector('.smart-inbox-group-banner-error'),
+        null,
+        '"Alle wieder anzeigen" alone must clear bannerApplyErrors for the group'
+    );
+});
+
+// --------------------------------------------------------------------------
+// AK16: localStorage === undefined blendet Gruppe für die Sitzung aus und ruft console.warn auf (F-G)
+// --------------------------------------------------------------------------
+test('AK16: Bei localStorage === undefined blendet "Ignorieren" die Gruppe für die Sitzung aus und ruft console.warn auf', async () => {
+    mockLocalStorage.clear();
+    mockSessionStorage.clear();
+    const env = setupTestEnvironment();
+    await new Promise(r => setImmediate(r));
+
+    globalThis.localStorage = undefined;
+
+    const suggestions = makeThreeGroupsSuggestions().slice(0, 4); // Alpha and Beta
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    env.consoleWarns.length = 0;
+
+    const ignoreBtn = env.groupBanner.querySelector('.btn-banner-ignore-group');
+    assert.strictEqual(ignoreBtn.textContent, 'Ignorieren');
+    await ignoreBtn.click();
+
+    assert.ok(
+        env.consoleWarns.length > 0,
+        'console.warn must be called when localStorage is undefined'
+    );
+
+    const openApplyBtns = env.groupBanner.querySelectorAll('.btn-banner-apply-group');
+    assert.strictEqual(openApplyBtns.length, 1, 'Alpha must be hidden for the session when localStorage is undefined');
+    assert.strictEqual(openApplyBtns[0].getAttribute('data-group-key'), 'Beta');
+
+    const ignoredZone = env.groupBanner.querySelector('.smart-inbox-group-banner-ignored');
+    assert.ok(ignoredZone, 'Restore zone must show Alpha from in-memory fallback');
+    assert.strictEqual(
+        ignoredZone.querySelector('.smart-inbox-group-banner-toggle').textContent,
+        'Ausgeblendete Vorschläge (1) – wieder anzeigen'
+    );
+
+    globalThis.localStorage = mockLocalStorage;
+});
