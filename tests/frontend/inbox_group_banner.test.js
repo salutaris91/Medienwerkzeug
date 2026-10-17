@@ -1420,3 +1420,112 @@ test('AK16: Bei localStorage === undefined blendet "Ignorieren" die Gruppe für 
 
     globalThis.localStorage = mockLocalStorage;
 });
+
+// --------------------------------------------------------------------------
+// AK17: Aufklapp-Zustand von "Weitere Vorschläge" und "Ausgeblendete Vorschläge" bleibt über Re-Renders erhalten (F-I)
+// --------------------------------------------------------------------------
+test('AK17: Aufklapp-Zustand von "Weitere Vorschläge" und "Ausgeblendete Vorschläge" bleibt bei erneutem renderSmartInboxList erhalten (Auf- und Zuklappen) und startet bei frischem Modulzustand (zweiter eval) eingeklappt', async () => {
+    mockLocalStorage.clear();
+    mockSessionStorage.clear();
+    const env = setupTestEnvironment();
+
+    const suggestions = [
+        ...makeThreeGroupsSuggestions(),
+        { project: 'Delta.S01E01.mkv', suggested_query: 'Delta', media_type: 'tv', is_dir: false, video_count: 1 },
+        { project: 'Delta.S01E02.mkv', suggested_query: 'Delta', media_type: 'tv', is_dir: false, video_count: 1 }
+    ];
+    mockLocalStorage.setItem('smart-inbox-ignore-group-Delta', '{"ignored":true}');
+
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    // Initial state: both collapsed
+    let moreToggle = env.groupBanner.querySelector('.smart-inbox-group-banner-more-toggle');
+    let moreList = env.groupBanner.querySelector('.smart-inbox-group-banner-more-list');
+    let ignoredToggle = env.groupBanner.querySelector('.smart-inbox-group-banner-ignored-toggle');
+    let ignoredList = env.groupBanner.querySelector('.smart-inbox-group-banner-ignored-list');
+
+    assert.strictEqual(moreToggle.getAttribute('aria-expanded'), 'false');
+    assert.strictEqual(moreList.style.display, 'none');
+    assert.strictEqual(ignoredToggle.getAttribute('aria-expanded'), 'false');
+    assert.strictEqual(ignoredList.style.display, 'none');
+
+    // Expand "Weitere Vorschläge" and re-render with same suggestions (simulating 6s status poll)
+    await moreToggle.click();
+    assert.strictEqual(moreToggle.getAttribute('aria-expanded'), 'true');
+    assert.notStrictEqual(moreList.style.display, 'none');
+
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    moreToggle = env.groupBanner.querySelector('.smart-inbox-group-banner-more-toggle');
+    moreList = env.groupBanner.querySelector('.smart-inbox-group-banner-more-list');
+    ignoredToggle = env.groupBanner.querySelector('.smart-inbox-group-banner-ignored-toggle');
+    ignoredList = env.groupBanner.querySelector('.smart-inbox-group-banner-ignored-list');
+
+    assert.strictEqual(moreToggle.getAttribute('aria-expanded'), 'true', '"Weitere Vorschläge" must stay expanded across renderSmartInboxList');
+    assert.notStrictEqual(moreList.style.display, 'none', '"Weitere Vorschläge" list must stay visible across renderSmartInboxList');
+    assert.strictEqual(ignoredToggle.getAttribute('aria-expanded'), 'false', '"Ausgeblendete Vorschläge" must still be collapsed');
+    assert.strictEqual(ignoredList.style.display, 'none', '"Ausgeblendete Vorschläge" list must still be hidden');
+
+    // Expand "Ausgeblendete Vorschläge" and re-render with same suggestions
+    await ignoredToggle.click();
+    assert.strictEqual(ignoredToggle.getAttribute('aria-expanded'), 'true');
+    assert.notStrictEqual(ignoredList.style.display, 'none');
+
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    moreToggle = env.groupBanner.querySelector('.smart-inbox-group-banner-more-toggle');
+    moreList = env.groupBanner.querySelector('.smart-inbox-group-banner-more-list');
+    ignoredToggle = env.groupBanner.querySelector('.smart-inbox-group-banner-ignored-toggle');
+    ignoredList = env.groupBanner.querySelector('.smart-inbox-group-banner-ignored-list');
+
+    assert.strictEqual(moreToggle.getAttribute('aria-expanded'), 'true', '"Weitere Vorschläge" must remain expanded');
+    assert.notStrictEqual(moreList.style.display, 'none', '"Weitere Vorschläge" list must remain visible');
+    assert.strictEqual(ignoredToggle.getAttribute('aria-expanded'), 'true', '"Ausgeblendete Vorschläge" must stay expanded across renderSmartInboxList');
+    assert.notStrictEqual(ignoredList.style.display, 'none', '"Ausgeblendete Vorschläge" list must stay visible across renderSmartInboxList');
+
+    // Collapse "Weitere Vorschläge" and verify collapse persists across re-render while "Ausgeblendete Vorschläge" stays expanded
+    await moreToggle.click();
+    assert.strictEqual(moreToggle.getAttribute('aria-expanded'), 'false');
+    assert.strictEqual(moreList.style.display, 'none');
+
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    moreToggle = env.groupBanner.querySelector('.smart-inbox-group-banner-more-toggle');
+    moreList = env.groupBanner.querySelector('.smart-inbox-group-banner-more-list');
+    ignoredToggle = env.groupBanner.querySelector('.smart-inbox-group-banner-ignored-toggle');
+    ignoredList = env.groupBanner.querySelector('.smart-inbox-group-banner-ignored-list');
+
+    assert.strictEqual(moreToggle.getAttribute('aria-expanded'), 'false', 'Collapsed state of "Weitere Vorschläge" must persist across renderSmartInboxList');
+    assert.strictEqual(moreList.style.display, 'none', 'Hidden list of "Weitere Vorschläge" must persist across renderSmartInboxList');
+    assert.strictEqual(ignoredToggle.getAttribute('aria-expanded'), 'true', '"Ausgeblendete Vorschläge" must still be expanded');
+    assert.notStrictEqual(ignoredList.style.display, 'none');
+
+    // Collapse "Ausgeblendete Vorschläge" and verify collapse persists across re-render
+    await ignoredToggle.click();
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    ignoredToggle = env.groupBanner.querySelector('.smart-inbox-group-banner-ignored-toggle');
+    ignoredList = env.groupBanner.querySelector('.smart-inbox-group-banner-ignored-list');
+    assert.strictEqual(ignoredToggle.getAttribute('aria-expanded'), 'false', 'Collapsed state of "Ausgeblendete Vorschläge" must persist across renderSmartInboxList');
+    assert.strictEqual(ignoredList.style.display, 'none', 'Hidden list of "Ausgeblendete Vorschläge" must persist across renderSmartInboxList');
+
+    // Expand both again, then run second eval (fresh module state) -> both must start collapsed
+    moreToggle = env.groupBanner.querySelector('.smart-inbox-group-banner-more-toggle');
+    await moreToggle.click();
+    await ignoredToggle.click();
+    assert.strictEqual(moreToggle.getAttribute('aria-expanded'), 'true');
+    assert.strictEqual(ignoredToggle.getAttribute('aria-expanded'), 'true');
+
+    const env2 = setupTestEnvironment();
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    const moreToggle2 = env2.groupBanner.querySelector('.smart-inbox-group-banner-more-toggle');
+    const moreList2 = env2.groupBanner.querySelector('.smart-inbox-group-banner-more-list');
+    const ignoredToggle2 = env2.groupBanner.querySelector('.smart-inbox-group-banner-ignored-toggle');
+    const ignoredList2 = env2.groupBanner.querySelector('.smart-inbox-group-banner-ignored-list');
+
+    assert.strictEqual(moreToggle2.getAttribute('aria-expanded'), 'false', 'Fresh module state must start with "Weitere Vorschläge" collapsed');
+    assert.strictEqual(moreList2.style.display, 'none', 'Fresh module state must start with "Weitere Vorschläge" list hidden');
+    assert.strictEqual(ignoredToggle2.getAttribute('aria-expanded'), 'false', 'Fresh module state must start with "Ausgeblendete Vorschläge" collapsed');
+    assert.strictEqual(ignoredList2.style.display, 'none', 'Fresh module state must start with "Ausgeblendete Vorschläge" list hidden');
+});

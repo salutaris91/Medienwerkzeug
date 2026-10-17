@@ -12476,6 +12476,8 @@ let expandedInboxGroups = new Set();
 let ignoredInboxGroupsFallback = new Set();
 let bannerApplyErrors = new Map();
 let groupWorkflowRunning = false;
+let bannerMoreProposalsExpanded = false;
+let bannerIgnoredProposalsExpanded = false;
 let activeSeriesGroupFiles = null;
 let activeSeriesGroupName = "";
 
@@ -12722,13 +12724,16 @@ function updateGroupBannerUI(validGroups) {
             `;
         });
 
+        const moreExpandedAttr = bannerMoreProposalsExpanded ? "true" : "false";
+        const moreListDisplay = bannerMoreProposalsExpanded ? "flex" : "none";
+
         html += `
             <div class="smart-inbox-group-banner-more">
-                <button type="button" class="smart-inbox-group-banner-toggle smart-inbox-group-banner-more-toggle" aria-expanded="false">
+                <button type="button" class="smart-inbox-group-banner-toggle smart-inbox-group-banner-more-toggle" aria-expanded="${moreExpandedAttr}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right"><polyline points="9 18 15 12 9 6"/></svg>
                     <span>Weitere Vorschläge (${moreGroups.length})</span>
                 </button>
-                <div class="smart-inbox-group-banner-more-list" style="display: none;">
+                <div class="smart-inbox-group-banner-more-list" style="display: ${moreListDisplay};">
                     ${moreItemsHtml}
                 </div>
             </div>
@@ -12753,10 +12758,13 @@ function updateGroupBannerUI(validGroups) {
             `;
         });
 
+        const ignoredExpandedAttr = bannerIgnoredProposalsExpanded ? "true" : "false";
+        const ignoredListDisplay = bannerIgnoredProposalsExpanded ? "flex" : "none";
+
         html += `
             <div class="smart-inbox-group-banner-ignored">
                 <div class="smart-inbox-group-banner-ignored-header">
-                    <button type="button" class="smart-inbox-group-banner-toggle smart-inbox-group-banner-ignored-toggle" aria-expanded="false">
+                    <button type="button" class="smart-inbox-group-banner-toggle smart-inbox-group-banner-ignored-toggle" aria-expanded="${ignoredExpandedAttr}">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right"><polyline points="9 18 15 12 9 6"/></svg>
                         <span>Ausgeblendete Vorschläge (${ignoredGroups.length}) – wieder anzeigen</span>
                     </button>
@@ -12764,7 +12772,7 @@ function updateGroupBannerUI(validGroups) {
                         <button type="button" class="btn btn-secondary btn-xs btn-banner-unignore-all">Alle wieder anzeigen</button>
                     </div>
                 </div>
-                <div class="smart-inbox-group-banner-ignored-list" style="display: none;">
+                <div class="smart-inbox-group-banner-ignored-list" style="display: ${ignoredListDisplay};">
                     ${ignoredItemsHtml}
                 </div>
             </div>
@@ -12776,28 +12784,34 @@ function updateGroupBannerUI(validGroups) {
 
     const moreToggle = banner.querySelector(".smart-inbox-group-banner-more-toggle");
     const moreList = banner.querySelector(".smart-inbox-group-banner-more-list");
+    if (moreToggle) {
+        moreToggle.setAttribute("aria-expanded", bannerMoreProposalsExpanded ? "true" : "false");
+    }
     if (moreList) {
-        moreList.style.display = "none";
+        moreList.style.display = bannerMoreProposalsExpanded ? "flex" : "none";
     }
     if (moreToggle && moreList) {
         const toggleMore = () => {
-            const isExpanded = moreToggle.getAttribute("aria-expanded") === "true";
-            moreToggle.setAttribute("aria-expanded", isExpanded ? "false" : "true");
-            moreList.style.display = isExpanded ? "none" : "flex";
+            bannerMoreProposalsExpanded = !bannerMoreProposalsExpanded;
+            moreToggle.setAttribute("aria-expanded", bannerMoreProposalsExpanded ? "true" : "false");
+            moreList.style.display = bannerMoreProposalsExpanded ? "flex" : "none";
         };
         moreToggle.addEventListener("click", toggleMore);
     }
 
     const ignoredToggle = banner.querySelector(".smart-inbox-group-banner-ignored-toggle");
     const ignoredList = banner.querySelector(".smart-inbox-group-banner-ignored-list");
+    if (ignoredToggle) {
+        ignoredToggle.setAttribute("aria-expanded", bannerIgnoredProposalsExpanded ? "true" : "false");
+    }
     if (ignoredList) {
-        ignoredList.style.display = "none";
+        ignoredList.style.display = bannerIgnoredProposalsExpanded ? "flex" : "none";
     }
     if (ignoredToggle && ignoredList) {
         const toggleIgnored = () => {
-            const isExpanded = ignoredToggle.getAttribute("aria-expanded") === "true";
-            ignoredToggle.setAttribute("aria-expanded", isExpanded ? "false" : "true");
-            ignoredList.style.display = isExpanded ? "none" : "flex";
+            bannerIgnoredProposalsExpanded = !bannerIgnoredProposalsExpanded;
+            ignoredToggle.setAttribute("aria-expanded", bannerIgnoredProposalsExpanded ? "true" : "false");
+            ignoredList.style.display = bannerIgnoredProposalsExpanded ? "flex" : "none";
         };
         ignoredToggle.addEventListener("click", toggleIgnored);
     }
