@@ -2242,6 +2242,8 @@ Klein bis mittel (Backend + Tests; Auswirkungen auf bestehende Profile/Zuordnung
 
 ## 85. Inbox-Gruppen-Banner: Aufklapp-Zustand innerhalb der Sitzung halten
 
+**Status:** [x] erledigt in der Kette #75 (Lauf 3, 2026-10-17) — Handtest Alex: Banner klappte durch den 6-Sekunden-Takt (`loadStatus` → `renderSmartInboxList`) von selbst zu.
+
 **Einordnung / Priorität:** Niedrig. Befund F-E aus dem Rückkanal zu #75 (2026-10-17), Vorschlag des produktberater.
 
 **Problem:**

@@ -415,3 +415,15 @@ Zusätzliche Akzeptanzkriterien (in `tests/frontend/inbox_group_banner.test.js`)
 - AK1–AK14 bleiben grün; AK13 (keine Test-Weichen) gilt unverändert.
 
 Schreibgrenzen Lauf 2: nur `gui/static/app.js` (nur `setInboxGroupIgnored`, `clearInboxGroupIgnored`, die Banner-Handler in `updateGroupBannerUI` und der Banner-Apply-Handler) und `tests/frontend/inbox_group_banner.test.js` (AK15/AK16 ergänzen; Harness darf angepasst werden, bestehende Testfälle inhaltlich unverändert). Cache-Buster bleibt `app.js?v=103` / `style.css?v=51` (noch nicht ausgeliefert). Alles andere wie oben.
+
+## Nachtrag Lauf 3 (Alex, wörtlich, 2026-10-17: „ja gerne gkattziehen; der Rest des Handtests sah gut aus“)
+
+Quelle: Handtest Alex (2026-10-17) auf Stand `4785da5`: „Weitere Vorschläge“ klappt nach kurzer Zeit von selbst wieder zu. Ursache (von Claude Code im Code belegt): `setInterval(loadStatus, 6000)` (`app.js:556`) → `updateHomepageData` (`:2275`) → `renderSmartInboxList` (`:12372`) → `updateGroupBannerUI` baut das Banner per `innerHTML` neu und setzt beide Bereiche auf eingeklappt (`:12727`, `:12759` `aria-expanded="false"`; `:12780`, `:12794` `display = "none"`). Die Annahme in Abschnitt 4 („Banner wird bei jeder Aktion neu gezeichnet“) übersah diesen 6-Sekunden-Takt; der dort verworfene „merkende Aufklapp-Zustand“ wird hiermit für die Dauer der Seite eingeführt (ROADMAP #85 wird damit in dieser Kette erledigt). Ausgangsstand: Commit `4785da5`. Lauf 3 ändert **nur** Folgendes:
+
+- **F-I [wichtig] Aufklapp-Zustand halten:** Der Aufklapp-Zustand von „Weitere Vorschläge“ und „Ausgeblendete Vorschläge“ wird in zwei Modul-Variablen gehalten (deklariert neben `groupWorkflowRunning`, `:12478`), beim Klick auf den jeweiligen Toggle umgeschaltet und bei JEDEM Rendern von `updateGroupBannerUI` angewendet (`aria-expanded` und `display` der Liste passend). Standard beim Laden der Seite: beide eingeklappt. Kein Speichern über Neuladen (kein `localStorage`/`sessionStorage`). Der 6-Sekunden-Takt und `renderSmartInboxList` bleiben unverändert.
+
+Zusätzliches Akzeptanzkriterium (in `tests/frontend/inbox_group_banner.test.js`):
+- **AK17:** Es prüft, dass „Weitere Vorschläge“ nach dem Aufklappen und einem erneuten `renderSmartInboxList`-Aufruf mit denselben Vorschlägen (wie der 6-Sekunden-Takt) aufgeklappt bleibt (`aria-expanded="true"`, Liste sichtbar), ebenso „Ausgeblendete Vorschläge“; dass Zuklappen ebenfalls erhalten bleibt; und dass bei frischem Modulzustand (zweiter `eval`) beide eingeklappt sind. Der Test muss gegen `4785da5` rot sein und darf keine neuen globalen Symbole aus `app.js` voraussetzen.
+- AK1–AK16 bleiben grün (AK1 „Standard eingeklappt“ gilt weiter für den ersten Aufbau).
+
+Schreibgrenzen Lauf 3: nur `gui/static/app.js` (nur die Modul-Deklarationen bei `:12474–12478` und `updateGroupBannerUI`) und `tests/frontend/inbox_group_banner.test.js` (AK17 ergänzen; bestehende Testfälle inhaltlich unverändert). Cache-Buster bleibt `app.js?v=103` / `style.css?v=51`. Alles andere wie oben.
