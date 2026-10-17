@@ -1,12 +1,12 @@
-import { applyTheme } from './js/theme.js?v=102';
-import { cleanSeriesName } from './js/utils.js?v=102';
-import { formatBytes } from './js/format.js?v=102';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=102';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=102';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=102';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=102';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=102';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=102';
+import { applyTheme } from './js/theme.js?v=103';
+import { cleanSeriesName } from './js/utils.js?v=103';
+import { formatBytes } from './js/format.js?v=103';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=103';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=103';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=103';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=103';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=103';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=103';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -12473,6 +12473,9 @@ let selectedInboxProjects = new Set();
 let unlockedMovieProjects = new Set();
 let appliedInboxGroups = new Set();
 let expandedInboxGroups = new Set();
+let ignoredInboxGroupsFallback = new Set();
+let bannerApplyErrors = new Map();
+let groupWorkflowRunning = false;
 let activeSeriesGroupFiles = null;
 let activeSeriesGroupName = "";
 
@@ -12591,76 +12594,277 @@ function buildGroupedInboxSuggestions(suggestions, appliedGroups) {
     return result;
 }
 
+function isInboxGroupIgnored(groupKey) {
+    try {
+        if (typeof localStorage !== "undefined" && localStorage !== null) {
+            const raw = localStorage.getItem("smart-inbox-ignore-group-" + groupKey);
+            if (raw !== null) {
+                const parsed = JSON.parse(raw);
+                if (parsed && parsed.ignored === true) {
+                    return true;
+                }
+            }
+        }
+    } catch (err) {
+        console.warn("Ignorier-Zustand für Inbox-Gruppe konnte nicht aus localStorage gelesen werden:", err);
+    }
+    return ignoredInboxGroupsFallback.has(groupKey);
+}
+
+function setInboxGroupIgnored(groupKey) {
+    try {
+        if (typeof localStorage !== "undefined" && localStorage !== null) {
+            localStorage.setItem("smart-inbox-ignore-group-" + groupKey, JSON.stringify({ ignored: true }));
+        } else {
+            ignoredInboxGroupsFallback.add(groupKey);
+        }
+    } catch (err) {
+        ignoredInboxGroupsFallback.add(groupKey);
+        console.warn("Ignorier-Zustand für Inbox-Gruppe konnte nicht in localStorage gespeichert werden (nutze Sitzungs-Fallback):", err);
+    }
+}
+
+function clearInboxGroupIgnored(groupKey) {
+    ignoredInboxGroupsFallback.delete(groupKey);
+    try {
+        if (typeof localStorage !== "undefined" && localStorage !== null) {
+            localStorage.removeItem("smart-inbox-ignore-group-" + groupKey);
+        }
+    } catch (err) {
+        console.warn("Ignorier-Zustand für Inbox-Gruppe konnte nicht aus localStorage entfernt werden:", err);
+    }
+}
+
+function formatGroupSeasonsLabel(members) {
+    const seasons = Array.from(new Set(members.map(m => m._se.season))).sort((a, b) => a - b);
+    return seasons.length > 1 ? `Staffeln ${seasons.join(', ')}` : `Staffel ${seasons[0]}`;
+}
+
 function updateGroupBannerUI(validGroups) {
     const banner = document.getElementById("smart-inbox-group-banner");
     if (!banner) return;
 
-    let bannerCandidate = null;
-    for (const [groupKey, members] of Object.entries(validGroups)) {
-        let isIgnored = false;
-        try {
-            if (typeof sessionStorage !== 'undefined') {
-                isIgnored = sessionStorage.getItem('smart-inbox-ignore-group-' + groupKey) === 'true';
-            }
-        } catch (e) {}
-        if (!appliedInboxGroups.has(groupKey) && !isIgnored) {
-            bannerCandidate = { groupKey, members };
-            break;
-        }
-    }
-
-    if (!bannerCandidate) {
+    const entries = validGroups && typeof validGroups === "object" ? Object.entries(validGroups) : [];
+    if (entries.length === 0) {
         banner.style.display = "none";
         banner.innerHTML = "";
         return;
     }
 
-    const { groupKey, members } = bannerCandidate;
-    const seasons = Array.from(new Set(members.map(m => m._se.season))).sort((a, b) => a - b);
-    const seasonsStr = seasons.length > 1 ? `Staffeln ${seasons.join(', ')}` : `Staffel ${seasons[0]}`;
+    const openGroups = [];
+    const ignoredGroups = [];
+
+    for (const [groupKey, members] of entries) {
+        const isIgnored = isInboxGroupIgnored(groupKey);
+        if (isIgnored) {
+            ignoredGroups.push({ groupKey, members });
+        } else if (!appliedInboxGroups.has(groupKey)) {
+            openGroups.push({ groupKey, members });
+        }
+    }
+
+    if (openGroups.length === 0 && ignoredGroups.length === 0) {
+        banner.style.display = "none";
+        banner.innerHTML = "";
+        return;
+    }
+
+    let html = "";
+
+    if (openGroups.length > 0) {
+        const primary = openGroups[0];
+        const primarySeasonsStr = formatGroupSeasonsLabel(primary.members);
+        const primaryError = bannerApplyErrors.has(primary.groupKey)
+            ? `<div class="smart-inbox-group-banner-error" role="alert" aria-live="polite">${escapeHTML(bannerApplyErrors.get(primary.groupKey))}</div>`
+            : "";
+
+        html += `
+            <div class="smart-inbox-group-banner-primary">
+                <div class="smart-inbox-group-banner-row">
+                    <div class="smart-inbox-group-banner-content">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers" style="color: #c4b5fd;"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                        <span>Als Serie gruppieren: <strong>${escapeHTML(primary.groupKey)}</strong> (${primary.members.length} Folgen, ${primarySeasonsStr})</span>
+                    </div>
+                    <div class="smart-inbox-group-banner-actions">
+                        <button type="button" class="btn btn-primary btn-xs btn-banner-apply-group" data-group-key="${escapeHTML(primary.groupKey)}">Als Serie gruppieren</button>
+                        <button type="button" class="btn btn-secondary btn-xs btn-banner-ignore-group" data-group-key="${escapeHTML(primary.groupKey)}">Ignorieren</button>
+                    </div>
+                </div>
+                ${primaryError}
+            </div>
+        `;
+    }
+
+    if (openGroups.length > 1) {
+        const moreGroups = openGroups.slice(1);
+        let moreItemsHtml = "";
+        moreGroups.forEach(({ groupKey, members }) => {
+            const seasonsStr = formatGroupSeasonsLabel(members);
+            const itemError = bannerApplyErrors.has(groupKey)
+                ? `<div class="smart-inbox-group-banner-error" role="alert" aria-live="polite">${escapeHTML(bannerApplyErrors.get(groupKey))}</div>`
+                : "";
+            moreItemsHtml += `
+                <div class="smart-inbox-group-banner-item">
+                    <div class="smart-inbox-group-banner-row">
+                        <div class="smart-inbox-group-banner-content">
+                            <span>Als Serie gruppieren: <strong>${escapeHTML(groupKey)}</strong> (${members.length} Folgen, ${seasonsStr})</span>
+                        </div>
+                        <div class="smart-inbox-group-banner-actions">
+                            <button type="button" class="btn btn-primary btn-xs btn-banner-apply-group" data-group-key="${escapeHTML(groupKey)}">Als Serie gruppieren</button>
+                            <button type="button" class="btn btn-secondary btn-xs btn-banner-ignore-group" data-group-key="${escapeHTML(groupKey)}">Ignorieren</button>
+                        </div>
+                    </div>
+                    ${itemError}
+                </div>
+            `;
+        });
+
+        html += `
+            <div class="smart-inbox-group-banner-more">
+                <button type="button" class="smart-inbox-group-banner-toggle smart-inbox-group-banner-more-toggle" aria-expanded="false">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right"><polyline points="9 18 15 12 9 6"/></svg>
+                    <span>Weitere Vorschläge (${moreGroups.length})</span>
+                </button>
+                <div class="smart-inbox-group-banner-more-list" style="display: none;">
+                    ${moreItemsHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    if (ignoredGroups.length > 0) {
+        let ignoredItemsHtml = "";
+        ignoredGroups.forEach(({ groupKey, members }) => {
+            const seasonsStr = formatGroupSeasonsLabel(members);
+            ignoredItemsHtml += `
+                <div class="smart-inbox-group-banner-item">
+                    <div class="smart-inbox-group-banner-row">
+                        <div class="smart-inbox-group-banner-content">
+                            <span><strong>${escapeHTML(groupKey)}</strong> (${members.length} Folgen, ${seasonsStr})</span>
+                        </div>
+                        <div class="smart-inbox-group-banner-actions">
+                            <button type="button" class="btn btn-secondary btn-xs btn-banner-unignore-group" data-group-key="${escapeHTML(groupKey)}">Wieder anzeigen</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `
+            <div class="smart-inbox-group-banner-ignored">
+                <div class="smart-inbox-group-banner-ignored-header">
+                    <button type="button" class="smart-inbox-group-banner-toggle smart-inbox-group-banner-ignored-toggle" aria-expanded="false">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right"><polyline points="9 18 15 12 9 6"/></svg>
+                        <span>Ausgeblendete Vorschläge (${ignoredGroups.length}) – wieder anzeigen</span>
+                    </button>
+                    <div class="smart-inbox-group-banner-actions">
+                        <button type="button" class="btn btn-secondary btn-xs btn-banner-unignore-all">Alle wieder anzeigen</button>
+                    </div>
+                </div>
+                <div class="smart-inbox-group-banner-ignored-list" style="display: none;">
+                    ${ignoredItemsHtml}
+                </div>
+            </div>
+        `;
+    }
 
     banner.style.display = "flex";
-    banner.innerHTML = `
-        <div class="smart-inbox-group-banner-content">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers" style="color: #c4b5fd;"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-            <span>Als Serie gruppieren: <strong>${escapeHTML(groupKey)}</strong> (${members.length} Folgen, ${seasonsStr})</span>
-        </div>
-        <div class="smart-inbox-group-banner-actions">
-            <button class="btn btn-primary btn-xs btn-banner-apply-group" data-group-key="${escapeHTML(groupKey)}">Als Serie gruppieren</button>
-            <button class="btn btn-secondary btn-xs btn-banner-ignore-group" data-group-key="${escapeHTML(groupKey)}">Ignorieren</button>
-        </div>
-    `;
+    banner.innerHTML = html;
 
-    banner.querySelector(".btn-banner-ignore-group")?.addEventListener("click", () => {
-        try {
-            if (typeof sessionStorage !== 'undefined') {
-                sessionStorage.setItem('smart-inbox-ignore-group-' + groupKey, 'true');
-            }
-        } catch (e) {}
-        renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
-    });
+    const moreToggle = banner.querySelector(".smart-inbox-group-banner-more-toggle");
+    const moreList = banner.querySelector(".smart-inbox-group-banner-more-list");
+    if (moreList) {
+        moreList.style.display = "none";
+    }
+    if (moreToggle && moreList) {
+        const toggleMore = () => {
+            const isExpanded = moreToggle.getAttribute("aria-expanded") === "true";
+            moreToggle.setAttribute("aria-expanded", isExpanded ? "false" : "true");
+            moreList.style.display = isExpanded ? "none" : "flex";
+        };
+        moreToggle.addEventListener("click", toggleMore);
+    }
 
-    banner.querySelector(".btn-banner-apply-group")?.addEventListener("click", async (e) => {
-        const btn = e.currentTarget || e.target;
-        if (btn && btn.disabled) return;
-        let originalContent = "";
-        if (btn) {
-            btn.disabled = true;
-            originalContent = btn.innerHTML;
-            btn.textContent = "wird gestartet…";
-        }
-        try {
-            appliedInboxGroups.add(groupKey);
+    const ignoredToggle = banner.querySelector(".smart-inbox-group-banner-ignored-toggle");
+    const ignoredList = banner.querySelector(".smart-inbox-group-banner-ignored-list");
+    if (ignoredList) {
+        ignoredList.style.display = "none";
+    }
+    if (ignoredToggle && ignoredList) {
+        const toggleIgnored = () => {
+            const isExpanded = ignoredToggle.getAttribute("aria-expanded") === "true";
+            ignoredToggle.setAttribute("aria-expanded", isExpanded ? "false" : "true");
+            ignoredList.style.display = isExpanded ? "none" : "flex";
+        };
+        ignoredToggle.addEventListener("click", toggleIgnored);
+    }
+
+    const ignoreBtns = banner.querySelectorAll(".btn-banner-ignore-group");
+    ignoreBtns.forEach((btn, idx) => {
+        const candidate = openGroups[idx];
+        if (!candidate) return;
+        btn.addEventListener("click", () => {
+            setInboxGroupIgnored(candidate.groupKey);
             renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
-            const files = members.map(m => inboxFilesEntryForItem(m));
-            await startSeriesGroupWorkflow(groupKey, files);
-        } catch (err) {
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = originalContent;
-            }
-        }
+        });
     });
+
+    const applyBtns = banner.querySelectorAll(".btn-banner-apply-group");
+    applyBtns.forEach((btn, idx) => {
+        const candidate = openGroups[idx];
+        if (!candidate) return;
+        const { groupKey, members } = candidate;
+        btn.addEventListener("click", async (e) => {
+            if (groupWorkflowRunning) return;
+            const targetBtn = e.currentTarget || e.target;
+            if (targetBtn && targetBtn.disabled) return;
+            groupWorkflowRunning = true;
+            let originalContent = "";
+            if (targetBtn) {
+                targetBtn.disabled = true;
+                originalContent = targetBtn.innerHTML;
+                targetBtn.textContent = "wird gestartet…";
+            }
+            try {
+                bannerApplyErrors.delete(groupKey);
+                appliedInboxGroups.add(groupKey);
+                renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+                const files = members.map(m => inboxFilesEntryForItem(m));
+                await startSeriesGroupWorkflow(groupKey, files);
+            } catch (err) {
+                appliedInboxGroups.delete(groupKey);
+                console.error("Serien-Start aus Gruppenbanner fehlgeschlagen:", err);
+                bannerApplyErrors.set(groupKey, "Serien-Start fehlgeschlagen. Bitte erneut versuchen.");
+                renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+                if (targetBtn) {
+                    targetBtn.disabled = false;
+                    targetBtn.innerHTML = originalContent;
+                }
+            } finally {
+                groupWorkflowRunning = false;
+            }
+        });
+    });
+
+    const unignoreBtns = banner.querySelectorAll(".btn-banner-unignore-group");
+    unignoreBtns.forEach((btn, idx) => {
+        const candidate = ignoredGroups[idx];
+        if (!candidate) return;
+        btn.addEventListener("click", () => {
+            clearInboxGroupIgnored(candidate.groupKey);
+            renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+        });
+    });
+
+    const unignoreAllBtn = banner.querySelector(".btn-banner-unignore-all");
+    if (unignoreAllBtn) {
+        unignoreAllBtn.addEventListener("click", () => {
+            ignoredGroups.forEach(({ groupKey }) => {
+                clearInboxGroupIgnored(groupKey);
+            });
+            renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+        });
+    }
 }
 
 function detectManualGroupSeriesName(files, fallbackName) {

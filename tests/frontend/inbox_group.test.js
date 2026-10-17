@@ -835,8 +835,14 @@ test('AK3: Group banner appears above sort bar and grouping is only applied afte
     assert.strictEqual(finalGroupRows[0].getAttribute('data-group-key'), 'Show');
 });
 
-test('AK3: Banner "Ignorieren" saves to sessionStorage and hides banner for session', () => {
+test('AK3: Banner "Ignorieren" saves to localStorage and keeps banner visible with restore counter', () => {
     const env = setupTestEnvironment();
+    const localStore = {};
+    globalThis.localStorage = {
+        getItem: (key) => (key in localStore ? localStore[key] : null),
+        setItem: (key, val) => { localStore[key] = String(val); },
+        removeItem: (key) => { delete localStore[key]; }
+    };
     const suggestions = [
         {
             project: 'Show.S01E01.mkv',
@@ -861,8 +867,11 @@ test('AK3: Banner "Ignorieren" saves to sessionStorage and hides banner for sess
     assert.ok(ignoreBtn, 'Banner must have ignore button');
     ignoreBtn.click();
 
-    assert.strictEqual(globalThis.sessionStorage.getItem('smart-inbox-ignore-group-Show'), 'true');
-    assert.strictEqual(env.groupBanner.style.display, 'none', 'Banner must be hidden after ignore');
+    assert.strictEqual(globalThis.localStorage.getItem('smart-inbox-ignore-group-Show'), '{"ignored":true}');
+    assert.strictEqual(env.groupBanner.querySelector('.btn-banner-apply-group'), null, 'Ignored group must no longer be an open proposal');
+    assert.notStrictEqual(env.groupBanner.style.display, 'none', 'Banner must remain visible with restore zone');
+    assert.ok(env.groupBanner.innerHTML.includes('Ausgeblendete Vorschläge (1)'), 'Banner must show restore counter "Ausgeblendete Vorschläge (1)"');
+    assert.strictEqual(globalThis.sessionStorage.getItem('smart-inbox-ignore-group-Show'), null);
 });
 
 test('AK3 & AK13: Film entries show lock notice and "Als Serie / Folge behandeln" link', () => {
