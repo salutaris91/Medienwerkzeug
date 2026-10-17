@@ -2067,6 +2067,8 @@ Klein (reine Oberfläche, ein Gate-A2-Lauf).
 
 ## 75. Inbox-Gruppen: alle Vorschläge sichtbar, „Ignorieren“ umkehrbar
 
+**Status:** Erledigt (2026-10-17, Branch `feat/roadmap-75-inbox-gruppen`; Banner zeigt alle offenen Vorschläge mit aufklappbarer Liste „Weitere Vorschläge (n)“, „Ignorieren“ in `localStorage` mit Rückweg „Ausgeblendete Vorschläge (n) – wieder anzeigen“ einzeln und für alle, Banner-Fehlerfall aus #80 mit Rücknahme, Inline-Meldung und `console.error`, Doppelstart-Sperre, Cache-Buster app.js v103 / style.css v51. Volles Planungsteam, Gate-A2 Lauf 1 + Lauf 2 (Rückkanal-Auflage F-A, F-G, F-H) + Lauf 3 (Handtest: Aufklapp-Zustand über den 6-Sekunden-Takt) je APPROVED nach 1 Runde, Rückkanal ABNAHME: JA, Handtest Alex bestanden). Folgepunkte → #82–#84, #86.
+
 **Einordnung / Priorität:** Wunsch von Alex aus dem Handtest der Kette Ordner-Folgen (13.10.2026, wörtlich: „perspektivisch sollten wir auch dafür sorgen, dass ähm, alle Zusammenziehvorschläge ähm, darstellbar sind. Und auch es bei selbst wenn man auf Ignorieren klickt, vielleicht weil ähm, noch nicht alle Folgen vorhanden sind, ähm, und man es trotzdem dann ähm, erstmal raushaben möchte, dass es dann sozusagen auch einen Weg zurück gibt.“). Zusammen mit #74 als kleine Kette „Gruppen-Bedienung“ nach dem NAS-Live-Test.
 
 **Problem:**
@@ -2166,6 +2168,8 @@ Je Punkt entscheiden, ob eine Regel nötig ist oder die Grenze dokumentiert blei
 Klein bis mittel (Punkt 1 braucht Metadaten-Kontext).
 
 ## 80. Inbox: stille `catch`-Blöcke in Bulk-Weg, Gruppen-Banner und Gruppenzeile
+
+**Status:** Teilweise erledigt — Banner-Stelle in #75 umgesetzt (2026-10-17); offen bleiben Bulk-Weg und Gruppenzeile.
 
 **Einordnung / Priorität:** Mittel. Befund aus dem Rückkanal zu #77 (2026-10-16, `docs/sessions/2026-10-16-roadmap77-inbox-auswahl/rueckkanal.md`, Hinweis d); vorbestehend.
 
