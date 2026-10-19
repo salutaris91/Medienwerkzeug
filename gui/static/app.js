@@ -12475,6 +12475,8 @@ let appliedInboxGroups = new Set();
 let expandedInboxGroups = new Set();
 let ignoredInboxGroupsFallback = new Set();
 let bannerApplyErrors = new Map();
+let groupRowStartErrors = new Map();
+let bulkStartError = null;
 let groupWorkflowRunning = false;
 let bannerMoreProposalsExpanded = false;
 let bannerIgnoredProposalsExpanded = false;
@@ -12916,17 +12918,22 @@ function updateBulkActionsBarUI() {
     if (!bulkBar) return;
     const count = selectedInboxProjects.size;
     if (count >= 1) {
+        const bulkErrorHtml = bulkStartError
+            ? `<div class="smart-inbox-group-banner-error" role="alert" aria-live="polite" style="width: 100%;">${escapeHTML(bulkStartError)}</div>`
+            : "";
         bulkBar.style.display = "flex";
         bulkBar.innerHTML = `
             <div class="smart-inbox-bulk-info">
                 <span id="smart-inbox-bulk-count">${count} ausgewählt</span>
             </div>
+            ${bulkErrorHtml}
             <div class="smart-inbox-bulk-buttons">
                 <button class="btn btn-secondary btn-xs" id="btn-bulk-deselect">Auswahl aufheben</button>
                 <button class="btn btn-primary btn-xs" id="btn-bulk-group-series">Ausgewählte als Serie verarbeiten</button>
             </div>
         `;
         bulkBar.querySelector("#btn-bulk-deselect")?.addEventListener("click", () => {
+            bulkStartError = null;
             selectedInboxProjects.clear();
             updateBulkActionsBarUI();
             const smartInboxList = document.getElementById("smart-inbox-list");
@@ -12997,21 +13004,30 @@ function updateBulkActionsBarUI() {
                         : `${skippedCount} Einträge sind nicht mehr in der Inbox und wurden übersprungen.`);
                 }
 
+                const hadBulkError = bulkStartError !== null;
+                bulkStartError = null;
                 const files = validItems.map(item => inboxFilesEntryForItem(item));
                 const firstItem = validItems[0];
                 const fallbackName = firstItem ? (firstItem.single_video_query || firstItem.suggested_query || cleanSeriesName(firstItem.project)) : cleanSeriesName(files[0]);
                 const groupName = detectManualGroupSeriesName(files, fallbackName);
                 await startSeriesGroupWorkflow(groupName, files);
+                if (hadBulkError) {
+                    updateBulkActionsBarUI();
+                }
             } catch (err) {
+                console.error("Serien-Start aus Sammelauswahl fehlgeschlagen:", err);
+                bulkStartError = "Serien-Start fehlgeschlagen. Bitte erneut versuchen.";
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = originalContent;
                 }
+                updateBulkActionsBarUI();
             } finally {
                 groupWorkflowRunning = false;
             }
         });
     } else {
+        bulkStartError = null;
         bulkBar.style.display = "none";
         bulkBar.innerHTML = "";
     }
@@ -13345,13 +13361,21 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                                 btn.textContent = "wird gestartet…";
                             }
                             try {
+                                const hadGroupError = groupRowStartErrors.has(item.group_key);
+                                groupRowStartErrors.delete(item.group_key);
                                 const files = seasonMembers.map(m => inboxFilesEntryForItem(m));
                                 await startSeriesGroupWorkflow(item.group_key, files);
+                                if (hadGroupError) {
+                                    renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+                                }
                             } catch (err) {
+                                console.error("Serien-Start für Staffel fehlgeschlagen:", err);
+                                groupRowStartErrors.set(item.group_key, "Serien-Start fehlgeschlagen. Bitte erneut versuchen.");
                                 if (btn) {
                                     btn.disabled = false;
                                     btn.textContent = originalContent;
                                 }
+                                renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
                             } finally {
                                 groupWorkflowRunning = false;
                             }
@@ -13422,13 +13446,21 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                         btn.textContent = "wird gestartet…";
                     }
                     try {
+                        const hadGroupError = groupRowStartErrors.has(item.group_key);
+                        groupRowStartErrors.delete(item.group_key);
                         const files = item.items.map(m => inboxFilesEntryForItem(m));
                         await startSeriesGroupWorkflow(item.group_key, files);
+                        if (hadGroupError) {
+                            renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+                        }
                     } catch (err) {
+                        console.error("Serien-Start aus Gruppenzeile fehlgeschlagen:", err);
+                        groupRowStartErrors.set(item.group_key, "Serien-Start fehlgeschlagen. Bitte erneut versuchen.");
                         if (btn) {
                             btn.disabled = false;
                             btn.innerHTML = originalContent;
                         }
+                        renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
                     } finally {
                         groupWorkflowRunning = false;
                     }
@@ -13437,6 +13469,14 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                 groupDiv.appendChild(headerDiv);
                 if (seasonsDiv) {
                     groupDiv.appendChild(seasonsDiv);
+                }
+                if (groupRowStartErrors.has(item.group_key)) {
+                    const errorDiv = document.createElement("div");
+                    errorDiv.className = "smart-inbox-group-banner-error";
+                    errorDiv.setAttribute("role", "alert");
+                    errorDiv.setAttribute("aria-live", "polite");
+                    errorDiv.textContent = groupRowStartErrors.get(item.group_key);
+                    groupDiv.appendChild(errorDiv);
                 }
                 groupDiv.appendChild(membersDiv);
                 smartInboxList.appendChild(groupDiv);

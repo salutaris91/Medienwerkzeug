@@ -1245,3 +1245,484 @@ test('E1-AK8: Nach erfolgreichem Abschluss des ersten Starts ist die Sperre frei
     pendingResolvers.shift()();
     await fourthPromise;
 });
+
+// --------------------------------------------------------------------------
+// E2-AK1: Fehler aus dem Alle-Knopf
+// --------------------------------------------------------------------------
+test('E2-AK1: Erzwungener Start-Fehler aus dem Alle-Knopf zeigt sichtbare Inline-Meldung in der betroffenen Gruppenzeile, ruft console.error auf, hält Knopf nach Neuaufbau benutzbar und gibt die Sperre frei', async () => {
+    const env = setupTestEnvironment();
+    const expectedErrorText = 'Serien-Start fehlgeschlagen. Bitte erneut versuchen.';
+
+    const suggestions = [
+        ...makeMultiSeasonSuggestions(),
+        ...makeSingleSeasonSuggestions(),
+        { project: 'OtherShow.S01E01.mkv', suggested_query: 'OtherShow', media_type: 'tv', is_dir: false, video_count: 1 },
+        { project: 'OtherShow.S01E02.mkv', suggested_query: 'OtherShow', media_type: 'tv', is_dir: false, video_count: 1 }
+    ];
+
+    globalThis.appliedInboxGroups.add('MultiShow');
+    globalThis.appliedInboxGroups.add('SingleShow');
+    globalThis.appliedInboxGroups.add('OtherShow');
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    shouldThrowInQualityHint = true;
+
+    // 1. Trigger error on MultiShow (with seasons bar) via Alle-Knopf
+    const multiRowBefore = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'MultiShow');
+    assert.ok(multiRowBefore);
+    const multiAllBtn = multiRowBefore.querySelector('.btn-select-group');
+    await multiAllBtn.click();
+
+    const rowsAfterMulti = env.smartInboxList.querySelectorAll('.smart-inbox-group-row');
+    const multiRow = rowsAfterMulti.find(r => r.getAttribute('data-group-key') === 'MultiShow');
+    const singleRow = rowsAfterMulti.find(r => r.getAttribute('data-group-key') === 'SingleShow');
+    const otherRow = rowsAfterMulti.find(r => r.getAttribute('data-group-key') === 'OtherShow');
+
+    const multiErrorEl = multiRow.querySelector('.smart-inbox-group-banner-error');
+    assert.ok(multiErrorEl, 'Inline error div .smart-inbox-group-banner-error must be rendered in MultiShow row');
+    assert.strictEqual(multiErrorEl.tagName, 'DIV');
+    assert.strictEqual(multiErrorEl.getAttribute('role'), 'alert');
+    assert.strictEqual(multiErrorEl.getAttribute('aria-live'), 'polite');
+    assert.strictEqual(multiErrorEl.textContent, expectedErrorText);
+
+    // Placement in multi-season row: after seasonsDiv, before membersDiv
+    const mHeaderIdx = multiRow.__children.findIndex(c => c.classList.contains('smart-inbox-group-header'));
+    const mSeasonsIdx = multiRow.__children.findIndex(c => c.classList.contains('smart-inbox-group-seasons'));
+    const mErrorIdx = multiRow.__children.findIndex(c => c.classList.contains('smart-inbox-group-banner-error'));
+    const mMembersIdx = multiRow.__children.findIndex(c => c.classList.contains('smart-inbox-group-members'));
+    assert.ok(mHeaderIdx >= 0 && mSeasonsIdx > mHeaderIdx && mErrorIdx > mSeasonsIdx && mMembersIdx > mErrorIdx, 'In multi-season group row, error must be placed after seasonsDiv and before membersDiv');
+
+    // Other group rows must NOT show an error
+    assert.strictEqual(singleRow.querySelector('.smart-inbox-group-banner-error'), null, 'Unrelated SingleShow row must not show error yet');
+    assert.strictEqual(otherRow.querySelector('.smart-inbox-group-banner-error'), null, 'Unrelated OtherShow row must not show error');
+
+    // console.error must be called with cause
+    assert.ok(env.consoleErrors.length >= 1, 'console.error must be called');
+    assert.ok(
+        env.consoleErrors.some(msg => msg.includes('Injected workflow start failure')),
+        `console.error must include failure cause, got: ${JSON.stringify(env.consoleErrors)}`
+    );
+
+    // 2. Trigger error on SingleShow (without seasons bar) via Alle-Knopf: placement directly after headerDiv
+    env.consoleErrors.length = 0;
+    const singleAllBtn = singleRow.querySelector('.btn-select-group');
+    await singleAllBtn.click();
+
+    const rowsAfterSingle = env.smartInboxList.querySelectorAll('.smart-inbox-group-row');
+    const singleRowAfter = rowsAfterSingle.find(r => r.getAttribute('data-group-key') === 'SingleShow');
+    const otherRowAfter = rowsAfterSingle.find(r => r.getAttribute('data-group-key') === 'OtherShow');
+    const singleErrorEl = singleRowAfter.querySelector('.smart-inbox-group-banner-error');
+    assert.ok(singleErrorEl, 'Inline error div must be rendered in SingleShow row');
+    assert.strictEqual(singleErrorEl.getAttribute('role'), 'alert');
+    assert.strictEqual(singleErrorEl.getAttribute('aria-live'), 'polite');
+    assert.strictEqual(singleErrorEl.textContent, expectedErrorText);
+
+    const sHeaderIdx = singleRowAfter.__children.findIndex(c => c.classList.contains('smart-inbox-group-header'));
+    const sErrorIdx = singleRowAfter.__children.findIndex(c => c.classList.contains('smart-inbox-group-banner-error'));
+    const sMembersIdx = singleRowAfter.__children.findIndex(c => c.classList.contains('smart-inbox-group-members'));
+    assert.strictEqual(singleRowAfter.querySelector('.smart-inbox-group-seasons'), null);
+    assert.ok(sHeaderIdx >= 0 && sErrorIdx === sHeaderIdx + 1 && sMembersIdx > sErrorIdx, 'In single-season group row (no seasons bar), error must be placed directly after headerDiv');
+    assert.strictEqual(otherRowAfter.querySelector('.smart-inbox-group-banner-error'), null, 'OtherShow row must remain without error');
+    assert.ok(env.consoleErrors.length >= 1, 'console.error must be called for SingleShow error');
+
+    // 3. Button usable after rebuild & lock is free (subsequent successful start runs)
+    globalThis.renderSmartInboxList(suggestions, new Set());
+    const rebuiltMultiRow = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'MultiShow');
+    const rebuiltAllBtn = rebuiltMultiRow.querySelector('.btn-select-group');
+    assert.strictEqual(rebuiltAllBtn.disabled, false, 'Alle-Knopf must be enabled after rebuild');
+    assert.strictEqual(rebuiltAllBtn.textContent, 'Alle verarbeiten');
+
+    shouldThrowInQualityHint = false;
+    env.viewEmpty.className = 'view-panel active';
+    env.viewFolder.className = 'view-panel hidden';
+    globalThis.setActiveSeriesGroupFiles(null);
+    globalThis.setActiveSeriesGroupName('');
+
+    await rebuiltAllBtn.click();
+    assert.strictEqual(globalThis.getActiveSeriesGroupName(), 'MultiShow', 'Second start must run because lock is free');
+    assert.strictEqual(globalThis.getActiveSeriesGroupFiles().length, 7);
+    assert.strictEqual(env.viewFolder.classList.contains('active'), true);
+});
+
+// --------------------------------------------------------------------------
+// E2-AK2: Fehler aus dem Staffel-Knopf
+// --------------------------------------------------------------------------
+test('E2-AK2: Erzwungener Start-Fehler aus einem Staffel-Knopf zeigt Meldung in derselben Gruppenzeile, ruft console.error auf, gibt Sperre frei und lässt appliedInboxGroups unverändert', async () => {
+    const env = setupTestEnvironment();
+    const expectedErrorText = 'Serien-Start fehlgeschlagen. Bitte erneut versuchen.';
+
+    const suggestions = [
+        ...makeMultiSeasonSuggestions(),
+        ...makeSingleSeasonSuggestions()
+    ];
+
+    globalThis.appliedInboxGroups.add('MultiShow');
+    globalThis.appliedInboxGroups.add('SingleShow');
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    shouldThrowInQualityHint = true;
+
+    const multiRowBefore = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'MultiShow');
+    const season11Btn = multiRowBefore.querySelector('.smart-inbox-group-seasons').querySelectorAll('button').find(b => b.textContent === 'Staffel 11 (3)');
+    assert.ok(season11Btn);
+
+    await season11Btn.click();
+
+    // appliedInboxGroups must remain UNCHANGED (no rollback like in banner)
+    assert.strictEqual(globalThis.appliedInboxGroups.has('MultiShow'), true, 'MultiShow must remain in appliedInboxGroups after season button failure');
+    assert.strictEqual(globalThis.appliedInboxGroups.has('SingleShow'), true, 'SingleShow must remain in appliedInboxGroups');
+    assert.strictEqual(globalThis.appliedInboxGroups.size, 2);
+
+    const rowsAfter = env.smartInboxList.querySelectorAll('.smart-inbox-group-row');
+    const multiRow = rowsAfter.find(r => r.getAttribute('data-group-key') === 'MultiShow');
+    const singleRow = rowsAfter.find(r => r.getAttribute('data-group-key') === 'SingleShow');
+    assert.ok(multiRow, 'MultiShow group row must still be rendered in list');
+
+    const errorEl = multiRow.querySelector('.smart-inbox-group-banner-error');
+    assert.ok(errorEl, 'Inline error must appear in MultiShow group row');
+    assert.strictEqual(errorEl.getAttribute('role'), 'alert');
+    assert.strictEqual(errorEl.getAttribute('aria-live'), 'polite');
+    assert.strictEqual(errorEl.textContent, expectedErrorText);
+    assert.strictEqual(singleRow.querySelector('.smart-inbox-group-banner-error'), null, 'SingleShow row must not have error');
+
+    // console.error called
+    assert.ok(env.consoleErrors.length >= 1, 'console.error must be called');
+    assert.ok(env.consoleErrors.some(msg => msg.includes('Injected workflow start failure')));
+
+    // Season button restored and usable, lock is free
+    const retrySeason11Btn = multiRow.querySelector('.smart-inbox-group-seasons').querySelectorAll('button').find(b => b.textContent === 'Staffel 11 (3)');
+    assert.ok(retrySeason11Btn);
+    assert.strictEqual(retrySeason11Btn.disabled, false);
+
+    shouldThrowInQualityHint = false;
+    env.viewEmpty.className = 'view-panel active';
+    env.viewFolder.className = 'view-panel hidden';
+    globalThis.setActiveSeriesGroupFiles(null);
+    globalThis.setActiveSeriesGroupName('');
+
+    await retrySeason11Btn.click();
+    assert.strictEqual(globalThis.getActiveSeriesGroupName(), 'MultiShow');
+    assert.deepStrictEqual(globalThis.getActiveSeriesGroupFiles(), [
+        'MultiShow.S11E01.mkv',
+        'MultiShow.S11E02.Folder/episode2.mkv',
+        'MultiShow.S11E03.mkv'
+    ]);
+    assert.strictEqual(env.viewFolder.classList.contains('active'), true);
+});
+
+// --------------------------------------------------------------------------
+// E2-AK3: Fehler aus der Bulk-Leiste
+// --------------------------------------------------------------------------
+test('E2-AK3: Erzwungener Start-Fehler aus der Bulk-Leiste zeigt Inline-Meldung (width: 100% zwischen Info und Buttons, kein alert()), ruft console.error auf, hält Knopf benutzbar und gibt Sperre frei', async () => {
+    const env = setupTestEnvironment();
+    const expectedErrorText = 'Serien-Start fehlgeschlagen. Bitte erneut versuchen.';
+
+    const suggestions = makeMultiSeasonSuggestions();
+    globalThis.selectedInboxProjects.add('MultiShow.S01E01.mkv');
+    globalThis.selectedInboxProjects.add('MultiShow.S01E02.mkv');
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    shouldThrowInQualityHint = true;
+
+    const bulkBtn = env.bulkBar.querySelector('#btn-bulk-group-series');
+    assert.ok(bulkBtn);
+    await bulkBtn.click();
+
+    // No alert()
+    assert.strictEqual(env.alerts.length, 0, 'Start error in bulk bar must NOT call alert()');
+
+    // Inline error in bulkBar between .smart-inbox-bulk-info and .smart-inbox-bulk-buttons with width: 100%
+    const errorEl = env.bulkBar.querySelector('.smart-inbox-group-banner-error');
+    assert.ok(errorEl, 'Bulk bar must contain .smart-inbox-group-banner-error');
+    assert.strictEqual(errorEl.tagName, 'DIV');
+    assert.strictEqual(errorEl.getAttribute('role'), 'alert');
+    assert.strictEqual(errorEl.getAttribute('aria-live'), 'polite');
+    assert.strictEqual(errorEl.textContent, expectedErrorText);
+    assert.ok(errorEl.style.cssText.includes('width: 100%'), `Error element must have width: 100%, got: "${errorEl.style.cssText}"`);
+
+    const infoIdx = env.bulkBar.__children.findIndex(c => c.classList.contains('smart-inbox-bulk-info'));
+    const errIdx = env.bulkBar.__children.findIndex(c => c.classList.contains('smart-inbox-group-banner-error'));
+    const btnsIdx = env.bulkBar.__children.findIndex(c => c.classList.contains('smart-inbox-bulk-buttons'));
+    assert.ok(infoIdx >= 0 && errIdx > infoIdx && btnsIdx > errIdx, 'Bulk error div must be placed between .smart-inbox-bulk-info and .smart-inbox-bulk-buttons');
+
+    // console.error called
+    assert.ok(env.consoleErrors.length >= 1, 'console.error must be called');
+    assert.ok(env.consoleErrors.some(msg => msg.includes('Injected workflow start failure')));
+
+    // Button enabled and usable again, lock free
+    const retryBulkBtn = env.bulkBar.querySelector('#btn-bulk-group-series');
+    assert.ok(retryBulkBtn);
+    assert.strictEqual(retryBulkBtn.disabled, false);
+    assert.strictEqual(retryBulkBtn.textContent, 'Ausgewählte als Serie verarbeiten');
+
+    shouldThrowInQualityHint = false;
+    env.viewEmpty.className = 'view-panel active';
+    env.viewFolder.className = 'view-panel hidden';
+    globalThis.setActiveSeriesGroupFiles(null);
+
+    await retryBulkBtn.click();
+    assert.deepStrictEqual(globalThis.getActiveSeriesGroupFiles(), ['MultiShow.S01E01.mkv', 'MultiShow.S01E02.mkv']);
+    assert.strictEqual(env.viewFolder.classList.contains('active'), true);
+});
+
+// --------------------------------------------------------------------------
+// E2-AK4: Meldung überlebt den 6-s-Neuaufbau
+// --------------------------------------------------------------------------
+test('E2-AK4: Fehlermeldungen in Gruppenzeile (Alle-Knopf / Staffel-Knopf) und Bulk-Leiste überleben erneutes renderSmartInboxList und updateBulkActionsBarUI', async () => {
+    const env = setupTestEnvironment();
+    const expectedErrorText = 'Serien-Start fehlgeschlagen. Bitte erneut versuchen.';
+
+    const suggestions = [
+        ...makeMultiSeasonSuggestions(),
+        ...makeSingleSeasonSuggestions(),
+        { project: 'LooseEp.S01E01.mkv', suggested_query: 'LooseEp', media_type: 'tv', is_dir: false, video_count: 1 }
+    ];
+
+    globalThis.appliedInboxGroups.add('MultiShow');
+    globalThis.appliedInboxGroups.add('SingleShow');
+    globalThis.selectedInboxProjects.add('LooseEp.S01E01.mkv');
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    shouldThrowInQualityHint = true;
+
+    // 1. Trigger error via Staffel-Knopf on MultiShow
+    let multiRow = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'MultiShow');
+    const season1Btn = multiRow.querySelector('.smart-inbox-group-seasons').querySelectorAll('button')[0];
+    await season1Btn.click();
+
+    // 2. Trigger error via Alle-Knopf on SingleShow
+    let singleRow = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'SingleShow');
+    const singleAllBtn = singleRow.querySelector('.btn-select-group');
+    await singleAllBtn.click();
+
+    // 3. Trigger error via Bulk-Leiste
+    const bulkBtn = env.bulkBar.querySelector('#btn-bulk-group-series');
+    await bulkBtn.click();
+
+    const multiErrBefore = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'MultiShow').querySelector('.smart-inbox-group-banner-error');
+    const singleErrBefore = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'SingleShow').querySelector('.smart-inbox-group-banner-error');
+    const bulkErrBefore = env.bulkBar.querySelector('.smart-inbox-group-banner-error');
+    assert.ok(multiErrBefore && singleErrBefore && bulkErrBefore);
+
+    // Simulate 6s poll rebuild via renderSmartInboxList
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    multiRow = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'MultiShow');
+    singleRow = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'SingleShow');
+    const multiErrAfter = multiRow.querySelector('.smart-inbox-group-banner-error');
+    const singleErrAfter = singleRow.querySelector('.smart-inbox-group-banner-error');
+    assert.ok(multiErrAfter, 'MultiShow error must survive renderSmartInboxList');
+    assert.notStrictEqual(multiErrAfter, multiErrBefore, 'Must be freshly rendered from module state');
+    assert.strictEqual(multiErrAfter.textContent, expectedErrorText);
+    assert.strictEqual(multiErrAfter.getAttribute('role'), 'alert');
+    assert.strictEqual(multiErrAfter.getAttribute('aria-live'), 'polite');
+
+    assert.ok(singleErrAfter, 'SingleShow error must survive renderSmartInboxList');
+    assert.notStrictEqual(singleErrAfter, singleErrBefore, 'Must be freshly rendered from module state');
+    assert.strictEqual(singleErrAfter.textContent, expectedErrorText);
+
+    // Simulate standalone updateBulkActionsBarUI rebuild (full innerHTML replacement)
+    globalThis.updateBulkActionsBarUI();
+    const bulkErrAfter = env.bulkBar.querySelector('.smart-inbox-group-banner-error');
+    assert.ok(bulkErrAfter, 'Bulk error must survive updateBulkActionsBarUI');
+    assert.notStrictEqual(bulkErrAfter, bulkErrBefore, 'Bulk error must be freshly rendered from module state');
+    assert.strictEqual(bulkErrAfter.textContent, expectedErrorText);
+    assert.strictEqual(bulkErrAfter.getAttribute('role'), 'alert');
+    assert.strictEqual(bulkErrAfter.getAttribute('aria-live'), 'polite');
+    assert.ok(bulkErrAfter.style.cssText.includes('width: 100%'));
+});
+
+// --------------------------------------------------------------------------
+// E2-AK5: Leeren beim nächsten Erfolg und bei "Auswahl aufheben" / Verschwinden der Leiste
+// --------------------------------------------------------------------------
+test('E2-AK5: Erfolgreicher Start derselben Stelle löscht die Fehlermeldung (jeder Startknopf derselben Gruppenzeile bzw. nächste erfolgreiche Bulk-Verarbeitung); "Auswahl aufheben" und Verschwinden der Leiste löschen die Bulk-Meldung', async () => {
+    const env = setupTestEnvironment();
+
+    const suggestions = [
+        ...makeMultiSeasonSuggestions(),
+        ...makeSingleSeasonSuggestions(),
+        { project: 'LooseEp.S01E01.mkv', suggested_query: 'LooseEp', media_type: 'tv', is_dir: false, video_count: 1 }
+    ];
+
+    globalThis.appliedInboxGroups.add('MultiShow');
+    globalThis.appliedInboxGroups.add('SingleShow');
+    globalThis.selectedInboxProjects.add('LooseEp.S01E01.mkv');
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    // 1. Error on MultiShow via Alle-Knopf -> cleared by successful Staffel-Knopf click on MultiShow
+    shouldThrowInQualityHint = true;
+    let multiRow = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'MultiShow');
+    await multiRow.querySelector('.btn-select-group').click();
+    multiRow = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'MultiShow');
+    assert.ok(multiRow.querySelector('.smart-inbox-group-banner-error'), 'MultiShow must show error after failed Alle-Knopf click');
+
+    shouldThrowInQualityHint = false;
+    const season1Btn = multiRow.querySelector('.smart-inbox-group-seasons').querySelectorAll('button')[0];
+    await season1Btn.click();
+    multiRow = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'MultiShow');
+    assert.strictEqual(multiRow.querySelector('.smart-inbox-group-banner-error'), null, 'Successful Season 1 start on same group must clear group error');
+    globalThis.renderSmartInboxList(suggestions, new Set());
+    multiRow = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'MultiShow');
+    assert.strictEqual(multiRow.querySelector('.smart-inbox-group-banner-error'), null, 'Group error must stay cleared after re-render');
+
+    // 2. Error on MultiShow via Staffel-Knopf -> cleared by successful Alle-Knopf click on MultiShow (while SingleShow error stays until SingleShow succeeds)
+    shouldThrowInQualityHint = true;
+    await multiRow.querySelector('.smart-inbox-group-seasons').querySelectorAll('button')[1].click();
+    let singleRow = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'SingleShow');
+    await singleRow.querySelector('.btn-select-group').click();
+
+    multiRow = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'MultiShow');
+    singleRow = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'SingleShow');
+    assert.ok(multiRow.querySelector('.smart-inbox-group-banner-error'));
+    assert.ok(singleRow.querySelector('.smart-inbox-group-banner-error'));
+
+    shouldThrowInQualityHint = false;
+    await multiRow.querySelector('.btn-select-group').click();
+    multiRow = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'MultiShow');
+    singleRow = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'SingleShow');
+    assert.strictEqual(multiRow.querySelector('.smart-inbox-group-banner-error'), null, 'Successful Alle-Knopf start on MultiShow must clear MultiShow error');
+    assert.ok(singleRow.querySelector('.smart-inbox-group-banner-error'), 'SingleShow error must remain until SingleShow succeeds');
+
+    await singleRow.querySelector('.btn-select-group').click();
+    singleRow = env.smartInboxList.querySelectorAll('.smart-inbox-group-row').find(r => r.getAttribute('data-group-key') === 'SingleShow');
+    assert.strictEqual(singleRow.querySelector('.smart-inbox-group-banner-error'), null, 'Successful start on SingleShow clears SingleShow error');
+
+    // 3. Bulk error -> cleared by next successful Bulk start
+    shouldThrowInQualityHint = true;
+    await env.bulkBar.querySelector('#btn-bulk-group-series').click();
+    assert.ok(env.bulkBar.querySelector('.smart-inbox-group-banner-error'), 'Bulk error must be shown after failed bulk start');
+
+    shouldThrowInQualityHint = false;
+    await env.bulkBar.querySelector('#btn-bulk-group-series').click();
+    assert.strictEqual(env.bulkBar.querySelector('.smart-inbox-group-banner-error'), null, 'Successful bulk start must clear bulk error');
+    globalThis.updateBulkActionsBarUI();
+    assert.strictEqual(env.bulkBar.querySelector('.smart-inbox-group-banner-error'), null, 'Bulk error must remain cleared after updateBulkActionsBarUI');
+
+    // 4. Bulk error -> cleared by "Auswahl aufheben" (#btn-bulk-deselect)
+    shouldThrowInQualityHint = true;
+    await env.bulkBar.querySelector('#btn-bulk-group-series').click();
+    assert.ok(env.bulkBar.querySelector('.smart-inbox-group-banner-error'));
+
+    const deselectBtn = env.bulkBar.querySelector('#btn-bulk-deselect');
+    assert.ok(deselectBtn);
+    await deselectBtn.click();
+    assert.strictEqual(globalThis.selectedInboxProjects.size, 0);
+    assert.strictEqual(env.bulkBar.querySelector('.smart-inbox-group-banner-error'), null);
+
+    // Re-selecting an item must NOT bring back the old bulk error
+    globalThis.selectedInboxProjects.add('LooseEp.S01E01.mkv');
+    globalThis.updateBulkActionsBarUI();
+    assert.strictEqual(env.bulkBar.querySelector('.smart-inbox-group-banner-error'), null, 'Bulk error must not reappear when selecting again after deselect');
+
+    // 5. Bulk error -> cleared when bulk bar disappears (count === 0)
+    await env.bulkBar.querySelector('#btn-bulk-group-series').click();
+    assert.ok(env.bulkBar.querySelector('.smart-inbox-group-banner-error'));
+    globalThis.selectedInboxProjects.clear();
+    globalThis.updateBulkActionsBarUI();
+    assert.strictEqual(env.bulkBar.style.display, 'none');
+    globalThis.selectedInboxProjects.add('LooseEp.S01E01.mkv');
+    globalThis.updateBulkActionsBarUI();
+    assert.strictEqual(env.bulkBar.querySelector('.smart-inbox-group-banner-error'), null, 'Bulk error must be cleared when bar disappears at count 0');
+});
+
+// --------------------------------------------------------------------------
+// E2-AK6: Bulk-Auswahl bleibt nach einem Start-Fehler unverändert gesetzt
+// --------------------------------------------------------------------------
+test('E2-AK6: selectedInboxProjects, Zähler und Checkboxen bleiben nach einem Start-Fehler aus der Bulk-Leiste unverändert gesetzt, während die Inline-Fehlermeldung angezeigt wird', async () => {
+    const env = setupTestEnvironment();
+
+    const suggestions = makeMultiSeasonSuggestions();
+    globalThis.selectedInboxProjects.add('MultiShow.S01E01.mkv');
+    globalThis.selectedInboxProjects.add('MultiShow.S01E02.mkv');
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    shouldThrowInQualityHint = true;
+
+    const bulkBtn = env.bulkBar.querySelector('#btn-bulk-group-series');
+    await bulkBtn.click();
+
+    // Error message is rendered inline in bulkBar
+    const errorEl = env.bulkBar.querySelector('.smart-inbox-group-banner-error');
+    assert.ok(errorEl, 'Bulk error message must be rendered inline');
+    assert.strictEqual(errorEl.textContent, 'Serien-Start fehlgeschlagen. Bitte erneut versuchen.');
+
+    // Selection remains intact
+    assert.deepStrictEqual(
+        Array.from(globalThis.selectedInboxProjects),
+        ['MultiShow.S01E01.mkv', 'MultiShow.S01E02.mkv'],
+        'selectedInboxProjects must remain unchanged after bulk start error'
+    );
+    const countEl = env.bulkBar.querySelector('#smart-inbox-bulk-count');
+    assert.ok(countEl);
+    assert.strictEqual(countEl.textContent, '2 ausgewählt');
+
+    const checkedCbs = env.smartInboxList.querySelectorAll('.smart-inbox-cb:checked');
+    assert.strictEqual(checkedCbs.length, 2, 'Both checkboxes in list must remain checked');
+});
+
+// --------------------------------------------------------------------------
+// E2-AK7: Bestand unverändert (alert()-Pfade im Bulk-Handler + appliedInboxGroups-Invariante)
+// --------------------------------------------------------------------------
+test('E2-AK7: Bestehende alert()-Pfade im Bulk-Handler bleiben unverändert und Staffel-/Alle-/Bulk-Fehlerpfade ändern appliedInboxGroups niemals', async () => {
+    const env = setupTestEnvironment();
+
+    const suggestions = [
+        ...makeMultiSeasonSuggestions(),
+        ...makeSingleSeasonSuggestions(),
+        { project: 'LooseEp.S01E01.mkv', suggested_query: 'LooseEp', media_type: 'tv', is_dir: false, video_count: 1 }
+    ];
+
+    // MultiShow is applied; SingleShow is NOT applied
+    globalThis.appliedInboxGroups.add('MultiShow');
+    globalThis.selectedInboxProjects.add('LooseEp.S01E01.mkv');
+    globalThis.renderSmartInboxList(suggestions, new Set());
+
+    shouldThrowInQualityHint = true;
+
+    // 1. Staffel-Knopf error -> appliedInboxGroups unchanged, error shown
+    let multiRow = env.smartInboxList.querySelector('.smart-inbox-group-row');
+    await multiRow.querySelector('.smart-inbox-group-seasons').querySelectorAll('button')[0].click();
+    assert.deepStrictEqual(Array.from(globalThis.appliedInboxGroups), ['MultiShow']);
+    multiRow = env.smartInboxList.querySelector('.smart-inbox-group-row');
+    assert.ok(multiRow.querySelector('.smart-inbox-group-banner-error'), 'Staffel error must render inline error');
+
+    // 2. Alle-Knopf error -> appliedInboxGroups unchanged
+    await multiRow.querySelector('.btn-select-group').click();
+    assert.deepStrictEqual(Array.from(globalThis.appliedInboxGroups), ['MultiShow']);
+
+    // 3. Bulk-Knopf error -> appliedInboxGroups unchanged, inline error in bulkBar
+    await env.bulkBar.querySelector('#btn-bulk-group-series').click();
+    assert.deepStrictEqual(Array.from(globalThis.appliedInboxGroups), ['MultiShow']);
+    assert.ok(env.bulkBar.querySelector('.smart-inbox-group-banner-error'), 'Bulk error must render inline error');
+
+    // 4. Existing alert() path: partial skip (1 missing entry + 1 valid entry)
+    shouldThrowInQualityHint = false;
+    env.alerts.length = 0;
+    globalThis.selectedInboxProjects.clear();
+    globalThis.selectedInboxProjects.add('LooseEp.S01E01.mkv');
+    globalThis.selectedInboxProjects.add('Vanished.S01E01.mkv');
+    globalThis.updateBulkActionsBarUI();
+
+    await env.bulkBar.querySelector('#btn-bulk-group-series').click();
+    assert.strictEqual(env.alerts.length, 1, 'Partial skip must trigger existing alert()');
+    assert.strictEqual(env.alerts[0], '1 Eintrag ist nicht mehr in der Inbox und wurde übersprungen.');
+    assert.strictEqual(env.bulkBar.querySelector('.smart-inbox-group-banner-error'), null, 'Successful partial skip start must clear/not show inline start error');
+    assert.deepStrictEqual(globalThis.getActiveSeriesGroupFiles(), ['LooseEp.S01E01.mkv']);
+
+    // 5. Existing alert() path: all selected entries missing
+    env.alerts.length = 0;
+    globalThis.setActiveSeriesGroupFiles(null);
+    globalThis.selectedInboxProjects.clear();
+    globalThis.selectedInboxProjects.add('Vanished1.S01E01.mkv');
+    globalThis.selectedInboxProjects.add('Vanished2.S01E02.mkv');
+    globalThis.updateBulkActionsBarUI();
+
+    const bulkBtnEmpty = env.bulkBar.querySelector('#btn-bulk-group-series');
+    await bulkBtnEmpty.click();
+    await new Promise(r => queueMicrotask(r));
+    assert.strictEqual(env.alerts.length, 1, 'All-missing selection must trigger existing alert()');
+    assert.strictEqual(env.alerts[0], 'Keine der ausgewählten Dateien ist noch in der Inbox – nichts gestartet.');
+    assert.strictEqual(globalThis.getActiveSeriesGroupFiles(), null);
+    assert.strictEqual(bulkBtnEmpty.disabled, false);
+    assert.strictEqual(env.bulkBar.querySelector('.smart-inbox-group-banner-error'), null);
+});
