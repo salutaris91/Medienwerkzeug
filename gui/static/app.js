@@ -1,12 +1,12 @@
-import { applyTheme } from './js/theme.js?v=103';
-import { cleanSeriesName } from './js/utils.js?v=103';
-import { formatBytes } from './js/format.js?v=103';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=103';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=103';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=103';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=103';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=103';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=103';
+import { applyTheme } from './js/theme.js?v=104';
+import { cleanSeriesName } from './js/utils.js?v=104';
+import { formatBytes } from './js/format.js?v=104';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=104';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=104';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=104';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=104';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=104';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=104';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -12679,6 +12679,10 @@ function updateGroupBannerUI(validGroups) {
     if (openGroups.length > 0) {
         const primary = openGroups[0];
         const primarySeasonsStr = formatGroupSeasonsLabel(primary.members);
+        const primarySeasonCount = new Set(primary.members.map(m => m._se.season)).size;
+        const primaryHintHtml = primarySeasonCount >= 2
+            ? `<span style="display: block; font-size: 0.85em; color: var(--text-muted); margin-top: 2px;">Diese Serie hat mehrere Staffeln – nach dem Gruppieren kannst du in der Liste eine einzelne Staffel oder alle Folgen verarbeiten.</span>`
+            : "";
         const primaryError = bannerApplyErrors.has(primary.groupKey)
             ? `<div class="smart-inbox-group-banner-error" role="alert" aria-live="polite">${escapeHTML(bannerApplyErrors.get(primary.groupKey))}</div>`
             : "";
@@ -12688,7 +12692,7 @@ function updateGroupBannerUI(validGroups) {
                 <div class="smart-inbox-group-banner-row">
                     <div class="smart-inbox-group-banner-content">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers" style="color: #c4b5fd;"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-                        <span>Als Serie gruppieren: <strong>${escapeHTML(primary.groupKey)}</strong> (${primary.members.length} Folgen, ${primarySeasonsStr})</span>
+                        <span>Als Serie gruppieren: <strong>${escapeHTML(primary.groupKey)}</strong> (${primary.members.length} Folgen, ${primarySeasonsStr})${primaryHintHtml}</span>
                     </div>
                     <div class="smart-inbox-group-banner-actions">
                         <button type="button" class="btn btn-primary btn-xs btn-banner-apply-group" data-group-key="${escapeHTML(primary.groupKey)}">Als Serie gruppieren</button>
@@ -12705,6 +12709,10 @@ function updateGroupBannerUI(validGroups) {
         let moreItemsHtml = "";
         moreGroups.forEach(({ groupKey, members }) => {
             const seasonsStr = formatGroupSeasonsLabel(members);
+            const itemSeasonCount = new Set(members.map(m => m._se.season)).size;
+            const itemHintHtml = itemSeasonCount >= 2
+                ? `<span style="display: block; font-size: 0.85em; color: var(--text-muted); margin-top: 2px;">Diese Serie hat mehrere Staffeln – nach dem Gruppieren kannst du in der Liste eine einzelne Staffel oder alle Folgen verarbeiten.</span>`
+                : "";
             const itemError = bannerApplyErrors.has(groupKey)
                 ? `<div class="smart-inbox-group-banner-error" role="alert" aria-live="polite">${escapeHTML(bannerApplyErrors.get(groupKey))}</div>`
                 : "";
@@ -12712,7 +12720,7 @@ function updateGroupBannerUI(validGroups) {
                 <div class="smart-inbox-group-banner-item">
                     <div class="smart-inbox-group-banner-row">
                         <div class="smart-inbox-group-banner-content">
-                            <span>Als Serie gruppieren: <strong>${escapeHTML(groupKey)}</strong> (${members.length} Folgen, ${seasonsStr})</span>
+                            <span>Als Serie gruppieren: <strong>${escapeHTML(groupKey)}</strong> (${members.length} Folgen, ${seasonsStr})${itemHintHtml}</span>
                         </div>
                         <div class="smart-inbox-group-banner-actions">
                             <button type="button" class="btn btn-primary btn-xs btn-banner-apply-group" data-group-key="${escapeHTML(groupKey)}">Als Serie gruppieren</button>
@@ -12844,8 +12852,11 @@ function updateGroupBannerUI(validGroups) {
                 bannerApplyErrors.delete(groupKey);
                 appliedInboxGroups.add(groupKey);
                 renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
-                const files = members.map(m => inboxFilesEntryForItem(m));
-                await startSeriesGroupWorkflow(groupKey, files);
+                const seasonCount = new Set(members.map(m => m._se.season)).size;
+                if (seasonCount < 2) {
+                    const files = members.map(m => inboxFilesEntryForItem(m));
+                    await startSeriesGroupWorkflow(groupKey, files);
+                }
             } catch (err) {
                 appliedInboxGroups.delete(groupKey);
                 console.error("Serien-Start aus Gruppenbanner fehlgeschlagen:", err);
@@ -12926,8 +12937,10 @@ function updateBulkActionsBarUI() {
             }
         });
         bulkBar.querySelector("#btn-bulk-group-series")?.addEventListener("click", async (e) => {
+            if (groupWorkflowRunning) return;
             const btn = e.currentTarget || e.target;
             if (btn && btn.disabled) return;
+            groupWorkflowRunning = true;
             let originalContent = "";
             if (btn) {
                 btn.disabled = true;
@@ -12994,6 +13007,8 @@ function updateBulkActionsBarUI() {
                     btn.disabled = false;
                     btn.innerHTML = originalContent;
                 }
+            } finally {
+                groupWorkflowRunning = false;
             }
         });
     } else {
@@ -13262,6 +13277,7 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
 
         const processedSuggestions = buildGroupedInboxSuggestions(suggestions, appliedInboxGroups);
         const sortedSuggestions = sortInboxSuggestions(processedSuggestions, sortState.field, sortState.direction);
+
         smartInboxList.innerHTML = "";
 
         sortedSuggestions.forEach(item => {
@@ -13299,10 +13315,50 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                     </div>
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <button class="btn btn-primary btn-sm btn-select-group" data-group-key="${escapeHTML(item.group_key)}" style="white-space: nowrap;">
-                            <span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="height: 12px; width: 12px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Auswählen</span>
+                            <span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="height: 12px; width: 12px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Alle verarbeiten</span>
                         </button>
                     </div>
                 `;
+
+                const distinctSeasons = Array.from(new Set(item.items.map(m => m._se.season))).sort((a, b) => a - b);
+                let seasonsDiv = null;
+                if (distinctSeasons.length >= 2) {
+                    seasonsDiv = document.createElement("div");
+                    seasonsDiv.className = "smart-inbox-group-seasons";
+                    seasonsDiv.style.cssText = "display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 4px; border-top: 1px dashed rgba(139, 92, 246, 0.15);";
+                    distinctSeasons.forEach(seasonNum => {
+                        const seasonMembers = item.items.filter(m => m._se.season === seasonNum);
+                        const seasonBtn = document.createElement("button");
+                        seasonBtn.setAttribute("type", "button");
+                        seasonBtn.className = "btn btn-secondary btn-xs";
+                        seasonBtn.style.cssText = "white-space: nowrap;";
+                        seasonBtn.textContent = `Staffel ${seasonNum} (${seasonMembers.length})`;
+                        seasonBtn.addEventListener("click", async (e) => {
+                            if (groupWorkflowRunning) return;
+                            const btn = e.currentTarget || e.target;
+                            if (btn && btn.disabled) return;
+                            groupWorkflowRunning = true;
+                            let originalContent = "";
+                            if (btn) {
+                                btn.disabled = true;
+                                originalContent = btn.textContent;
+                                btn.textContent = "wird gestartet…";
+                            }
+                            try {
+                                const files = seasonMembers.map(m => inboxFilesEntryForItem(m));
+                                await startSeriesGroupWorkflow(item.group_key, files);
+                            } catch (err) {
+                                if (btn) {
+                                    btn.disabled = false;
+                                    btn.textContent = originalContent;
+                                }
+                            } finally {
+                                groupWorkflowRunning = false;
+                            }
+                        });
+                        seasonsDiv.appendChild(seasonBtn);
+                    });
+                }
 
                 const membersDiv = document.createElement("div");
                 membersDiv.className = "smart-inbox-group-members";
@@ -13355,8 +13411,10 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                 }
 
                 headerDiv.querySelector(".btn-select-group")?.addEventListener("click", async (e) => {
+                    if (groupWorkflowRunning) return;
                     const btn = e.currentTarget || e.target;
                     if (btn && btn.disabled) return;
+                    groupWorkflowRunning = true;
                     let originalContent = "";
                     if (btn) {
                         btn.disabled = true;
@@ -13371,10 +13429,15 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                             btn.disabled = false;
                             btn.innerHTML = originalContent;
                         }
+                    } finally {
+                        groupWorkflowRunning = false;
                     }
                 });
 
                 groupDiv.appendChild(headerDiv);
+                if (seasonsDiv) {
+                    groupDiv.appendChild(seasonsDiv);
+                }
                 groupDiv.appendChild(membersDiv);
                 smartInboxList.appendChild(groupDiv);
                 return;

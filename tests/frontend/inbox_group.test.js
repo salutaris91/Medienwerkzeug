@@ -1404,7 +1404,7 @@ test('F1: nach Klick auf Gruppenzeilen-Knopf, Sammelknopf und Banner ist view-fo
     assert.strictEqual(env.modeSeries.classList.contains('active'), true, 'mode-series must be active after banner click');
 });
 
-test('F2: Beschriftungen - Gruppenzeile "Auswählen", Banner "Als Serie gruppieren", Sammelknopf "Ausgewählte als Serie verarbeiten", gesperrte Filme "Als Serie / Folge behandeln"', () => {
+test('F2: Beschriftungen - Gruppenzeile "Alle verarbeiten", Banner "Als Serie gruppieren", Sammelknopf "Ausgewählte als Serie verarbeiten", gesperrte Filme "Als Serie / Folge behandeln"', () => {
     const env = setupTestEnvironment();
     const suggestions = [
         {
@@ -1437,14 +1437,14 @@ test('F2: Beschriftungen - Gruppenzeile "Auswählen", Banner "Als Serie gruppier
     assert.ok(bannerBtn);
     assert.ok(bannerBtn.innerHTML.includes('Als Serie gruppieren'), 'Banner button must retain text "Als Serie gruppieren"');
 
-    // (b) Gruppenzeile: "Auswählen" statt "Als Serie gruppieren"
+    // (b) Gruppenzeile: "Alle verarbeiten" statt "Als Serie gruppieren"
     globalThis.appliedInboxGroups.add('Show');
     globalThis.renderSmartInboxList(suggestions, new Set());
     const groupRow = env.smartInboxList.querySelector('.smart-inbox-group-row');
     assert.ok(groupRow);
     const groupSelectBtn = groupRow.querySelector('.btn-select-group');
     assert.ok(groupSelectBtn);
-    assert.ok(groupSelectBtn.innerHTML.includes('Auswählen'), 'Group row button must be labeled "Auswählen"');
+    assert.ok(groupSelectBtn.innerHTML.includes('Alle verarbeiten'), 'Group row button must be labeled "Alle verarbeiten"');
     assert.strictEqual(groupSelectBtn.innerHTML.includes('Als Serie gruppieren'), false, 'Group row button must NOT be labeled "Als Serie gruppieren"');
 
     // (b) Sammelknopf: "Ausgewählte als Serie verarbeiten"
