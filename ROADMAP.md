@@ -2044,6 +2044,8 @@ Klein (Override-Datei, Build-Argument, Skript-Schalter, Runbook).
 
 ## 74. Inbox-Gruppen: Staffel-Schnellauswahl
 
+**Status:** Erledigt (2026-10-19, Feature-Kette (Pilot) #74 + #80-Rest + #83, Branch `feat/roadmap-74-staffel-schnellauswahl`, `docs/sessions/2026-10-18-roadmap74-staffel-kette/`; Etappe E1: Gruppenzeile mit ≥ 2 Staffeln zeigt je Staffel „Staffel N (k)“, Knopf „Auswählen“ heißt „Alle verarbeiten“, Banner gruppiert Mehrstaffel-Gruppen nur und zeigt einen Hinweis, gemeinsame Start-Sperre an allen vier Startstellen, Cache-Buster app.js v104. Gate-A2 APPROVED, Rückkanal ABNAHME: JA, Handtest Alex bestanden). Abweichend von Umsetzung Punkt 2 (Alex, Plan-Go 2026-10-18, S1 = A): Der Staffel-Knopf startet den Serien-Dialog direkt mit den Folgen der Staffel, ohne Umweg über `selectedInboxProjects`. K2 „Rest der Gruppe“ bleibt offen. Folgepunkte → #87, #88.
+
 **Einordnung / Priorität:** Kandidat K1 aus der Rückkanal-Abnahme der Kette Ordner-Folgen (`docs/sessions/2026-10-12-inbox-ordnerfolgen/rueckkanal.md` Abschnitt 4; Alex, 12.10.2026: „1–3 wie empfohlen, übernimm den Patch und bereite den Handtest vor“). Nach dem NAS-Live-Test mit Staffel 11 bewerten.
 
 **Problem:**
@@ -2169,7 +2171,7 @@ Klein bis mittel (Punkt 1 braucht Metadaten-Kontext).
 
 ## 80. Inbox: stille `catch`-Blöcke in Bulk-Weg, Gruppen-Banner und Gruppenzeile
 
-**Status:** Teilweise erledigt — Banner-Stelle in #75 umgesetzt (2026-10-17); offen bleiben Bulk-Weg und Gruppenzeile.
+**Status:** Erledigt — Banner-Stelle in #75 (2026-10-17); Bulk-Weg und Gruppenzeile (inkl. Staffel-Knöpfe) in Etappe E2 der Feature-Kette (Pilot) #74 + #80-Rest + #83, Branch `feat/roadmap-74-staffel-schnellauswahl`, `docs/sessions/2026-10-18-roadmap74-staffel-kette/` (2026-10-19): Inline-Meldung, die den 6-s-Neuaufbau übersteht, plus `console.error`.
 
 **Einordnung / Priorität:** Mittel. Befund aus dem Rückkanal zu #77 (2026-10-16, `docs/sessions/2026-10-16-roadmap77-inbox-auswahl/rueckkanal.md`, Hinweis d); vorbestehend.
 
@@ -2216,6 +2218,8 @@ Klein (reine Oberfläche, ein Gate-A2-Lauf).
 
 ## 83. Inbox-Gruppen: Apply-Sperre bei hängender Seriensuche
 
+**Status:** Erledigt (2026-10-19, Etappe E3 der Feature-Kette (Pilot) #74 + #80-Rest + #83, Branch `feat/roadmap-74-staffel-schnellauswahl`, `docs/sessions/2026-10-18-roadmap74-staffel-kette/`): `searchSeries` bricht nach 30 s ab (`SERIES_SEARCH_TIMEOUT_MS`) und meldet „Suchfehler: Zeitüberschreitung nach 30 Sekunden. Bitte erneut versuchen.“; eine von einer neueren Suche abgelöste Suche bleibt still; die Sperre wird frei.
+
 **Einordnung / Priorität:** Mittel. Befund F-B aus dem Rückkanal zu #75 (2026-10-17, `docs/sessions/2026-10-16-roadmap75-inbox-vorschlaege/rueckkanal.md`).
 
 **Problem:**
@@ -2238,6 +2242,8 @@ Der Gruppenschlüssel kommt aus `suggested_query`/`single_video_query`; das Back
 
 **Ziel:**
 Legitime Zeichen (z. B. `&`, `'`) erhalten, Mehrfach-Leerzeichen zusammenfassen; Ignorier-Schlüssel aus #75 bleiben kompatibel oder werden bewusst migriert.
+
+**Ergänzung (Rückkanal Kette #74, W-2, 2026-10-19):** Zwei verschiedene Titel können auf denselben bereinigten Schlüssel fallen. Der Schlüssel wird inzwischen auch für `groupRowStartErrors` (Fehlermeldung der Gruppenzeile) und `appliedInboxGroups` genutzt; im Kollisionsfall landet eine Meldung bei der falschen Gruppe. Beim Fix Kollisionen erkennen oder vermeiden.
 
 ### Aufwand (grob)
 Klein bis mittel (Backend + Tests; Auswirkungen auf bestehende Profile/Zuordnung prüfen).
@@ -2267,3 +2273,29 @@ Klein.
 
 - **F-C:** `updateGroupBannerUI` prüft „ignoriert“ vor „angewendet“. Heute unkritisch, weil `appliedInboxGroups` nur im Banner-Apply-Handler beschrieben wird. Kommt ein zweiter Schreiber hinzu (z. B. Rest von #80, #82), Reihenfolge prüfen bzw. Ignorier-Schlüssel beim Anwenden bereinigen.
 - **F-D:** Klick-Handler werden per Index (`querySelectorAll(...)[i]` ↔ `openGroups[i]`/`ignoredGroups[i]`) gebunden. Korrekt, solange jede Zone pro Gruppe genau einen Knopf je Typ rendert. Beim nächsten Banner-Umbau (z. B. #74) Handler direkt beim Erzeugen des Knotens binden.
+
+---
+
+## 87. Inbox-Gruppen-Banner: Sofortstart übergibt Folgen unsortiert
+
+**Einordnung / Priorität:** Niedrig bis mittel, vorbestehend. Befund W-1 aus dem Rückkanal der Kette #74 (2026-10-19, `docs/sessions/2026-10-18-roadmap74-staffel-kette/rueckkanal.md`) und der Browser-Probe von Claude Code.
+
+**Problem:**
+Der Banner-Sofortstart (seit #74 nur noch bei Gruppen mit genau einer Staffel) übergibt `members` in Erkennungsreihenfolge an `startSeriesGroupWorkflow` (Browser-Probe: Single Show E02, E03, E01). Die Gruppenzeile nutzt dagegen die nach Staffel/Folge sortierten `items`. Folge: Zuordnungstabelle in falscher Anzeige-Reihenfolge; die S/E-Zuordnung selbst ist dateinamenbasiert und nicht betroffen.
+
+**Ziel:**
+Beide Startwege übergeben die Folgen in derselben, sortierten Reihenfolge.
+
+### Aufwand (grob)
+Klein (eine Sortierung + ein Frontend-Test).
+
+---
+
+## 88. Inbox-Gruppen: Wartbarkeits-Restpunkte der Kette #74
+
+**Einordnung / Priorität:** Niedrig, Notiz. Kosmetische Befunde aus Ampel-Prüfung und Rückkanal der Kette #74 (2026-10-19, K-1 bis K-5). Kein Punkt beeinträchtigt das Verhalten.
+
+- **K-1/K-4:** Nach erfolgreichem Start bleibt ein Staffel-/Alle-Knopf bis zum nächsten 6-s-Neuaufbau auf „wird gestartet…“; der Knopf-Restore im Fehler-`catch` ist wirkungslos, weil der direkt folgende Neuaufbau den Knoten ersetzt. Aufräumen oder bewusst so lassen.
+- **K-2:** Die Fristmeldung nennt fest „30 Sekunden“. Wird die Dauer je konfigurierbar, den Text aus `SERIES_SEARCH_TIMEOUT_MS` ableiten.
+- **K-3:** Vier Frontend-Testdateien tragen denselben Timer-Stub (Fake-Timer-Queue ab 30 s). Gemeinsames Test-Harness extrahieren, wenn ohnehin ein Harness-Umbau ansteht.
+- **K-5:** Die String-Guards in `searchSeries` greifen bei identischem Suchtext nicht; ein schmales, vorbestehendes Rennen ohne Korrektheitsfolge. Optional ebenfalls auf den Sequenzzähler umstellen.

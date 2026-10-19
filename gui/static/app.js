@@ -1,12 +1,12 @@
-import { applyTheme } from './js/theme.js?v=103';
-import { cleanSeriesName } from './js/utils.js?v=103';
-import { formatBytes } from './js/format.js?v=103';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=103';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=103';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=103';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=103';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=103';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=103';
+import { applyTheme } from './js/theme.js?v=104';
+import { cleanSeriesName } from './js/utils.js?v=104';
+import { formatBytes } from './js/format.js?v=104';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=104';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=104';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=104';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=104';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=104';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=104';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -3073,8 +3073,10 @@ async function triggerSeriesMatchingFromFolder(folderName) {
 // ==========================================================================
 // SEARCH & METADATA HANDLERS (SERIES & MOVIES)
 // ==========================================================================
+const SERIES_SEARCH_TIMEOUT_MS = 30000;
 let currentSearchSeriesController = null;
 let lastSearchSeriesQuery = "";
+let searchSeriesRequestSeq = 0;
 
 async function searchSeries() {
     const query = document.getElementById("series-search-query").value.trim();
@@ -3085,8 +3087,15 @@ async function searchSeries() {
     if (currentSearchSeriesController) {
         currentSearchSeriesController.abort();
     }
-    currentSearchSeriesController = new AbortController();
+    const localController = new AbortController();
+    currentSearchSeriesController = localController;
     lastSearchSeriesQuery = query;
+    const seq = ++searchSeriesRequestSeq;
+    let didTimeout = false;
+    const deadlineId = setTimeout(() => {
+        didTimeout = true;
+        localController.abort();
+    }, SERIES_SEARCH_TIMEOUT_MS);
 
     resultsContainer.innerHTML = '<div class="loading-spinner"></div>';
 
@@ -3100,7 +3109,7 @@ async function searchSeries() {
         const searchType = isDokuMode ? "doku" : "tv";
 
         const response = await fetch(`/api/search?type=${searchType}&q=${encodeURIComponent(query)}`, {
-            signal: currentSearchSeriesController.signal
+            signal: localController.signal
         });
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
@@ -3207,9 +3216,16 @@ async function searchSeries() {
         });
 
     } catch (e) {
-        if (e.name === 'AbortError') return; // Ignore aborted requests
+        if (e.name === 'AbortError') {
+            if (didTimeout && seq === searchSeriesRequestSeq) {
+                resultsContainer.innerHTML = '<p class="text-center text-danger">Suchfehler: Zeitüberschreitung nach 30 Sekunden. Bitte erneut versuchen.</p>';
+            }
+            return; // Ignore aborted requests
+        }
         if (query !== lastSearchSeriesQuery) return;
         resultsContainer.innerHTML = `<p class="text-center text-danger">Suchfehler: ${e.message || e}</p>`;
+    } finally {
+        clearTimeout(deadlineId);
     }
 }
 
@@ -12475,6 +12491,8 @@ let appliedInboxGroups = new Set();
 let expandedInboxGroups = new Set();
 let ignoredInboxGroupsFallback = new Set();
 let bannerApplyErrors = new Map();
+let groupRowStartErrors = new Map();
+let bulkStartError = null;
 let groupWorkflowRunning = false;
 let bannerMoreProposalsExpanded = false;
 let bannerIgnoredProposalsExpanded = false;
@@ -12679,6 +12697,10 @@ function updateGroupBannerUI(validGroups) {
     if (openGroups.length > 0) {
         const primary = openGroups[0];
         const primarySeasonsStr = formatGroupSeasonsLabel(primary.members);
+        const primarySeasonCount = new Set(primary.members.map(m => m._se.season)).size;
+        const primaryHintHtml = primarySeasonCount >= 2
+            ? `<span style="display: block; font-size: 0.85em; color: var(--text-muted); margin-top: 2px;">Diese Serie hat mehrere Staffeln – nach dem Gruppieren kannst du in der Liste eine einzelne Staffel oder alle Folgen verarbeiten.</span>`
+            : "";
         const primaryError = bannerApplyErrors.has(primary.groupKey)
             ? `<div class="smart-inbox-group-banner-error" role="alert" aria-live="polite">${escapeHTML(bannerApplyErrors.get(primary.groupKey))}</div>`
             : "";
@@ -12688,7 +12710,7 @@ function updateGroupBannerUI(validGroups) {
                 <div class="smart-inbox-group-banner-row">
                     <div class="smart-inbox-group-banner-content">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers" style="color: #c4b5fd;"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-                        <span>Als Serie gruppieren: <strong>${escapeHTML(primary.groupKey)}</strong> (${primary.members.length} Folgen, ${primarySeasonsStr})</span>
+                        <span>Als Serie gruppieren: <strong>${escapeHTML(primary.groupKey)}</strong> (${primary.members.length} Folgen, ${primarySeasonsStr})${primaryHintHtml}</span>
                     </div>
                     <div class="smart-inbox-group-banner-actions">
                         <button type="button" class="btn btn-primary btn-xs btn-banner-apply-group" data-group-key="${escapeHTML(primary.groupKey)}">Als Serie gruppieren</button>
@@ -12705,6 +12727,10 @@ function updateGroupBannerUI(validGroups) {
         let moreItemsHtml = "";
         moreGroups.forEach(({ groupKey, members }) => {
             const seasonsStr = formatGroupSeasonsLabel(members);
+            const itemSeasonCount = new Set(members.map(m => m._se.season)).size;
+            const itemHintHtml = itemSeasonCount >= 2
+                ? `<span style="display: block; font-size: 0.85em; color: var(--text-muted); margin-top: 2px;">Diese Serie hat mehrere Staffeln – nach dem Gruppieren kannst du in der Liste eine einzelne Staffel oder alle Folgen verarbeiten.</span>`
+                : "";
             const itemError = bannerApplyErrors.has(groupKey)
                 ? `<div class="smart-inbox-group-banner-error" role="alert" aria-live="polite">${escapeHTML(bannerApplyErrors.get(groupKey))}</div>`
                 : "";
@@ -12712,7 +12738,7 @@ function updateGroupBannerUI(validGroups) {
                 <div class="smart-inbox-group-banner-item">
                     <div class="smart-inbox-group-banner-row">
                         <div class="smart-inbox-group-banner-content">
-                            <span>Als Serie gruppieren: <strong>${escapeHTML(groupKey)}</strong> (${members.length} Folgen, ${seasonsStr})</span>
+                            <span>Als Serie gruppieren: <strong>${escapeHTML(groupKey)}</strong> (${members.length} Folgen, ${seasonsStr})${itemHintHtml}</span>
                         </div>
                         <div class="smart-inbox-group-banner-actions">
                             <button type="button" class="btn btn-primary btn-xs btn-banner-apply-group" data-group-key="${escapeHTML(groupKey)}">Als Serie gruppieren</button>
@@ -12844,8 +12870,11 @@ function updateGroupBannerUI(validGroups) {
                 bannerApplyErrors.delete(groupKey);
                 appliedInboxGroups.add(groupKey);
                 renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
-                const files = members.map(m => inboxFilesEntryForItem(m));
-                await startSeriesGroupWorkflow(groupKey, files);
+                const seasonCount = new Set(members.map(m => m._se.season)).size;
+                if (seasonCount < 2) {
+                    const files = members.map(m => inboxFilesEntryForItem(m));
+                    await startSeriesGroupWorkflow(groupKey, files);
+                }
             } catch (err) {
                 appliedInboxGroups.delete(groupKey);
                 console.error("Serien-Start aus Gruppenbanner fehlgeschlagen:", err);
@@ -12905,17 +12934,22 @@ function updateBulkActionsBarUI() {
     if (!bulkBar) return;
     const count = selectedInboxProjects.size;
     if (count >= 1) {
+        const bulkErrorHtml = bulkStartError
+            ? `<div class="smart-inbox-group-banner-error" role="alert" aria-live="polite" style="width: 100%;">${escapeHTML(bulkStartError)}</div>`
+            : "";
         bulkBar.style.display = "flex";
         bulkBar.innerHTML = `
             <div class="smart-inbox-bulk-info">
                 <span id="smart-inbox-bulk-count">${count} ausgewählt</span>
             </div>
+            ${bulkErrorHtml}
             <div class="smart-inbox-bulk-buttons">
                 <button class="btn btn-secondary btn-xs" id="btn-bulk-deselect">Auswahl aufheben</button>
                 <button class="btn btn-primary btn-xs" id="btn-bulk-group-series">Ausgewählte als Serie verarbeiten</button>
             </div>
         `;
         bulkBar.querySelector("#btn-bulk-deselect")?.addEventListener("click", () => {
+            bulkStartError = null;
             selectedInboxProjects.clear();
             updateBulkActionsBarUI();
             const smartInboxList = document.getElementById("smart-inbox-list");
@@ -12926,8 +12960,10 @@ function updateBulkActionsBarUI() {
             }
         });
         bulkBar.querySelector("#btn-bulk-group-series")?.addEventListener("click", async (e) => {
+            if (groupWorkflowRunning) return;
             const btn = e.currentTarget || e.target;
             if (btn && btn.disabled) return;
+            groupWorkflowRunning = true;
             let originalContent = "";
             if (btn) {
                 btn.disabled = true;
@@ -12984,19 +13020,30 @@ function updateBulkActionsBarUI() {
                         : `${skippedCount} Einträge sind nicht mehr in der Inbox und wurden übersprungen.`);
                 }
 
+                const hadBulkError = bulkStartError !== null;
+                bulkStartError = null;
                 const files = validItems.map(item => inboxFilesEntryForItem(item));
                 const firstItem = validItems[0];
                 const fallbackName = firstItem ? (firstItem.single_video_query || firstItem.suggested_query || cleanSeriesName(firstItem.project)) : cleanSeriesName(files[0]);
                 const groupName = detectManualGroupSeriesName(files, fallbackName);
                 await startSeriesGroupWorkflow(groupName, files);
+                if (hadBulkError) {
+                    updateBulkActionsBarUI();
+                }
             } catch (err) {
+                console.error("Serien-Start aus Sammelauswahl fehlgeschlagen:", err);
+                bulkStartError = "Serien-Start fehlgeschlagen. Bitte erneut versuchen.";
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = originalContent;
                 }
+                updateBulkActionsBarUI();
+            } finally {
+                groupWorkflowRunning = false;
             }
         });
     } else {
+        bulkStartError = null;
         bulkBar.style.display = "none";
         bulkBar.innerHTML = "";
     }
@@ -13262,6 +13309,7 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
 
         const processedSuggestions = buildGroupedInboxSuggestions(suggestions, appliedInboxGroups);
         const sortedSuggestions = sortInboxSuggestions(processedSuggestions, sortState.field, sortState.direction);
+
         smartInboxList.innerHTML = "";
 
         sortedSuggestions.forEach(item => {
@@ -13299,10 +13347,58 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                     </div>
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <button class="btn btn-primary btn-sm btn-select-group" data-group-key="${escapeHTML(item.group_key)}" style="white-space: nowrap;">
-                            <span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="height: 12px; width: 12px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Auswählen</span>
+                            <span style="display:inline-flex; align-items:center; gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap" style="height: 12px; width: 12px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Alle verarbeiten</span>
                         </button>
                     </div>
                 `;
+
+                const distinctSeasons = Array.from(new Set(item.items.map(m => m._se.season))).sort((a, b) => a - b);
+                let seasonsDiv = null;
+                if (distinctSeasons.length >= 2) {
+                    seasonsDiv = document.createElement("div");
+                    seasonsDiv.className = "smart-inbox-group-seasons";
+                    seasonsDiv.style.cssText = "display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 4px; border-top: 1px dashed rgba(139, 92, 246, 0.15);";
+                    distinctSeasons.forEach(seasonNum => {
+                        const seasonMembers = item.items.filter(m => m._se.season === seasonNum);
+                        const seasonBtn = document.createElement("button");
+                        seasonBtn.setAttribute("type", "button");
+                        seasonBtn.className = "btn btn-secondary btn-xs";
+                        seasonBtn.style.cssText = "white-space: nowrap;";
+                        seasonBtn.textContent = `Staffel ${seasonNum} (${seasonMembers.length})`;
+                        seasonBtn.addEventListener("click", async (e) => {
+                            if (groupWorkflowRunning) return;
+                            const btn = e.currentTarget || e.target;
+                            if (btn && btn.disabled) return;
+                            groupWorkflowRunning = true;
+                            let originalContent = "";
+                            if (btn) {
+                                btn.disabled = true;
+                                originalContent = btn.textContent;
+                                btn.textContent = "wird gestartet…";
+                            }
+                            try {
+                                const hadGroupError = groupRowStartErrors.has(item.group_key);
+                                groupRowStartErrors.delete(item.group_key);
+                                const files = seasonMembers.map(m => inboxFilesEntryForItem(m));
+                                await startSeriesGroupWorkflow(item.group_key, files);
+                                if (hadGroupError) {
+                                    renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+                                }
+                            } catch (err) {
+                                console.error("Serien-Start für Staffel fehlgeschlagen:", err);
+                                groupRowStartErrors.set(item.group_key, "Serien-Start fehlgeschlagen. Bitte erneut versuchen.");
+                                if (btn) {
+                                    btn.disabled = false;
+                                    btn.textContent = originalContent;
+                                }
+                                renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+                            } finally {
+                                groupWorkflowRunning = false;
+                            }
+                        });
+                        seasonsDiv.appendChild(seasonBtn);
+                    });
+                }
 
                 const membersDiv = document.createElement("div");
                 membersDiv.className = "smart-inbox-group-members";
@@ -13355,8 +13451,10 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                 }
 
                 headerDiv.querySelector(".btn-select-group")?.addEventListener("click", async (e) => {
+                    if (groupWorkflowRunning) return;
                     const btn = e.currentTarget || e.target;
                     if (btn && btn.disabled) return;
+                    groupWorkflowRunning = true;
                     let originalContent = "";
                     if (btn) {
                         btn.disabled = true;
@@ -13364,17 +13462,38 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                         btn.textContent = "wird gestartet…";
                     }
                     try {
+                        const hadGroupError = groupRowStartErrors.has(item.group_key);
+                        groupRowStartErrors.delete(item.group_key);
                         const files = item.items.map(m => inboxFilesEntryForItem(m));
                         await startSeriesGroupWorkflow(item.group_key, files);
+                        if (hadGroupError) {
+                            renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+                        }
                     } catch (err) {
+                        console.error("Serien-Start aus Gruppenzeile fehlgeschlagen:", err);
+                        groupRowStartErrors.set(item.group_key, "Serien-Start fehlgeschlagen. Bitte erneut versuchen.");
                         if (btn) {
                             btn.disabled = false;
                             btn.innerHTML = originalContent;
                         }
+                        renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
+                    } finally {
+                        groupWorkflowRunning = false;
                     }
                 });
 
                 groupDiv.appendChild(headerDiv);
+                if (seasonsDiv) {
+                    groupDiv.appendChild(seasonsDiv);
+                }
+                if (groupRowStartErrors.has(item.group_key)) {
+                    const errorDiv = document.createElement("div");
+                    errorDiv.className = "smart-inbox-group-banner-error";
+                    errorDiv.setAttribute("role", "alert");
+                    errorDiv.setAttribute("aria-live", "polite");
+                    errorDiv.textContent = groupRowStartErrors.get(item.group_key);
+                    groupDiv.appendChild(errorDiv);
+                }
                 groupDiv.appendChild(membersDiv);
                 smartInboxList.appendChild(groupDiv);
                 return;
