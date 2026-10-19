@@ -3073,8 +3073,10 @@ async function triggerSeriesMatchingFromFolder(folderName) {
 // ==========================================================================
 // SEARCH & METADATA HANDLERS (SERIES & MOVIES)
 // ==========================================================================
+const SERIES_SEARCH_TIMEOUT_MS = 30000;
 let currentSearchSeriesController = null;
 let lastSearchSeriesQuery = "";
+let searchSeriesRequestSeq = 0;
 
 async function searchSeries() {
     const query = document.getElementById("series-search-query").value.trim();
@@ -3085,8 +3087,15 @@ async function searchSeries() {
     if (currentSearchSeriesController) {
         currentSearchSeriesController.abort();
     }
-    currentSearchSeriesController = new AbortController();
+    const localController = new AbortController();
+    currentSearchSeriesController = localController;
     lastSearchSeriesQuery = query;
+    const seq = ++searchSeriesRequestSeq;
+    let didTimeout = false;
+    const deadlineId = setTimeout(() => {
+        didTimeout = true;
+        localController.abort();
+    }, SERIES_SEARCH_TIMEOUT_MS);
 
     resultsContainer.innerHTML = '<div class="loading-spinner"></div>';
 
@@ -3100,7 +3109,7 @@ async function searchSeries() {
         const searchType = isDokuMode ? "doku" : "tv";
 
         const response = await fetch(`/api/search?type=${searchType}&q=${encodeURIComponent(query)}`, {
-            signal: currentSearchSeriesController.signal
+            signal: localController.signal
         });
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
@@ -3207,9 +3216,16 @@ async function searchSeries() {
         });
 
     } catch (e) {
-        if (e.name === 'AbortError') return; // Ignore aborted requests
+        if (e.name === 'AbortError') {
+            if (didTimeout && seq === searchSeriesRequestSeq) {
+                resultsContainer.innerHTML = '<p class="text-center text-danger">Suchfehler: Zeitüberschreitung nach 30 Sekunden. Bitte erneut versuchen.</p>';
+            }
+            return; // Ignore aborted requests
+        }
         if (query !== lastSearchSeriesQuery) return;
         resultsContainer.innerHTML = `<p class="text-center text-danger">Suchfehler: ${e.message || e}</p>`;
+    } finally {
+        clearTimeout(deadlineId);
     }
 }
 

@@ -533,8 +533,20 @@ function setupTestEnvironment() {
     getOrCreateElement('manual-series-plot', 'input');
 
     // Timer mocks ensuring no real timers run in tests
-    globalThis.setTimeout = (fn) => { if (typeof fn === 'function') fn(); return 0; };
-    globalThis.clearTimeout = () => {};
+    let nextTimerId = 1;
+    const pendingTimeouts = new Map();
+    globalThis.setTimeout = (fn, delay) => {
+        if (typeof delay === 'number' && delay >= 30000) {
+            const id = nextTimerId++;
+            pendingTimeouts.set(id, { id, fn, delay });
+            return id;
+        }
+        if (typeof fn === 'function') fn();
+        return 0;
+    };
+    globalThis.clearTimeout = (id) => {
+        pendingTimeouts.delete(id);
+    };
     globalThis.setInterval = () => 0;
     globalThis.clearInterval = () => {};
 
