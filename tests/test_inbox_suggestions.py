@@ -514,6 +514,59 @@ class TestInboxSuggestions(unittest.TestCase):
         self.assertEqual([r["old"] for r in prev2.get("renames", [])], ["Part1.mkv"])
         self.assertIn("Part2.mkv", prev2.get("junk", []))
 
+    def test_ak11_lanterns_stat_error_in_single_video_detection_logs_message(self):
+        """AK11: If os.path.getsize / os.stat raises OSError during single-video detection on a Lanterns folder, /api/inbox/analyze returns 200, logs the video path via log_message, and keeps size-0 classification."""
+        proj_dir = os.path.join(self.inbox_dir, "XyzS01E01")
+        rel_dir = os.path.join(proj_dir, "Xyz.S01E01.Rel")
+        sample_dir = os.path.join(rel_dir, "Sample")
+        foreign_dir = os.path.join(proj_dir, "!!!WENN IHR MICH UNTERSTUETZEN WOLLT!!!")
+        os.makedirs(sample_dir, exist_ok=True)
+        os.makedirs(foreign_dir, exist_ok=True)
+
+        main_mkv = os.path.join(rel_dir, "xyz.s01e01.rel.mkv")
+        with open(main_mkv, "wb") as f:
+            f.truncate(350 * 1024 * 1024)
+
+        sample_mkv = os.path.join(sample_dir, "xyz.s01e01.rel-sample.mkv")
+        with open(sample_mkv, "wb") as f:
+            f.truncate(68 * 1024 * 1024)
+
+        with open(os.path.join(rel_dir, "xyz.s01e01.rel.nfo"), "wb") as f:
+            f.write(b"release info")
+        with open(os.path.join(rel_dir, "xyz.s01e01.rel.sfv"), "wb") as f:
+            f.write(b"checksums")
+        with open(os.path.join(foreign_dir, "info.txt"), "wb") as f:
+            f.write(b"support text")
+        with open(os.path.join(foreign_dir, "link.URL"), "wb") as f:
+            f.write(b"[InternetShortcut]\nURL=https://example.invalid")
+
+        real_stat = os.stat
+        stat_calls = {"count": 0}
+
+        def mock_stat(path_arg, *args, **kwargs):
+            if str(path_arg) == main_mkv:
+                stat_calls["count"] += 1
+                if stat_calls["count"] >= 2:
+                    raise OSError("Simulated disk read error on getsize")
+            return real_stat(path_arg, *args, **kwargs)
+
+        with patch("os.stat", side_effect=mock_stat), patch("gui.api.project_api.log_message") as mock_log:
+            res = self.client.get('/api/inbox/analyze')
+            self.assertEqual(res.status_code, 200)
+            suggestions = {s["project"]: s for s in res.get_json()["suggestions"]}
+
+            self.assertIn("XyzS01E01", suggestions)
+            sug = suggestions["XyzS01E01"]
+            self.assertEqual(
+                sug.get("single_video_relpath"),
+                "XyzS01E01/Xyz.S01E01.Rel/xyz.s01e01.rel.mkv",
+            )
+            self.assertEqual(sug.get("single_video_query"), "xyz")
+
+            mock_log.assert_called()
+            logged_messages = [call.args[0] for call in mock_log.call_args_list]
+            self.assertTrue(any(main_mkv in msg for msg in logged_messages))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1511,7 +1511,8 @@ def get_inbox_suggestions():
             for gvf in group_video_files:
                 try:
                     gvf_size = os.path.getsize(gvf)
-                except OSError:
+                except OSError as e:
+                    log_message(f"⚠️ Datei konnte für Einzelvideo-Erkennung nicht gelesen werden ({gvf}): {e}")
                     gvf_size = 0
                 rel_gvf = os.path.relpath(gvf, inbox_dir).replace('\\', '/')
                 group_videos_with_sizes.append((rel_gvf, gvf_size))
