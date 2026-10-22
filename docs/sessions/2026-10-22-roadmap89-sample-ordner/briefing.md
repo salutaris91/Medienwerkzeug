@@ -175,3 +175,15 @@ Nach dem Merge (NAS, eigenes Go): nur prüfen, dass „Lanterns“ als Gruppe vo
 - [kosmetisch] AK5 präzisiert (Sample per Kriterium 1).
 - Potenzial übernommen: AK9 legt `API.md:265` als unberührt fest.
 - plan-reviewer Runde 2: `VERDICT: APPROVE`; [kosmetisch] AK9-Einordnung korrigiert (AK1–AK8 pytest, AK9/AK10 Review-Kriterien).
+
+## Nachtrag Lauf 2 (Alex, wörtlich, 2026-10-22: „Ja: B2 per Nachtrag und Gate-A2-Lauf 2 beheben, R1 und R3–R6 als ROADMAP-Sammelpunkt #90 eintragen; danach Handtest.“)
+
+Quelle: Rückkanal `rueckkanal.md` (ABNAHME: JA), Befund B2 von Claude Code am Code bestätigt. Ausgangsstand: Commit `60366d5` (Lauf 1). Lauf 2 ändert **nur** Folgendes:
+
+- **B2 [wichtig] stiller Fehlerpfad:** In der Einzelvideo-Erkennung (`gui/api/project_api.py:1509–1516`) setzt `except OSError: gvf_size = 0` die Größe still auf 0, ohne Log (verstößt gegen „Fehler müssen sichtbar sein“; der benachbarte Zyklus `:1368–1374` loggt per `log_message`). Fix: im `except OSError as e`-Zweig zusätzlich `log_message(...)` mit Dateipfad und Fehler, im Stil von `:1374`. Das Klassifikationsverhalten (Größe 0) bleibt unverändert.
+
+Zusätzliches Akzeptanzkriterium (in `tests/test_inbox_suggestions.py`):
+- **AK11:** Es prüft, dass bei einem Ordner im Lanterns-Muster, für dessen Videodatei `os.path.getsize` bzw. `os.stat` einen `OSError` wirft (Test-Patch nach dem Muster `tests/test_inbox_suggestions.py:124`/`:153` mit `patch("gui.api.project_api.log_message")`), `/api/inbox/analyze` weiter mit 200 antwortet und `log_message` mit einer Meldung aufgerufen wird, die den Pfad dieser Videodatei enthält. Der Test muss gegen `60366d5` rot sein und darf keine neuen Symbole aus dem Produktivcode importieren.
+- AK1–AK10 bleiben grün.
+
+Schreibgrenzen Lauf 2: nur `gui/api/project_api.py` (nur der `except`-Zweig `:1514–1515`) und `tests/test_inbox_suggestions.py` (AK11 ergänzen; bestehende Tests unverändert). Alles andere wie oben.

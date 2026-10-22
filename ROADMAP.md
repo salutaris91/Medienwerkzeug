@@ -2318,3 +2318,18 @@ Ordner, die nach Abzug von Samples genau eine Videodatei enthalten, gelten als E
 
 ### Aufwand (grob)
 Klein (Backend-Erkennung + Tests, ein Gate-A2-Lauf); ggf. zweite Etappe für die Begleitdateien.
+
+---
+
+## 90. Sample-Erkennung und Einzelvideo-Ordner: Restpunkte aus #89
+
+**Einordnung / Priorität:** Niedrig bis mittel. Sammelpunkt aus dem Rückkanal zu #89 (2026-10-22, `docs/sessions/2026-10-22-roadmap89-sample-ordner/rueckkanal.md`, Befunde B1, B3, B5–B7). Alex, wörtlich: „Ja: B2 per Nachtrag und Gate-A2-Lauf 2 beheben, R1 und R3–R6 als ROADMAP-Sammelpunkt #90 eintragen; danach Handtest.“
+
+- **R1 (B1):** Die Sample-Erkennung prüft das Pfadsegment „sample“ auf dem Pfad relativ zur Inbox. Ein Inbox-Ordner, der exakt `Sample` heißt, macht alle seine Videos zu Samples und ist nicht mehr gruppierbar (neu seit #89, Realismus sehr gering). Fix: Segmentprüfung relativ zum Projektordner (`gui/api/project_api.py`, `gui/core/helpers.py` `find_sample_video_files`).
+- **R3 (B3):** Kriterium 2 (< 300 MB neben > 300 MB) wertet eine echte kurze Folge als Sample; der Ordner wird gruppierbar, die kleine Folge bleibt ohne Hinweis liegen. Fix: sichtbarer Hinweis, wenn bei der Gruppenverarbeitung ein als Sample gewertetes Video liegen bleibt, oder Kriterium schärfen; Risiko im #89-Briefing nachtragen.
+- **R4 (B5):** `gui/api/queue_api.py` prüft „sample“ im Namen/Pfad für Begleitdateien noch inline (Zuordnung von Dateien zu Samples); auf eine gemeinsame Quelle umstellen, wo fachlich gleich.
+- **R5 (B6):** `video_count` (6er-Liste) und Gruppen-/Sample-Erkennung (10er-Liste `GROUP_VIDEO_EXTENSIONS`) nutzen unterschiedliche Endungslisten (vgl. #72 Punkt 8).
+- **R6 (B7):** Test für die TV-Vorschau ohne `files[]` mit Sample-Unterordner ergänzen.
+
+### Aufwand (grob)
+Klein je Punkt; sinnvoll gebündelt mit #81 (Inbox-Reste nach der Verarbeitung), das laut Rückkanal an Dringlichkeit gewonnen hat.
