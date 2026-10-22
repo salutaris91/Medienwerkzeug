@@ -2299,3 +2299,22 @@ Klein (eine Sortierung + ein Frontend-Test).
 - **K-2:** Die Fristmeldung nennt fest „30 Sekunden“. Wird die Dauer je konfigurierbar, den Text aus `SERIES_SEARCH_TIMEOUT_MS` ableiten.
 - **K-3:** Vier Frontend-Testdateien tragen denselben Timer-Stub (Fake-Timer-Queue ab 30 s). Gemeinsames Test-Harness extrahieren, wenn ohnehin ein Harness-Umbau ansteht.
 - **K-5:** Die String-Guards in `searchSeries` greifen bei identischem Suchtext nicht; ein schmales, vorbestehendes Rennen ohne Korrektheitsfolge. Optional ebenfalls auf den Sequenzzähler umstellen.
+
+---
+
+## 89. Inbox-Gruppen: Ordner mit Folge plus Sample-Video werden nicht gruppiert
+
+**Einordnung / Priorität:** Hoch (Live-Bestand blockiert). Befund von Alex (2026-10-22, Screenshot NAS-Inbox): die Ordner `LtnsvS01E01` … `LtnsvS01E08` („Lanterns“) erscheinen einzeln als „Serie erkannt“, ohne Gruppenvorschlag und ohne Auswahlkästchen.
+
+**Ursache (Claude Code, lesend am NAS-Bestand und Code belegt):**
+Jeder Ordner enthält einen Release-Unterordner `Lanterns.S01E0x.German.DL.1080p.WEB.h264-WvF/` mit der Folge (`….mkv`, ca. 2,7 GB), einem `Sample/…-sample.mkv` (ca. 68 MB), `….nfo` und `….sfv`, daneben einen Werbe-Ordner `!!!WENN IHR MICH UNTERSTÜTZEN WOLLT!!!/` (`.txt`, `.URL`). Die Einzelvideo-Erkennung aus #71 verlangt genau eine Videodatei (`gui/api/project_api.py`, `if is_dir and len(group_video_files) == 1`); das Sample zählt mit → 2 Videos → kein `single_video_relpath`/`single_video_query` → das Frontend schließt den Ordner von Gruppierung und Kästchen aus (`gui/static/app.js`, `detectInboxGroups`, `isTvSingle`). Die Vorschau kennt bereits eine Sample-Erkennung (`gui/api/queue_api.py`: „sample“ im Namen/Pfad oder < 300 MB neben einer > 300 MB großen Datei), die Inbox-Analyse nutzt sie nicht.
+
+**Ziel:**
+Ordner, die nach Abzug von Samples genau eine Videodatei enthalten, gelten als Einzelvideo-Ordner (Gruppierung + Kästchen wie bei #71). Das Sample bleibt liegen und wird nicht mitverarbeitet.
+
+**Offen / zu prüfen:**
+- Release-Begleitdateien neben der Folge (`<stem>.nfo`, `<stem>.sfv`) zählen heute als Begleitdateien (`find_group_companion_files`) und wandern mit; die Vorschau benennt die `.nfo` in `<Titel>.nfo` um. Klären, ob dadurch die erzeugte Episoden-NFO überschrieben oder verunreinigt wird.
+- Folgepunkt #81 (leere Ordner/Reste nach der Verarbeitung) betrifft diesen Bestand ebenfalls.
+
+### Aufwand (grob)
+Klein (Backend-Erkennung + Tests, ein Gate-A2-Lauf); ggf. zweite Etappe für die Begleitdateien.
