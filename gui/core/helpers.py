@@ -796,6 +796,33 @@ def get_category_media_type(cat, path=None):
 
 
 GROUP_VIDEO_EXTENSIONS = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
+GROUP_EXCLUDED_COMPANION_EXTENSIONS = ('.nfo', '.sfv')
+SAMPLE_SIZE_THRESHOLD_BYTES = 300 * 1024 * 1024
+
+
+def find_sample_video_files(video_files_with_sizes: list) -> set:
+    """
+    Identifies sample video files from a list of (path, size_in_bytes) tuples.
+    Criterion 1: 'sample' in the filename or as a path segment (case-insensitive).
+    Criterion 2: File size < 300 MB while at least one video file is > 300 MB.
+    Does NOT include the movie-only rule ('all videos except the main movie are samples').
+    Returns a set of paths from the input that match either sample criterion.
+    """
+    if not video_files_with_sizes:
+        return set()
+
+    largest_size = max((sz for _, sz in video_files_with_sizes), default=0)
+    samples = set()
+
+    for file_path, file_size in video_files_with_sizes:
+        basename_lower = os.path.basename(file_path).lower()
+        path_segments = file_path.replace('\\', '/').lower().split('/')
+        if "sample" in basename_lower or "sample" in path_segments:
+            samples.add(file_path)
+        elif file_size < SAMPLE_SIZE_THRESHOLD_BYTES and largest_size > SAMPLE_SIZE_THRESHOLD_BYTES:
+            samples.add(file_path)
+
+    return samples
 
 
 def validate_group_files(inbox_root: str, files: list) -> list:
@@ -872,7 +899,8 @@ def find_group_companion_files(inbox_root: str, validated_files: list) -> list:
     Determines companion files for a group of video files.
     Only finds same-directory siblings whose name starts with the video base name (stem)
     followed by a dot separator (e.g. 'Folge 1.srt', 'Folge 1.de.srt').
-    Excludes video files (GROUP_VIDEO_EXTENSIONS) and dotfiles.
+    Excludes video files (GROUP_VIDEO_EXTENSIONS), release info/checksum files (.nfo, .sfv),
+    and dotfiles.
     Returns list of paths relative to inbox_root.
     """
     if not inbox_root or not validated_files:
@@ -903,7 +931,10 @@ def find_group_companion_files(inbox_root: str, validated_files: list) -> list:
         for entry in entries:
             if entry.startswith('.'):
                 continue
-            if entry.lower().endswith(GROUP_VIDEO_EXTENSIONS):
+            entry_lower = entry.lower()
+            if entry_lower.endswith(GROUP_VIDEO_EXTENSIONS):
+                continue
+            if entry_lower.endswith(GROUP_EXCLUDED_COMPANION_EXTENSIONS):
                 continue
             entry_full = os.path.join(vdir, entry)
             if entry_full == full_vpath or not os.path.isfile(entry_full):

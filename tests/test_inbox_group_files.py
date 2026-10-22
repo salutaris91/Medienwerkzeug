@@ -134,7 +134,7 @@ class TestInboxGroupFiles(unittest.TestCase):
 
         companions = helpers.find_group_companion_files(self.inbox_dir, ["Show.S01E01.mkv"])
         self.assertIn("Show.S01E01.de.srt", companions)
-        self.assertIn("Show.S01E01.nfo", companions)
+        self.assertNotIn("Show.S01E01.nfo", companions)
         self.assertNotIn("Show.S01E01.mkv", companions)
         self.assertNotIn("Foreign.txt", companions)
 
@@ -1160,6 +1160,122 @@ class TestInboxGroupFiles(unittest.TestCase):
 
         outbox_file = os.path.join(self.outbox_dir, "Serien", "Xyz", "Staffel 1", "Xyz - S01E01 - T", "Xyz - S01E01 - T.mkv")
         self.assertTrue(os.path.exists(outbox_file), "Legitimate rename must succeed")
+
+    def test_ak7_release_nfo_and_sfv_excluded_from_companions(self):
+        """AK7: find_group_companion_files excludes .nfo and .sfv (case-insensitive) while keeping subtitles."""
+        ep1 = os.path.join(self.inbox_dir, "Show.S01E01.mkv")
+        sub1 = os.path.join(self.inbox_dir, "Show.S01E01.de.srt")
+        nfo_lower = os.path.join(self.inbox_dir, "Show.S01E01.nfo")
+        sfv_lower = os.path.join(self.inbox_dir, "Show.S01E01.sfv")
+
+        ep2 = os.path.join(self.inbox_dir, "Show.S01E02.mkv")
+        nfo_upper = os.path.join(self.inbox_dir, "Show.S01E02.NFO")
+        sfv_upper = os.path.join(self.inbox_dir, "Show.S01E02.SFV")
+
+        for p in [ep1, sub1, nfo_lower, sfv_lower, ep2, nfo_upper, sfv_upper]:
+            with open(p, "wb") as f:
+                f.write(b"data")
+
+        companions = helpers.find_group_companion_files(
+            self.inbox_dir, ["Show.S01E01.mkv", "Show.S01E02.mkv"]
+        )
+        self.assertIn("Show.S01E01.de.srt", companions)
+        self.assertNotIn("Show.S01E01.nfo", companions)
+        self.assertNotIn("Show.S01E01.sfv", companions)
+        self.assertNotIn("Show.S01E02.NFO", companions)
+        self.assertNotIn("Show.S01E02.SFV", companions)
+
+    def test_ak8_lanterns_group_job_no_nfo_collision_end_to_end(self):
+        """AK8: End-to-end files[] job for AK1 Lanterns pattern with show_id/provider succeeds without NFO collision."""
+        proj_dir = os.path.join(self.inbox_dir, "XyzS01E01")
+        rel_dir = os.path.join(proj_dir, "Xyz.S01E01.Rel")
+        sample_dir = os.path.join(rel_dir, "Sample")
+        foreign_dir = os.path.join(proj_dir, "!!!WENN IHR MICH UNTERSTUETZEN WOLLT!!!")
+        os.makedirs(sample_dir, exist_ok=True)
+        os.makedirs(foreign_dir, exist_ok=True)
+
+        main_mkv = os.path.join(rel_dir, "xyz.s01e01.rel.mkv")
+        with open(main_mkv, "wb") as f:
+            f.truncate(350 * 1024 * 1024)
+
+        sample_mkv = os.path.join(sample_dir, "xyz.s01e01.rel-sample.mkv")
+        with open(sample_mkv, "wb") as f:
+            f.truncate(68 * 1024 * 1024)
+
+        rel_nfo = os.path.join(rel_dir, "xyz.s01e01.rel.nfo")
+        with open(rel_nfo, "wb") as f:
+            f.write(b"release ascii nfo content")
+
+        rel_sfv = os.path.join(rel_dir, "xyz.s01e01.rel.sfv")
+        with open(rel_sfv, "wb") as f:
+            f.write(b"release sfv content")
+
+        foreign_txt = os.path.join(foreign_dir, "info.txt")
+        with open(foreign_txt, "wb") as f:
+            f.write(b"support info")
+
+        foreign_url = os.path.join(foreign_dir, "link.URL")
+        with open(foreign_url, "wb") as f:
+            f.write(b"[InternetShortcut]\nURL=https://example.invalid")
+
+        rel_video = "XyzS01E01/Xyz.S01E01.Rel/xyz.s01e01.rel.mkv"
+        mappings = {rel_video: {"season": 1, "episode": 1, "title": "Pilot"}}
+
+        # 1. Preview for files[] job
+        res_prev = self.client.post("/api/preview-process", json={
+            "media_type": "tv",
+            "show_name": "Xyz",
+            "season": 1,
+            "copy_to_nas": False,
+            "files": [rel_video],
+            "mappings": mappings,
+        })
+        self.assertEqual(res_prev.status_code, 200)
+        prev_data = res_prev.get_json()
+
+        # 2. Execute group job with explicit_renames/explicit_subs from preview and show_id/provider set
+        def fake_generate_episode_nfo(provider, show_id, orig_season, orig_episode, target_folder, base_name, **kwargs):
+            nfo_file = os.path.join(target_folder, f"{base_name}.nfo")
+            with open(nfo_file, "w", encoding="utf-8") as f:
+                f.write("<episodedetails><title>Pilot</title></episodedetails>\n")
+            return {"nfo": True}
+
+        params = {
+            "media_type": "tv",
+            "show_name": "Xyz",
+            "season": 1,
+            "provider": "tvdb",
+            "show_id": "12345",
+            "copy_to_nas": False,
+            "copy_to_pcloud": False,
+            "files": [rel_video],
+            "mappings": mappings,
+            "explicit_renames": prev_data.get("renames"),
+            "explicit_subs": prev_data.get("subs"),
+        }
+
+        with patch("gui.workers.processor.ensure_nas_mounted", return_value=True), \
+             patch("gui.mw_metadata.fetch_tvdb", return_value={"1": {"title": "Pilot", "plot": "Plot"}}), \
+             patch("gui.mw_metadata.generate_tvshow_nfo", return_value={"nfo": True}), \
+             patch("gui.mw_metadata.generate_episode_nfo", side_effect=fake_generate_episode_nfo):
+            processor.process_worker(params)
+
+        # Episode and generated episode NFO are in series destination
+        out_ep_dir = os.path.join(self.outbox_dir, "Serien", "Xyz", "Staffel 1", "Xyz - S01E01 - Pilot")
+        self.assertTrue(os.path.exists(os.path.join(out_ep_dir, "Xyz - S01E01 - Pilot.mkv")))
+        self.assertTrue(os.path.exists(os.path.join(out_ep_dir, "Xyz - S01E01 - Pilot.nfo")))
+
+        # Sample, release .nfo, .sfv, and foreign folder remain untouched in inbox folder
+        self.assertFalse(os.path.exists(main_mkv))
+        self.assertTrue(os.path.exists(sample_mkv))
+        self.assertTrue(os.path.exists(rel_nfo))
+        with open(rel_nfo, "rb") as f:
+            self.assertEqual(f.read(), b"release ascii nfo content")
+        self.assertTrue(os.path.exists(rel_sfv))
+        with open(rel_sfv, "rb") as f:
+            self.assertEqual(f.read(), b"release sfv content")
+        self.assertTrue(os.path.exists(foreign_txt))
+        self.assertTrue(os.path.exists(foreign_url))
 
 
 if __name__ == "__main__":

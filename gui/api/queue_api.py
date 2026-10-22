@@ -191,19 +191,7 @@ def handle_api_preview_process():
 
         if video_files_in_proj:
             largest_file, largest_size = video_files_in_proj[0]
-
-            for f, sz in video_files_in_proj:
-                is_sample = False
-                basename_lower = os.path.basename(f).lower()
-                # Kriterium 1: "sample" im Namen oder Pfad
-                if "sample" in basename_lower or "sample" in f.lower().split(os.sep):
-                    is_sample = True
-                # Kriterium 2: Datei < 300 MB und es gibt eine signifikant größere Videodatei
-                elif sz < 300 * 1024 * 1024 and largest_size > 300 * 1024 * 1024:
-                    is_sample = True
-
-                if is_sample:
-                    samples.add(f)
+            samples = find_sample_video_files(video_files_in_proj)
 
             # Hauptfilm ist die größte Datei, die kein Sample ist
             non_samples = [f for f, sz in video_files_in_proj if f not in samples]

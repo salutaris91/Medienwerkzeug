@@ -1505,8 +1505,24 @@ def get_inbox_suggestions():
             "is_dir": is_dir
         }
 
-        if is_dir and len(group_video_files) == 1:
-            single_file = group_video_files[0]
+        non_sample_group_videos = []
+        if is_dir and group_video_files:
+            group_videos_with_sizes = []
+            for gvf in group_video_files:
+                try:
+                    gvf_size = os.path.getsize(gvf)
+                except OSError:
+                    gvf_size = 0
+                rel_gvf = os.path.relpath(gvf, inbox_dir).replace('\\', '/')
+                group_videos_with_sizes.append((rel_gvf, gvf_size))
+            sample_relpaths = find_sample_video_files(group_videos_with_sizes)
+            non_sample_group_videos = [
+                gvf for gvf, (rel_gvf, _) in zip(group_video_files, group_videos_with_sizes)
+                if rel_gvf not in sample_relpaths
+            ]
+
+        if is_dir and len(non_sample_group_videos) == 1:
+            single_file = non_sample_group_videos[0]
             single_relpath = os.path.relpath(single_file, inbox_dir).replace('\\', '/')
             single_filename = os.path.basename(single_file)
             m = tv_pattern.search(single_filename)
