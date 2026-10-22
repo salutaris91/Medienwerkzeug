@@ -2304,6 +2304,8 @@ Klein (eine Sortierung + ein Frontend-Test).
 
 ## 89. Inbox-Gruppen: Ordner mit Folge plus Sample-Video werden nicht gruppiert
 
+**Status:** Erledigt (2026-10-22, Branch `fix/roadmap-89-sample-ordner`; Einzelvideo-Erkennung zählt Samples nicht mehr mit — gemeinsame Regel `find_sample_video_files`, auch in der Vorschau; `.nfo`/`.sfv` sind keine Gruppen-Begleitdateien mehr, damit kein NFO-Kollisionsabbruch; Fehler bei der Größenabfrage werden protokolliert. Schlanke Kette ohne Kreativteam-Akte, plan-reviewer APPROVE in Runde 2, Gate-A2 Lauf 1 + Lauf 2 (Rückkanal-Befund B2) je APPROVED nach 1 Runde, Rückkanal ABNAHME: JA, Handtest Alex bestanden). Folgepunkte → #90, #81.
+
 **Einordnung / Priorität:** Hoch (Live-Bestand blockiert). Befund von Alex (2026-10-22, Screenshot NAS-Inbox): die Ordner `LtnsvS01E01` … `LtnsvS01E08` („Lanterns“) erscheinen einzeln als „Serie erkannt“, ohne Gruppenvorschlag und ohne Auswahlkästchen.
 
 **Ursache (Claude Code, lesend am NAS-Bestand und Code belegt):**
