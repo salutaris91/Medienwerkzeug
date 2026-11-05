@@ -8,6 +8,7 @@ from gui.workers.processor import *
 from gui.workers.youtube_worker import *
 import gui.core.media as media
 import gui.mw_metadata as mw_metadata
+from gui.core.similar_titles import find_movie_folders_by_id, find_similar_movie_folders_by_name
 
 queue_api = Blueprint('queue_api', __name__)
 
@@ -361,6 +362,37 @@ def handle_api_preview_process():
                     preview["warning"] = f"Achtung: Der Film existiert bereits auf dem NAS im Ordner '{clean_movie_name}' mit folgenden Videodateien: {', '.join(existing_videos)}. Diese Dateien werden nicht direkt von der geplanten Aktion überschrieben, könnten aber beeinträchtigt werden."
                 else:
                     preview["warning"] = f"Achtung: Der Film-Ordner '{clean_movie_name}' existiert bereits auf dem NAS, enthält aber keine Videodateien. Vorhandene Metadaten könnten überschrieben werden."
+
+        preview["similar_existing"] = {"exact": [], "similar": []}
+        try:
+            exact_matches = find_movie_folders_by_id(
+                category_root=target_base,
+                provider=provider,
+                movie_id=movie_id,
+                exclude_folder=clean_movie_name,
+            )
+            exclude_for_similar = {clean_movie_name} | {
+                m["folder"] for m in exact_matches if isinstance(m, dict) and m.get("folder")
+            }
+            if len(exact_matches) > 5:
+                log_message(
+                    f"ℹ️ [Ähnliche Titel] {len(exact_matches)} exakte ID-Treffer gefunden, kappe auf 5."
+                )
+                exact_matches = exact_matches[:5]
+
+            similar_matches = find_similar_movie_folders_by_name(
+                category_root=target_base,
+                movie_name=movie_name,
+                exclude_folders=exclude_for_similar,
+                limit=10,
+            )
+            preview["similar_existing"] = {
+                "exact": exact_matches,
+                "similar": similar_matches,
+            }
+        except Exception as e:
+            log_message(f"⚠️ [Ähnliche Titel] Fehler bei der Ähnlichkeitsprüfung: {e}")
+            preview["similar_existing"] = {"exact": [], "similar": []}
 
     elif media_type == "tv":
         total_videos_in_proj = sum(1 for vf in all_files if os.path.splitext(vf)[1].lower() in video_exts)
