@@ -1,5 +1,5 @@
 ---
-kind: feature-briefing
+kind: plan
 status: approved
 approved_by: alex
 approved_on: 2026-11-05
