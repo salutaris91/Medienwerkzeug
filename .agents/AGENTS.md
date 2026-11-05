@@ -40,6 +40,7 @@ Programme. Erläutere das *Warum* hinter Entscheidungen, nicht nur das *Was*.
 - Nur anfassen, was explizit zur Aufgabe gehört — keine ungebetenen Verbesserungen, Refactorings oder Umbenennungen.
 - Wenn anderswo etwas auffällt: als Notiz am Ende erwähnen, nicht anfassen.
 <!-- WORKER-SAFE:END -->
+- Abhängigkeiten nach Gesamtkosten, Sicherheit und Zukunftssicherheit über den absehbaren Ausbau bewerten (eigener Code, Fehlerklassen, Pflege vs. Lieferkette, Pinning, Updates), nicht nur für den ersten Schritt. Für nicht-triviale Logik (z. B. Parsing, Escaping, Auth, Dateiformate) ist eine etablierte, gepflegte, lizenz-saubere Bibliothek oft sicherer und einfacher als Eigenbau; Eigenbau braucht dieselbe Begründung wie ein Zukauf. Triviale Helfer bleiben Eigenbau. Pflicht bleibt: Lizenz prüfen, Version per Hash/Lockfile pinnen, ggf. Gate-A2-Worker-Image nachziehen, Alex-Go (Klasse B).
 
 ## Review-Modus
 
@@ -105,6 +106,7 @@ Freigabepunkte sind: Plan-Freigabe, PR-Merge, ausgelöste `design-frage` /
 - Keine Einbuchstaben-Variablen außer in kurzen Schleifen (`i`, `j`).
 - **Testinfrastruktur-Regel:** Erkennt Produktivcode seine Testumgebung, ist der Test falsch, nicht der Code — Tests anpassen, nicht den Produktivcode. Das gilt auch für Test-Backdoors (Env-Overrides nur für Testzwecke).
 - **Test-Artefakte-Regel:** Tests schreiben ihre Artefakte in temporäre Verzeichnisse (tmp_path / mktemp), nie ins Arbeitsverzeichnis.
+- **Test-Kompaktheit (Richtwert):** Tests kompakt halten, jedes Akzeptanzkriterium bleibt abgedeckt: Fälle parametrisieren statt kopieren, wiederkehrenden Aufbau in Fixtures/Helfer auslagern, in Assertions nur das geprüfte Fragment prüfen (keine ganzen HTML-/Datenblöcke). Testcode höchstens etwa im Umfang des Produktivcodes (Richtwert 1:1); das Richtwert-Verhältnis hat nie Vorrang vor der Abdeckung der Akzeptanzkriterien und Fehlerpfade.
 <!-- WORKER-SAFE:END -->
 
 ## Git und Commits

@@ -264,6 +264,22 @@ UI-Beiwerk und Sichtbarkeits-Toggles.
 Erzeugt die detaillierte Zuordnungs-Vorschau (Umbenennung/Ziele) vor dem Job.
 Optionaler Parameter `files` (Array relativer Pfade): Behandelt eine Liste von Einzeldateien als virtuellen Serien-Auftrag auf Basis des Inbox-Roots. Nur für `media_type` `'tv'` erlaubt (andere Medientypen werden mit HTTP 400 abgewiesen). Alle Einträge in `mappings` müssen in `files` enthalten sein. Ungültige Pfade (Traversals, Ordner, Nicht-Videos, fehlende Dateien) werden mit HTTP 400 abgewiesen.
 
+Für `media_type == "movie"` enthält die Response zusätzlich das nicht-blockierende Hinweisfeld `similar_existing` (immer mit beiden Keys `exact` und `similar`; bei `media_type == "tv"` nicht gesetzt):
+- `exact` (Stufe 1, max. 5 Einträge): Vorhandene Filmordner in der NAS-Zielkategorie (bis max. 2 Ebenen: `<Kategorie>/<Film>` und `<Kategorie>/<Genre>/<Film>`) mit derselben TMDb-ID (Payload-Provider `tmdb`/`tmdb_movie`, NFO-Label `tmdb`/`tmdb_movie`/`tmdb_tv`), ohne den geplanten Zielordner selbst.
+- `similar` (Stufe 2, max. 10 Einträge): Namens-Heuristik über Ordnernamen in der NAS-Zielkategorie (absteigend nach `overlap`, ohne Ordner aus `exact` und ohne den Zielordner selbst).
+```json
+{
+  "renames": [{"old": "input.mkv", "new": "X-Men (2000).mkv"}],
+  "subs": [],
+  "junk": [],
+  "destination": "NAS: /mnt/nas/Filme/X-Men (2000)\n☁️ pCloud: (nicht aktiv)",
+  "similar_existing": {
+    "exact": [{"folder": "X-Men - Der Film", "relative_path": "Action/X-Men - Der Film"}],
+    "similar": [{"folder": "X-Men 2", "relative_path": "X-Men 2", "overlap": 2}]
+  }
+}
+```
+
 ### `POST /api/process`
 Reiht einen Verarbeitungs-Job in die Queue ein (Payload: `media_type`,
 `mappings`, Ziel-IDs, `copy_to_nas`/`copy_to_pcloud`, `is_anime`, optional `files` etc.).

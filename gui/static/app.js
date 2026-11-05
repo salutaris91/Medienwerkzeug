@@ -1,12 +1,12 @@
-import { applyTheme } from './js/theme.js?v=104';
-import { cleanSeriesName } from './js/utils.js?v=104';
-import { formatBytes } from './js/format.js?v=104';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=104';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=104';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=104';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=104';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=104';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=104';
+import { applyTheme } from './js/theme.js?v=105';
+import { cleanSeriesName } from './js/utils.js?v=105';
+import { formatBytes } from './js/format.js?v=105';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=105';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=105';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=105';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=105';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=105';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=105';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -10273,6 +10273,15 @@ async function openPreviewModal(basePayload) {
         mismatchBox.classList.add("hidden");
     }
 
+    const similarBox = document.getElementById("preview-similar-existing");
+    const similarText = document.getElementById("preview-similar-existing-text");
+    if (similarBox) {
+        similarBox.classList.add("hidden");
+    }
+    if (similarText) {
+        similarText.innerHTML = "";
+    }
+
     // Check if any mapped season is >= 1000 (possible year warning)
     let hasHighSeason = false;
     let highSeasonNum = null;
@@ -10368,7 +10377,7 @@ async function openPreviewModal(basePayload) {
         if (data.show_name_mismatch && mismatchBox) {
             const mText = document.getElementById("preview-show-name-mismatch-text");
             if (mText) {
-                mText.innerHTML = `Der Zielordner auf dem NAS heißt <strong>"${data.show_name_mismatch.nas_name}"</strong>, aber die Vorschau verwendet den Namen <strong>"${data.show_name_mismatch.metadata_name}"</strong>.`;
+                mText.innerHTML = `Der Zielordner auf dem NAS heißt <strong>"${escapeHTML(data.show_name_mismatch.nas_name)}"</strong>, aber die Vorschau verwendet den Namen <strong>"${escapeHTML(data.show_name_mismatch.metadata_name)}"</strong>.`;
             }
 
             const btnAdoptNas = document.getElementById("btn-preview-adopt-nas-name");
@@ -10403,6 +10412,75 @@ async function openPreviewModal(basePayload) {
             }
 
             mismatchBox.classList.remove("hidden");
+        }
+
+        if (data.similar_existing && similarBox && similarText) {
+            const exactRaw = Array.isArray(data.similar_existing.exact) ? data.similar_existing.exact : [];
+            const similarRaw = Array.isArray(data.similar_existing.similar) ? data.similar_existing.similar : [];
+
+            const exactFolderSet = new Set(
+                exactRaw
+                    .map(item => (item && typeof item === "object" ? item.folder : item))
+                    .filter(Boolean)
+            );
+            const similarItems = similarRaw.filter(item => {
+                const folderName = item && typeof item === "object" ? item.folder : item;
+                return folderName && !exactFolderSet.has(folderName);
+            });
+
+            if (exactRaw.length > 0 || similarItems.length > 0) {
+                const renderItem = (item, itemClass) => {
+                    const rawFolder = (item && typeof item === "object") ? (item.folder || "") : String(item || "");
+                    const rawRel = (item && typeof item === "object") ? (item.relative_path || "") : "";
+                    const rawOverlap = (item && typeof item === "object" && item.overlap !== undefined) ? item.overlap : "";
+                    const safeFolder = escapeHTML(rawFolder);
+                    const safeRel = escapeHTML(rawRel);
+                    const safeOverlap = escapeHTML(rawOverlap);
+                    const relSuffix = (rawRel && rawRel !== rawFolder)
+                        ? ` <span style="color: var(--text-muted); font-size: 11px;">(${safeRel})</span>`
+                        : "";
+                    const overlapAttr = safeOverlap !== "" ? ` data-overlap="${safeOverlap}"` : "";
+                    return `<li class="${itemClass}"${overlapAttr} style="margin-bottom: 2px;"><strong>${safeFolder}</strong>${relSuffix}</li>`;
+                };
+
+                let sectionsHtml = "";
+
+                if (exactRaw.length > 0) {
+                    const exactListHtml = exactRaw.map(item => renderItem(item, "similar-exact-item")).join("");
+                    sectionsHtml += `
+                        <div id="preview-similar-exact" style="${similarItems.length > 0 ? "margin-bottom: 10px;" : ""}">
+                            <div style="font-weight: 600; color: #ff6b6b; margin-bottom: 4px;">Diesen Film hast du schon auf dem NAS:</div>
+                            <ul style="margin: 0; padding-left: 18px;">${exactListHtml}</ul>
+                        </div>
+                    `;
+                }
+
+                if (similarItems.length > 0) {
+                    const visibleItems = similarItems.slice(0, 5);
+                    const hiddenItems = similarItems.slice(5);
+                    const visibleListHtml = visibleItems.map(item => renderItem(item, "similar-fuzzy-item similar-fuzzy-visible")).join("");
+                    let moreHtml = "";
+                    if (hiddenItems.length > 0) {
+                        const hiddenListHtml = hiddenItems.map(item => renderItem(item, "similar-fuzzy-item similar-fuzzy-collapsed")).join("");
+                        moreHtml = `
+                            <details id="preview-similar-more" style="margin-top: 4px;">
+                                <summary style="cursor: pointer; color: var(--text-muted); font-size: 12px;">Weitere ${escapeHTML(hiddenItems.length)} Treffer anzeigen</summary>
+                                <ul style="margin: 4px 0 0 0; padding-left: 18px;">${hiddenListHtml}</ul>
+                            </details>
+                        `;
+                    }
+                    sectionsHtml += `
+                        <div id="preview-similar-fuzzy" style="font-size: 12px; color: var(--text-muted);">
+                            <div style="font-weight: 600; color: #ffb300; margin-bottom: 4px;">Ähnliche Titel – gehören evtl. dazu:</div>
+                            <ul id="preview-similar-fuzzy-visible-list" style="margin: 0; padding-left: 18px; color: var(--text-main);">${visibleListHtml}</ul>
+                            ${moreHtml}
+                        </div>
+                    `;
+                }
+
+                similarText.innerHTML = sectionsHtml;
+                similarBox.classList.remove("hidden");
+            }
         }
 
         currentPreviewPayload = basePayload;
