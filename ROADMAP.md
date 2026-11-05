@@ -2353,6 +2353,7 @@ Klein je Punkt; sinnvoll gebündelt mit #81 (Inbox-Reste nach der Verarbeitung),
 - **R9 – Franchise über TMDb-Collections:** Echte Franchise-Zugehörigkeit (z. B. „Men in Black“ 1–3) wäre über TMDb-Collections möglich. Braucht vorher Prüfung der TMDb-Nutzungsbedingungen und ein Go von Alex.
 - **R10 – Ungenutztes Attribut:** Das Attribut `data-overlap` an den Trefferzeilen wird vom Frontend nicht gelesen; entfernen oder nutzen.
 - **R11 – Testdaten aus dem echten Bestand:** Der Handtest fand drei Fehler, die die Fixture-Tests nicht gefunden hatten (Funktionswort „in“, Private-Use-Zeichen vom NAS, Unterordner-Dubletten). Für künftige Namens- und Pfad-Features Handtest-Daten aus dem echten Bestand einplanen.
+- **R12 – Hintergrund-Index der NAS-Filmkategorie (Idee von Alex, 2026-11-05):** Statt bei jeder Vorschau zu scannen, einmal einen Index (Ordnername, relativer Pfad, TMDb-ID aus der NFO) aufbauen und danach nur noch auf Änderungen nachführen (z. B. über Verzeichnis-Änderungszeiten, Neuaufbau nach eigener Verarbeitung). Löst R1 grundsätzlich und ist Grundlage für R2/R9. Vorher messen, wie lange der heutige Scan auf dem NAS tatsächlich dauert; Index nur, wenn das spürbar ist. Risiken: veralteter Index bei Änderungen außerhalb der App, Speicherort und Invalidierung.
 
 ### Aufwand (grob)
 Klein je Punkt; R1 und R3 zuerst, R6 und R9 nur mit eigenem Plan und Alex-Go.
