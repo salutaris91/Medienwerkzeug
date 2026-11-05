@@ -2358,3 +2358,44 @@ Klein je Punkt; sinnvoll gebündelt mit #81 (Inbox-Reste nach der Verarbeitung),
 
 ### Aufwand (grob)
 Klein je Punkt; R1 und R3 zuerst, R6 und R9 nur mit eigenem Plan und Alex-Go.
+
+---
+
+## 92. Geführter Film-Assistent (Oberpunkt): Filme Schritt für Schritt durch Metadaten, Vergleich und Bildauswahl führen
+
+**Einordnung / Priorität:** Mittel bis hoch, größtes geplantes Alltags-Feature. Idee und Entscheidung von Alex (2026-11-05): Der Nutzer soll durch die Verarbeitung (auch mehrerer Filme einer Reihe) geführt werden, statt in langen Scroll-Ansichten zu arbeiten; Metadaten eintragen und das Ergebnis sehen, Bilder auswählen, ähnlich wie bei Emby. Soll sich im Alltag nützlich anfühlen und gut aussehen. Wird zusammen mit dem Kreativteam direkt am Code geplant (eigene Planungskette, Alex-Go je Kette).
+
+**Problem:**
+Der heutige Ablauf (Vorschau, NFO-Agent, Inbox) ist eine lange Scroll-Ansicht. Metadaten-Quelle, Feldvergleich, Artwork und Ergebnisvorschau sind auf getrennte Stellen verteilt oder fehlen. Mehrere Filme einer Reihe müssen einzeln und jeweils von vorn durchlaufen werden.
+
+**Ziel:**
+Ein Assistent führt pro Film durch klar getrennte Schritte und zeigt am Ende das Ergebnis, bevor verarbeitet wird:
+1. Quelle wählen (inkl. Ähnliche-Titel-Hinweis aus #91 im selben Schritt)
+2. Metadaten vergleichen und wählen (Felder je Dienst als Badges)
+3. Artwork wählen (Poster, Fanart; Auswahl und Abwahl)
+4. Ergebnis ansehen und bestätigen
+Bei mehreren Filmen läuft dieselbe Abfolge als Schleife „nächster Film“ mit Fortschrittsanzeige.
+
+**Bestehende Bausteine (Querverweise):**
+- #50 gemeinsame Editor-Komponente (Inbox und NFO-Agent) — Grundlage, sonst entsteht der Dialog ein drittes Mal
+- #51 Artwork-Auswahl (FSK/Genre sind umgesetzt, Artwork offen)
+- #52 mehrstufiger NFO-Wizard (Schrittmuster)
+- #55 Multi-Provider-Vergleich mit Feld-Badges
+- #69 Filmreihe am Stück (Schleife über mehrere Filme)
+- #35 Umbenennungsdialog mit Metadaten-Lookup (verwandter Dialog)
+- #91 Ähnliche-Titel-Hinweis (läuft pro Film im selben Dialog)
+
+**Vorschlag für die Etappen (Reihenfolge in der Planung zu bestätigen):**
+1. #50 Editor-Komponente extrahieren
+2. #51 Artwork-Auswahl und #55 Vergleichs-UI
+3. #69 Schleife über mehrere Filme als Hülle um den fertigen Dialog
+Jede Etappe soll einzeln im Alltag nutzbar sein, auch für einen einzelnen Film.
+
+**Offene Fragen für die Planung:**
+- Bildquellen und Nutzungsbedingungen (TMDb, Fanart.tv) vor dem Einbau klären; ggf. Alex-Go.
+- Gestaltung: kein langes Scrollen, klare Schritte, Fortschrittskopf; Orientierung an Emby, aber im bestehenden Design des Tools.
+- Einzelner Film und Reihe: gleicher Dialog oder Sammelmodus?
+- Zusammenspiel mit dem NFO-Agent (Health-Einstieg) und dem Inbox-Ablauf.
+
+### Aufwand (grob)
+Groß; nur in Etappen. Planung zuerst (Kreativteam, direkt am Code), danach je Etappe eine Gate-A2-Kette.
