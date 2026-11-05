@@ -401,6 +401,96 @@ class TestSimilarTitlesHint(unittest.TestCase):
         self.assertEqual(exact, [{"folder": "Valid TMDb Folder", "relative_path": "Valid TMDb Folder"}])
         self.assertTrue(any("tvdb" in entry and "nicht in TMDb-Whitelist" in entry for entry in logs))
 
+    def test_fix_ak1_expanded_stop_words_suppress_noise(self):
+        """Es prüft, dass 'Men in Black 3 (2012)' Funktionswort-Rauschen ignoriert, aber 'Pitch.Black.2000' findet."""
+        cat_dir = self.tmp_path / "mib_check"
+        for name in ("In the Grey (2026)", "Doctor.Strange.in.the.Multiverse.of.Madness.2022", "Pitch.Black.2000"):
+            (cat_dir / name).mkdir(parents=True, exist_ok=True)
+        self.assertEqual(
+            [m["folder"] for m in find_similar_movie_folders_by_name(str(cat_dir), "Men in Black 3 (2012)")],
+            ["Pitch.Black.2000"],
+        )
+
+        stop_cases = [
+            ("Men on Fire at Noon", "Girl on the Train at Night", False),
+            ("Train to Busan for Men", "Road to Perdition for All", False),
+            ("Dances with Wolves from Home", "Gone with Wind from Here", False),
+            ("Stand by Me im Sommer", "Manchester by Sea im Winter", False),
+            ("Auf der Flucht mit Stil", "Mord auf Ex mit Plan", False),
+            ("Von Mäusen zu Menschen", "Mann von nebenan zu Gast", False),
+            ("Für eine Handvoll Dollar", "Fuer immer Adaline", False),
+            ("X-Men (2000)", "X-Men Apocalypse", True),
+        ]
+        for idx, (query_title, folder_name, should_match) in enumerate(stop_cases):
+            with self.subTest(query_title=query_title, folder_name=folder_name):
+                sub_dir = self.tmp_path / f"stop_{idx}"
+                (sub_dir / folder_name).mkdir(parents=True, exist_ok=True)
+                matches = find_similar_movie_folders_by_name(str(sub_dir), query_title)
+                self.assertEqual([m["folder"] for m in matches], [folder_name] if should_match else [])
+
+    def test_fix_ak2_special_unicode_cleaned_in_results_and_excludes(self):
+        """Es prüft, dass Co/Cc/Cf/Cs-Sonderzeichen für Anzeige, Vergleich und Excludes bereinigt werden."""
+        cat_dir = self.tmp_path / "unicode_check"
+        raw_lvl1 = "Pitch Black (2000)\uf022"
+        _write_nfo(cat_dir / raw_lvl1, "<movie><tmdbid>2787</tmdbid></movie>", filename="Pitch Black (2000).nfo")
+        _write_nfo(cat_dir / "SciFi\u200b" / "Men in Black\uf022\x07", "<movie><tmdbid>607</tmdbid></movie>")
+
+        self.assertEqual(
+            find_movie_folders_by_id(str(cat_dir), "tmdb", "2787"),
+            [{"folder": "Pitch Black (2000)", "relative_path": "Pitch Black (2000)"}],
+        )
+        self.assertEqual(
+            find_movie_folders_by_id(str(cat_dir), "tmdb", "607"),
+            [{"folder": "Men in Black", "relative_path": "SciFi/Men in Black"}],
+        )
+        similar = find_similar_movie_folders_by_name(str(cat_dir), "Men in Black 3 (2012)")
+        self.assertEqual(
+            [(m["folder"], m["relative_path"]) for m in similar],
+            [("Men in Black", "SciFi/Men in Black"), ("Pitch Black (2000)", "Pitch Black (2000)")],
+        )
+
+        for excl in ("Pitch Black (2000)", raw_lvl1):
+            with self.subTest(exclude=excl):
+                self.assertEqual(find_movie_folders_by_id(str(cat_dir), "tmdb", "2787", exclude_folder=excl), [])
+                sim_excl = find_similar_movie_folders_by_name(
+                    str(cat_dir), "Men in Black 3 (2012)", exclude_folders={excl}
+                )
+                self.assertEqual([m["folder"] for m in sim_excl], ["Men in Black"])
+
+    def test_fix_ak3_ak4_movie_subfolders_ignored_and_genre_folders_searched(self):
+        """Es prüft, dass Unterordner von Filmordnern (Video/NFO) ignoriert und Genre-Ordner durchsucht werden."""
+        for marker_file in ("Men in Black (1997).mkv", "movie.nfo"):
+            with self.subTest(marker_file=marker_file):
+                cat_dir = self.tmp_path / f"sub_check_{marker_file}"
+                movie_dir = cat_dir / "Men in Black (1997)"
+                sub_dir = movie_dir / "Men in Black (1997) Bonus"
+                sub_dir.mkdir(parents=True, exist_ok=True)
+                if marker_file.endswith(".nfo"):
+                    _write_nfo(movie_dir, "<movie><tmdbid>607</tmdbid></movie>", filename=marker_file)
+                else:
+                    (movie_dir / marker_file).write_bytes(b"video")
+                _write_nfo(sub_dir, "<movie><tmdbid>607</tmdbid></movie>")
+
+                genre_movie = cat_dir / "Action" / "Pitch Black (2000)"
+                _write_nfo(genre_movie, "<movie><tmdbid>2787</tmdbid></movie>")
+                (genre_movie / "pitch_black.mp4").write_bytes(b"video")
+
+                similar = find_similar_movie_folders_by_name(str(cat_dir), "Men in Black 3 (2012)")
+                self.assertEqual(
+                    [(m["folder"], m["relative_path"]) for m in similar],
+                    [("Men in Black (1997)", "Men in Black (1997)"), ("Pitch Black (2000)", "Action/Pitch Black (2000)")],
+                )
+                expected_exact = (
+                    [{"folder": "Men in Black (1997)", "relative_path": "Men in Black (1997)"}]
+                    if marker_file.endswith(".nfo")
+                    else []
+                )
+                self.assertEqual(find_movie_folders_by_id(str(cat_dir), "tmdb", "607"), expected_exact)
+                self.assertEqual(
+                    find_movie_folders_by_id(str(cat_dir), "tmdb", "2787"),
+                    [{"folder": "Pitch Black (2000)", "relative_path": "Action/Pitch Black (2000)"}],
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

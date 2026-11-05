@@ -14,6 +14,7 @@ import os
 import re
 import unicodedata
 
+from gui.core.film_normalize import VIDEO_EXTENSIONS
 from gui.core.health import find_primary_nfo
 from gui.core.helpers import log_message
 from gui.core.nfo_helper import read_nfo_metadata
@@ -56,7 +57,23 @@ STOP_WORDS = {
     "and",
     "of",
     "&",
+    "in",
+    "on",
+    "at",
+    "to",
+    "for",
+    "with",
+    "from",
+    "by",
+    "im",
+    "auf",
+    "mit",
+    "von",
+    "zu",
+    "fuer",
 }
+
+_STRIP_UNICODE_CATEGORIES = {"Co", "Cc", "Cf", "Cs"}
 
 RELEASE_TAG_TOKENS = {
     "480p",
@@ -106,18 +123,70 @@ _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 _MAX_BRACKET_DEPTH = 10
 
 
+def _strip_special_unicode(value: str) -> str:
+    """Entfernt Unicode-Zeichen der Kategorien Co, Cc, Cf und Cs (z. B. SMB/NAS-Mapping)."""
+    if not value or not isinstance(value, str):
+        return ""
+    return "".join(
+        ch for ch in value if unicodedata.category(ch) not in _STRIP_UNICODE_CATEGORIES
+    )
+
+
 def _normalize_exclude_set(exclude) -> set[str]:
     """Normalisiert `exclude_folder` (str) bzw. `exclude_folders` (Iterable[str])."""
     if not exclude:
         return set()
-    if isinstance(exclude, str):
-        stripped = exclude.strip()
-        return {stripped} if stripped else set()
+    items = [exclude] if isinstance(exclude, str) else exclude
     result = set()
-    for item in exclude:
-        if isinstance(item, str) and item.strip():
-            result.add(item.strip())
+    for item in items:
+        if not isinstance(item, str):
+            continue
+        raw_val = item.strip()
+        if raw_val:
+            result.add(raw_val)
+        clean_val = _strip_special_unicode(raw_val).strip()
+        if clean_val:
+            result.add(clean_val)
     return result
+
+
+def _is_excluded(
+    folder_name: str,
+    rel_path: str,
+    full_path: str,
+    category_root: str,
+    exclude_set: set[str],
+) -> bool:
+    """Prüft `exclude_set` gegen bereinigte und rohe Ordner-/Pfadnamen."""
+    if not exclude_set:
+        return False
+    if folder_name in exclude_set or rel_path in exclude_set:
+        return True
+    raw_folder = os.path.basename(full_path)
+    if raw_folder in exclude_set:
+        return True
+    try:
+        raw_rel_path = os.path.relpath(full_path, category_root).replace(os.sep, "/")
+    except ValueError:
+        raw_rel_path = raw_folder
+    return raw_rel_path in exclude_set
+
+
+def _has_direct_video_or_nfo(folder_path: str, entries: list[str]) -> bool:
+    """Prüft, ob `folder_path` direkt eine Videodatei oder `.nfo`-Datei enthält."""
+    for entry in entries:
+        if entry.startswith("."):
+            continue
+        ext = os.path.splitext(entry)[1].lower()
+        if ext not in VIDEO_EXTENSIONS and ext != ".nfo":
+            continue
+        entry_path = os.path.join(folder_path, entry)
+        try:
+            if os.path.isfile(entry_path):
+                return True
+        except OSError as exc:
+            log_message(f"⚠️ [Ähnliche Titel] Dateistatus nicht prüfbar: {entry_path} ({exc})")
+    return False
 
 
 def _iter_candidate_folders(category_root: str) -> list[tuple[str, str, str]]:
@@ -125,6 +194,8 @@ def _iter_candidate_folders(category_root: str) -> list[tuple[str, str, str]]:
 
     Rückgabe: Liste aus `(folder_name, relative_path, full_path)`.
     Versteckte Ordner (`.`-Präfix) werden auf beiden Ebenen übersprungen.
+    Unterordner von Filmordnern (direkte Video- oder NFO-Datei in Ebene 1)
+    werden nicht als eigene Kandidaten geliefert.
     """
     if not category_root or not os.path.isdir(category_root):
         return []
@@ -147,12 +218,18 @@ def _iter_candidate_folders(category_root: str) -> list[tuple[str, str, str]]:
             log_message(f"⚠️ [Ähnliche Titel] Ordnerstatus nicht prüfbar: {path1} ({exc})")
             continue
 
-        candidates.append((entry1, entry1, path1))
+        clean_entry1 = _strip_special_unicode(entry1)
+        if not clean_entry1:
+            continue
+        candidates.append((clean_entry1, clean_entry1, path1))
 
         try:
             level2_entries = sorted(os.listdir(path1))
         except OSError as exc:
             log_message(f"⚠️ [Ähnliche Titel] Unterordner nicht lesbar: {path1} ({exc})")
+            continue
+
+        if _has_direct_video_or_nfo(path1, level2_entries):
             continue
 
         for entry2 in level2_entries:
@@ -165,7 +242,10 @@ def _iter_candidate_folders(category_root: str) -> list[tuple[str, str, str]]:
             except OSError as exc:
                 log_message(f"⚠️ [Ähnliche Titel] Ordnerstatus nicht prüfbar: {path2} ({exc})")
                 continue
-            candidates.append((entry2, f"{entry1}/{entry2}", path2))
+            clean_entry2 = _strip_special_unicode(entry2)
+            if not clean_entry2:
+                continue
+            candidates.append((clean_entry2, f"{clean_entry1}/{clean_entry2}", path2))
 
     return candidates
 
@@ -176,7 +256,11 @@ def _resolve_movie_nfo(folder_path: str) -> str | None:
     Reihenfolge: `movie.nfo` -> `<ordnername>.nfo` -> `find_primary_nfo(..., is_movie=True)`.
     """
     folder_name = os.path.basename(folder_path)
-    for candidate_name in ("movie.nfo", f"{folder_name}.nfo"):
+    clean_folder_name = _strip_special_unicode(folder_name)
+    candidate_names = ["movie.nfo", f"{folder_name}.nfo"]
+    if clean_folder_name and clean_folder_name != folder_name:
+        candidate_names.append(f"{clean_folder_name}.nfo")
+    for candidate_name in candidate_names:
         candidate_path = os.path.join(folder_path, candidate_name)
         if os.path.isfile(candidate_path):
             return candidate_path
@@ -193,10 +277,11 @@ def _clean_title_and_tokens(raw_title: str) -> tuple[str, set[str]]:
     Gibt `(cleaned_title, meaningful_tokens)` zurück, wobei `meaningful_tokens`
     alle bereinigten Tokens enthält, die nicht in `GENERAL_WORDS` stehen.
     """
-    if not raw_title or not isinstance(raw_title, str):
+    cleaned_raw = _strip_special_unicode(raw_title)
+    if not cleaned_raw:
         return "", set()
 
-    text = unicodedata.normalize("NFC", raw_title).lower()
+    text = unicodedata.normalize("NFC", cleaned_raw).lower()
     text = (
         text.replace("ä", "ae")
         .replace("ö", "oe")
@@ -256,7 +341,7 @@ def find_movie_folders_by_id(
     matches: list[dict] = []
 
     for folder_name, rel_path, full_path in _iter_candidate_folders(category_root):
-        if folder_name in exclude_set or rel_path in exclude_set:
+        if _is_excluded(folder_name, rel_path, full_path, category_root, exclude_set):
             continue
 
         try:
@@ -310,8 +395,8 @@ def find_similar_movie_folders_by_name(
     exclude_set = _normalize_exclude_set(exclude_folders)
     matches: list[dict] = []
 
-    for folder_name, rel_path, _full_path in _iter_candidate_folders(category_root):
-        if folder_name in exclude_set or rel_path in exclude_set:
+    for folder_name, rel_path, full_path in _iter_candidate_folders(category_root):
+        if _is_excluded(folder_name, rel_path, full_path, category_root, exclude_set):
             continue
 
         cand_clean, cand_meaningful = _clean_title_and_tokens(folder_name)
