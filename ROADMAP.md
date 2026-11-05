@@ -2335,3 +2335,26 @@ Klein (Backend-Erkennung + Tests, ein Gate-A2-Lauf); ggf. zweite Etappe für die
 
 ### Aufwand (grob)
 Klein je Punkt; sinnvoll gebündelt mit #81 (Inbox-Reste nach der Verarbeitung), das laut Rückkanal an Dringlichkeit gewonnen hat.
+
+---
+
+## 91. Ähnliche-Titel-Hinweis: Restpunkte aus #158/#159
+
+**Einordnung / Priorität:** Niedrig bis mittel. Sammelpunkt aus dem Rückkanal zum Ähnliche-Titel-Hinweis (2026-11-05, `docs/sessions/2026-11-05-aehnliche-titel/rueckkanal.md`) und dem Handtest von Alex auf dem NAS (Folge-Fix #159). Das Feature selbst ist umgesetzt und live (#158 Feature, #159 Fix für Funktionswort-Rauschen, NAS-Sonderzeichen und Unterordner-Dubletten).
+
+- **R1 – Scan nur einmal, Zeitlimit:** Der Ordner-Scan der Zielkategorie läuft pro Vorschau zweimal (Stufe 1 und Stufe 2) und blockiert synchron. Bei langsamem oder hängendem SMB/NAS kann die Vorschau spürbar verzögert werden. Fix: einmal scannen und beide Stufen auf dem Ergebnis rechnen; Zeitlimit oder Thread-Schutz gegen hängende Mounts.
+- **R2 – Heuristik V2:** Keine Mehrzahl-/Stamm-Erkennung („Alien: Romulus“ findet „Aliens“ nicht), keine Kürzel („X2“ findet „X-Men“ nicht), kein Token-Präfix. Mehr Stoppwörter nur anhand echter Fehlalarme ergänzen.
+- **R3 – Sammelordner mit loser Datei:** Ein Ordner mit direkt liegender `.nfo` oder Videodatei gilt seit #159 als Filmordner; Filme in seinen Unterordnern werden dann nicht gelistet (z. B. Sammlungsordner mit `collection.nfo`). Fix: Erkennung schärfen, z. B. nur Film-NFO oder Ordnername gegen Dateinamen prüfen.
+- **R4 – Frontend-Render absichern:** Fällt die Anzeige der Treffer im Frontend aus, bricht die ganze Vorschau ab. Eigener `try`-Block um den Render, damit „Jetzt final verarbeiten“ immer erreichbar bleibt.
+- **R5 – NFO-Label sauber trennen:** Die Whitelist der NFO-Provider enthält `tmdb_tv`, obwohl nur Filme geprüft werden. Korrekt beschriften und danach `tmdb_tv` aus der Whitelist nehmen.
+- **R6 – Vier Ähnlichkeitssysteme zusammenführen:** Im Code existieren inzwischen vier getrennte Namens-Ähnlichkeitssysteme (u. a. `calculate_match_score`, Duplikat-Erkennung, dieser Hinweis). Konsolidierung prüfen, nur mit eigenem Plan.
+- **R7 – Weitere Medienarten:** Der Hinweis gilt nur für Filme und nur für die NAS-Zielkategorie. Doku, Anime und YouTube sind bewusst ausgeschlossen (FP1-Entscheid) und bei Bedarf einzeln zu planen.
+- **R8 – Unescapter `destination`-Wert (Bestand):** `gui/static/app.js` setzt `data.destination` ohne `escapeHTML` in `innerHTML` (ca. Zeile 10488). Vorbestehend, nicht Teil des Features; gleicher XSS-Typ wie der in #158 behobene Namenskonflikt-Fall.
+- **R9 – Franchise über TMDb-Collections:** Echte Franchise-Zugehörigkeit (z. B. „Men in Black“ 1–3) wäre über TMDb-Collections möglich. Braucht vorher Prüfung der TMDb-Nutzungsbedingungen und ein Go von Alex.
+- **R10 – Ungenutztes Attribut:** Das Attribut `data-overlap` an den Trefferzeilen wird vom Frontend nicht gelesen; entfernen oder nutzen.
+- **R11 – Testdaten aus dem echten Bestand:** Der Handtest fand drei Fehler, die die Fixture-Tests nicht gefunden hatten (Funktionswort „in“, Private-Use-Zeichen vom NAS, Unterordner-Dubletten). Für künftige Namens- und Pfad-Features Handtest-Daten aus dem echten Bestand einplanen.
+- **R12 – Hintergrund-Index der NAS-Filmkategorie (Idee von Alex, 2026-11-05):** Statt bei jeder Vorschau zu scannen, einmal einen Index (Ordnername, relativer Pfad, TMDb-ID aus der NFO) aufbauen und danach nur noch auf Änderungen nachführen (z. B. über Verzeichnis-Änderungszeiten, Neuaufbau nach eigener Verarbeitung). Löst R1 grundsätzlich und ist Grundlage für R2/R9. Vorher messen, wie lange der heutige Scan auf dem NAS tatsächlich dauert; Index nur, wenn das spürbar ist. Risiken: veralteter Index bei Änderungen außerhalb der App, Speicherort und Invalidierung.
+- **R13 – Mehrere Zielordner und Serien/Doku in den Ähnlichkeitsscan (Entscheidung von Alex, 2026-11-05: vorerst so lassen):** Der Hinweis durchsucht heute nur den gewählten Zielordner der Vorschau (Standard `/Filme`, `queue_api.py` ~137–159) und nur für Filme; Serien haben keinen Ähnlichkeitsscan. Ausbau: weitere Kategorien (Doku, andere Film-Ordner, ggf. Serien) mitprüfen und den Treffer mit seinem Ordner kennzeichnen. Hängt an R1/R12, weil mehrere Ordner den Scan verlängern. Vorher klären, ob Filme tatsächlich über mehrere Ordner verteilt liegen.
+
+### Aufwand (grob)
+Klein je Punkt; R1 und R3 zuerst, R6 und R9 nur mit eigenem Plan und Alex-Go.

@@ -2,6 +2,13 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## Stand am 05.11.2026 (Ähnliche-Titel-Hinweis vor finaler Verarbeitung: #158 Feature, #159 Fix nach Handtest, beide live auf dem NAS)
+
+- **Feature (PR #158):** Im Vorschau-Dialog erscheint bei Filmen vor „Jetzt final verarbeiten“ eine nicht blockierende Box mit bereits vorhandenen Titeln der NAS-Zielkategorie. Stufe 1 „Diesen Film hast du schon auf dem NAS“: Abgleich der TMDb-ID gegen `<tmdbid>` in Film-NFOs (bis 2 Ebenen tief, max. 5 Treffer). Stufe 2 „Ähnliche Titel – gehören evtl. dazu“: großzügige Namens-Heuristik (Füllwörter, Jahr, Klammern, Release-Tags und Fortsetzungsnummern werden ignoriert; max. 10 Treffer vom Backend, 5 sichtbar, Rest eingeklappt). Neues Modul `gui/core/similar_titles.py`, Antwortfeld `similar_existing` (in `API.md`), fehlertolerante Scans. Im selben PR: XSS im Namenskonflikt-Hinweis behoben (`escapeHTML` auf NAS-Ordnernamen); Cache-Buster `app.js?v=105`.
+- **Fix (PR #159):** Handtest auf dem NAS („Men in Black 3“) fand drei Fehler, die die Fixture-Tests nicht gefunden hatten: (1) Funktionswörter wie „in“ erzeugten Fehlalarme → Stoppwortliste erweitert (EN/DE); (2) NAS-Ordnernamen enthalten Private-Use-Zeichen (SMB-Zeichenabbildung) → Zeichen der Unicode-Kategorien Co/Cc/Cf/Cs werden für Anzeige, Vergleich und Ausschlüsse entfernt; (3) Unterordner eines Filmordners wurden als eigener Treffer geführt → Filmordner (direkte Video-/NFO-Datei) werden nicht weiter abgestiegen. Alex nach Update: „sieht richtig aus“.
+- **Prozess:** Kreativteam (scout/advocatus/produktberater, plan-reviewer REVISE→APPROVE), Gate-A2 in zwei Etappen (E1 Backend, E2 Frontend) plus Fix-Lauf (APPROVED in Runde 1), Rückkanal `ABNAHME: JA`. Belege: 550 pytest + 238 Frontend-Tests (Feature), 552 + 238 (Fix). NAS-Update jeweils nach Merge und grünem Image-Build per `docker compose pull && docker compose up -d`.
+- **Offen:** Restpunkte als ROADMAP #91 erfasst. Rohoutputs: `docs/sessions/2026-11-05-aehnliche-titel/` und `docs/sessions/2026-11-05-aehnliche-titel-fix/`.
+
 ## Stand am 14.09.2026 (Nachzüge zu Item #59: Cache-Busting 92→93 & 46→47, Escape-Abbruch Weg A mit Fokus-Transfer)
 
 - **Zwei Nachzüge aus der Rückkanal-Abnahme zu Item #59 umgesetzt:**
