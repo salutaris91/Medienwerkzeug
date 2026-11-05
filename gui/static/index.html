@@ -2578,6 +2578,12 @@ group_add:
                 </div>
             </div>
 
+            <!-- Warning Box for Similar Existing Movie Titles -->
+            <div id="preview-similar-existing" class="hidden" style="display: flex; gap: 12px; background: rgba(255, 179, 0, 0.08); border: 1px solid rgba(255, 179, 0, 0.25); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 20px; align-items: flex-start; color: var(--text-main); font-size: 13px;">
+                <span style="flex-shrink: 0; display: inline-flex; align-items: center; margin-top: 2px;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle" style="color:#ffb300;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg></span>
+                <div id="preview-similar-existing-text" style="flex: 1; line-height: 1.4;"></div>
+            </div>
+
             <!-- Zielpfad -->
             <div class="inline-style-228">
                 <div class="inline-style-229">Zielverzeichnis (NAS/Cloud)</div>
@@ -2757,7 +2763,7 @@ group_add:
     </div>
 </div>
 
-    <script type="module" src="app.js?v=104"></script>
+    <script type="module" src="app.js?v=105"></script>
 
     <!-- Modal: Confirm Merge -->
     <div id="modal-confirm-merge" class="mw-modal-overlay">
