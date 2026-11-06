@@ -169,33 +169,51 @@ fi
 echo
 echo "4. Regel-Kompilierung (Regelsynchronität):"
 
-# Wir prüfen immer die lokale AGENTS.md des Projekts bzw. des Starter-Kits.
-# Wir verweisen NICHT mehr auf globale Tools-Dateien.
+# Weiche über rules/ (nicht über den Ordnernamen): auch Kit-Worktrees und
+# Temp-Klone haben rules/ und müssen als Kit geprüft werden.
 AGENTS_FILE="$ROOT/AGENTS.md"
+HAS_LOCAL_RULES=0
+[ -d "$ROOT/rules" ] && HAS_LOCAL_RULES=1
 
-if [ -f "$AGENTS_FILE" ]; then
-  status_ok "Prüfe lokale '$AGENTS_FILE'..."
-  # Kompatible Liste für Bash 3
-  declare -a check_list
-  check_list=(
-    "VERDICT|Review-Urteilsformat (VERDICT: APPROVE | REVISE)"
-    "ADR-Blöcke|Plan-Ausgabeformat (ADR-Blöcke)"
-    "Akzeptanzkriterium|Teststrategie (Akzeptanzkriterium)"
-    "Eskalationsregel|Multi-Agent-Eskalationsregel"
-  )
+# Kompatible Liste für Bash 3
+declare -a check_list
+check_list=(
+  "VERDICT|Review-Urteilsformat (VERDICT: APPROVE | REVISE)"
+  "ADR-Blöcke|Plan-Ausgabeformat (ADR-Blöcke)"
+  "Akzeptanzkriterium|Teststrategie (Akzeptanzkriterium)"
+  "Eskalationsregel|Multi-Agent-Eskalationsregel"
+)
 
+# Prüft die Ankerwörter in einer Datei; $3 = "err" (hart) oder "warn".
+check_rule_keywords() {
+  local file="$1" label="$2" level="$3" item kw desc
+  status_ok "Prüfe $label..."
   for item in "${check_list[@]}"; do
     kw="${item%%|*}"
     desc="${item#*|}"
-    if grep -q "$kw" "$AGENTS_FILE"; then
+    if grep -q "$kw" "$file"; then
       status_ok "Regel-Begriff gefunden: $desc"
+    elif [ "$level" = "err" ]; then
+      status_err "Regel-Begriff FEHLT in $file: $desc!"
     else
-      status_err "Regel-Begriff FEHLT in $AGENTS_FILE: $desc!"
+      status_warn "Regel-Begriff fehlt in $file: $desc (globale Regeln neu bauen: scripts/build-global.sh im Kit)."
     fi
   done
+}
 
-  # In schlanken Projekten dürfen keine ungelösten @rules/ Imports übrig bleiben
-  if [ "$IS_KIT" -eq 0 ] && [ ! -d "$ROOT/rules" ]; then
+if [ -f "$AGENTS_FILE" ]; then
+  if [ "$HAS_LOCAL_RULES" -eq 1 ]; then
+    # Kit: der Volltext enthält alle Regeln, die Ankerwörter müssen drinstehen.
+    check_rule_keywords "$AGENTS_FILE" "lokale '$AGENTS_FILE'" err
+  else
+    # Projekt: AGENTS.md enthält nur den Projektteil, die Hausregeln liegen
+    # global. Hart geprüft wird nur die Struktur der Projektdatei.
+    status_ok "Prüfe Projekt-AGENTS.md ($AGENTS_FILE)..."
+    if grep -q "^## Projektspezifisch" "$AGENTS_FILE"; then
+      status_ok "AGENTS.md enthält den Abschnitt '## Projektspezifisch'."
+    else
+      status_err "AGENTS.md enthält keinen Abschnitt '## Projektspezifisch'!"
+    fi
     if [ -f "$ROOT/CLAUDE.md" ] && grep -q "^@rules/" "$ROOT/CLAUDE.md"; then
       status_err "CLAUDE.md enthält ungelöste @rules/-Imports!"
     else
@@ -205,6 +223,19 @@ if [ -f "$AGENTS_FILE" ]; then
       status_err "AGENTS.md enthält ungelöste @rules/-Imports!"
     else
       status_ok "AGENTS.md ist frei von ungelösten @rules/-Imports."
+    fi
+    # Globale Regeln nur als Hinweis: in CI/Containern gibt es sie nicht.
+    GLOBAL_RULES_FILE=""
+    for candidate in "$HOME/.claude/CLAUDE.md" "$HOME/.gemini/config/AGENTS.md"; do
+      if [ -f "$candidate" ] && grep -q "AI-CODING-KIT:START" "$candidate"; then
+        GLOBAL_RULES_FILE="$candidate"
+        break
+      fi
+    done
+    if [ -n "$GLOBAL_RULES_FILE" ]; then
+      check_rule_keywords "$GLOBAL_RULES_FILE" "globale Hausregeln ($GLOBAL_RULES_FILE)" warn
+    else
+      status_warn "Keine globale Regeldatei in \$HOME gefunden (in CI normal)."
     fi
   fi
 else
