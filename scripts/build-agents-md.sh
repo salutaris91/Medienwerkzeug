@@ -2,13 +2,15 @@
 #
 # build-agents-md.sh — erzeugt AGENTS.md aus CLAUDE.md.
 #
-# CLAUDE.md ist die kanonische Quelle.
-# - Wenn ein lokales rules/ Ordner existiert (Kit-Modus):
-#   Wir lösen @rules/... Imports in CLAUDE.md auf.
-# - Wenn KEIN lokaler rules/ Ordner existiert (abgespecktes Projekt):
-#   CLAUDE.md enthält keine @rules-Imports (sie bleibt projektspezifisch).
-#   scripts/build-agents-md.sh holt die globalen Hausregeln aus der globalen
-#   Installation (~/.gemini/config/AGENTS.md) und bettet sie automatisch ein.
+# CLAUDE.md ist die kanonische Quelle für den Projektteil.
+# - Wenn ein lokaler rules/-Ordner existiert (Kit-Modus):
+#   Die Regeln aus rules/*.md werden (wie in build-global.sh) direkt vor
+#   "## Projektspezifisch" eingefügt; CLAUDE.md braucht keine @-Imports.
+# - Wenn KEIN lokaler rules/ Ordner existiert (Projekt):
+#   AGENTS.md enthält nur den Projektteil. Die generischen Hausregeln liegen
+#   global (build-global.sh) und werden von den Tools von dort geladen; sie
+#   werden bewusst NICHT eingebettet (sonst Drift bei jedem Regel-Rollout und
+#   doppelte Ladung).
 #
 # Aufruf:
 #   scripts/build-agents-md.sh            -> baut im Kit-Root (Verzeichnis über diesem Skript)
@@ -57,33 +59,10 @@ trap 'rm -f "$TMP"' EXIT
     echo "     NICHT direkt bearbeiten — Änderungen in rules/*.md vornehmen und neu bauen. -->"
   else
     echo "     NICHT direkt bearbeiten — Projektblock in CLAUDE.md ändern und neu bauen."
-    echo "     Generische Hausregeln liegen global (im Kit gepflegt: rules/, dann build-global.sh). -->"
+    echo "     Generische Hausregeln liegen global (im Kit gepflegt: rules/, dann build-global.sh) und sind hier nicht eingebettet. -->"
   fi
   echo
 } > "$TMP"
-
-# Wenn abgespecktes Projekt: Hole die globalen Regeln aus der globalen Installation
-GLOBAL_RULES_BLOCK=""
-if [ "$HAS_LOCAL_RULES" -eq 0 ]; then
-  # Finde globale Regeln
-  for f in "$HOME/.gemini/config/AGENTS.md" "$HOME/.claude/CLAUDE.md" "$HOME/.codex/AGENTS.md"; do
-    if [ -f "$f" ]; then
-      # Extrahiere den Block zwischen den Markern
-      extracted="$(awk '/<!-- AI-CODING-KIT:START/,/<!-- AI-CODING-KIT:END/' "$f" || true)"
-      # Validierung: Prüfe, ob sowohl START- als auch END-Marker vorhanden sind
-      if [[ "$extracted" == *"AI-CODING-KIT:START"* ]] && [[ "$extracted" == *"AI-CODING-KIT:END"* ]]; then
-        GLOBAL_RULES_BLOCK="$extracted"
-        break
-      fi
-    fi
-  done
-
-  if [ -z "$GLOBAL_RULES_BLOCK" ]; then
-    echo "Fehler: Globale Hausregeln (AI-Coding-Kit Block) konnten nicht aus globalen Dateien extrahiert werden." >&2
-    echo "        Stelle sicher, dass scripts/build-global.sh im Kit-Verzeichnis ausgeführt wurde." >&2
-    exit 1
-  fi
-fi
 
 in_claude_only=0
 while IFS= read -r line || [ -n "$line" ]; do
@@ -92,7 +71,7 @@ while IFS= read -r line || [ -n "$line" ]; do
     {
       echo "Diese Datei ist **generiert** aus \`CLAUDE.md\` und \`rules/\` durch"
       echo "\`scripts/build-agents-md.sh\` und enthält den Volltext aller Regeln für"
-      echo "Tools, die \`@\`-Imports nicht auflösen (Codex u. a.)."
+      echo "Tools ohne globale Regeldatei (Codex u. a.)."
       echo
       echo "> Nicht direkt bearbeiten. Regeln in \`rules/*.md\` ändern und neu bauen."
     } >> "$TMP"
@@ -106,28 +85,20 @@ while IFS= read -r line || [ -n "$line" ]; do
     continue
   fi
 
-  # Injektion der globalen Hausregeln direkt vor ## Projektspezifisch
-  if [ "$HAS_LOCAL_RULES" -eq 0 ] && [ -n "$GLOBAL_RULES_BLOCK" ] && [[ "$line" == "## Projektspezifisch"* ]]; then
-    echo "$GLOBAL_RULES_BLOCK" >> "$TMP"
-    echo >> "$TMP"
+  # Kit-Modus: Regeln aus rules/*.md direkt vor ## Projektspezifisch einfügen
+  # (gleiche Quelle und gleiches Format wie build-global.sh).
+  if [ "$HAS_LOCAL_RULES" -eq 1 ] && [[ "$line" == "## Projektspezifisch"* ]]; then
+    for rule_file in "$ROOT/rules"/*.md; do
+      cat "$rule_file" >> "$TMP"
+      echo >> "$TMP"
+    done
     echo "---" >> "$TMP"
     echo >> "$TMP"
   fi
 
   if [[ "$line" =~ ^@ ]]; then
-    if [ "$HAS_LOCAL_RULES" -eq 0 ]; then
-      echo "Fehler: @-Imports sind in schlanken Projekten nicht erlaubt: $line" >&2
-      exit 1
-    fi
-    importpath="${line#@}"
-    target="$ROOT/$importpath"
-    if [ -f "$target" ]; then
-      cat "$target" >> "$TMP"
-      echo >> "$TMP"
-    else
-      echo "Warnung: Import-Ziel nicht gefunden: $importpath" >&2
-      echo "$line" >> "$TMP"
-    fi
+    echo "Fehler: @-Imports werden nicht mehr unterstützt (Regeln kommen aus rules/ bzw. global): $line" >&2
+    exit 1
   else
     # Titelzeile anpassen: "# CLAUDE.md ..." -> "# AGENTS.md ..."
     if [[ "$line" == "# CLAUDE.md"* ]]; then
