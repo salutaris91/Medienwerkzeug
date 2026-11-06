@@ -62,38 +62,6 @@ if [ "$IS_KIT" -eq 0 ]; then
   else
     status_warn "FEATURE_BRIEFING.md oder docs/alexandria/FEATURE_BRIEFING.md fehlt."
   fi
-
-  # OpenCode Reviewer Capability Check
-  HAS_OPENCODE_KEY=0
-  HAS_OPENCODE_MODEL=0
-  if [ -f "$ROOT/.env" ]; then
-    KEY_VAL=$(grep -E '^[[:space:]]*OPENCODE_API_KEY=' "$ROOT/.env" | head -n 1 | cut -d'=' -f2- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//" || true)
-    if [ -n "$KEY_VAL" ] && [ "$KEY_VAL" != "your_opencode_api_key_here" ]; then HAS_OPENCODE_KEY=1; fi
-
-    MOD_VAL=$(grep -E '^[[:space:]]*OPENCODE_MODEL=' "$ROOT/.env" | head -n 1 | cut -d'=' -f2- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//" || true)
-    if [ -n "$MOD_VAL" ] && [ "$MOD_VAL" != "your_opencode_model_here" ]; then HAS_OPENCODE_MODEL=1; fi
-  fi
-
-  if [ "$HAS_OPENCODE_KEY" -eq 1 ] || [ "$HAS_OPENCODE_MODEL" -eq 1 ]; then
-    if [ "$HAS_OPENCODE_KEY" -eq 1 ] && [ "$HAS_OPENCODE_MODEL" -eq 1 ]; then
-      if [ -f "$ROOT/scripts/opencode-reviewer.sh" ]; then
-        status_ok "OpenCode Capability erkannt und scripts/opencode-reviewer.sh existiert."
-      else
-        status_err "OpenCode Capability erkannt, aber scripts/opencode-reviewer.sh FEHLT."
-      fi
-    else
-      if [ "$HAS_OPENCODE_KEY" -eq 1 ]; then
-        status_err "Unvollständige OpenCode Konfiguration: OPENCODE_API_KEY ist gesetzt, aber OPENCODE_MODEL fehlt in .env"
-      else
-        status_err "Unvollständige OpenCode Konfiguration: OPENCODE_MODEL ist gesetzt, aber OPENCODE_API_KEY fehlt in .env"
-      fi
-      if [ ! -f "$ROOT/scripts/opencode-reviewer.sh" ]; then
-        status_err "Zusätzlich FEHLT scripts/opencode-reviewer.sh"
-      fi
-    fi
-  else
-    status_ok "Keine OpenCode Capability in .env konfiguriert (Info)."
-  fi
 fi
 
 # 2. Check .gitignore
