@@ -63,42 +63,43 @@ Formuliert als ausführbare Tests („es prüft, dass …“) bzw. dokumentierte
 
 ### E1 — Wizard-Rahmen + Film-Editor + Backend-Nachzug (roadmap#92, #52, #50 Film-Kern, #51 FSK/Genre-Pipeline) (Auflage-1-Beschluss)
 - **Ziel:** Vier-Schritte-Wizard als neue `js/`-Module (`film_wizard.js`, `nfo_editor.js`) im `mw-modal`-Muster, Einstieg „Film verarbeiten“ in der Inbox; Schritt 2 editiert Titel/Jahr/Plot/FSK/Genre; Schritt 3 als überspringbarer Platzhalter; **Backend-Nachzug**: `patch_nfo_fields()` auch im Inbox-Film-Import (beide Provider-Zweige), damit FSK/Genre nicht mehr verloren gehen. NFO-Agent, Preview-Modal, Serien-/Doku-Pfad unangetastet. Übergebung an den Alt-Ablauf: „Weiter“ nach Schritt 2/3 öffnet den bisherigen Optionen-/Vorschau-Flow (bewusste Übergangslösung bis E2, siehe D1).
-- **Akzeptanzkriterien:** E1-AK1 … E1-AK8.
-- **Erlaubte Dateien:** `gui/static/js/film_wizard.js` (neu), `gui/static/js/nfo_editor.js` (neu), `gui/static/index.html` (neues Wizard-Markup + Cache-Buster), `gui/static/app.js` (Import-Zeilen + Einstiegs-Verdrahtung, keine Löschungen), `gui/static/style.css` oder `gui/static/utilities.css` (`mw-wizard-*`-Klassen), `gui/workers/processor.py` (Nachzug im Block 2102–2124), `gui/core/nfo_mutation.py` bzw. `gui/core/health.py` (nur falls D6(b)/(c) es erfordert; sonst unangetastet), `tests/test_nfo_write.py` bzw. neue `tests/test_inbox_movie_overrides.py`, `tests/frontend/film_wizard.test.js` (neu), `tests/frontend/nfo_editor.test.js` (neu).
+- **Akzeptanzkriterien:** E1-AK1, E1-AK2, E1-AK3, E1-AK4, E1-AK5, E1-AK6, E1-AK7, E1-AK8.
+- **Erlaubte Dateien:** `gui/static/js/film_wizard.js`, `gui/static/js/nfo_editor.js`, `gui/static/index.html`, `gui/static/app.js`, `gui/static/style.css`, `gui/static/utilities.css`, `gui/workers/processor.py`, `gui/core/nfo_mutation.py`, `gui/core/health.py`, `tests/test_nfo_write.py`, `tests/test_inbox_movie_overrides.py`, `tests/frontend/film_wizard.test.js`, `tests/frontend/nfo_editor.test.js`
+- **Hinweise zu den erlaubten Dateien (E1, nicht Teil der Pfadliste):** film_wizard.js, nfo_editor.js und die beiden neuen Testdateien sind neu. index.html: neues Wizard-Markup plus Cache-Buster. app.js: nur Import-Zeilen und Einstiegs-Verdrahtung, keine Löschungen. style.css oder utilities.css: die neuen Klassen mit Präfix mw-wizard. processor.py: Nachzug im Importblock um Z. 2102–2124. nfo_mutation.py und health.py nur, falls D6(b)/(c) es erfordert, sonst unangetastet. Für test_nfo_write.py darf stattdessen die neue test_inbox_movie_overrides.py genutzt werden.
 - **Diff-Schätzung:** ~65–85 KB (geringe Verschiebungsanteile; Hauptlast: neue Module + Markup + CSS + Tests). **Bei Budgetüberschreitung zuerst zurückstellen:** Schritt-2-Feldumfang Originaltitel/Studios, dann „Film X von N“-CSS (in E6 ohnehin neu).
 - **Abbruchkriterium:** Diff > 80 KB nach Rückstell-Liste → Kette stoppen, Schnitt mit Alex nachverhandeln; Handtest-Parcours (Serie/Doku) zeigt Abweichung → sofortiger Stopp (Serien-Regression ist der Kern-Alptraum von advocatus Pkt. 2); Nachzug-Tests (E1-AK3/AK4/AK7/AK8) nicht grün → kein PR.
 
 ### E2 — Ergebnis-Schritt für Filme + R8-Fix (roadmap#92; #91 bleibt hier, ADR-02) (Schnitt entscheidet D1)
 - **Ziel:** Schritt 4 wird echter Ergebnis-Schritt: Verarbeitungsoptionen (H.265, Zielordner NAS/pCloud, Original löschen, Qualität) + Vorschau-Inhalt (Zielpfad, Renames, Untertitel, Junk, #91-Hinweis) in den Wizard überführt; „Jetzt final verarbeiten“ aus dem Wizard; R8-Fix (ADR-05) beim Umzug. Altes Vorschau-Modal bleibt für Serien/Doku unangetastet.
-- **Akzeptanzkriterien:** E2-AK1 … E2-AK4.
+- **Akzeptanzkriterien:** E2-AK1, E2-AK2, E2-AK3, E2-AK4.
 - **Erlaubte Dateien:** `gui/static/js/film_wizard.js`, `gui/static/js/preview_render.js` (neu, extrahiert die Render-Logik aus `openPreviewModal` app.js 10253–10525, von Wizard **und** Alt-Modal genutzt — eine Kopie, kein Doppelcode), `gui/static/app.js` (Umzug der Render-/Execute-Logik, Löschungen auf Film-Pfad beschränkt), `gui/static/index.html` (Optionen-Block 821–871 → Wizard-Markup; Alt-Panel bleibt bis E3 für Doku), `tests/frontend/preview_render.test.js` (neu), `tests/frontend/film_wizard.test.js`.
 - **Diff-Schätzung:** ~70–100 KB (Verschiebungs-Doppelpflicht: app.js-Region ~26 KB + Execute ~9 KB + HTML-Blöcke ~16 KB zählen Löschung + Neubau). **Diese Etappe liegt über dem 80-KB-Richtwert im ungünstigen Fall** — Vorab-Notbremse: wenn der laufende Diff 80 KB überschreitet, Junk-/Untertitel-Abschnitt in E2b nachziehen (Rest bleibt).
 - **Abbruchkriterium:** Serien-/Doku-Vorschau zeigt Verhaltensänderung (Handtest) → Stopp, Rollback-Kandidat; Diff > 80 KB ohne mögliche Teil-E2b → Schnitt mit Alex nachverhandeln.
 
 ### E3 — NFO-Agent-Filmpfad andocken + Altcode-Rückbau (roadmap#92, #50, #52)
 - **Ziel:** Der Film-Zweig von `#modal-nfo-agent` nutzt `nfo_editor.js` (extrahierte Felder, reine Verschiebung, Signaturen unverändert — advocatus Pkt. 2); Film-spezifischer Altcode in `#context-movie`/app.js wird entfernt bzw. auf Doku-Nutzung reduziert; hartcodierte NFO-Agent-Farben migrieren in Variablen ([grafiker] Mitwander, index.html 3163/3189/3193/3218).
-- **Akzeptanzkriterien:** E3-AK1 … E3-AK3.
+- **Akzeptanzkriterien:** E3-AK1, E3-AK2, E3-AK3.
 - **Erlaubte Dateien:** `gui/static/app.js` (Region 16975–18100, 4159–4568, 7719-Umfeld), `gui/static/index.html` (`#modal-nfo-agent`, `#context-movie`-Rückbau), `gui/static/js/nfo_editor.js`, `gui/static/js/nfo_ui.js` (nur falls Serien-Logik getrennt werden muss — Signatur unverändert), `gui/static/style.css`, Frontend-Tests.
 - **Diff-Schätzung:** ~40–60 KB.
 - **Abbruchkriterium:** Episoden-Mapping oder Health-Einstieg verändert (Handtest) → Stopp; Extraktion erzwingt Signatur-Änderungen an geteilten Film/Serien-Funktionen → Stopp und Alex-Entscheidung (Verstößt gegen „Verschieben ohne Refactoring nebenbei“).
 
 ### E4 — Provider-Vergleich + Abruf-Rahmenwerk (roadmap#55, #54 Teil 2)
 - **Ziel:** Schritt 2 zeigt Felder je Provider als Badge-Feld-Karten ([grafiker] Abschnitt 2); API liefert ungemergte Provider-Felder; HTML-Abrufe auf vorhandenes `fetch_html_with_retry`, Binär auf neues `_download_with_retry` mit Byte-Integrität; Backoff-Rahmenwerk (advocatus Pkt. 7) als Basis für E5/E6.
-- **Akzeptanzkriterien:** E4-AK1 … E4-AK3.
+- **Akzeptanzkriterien:** E4-AK1, E4-AK2, E4-AK3.
 - **Erlaubte Dateien:** `gui/mw_metadata.py`, `gui/static/js/film_wizard.js`, `gui/static/js/nfo_editor.js`, `gui/static/index.html`, `gui/static/style.css`, `tests/test_metadata_retry.py`, `tests/frontend/nfo_editor.test.js`, neue Tests `tests/test_provider_fields.py` und `tests/frontend/provider_badges.test.js`. Bewusster Spielraum API-Schicht: eine neue oder bestehende Endpoint-Datei unter `gui/api/` (vermutlich `queue_api.py`; der Worker muss die konkret berührte Datei im PR benennen).
 - **Diff-Schätzung:** ~40–70 KB.
 - **Abbruchkriterium:** Ein Provider-Fehler wirft die ganze Feldansicht (nicht nur das Badge) → Abbruch bis Teil-Erfolg erfüllt; Diff > 80 KB → Badge-UI und Retry-Arbeit in zwei Ketten teilen.
 
 ### E5 — Artwork-Auswahl (roadmap#51) — **Gate: nur nach schriftlicher Alex-Rechtsfreigabe (D2)**
 - **Ziel:** Schritt 3 wird Bildauswahl: Grid je Rolle (Poster/Backdrop/Logo) aus den TMDb-Bildlisten (die TMDb-API liefert Listen, `fetch_tmdb_images()` reduziert sie aber auf je eine URL; E5 braucht eine neue Kandidaten-Funktion plus Endpoint und lässt `fetch_tmdb_images()` unverändert, weil `generate_movie_nfo()`/`generate_tvshow_nfo()` davon abhängen), Auswahl/Abwahl, Download des Gewählten mit Retry + Integritätsprüfung, Attribution. Quellenumfang final gemäß D2 (Option A nur TMDb / Option B + Fanart.tv).
-- **Akzeptanzkriterien:** E5-AK1 … E5-AK3.
+- **Akzeptanzkriterien:** E5-AK1, E5-AK2, E5-AK3.
 - **Erlaubte Dateien:** `gui/mw_metadata.py`, `gui/static/js/film_wizard.js`, `gui/static/index.html`, `gui/static/style.css`, `tests/frontend/film_wizard.test.js`, neue Tests `tests/test_artwork_download.py` und `tests/frontend/film_wizard_artwork.test.js`. Bewusster Spielraum API-Schicht: eine Endpoint-Datei unter `gui/api/` (im PR zu benennen; bei Option B zusätzlich Bildquellen-Helfer in `gui/mw_metadata.py`).
 - **Diff-Schätzung:** ~35–60 KB (Option A) bzw. ~50–75 KB (Option B, zweiter Provider).
 - **Abbruchkriterium:** D2 nicht schriftlich entschieden → Etappe startet nicht (harter Blocker, ADR-06); CSP-Prüfung ergibt restriktives `img-src` → Planung nachziehen.
 
 ### E6 — Filmreihen-Vorab-Queue (roadmap#69)
 - **Ziel:** FP1-beschlossene Vorab-Queue (keine Dialog-Schleife): Mehrfachauswahl in der Inbox, „als Filme einreihen“, Wizard arbeitet Liste nacheinander ab, Kopf „Film X von N“; Abbruch fest; Teil-Erfolg je Film dank E4-Rahmenwerk.
-- **Akzeptanzkriterien:** E6-AK1 … E6-AK3.
+- **Akzeptanzkriterien:** E6-AK1, E6-AK2, E6-AK3.
 - **Erlaubte Dateien:** `gui/static/app.js` (Inbox-Auswahl #65, Queue-Steuerung), `gui/static/js/film_wizard.js`, `gui/static/index.html`, `tests/frontend/film_queue.test.js` (neu). Bewusster Spielraum API-Schicht: nur falls ein Queue-Endpunkt nötig wird, eine Datei unter `gui/api/` (im PR zu benennen) plus Backend-Test `tests/test_movie_queue.py` (neu).
 - **Diff-Schätzung:** ~15–30 KB.
 - **Abbruchkriterium:** Häufigkeit laut D4-Antwort „< 1×/Monat“ und Alex kippt die Etappe → Etappe entfällt (Einzelfilm-Ablauf bleibt unabhängig nutzbar).
