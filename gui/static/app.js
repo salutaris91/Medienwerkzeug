@@ -1,12 +1,14 @@
-import { applyTheme } from './js/theme.js?v=105';
-import { cleanSeriesName } from './js/utils.js?v=105';
-import { formatBytes } from './js/format.js?v=105';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=105';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=105';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=105';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=105';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=105';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=105';
+import { applyTheme } from './js/theme.js?v=106';
+import { cleanSeriesName } from './js/utils.js?v=106';
+import { formatBytes } from './js/format.js?v=106';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=106';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=106';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=106';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=106';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=106';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=106';
+import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=106';
+import { renderNfoEditor, buildMovieNfoOverrides } from './js/nfo_editor.js?v=106';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -224,6 +226,7 @@ let currentProjectIsDoku = false;
 let currentProjectSuggestedQuery = "";
 let selectedShow = null;
 let selectedMovie = null;
+let wizardMovieOverrides = null;
 let episodesData = {}; // maps episode number (string) to title/info
 let fetchedEpisodeMetadataCache = {}; // caches fetched episode metadata: provider_showid_season_episode -> {title, plot, aired}
 let eventSource = null;
@@ -1827,21 +1830,27 @@ function initViews() {
 
                     if (mode === "movie") {
                         const isDoku = currentProjectIsDoku || (cleanedQuery && (cleanedQuery.toLowerCase().includes("doku") || cleanedQuery.toLowerCase().includes("dokumentation")));
+                        const wizardLaunchBtn = document.getElementById("btn-open-film-wizard");
 
                         if (isDoku) {
                             document.getElementById("context-movie-header").innerText = "Doku verarbeiten";
                             document.getElementById("movie-nas-destination").value = getCatIdBySub("/Dokus/Einzelne Dokus", "3");
                             document.getElementById("movie-pcloud-destination").value = getCatIdBySub("/Dokus/Einzelne Dokus", "3");
+                            if (wizardLaunchBtn) wizardLaunchBtn.classList.add("hidden");
                         } else {
                             document.getElementById("context-movie-header").innerText = "Film verarbeiten";
                             document.getElementById("movie-nas-destination").value = getCatIdBySub("/Filme", "1");
                             document.getElementById("movie-pcloud-destination").value = getCatIdBySub("/Filme", "1");
+                            if (wizardLaunchBtn) wizardLaunchBtn.classList.remove("hidden");
                         }
 
                         document.getElementById("movie-search-query").value = cleanedQuery;
                         searchMovie();
                         updateSizeEstimation("movie");
                         triggerQualityHintUpdates();
+                        if (!isDoku && typeof openFilmWizard === "function" && document.getElementById("modal-film-wizard")) {
+                            openFilmWizard({ query: cleanedQuery, onHandover: handleFilmWizardHandover });
+                        }
                     } else if (mode === "series") {
                         document.getElementById("series-nas-destination").value = getCatIdBySub("/Serien", "2");
                         document.getElementById("series-pcloud-destination").value = getCatIdBySub("/Serien", "2");
@@ -1854,6 +1863,16 @@ function initViews() {
             });
         }
     });
+
+    const btnOpenFilmWizard = document.getElementById("btn-open-film-wizard");
+    if (btnOpenFilmWizard) {
+        btnOpenFilmWizard.addEventListener("click", () => {
+            const queryVal = document.getElementById("movie-search-query")?.value?.trim() || currentProjectSuggestedQuery || currentProject || "";
+            if (typeof openFilmWizard === "function") {
+                openFilmWizard({ query: queryVal, onHandover: handleFilmWizardHandover });
+            }
+        });
+    }
 
     // Dashboard Nav
     const navDashboard = document.getElementById("nav-dashboard");
@@ -4275,8 +4294,35 @@ async function searchMovie() {
     }
 }
 
+function handleFilmWizardHandover(handoverData) {
+    if (!handoverData || !handoverData.movie) return;
+    selectedMovie = handoverData.movie;
+    wizardMovieOverrides = handoverData.nfo_overrides && handoverData.nfo_overrides.movie
+        ? { ...handoverData.nfo_overrides.movie }
+        : null;
+
+    const panel = document.getElementById("selected-movie-panel");
+    const title = document.getElementById("selected-movie-title");
+    const provider = document.getElementById("selected-movie-provider-info");
+    if (title) title.textContent = selectedMovie.name;
+    if (provider && typeof renderProviderInfo === "function") {
+        renderProviderInfo(provider, selectedMovie.provider, selectedMovie.id, false);
+    }
+    if (panel) panel.classList.remove("hidden");
+
+    const movieNfoTitle = document.getElementById("movie-nfo-title");
+    const movieNfoYear = document.getElementById("movie-nfo-year");
+    const movieNfoPlot = document.getElementById("movie-nfo-plot");
+    if (wizardMovieOverrides) {
+        if (movieNfoTitle) movieNfoTitle.value = wizardMovieOverrides.title ?? "";
+        if (movieNfoYear) movieNfoYear.value = wizardMovieOverrides.year ?? "";
+        if (movieNfoPlot) movieNfoPlot.value = wizardMovieOverrides.plot ?? "";
+    }
+}
+
 function selectMovie(movie) {
     selectedMovie = movie;
+    wizardMovieOverrides = null;
 
     const panel = document.getElementById("selected-movie-panel");
     const title = document.getElementById("selected-movie-title");
@@ -4559,9 +4605,24 @@ async function executeMovieWorkflow() {
     const movieTitle = document.getElementById("movie-nfo-title")?.value?.trim();
     const movieYear = document.getElementById("movie-nfo-year")?.value?.trim();
     const moviePlot = document.getElementById("movie-nfo-plot")?.value?.trim();
-    if (movieTitle) nfoOverrides.movie.title = movieTitle;
-    if (movieYear) nfoOverrides.movie.year = movieYear;
-    if (moviePlot) nfoOverrides.movie.plot = moviePlot;
+    if (wizardMovieOverrides) {
+        const mergedWizardOverrides = { ...wizardMovieOverrides };
+        if (movieTitle || Object.prototype.hasOwnProperty.call(wizardMovieOverrides, "title")) {
+            mergedWizardOverrides.title = movieTitle !== undefined ? movieTitle : wizardMovieOverrides.title;
+        }
+        if (movieYear || Object.prototype.hasOwnProperty.call(wizardMovieOverrides, "year")) {
+            mergedWizardOverrides.year = movieYear !== undefined ? movieYear : wizardMovieOverrides.year;
+        }
+        if (moviePlot || Object.prototype.hasOwnProperty.call(wizardMovieOverrides, "plot")) {
+            mergedWizardOverrides.plot = moviePlot !== undefined ? moviePlot : wizardMovieOverrides.plot;
+        }
+        nfoOverrides.movie = mergedWizardOverrides;
+        payload.wizard_overrides = true;
+    } else {
+        if (movieTitle) nfoOverrides.movie.title = movieTitle;
+        if (movieYear) nfoOverrides.movie.year = movieYear;
+        if (moviePlot) nfoOverrides.movie.plot = moviePlot;
+    }
     payload.nfo_overrides = nfoOverrides;
 
     openPreviewModal(payload);

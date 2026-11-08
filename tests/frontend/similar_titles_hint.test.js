@@ -490,13 +490,14 @@ test('AK16: Stage separation ensures a Stufe-1 folder never appears again in Stu
     assert.ok(fuzzySection.textContent.includes('X-Men 2'), 'Stufe 2 must still show remaining similar folder');
 });
 
-test('AK17: Cache-Buster version in index.html and all 9 imports in app.js is 105', () => {
+test('AK17: Cache-Buster version in index.html and all imports in app.js is >= 105 and consistent', () => {
     const indexHtml = fs.readFileSync(indexHtmlPath, 'utf8');
     const appJs = fs.readFileSync(appJsPath, 'utf8');
 
     const indexMatch = indexHtml.match(/<script\s+[^>]*src=["']app\.js\?v=([^"']+)["']/);
     assert.ok(indexMatch);
-    assert.strictEqual(indexMatch[1], '105');
+    const version = indexMatch[1];
+    assert.ok(Number(version) >= 105, `Expected app.js version >= 105, got ${version}`);
 
     const importRegex = /import\s+(?:\{[^}]*\}|\*\s+as\s+[^'"]+|[\w$]+)\s+from\s+['"](\.\/js\/[^'"]+)['"]/g;
     const imports = [];
@@ -504,9 +505,9 @@ test('AK17: Cache-Buster version in index.html and all 9 imports in app.js is 10
     while ((match = importRegex.exec(appJs)) !== null) {
         imports.push(match[1]);
     }
-    assert.strictEqual(imports.length, 9);
+    assert.ok(imports.length >= 9, `Expected at least 9 imports in app.js, got ${imports.length}`);
     for (const imp of imports) {
-        assert.ok(imp.endsWith('?v=105'), `Expected ${imp} to end with ?v=105`);
+        assert.ok(imp.endsWith(`?v=${version}`), `Expected ${imp} to end with ?v=${version}`);
     }
 });
 
