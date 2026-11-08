@@ -22,7 +22,7 @@ Ablage: `docs/sessions/2026-11-06-film-assistent/handtest-protokoll.md` (Referen
 | F-2 | „Vorschau generieren“ → Vorschau-Modal ansehen (Zielpfad, Datei-Renames, ggf. Untertitel/Junk, #91-Hinweis „ähnlich/gleich“, falls ein ähnlicher Film auf dem Ziel liegt). „Jetzt final verarbeiten“. | Vorschau erscheint, Hinweis blockiert nie, Verarbeitung läuft durch; Ordner `<Titel (Jahr)>` mit Film, `.nfo`, `poster`, `fanart`/`backdrop` (und `logo`, falls TMDb eines liefert). |
 | F-3 | Wie F-2 mit eingeschaltetem H.265 **oder** „Original löschen“ (nur mit Wegwerf-Datei). | Option wirkt wie bisher; kein Fehler im Job-Log. |
 | F-4 | Provider OFDb statt TMDb wählen, Titel/Jahr/Plot ändern, verarbeiten. | Referenz-Beobachtung festhalten (heute werden die Änderungen bei OFDb nicht in die NFO übernommen); nach E1 gilt das neue Verhalten laut `briefing.md` (D6). |
-| F-5 | Film mit bereits vorhandener `.nfo` im Zielordner verarbeiten. | Referenz-Beobachtung festhalten; nach E1 gewinnt der Wizard (D6b). |
+| F-5 | Film verarbeiten, bei dem im **Inbox-Ordner** direkt neben der Videodatei (am besten gleichnamig) schon eine `.nfo` liegt. Nicht im NAS-Zielordner: Der Import erzeugt und prüft die NFO im Inbox-Projektordner, bevor die Datei transferiert wird (`processor.py`, `current_dir`). | Referenz-Beobachtung festhalten; nach E1 gewinnt der Wizard (D6b). |
 
 ## Lauf S — Serie (muss nach **jeder** Etappe identisch bleiben)
 
