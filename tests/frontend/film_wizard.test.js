@@ -1706,3 +1706,15 @@ test('Handtest 2026-11-09 (3): closing the wizard or starting the process calls 
     await wizard.executeStep4Process();
     assert.equal(closedCalls, 2);
 });
+
+test('Handtest 2026-11-09 (4): completed steps show a check mark, active and open steps keep their number', async () => {
+    const { doc } = createWizardMockDom();
+    const wizard = createFilmWizard({ document: doc, fetch: async () => ({ ok: true, status: 200, json: async () => ({ destination: '', renames: [], subs: [], junk: [] }) }) });
+    wizard.open({ query: 'Jaws', autoSearch: false });
+    wizard.goToStep(3);
+    const dots = doc.getElementById('mw-wizard-stepper').children.map((item) => item.children[0]);
+    assert.deepEqual(dots.map((dot) => dot.textContent), ['✓', '✓', '3', '4']);
+    assert.equal(dots[0].classList.contains('completed'), true);
+    wizard.goToStep(1);
+    assert.deepEqual(dots.map((dot) => dot.textContent), ['1', '2', '3', '4']);
+});

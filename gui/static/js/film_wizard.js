@@ -1,9 +1,9 @@
-import { renderNfoEditor, buildMovieNfoOverrides } from './nfo_editor.js?v=111';
-import { formatBytes } from './format.js?v=111';
+import { renderNfoEditor, buildMovieNfoOverrides } from './nfo_editor.js?v=112';
+import { formatBytes } from './format.js?v=112';
 import {
     renderPreviewData,
     collectPreviewSelection,
-} from './preview_render.js?v=111';
+} from './preview_render.js?v=112';
 
 let activeWizardInstance = null;
 
@@ -1038,6 +1038,8 @@ export function createFilmWizard(options = {}) {
             if (dot && dot.classList) {
                 dot.classList.toggle("active", stepIdx === currentStep);
                 dot.classList.toggle("completed", stepIdx < currentStep);
+                // Completed steps show a check mark instead of their number (theme accent colour, see CSS).
+                dot.textContent = stepIdx < currentStep ? "✓" : String(stepIdx);
             }
         });
 
