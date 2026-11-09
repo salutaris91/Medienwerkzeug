@@ -1,14 +1,15 @@
-import { applyTheme } from './js/theme.js?v=107';
-import { cleanSeriesName } from './js/utils.js?v=107';
-import { formatBytes } from './js/format.js?v=107';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=107';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=107';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=107';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=107';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=107';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=107';
-import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=107';
-import { renderNfoEditor, buildMovieNfoOverrides } from './js/nfo_editor.js?v=107';
+import { applyTheme } from './js/theme.js?v=108';
+import { cleanSeriesName } from './js/utils.js?v=108';
+import { formatBytes } from './js/format.js?v=108';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=108';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=108';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=108';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=108';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=108';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=108';
+import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=108';
+import { renderNfoEditor, buildMovieNfoOverrides } from './js/nfo_editor.js?v=108';
+import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=108';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -1849,7 +1850,12 @@ function initViews() {
                         updateSizeEstimation("movie");
                         triggerQualityHintUpdates();
                         if (!isDoku && typeof openFilmWizard === "function" && document.getElementById("modal-film-wizard")) {
-                            openFilmWizard({ query: cleanedQuery, onHandover: handleFilmWizardHandover });
+                            openFilmWizard({
+                                query: cleanedQuery,
+                                projectName: currentProject,
+                                onProcessSuccess: () => connectLogStream(),
+                                onLog: appendConsoleLog
+                            });
                         }
                     } else if (mode === "series") {
                         document.getElementById("series-nas-destination").value = getCatIdBySub("/Serien", "2");
@@ -1869,7 +1875,12 @@ function initViews() {
         btnOpenFilmWizard.addEventListener("click", () => {
             const queryVal = document.getElementById("movie-search-query")?.value?.trim() || currentProjectSuggestedQuery || currentProject || "";
             if (typeof openFilmWizard === "function") {
-                openFilmWizard({ query: queryVal, onHandover: handleFilmWizardHandover });
+                openFilmWizard({
+                    query: queryVal,
+                    projectName: currentProject,
+                    onProcessSuccess: () => connectLogStream(),
+                    onLog: appendConsoleLog
+                });
             }
         });
     }
@@ -4293,35 +4304,6 @@ async function searchMovie() {
         if (query !== lastSearchMovieQuery) return;
         resultsContainer.innerHTML = `<p class="text-center text-danger">Suchfehler: ${e.message || e}</p>`;
     }
-}
-
-function handleFilmWizardHandover(handoverData) {
-    if (!handoverData || !handoverData.movie) return;
-    selectedMovie = {
-        ...handoverData.movie,
-        id: String(handoverData.movie.id ?? "manual"),
-    };
-    wizardMovieOverrides = handoverData.nfo_overrides && handoverData.nfo_overrides.movie
-        ? { ...handoverData.nfo_overrides.movie }
-        : null;
-
-    const movieNfoTitle = document.getElementById("movie-nfo-title");
-    const movieNfoYear = document.getElementById("movie-nfo-year");
-    const movieNfoPlot = document.getElementById("movie-nfo-plot");
-    if (wizardMovieOverrides) {
-        if (movieNfoTitle) movieNfoTitle.value = wizardMovieOverrides.title ?? "";
-        if (movieNfoYear) movieNfoYear.value = wizardMovieOverrides.year ?? "";
-        if (movieNfoPlot) movieNfoPlot.value = wizardMovieOverrides.plot ?? "";
-    }
-
-    const panel = document.getElementById("selected-movie-panel");
-    const title = document.getElementById("selected-movie-title");
-    const provider = document.getElementById("selected-movie-provider-info");
-    if (title) title.textContent = selectedMovie.name;
-    if (provider && typeof renderProviderInfo === "function") {
-        renderProviderInfo(provider, selectedMovie.provider, selectedMovie.id, false);
-    }
-    if (panel) panel.classList.remove("hidden");
 }
 
 function selectMovie(movie) {
@@ -8692,8 +8674,8 @@ async function loadSettings() {
 }
 
 function updateDestinationDropdowns() {
-    const nasSelects = ["movie-nas-destination", "series-nas-destination", "yt-nas-destination", "abo-nas-destination", "yt-merge-nas-destination"];
-    const pcloudSelects = ["movie-pcloud-destination", "series-pcloud-destination", "yt-pcloud-destination", "abo-pcloud-destination", "yt-merge-pcloud-destination"];
+    const nasSelects = ["movie-nas-destination", "mw-wizard-nas-destination", "series-nas-destination", "yt-nas-destination", "abo-nas-destination", "yt-merge-nas-destination"];
+    const pcloudSelects = ["movie-pcloud-destination", "mw-wizard-pcloud-destination", "series-pcloud-destination", "yt-pcloud-destination", "abo-pcloud-destination", "yt-merge-pcloud-destination"];
     const localSelects = ["yt-local-destination", "abo-local-destination", "yt-merge-local-destination"];
 
     nasSelects.forEach(selId => {
@@ -8713,7 +8695,7 @@ function updateDestinationDropdowns() {
         if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
             select.value = currentVal;
         } else {
-            if (selId.includes("movie") && Array.from(select.options).some(o => o.value === "1")) {
+            if ((selId.includes("movie") || selId.includes("wizard")) && Array.from(select.options).some(o => o.value === "1")) {
                 select.value = "1";
             } else if (selId.includes("series") && Array.from(select.options).some(o => o.value === "2")) {
                 select.value = "2";
@@ -8738,7 +8720,7 @@ function updateDestinationDropdowns() {
         if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
             select.value = currentVal;
         } else {
-            if (selId.includes("movie") && Array.from(select.options).some(o => o.value === "1")) {
+            if ((selId.includes("movie") || selId.includes("wizard")) && Array.from(select.options).some(o => o.value === "1")) {
                 select.value = "1";
             } else if (selId.includes("series") && Array.from(select.options).some(o => o.value === "2")) {
                 select.value = "2";
@@ -10479,106 +10461,23 @@ async function openPreviewModal(basePayload) {
             mismatchBox.classList.remove("hidden");
         }
 
-        if (data.similar_existing && similarBox && similarText) {
-            const exactRaw = Array.isArray(data.similar_existing.exact) ? data.similar_existing.exact : [];
-            const similarRaw = Array.isArray(data.similar_existing.similar) ? data.similar_existing.similar : [];
-
-            const exactFolderSet = new Set(
-                exactRaw
-                    .map(item => (item && typeof item === "object" ? item.folder : item))
-                    .filter(Boolean)
-            );
-            const similarItems = similarRaw.filter(item => {
-                const folderName = item && typeof item === "object" ? item.folder : item;
-                return folderName && !exactFolderSet.has(folderName);
-            });
-
-            if (exactRaw.length > 0 || similarItems.length > 0) {
-                const renderItem = (item, itemClass) => {
-                    const rawFolder = (item && typeof item === "object") ? (item.folder || "") : String(item || "");
-                    const rawRel = (item && typeof item === "object") ? (item.relative_path || "") : "";
-                    const rawOverlap = (item && typeof item === "object" && item.overlap !== undefined) ? item.overlap : "";
-                    const safeFolder = escapeHTML(rawFolder);
-                    const safeRel = escapeHTML(rawRel);
-                    const safeOverlap = escapeHTML(rawOverlap);
-                    const relSuffix = (rawRel && rawRel !== rawFolder)
-                        ? ` <span style="color: var(--text-muted); font-size: 11px;">(${safeRel})</span>`
-                        : "";
-                    const overlapAttr = safeOverlap !== "" ? ` data-overlap="${safeOverlap}"` : "";
-                    return `<li class="${itemClass}"${overlapAttr} style="margin-bottom: 2px;"><strong>${safeFolder}</strong>${relSuffix}</li>`;
-                };
-
-                let sectionsHtml = "";
-
-                if (exactRaw.length > 0) {
-                    const exactListHtml = exactRaw.map(item => renderItem(item, "similar-exact-item")).join("");
-                    sectionsHtml += `
-                        <div id="preview-similar-exact" style="${similarItems.length > 0 ? "margin-bottom: 10px;" : ""}">
-                            <div style="font-weight: 600; color: #ff6b6b; margin-bottom: 4px;">Diesen Film hast du schon auf dem NAS:</div>
-                            <ul style="margin: 0; padding-left: 18px;">${exactListHtml}</ul>
-                        </div>
-                    `;
-                }
-
-                if (similarItems.length > 0) {
-                    const visibleItems = similarItems.slice(0, 5);
-                    const hiddenItems = similarItems.slice(5);
-                    const visibleListHtml = visibleItems.map(item => renderItem(item, "similar-fuzzy-item similar-fuzzy-visible")).join("");
-                    let moreHtml = "";
-                    if (hiddenItems.length > 0) {
-                        const hiddenListHtml = hiddenItems.map(item => renderItem(item, "similar-fuzzy-item similar-fuzzy-collapsed")).join("");
-                        moreHtml = `
-                            <details id="preview-similar-more" style="margin-top: 4px;">
-                                <summary style="cursor: pointer; color: var(--text-muted); font-size: 12px;">Weitere ${escapeHTML(hiddenItems.length)} Treffer anzeigen</summary>
-                                <ul style="margin: 4px 0 0 0; padding-left: 18px;">${hiddenListHtml}</ul>
-                            </details>
-                        `;
-                    }
-                    sectionsHtml += `
-                        <div id="preview-similar-fuzzy" style="font-size: 12px; color: var(--text-muted);">
-                            <div style="font-weight: 600; color: #ffb300; margin-bottom: 4px;">Ähnliche Titel – gehören evtl. dazu:</div>
-                            <ul id="preview-similar-fuzzy-visible-list" style="margin: 0; padding-left: 18px; color: var(--text-main);">${visibleListHtml}</ul>
-                            ${moreHtml}
-                        </div>
-                    `;
-                }
-
-                similarText.innerHTML = sectionsHtml;
-                similarBox.classList.remove("hidden");
-            }
-        }
-
         currentPreviewPayload = basePayload;
 
-        dest.innerHTML = data.destination.replace(/\n/g, '<br>');
-
-        const createCheckbox = (item, checked, groupName) => {
-            const rawOld = (typeof item === 'object' && item !== null) ? (item.old || '') : (item || '');
-            const rawNew = (typeof item === 'object' && item !== null) ? (item.new || '') : '';
-            const safeOld = escapeHTML(rawOld);
-            const safeNew = escapeHTML(rawNew);
-            return `
-                <label style="display:flex; align-items:center; gap:10px; background:rgba(0,0,0,0.2); padding:8px 12px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.05); cursor:pointer;">
-                    <input type="checkbox" class="preview-cb-${groupName}" data-old="${safeOld}" data-new="${safeNew}" ${checked ? 'checked' : ''} style="accent-color:var(--accent);">
-                    <div style="flex:1; overflow:hidden;">
-                        <div style="font-size:11px; color:var(--text-muted); text-decoration:line-through; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeOld}</div>
-                        ${rawNew ? `<div style="font-size:13px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeNew}</div>` : ''}
-                    </div>
-                </label>
-            `;
-        };
-
-        listRenames.innerHTML = data.renames.length > 0
-            ? data.renames.map(r => createCheckbox(r, true, "renames")).join("")
-            : `<div style="color:var(--text-muted); font-size:12px;">Keine Videos gefunden.</div>`;
-
-        listSubs.innerHTML = data.subs.length > 0
-            ? data.subs.map(s => createCheckbox(s, true, "subs")).join("")
-            : `<div style="color:var(--text-muted); font-size:12px;">Keine Untertitel/Extras gefunden.</div>`;
-
-        listJunk.innerHTML = data.junk.length > 0
-            ? data.junk.map(j => createCheckbox(j, true, "junk")).join("")
-            : `<div style="color:var(--text-muted); font-size:12px;">Keine Müll-Dateien gefunden! Ordner ist sauber.</div>`;
+        renderPreviewData(
+            {
+                similarBox,
+                similarText,
+                dest,
+                listRenames,
+                listSubs,
+                listJunk
+            },
+            data,
+            {
+                idPrefix: "preview-similar",
+                onLog: appendConsoleLog
+            }
+        );
 
         appendConsoleLog("[System]: Vorschau erfolgreich generiert.");
 
@@ -10794,19 +10693,21 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         };
 
-        // Collect checked items using full original names
-        const getOld = (cb) => (cb.dataset && cb.dataset.old !== undefined ? cb.dataset.old : cb.getAttribute("data-old")) || "";
-        const getNew = (cb) => (cb.dataset && cb.dataset.new !== undefined ? cb.dataset.new : cb.getAttribute("data-new")) || "";
-
-        const explicitRenames = Array.from(document.querySelectorAll(".preview-cb-renames:checked")).map(cb => ({ old: getOld(cb), new: getNew(cb) }));
-        const explicitSubs = Array.from(document.querySelectorAll(".preview-cb-subs:checked")).map(cb => ({ old: getOld(cb), new: getNew(cb) }));
-        const explicitJunk = Array.from(document.querySelectorAll(".preview-cb-junk:checked")).map(cb => getOld(cb));
+        // Collect checked items using full original names (scoped strictly to the legacy preview modal)
+        const selection = typeof collectPreviewSelection === "function"
+            ? collectPreviewSelection({
+                listRenames: document.getElementById("preview-list-renames"),
+                listSubs: document.getElementById("preview-list-subs"),
+                listJunk: document.getElementById("preview-list-junk"),
+                root: document.getElementById("preview-modal") || document.getElementById("preview-modal-overlay"),
+            })
+            : { explicit_renames: [], explicit_subs: [], explicit_junk: [] };
 
         const finalPayload = {
             ...currentPreviewPayload,
-            explicit_renames: explicitRenames,
-            explicit_subs: explicitSubs,
-            explicit_junk: explicitJunk
+            explicit_renames: selection.explicit_renames,
+            explicit_subs: selection.explicit_subs,
+            explicit_junk: selection.explicit_junk
         };
 
         // Save profile if media_type is TV and "no-profile" is not checked

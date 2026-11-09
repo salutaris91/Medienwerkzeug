@@ -2766,7 +2766,7 @@ group_add:
     </div>
 </div>
 
-    <script type="module" src="app.js?v=107"></script>
+    <script type="module" src="app.js?v=108"></script>
 
     <!-- Modal: Confirm Merge -->
     <div id="modal-confirm-merge" class="mw-modal-overlay">
@@ -3380,7 +3380,83 @@ group_add:
                 </section>
 
                 <section id="mw-wizard-step-4" class="mw-wizard-panel hidden" data-step-panel="4">
-                    <div id="mw-wizard-summary" class="mw-wizard-summary"></div>
+                    <div id="mw-wizard-similar-existing" class="mw-wizard-similar-box hidden">
+                        <div id="mw-wizard-similar-existing-text" class="mw-wizard-similar-text"></div>
+                    </div>
+
+                    <div class="mw-wizard-result-summary">
+                        <div id="mw-wizard-result-title" class="mw-wizard-result-title"></div>
+                        <div class="mw-wizard-result-dest-label">Zielpfad</div>
+                        <div id="mw-wizard-destination" class="mw-wizard-result-destination">Wird berechnet...</div>
+                        <div id="mw-wizard-summary" class="mw-wizard-summary"></div>
+                    </div>
+
+                    <div id="mw-wizard-group-renames" class="mw-wizard-result-group">
+                        <button type="button" id="mw-wizard-group-header-renames" class="mw-wizard-result-group-header" aria-expanded="true">
+                            <span id="mw-wizard-group-title-renames">Umbenennungen (0)</span>
+                            <span class="mw-wizard-result-group-chevron">▼</span>
+                        </button>
+                        <div id="mw-wizard-list-renames" class="mw-wizard-result-group-content"></div>
+                    </div>
+
+                    <div id="mw-wizard-group-subs" class="mw-wizard-result-group">
+                        <button type="button" id="mw-wizard-group-header-subs" class="mw-wizard-result-group-header" aria-expanded="true">
+                            <span id="mw-wizard-group-title-subs">Untertitel (0)</span>
+                            <span class="mw-wizard-result-group-chevron">▼</span>
+                        </button>
+                        <div id="mw-wizard-list-subs" class="mw-wizard-result-group-content"></div>
+                    </div>
+
+                    <div id="mw-wizard-group-junk" class="mw-wizard-result-group">
+                        <button type="button" id="mw-wizard-group-header-junk" class="mw-wizard-result-group-header" aria-expanded="true">
+                            <span id="mw-wizard-group-title-junk">Junk-Dateien (0)</span>
+                            <span class="mw-wizard-result-group-chevron">▼</span>
+                        </button>
+                        <div id="mw-wizard-list-junk" class="mw-wizard-result-group-content"></div>
+                    </div>
+
+                    <div id="mw-wizard-group-options" class="mw-wizard-result-group collapsed">
+                        <button type="button" id="mw-wizard-group-header-options" class="mw-wizard-result-group-header collapsed" aria-expanded="false">
+                            <span id="mw-wizard-group-title-options">Qualität &amp; Conversion</span>
+                            <span class="mw-wizard-result-group-chevron">▼</span>
+                        </button>
+                        <div id="mw-wizard-options-content" class="mw-wizard-result-group-content hidden">
+                            <div class="mw-wizard-options-grid">
+                                <label class="mw-wizard-option-row">
+                                    <input type="checkbox" id="mw-wizard-option-convert" checked>
+                                    <span>Zu H.265 konvertieren</span>
+                                </label>
+                                <div id="mw-wizard-quality-slider-container" class="mw-wizard-option-sub">
+                                    <label for="mw-wizard-quality-slider" class="mw-wizard-label">Qualität: <span id="mw-wizard-quality-val">60</span></label>
+                                    <input type="range" id="mw-wizard-quality-slider" min="0" max="100" value="60" step="5">
+                                </div>
+                                <label class="mw-wizard-option-row">
+                                    <input type="checkbox" id="mw-wizard-option-delete" checked>
+                                    <span>Original löschen</span>
+                                </label>
+                                <label class="mw-wizard-option-row">
+                                    <input type="checkbox" id="mw-wizard-option-copy-nas" checked>
+                                    <span>Auf NAS kopieren</span>
+                                </label>
+                                <div id="mw-wizard-nas-destination-container" class="mw-wizard-option-sub">
+                                    <label for="mw-wizard-nas-destination" class="mw-wizard-label">NAS Ziel-Kategorie</label>
+                                    <select id="mw-wizard-nas-destination" class="mw-wizard-select">
+                                        <option value="1">Filme</option>
+                                    </select>
+                                </div>
+                                <label class="mw-wizard-option-row">
+                                    <input type="checkbox" id="mw-wizard-option-copy-pcloud">
+                                    <span>Auf pCloud kopieren</span>
+                                </label>
+                                <div id="mw-wizard-pcloud-destination-container" class="mw-wizard-option-sub hidden">
+                                    <label for="mw-wizard-pcloud-destination" class="mw-wizard-label">pCloud Ziel-Kategorie</label>
+                                    <select id="mw-wizard-pcloud-destination" class="mw-wizard-select">
+                                        <option value="1">Filme</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </section>
             </div>
 
@@ -3388,7 +3464,7 @@ group_add:
                 <button type="button" id="mw-wizard-btn-back" class="mw-modal-btn mw-modal-btn-cancel hidden">Zurück</button>
                 <button type="button" id="mw-wizard-btn-skip" class="btn btn-secondary hidden">Überspringen</button>
                 <button type="button" id="mw-wizard-btn-next" class="btn btn-primary">Weiter</button>
-                <button type="button" id="mw-wizard-btn-handover" class="mw-modal-btn mw-modal-btn-confirm hidden">Weiter zur Verarbeitung</button>
+                <button type="button" id="mw-wizard-btn-execute" class="mw-modal-btn mw-modal-btn-confirm hidden">Jetzt final verarbeiten</button>
             </div>
         </div>
     </div>
