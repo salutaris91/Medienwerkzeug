@@ -2393,9 +2393,13 @@ Jede Etappe soll einzeln im Alltag nutzbar sein, auch für einen einzelnen Film.
 
 **Offene Fragen für die Planung:**
 - Bildquellen und Nutzungsbedingungen (TMDb, Fanart.tv) vor dem Einbau klären; ggf. Alex-Go.
+- **Mehrere Artwork-Quellen unabhängig vom gewählten Metadaten-Dienst (Idee von Alex im E1-Handtest, 2026-11-09):** In Schritt 3 („Artwork“) sollen Poster/Fanarts/Logos auch dann geladen und auswählbar sein, wenn in Schritt 1 ein anderer Metadatendienst (z. B. OFDb) oder „Metadaten manuell eintragen“ gewählt wurde (z. B. durch automatische Hintergrund-Suche per `Titel + Jahr` bei TMDb sowie weiteren Artwork-Quellen wie Fanart.tv/TVDB, vorbehaltlich D2-Gate in E5).
 - Gestaltung: kein langes Scrollen, klare Schritte, Fortschrittskopf; Orientierung an Emby, aber im bestehenden Design des Tools.
 - Einzelner Film und Reihe: gleicher Dialog oder Sammelmodus?
 - Zusammenspiel mit dem NFO-Agent (Health-Einstieg) und dem Inbox-Ablauf.
+
+**Fortschritt Etappen (`docs/sessions/2026-11-06-film-assistent/`):**
+- **Etappe E1:** [x] umgesetzt & Handtest Alex bestanden (2026-11-09, Branch `feat/film-wizard-e1`, Gate-A2 APPROVED + Live-Fixes für numerische TMDb-IDs, OFDb-Slug-Encoding/`itemprop="description"`-Plot und Wizard-UX).
 
 ### Aufwand (grob)
 Groß; nur in Etappen. Planung zuerst (Kreativteam, direkt am Code), danach je Etappe eine Gate-A2-Kette.

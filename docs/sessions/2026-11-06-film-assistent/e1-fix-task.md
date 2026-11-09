@@ -1,0 +1,18 @@
+# Aufgabe E1-Nachbesserung — Wizard-Rahmen + Film-Editor + Backend-Nachzug (ROADMAP #92)
+
+Ausgangslage: Im Arbeitsverzeichnis liegt bereits ein **unfertiger Umsetzungsstand der Etappe E1** (uncommitted, gebaut nach `docs/sessions/2026-11-06-film-assistent/e1-task.md`; lies diese Datei und `briefing.md`, Etappe E1, zuerst). Ein erster Reviewer-Lauf hat REVISE ergeben. **Behebe genau diese Befunde, baue sonst nichts Neues.** Scope, Nicht-bauen-Liste, Testkommando und Test-Regeln (unittest statt pytest, node:test ohne jsdom) gelten unverändert aus `e1-task.md`.
+
+## Zu beheben
+1. [kritisch] `gui/static/js/film_wizard.js` (~249–294): Asynchrone Metadatenantworten überschreiben ungeschützt Editor und Dirty-Baseline (Schritt 2 ist während des Requests editierbar; `setValues(..., true)`). Außerdem kann nach Auswahl A → Zurück → Auswahl B eine verspätete Antwort für A im Editor von B landen. Requests an Auswahl und Wizard-Sitzung binden (verspätete/veraltete Antworten verwerfen) und zwischenzeitliche manuelle Edits schützen. Tests mit verzögerten und vertauschten Antworten ergänzen.
+2. [kritisch] `film_wizard.js` (~278–294, 398–405): Nicht geladene Werte (Abruf läuft noch oder fehlgeschlagen) bleiben `""`/`[]` und werden bei „Weiter zur Verarbeitung“ als bewusst geleert gesendet; das Backend entfernt dann Provider-Tags (D6c). „Nicht geladen“ und „explizit geleert“ unterscheiden (nur tatsächlich vom Nutzer geleerte Felder als leer senden) oder die Übergabe sperren, bis die Metadatenübernahme geklärt ist. Tests für Fehlerfall und Sofort-Übergabe ergänzen.
+3. [kritisch] `gui/workers/processor.py` (~2105–2140): D6b/c (Overwrite erzwingen, Patch-/Abbruch-Semantik) gilt aktuell für jedes nicht-leere `nfo_overrides.movie`, auch für den Altpfad `executeMovieWorkflow()` und Doku. Wizard-Herkunft explizit kennzeichnen (z. B. eigenes Flag im Request, vom Wizard gesetzt) und D6b/c nur dafür anwenden; Nicht-Wizard-Film- und Doku-Aufrufe mit vorhandener NFO bleiben wie vor E1. Regressionstest ergänzen (E1-AK5).
+4. [wichtig] Cache-Buster: `app.js?v=` in `index.html` und alle Modulimporte (inkl. transitiver Imports und der neuen Module) konsistent erhöhen; `tests/frontend/cache_busting.test.js` auf den neuen Wert anpassen, falls er die Version fest prüft.
+5. [wichtig] `processor.py` (~2120–2137): `main_nfo_fingerprint` wird erst nach der erzwungenen Provider-Neuerzeugung geprüft. Den Vorschau-Fingerprint **vor der ersten Mutation** prüfen und den Patch gegen den anschließend erzeugten Stand absichern. Test für den erfolgreichen Bestandsfall (gültiger Fingerprint der vorhandenen NFO bei geändertem Provider-Inhalt → kein Konflikt) und für den echten Konflikt (geschützte Datei bleibt unverändert) ergänzen.
+6. [wichtig] `film_wizard.js` (~352–369): Abbruchschutz nach „Zurück“ zu Schritt 1 umgangen (`close()` prüft Dirty nur bei `currentStep > 1`, ESC schließt mit `force: true`). Rückfrage bei geänderten Eingaben unabhängig vom Panel (D3), auch bei ESC. Regressionstest ergänzen.
+7. [kosmetisch] Prüfe `/api/metadata/fetch` (Existenz, Parameter, Antwortstruktur, FSK 0, Genre-Format) gegen den Bestand im Code und passe `film_wizard.js` bei Abweichung an; Test mit realer Antwortstruktur statt reinem Mock.
+
+## Nicht tun
+- Keine Handtests/Theme-/Graphify-Nachweise (macht Alex nach dem Lauf), keine Änderungen außerhalb der „Erlaubten Dateien“ von E1.
+
+## Diff-Budget (wichtig)
+Das 80-KB-Budget im Briefing ist eine Orchestrator-Metrik, kein Ziel für dich. Sobald die Akzeptanzkriterien erfüllt und alle Tests grün sind, darfst du den Code NICHT künstlich kürzen, minifizieren oder verdichten, nur um unter 80 KB zu kommen, und du stoppst nicht wegen der Größe. Fertig + grün = abgeben.
