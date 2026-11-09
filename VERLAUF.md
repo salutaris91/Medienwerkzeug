@@ -2,6 +2,11 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## 2026-11-09 — ROADMAP #92 Etappe E1: Geführter Film-Assistent (Wizard-Rahmen, NFO-Editor & Backend-Overrides) (PR #168)
+
+- **Umsetzung & Review:** Vier-Schritte-Film-Assistent (`gui/static/js/film_wizard.js`, `#modal-film-wizard` in `index.html`, `.mw-wizard-*` in `style.css`), wiederverwendbare Film-Editor-Komponente (`gui/static/js/nfo_editor.js`) und Backend-Override-Patching (`patch_nfo_fields(..., allow_clear=True)` für TMDb und OFDb in `processor.py`, `nfo_mutation.py`, `queue_api.py` inkl. `wizard_overrides`-Flag und Fingerprint-Prüfung vor der ersten Mutation). Gate-A2-Reviewer (`2026-11-08-e1-reviewer-r2`): `VERDICT: APPROVE`.
+- **Handtest & Live-Fixes (`d57c59d`, `fe78ea4`):** Handtest-Parcours auf OrbStack (`http://127.0.0.1:5812`) durchgeführt und bestanden (`docs/sessions/2026-11-06-film-assistent/handtest-protokoll.md`). Drei Live-Befunde behoben: `String(id)`-Normalisierung für numerische TMDb-IDs in `app.js`/`film_wizard.js`, Prozent-Kodierung von Umlauten/`ß` in `_ofdb_film_url` sowie `<span itemprop="description">`-Plot-Fallback in `_parse_ofdb_film_page` (`gui/mw_metadata.py`). Zudem Modal-Breite (`780px`), Stepper-Pills und Ladezustände im Assistenten geschärft.
+
 ## Stand am 05.11.2026 (Ähnliche-Titel-Hinweis vor finaler Verarbeitung: #158 Feature, #159 Fix nach Handtest, beide live auf dem NAS)
 
 - **Feature (PR #158):** Im Vorschau-Dialog erscheint bei Filmen vor „Jetzt final verarbeiten“ eine nicht blockierende Box mit bereits vorhandenen Titeln der NAS-Zielkategorie. Stufe 1 „Diesen Film hast du schon auf dem NAS“: Abgleich der TMDb-ID gegen `<tmdbid>` in Film-NFOs (bis 2 Ebenen tief, max. 5 Treffer). Stufe 2 „Ähnliche Titel – gehören evtl. dazu“: großzügige Namens-Heuristik (Füllwörter, Jahr, Klammern, Release-Tags und Fortsetzungsnummern werden ignoriert; max. 10 Treffer vom Backend, 5 sichtbar, Rest eingeklappt). Neues Modul `gui/core/similar_titles.py`, Antwortfeld `similar_existing` (in `API.md`), fehlertolerante Scans. Im selben PR: XSS im Namenskonflikt-Hinweis behoben (`escapeHTML` auf NAS-Ordnernamen); Cache-Buster `app.js?v=105`.
