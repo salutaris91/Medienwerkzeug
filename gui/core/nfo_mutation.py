@@ -126,15 +126,43 @@ def _replace_or_insert_single(
     return content[:insertion_index] + new_tag + content[insertion_index:]
 
 
-def _replace_or_insert_genres(content: bytes, root_tag: str, genres, encoding: str) -> bytes:
+def _remove_single_tag(content: bytes, tag: str) -> bytes:
+    tag_bytes = tag.encode("ascii")
+    multi_pattern = re.compile(
+        rb"<" + tag_bytes + rb"(?:\s[^>]*)?>.*?</" + tag_bytes + rb"\s*>",
+        re.DOTALL | re.IGNORECASE,
+    )
+    matches = list(multi_pattern.finditer(content))
+    if len(matches) > 1:
+        raise ValueError(f"Mehrere <{tag}>-Tags gefunden. Bitte manuell bereinigen.")
+    if not matches:
+        return content
+    line_pattern = re.compile(
+        rb"[ \t]*<" + tag_bytes + rb"(?:\s[^>]*)?>.*?</" + tag_bytes + rb"\s*>\r?\n?",
+        re.DOTALL | re.IGNORECASE,
+    )
+    return line_pattern.sub(b"", content, count=1)
+
+
+def _replace_or_insert_genres(
+    content: bytes,
+    root_tag: str,
+    genres,
+    encoding: str,
+    *,
+    allow_clear: bool = False,
+) -> bytes:
     if isinstance(genres, str):
         values = [part.strip() for part in re.split(r"[,;]", genres) if part.strip()]
     else:
         values = [str(part).strip() for part in (genres or []) if str(part).strip()]
-    if not values:
-        return content
 
     pattern = re.compile(rb"[ \t]*<genre(?:\s[^>]*)?>.*?</genre\s*>\r?\n?", re.DOTALL | re.IGNORECASE)
+    if not values:
+        if allow_clear:
+            return pattern.sub(b"", content)
+        return content
+
     matches = list(pattern.finditer(content))
     replacement = b"".join(
         b"  <genre>" + _encode_xml_text(value, encoding) + b"</genre>\n"
@@ -158,8 +186,9 @@ def patch_nfo_fields(
     *,
     expected_fingerprint: dict | None | object = ...,
     create_backup: bool = True,
+    allow_clear: bool = False,
 ) -> tuple[bool, str]:
-    """Patch only non-empty selected fields and preserve all unrelated bytes."""
+    """Patch selected fields (and optionally clear explicitly empty ones) while preserving unrelated bytes."""
     if expected_fingerprint is not ...:
         assert_nfo_fingerprint(nfo_path, expected_fingerprint)
 
@@ -184,15 +213,35 @@ def patch_nfo_fields(
         return False, f"NFO-Patch abgebrochen: {error}"
 
     selected = {}
+    cleared = set()
     for field, value in (fields or {}).items():
+        if value is None:
+            continue
         if field == "fsk":
-            value = normalize_fsk(value)
-        if field == "genres":
+            raw_fsk = str(value).strip()
+            if not raw_fsk:
+                if allow_clear:
+                    cleared.add("fsk")
+                continue
+            value = normalize_fsk(raw_fsk)
             if value:
-                selected[field] = value
-        elif field in SINGLE_VALUE_TAGS and str(value or "").strip():
-            selected[field] = str(value).strip()
-    if not selected:
+                selected["fsk"] = value
+        elif field == "genres":
+            if isinstance(value, str):
+                genre_values = [part.strip() for part in re.split(r"[,;]", value) if part.strip()]
+            else:
+                genre_values = [str(part).strip() for part in (value or []) if str(part).strip()]
+            if genre_values:
+                selected["genres"] = genre_values
+            elif allow_clear:
+                cleared.add("genres")
+        elif field in SINGLE_VALUE_TAGS:
+            text_val = str(value).strip()
+            if text_val:
+                selected[field] = text_val
+            elif allow_clear:
+                cleared.add(field)
+    if not selected and not cleared:
         return True, "Keine ausgewählten Metadaten geändert."
 
     updated = original
@@ -206,9 +255,15 @@ def patch_nfo_fields(
                     selected[field],
                     xml_encoding,
                 )
+            elif field in cleared:
+                updated = _remove_single_tag(updated, SINGLE_VALUE_TAGS[field])
         if "genres" in selected:
             updated = _replace_or_insert_genres(
                 updated, root_tag, selected["genres"], xml_encoding
+            )
+        elif "genres" in cleared:
+            updated = _replace_or_insert_genres(
+                updated, root_tag, [], xml_encoding, allow_clear=True
             )
         ET.fromstring(updated)
     except (ValueError, ET.ParseError) as error:

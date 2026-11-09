@@ -854,7 +854,8 @@ def _ofdb_film_url(ofdb_full_id):
     parts = str(ofdb_full_id).split('_', 2)
     if len(parts) != 3:
         return None
-    return f"https://www.ofdb.de/film/{parts[1]},{parts[2]}/"
+    slug = urllib.parse.quote(urllib.parse.unquote(parts[2].rstrip('/')), safe='-_.~')
+    return f"https://www.ofdb.de/film/{parts[1]},{slug}/"
 
 
 def _parse_ofdb_film_page(html, fallback_title=""):
@@ -868,6 +869,8 @@ def _parse_ofdb_film_page(html, fallback_title=""):
     year = year_m.group(1) if year_m else ""
 
     plot_m = re.search(r'<div class=\"plot\">(.*?)</div>', html, re.DOTALL)
+    if not plot_m:
+        plot_m = re.search(r'<span[^>]*itemprop=[\"\']description[\"\'][^>]*>(.*?)</span>', html, re.DOTALL)
     plot = plot_m.group(1).strip() if plot_m else ""
     plot = re.sub(r'<[^>]+>', '', plot)
 

@@ -6,7 +6,7 @@
     <meta name="description" content="Medienwerkzeug - Automatisches Umbennen, Konvertieren und Kopieren von Filmen und Serien auf das NAS.">
     <meta name="color-scheme" content="dark">
     <title>Medienwerkzeug v5.0 (Master-Detail)</title>
-    <link rel="stylesheet" href="style.css?v=51">
+    <link rel="stylesheet" href="style.css?v=53">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -762,7 +762,10 @@
 
                 <!-- CONTEXT: MOVIE / DOKU -->
                 <div id="context-movie" class="context-panel hidden card inline-style-28" >
-                    <h3 id="context-movie-header">Film verarbeiten</h3>
+                    <div class="mw-wizard-context-bar">
+                        <h3 id="context-movie-header">Film verarbeiten</h3>
+                        <button class="btn btn-primary mw-wizard-launch-btn" id="btn-open-film-wizard" type="button">Film-Assistent öffnen</button>
+                    </div>
                     <div class="form-group inline-style-29" >
                         <label for="movie-search-query">Titel suchen:</label>
                         <div class="search-input-group inline-style-22" >
@@ -2763,7 +2766,7 @@ group_add:
     </div>
 </div>
 
-    <script type="module" src="app.js?v=105"></script>
+    <script type="module" src="app.js?v=107"></script>
 
     <!-- Modal: Confirm Merge -->
     <div id="modal-confirm-merge" class="mw-modal-overlay">
@@ -3309,6 +3312,83 @@ group_add:
                     Metadaten generieren
                 </button>
                 <button class="mw-modal-btn mw-modal-btn-confirm" id="btn-nfo-agent-done" style="display: none; align-items: center; gap: 4px;" type="button">Fertig</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Geführter Film-Assistent (ROADMAP #92) -->
+    <div id="modal-film-wizard" class="mw-modal-overlay mw-wizard-overlay hidden">
+        <div class="mw-modal mw-wizard-modal">
+            <div class="mw-wizard-header">
+                <h3 id="mw-wizard-title" class="mw-wizard-title">Film-Assistent</h3>
+                <button type="button" id="mw-wizard-close" class="close-modal mw-wizard-close-btn" aria-label="Schließen">&times;</button>
+            </div>
+
+            <div id="mw-wizard-stepper" class="mw-wizard-stepper">
+                <div class="mw-wizard-step active" data-step="1">
+                    <span class="step-dot active">1</span>
+                    <span class="mw-wizard-step-label">Film suchen</span>
+                </div>
+                <div class="mw-wizard-step" data-step="2">
+                    <span class="step-dot">2</span>
+                    <span class="mw-wizard-step-label">Metadaten</span>
+                </div>
+                <div class="mw-wizard-step" data-step="3">
+                    <span class="step-dot">3</span>
+                    <span class="mw-wizard-step-label">Artwork</span>
+                </div>
+                <div class="mw-wizard-step" data-step="4">
+                    <span class="step-dot">4</span>
+                    <span class="mw-wizard-step-label">Übersicht</span>
+                </div>
+            </div>
+
+            <div id="mw-wizard-error-banner" class="mw-wizard-error-banner hidden">
+                <span id="mw-wizard-error-text" class="mw-wizard-error-text"></span>
+                <button type="button" id="mw-wizard-error-retry" class="btn btn-secondary btn-sm">Erneut versuchen</button>
+            </div>
+
+            <div class="mw-wizard-body">
+                <section id="mw-wizard-step-1" class="mw-wizard-panel active" data-step-panel="1">
+                    <div class="mw-wizard-search-row">
+                        <input type="text" id="mw-wizard-search-input" class="mw-wizard-input" placeholder="Filmtitel oder TMDb/OFDb-Suchbegriff...">
+                        <button type="button" id="mw-wizard-search-btn" class="btn btn-primary">Suchen</button>
+                        <button type="button" id="mw-wizard-manual-btn" class="btn btn-secondary">Metadaten manuell eintragen</button>
+                    </div>
+                    <div id="mw-wizard-search-results" class="mw-wizard-search-results"></div>
+                </section>
+
+                <section id="mw-wizard-step-2" class="mw-wizard-panel hidden" data-step-panel="2">
+                    <div class="mw-wizard-meta-header">
+                        <span id="mw-wizard-selected-info" class="mw-wizard-selected-info"></span>
+                        <span id="mw-wizard-provider-badge" class="mw-wizard-badge"></span>
+                    </div>
+                    <div id="mw-wizard-nfo-editor-container" class="mw-wizard-editor-host"></div>
+                </section>
+
+                <section id="mw-wizard-step-3" class="mw-wizard-panel hidden" data-step-panel="3">
+                    <div class="mw-wizard-tabs">
+                        <button type="button" id="mw-wizard-tab-poster" class="mw-wizard-tab active" data-artwork-tab="poster">Poster (2:3)</button>
+                        <button type="button" id="mw-wizard-tab-fanart" class="mw-wizard-tab" data-artwork-tab="fanart">Fanart (16:9)</button>
+                    </div>
+                    <div id="mw-wizard-artwork-poster" class="mw-wizard-artwork-placeholder active">
+                        Automatischer Poster-Download (TMDb) ist aktiv. Dieser Schritt kann übersprungen werden.
+                    </div>
+                    <div id="mw-wizard-artwork-fanart" class="mw-wizard-artwork-placeholder hidden">
+                        Automatischer Fanart-/Backdrop-Download (TMDb) ist aktiv. Dieser Schritt kann übersprungen werden.
+                    </div>
+                </section>
+
+                <section id="mw-wizard-step-4" class="mw-wizard-panel hidden" data-step-panel="4">
+                    <div id="mw-wizard-summary" class="mw-wizard-summary"></div>
+                </section>
+            </div>
+
+            <div class="mw-modal-actions mw-wizard-footer">
+                <button type="button" id="mw-wizard-btn-back" class="mw-modal-btn mw-modal-btn-cancel hidden">Zurück</button>
+                <button type="button" id="mw-wizard-btn-skip" class="btn btn-secondary hidden">Überspringen</button>
+                <button type="button" id="mw-wizard-btn-next" class="btn btn-primary">Weiter</button>
+                <button type="button" id="mw-wizard-btn-handover" class="mw-modal-btn mw-modal-btn-confirm hidden">Weiter zur Verarbeitung</button>
             </div>
         </div>
     </div>

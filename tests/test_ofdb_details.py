@@ -94,3 +94,19 @@ def test_generate_ofdb_nfo_writes_fsk_and_genres(tmp_path, monkeypatch):
     assert "<genre>Horror</genre>" in content
     assert "<genre>Thriller</genre>" in content
     assert "<title>Killing Faith</title>" in content
+
+
+def test_ofdb_film_url_percent_encodes_non_ascii_slug():
+    url = mw_metadata._ofdb_film_url("ofdb_780_Der-Weiße-Hai")
+    assert url == "https://www.ofdb.de/film/780,Der-Wei%C3%9Fe-Hai/"
+
+
+def test_parse_ofdb_film_page_extracts_itemprop_description_plot():
+    html_with_itemprop = """<html><head><title>OFDb - Der Weiße Hai (1975)</title></head><body>
+    Erscheinungsjahr: <a href="https://www.ofdb.de/view.php?page=blaettern&Kat=Jahr&Text=1975">1975</a>
+    <p><b>Inhalt:</b> <span itemprop="description">In dem kleinen Badeort Amity kommt es zu Todesfällen.</span><a href="plot/780,2249,Der-Weiße-Hai">[mehr]</a></p>
+    </body></html>"""
+    film = mw_metadata._parse_ofdb_film_page(html_with_itemprop)
+    assert film["title"] == "Der Weiße Hai"
+    assert film["year"] == "1975"
+    assert film["plot"] == "In dem kleinen Badeort Amity kommt es zu Todesfällen."

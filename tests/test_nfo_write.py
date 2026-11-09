@@ -207,3 +207,40 @@ class TestNFOWriteBinary(unittest.TestCase):
             b'<!-- Nachgelagerter Kommentar -->'
         )
         self.assertEqual(written_bytes, expected)
+
+    def test_t10_patch_nfo_fields_allow_clear_opt_in(self):
+        from gui.core.nfo_mutation import patch_nfo_fields
+        nfo_path = os.path.join(self.temp_dir, "clear_test.nfo")
+        original = (
+            b'<?xml version="1.0" encoding="UTF-8"?>\n'
+            b'<movie>\n'
+            b'  <title>Matrix</title>\n'
+            b'  <plot>Alter Plot</plot>\n'
+            b'  <mpaa>FSK 16</mpaa>\n'
+            b'  <genre>Action</genre>\n'
+            b'  <genre>Sci-Fi</genre>\n'
+            b'</movie>\n'
+        )
+        with open(nfo_path, "wb") as f:
+            f.write(original)
+
+        # Default allow_clear=False (NFO-Agent path): ignores empty values
+        ok, _ = patch_nfo_fields(nfo_path, {"fsk": "", "genres": [], "plot": ""}, create_backup=False)
+        self.assertTrue(ok)
+        with open(nfo_path, "rb") as f:
+            self.assertEqual(f.read(), original)
+
+        # Opt-in allow_clear=True (Wizard Inbox path): explicitly empty removes tags; omitted/None stays
+        ok, _ = patch_nfo_fields(
+            nfo_path,
+            {"fsk": "", "genres": [], "plot": "", "title": None},
+            create_backup=False,
+            allow_clear=True,
+        )
+        self.assertTrue(ok)
+        with open(nfo_path, "rb") as f:
+            content = f.read().decode("utf-8")
+        self.assertIn("<title>Matrix</title>", content)
+        self.assertNotIn("<mpaa>", content)
+        self.assertNotIn("<genre>", content)
+        self.assertNotIn("<plot>", content)

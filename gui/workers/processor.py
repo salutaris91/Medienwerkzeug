@@ -2102,24 +2102,87 @@ def process_worker(params):
                 # Generate movie NFO
                 if movie_id and provider:
                     log_message("Generiere NFO und lade Poster/Fanart...")
-                    try:
-                        movie_overrides = nfo_overrides.get("movie")
-                        from gui.core.health import should_overwrite_nfo, find_primary_nfo
-                        nfo_path = find_primary_nfo(current_dir, is_movie=True)
-                        should_overwrite_movie = should_overwrite_nfo(
-                            overwrite_nfo,
-                            movie_overrides,
-                            nfo_path or os.path.join(current_dir, f"{clean_movie_name}.nfo"),
-                            "movie"
-                        )
-                                        
-                        if provider == "ofdb":
-                            res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
-                        else:
-                            res = mw_metadata.generate_movie_nfo(movie_id, current_dir, clean_movie_name, nfo_overrides=movie_overrides, overwrite=should_overwrite_movie)
-                        log_message(f"Movie NFO Status: {res}")
-                    except Exception as e:
-                        log_message(f"Fehler bei NFO-Erstellung: {e}")
+                    movie_overrides = nfo_overrides.get("movie") if isinstance(nfo_overrides, dict) else None
+                    has_movie_overrides = bool(movie_overrides and isinstance(movie_overrides, dict))
+                    is_wizard_overrides = bool(
+                        params.get("wizard_overrides")
+                        or (isinstance(nfo_overrides, dict) and nfo_overrides.get("wizard"))
+                    )
+                    has_wizard_movie_overrides = bool(is_wizard_overrides and has_movie_overrides)
+                    generated_nfo_path = os.path.join(current_dir, f"{clean_movie_name}.nfo")
+
+                    if has_wizard_movie_overrides:
+                        try:
+                            from gui.core.nfo_mutation import (
+                                assert_nfo_fingerprint,
+                                make_nfo_fingerprint,
+                                patch_nfo_fields,
+                            )
+                            if "main_nfo_fingerprint" in params:
+                                assert_nfo_fingerprint(generated_nfo_path, params.get("main_nfo_fingerprint"))
+
+                            if provider == "ofdb":
+                                res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
+                            else:
+                                res = mw_metadata.generate_movie_nfo(
+                                    movie_id,
+                                    current_dir,
+                                    clean_movie_name,
+                                    nfo_overrides=movie_overrides,
+                                    overwrite=True,
+                                )
+                            log_message(f"Movie NFO Status: {res}")
+
+                            generated_fp = make_nfo_fingerprint(generated_nfo_path)
+                            patch_ok, patch_message = patch_nfo_fields(
+                                generated_nfo_path,
+                                movie_overrides,
+                                expected_fingerprint=generated_fp if generated_fp is not None else ...,
+                                create_backup=False,
+                                allow_clear=True,
+                            )
+                            if not patch_ok:
+                                raise RuntimeError(patch_message)
+                            log_message(f"Movie NFO Feld-Patch: {patch_message}")
+                        except Exception as patch_err:
+                            err_msg = f"Fehler beim Schreiben der NFO-Overrides: {patch_err}"
+                            log_message(f"❌ {err_msg}")
+                            if task_id:
+                                from gui.core.jobs import update_job
+                                update_job(
+                                    task_id,
+                                    status="error",
+                                    message=err_msg,
+                                    pipeline_step="metadata",
+                                    pipeline_status="failed",
+                                    pipeline_progress=100,
+                                    pipeline_message=err_msg,
+                                )
+                            raise RuntimeError(err_msg) from patch_err
+                    else:
+                        try:
+                            from gui.core.health import should_overwrite_nfo, find_primary_nfo
+                            nfo_path = find_primary_nfo(current_dir, is_movie=True)
+                            should_overwrite_movie = should_overwrite_nfo(
+                                overwrite_nfo,
+                                movie_overrides,
+                                nfo_path or generated_nfo_path,
+                                "movie"
+                            )
+
+                            if provider == "ofdb":
+                                res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
+                            else:
+                                res = mw_metadata.generate_movie_nfo(
+                                    movie_id,
+                                    current_dir,
+                                    clean_movie_name,
+                                    nfo_overrides=movie_overrides,
+                                    overwrite=should_overwrite_movie,
+                                )
+                            log_message(f"Movie NFO Status: {res}")
+                        except Exception as e:
+                            log_message(f"Fehler bei NFO-Erstellung: {e}")
                 current_prog = 50 + int(50 * (file_idx + 1) / N)
                 _update_pipeline_metadata_progress(task_id, current_prog)
 
