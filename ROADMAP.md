@@ -2397,6 +2397,7 @@ Jede Etappe soll einzeln im Alltag nutzbar sein, auch für einen einzelnen Film.
 - Gestaltung: kein langes Scrollen, klare Schritte, Fortschrittskopf; Orientierung an Emby, aber im bestehenden Design des Tools.
 - Einzelner Film und Reihe: gleicher Dialog oder Sammelmodus?
 - Zusammenspiel mit dem NFO-Agent (Health-Einstieg) und dem Inbox-Ablauf.
+- **Verarbeitungsoptionen doppelt (Entscheidung Alex 2026-11-09, E2 Variante A):** Schritt 4 des Wizards bekommt eigene Options-Bedienelemente (`mw-wizard-`-IDs), weil der Optionen-Block in `#context-movie` (`movie-option-*`) dauerhaft vom Doku-Pfad genutzt wird. Folge: ca. 40 Zeilen Markup und die Options-Defaults an zwei Stellen. Ob beide in eine gemeinsame Options-Komponente zusammengeführt werden, mit E3 (Altcode-Rückbau) entscheiden.
 
 **Fortschritt Etappen (`docs/sessions/2026-11-06-film-assistent/`):**
 - **Etappe E1:** [x] umgesetzt & Handtest Alex bestanden (2026-11-09, Branch `feat/film-wizard-e1`, Gate-A2 APPROVED + Live-Fixes für numerische TMDb-IDs, OFDb-Slug-Encoding/`itemprop="description"`-Plot und Wizard-UX).
