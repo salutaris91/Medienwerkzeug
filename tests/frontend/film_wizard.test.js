@@ -1089,7 +1089,7 @@ test('E2 (4): Error and pending states of /api/preview_process block execution w
     assert.equal(doc.getElementById('mw-wizard-destination').innerHTML, '/mnt/nas/Filme/Dune (2021) [aktuell]');
 });
 
-test('E2 (5): Collapsible groups in Step 4 start open for <= 3 items and collapsed for > 3 items, and toggle on header click', async () => {
+test('E2 (5): Collapsible groups in Step 4 start open for 1-3 items, collapsed for 0 or > 3 items, and toggle on header click', async () => {
     const { doc } = createWizardMockDom();
 
     const wizard = createFilmWizard({
@@ -1130,7 +1130,7 @@ test('E2 (5): Collapsible groups in Step 4 start open for <= 3 items and collaps
     const groupJunk = doc.getElementById('mw-wizard-group-junk');
     const listJunk = doc.getElementById('mw-wizard-list-junk');
 
-    // Renames (2 <= 3) and Junk (0 <= 3) start open; Subs (4 > 3) starts collapsed
+    // Renames (2 <= 3) starts open; Subs (4 > 3) and empty Junk (0) start collapsed (handtest decision 2026-11-09)
     assert.equal(doc.getElementById('mw-wizard-group-title-renames').textContent, 'Umbenennungen (2)');
     assert.equal(groupRenames.classList.contains('collapsed'), false);
     assert.equal(headerRenames.getAttribute('aria-expanded'), 'true');
@@ -1142,8 +1142,8 @@ test('E2 (5): Collapsible groups in Step 4 start open for <= 3 items and collaps
     assert.equal(listSubs.classList.contains('hidden'), true);
 
     assert.equal(doc.getElementById('mw-wizard-group-title-junk').textContent, 'Junk-Dateien (0)');
-    assert.equal(groupJunk.classList.contains('collapsed'), false);
-    assert.equal(listJunk.classList.contains('hidden'), false);
+    assert.equal(groupJunk.classList.contains('collapsed'), true);
+    assert.equal(listJunk.classList.contains('hidden'), true);
 
     // Clicking collapsed Subs header opens it
     headerSubs.click();
@@ -1429,4 +1429,46 @@ test('Regression (Finding 4): Pending /api/process -> Close -> Reopen blocks clo
     processResolvers[1]({ ok: true, status: 200, json: async () => ({ status: 'started' }) });
     await new Promise((r) => setTimeout(r, 0));
     assert.equal(wizard.modalOverlay.classList.contains('hidden'), true);
+});
+
+test('Handtest 2026-11-09: options group is open with a header summary that follows changes, and long plots are clamped with a toggle', async () => {
+    const { doc } = createWizardMockDom();
+    const wizard = createFilmWizard({
+        document: doc,
+        fetch: async () => ({
+            ok: true,
+            status: 200,
+            json: async () => ({ destination: '/mnt/nas/Filme/Jaws (1975)', renames: [], subs: [], junk: [] }),
+        }),
+    });
+
+    wizard.open({ query: 'Jaws', autoSearch: false });
+    await wizard.selectMovieInWizard({ id: '578', name: 'Der weiße Hai', year: '1975', provider: 'manual' }, false);
+    wizard.nfoEditor.elements.plot.value = 'Ein weißer Hai terrorisiert eine Badeinsel. '.repeat(6);
+    wizard.goToStep(4);
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Options are visible without an extra click
+    assert.equal(doc.getElementById('mw-wizard-group-options').classList.contains('collapsed'), false);
+    assert.equal(doc.getElementById('mw-wizard-options-content').classList.contains('hidden'), false);
+
+    // Header summary reflects the current choices and follows changes
+    const summary = doc.getElementById('mw-wizard-options-summary');
+    const optDelete = doc.getElementById('mw-wizard-option-delete');
+    optDelete.checked = true;
+    optDelete.dispatchEvent({ type: 'change' });
+    assert.match(summary.textContent, /Original löschen/);
+    optDelete.checked = false;
+    optDelete.dispatchEvent({ type: 'change' });
+    assert.match(summary.textContent, /Original behalten/);
+
+    // Long plot is clamped; the toggle expands and collapses it again
+    const plotEl = doc.getElementById('mw-wizard-summary-plot');
+    const toggle = doc.getElementById('mw-wizard-summary-plot-toggle');
+    assert.equal(plotEl.classList.contains('clamped'), true);
+    toggle.click();
+    assert.equal(plotEl.classList.contains('clamped'), false);
+    assert.equal(toggle.textContent, 'weniger');
+    toggle.click();
+    assert.equal(plotEl.classList.contains('clamped'), true);
 });

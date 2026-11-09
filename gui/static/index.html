@@ -6,7 +6,7 @@
     <meta name="description" content="Medienwerkzeug - Automatisches Umbennen, Konvertieren und Kopieren von Filmen und Serien auf das NAS.">
     <meta name="color-scheme" content="dark">
     <title>Medienwerkzeug v5.0 (Master-Detail)</title>
-    <link rel="stylesheet" href="style.css?v=54">
+    <link rel="stylesheet" href="style.css?v=55">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -2766,7 +2766,7 @@ group_add:
     </div>
 </div>
 
-    <script type="module" src="app.js?v=108"></script>
+    <script type="module" src="app.js?v=109"></script>
 
     <!-- Modal: Confirm Merge -->
     <div id="modal-confirm-merge" class="mw-modal-overlay">
@@ -3415,12 +3415,13 @@ group_add:
                         <div id="mw-wizard-list-junk" class="mw-wizard-result-group-content"></div>
                     </div>
 
-                    <div id="mw-wizard-group-options" class="mw-wizard-result-group collapsed">
-                        <button type="button" id="mw-wizard-group-header-options" class="mw-wizard-result-group-header collapsed" aria-expanded="false">
+                    <div id="mw-wizard-group-options" class="mw-wizard-result-group">
+                        <button type="button" id="mw-wizard-group-header-options" class="mw-wizard-result-group-header" aria-expanded="true">
                             <span id="mw-wizard-group-title-options">Qualität &amp; Conversion</span>
+                            <span id="mw-wizard-options-summary" class="mw-wizard-options-summary"></span>
                             <span class="mw-wizard-result-group-chevron">▼</span>
                         </button>
-                        <div id="mw-wizard-options-content" class="mw-wizard-result-group-content hidden">
+                        <div id="mw-wizard-options-content" class="mw-wizard-result-group-content">
                             <div class="mw-wizard-options-grid">
                                 <label class="mw-wizard-option-row">
                                     <input type="checkbox" id="mw-wizard-option-convert" checked>

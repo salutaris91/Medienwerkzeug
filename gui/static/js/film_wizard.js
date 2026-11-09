@@ -1,8 +1,8 @@
-import { renderNfoEditor, buildMovieNfoOverrides } from './nfo_editor.js?v=108';
+import { renderNfoEditor, buildMovieNfoOverrides } from './nfo_editor.js?v=109';
 import {
     renderPreviewData,
     collectPreviewSelection,
-} from './preview_render.js?v=108';
+} from './preview_render.js?v=109';
 
 let activeWizardInstance = null;
 
@@ -20,6 +20,9 @@ function mkEl(doc, tag, { id = "", cls = "", text = "", type = "", attrs = {} } 
     }
     return el;
 }
+
+// Plots shorter than this fit into three lines anyway; no "mehr" toggle needed.
+const PLOT_CLAMP_MIN_CHARS = 180;
 
 function buildResultGroupDom(doc, key, titleText, initialCollapsed = false) {
     const collapsedCls = initialCollapsed ? " collapsed" : "";
@@ -116,23 +119,24 @@ function buildOptionsGroupDom(doc) {
     return mkEl(
         doc,
         "div",
-        { id: "mw-wizard-group-options", cls: "mw-wizard-result-group collapsed" },
+        { id: "mw-wizard-group-options", cls: "mw-wizard-result-group" },
         [
             mkEl(
                 doc,
                 "button",
                 {
                     id: "mw-wizard-group-header-options",
-                    cls: "mw-wizard-result-group-header collapsed",
+                    cls: "mw-wizard-result-group-header",
                     type: "button",
-                    attrs: { "aria-expanded": "false" },
+                    attrs: { "aria-expanded": "true" },
                 },
                 [
                     mkEl(doc, "span", { id: "mw-wizard-group-title-options", text: "Qualität & Conversion" }),
+                    mkEl(doc, "span", { id: "mw-wizard-options-summary", cls: "mw-wizard-options-summary" }),
                     mkEl(doc, "span", { cls: "mw-wizard-result-group-chevron", text: "▼" }),
                 ]
             ),
-            mkEl(doc, "div", { id: "mw-wizard-options-content", cls: "mw-wizard-result-group-content hidden" }, [
+            mkEl(doc, "div", { id: "mw-wizard-options-content", cls: "mw-wizard-result-group-content" }, [
                 optionsGrid,
             ]),
         ]
@@ -428,7 +432,8 @@ export function createFilmWizard(options = {}) {
         const groupEl = getEl(`mw-wizard-group-${key}`);
         const headerEl = getEl(`mw-wizard-group-header-${key}`);
         const contentEl = getEl(`mw-wizard-list-${key}`);
-        setGroupCollapsed(groupEl, headerEl, contentEl, count > 3);
+        // Empty groups start collapsed (the "(0)" in the header is enough), long lists too.
+        setGroupCollapsed(groupEl, headerEl, contentEl, count === 0 || count > 3);
     }
 
     function updateOptionSubcontainers() {
@@ -444,6 +449,39 @@ export function createFilmWizard(options = {}) {
         if (optQualityVal && optQualitySlider) {
             optQualityVal.textContent = String(optQualitySlider.value || "60");
         }
+        updateOptionsSummary();
+    }
+
+    function selectedOptionLabel(selectEl) {
+        if (!selectEl) return "";
+        const opts = selectEl.options ? Array.from(selectEl.options) : [];
+        const match = opts.find((o) => o && String(o.value) === String(selectEl.value));
+        return match && match.textContent ? String(match.textContent).trim() : "";
+    }
+
+    // Short, always visible summary of the processing options in the group header,
+    // so the important choices (H.265, delete original, targets) are not hidden.
+    function buildOptionsSummaryText() {
+        const parts = [];
+        if (optConvert) {
+            const qualityText = optQualitySlider ? ` (${optQualitySlider.value || "60"})` : "";
+            parts.push(optConvert.checked ? `H.265 an${qualityText}` : "H.265 aus");
+        }
+        if (optDelete) parts.push(optDelete.checked ? "Original löschen" : "Original behalten");
+        if (optCopyNas) {
+            const nasLabel = selectedOptionLabel(optNasDest);
+            parts.push(optCopyNas.checked ? `NAS${nasLabel ? `: ${nasLabel}` : ""}` : "NAS aus");
+        }
+        if (optCopyPcloud) {
+            const pcloudLabel = selectedOptionLabel(optPcloudDest);
+            parts.push(optCopyPcloud.checked ? `pCloud${pcloudLabel ? `: ${pcloudLabel}` : ""}` : "pCloud aus");
+        }
+        return parts.join(" · ");
+    }
+
+    function updateOptionsSummary() {
+        const summaryEl = getEl("mw-wizard-options-summary");
+        if (summaryEl) summaryEl.textContent = buildOptionsSummaryText();
     }
 
     function syncWizardOptionsFromContext(openOptions = {}) {
@@ -613,10 +651,32 @@ export function createFilmWizard(options = {}) {
             `FSK: ${vals.fsk !== "" ? `FSK ${vals.fsk}` : "Keine Angabe"}`,
             `Genre: ${vals.genres.length > 0 ? vals.genres.join(", ") : "Keine Angabe"}`,
             `Artwork: ${artworkSkipped ? "Übersprungen (Standard-Artwork)" : "Standard-Artwork (TMDb)"}`,
-            `Plot: ${vals.plot || "—"}`,
         ];
         for (const text of lines) {
             summaryBox.appendChild(mkEl(doc, "div", { cls: "mw-wizard-summary-row", text }));
+        }
+
+        // Long plots are clamped to three lines (CSS) so the result groups stay in view.
+        const plotText = `Plot: ${vals.plot || "—"}`;
+        const plotEl = mkEl(doc, "div", {
+            id: "mw-wizard-summary-plot",
+            cls: "mw-wizard-summary-row mw-wizard-summary-plot clamped",
+            text: plotText,
+        });
+        summaryBox.appendChild(plotEl);
+        if (String(vals.plot || "").length > PLOT_CLAMP_MIN_CHARS) {
+            const toggleBtn = mkEl(doc, "button", {
+                id: "mw-wizard-summary-plot-toggle",
+                cls: "mw-wizard-summary-plot-toggle",
+                type: "button",
+                text: "mehr",
+            });
+            toggleBtn.addEventListener("click", () => {
+                const isClamped = plotEl.classList.contains("clamped");
+                plotEl.classList.toggle("clamped", !isClamped);
+                toggleBtn.textContent = isClamped ? "weniger" : "mehr";
+            });
+            summaryBox.appendChild(toggleBtn);
         }
     }
 
@@ -1107,6 +1167,7 @@ export function createFilmWizard(options = {}) {
     }
     if (optDelete && typeof optDelete.addEventListener === "function") {
         optDelete.addEventListener("change", () => {
+            updateOptionsSummary();
             syncOptionBackToContext(optDelete, "movie-option-delete", "checked");
         });
     }
@@ -1134,12 +1195,14 @@ export function createFilmWizard(options = {}) {
     }
     if (optNasDest && typeof optNasDest.addEventListener === "function") {
         optNasDest.addEventListener("change", () => {
+            updateOptionsSummary();
             syncOptionBackToContext(optNasDest, "movie-nas-destination", "value");
             if (currentStep === 4) loadStep4Preview();
         });
     }
     if (optPcloudDest && typeof optPcloudDest.addEventListener === "function") {
         optPcloudDest.addEventListener("change", () => {
+            updateOptionsSummary();
             syncOptionBackToContext(optPcloudDest, "movie-pcloud-destination", "value");
             if (currentStep === 4) loadStep4Preview();
         });

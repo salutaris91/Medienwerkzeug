@@ -4167,8 +4167,8 @@ body.runtime-docker .docker-only-info {
 .mw-wizard-context-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .mw-wizard-overlay:not(.hidden) { opacity: 1; pointer-events: auto; }
 .mw-wizard-overlay:not(.hidden) .mw-wizard-modal { transform: translateY(0) scale(1); }
-.mw-wizard-modal { max-width: 780px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; padding: 24px; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); }
-#modal-film-wizard .mw-wizard-modal, .mw-modal.mw-wizard-modal { max-width: 780px; width: 95%; }
+.mw-wizard-modal { max-width: 880px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; padding: 24px; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); }
+#modal-film-wizard .mw-wizard-modal, .mw-modal.mw-wizard-modal { max-width: 880px; width: 95%; }
 .mw-wizard-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--border-glass); }
 .mw-wizard-title { margin: 0; font-size: 1.15rem; color: var(--text-main); }
 .mw-wizard-close-btn { background: transparent; border: none; color: var(--text-muted); font-size: 1.5rem; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: var(--radius-sm); }
@@ -4207,6 +4207,10 @@ body.runtime-docker .docker-only-info {
 .mw-wizard-summary { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--bg-surface); border: 1px solid var(--border-glass); border-radius: var(--radius-md); }
 .mw-wizard-summary-row { font-size: 0.85rem; color: var(--text-main); padding: 3px 0; border-bottom: 1px solid var(--border-glass); }
 .mw-wizard-summary-row:last-child { border-bottom: none; }
+.mw-wizard-summary-plot { border-bottom: none; }
+.mw-wizard-summary-plot.clamped { display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.mw-wizard-summary-plot-toggle { align-self: flex-start; padding: 0; border: none; background: none; color: var(--accent); font-size: 0.8rem; cursor: pointer; }
+.mw-wizard-options-summary { flex: 1 1 auto; margin: 0 10px; font-size: 0.78rem; font-weight: 500; color: var(--text-muted); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mw-wizard-result-summary { padding: 14px; background: var(--bg-surface); border-radius: var(--radius-md); border: 1px solid var(--border-glass); margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px; }
 .mw-wizard-result-title { font-size: 1rem; font-weight: 700; color: var(--text-main); }
 .mw-wizard-result-dest-label { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
