@@ -1855,6 +1855,7 @@ function initViews() {
                                 projectName: currentProject,
                                 onProcessSuccess: () => connectLogStream(),
                                 onPersistOptions: saveConversionSettings,
+                                onClosed: () => { if (typeof window.goHome === "function") window.goHome(); },
                                 onLog: appendConsoleLog
                             });
                         }
@@ -1881,6 +1882,7 @@ function initViews() {
                     projectName: currentProject,
                     onProcessSuccess: () => connectLogStream(),
                     onPersistOptions: saveConversionSettings,
+                    onClosed: () => { if (typeof window.goHome === "function") window.goHome(); },
                     onLog: appendConsoleLog
                 });
             }

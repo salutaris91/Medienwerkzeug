@@ -1672,3 +1672,37 @@ test('Review R1: a forecast still running when the wizard closes does not leak i
     assert.equal(harness.estimateEl().classList.contains('hidden'), true);
     assert.doesNotMatch(harness.doc.getElementById('mw-wizard-options-summary').textContent, /~/);
 });
+
+test('Handtest 2026-11-09 (3): closing the wizard or starting the process calls onClosed (back to the start page); an aborted close does not', async () => {
+    const { doc } = createWizardMockDom();
+    let closedCalls = 0;
+    let confirmAnswer = false;
+    const wizard = createFilmWizard({
+        document: doc,
+        confirm: () => confirmAnswer,
+        onClosed: () => { closedCalls += 1; },
+        fetch: async (url) => {
+            if (url === '/api/process') return { ok: true, status: 200, json: async () => ({ success: true }) };
+            return { ok: true, status: 200, json: async () => ({ destination: '/mnt/nas/Filme/Jaws (1975)', renames: [], subs: [], junk: [] }) };
+        },
+    });
+
+    // Plain close via ×/ESC in step 1
+    wizard.open({ query: 'Jaws', projectName: 'Jaws.1975', autoSearch: false });
+    assert.equal(wizard.close(), true);
+    assert.equal(closedCalls, 1);
+
+    // Dirty close that the user cancels: stays open, no navigation
+    wizard.open({ query: 'Jaws', projectName: 'Jaws.1975', autoSearch: false });
+    await wizard.selectMovieInWizard({ id: '578', name: 'Der weiße Hai', year: '1975', provider: 'manual' }, false);
+    wizard.nfoEditor.elements.title.value = 'Geändert';
+    confirmAnswer = false;
+    assert.equal(wizard.close(), false);
+    assert.equal(closedCalls, 1);
+
+    // Successful process start closes the wizard and navigates
+    wizard.goToStep(4);
+    await new Promise((r) => setTimeout(r, 0));
+    await wizard.executeStep4Process();
+    assert.equal(closedCalls, 2);
+});

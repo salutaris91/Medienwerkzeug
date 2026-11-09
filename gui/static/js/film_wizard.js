@@ -333,6 +333,9 @@ export function createFilmWizard(options = {}) {
     let activeArtworkTab = "poster";
     let onHandoverCallback = options.onHandover || null;
     let onProcessSuccessCallback = options.onProcessSuccess || null;
+    // Called after every successful close (×, ESC, after starting the process) so the app can leave
+    // the project view instead of falling back to the legacy movie panel.
+    let onClosedCallback = options.onClosed || null;
     let lastRetryAction = null;
     let sessionSeq = 0;
     let metadataRequestSeq = 0;
@@ -1188,6 +1191,7 @@ export function createFilmWizard(options = {}) {
         if (openOptions.projectName !== undefined) currentProjectName = String(openOptions.projectName || "");
         if (openOptions.onHandover) onHandoverCallback = openOptions.onHandover;
         if (openOptions.onProcessSuccess) onProcessSuccessCallback = openOptions.onProcessSuccess;
+        if (openOptions.onClosed) onClosedCallback = openOptions.onClosed;
         if (openOptions.onPersistOptions) persistOptionsCallback = openOptions.onPersistOptions;
         if (openOptions.onLog) logFn = openOptions.onLog;
         syncWizardOptionsFromContext(openOptions);
@@ -1224,6 +1228,15 @@ export function createFilmWizard(options = {}) {
         updateExecuteButtonState();
         modalOverlay.classList.add("hidden");
         modalOverlay.classList.remove("active");
+        if (typeof onClosedCallback === "function") {
+            try {
+                onClosedCallback();
+            } catch (err) {
+                if (logFn) {
+                    try { logFn(`[System]: Rücksprung nach dem Film-Assistenten fehlgeschlagen: ${err && err.message ? err.message : err}`); } catch (_) {}
+                }
+            }
+        }
         return true;
     }
 
