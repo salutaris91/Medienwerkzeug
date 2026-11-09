@@ -1,15 +1,15 @@
-import { applyTheme } from './js/theme.js?v=110';
-import { cleanSeriesName } from './js/utils.js?v=110';
-import { formatBytes } from './js/format.js?v=110';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=110';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=110';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=110';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=110';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=110';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=110';
-import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=110';
-import { renderNfoEditor, buildMovieNfoOverrides } from './js/nfo_editor.js?v=110';
-import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=110';
+import { applyTheme } from './js/theme.js?v=111';
+import { cleanSeriesName } from './js/utils.js?v=111';
+import { formatBytes } from './js/format.js?v=111';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=111';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=111';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=111';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=111';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=111';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=111';
+import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=111';
+import { renderNfoEditor, buildMovieNfoOverrides } from './js/nfo_editor.js?v=111';
+import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=111';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -1854,6 +1854,7 @@ function initViews() {
                                 query: cleanedQuery,
                                 projectName: currentProject,
                                 onProcessSuccess: () => connectLogStream(),
+                                onPersistOptions: saveConversionSettings,
                                 onLog: appendConsoleLog
                             });
                         }
@@ -1879,6 +1880,7 @@ function initViews() {
                     query: queryVal,
                     projectName: currentProject,
                     onProcessSuccess: () => connectLogStream(),
+                    onPersistOptions: saveConversionSettings,
                     onLog: appendConsoleLog
                 });
             }

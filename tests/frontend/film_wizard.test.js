@@ -1542,3 +1542,133 @@ test('Handtest 2026-11-09 (2): existing NFO is offered as junk with a hint, NAS/
     assert.deepEqual(processCall.body.explicit_junk, ['Alien.1979.nfo']);
     assert.deepEqual(processCall.body.explicit_subs, [{ old: 'Alien.1979.de.srt', new: 'Alien (1979).de.srt' }]);
 });
+
+function createEstimateHarness(estimateResponder) {
+    const { doc } = createWizardMockDom();
+    const legacySlider = doc.createElement('input');
+    legacySlider.id = 'movie-quality-slider';
+    let legacyChangeEvents = 0;
+    legacySlider.addEventListener('change', () => { legacyChangeEvents += 1; });
+    doc.body.appendChild(legacySlider);
+
+    const estimateCalls = [];
+    const logs = [];
+    let persistCalls = 0;
+    let previewDestination = 'NAS: /media/Filme/Alien (1979)';
+    const wizard = createFilmWizard({
+        document: doc,
+        onLog: (msg) => logs.push(msg),
+        onPersistOptions: () => { persistCalls += 1; },
+        fetch: async (url, opts) => {
+            if (url === '/api/estimate-conversion') {
+                const body = JSON.parse(opts.body);
+                estimateCalls.push(body);
+                return estimateResponder(body, estimateCalls.length);
+            }
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ destination: previewDestination, renames: [{ old: 'Alien.1979.ts', new: 'Alien (1979).ts' }], subs: [], junk: [] }),
+            };
+        },
+    });
+    const flush = () => new Promise((r) => setTimeout(r, 0));
+    const enterStep4 = async () => {
+        wizard.open({ query: 'Alien', projectName: 'Alien.1979', autoSearch: false });
+        await wizard.selectMovieInWizard({ id: '348', name: 'Alien', year: '1979', provider: 'manual' }, false);
+        doc.getElementById('mw-wizard-option-convert').checked = true;
+        wizard.goToStep(4);
+        await flush();
+        await flush();
+    };
+    return {
+        doc, wizard, estimateCalls, logs, flush, enterStep4,
+        getLegacyChangeEvents: () => legacyChangeEvents,
+        getPersistCalls: () => persistCalls,
+        estimateEl: () => doc.getElementById('mw-wizard-size-estimate'),
+    };
+}
+
+const okEstimate = (sizeIn, sizeOut) => ({ ok: true, status: 200, json: async () => ({ estimates: { 'Alien.1979.ts': { size_in: sizeIn, size_out: sizeOut } } }) });
+
+test('Review R1: size forecast error paths are visible and never block execution; per-file errors show the reason', async (t) => {
+    await t.test('HTTP error', async () => {
+        const harness = createEstimateHarness(() => ({ ok: false, status: 500, json: async () => ({}) }));
+        await harness.enterStep4();
+        assert.deepEqual(harness.estimateCalls[0].filenames, ['Alien.1979.ts']);
+        assert.match(harness.estimateEl().textContent, /Größenprognose fehlgeschlagen \(HTTP 500\)/);
+        assert.ok(harness.logs.some((msg) => /Größenprognose im Film-Assistenten fehlgeschlagen/.test(msg)));
+        assert.equal(harness.doc.getElementById('mw-wizard-btn-execute').disabled, false);
+    });
+    await t.test('per-file error', async () => {
+        const harness = createEstimateHarness(() => ({ ok: true, status: 200, json: async () => ({ estimates: { 'Alien.1979.ts': { error: 'ffmpeg timeout' } } }) }));
+        await harness.enterStep4();
+        assert.equal(harness.estimateEl().textContent, 'Größenprognose nicht verfügbar (ffmpeg timeout).');
+    });
+    await t.test('H.265 off: no request, element hidden', async () => {
+        const harness = createEstimateHarness(() => okEstimate(4000, 1000));
+        await harness.enterStep4();
+        const convert = harness.doc.getElementById('mw-wizard-option-convert');
+        convert.checked = false;
+        convert.dispatchEvent({ type: 'change' });
+        await harness.flush();
+        assert.equal(harness.estimateCalls.length, 1);
+        assert.equal(harness.estimateEl().classList.contains('hidden'), true);
+        assert.doesNotMatch(harness.doc.getElementById('mw-wizard-options-summary').textContent, /~/);
+    });
+});
+
+test('Review R1: slider mirrors to the legacy slider without change events, forecasts are cached and stale answers discarded', async () => {
+    let releaseFirst;
+    const harness = createEstimateHarness((body, callNo) => {
+        if (callNo === 1) return new Promise((resolve) => { releaseFirst = () => resolve(okEstimate(4000, 3000)); });
+        return okEstimate(4000, 1000);
+    });
+    await harness.enterStep4();
+
+    // Dragging: no mirror events, no persist, no new forecast
+    const slider = harness.doc.getElementById('mw-wizard-quality-slider');
+    slider.value = '40';
+    slider.dispatchEvent({ type: 'input' });
+    assert.equal(harness.getLegacyChangeEvents(), 0);
+    assert.equal(harness.getPersistCalls(), 0);
+    assert.equal(harness.estimateCalls.length, 1);
+
+    // Release: value mirrored without change event (no legacy ffmpeg estimate), settings persisted, new forecast
+    slider.dispatchEvent({ type: 'change' });
+    await harness.flush();
+    assert.equal(harness.doc.getElementById('movie-quality-slider').value, '40');
+    assert.equal(harness.getLegacyChangeEvents(), 0);
+    assert.equal(harness.getPersistCalls(), 1);
+    assert.equal(harness.estimateCalls.length, 2);
+    assert.match(harness.estimateEl().textContent, /-75%/);
+
+    // The late answer of the first (60 %) forecast is discarded
+    releaseFirst();
+    await harness.flush();
+    assert.match(harness.estimateEl().textContent, /-75%/);
+
+    // Preview reload with unchanged project/files/quality reuses the cached forecast
+    const nasDest = harness.doc.getElementById('mw-wizard-nas-destination');
+    nasDest.dispatchEvent({ type: 'change' });
+    await harness.flush();
+    await harness.flush();
+    assert.equal(harness.estimateCalls.length, 2);
+    assert.match(harness.estimateEl().textContent, /-75%/);
+});
+
+test('Review R1: a forecast still running when the wizard closes does not leak into the next session', async () => {
+    let releaseFirst;
+    const harness = createEstimateHarness((body, callNo) => {
+        if (callNo === 1) return new Promise((resolve) => { releaseFirst = () => resolve(okEstimate(4000, 2000)); });
+        return { ok: false, status: 503, json: async () => ({}) };
+    });
+    await harness.enterStep4();
+    harness.wizard.close({ force: true });
+    harness.wizard.open({ query: 'Alien', projectName: 'Alien.1979', autoSearch: false });
+    releaseFirst();
+    await harness.flush();
+    assert.equal(harness.estimateEl().textContent, '');
+    assert.equal(harness.estimateEl().classList.contains('hidden'), true);
+    assert.doesNotMatch(harness.doc.getElementById('mw-wizard-options-summary').textContent, /~/);
+});

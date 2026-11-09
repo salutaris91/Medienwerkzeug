@@ -1,9 +1,9 @@
-import { renderNfoEditor, buildMovieNfoOverrides } from './nfo_editor.js?v=110';
-import { formatBytes } from './format.js?v=110';
+import { renderNfoEditor, buildMovieNfoOverrides } from './nfo_editor.js?v=111';
+import { formatBytes } from './format.js?v=111';
 import {
     renderPreviewData,
     collectPreviewSelection,
-} from './preview_render.js?v=110';
+} from './preview_render.js?v=111';
 
 let activeWizardInstance = null;
 
@@ -21,9 +21,6 @@ function mkEl(doc, tag, { id = "", cls = "", text = "", type = "", attrs = {} } 
     }
     return el;
 }
-
-// Plots shorter than this fit into three lines anyway; no "mehr" toggle needed.
-const PLOT_CLAMP_MIN_CHARS = 180;
 
 function buildResultGroupDom(doc, key, titleText, initialCollapsed = false) {
     const collapsedCls = initialCollapsed ? " collapsed" : "";
@@ -346,6 +343,8 @@ export function createFilmWizard(options = {}) {
     let sizeEstimateSeq = 0;
     let lastSizeEstimateText = "";
     let lastPreviewVideoFiles = [];
+    const sizeEstimateCache = new Map();
+    let persistOptionsCallback = options.onPersistOptions || null;
     const previewCheckboxState = {
         renames: new Map(),
         subs: new Map(),
@@ -466,7 +465,8 @@ export function createFilmWizard(options = {}) {
 
     // An NFO that already lies in the inbox folder is listed by the backend as an "extra" to rename.
     // The wizard always writes its own NFO, so the old one is offered as junk instead (sent to the
-    // trash before the new NFO is written). Unchecking it keeps the old file untouched.
+    // trash before the new NFO is written). If the user unchecks it, the backend moves the old
+    // file with its old name into the target folder next to the new NFO (same as before E2).
     function moveExistingNfoToJunk(data) {
         const subs = Array.isArray(data.subs) ? data.subs : [];
         const junk = Array.isArray(data.junk) ? data.junk.slice() : [];
@@ -499,13 +499,41 @@ export function createFilmWizard(options = {}) {
         }));
     }
 
-    const VIDEO_EXTENSIONS = ["mp4", "mkv", "avi", "webm", "mov"];
-
+    // The preview's renames only contain the main video file(s); no extension filter needed
+    // (the backend also accepts .ts/.m2ts/.wmv etc.).
     function extractVideoFiles(renames) {
         const list = Array.isArray(renames) ? renames : [];
         return list
             .map((entry) => ((entry && typeof entry === "object") ? String(entry.old || "") : String(entry || "")))
-            .filter((name) => VIDEO_EXTENSIONS.includes(name.split(".").pop().toLowerCase()));
+            .filter(Boolean);
+    }
+
+    function persistOptions() {
+        if (typeof persistOptionsCallback !== "function") return;
+        try {
+            persistOptionsCallback();
+        } catch (err) {
+            if (logFn) {
+                try { logFn(`[System]: Einstellungen aus dem Film-Assistenten konnten nicht gespeichert werden: ${err && err.message ? err.message : err}`); } catch (_) {}
+            }
+        }
+    }
+
+    function resetSizeEstimate() {
+        sizeEstimateSeq += 1;
+        lastSizeEstimateText = "";
+        const estimateEl = getEl("mw-wizard-size-estimate");
+        if (estimateEl) {
+            estimateEl.classList.add("hidden");
+            estimateEl.textContent = "";
+        }
+        updateOptionsSummary();
+    }
+
+    function showSizeEstimateResult(estimateEl, result) {
+        lastSizeEstimateText = result.summaryText;
+        estimateEl.textContent = result.detailText;
+        updateOptionsSummary();
     }
 
     // Size forecast via the existing /api/estimate-conversion (short test conversion, ~15 s).
@@ -524,6 +552,12 @@ export function createFilmWizard(options = {}) {
         }
         const quality = optQualitySlider ? parseInt(optQualitySlider.value, 10) || 60 : 60;
         estimateEl.classList.remove("hidden");
+        // Same project, files and quality -> reuse the last result instead of another ffmpeg test run.
+        const cacheKey = JSON.stringify([currentProjectName, lastPreviewVideoFiles, quality]);
+        if (sizeEstimateCache.has(cacheKey)) {
+            showSizeEstimateResult(estimateEl, sizeEstimateCache.get(cacheKey));
+            return null;
+        }
         estimateEl.textContent = "Größenprognose läuft (Test-Konvertierung, ca. 15 Sek.)…";
         try {
             const res = await fetchFn("/api/estimate-conversion", {
@@ -537,20 +571,29 @@ export function createFilmWizard(options = {}) {
             if (reqSeq !== sizeEstimateSeq) return null;
             let sizeIn = 0;
             let sizeOut = 0;
+            let firstFileError = "";
             for (const est of Object.values((data && data.estimates) || {})) {
                 if (est && est.size_in !== undefined && est.size_out !== undefined) {
                     sizeIn += est.size_in;
                     sizeOut += est.size_out;
+                } else if (est && est.error && !firstFileError) {
+                    firstFileError = String(est.error);
                 }
             }
             if (sizeIn > 0) {
                 const pct = Math.round(((sizeIn - sizeOut) / sizeIn) * 100);
-                lastSizeEstimateText = `~${formatBytes(sizeOut)}`;
-                estimateEl.textContent = `Voraussichtliche Größe: ${formatBytes(sizeIn)} → ~${formatBytes(sizeOut)} (-${pct}%)`;
+                const result = {
+                    summaryText: `~${formatBytes(sizeOut)}`,
+                    detailText: `Voraussichtliche Größe: ${formatBytes(sizeIn)} → ~${formatBytes(sizeOut)} (-${pct}%)`,
+                };
+                sizeEstimateCache.set(cacheKey, result);
+                showSizeEstimateResult(estimateEl, result);
             } else {
-                estimateEl.textContent = "Größenprognose nicht verfügbar.";
+                estimateEl.textContent = firstFileError
+                    ? `Größenprognose nicht verfügbar (${firstFileError}).`
+                    : "Größenprognose nicht verfügbar.";
+                updateOptionsSummary();
             }
-            updateOptionsSummary();
             return data;
         } catch (err) {
             if (reqSeq !== sizeEstimateSeq) return null;
@@ -656,10 +699,13 @@ export function createFilmWizard(options = {}) {
         updateOptionSubcontainers();
     }
 
-    function syncOptionBackToContext(wizardEl, contextId, prop = "checked") {
+    // dispatchChange=false: only mirror the value. Used for H.265 and quality, whose legacy change
+    // listeners start an ffmpeg size estimate for the (hidden) legacy panel on every event.
+    function syncOptionBackToContext(wizardEl, contextId, prop = "checked", { dispatchChange = true } = {}) {
         const ctxEl = getEl(contextId);
         if (!wizardEl || !ctxEl || (ctxEl.tagName !== "INPUT" && ctxEl.tagName !== "SELECT")) return;
         ctxEl[prop] = wizardEl[prop];
+        if (!dispatchChange) return;
         if (typeof ctxEl.dispatchEvent === "function" && typeof Event === "function") {
             try {
                 ctxEl.dispatchEvent(new Event("change"));
@@ -761,7 +807,7 @@ export function createFilmWizard(options = {}) {
             text: plotText,
         });
         summaryBox.appendChild(plotEl);
-        if (String(vals.plot || "").length > PLOT_CLAMP_MIN_CHARS) {
+        if (String(vals.plot || "").trim()) {
             const toggleBtn = mkEl(doc, "button", {
                 id: "mw-wizard-summary-plot-toggle",
                 cls: "mw-wizard-summary-plot-toggle",
@@ -774,6 +820,17 @@ export function createFilmWizard(options = {}) {
                 toggleBtn.textContent = isClamped ? "weniger" : "mehr";
             });
             summaryBox.appendChild(toggleBtn);
+            // Hide the toggle once layout shows the plot fits into three lines (depends on width).
+            const hideToggleIfNotClipped = () => {
+                const clientHeight = Number(plotEl.clientHeight) || 0;
+                const scrollHeight = Number(plotEl.scrollHeight) || 0;
+                if (clientHeight > 0 && scrollHeight <= clientHeight + 1 && plotEl.classList.contains("clamped")) {
+                    toggleBtn.classList.add("hidden");
+                }
+            };
+            if (typeof globalThis.requestAnimationFrame === "function") {
+                globalThis.requestAnimationFrame(hideToggleIfNotClipped);
+            }
         }
     }
 
@@ -786,6 +843,7 @@ export function createFilmWizard(options = {}) {
         hasValidPreview = false;
         currentPreviewPayload = null;
         updateExecuteButtonState();
+        resetSizeEstimate();
 
         if (similarExistingBox && similarExistingBox.classList) {
             similarExistingBox.classList.add("hidden");
@@ -1118,6 +1176,7 @@ export function createFilmWizard(options = {}) {
 
     function open(openOptions = {}) {
         sessionSeq += 1;
+        resetSizeEstimate();
         metadataRequestSeq += 1;
         previewRequestSeq += 1;
         hasValidPreview = false;
@@ -1129,6 +1188,7 @@ export function createFilmWizard(options = {}) {
         if (openOptions.projectName !== undefined) currentProjectName = String(openOptions.projectName || "");
         if (openOptions.onHandover) onHandoverCallback = openOptions.onHandover;
         if (openOptions.onProcessSuccess) onProcessSuccessCallback = openOptions.onProcessSuccess;
+        if (openOptions.onPersistOptions) persistOptionsCallback = openOptions.onPersistOptions;
         if (openOptions.onLog) logFn = openOptions.onLog;
         syncWizardOptionsFromContext(openOptions);
 
@@ -1156,6 +1216,7 @@ export function createFilmWizard(options = {}) {
             if (!confirmFn("Änderungen im Film-Assistenten verwerfen?")) return false;
         }
         sessionSeq += 1;
+        resetSizeEstimate();
         metadataRequestSeq += 1;
         previewRequestSeq += 1;
         hasValidPreview = false;
@@ -1263,7 +1324,8 @@ export function createFilmWizard(options = {}) {
     if (optConvert && typeof optConvert.addEventListener === "function") {
         optConvert.addEventListener("change", () => {
             updateOptionSubcontainers();
-            syncOptionBackToContext(optConvert, "movie-option-convert", "checked");
+            syncOptionBackToContext(optConvert, "movie-option-convert", "checked", { dispatchChange: false });
+            persistOptions();
             if (currentStep === 4 && hasValidPreview) refreshSizeEstimate();
         });
     }
@@ -1274,13 +1336,12 @@ export function createFilmWizard(options = {}) {
         });
     }
     if (optQualitySlider && typeof optQualitySlider.addEventListener === "function") {
-        const onQualityChange = () => {
-            updateOptionSubcontainers();
-            syncOptionBackToContext(optQualitySlider, "movie-quality-slider", "value");
-        };
-        optQualitySlider.addEventListener("input", onQualityChange);
+        // While dragging only the label updates; mirroring, saving and the forecast follow on release.
+        optQualitySlider.addEventListener("input", () => updateOptionSubcontainers());
         optQualitySlider.addEventListener("change", () => {
-            onQualityChange();
+            updateOptionSubcontainers();
+            syncOptionBackToContext(optQualitySlider, "movie-quality-slider", "value", { dispatchChange: false });
+            persistOptions();
             if (currentStep === 4 && hasValidPreview) refreshSizeEstimate();
         });
     }
