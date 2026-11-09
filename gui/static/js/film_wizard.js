@@ -55,7 +55,7 @@ function buildOptionsGroupDom(doc) {
     const qualitySlider = mkEl(doc, "input", {
         id: "mw-wizard-quality-slider",
         type: "range",
-        attrs: { min: "0", max: "100", value: "60", step: "5" },
+        attrs: { min: "10", max: "100", value: "60", step: "1" },
     });
     qualitySlider.value = "60";
 
