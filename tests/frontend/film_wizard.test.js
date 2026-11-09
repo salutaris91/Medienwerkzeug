@@ -470,3 +470,51 @@ test('E1-AK5 & E1-AK6: index.html preserves #context-movie and uses only CSS var
     assert.match(styleCss, /var\(--bg-card\)/);
     assert.match(styleCss, /var\(--border-glass\)/);
 });
+
+test('Numeric TMDb movie.id from /api/search is normalized to string in handover so renderProviderInfo never crashes, and loading/manual badge states are shown', async () => {
+    const { doc } = createWizardMockDom();
+    let resolveMeta = null;
+
+    const wizard = createFilmWizard({
+        document: doc,
+        fetch: () =>
+            new Promise((resolve) => {
+                resolveMeta = resolve;
+            }),
+    });
+
+    wizard.open({ query: 'Alien', autoSearch: false });
+    const selectPromise = wizard.selectMovieInWizard({ id: 348, name: 'Alien (1979)', provider: 'tmdb' });
+
+    // While metadata is loading, badge indicates loading state
+    const badge = doc.getElementById('mw-wizard-provider-badge');
+    assert.match(badge.textContent, /Lade Metadaten/);
+
+    resolveMeta({
+        ok: true,
+        status: 200,
+        json: async () => ({
+            title: 'Alien - Das unheimliche Wesen aus einer fremden Welt',
+            year: '1979',
+            plot: 'WIZARD-PLOT-F5',
+            fsk: '16',
+            genres: ['Horror', 'Science Fiction'],
+        }),
+    });
+    await selectPromise;
+    assert.equal(badge.textContent, 'TMDB');
+
+    wizard.nfoEditor.elements.fsk.value = '18';
+    const handover = wizard.getHandoverPayload();
+    assert.equal(typeof handover.movie.id, 'string');
+    assert.equal(handover.movie.id, '348');
+    assert.equal(handover.nfo_overrides.movie.title, 'Alien - Das unheimliche Wesen aus einer fremden Welt');
+    assert.equal(handover.nfo_overrides.movie.year, '1979');
+    assert.equal(handover.nfo_overrides.movie.plot, 'WIZARD-PLOT-F5');
+    assert.equal(handover.nfo_overrides.movie.fsk, '18');
+
+    // Manual button shows "Metadaten manuell eintragen"
+    wizard.open({ query: 'Das Boot', autoSearch: false });
+    doc.getElementById('mw-wizard-manual-btn').click();
+    assert.equal(badge.textContent, 'Metadaten manuell eintragen');
+});

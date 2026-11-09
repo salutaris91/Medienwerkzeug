@@ -366,6 +366,24 @@ class TestInboxMovieOverrides(unittest.TestCase):
         self.assertNotIn("<mpaa>", xml)
         self.assertNotIn("<genre>", xml)
 
+    def test_ofdb_url_encoding_and_itemprop_description_plot(self):
+        """Handtest F-3 regression: OFDb slug with umlaut/ß is percent-encoded and itemprop='description' plot is parsed."""
+        from gui import mw_metadata
+        self.assertEqual(
+            mw_metadata._ofdb_film_url("ofdb_780_Der-Weiße-Hai"),
+            "https://www.ofdb.de/film/780,Der-Wei%C3%9Fe-Hai/",
+        )
+        html = (
+            '<html><head><title>OFDb - Der Weiße Hai (1975)</title></head><body>'
+            'Erscheinungsjahr: <a href="/view.php?page=blaettern&Kat=Jahr&Text=1975">1975</a>'
+            '<p><b>Inhalt:</b> <span itemprop="description">In dem kleinen Badeort Amity kommt es zu Todesfällen.</span></p>'
+            '</body></html>'
+        )
+        parsed = mw_metadata._parse_ofdb_film_page(html)
+        self.assertEqual(parsed["title"], "Der Weiße Hai")
+        self.assertEqual(parsed["year"], "1975")
+        self.assertEqual(parsed["plot"], "In dem kleinen Badeort Amity kommt es zu Todesfällen.")
+
 
 if __name__ == "__main__":
     unittest.main()

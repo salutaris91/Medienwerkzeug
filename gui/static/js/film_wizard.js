@@ -1,4 +1,4 @@
-import { renderNfoEditor, buildMovieNfoOverrides } from './nfo_editor.js?v=106';
+import { renderNfoEditor, buildMovieNfoOverrides } from './nfo_editor.js?v=107';
 
 let activeWizardInstance = null;
 
@@ -20,10 +20,10 @@ function mkEl(doc, tag, { id = "", cls = "", text = "", type = "", attrs = {} } 
 function buildWizardDom(doc, modalOverlay) {
     modalOverlay.classList.add("mw-modal-overlay", "mw-wizard-overlay", "hidden");
     const stepDefs = [
-        [1, "Quelle"],
-        [2, "Meta"],
-        [3, "Bild"],
-        [4, "Ergebnis"],
+        [1, "Film suchen"],
+        [2, "Metadaten"],
+        [3, "Artwork"],
+        [4, "Übersicht"],
     ];
     const stepper = mkEl(
         doc,
@@ -57,7 +57,7 @@ function buildWizardDom(doc, modalOverlay) {
             mkEl(doc, "div", { cls: "mw-wizard-search-row" }, [
                 searchInput,
                 mkEl(doc, "button", { id: "mw-wizard-search-btn", cls: "btn btn-primary", type: "button", text: "Suchen" }),
-                mkEl(doc, "button", { id: "mw-wizard-manual-btn", cls: "btn btn-secondary", type: "button", text: "Manuell eintragen" }),
+                mkEl(doc, "button", { id: "mw-wizard-manual-btn", cls: "btn btn-secondary", type: "button", text: "Metadaten manuell eintragen" }),
             ]),
             mkEl(doc, "div", { id: "mw-wizard-search-results", cls: "mw-wizard-search-results" }),
         ]
@@ -179,6 +179,7 @@ export function createFilmWizard(options = {}) {
         if (errorBanner) errorBanner.classList.remove("hidden");
         if (providerBadge) {
             providerBadge.textContent = "Nicht erreichbar";
+            providerBadge.classList.remove("mw-wizard-badge-loading");
             providerBadge.classList.add("mw-wizard-badge-error");
         }
         lastRetryAction = retryAction;
@@ -248,9 +249,11 @@ export function createFilmWizard(options = {}) {
         if (!movie || !fetchFn || movie.provider === "manual") return;
         const expectedMovie = selectedMovie;
         hideError();
+        const providerUpper = String(movie.provider || "").toUpperCase();
         if (providerBadge) {
-            providerBadge.textContent = String(movie.provider || "").toUpperCase();
+            providerBadge.textContent = `${providerUpper} · Lade Metadaten...`;
             providerBadge.classList.remove("mw-wizard-badge-error");
+            providerBadge.classList.add("mw-wizard-badge-loading");
         }
         try {
             const url = `/api/metadata/fetch?media_type=movie&provider=${encodeURIComponent(movie.provider)}&movie_id=${encodeURIComponent(movie.id)}`;
@@ -260,6 +263,10 @@ export function createFilmWizard(options = {}) {
             const data = await res.json();
             if (reqSeq !== metadataRequestSeq || selectedMovie !== expectedMovie) return;
             if (data && data.error) throw new Error(data.error);
+            if (providerBadge) {
+                providerBadge.textContent = providerUpper;
+                providerBadge.classList.remove("mw-wizard-badge-loading");
+            }
             nfoEditor.applyProviderMetadata({
                 title: (data.title !== undefined && data.title !== "") ? data.title : (data.name || movie.name || ""),
                 year: data.year ?? "",
@@ -276,14 +283,15 @@ export function createFilmWizard(options = {}) {
     async function selectMovieInWizard(movie, fetchMeta = true) {
         const reqSeq = ++metadataRequestSeq;
         selectedMovie = {
-            id: movie.id || "manual",
+            id: String(movie.id || "manual"),
             name: movie.name || movie.title || "",
             provider: movie.provider || "manual",
         };
-        if (selectedInfo) selectedInfo.textContent = selectedMovie.name;
+        const isManual = selectedMovie.provider === "manual";
+        if (selectedInfo) selectedInfo.textContent = selectedMovie.name || (isManual ? "Metadaten manuell eintragen" : "");
         if (providerBadge) {
-            providerBadge.textContent = String(selectedMovie.provider).toUpperCase();
-            providerBadge.classList.remove("mw-wizard-badge-error");
+            providerBadge.textContent = isManual ? "Metadaten manuell eintragen" : String(selectedMovie.provider).toUpperCase();
+            providerBadge.classList.remove("mw-wizard-badge-error", "mw-wizard-badge-loading");
         }
         const initialLoaded = [];
         if (movie.title || movie.name) initialLoaded.push("title");
@@ -308,7 +316,10 @@ export function createFilmWizard(options = {}) {
         const query = String(queryOverride ?? (searchInput ? searchInput.value : "") ?? "").trim();
         if (!query || !fetchFn) return [];
         hideError();
-        if (searchResults) searchResults.innerHTML = "";
+        if (searchResults) {
+            searchResults.innerHTML = "";
+            searchResults.appendChild(mkEl(doc, "div", { cls: "mw-wizard-loading", text: "Suche läuft..." }));
+        }
         try {
             const res = await fetchFn(`/api/search?type=movie&q=${encodeURIComponent(query)}`);
             if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : "Fehler"}`);
@@ -337,6 +348,7 @@ export function createFilmWizard(options = {}) {
             }
             return items;
         } catch (err) {
+            if (searchResults) searchResults.innerHTML = "";
             showError(`Suche fehlgeschlagen: ${err.message || err}`, () => performSearch(query));
             return [];
         }
@@ -392,6 +404,11 @@ export function createFilmWizard(options = {}) {
                 metadataRequestSeq += 1;
                 const manualTitle = searchInput ? String(searchInput.value || "").trim() : "";
                 selectedMovie = { id: "manual", name: manualTitle || "Unbekannter Film", provider: "manual" };
+                if (selectedInfo) selectedInfo.textContent = selectedMovie.name;
+                if (providerBadge) {
+                    providerBadge.textContent = "Metadaten manuell eintragen";
+                    providerBadge.classList.remove("mw-wizard-badge-error", "mw-wizard-badge-loading");
+                }
                 nfoEditor.setValues(
                     { title: selectedMovie.name, year: "", plot: "", fsk: "", genres: [] },
                     true,
@@ -426,7 +443,7 @@ export function createFilmWizard(options = {}) {
         const currentVals = nfoEditor.getValues();
         const baseMovie = selectedMovie || { id: "manual", name: currentVals.title || "Unbekannter Film", provider: "manual" };
         return {
-            movie: { ...baseMovie, name: currentVals.title || baseMovie.name },
+            movie: { ...baseMovie, id: String(baseMovie.id || "manual"), name: currentVals.title || baseMovie.name },
             nfo_overrides: overrides,
             wizard_overrides: true,
             artworkSkipped,

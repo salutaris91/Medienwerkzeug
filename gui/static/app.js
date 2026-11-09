@@ -1,14 +1,14 @@
-import { applyTheme } from './js/theme.js?v=106';
-import { cleanSeriesName } from './js/utils.js?v=106';
-import { formatBytes } from './js/format.js?v=106';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=106';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=106';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=106';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=106';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=106';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=106';
-import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=106';
-import { renderNfoEditor, buildMovieNfoOverrides } from './js/nfo_editor.js?v=106';
+import { applyTheme } from './js/theme.js?v=107';
+import { cleanSeriesName } from './js/utils.js?v=107';
+import { formatBytes } from './js/format.js?v=107';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=107';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=107';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=107';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=107';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=107';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=107';
+import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=107';
+import { renderNfoEditor, buildMovieNfoOverrides } from './js/nfo_editor.js?v=107';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -3301,13 +3301,14 @@ function renderProviderInfo(element, providerName, id, loadedFromNfo) {
     element.appendChild(provBadge);
 
     // ID Badge/Text
-    if (id && id !== "null" && id !== "undefined" && !id.startsWith("{")) {
+    const idStr = id !== null && id !== undefined ? String(id) : "";
+    if (idStr && idStr !== "null" && idStr !== "undefined" && !idStr.startsWith("{")) {
         const idBadge = document.createElement("span");
         idBadge.className = "provider-badge manual"; // use simple styling
         idBadge.style.background = "rgba(255, 255, 255, 0.05)";
         idBadge.style.color = "var(--text-muted)";
         idBadge.style.border = "1px solid var(--border-glass)";
-        idBadge.textContent = `ID: ${id}`;
+        idBadge.textContent = `ID: ${idStr}`;
         element.appendChild(idBadge);
     }
 }
@@ -4296,19 +4297,13 @@ async function searchMovie() {
 
 function handleFilmWizardHandover(handoverData) {
     if (!handoverData || !handoverData.movie) return;
-    selectedMovie = handoverData.movie;
+    selectedMovie = {
+        ...handoverData.movie,
+        id: String(handoverData.movie.id ?? "manual"),
+    };
     wizardMovieOverrides = handoverData.nfo_overrides && handoverData.nfo_overrides.movie
         ? { ...handoverData.nfo_overrides.movie }
         : null;
-
-    const panel = document.getElementById("selected-movie-panel");
-    const title = document.getElementById("selected-movie-title");
-    const provider = document.getElementById("selected-movie-provider-info");
-    if (title) title.textContent = selectedMovie.name;
-    if (provider && typeof renderProviderInfo === "function") {
-        renderProviderInfo(provider, selectedMovie.provider, selectedMovie.id, false);
-    }
-    if (panel) panel.classList.remove("hidden");
 
     const movieNfoTitle = document.getElementById("movie-nfo-title");
     const movieNfoYear = document.getElementById("movie-nfo-year");
@@ -4318,6 +4313,15 @@ function handleFilmWizardHandover(handoverData) {
         if (movieNfoYear) movieNfoYear.value = wizardMovieOverrides.year ?? "";
         if (movieNfoPlot) movieNfoPlot.value = wizardMovieOverrides.plot ?? "";
     }
+
+    const panel = document.getElementById("selected-movie-panel");
+    const title = document.getElementById("selected-movie-title");
+    const provider = document.getElementById("selected-movie-provider-info");
+    if (title) title.textContent = selectedMovie.name;
+    if (provider && typeof renderProviderInfo === "function") {
+        renderProviderInfo(provider, selectedMovie.provider, selectedMovie.id, false);
+    }
+    if (panel) panel.classList.remove("hidden");
 }
 
 function selectMovie(movie) {
