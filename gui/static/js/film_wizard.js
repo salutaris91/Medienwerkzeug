@@ -1,8 +1,9 @@
-import { renderNfoEditor, buildMovieNfoOverrides } from './nfo_editor.js?v=109';
+import { renderNfoEditor, buildMovieNfoOverrides } from './nfo_editor.js?v=110';
+import { formatBytes } from './format.js?v=110';
 import {
     renderPreviewData,
     collectPreviewSelection,
-} from './preview_render.js?v=109';
+} from './preview_render.js?v=110';
 
 let activeWizardInstance = null;
 
@@ -98,6 +99,11 @@ function buildOptionsGroupDom(doc) {
             optDelete,
             mkEl(doc, "span", { text: "Original löschen" }),
         ]),
+        mkEl(doc, "div", { id: "mw-wizard-size-estimate", cls: "mw-wizard-size-estimate hidden" }),
+    ]);
+
+    // NAS/pCloud targets live next to the destination path (summary card), not in this group.
+    const targetsBlock = mkEl(doc, "div", { id: "mw-wizard-targets", cls: "mw-wizard-targets" }, [
         mkEl(doc, "label", { cls: "mw-wizard-option-row" }, [
             optCopyNas,
             mkEl(doc, "span", { text: "Auf NAS kopieren" }),
@@ -116,7 +122,7 @@ function buildOptionsGroupDom(doc) {
         ]),
     ]);
 
-    return mkEl(
+    const group = mkEl(
         doc,
         "div",
         { id: "mw-wizard-group-options", cls: "mw-wizard-result-group" },
@@ -141,6 +147,7 @@ function buildOptionsGroupDom(doc) {
             ]),
         ]
     );
+    return { group, targetsBlock };
 }
 
 function buildWizardDom(doc, modalOverlay) {
@@ -216,6 +223,7 @@ function buildWizardDom(doc, modalOverlay) {
         ]
     );
 
+    const optionsDom = buildOptionsGroupDom(doc);
     const step4 = mkEl(
         doc,
         "section",
@@ -228,12 +236,13 @@ function buildWizardDom(doc, modalOverlay) {
                 mkEl(doc, "div", { id: "mw-wizard-result-title", cls: "mw-wizard-result-title" }),
                 mkEl(doc, "div", { cls: "mw-wizard-result-dest-label", text: "Zielpfad" }),
                 mkEl(doc, "div", { id: "mw-wizard-destination", cls: "mw-wizard-result-destination", text: "Wird berechnet..." }),
+                optionsDom.targetsBlock,
                 mkEl(doc, "div", { id: "mw-wizard-summary", cls: "mw-wizard-summary" }),
             ]),
             buildResultGroupDom(doc, "renames", "Umbenennungen (0)", false),
-            buildResultGroupDom(doc, "subs", "Untertitel (0)", false),
+            buildResultGroupDom(doc, "subs", "Untertitel & Extras (0)", false),
             buildResultGroupDom(doc, "junk", "Junk-Dateien (0)", false),
-            buildOptionsGroupDom(doc),
+            optionsDom.group,
         ]
     );
 
@@ -334,6 +343,9 @@ export function createFilmWizard(options = {}) {
     let currentPreviewPayload = null;
     let hasValidPreview = false;
     let isExecutingProcess = false;
+    let sizeEstimateSeq = 0;
+    let lastSizeEstimateText = "";
+    let lastPreviewVideoFiles = [];
     const previewCheckboxState = {
         renames: new Map(),
         subs: new Map(),
@@ -452,11 +464,103 @@ export function createFilmWizard(options = {}) {
         updateOptionsSummary();
     }
 
-    function selectedOptionLabel(selectEl) {
-        if (!selectEl) return "";
-        const opts = selectEl.options ? Array.from(selectEl.options) : [];
-        const match = opts.find((o) => o && String(o.value) === String(selectEl.value));
-        return match && match.textContent ? String(match.textContent).trim() : "";
+    // An NFO that already lies in the inbox folder is listed by the backend as an "extra" to rename.
+    // The wizard always writes its own NFO, so the old one is offered as junk instead (sent to the
+    // trash before the new NFO is written). Unchecking it keeps the old file untouched.
+    function moveExistingNfoToJunk(data) {
+        const subs = Array.isArray(data.subs) ? data.subs : [];
+        const junk = Array.isArray(data.junk) ? data.junk.slice() : [];
+        const keptSubs = [];
+        let movedNfoCount = 0;
+        for (const entry of subs) {
+            const oldName = (entry && typeof entry === "object") ? String(entry.old || "") : String(entry || "");
+            if (/\.nfo$/i.test(oldName)) {
+                if (!junk.includes(oldName)) junk.push(oldName);
+                movedNfoCount += 1;
+            } else {
+                keptSubs.push(entry);
+            }
+        }
+        return {
+            ...data,
+            renames: Array.isArray(data.renames) ? data.renames : [],
+            subs: keptSubs,
+            junk,
+            movedNfoCount,
+        };
+    }
+
+    function renderExistingNfoNote(movedNfoCount) {
+        if (!listJunk || !movedNfoCount) return;
+        listJunk.appendChild(mkEl(doc, "div", {
+            id: "mw-wizard-junk-nfo-note",
+            cls: "mw-wizard-result-note",
+            text: "Vorhandene NFO wird in den Papierkorb verschoben und automatisch durch die neue NFO aus dem Assistenten ersetzt.",
+        }));
+    }
+
+    const VIDEO_EXTENSIONS = ["mp4", "mkv", "avi", "webm", "mov"];
+
+    function extractVideoFiles(renames) {
+        const list = Array.isArray(renames) ? renames : [];
+        return list
+            .map((entry) => ((entry && typeof entry === "object") ? String(entry.old || "") : String(entry || "")))
+            .filter((name) => VIDEO_EXTENSIONS.includes(name.split(".").pop().toLowerCase()));
+    }
+
+    // Size forecast via the existing /api/estimate-conversion (short test conversion, ~15 s).
+    // Only runs with H.265 enabled; stale answers are discarded, errors are shown but never block.
+    async function refreshSizeEstimate() {
+        const estimateEl = getEl("mw-wizard-size-estimate");
+        const reqSeq = ++sizeEstimateSeq;
+        lastSizeEstimateText = "";
+        updateOptionsSummary();
+        if (!estimateEl) return null;
+        const convertOn = optConvert ? Boolean(optConvert.checked) : false;
+        if (!convertOn || lastPreviewVideoFiles.length === 0 || !fetchFn || !currentProjectName) {
+            estimateEl.classList.add("hidden");
+            estimateEl.textContent = "";
+            return null;
+        }
+        const quality = optQualitySlider ? parseInt(optQualitySlider.value, 10) || 60 : 60;
+        estimateEl.classList.remove("hidden");
+        estimateEl.textContent = "Größenprognose läuft (Test-Konvertierung, ca. 15 Sek.)…";
+        try {
+            const res = await fetchFn("/api/estimate-conversion", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ project_name: currentProjectName, filenames: lastPreviewVideoFiles, quality }),
+            });
+            if (reqSeq !== sizeEstimateSeq) return null;
+            if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : "Fehler"}`);
+            const data = await res.json();
+            if (reqSeq !== sizeEstimateSeq) return null;
+            let sizeIn = 0;
+            let sizeOut = 0;
+            for (const est of Object.values((data && data.estimates) || {})) {
+                if (est && est.size_in !== undefined && est.size_out !== undefined) {
+                    sizeIn += est.size_in;
+                    sizeOut += est.size_out;
+                }
+            }
+            if (sizeIn > 0) {
+                const pct = Math.round(((sizeIn - sizeOut) / sizeIn) * 100);
+                lastSizeEstimateText = `~${formatBytes(sizeOut)}`;
+                estimateEl.textContent = `Voraussichtliche Größe: ${formatBytes(sizeIn)} → ~${formatBytes(sizeOut)} (-${pct}%)`;
+            } else {
+                estimateEl.textContent = "Größenprognose nicht verfügbar.";
+            }
+            updateOptionsSummary();
+            return data;
+        } catch (err) {
+            if (reqSeq !== sizeEstimateSeq) return null;
+            const msg = err && err.message ? err.message : String(err);
+            estimateEl.textContent = `Größenprognose fehlgeschlagen (${msg}).`;
+            if (logFn) {
+                try { logFn(`[System]: Größenprognose im Film-Assistenten fehlgeschlagen: ${msg}`); } catch (_) {}
+            }
+            return null;
+        }
     }
 
     // Short, always visible summary of the processing options in the group header,
@@ -467,15 +571,8 @@ export function createFilmWizard(options = {}) {
             const qualityText = optQualitySlider ? ` (${optQualitySlider.value || "60"})` : "";
             parts.push(optConvert.checked ? `H.265 an${qualityText}` : "H.265 aus");
         }
+        if (optConvert && optConvert.checked && lastSizeEstimateText) parts.push(lastSizeEstimateText);
         if (optDelete) parts.push(optDelete.checked ? "Original löschen" : "Original behalten");
-        if (optCopyNas) {
-            const nasLabel = selectedOptionLabel(optNasDest);
-            parts.push(optCopyNas.checked ? `NAS${nasLabel ? `: ${nasLabel}` : ""}` : "NAS aus");
-        }
-        if (optCopyPcloud) {
-            const pcloudLabel = selectedOptionLabel(optPcloudDest);
-            parts.push(optCopyPcloud.checked ? `pCloud${pcloudLabel ? `: ${pcloudLabel}` : ""}` : "pCloud aus");
-        }
         return parts.join(" · ");
     }
 
@@ -734,9 +831,10 @@ export function createFilmWizard(options = {}) {
                 throw new Error(data.error);
             }
 
-            applyResultGroupState("renames", "Umbenennungen", data ? data.renames : []);
-            applyResultGroupState("subs", "Untertitel", data ? data.subs : []);
-            applyResultGroupState("junk", "Junk-Dateien", data ? data.junk : []);
+            const displayData = moveExistingNfoToJunk(data || {});
+            applyResultGroupState("renames", "Umbenennungen", displayData.renames);
+            applyResultGroupState("subs", "Untertitel & Extras", displayData.subs);
+            applyResultGroupState("junk", "Junk-Dateien", displayData.junk);
 
             renderPreviewData(
                 {
@@ -747,18 +845,21 @@ export function createFilmWizard(options = {}) {
                     listSubs,
                     listJunk,
                 },
-                data || {},
+                displayData,
                 {
                     idPrefix: "mw-wizard-similar",
                     onLog: logFn,
                     isItemChecked: isPreviewItemChecked,
                 }
             );
+            renderExistingNfoNote(displayData.movedNfoCount);
 
             snapshotPreviewCheckboxState();
             currentPreviewPayload = basePayload;
             hasValidPreview = true;
             updateExecuteButtonState();
+            lastPreviewVideoFiles = extractVideoFiles(displayData.renames);
+            refreshSizeEstimate();
 
             return data;
         } catch (err) {
@@ -1163,6 +1264,7 @@ export function createFilmWizard(options = {}) {
         optConvert.addEventListener("change", () => {
             updateOptionSubcontainers();
             syncOptionBackToContext(optConvert, "movie-option-convert", "checked");
+            if (currentStep === 4 && hasValidPreview) refreshSizeEstimate();
         });
     }
     if (optDelete && typeof optDelete.addEventListener === "function") {
@@ -1177,7 +1279,10 @@ export function createFilmWizard(options = {}) {
             syncOptionBackToContext(optQualitySlider, "movie-quality-slider", "value");
         };
         optQualitySlider.addEventListener("input", onQualityChange);
-        optQualitySlider.addEventListener("change", onQualityChange);
+        optQualitySlider.addEventListener("change", () => {
+            onQualityChange();
+            if (currentStep === 4 && hasValidPreview) refreshSizeEstimate();
+        });
     }
     if (optCopyNas && typeof optCopyNas.addEventListener === "function") {
         optCopyNas.addEventListener("change", () => {

@@ -4210,6 +4210,9 @@ body.runtime-docker .docker-only-info {
 .mw-wizard-summary-plot { border-bottom: none; }
 .mw-wizard-summary-plot.clamped { display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .mw-wizard-summary-plot-toggle { align-self: flex-start; padding: 0; border: none; background: none; color: var(--accent); font-size: 0.8rem; cursor: pointer; }
+.mw-wizard-targets { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--bg-input); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); }
+.mw-wizard-size-estimate { font-size: 0.82rem; color: var(--accent); padding: 4px 2px; }
+.mw-wizard-result-note { font-size: 0.78rem; color: var(--text-muted); padding: 4px 2px; font-style: italic; }
 .mw-wizard-options-summary { flex: 1 1 auto; margin: 0 10px; font-size: 0.78rem; font-weight: 500; color: var(--text-muted); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mw-wizard-result-summary { padding: 14px; background: var(--bg-surface); border-radius: var(--radius-md); border: 1px solid var(--border-glass); margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px; }
 .mw-wizard-result-title { font-size: 1rem; font-weight: 700; color: var(--text-main); }

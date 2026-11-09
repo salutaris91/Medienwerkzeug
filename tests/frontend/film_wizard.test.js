@@ -1136,7 +1136,7 @@ test('E2 (5): Collapsible groups in Step 4 start open for 1-3 items, collapsed f
     assert.equal(headerRenames.getAttribute('aria-expanded'), 'true');
     assert.equal(listRenames.classList.contains('hidden'), false);
 
-    assert.equal(doc.getElementById('mw-wizard-group-title-subs').textContent, 'Untertitel (4)');
+    assert.equal(doc.getElementById('mw-wizard-group-title-subs').textContent, 'Untertitel & Extras (4)');
     assert.equal(groupSubs.classList.contains('collapsed'), true);
     assert.equal(headerSubs.getAttribute('aria-expanded'), 'false');
     assert.equal(listSubs.classList.contains('hidden'), true);
@@ -1471,4 +1471,74 @@ test('Handtest 2026-11-09: options group is open with a header summary that foll
     assert.equal(toggle.textContent, 'weniger');
     toggle.click();
     assert.equal(plotEl.classList.contains('clamped'), true);
+});
+
+test('Handtest 2026-11-09 (2): existing NFO is offered as junk with a hint, NAS/pCloud targets sit next to the destination, and the size forecast follows the slider', async () => {
+    const { doc } = createWizardMockDom();
+    const calls = [];
+    let estimateCalls = 0;
+    const wizard = createFilmWizard({
+        document: doc,
+        fetch: async (url, opts) => {
+            calls.push({ url, body: opts && opts.body ? JSON.parse(opts.body) : null });
+            if (url === '/api/estimate-conversion') {
+                estimateCalls += 1;
+                return { ok: true, status: 200, json: async () => ({ estimates: { 'Alien.1979.mkv': { size_in: 4000, size_out: 1000 } } }) };
+            }
+            if (url === '/api/process') return { ok: true, status: 200, json: async () => ({ success: true }) };
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    destination: 'NAS: /media/Filme/Alien (1979)',
+                    renames: [{ old: 'Alien.1979.mkv', new: 'Alien (1979).mkv' }],
+                    subs: [
+                        { old: 'Alien.1979.nfo', new: 'Alien (1979).nfo' },
+                        { old: 'Alien.1979.de.srt', new: 'Alien (1979).de.srt' },
+                    ],
+                    junk: [],
+                }),
+            };
+        },
+    });
+
+    wizard.open({ query: 'Alien', projectName: 'Alien.1979', autoSearch: false });
+    await wizard.selectMovieInWizard({ id: '348', name: 'Alien', year: '1979', provider: 'manual' }, false);
+    doc.getElementById('mw-wizard-option-convert').checked = true;
+    wizard.goToStep(4);
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+
+    // NFO moved from extras to junk, with a visible hint; subtitles stay in "Untertitel & Extras"
+    assert.equal(doc.getElementById('mw-wizard-group-title-subs').textContent, 'Untertitel & Extras (1)');
+    assert.equal(doc.getElementById('mw-wizard-group-title-junk').textContent, 'Junk-Dateien (1)');
+    assert.match(doc.getElementById('mw-wizard-junk-nfo-note').textContent, /automatisch durch die neue NFO/);
+
+    // Targets are part of the summary card (next to the destination), not of the options group
+    const optionsContent = doc.getElementById('mw-wizard-options-content');
+    const targets = doc.getElementById('mw-wizard-targets');
+    assert.ok(targets.querySelectorAll('#mw-wizard-option-copy-nas').length === 1);
+    assert.equal(optionsContent.querySelectorAll('#mw-wizard-option-copy-nas').length, 0);
+
+    // Size forecast ran with the video files from the preview and shows up in the header summary
+    const estimateCall = calls.find((c) => c.url === '/api/estimate-conversion');
+    assert.deepEqual(estimateCall.body.filenames, ['Alien.1979.mkv']);
+    assert.equal(estimateCall.body.project_name, 'Alien.1979');
+    assert.match(doc.getElementById('mw-wizard-size-estimate').textContent, /-75%/);
+    assert.match(doc.getElementById('mw-wizard-options-summary').textContent, /~/);
+
+    // Moving the slider does not re-estimate; releasing it does
+    const slider = doc.getElementById('mw-wizard-quality-slider');
+    slider.value = '40';
+    slider.dispatchEvent({ type: 'input' });
+    assert.equal(estimateCalls, 1);
+    slider.dispatchEvent({ type: 'change' });
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(estimateCalls, 2);
+
+    // Payload: NFO goes to explicit_junk, not to explicit_subs
+    await wizard.executeStep4Process();
+    const processCall = calls.find((c) => c.url === '/api/process');
+    assert.deepEqual(processCall.body.explicit_junk, ['Alien.1979.nfo']);
+    assert.deepEqual(processCall.body.explicit_subs, [{ old: 'Alien.1979.de.srt', new: 'Alien (1979).de.srt' }]);
 });
