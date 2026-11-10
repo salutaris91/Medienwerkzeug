@@ -1,9 +1,9 @@
-import { renderNfoEditor, buildMovieNfoOverrides } from './nfo_editor.js?v=113';
-import { formatBytes } from './format.js?v=113';
+import { renderNfoEditor, buildMovieNfoOverrides } from './nfo_editor.js?v=114';
+import { formatBytes } from './format.js?v=114';
 import {
     renderPreviewData,
     collectPreviewSelection,
-} from './preview_render.js?v=113';
+} from './preview_render.js?v=114';
 
 let activeWizardInstance = null;
 
@@ -290,7 +290,6 @@ export function createFilmWizard(options = {}) {
     const skipBtn = getEl("mw-wizard-btn-skip");
     const nextBtn = getEl("mw-wizard-btn-next");
     const executeBtn = getEl("mw-wizard-btn-execute");
-    const handoverBtn = getEl("mw-wizard-btn-handover");
     const searchInput = getEl("mw-wizard-search-input");
     const searchBtn = getEl("mw-wizard-search-btn");
     const manualBtn = getEl("mw-wizard-manual-btn");
@@ -331,7 +330,6 @@ export function createFilmWizard(options = {}) {
     let currentProjectName = options.projectName || "";
     let artworkSkipped = false;
     let activeArtworkTab = "poster";
-    let onHandoverCallback = options.onHandover || null;
     let onProcessSuccessCallback = options.onProcessSuccess || null;
     // Called after every successful close (×, ESC, after starting the process) so the app can leave
     // the project view instead of falling back to the legacy movie panel.
@@ -1081,7 +1079,6 @@ export function createFilmWizard(options = {}) {
         if (skipBtn) skipBtn.classList.toggle("hidden", currentStep !== 2 && currentStep !== 3);
         if (nextBtn) nextBtn.classList.toggle("hidden", currentStep === 4);
         if (executeBtn) executeBtn.classList.toggle("hidden", currentStep !== 4);
-        if (handoverBtn) handoverBtn.classList.add("hidden");
         updateExecuteButtonState();
         if (currentStep === 4) {
             renderSummary();
@@ -1225,7 +1222,6 @@ export function createFilmWizard(options = {}) {
         artworkSkipped = false;
         switchArtworkTab("poster");
         if (openOptions.projectName !== undefined) currentProjectName = String(openOptions.projectName || "");
-        if (openOptions.onHandover) onHandoverCallback = openOptions.onHandover;
         if (openOptions.onProcessSuccess) onProcessSuccessCallback = openOptions.onProcessSuccess;
         if (openOptions.onClosed) onClosedCallback = openOptions.onClosed;
         if (openOptions.onPersistOptions) persistOptionsCallback = openOptions.onPersistOptions;
@@ -1328,34 +1324,12 @@ export function createFilmWizard(options = {}) {
         return currentStep;
     }
 
-    function getHandoverPayload() {
-        const overrides = typeof nfoEditor.buildWizardMovieOverrides === "function"
-            ? nfoEditor.buildWizardMovieOverrides()
-            : buildMovieNfoOverrides(nfoEditor);
-        const currentVals = nfoEditor.getValues();
-        const baseMovie = selectedMovie || { id: "manual", name: currentVals.title || "Unbekannter Film", provider: "manual" };
-        return {
-            movie: { ...baseMovie, id: String(baseMovie.id || "manual"), name: currentVals.title || baseMovie.name },
-            nfo_overrides: overrides,
-            wizard_overrides: true,
-            artworkSkipped,
-        };
-    }
-
-    function triggerHandover() {
-        const payload = getHandoverPayload();
-        close({ force: true });
-        if (typeof onHandoverCallback === "function") onHandoverCallback(payload);
-        return payload;
-    }
-
     const bindClick = (el, fn) => el && typeof el.addEventListener === "function" && el.addEventListener("click", fn);
     bindClick(closeBtn, () => close({ force: false }));
     bindClick(backBtn, () => prevStep());
     bindClick(skipBtn, () => skipCurrentStep());
     bindClick(nextBtn, () => nextStep());
     bindClick(executeBtn, () => executeStep4Process());
-    bindClick(handoverBtn, () => triggerHandover());
     bindClick(searchBtn, () => performSearch());
     bindClick(manualBtn, () => {
         const queryTitle = searchInput ? String(searchInput.value || "").trim() : "";
@@ -1448,8 +1422,6 @@ export function createFilmWizard(options = {}) {
         performSearch,
         switchArtworkTab,
         handleEscapeKey,
-        getHandoverPayload,
-        triggerHandover,
         buildMovieBasePayload,
         buildProcessPayload,
         loadStep4Preview,

@@ -183,6 +183,9 @@ function createWizardMockDom() {
             hasAttribute(k) {
                 return attrs.has(k);
             },
+            removeAttribute(k) {
+                attrs.delete(k);
+            },
             appendChild(child) {
                 el.children.push(child);
                 registerRecursive(child);
@@ -272,7 +275,6 @@ function createWizardMockDom() {
 
 test('E1-AK1: film_wizard switches between 4 step panels via CSS classes, preserves inputs on Back, allows skipping Step 3, and closes on ESC only in Step 1', async () => {
     const { doc } = createWizardMockDom();
-    let handoverResult = null;
 
     const mockFetch = async (url) => {
         if (url.startsWith('/api/search')) {
@@ -313,9 +315,6 @@ test('E1-AK1: film_wizard switches between 4 step panels via CSS classes, preser
     const wizard = createFilmWizard({
         document: doc,
         fetch: mockFetch,
-        onHandover: (payload) => {
-            handoverResult = payload;
-        },
     });
 
     const step1 = doc.getElementById('mw-wizard-step-1');
@@ -381,11 +380,13 @@ test('E1-AK1: film_wizard switches between 4 step panels via CSS classes, preser
     doc.dispatchKeydown('Escape');
     assert.equal(wizard.modalOverlay.classList.contains('hidden'), false);
 
-    // Programmatic handover helper still delivers 5-key nfo_overrides.movie and wizard_overrides flag
-    wizard.triggerHandover();
-    assert.ok(handoverResult);
-    assert.equal(handoverResult.wizard_overrides, true);
-    assert.deepEqual(handoverResult.nfo_overrides, {
+    // E3-AK3: handover helpers are removed; buildMovieBasePayload delivers 5-key nfo_overrides.movie and wizard_overrides flag
+    assert.equal(wizard.triggerHandover, undefined);
+    assert.equal(wizard.getHandoverPayload, undefined);
+    const basePayload = wizard.buildMovieBasePayload();
+    assert.ok(basePayload);
+    assert.equal(basePayload.wizard_overrides, true);
+    assert.deepEqual(basePayload.nfo_overrides, {
         movie: {
             title: 'Matrix Reloaded Custom',
             year: '1999',
@@ -508,11 +509,11 @@ test('Immediate handover and failed metadata fetch do not send unloaded fields a
 
     const wizard = createFilmWizard({ document: doc, fetch: mockFetch });
 
-    // 1. Sofort-Übergabe while metadata fetch is still pending: unloaded fields are NOT sent as empty
+    // 1. Pending metadata fetch: unloaded fields are NOT sent as empty
     mode = 'pending';
     wizard.open({ query: 'Chihiro', autoSearch: false });
     wizard.selectMovieInWizard({ id: '129', name: 'Chihiros Reise', provider: 'tmdb' });
-    const immediatePayload = wizard.triggerHandover();
+    const immediatePayload = wizard.buildMovieBasePayload();
     assert.equal(immediatePayload.wizard_overrides, true);
     assert.deepEqual(immediatePayload.nfo_overrides, {
         movie: {
@@ -526,7 +527,7 @@ test('Immediate handover and failed metadata fetch do not send unloaded fields a
     wizard.open({ query: 'Chihiro', autoSearch: false });
     await wizard.selectMovieInWizard({ id: '129', name: 'Chihiros Reise', provider: 'tmdb' });
     assert.equal(doc.getElementById('mw-wizard-error-banner').classList.contains('hidden'), false);
-    const errorPayload = wizard.triggerHandover();
+    const errorPayload = wizard.buildMovieBasePayload();
     assert.deepEqual(errorPayload.nfo_overrides, {
         movie: {
             title: 'Chihiros Reise',
@@ -540,7 +541,7 @@ test('Immediate handover and failed metadata fetch do not send unloaded fields a
     assert.equal(wizard.nfoEditor.elements.fsk.value, '0');
     wizard.nfoEditor.elements.plot.value = '';
     wizard.nfoEditor.elements.genres.value = '';
-    const clearedPayload = wizard.triggerHandover();
+    const clearedPayload = wizard.buildMovieBasePayload();
     assert.deepEqual(clearedPayload.nfo_overrides, {
         movie: {
             title: 'Chihiros Reise ins Zauberland',
@@ -662,13 +663,13 @@ test('Numeric TMDb movie.id from /api/search is normalized to string in handover
     assert.equal(badge.textContent, 'TMDB');
 
     wizard.nfoEditor.elements.fsk.value = '18';
-    const handover = wizard.getHandoverPayload();
-    assert.equal(typeof handover.movie.id, 'string');
-    assert.equal(handover.movie.id, '348');
-    assert.equal(handover.nfo_overrides.movie.title, 'Alien - Das unheimliche Wesen aus einer fremden Welt');
-    assert.equal(handover.nfo_overrides.movie.year, '1979');
-    assert.equal(handover.nfo_overrides.movie.plot, 'WIZARD-PLOT-F5');
-    assert.equal(handover.nfo_overrides.movie.fsk, '18');
+    const basePayload = wizard.buildMovieBasePayload();
+    assert.equal(typeof basePayload.movie_id, 'string');
+    assert.equal(basePayload.movie_id, '348');
+    assert.equal(basePayload.nfo_overrides.movie.title, 'Alien - Das unheimliche Wesen aus einer fremden Welt');
+    assert.equal(basePayload.nfo_overrides.movie.year, '1979');
+    assert.equal(basePayload.nfo_overrides.movie.plot, 'WIZARD-PLOT-F5');
+    assert.equal(basePayload.nfo_overrides.movie.fsk, '18');
 
     // Manual button shows "Metadaten manuell eintragen"
     wizard.open({ query: 'Das Boot', autoSearch: false });
@@ -852,6 +853,7 @@ test('E2 (3): Wizard and legacy executeMovieWorkflow produce identical /api/proc
 
     // 2. Capture payload from legacy executeMovieWorkflow -> openPreviewModal -> #btn-preview-execute in app.js
     const { doc: appDoc } = createWizardMockDom();
+    appDoc.documentElement = appDoc.createElement('html');
     const origGetEl = appDoc.getElementById.bind(appDoc);
     const ensureEl = (id, tag = 'div') => {
         let el = origGetEl(id);
@@ -912,13 +914,6 @@ const fetchSmartInboxSuggestions = () => Promise.resolve();
 globalThis.__runLegacyMovie = async () => {
     currentProject = 'Blade.Runner.1982';
     selectedMovie = { id: '78', name: 'Blade Runner (1982)', provider: 'tmdb' };
-    wizardMovieOverrides = {
-        title: 'Blade Runner',
-        year: '1982',
-        plot: 'Replikanten in Los Angeles.',
-        fsk: '16',
-        genres: ['Sci-Fi', 'Thriller'],
-    };
     await executeMovieWorkflow();
 };
 `;
@@ -948,7 +943,14 @@ globalThis.__runLegacyMovie = async () => {
 
     assert.ok(wizardProcessPayload);
     assert.ok(legacyProcessPayload);
-    assert.deepEqual(wizardProcessPayload, legacyProcessPayload);
+    assert.equal(wizardProcessPayload.wizard_overrides, true);
+    assert.equal(legacyProcessPayload.wizard_overrides, undefined);
+    const { wizard_overrides: _wo, nfo_overrides: wizNfo, ...wizRest } = wizardProcessPayload;
+    const { nfo_overrides: legNfo, ...legRest } = legacyProcessPayload;
+    assert.deepEqual(wizRest, legRest);
+    assert.equal(wizNfo.movie.title, legNfo.movie.title);
+    assert.equal(wizNfo.movie.year, legNfo.movie.year);
+    assert.equal(wizNfo.movie.plot, legNfo.movie.plot);
 });
 
 test('E2 (4): Error and pending states of /api/preview_process block execution while keeping Retry/Back active, /api/process errors re-enable execution, and option changes discard stale preview responses', async () => {
@@ -1765,4 +1767,141 @@ test('Review R3: closing while /api/process is still running is refused and does
     releaseProcess();
     await processPromise;
     assert.equal(closedCalls, 1);
+});
+
+test('E3-AK3: #btn-open-film-wizard removed, #mode-movie keeps #context-movie hidden and opens Wizard for regular films while showing Doku view for Dokus, and scanProject only calls selectMovie for Dokus', async () => {
+    const indexHtml = fs.readFileSync(path.join(__dirname, '../../gui/static/index.html'), 'utf8');
+    assert.equal(indexHtml.includes('btn-open-film-wizard'), false, '#btn-open-film-wizard removed from index.html');
+    assert.equal(indexHtml.includes('mw-wizard-context-bar'), false, '.mw-wizard-context-bar removed from index.html');
+    assert.match(indexHtml, /<h3 id="context-movie-header" class="mt-0">Doku verarbeiten<\/h3>/);
+
+    const { doc: appDoc } = createWizardMockDom();
+    appDoc.documentElement = appDoc.createElement('html');
+    const origGetEl = appDoc.getElementById.bind(appDoc);
+    const ensureEl = (id, tag = 'div') => {
+        let el = origGetEl(id);
+        if (!el) {
+            el = appDoc.createElement(tag);
+            el.id = id;
+            appDoc.body.appendChild(el);
+        }
+        return el;
+    };
+    appDoc.getElementById = (id) => origGetEl(id) || ensureEl(id);
+
+    const modeMovieCard = ensureEl('mode-movie', 'div');
+    const contextMovie = ensureEl('context-movie', 'div');
+    contextMovie.classList.add('context-panel', 'hidden');
+    ensureEl('context-movie-header', 'h3');
+    ensureEl('movie-nas-destination', 'select');
+    ensureEl('movie-pcloud-destination', 'select');
+    ensureEl('movie-search-query', 'input');
+    ensureEl('modal-film-wizard', 'div');
+    ensureEl('files-tbody', 'tbody');
+
+    const wizardCalls = [];
+    const searchMovieCalls = [];
+    let scanDataPayload = {
+        type: 'movie',
+        is_doku: false,
+        suggested_query: 'Arrival',
+        metadata_id: '329865',
+        metadata_provider: 'tmdb_movie',
+        metadata_name: 'Arrival',
+        files: ['Arrival.2016.mkv'],
+    };
+
+    const mockFetch = async (url) => {
+        if (url.startsWith('/api/scan-project')) {
+            return { ok: true, status: 200, json: async () => scanDataPayload };
+        }
+        if (url.startsWith('/api/search')) {
+            searchMovieCalls.push(url);
+            return { ok: true, status: 200, json: async () => [] };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+    };
+
+    const appJsRaw = fs.readFileSync(path.join(__dirname, '../../gui/static/app.js'), 'utf8');
+    const cleanAppJs = `
+const cleanSeriesName = (n) => n || '';
+const formatBytes = () => '0 B';
+const prepareSeriesPayload = (s, p) => ({ ...p });
+const updateMwDataPanel = () => {};
+const triggerQualityHintUpdates = () => {};
+const loadConversionRecommendations = () => {};
+const applyTheme = () => {};
+const setupMaskedInput = () => {};
+const setMaskedInputValue = () => {};
+const validateAllMaskedFields = () => true;
+const osBasename = (p) => String(p || '');
+const formatFskLabel = (f) => f;
+const guessEpisodeNumber = () => 1;
+const guessSeasonAndEpisode = () => null;
+const cleanFilenameForManualTitle = (f) => f;
+const fetchStats = () => Promise.resolve();
+const fetchYoutubeSubscriptions = () => Promise.resolve();
+const fetchSmartInboxSuggestions = () => Promise.resolve();
+` + appJsRaw.replace(/import\s+[\s\S]*?from\s+['"].*?['"];?/g, '') + `
+globalThis.__initViews = initViews;
+globalThis.__testScanProject = async (proj) => { currentProject = proj; return scanProject(proj); };
+globalThis.__getSelectedMovie = () => selectedMovie;
+globalThis.__resetSelectedMovie = () => { selectedMovie = null; };
+`;
+
+    const sandbox = {
+        document: appDoc,
+        window: { fetch: mockFetch, scrollTo: () => {}, addEventListener: () => {} },
+        fetch: mockFetch,
+        localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+        setTimeout: (fn) => { if (typeof fn === 'function') fn(); return 0; },
+        clearTimeout: () => {},
+        setInterval: () => 0,
+        clearInterval: () => {},
+        alert: () => {},
+        console: { log: () => {}, warn: () => {}, error: () => {} },
+        EventSource: class { close() {} },
+        AbortController,
+        openFilmWizard: (opts) => wizardCalls.push(opts),
+        renderPreviewData,
+        collectPreviewSelection,
+    };
+    sandbox.globalThis = sandbox;
+    vm.runInNewContext(cleanAppJs, sandbox);
+    sandbox.__initViews();
+
+    // 1. Regular movie scanProject -> clicks #mode-movie, opens Film Wizard, keeps #context-movie hidden, does NOT call selectMovie or searchMovie
+    wizardCalls.length = 0;
+    searchMovieCalls.length = 0;
+    sandbox.__resetSelectedMovie();
+    await sandbox.__testScanProject('Arrival.2016');
+    await new Promise((r) => setTimeout(r, 0));
+
+    assert.equal(contextMovie.classList.contains('hidden'), true, '#context-movie stays hidden for regular movies');
+    assert.equal(wizardCalls.length, 1, 'openFilmWizard called for regular movie');
+    assert.equal(wizardCalls[0].projectName, 'Arrival.2016');
+    assert.equal(searchMovieCalls.length, 0, 'searchMovie on #context-movie not called for regular movie');
+    assert.equal(sandbox.__getSelectedMovie(), null, 'selectMovie not called for regular movie in scanProject');
+
+    // 2. Doku movie scanProject -> un-hides #context-movie, sets header to "Doku verarbeiten", calls searchMovie and selectMovie
+    scanDataPayload = {
+        type: 'movie',
+        is_doku: true,
+        suggested_query: 'Planet Erde Doku',
+        metadata_id: '999',
+        metadata_provider: 'tmdb_movie',
+        metadata_name: 'Planet Erde Doku',
+        files: ['Planet.Erde.Doku.mkv'],
+    };
+    wizardCalls.length = 0;
+    searchMovieCalls.length = 0;
+    await sandbox.__testScanProject('Planet.Erde.Doku');
+    await new Promise((r) => setTimeout(r, 0));
+
+    assert.equal(contextMovie.classList.contains('hidden'), false, '#context-movie visible for Doku');
+    assert.equal(appDoc.getElementById('context-movie-header').textContent, 'Doku verarbeiten');
+    assert.equal(wizardCalls.length, 0, 'openFilmWizard not called for Doku');
+    assert.ok(searchMovieCalls.length >= 1, 'searchMovie called for Doku');
+    assert.ok(sandbox.__getSelectedMovie(), 'selectMovie called for Doku in scanProject');
+    assert.equal(sandbox.__getSelectedMovie().id, '999');
 });

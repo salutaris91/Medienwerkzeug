@@ -3,6 +3,13 @@ import assert from 'node:assert';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from '../../gui/static/js/nfo_editor.js';
+
+globalThis.renderNfoEditor = renderNfoEditor;
+globalThis.buildMovieNfoOverrides = buildMovieNfoOverrides;
+globalThis.buildWizardMovieOverrides = buildWizardMovieOverrides;
+globalThis.normalizeFsk = normalizeFsk;
+globalThis.parseGenres = parseGenres;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -173,6 +180,9 @@ globalThis.closeFskBatchModal = closeFskBatchModal;
 globalThis.resolveSendPaths = resolveSendPaths;
 globalThis.submitNfoAgentJob = submitNfoAgentJob;
 globalThis.openNfoAgentModal = openNfoAgentModal;
+globalThis.closeNfoAgentModal = closeNfoAgentModal;
+globalThis.triggerNfoAgentMediaTypeChange = triggerNfoAgentMediaTypeChange;
+globalThis.ensureNfoAgentMovieEditor = ensureNfoAgentMovieEditor;
 globalThis.renderNfoAgentFiles = renderNfoAgentFiles;
 globalThis.applyNfoAgentEditMode = applyNfoAgentEditMode;
 globalThis.setNfoAgentEditMode = setNfoAgentEditMode;
@@ -2070,4 +2080,136 @@ test('Type-oriented episode findings preserve the focused episode context', () =
     assert.ok(issuesEl.innerHTML.includes('data-path="/Serien/Show/Staffel 1"'));
     assert.ok(issuesEl.innerHTML.includes('data-edit-mode="episode"'));
     assert.ok(issuesEl.innerHTML.includes('data-episode-file="Show S01E02.mkv"'));
+});
+
+test('E3-AK1 & NFO-Agent regression: movie branch mounts nfo_editor.js in #nfo-agent-movie-editor, updates sources & patch overrides, and preserves tvshow values across type switches', async () => {
+    const indexHtml = fs.readFileSync(path.resolve(__dirname, '../../gui/static/index.html'), 'utf8');
+    assert.ok(indexHtml.includes('id="nfo-agent-series-fields"'), '#nfo-agent-series-fields wrapper present');
+    assert.ok(indexHtml.includes('id="nfo-agent-movie-editor" class="hidden"'), '#nfo-agent-movie-editor container present');
+    const modalNfoStart = indexHtml.indexOf('id="modal-nfo-agent"');
+    const modalNfoSlice = indexHtml.slice(modalNfoStart, modalNfoStart + 12000);
+    assert.ok(!modalNfoSlice.includes('#141923') && !modalNfoSlice.includes('#161b22') && !modalNfoSlice.includes('#0d1117'), 'hardcoded dark colors migrated to CSS variables');
+
+    const originalQuerySelectorAll = globalThis.document.querySelectorAll;
+    const originalQuerySelector = globalThis.document.querySelector;
+    globalThis.document.querySelectorAll = () => [];
+    globalThis.document.querySelector = () => null;
+
+    // 0. Enter series metadata in tvshow mode before switching to movie mode
+    document.getElementById("nfo-agent-media-type").value = "tvshow";
+    document.getElementById("nfo-agent-show-title").value = "Dark";
+    document.getElementById("nfo-agent-show-year").value = "2017";
+    document.getElementById("nfo-agent-show-plot").value = "Zeitreise in Winden";
+    document.getElementById("nfo-agent-show-fsk").value = "16";
+    document.getElementById("nfo-agent-show-genres").value = "Mystery, Sci-Fi";
+
+    // 1. Switch to movie mode -> hides #nfo-agent-series-fields, shows #nfo-agent-movie-editor, mounts nfo_editor.js
+    document.getElementById("nfo-agent-media-type").value = "movie";
+    globalThis.setNfoAgentCurrentPath("/media/Filme/Interstellar (2014)");
+    globalThis.setNfoAgentScanData({
+        type: "movie",
+        metadata_name: "Interstellar",
+        metadata_year: "2014",
+        metadata_plot: "Original Plot",
+        metadata_genres: ["Sci-Fi"],
+        metadata_fsk: "12",
+        metadata_source: "nfo",
+        main_nfo_status: { exists: true, parseable: true, complete: true, fingerprint: { hash: "interstellar" } },
+        file_nfo_statuses: {}
+    });
+    globalThis.nfoAgentEditContext = { originMode: "full", mode: "full", episodeFile: "" };
+
+    globalThis.triggerNfoAgentMediaTypeChange();
+    const editor = globalThis.ensureNfoAgentMovieEditor();
+    assert.ok(editor, "nfo_editor.js instance mounted in #nfo-agent-movie-editor");
+    assert.strictEqual(document.getElementById("nfo-agent-series-fields").classList.contains("hidden"), true);
+    assert.strictEqual(document.getElementById("nfo-agent-movie-editor").classList.contains("hidden"), false);
+
+    // 1b. Intermediate state before movie metadata is loaded: movie editor is empty while hidden series fields hold "Dark".
+    // Both completeness warning and manual submit must read the empty movie editor, not the hidden series fields.
+    assert.deepStrictEqual(
+        globalThis.updateNfoAgentCompletenessWarning(),
+        ["Titel", "Jahr", "Plot", "Genre", "FSK"]
+    );
+    document.getElementById("nfo-agent-provider").value = "manual";
+    document.getElementById("nfo-agent-metadata-id").value = "";
+    globalThis.fetchRequests = [];
+    globalThis.submitNfoAgentJob();
+    const emptyMovieReq = globalThis.fetchRequests.find(item => item.url === "/api/process");
+    assert.ok(emptyMovieReq);
+    const emptyMoviePayload = JSON.parse(emptyMovieReq.options.body);
+    assert.deepStrictEqual(JSON.parse(emptyMoviePayload.movie_id), {
+        title: "",
+        year: "",
+        plot: "",
+        genres: [],
+        fsk: ""
+    });
+    assert.deepStrictEqual(emptyMoviePayload.nfo_overrides.movie, {});
+
+    // 2. loadNfoAgentDetails in movie mode populates nfo_editor.js and sets source badges
+    globalThis.mockFetchResponse = () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+            title: "Interstellar",
+            year: "2014",
+            plot: "",
+            fsk: "12",
+            genres: ["Sci-Fi", "Abenteuer"]
+        })
+    });
+    globalThis.loadNfoAgentDetails("157336", "tmdb_movie", "movie", 1);
+    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => setImmediate(resolve));
+
+    assert.strictEqual(editor.getValues().title, "Interstellar");
+    assert.deepStrictEqual(editor.getValues().genre, ["Sci-Fi", "Abenteuer"]);
+    assert.strictEqual(editor.getFieldSource("title"), "vom Metadatendienst");
+    assert.strictEqual(editor.getFieldSource("plot"), "Metadatensuche liefert keine Angabe");
+
+    // Completeness warning detects empty plot in nfo_editor.js
+    assert.deepStrictEqual(globalThis.updateNfoAgentCompletenessWarning(), ["Plot"]);
+
+    // 3. Manual edit in nfo_editor.js marks field source as manuell and submitNfoAgentJob uses patch semantics (empty plot not sent as deletion, wizard_overrides not set)
+    editor.elements.fskSelect.value = "16";
+    editor.elements.fskSelect.dispatchEvent({ type: "change" });
+    assert.strictEqual(editor.getFieldSource("fsk"), "manuell");
+
+    document.getElementById("nfo-agent-provider").value = "tmdb_movie";
+    document.getElementById("nfo-agent-metadata-id").value = "157336";
+    document.getElementById("nfo-agent-overwrite-nfo").checked = false;
+    document.getElementById("nfo-agent-show-nfo-action").value = "process";
+    globalThis.fetchRequests = [];
+
+    globalThis.submitNfoAgentJob();
+    const movieReq = globalThis.fetchRequests.find(item => item.url === "/api/process");
+    assert.ok(movieReq);
+    const moviePayload = JSON.parse(movieReq.options.body);
+    assert.strictEqual(moviePayload.nfo_type, "movie");
+    assert.strictEqual(moviePayload.nfo_write_mode, "patch");
+    assert.strictEqual(moviePayload.wizard_overrides, undefined);
+    // Unchanged title/year and empty plot are omitted; changed fsk and genres are included
+    assert.deepStrictEqual(moviePayload.nfo_overrides.movie, {
+        fsk: "16",
+        genres: ["Sci-Fi", "Abenteuer"]
+    });
+
+    // 4. Switching back to tvshow mode hides #nfo-agent-movie-editor, restores #nfo-agent-series-fields and preserves all prior series field values losslessly
+    document.getElementById("nfo-agent-media-type").value = "tvshow";
+    globalThis.triggerNfoAgentMediaTypeChange();
+    assert.strictEqual(document.getElementById("nfo-agent-series-fields").classList.contains("hidden"), false);
+    assert.strictEqual(document.getElementById("nfo-agent-movie-editor").classList.contains("hidden"), true);
+    assert.strictEqual(document.getElementById("nfo-agent-episodes-section").style.display, "block");
+    assert.strictEqual(document.getElementById("nfo-agent-show-title").value, "Dark");
+    assert.strictEqual(document.getElementById("nfo-agent-show-year").value, "2017");
+    assert.strictEqual(document.getElementById("nfo-agent-show-plot").value, "Zeitreise in Winden");
+    assert.strictEqual(document.getElementById("nfo-agent-show-fsk").value, "16");
+    assert.strictEqual(document.getElementById("nfo-agent-show-genres").value, "Mystery, Sci-Fi");
+
+    globalThis.closeNfoAgentModal();
+    assert.strictEqual(editor.getValues().title, "");
+
+    globalThis.document.querySelectorAll = originalQuerySelectorAll;
+    globalThis.document.querySelector = originalQuerySelector;
 });

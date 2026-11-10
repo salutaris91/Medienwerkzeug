@@ -3260,7 +3260,7 @@ body.runtime-docker .docker-only-info {
     padding: 7px;
     border: 1px solid var(--border-light);
     border-radius: 4px;
-    background: rgba(30, 30, 45, 1);
+    background: var(--bg-card);
     color: var(--text-main);
     font-size: 0.85rem;
 }
@@ -3295,6 +3295,17 @@ body.runtime-docker .docker-only-info {
     background: rgba(255, 255, 255, 0.01);
 }
 
+#nfo-agent-series-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#nfo-agent-series-fields.hidden,
+#nfo-agent-movie-editor.hidden {
+    display: none;
+}
+
 .nfo-agent-metadata-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 180px;
@@ -3315,11 +3326,12 @@ body.runtime-docker .docker-only-info {
     padding: 7px;
     border: 1px solid var(--border-light);
     border-radius: 4px;
-    background: rgba(0, 0, 0, 0.15);
+    background: var(--bg-input);
     color: var(--text-main);
 }
 
-.nfo-agent-field-source {
+.nfo-agent-field-source,
+.nfo-agent-source-badge {
     margin-left: 5px;
     color: var(--text-muted);
     font-weight: 400;
