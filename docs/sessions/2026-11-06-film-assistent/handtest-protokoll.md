@@ -79,4 +79,4 @@ Stand unter Test: Branch `feat/film-wizard-e2` (Gate-A2-Patch `7291bb4` + Handte
 | E2 | D-1, S-1..S-3 | Doku `Planet.Erde.2006.Doku.mkv`, Serie `Breaking.Bad` über altes Vorschau-Modal | OK | Kein Film-Assistent bei Doku/Serie, altes Vorschau-Modal funktionsfähig. | 2026-11-10 |
 | E2 | Abschluss | Gesamter Parcours nach `16e9a89` | **OK** | Alex: „Super, Handtest ist bestanden. Ich habe alles ausprobiert und es funktioniert beziehungsweise sieht auch gut aus.“ | 2026-11-10 |
 
-**Ergebnis E2:** Handtest bestanden. Die Handtest-Fixes nach dem Gate (`0f76217` … `16e9a89`) wurden zusätzlich durch einen unabhängigen Prüf-Subagenten reviewt (siehe PR).
+**Ergebnis E2:** Handtest bestanden (Stand `16e9a89`, `app.js?v=112`). Alle Commits nach dem Gate (`0f76217` … `6f0312d`) wurden zusätzlich durch einen unabhängigen Prüf-Subagenten reviewt (3 Runden, zuletzt `VERDICT: APPROVE`, siehe PR). Die Review-Fixes `5bccea2` und `6f0312d` (bis `app.js?v=113`: Legacy-Slider ohne Prognose-Event, Prognose-Cache/geteilte Requests) sind nur automatisiert getestet und reviewt, kein erneuter Handtest.
