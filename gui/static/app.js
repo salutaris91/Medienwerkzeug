@@ -1,15 +1,15 @@
-import { applyTheme } from './js/theme.js?v=115';
-import { cleanSeriesName } from './js/utils.js?v=115';
-import { formatBytes } from './js/format.js?v=115';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=115';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=115';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=115';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=115';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=115';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=115';
-import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=115';
-import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from './js/nfo_editor.js?v=115';
-import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=115';
+import { applyTheme } from './js/theme.js?v=116';
+import { cleanSeriesName } from './js/utils.js?v=116';
+import { formatBytes } from './js/format.js?v=116';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=116';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=116';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=116';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=116';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=116';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=116';
+import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=116';
+import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from './js/nfo_editor.js?v=116';
+import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=116';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -17828,47 +17828,59 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
         const defaultSelectValue = isFocusedEpisode
             ? (epNum || "skip")
             : (status.needs_review ? (epNum || "skip") : "skip");
+        const startExpanded = isFocusedEpisode && defaultSelectValue !== "skip";
+
+        const buildSummaryText = (titleVal, fskVal) => {
+            const parts = [];
+            if (titleVal) parts.push(titleVal);
+            if (fskVal) parts.push(`FSK ${fskVal}`);
+            return parts.length ? `· ${parts.join(" · ")}` : "";
+        };
 
         const row = document.createElement("div");
         row.className = "nfo-episode-row";
         row.dataset.file = basename;
         row.dataset.defaultMapping = epNum || "skip";
-        row.style = "display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--border-light); padding: 10px; border-radius: 6px; background: rgba(255,255,255,0.01); text-align: left;";
         row.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-                <div style="font-weight: 500; font-size: 0.9em; word-break: break-all; color: var(--text-main); flex: 1;">
-                    ${escapeHTML(basename)}
+            <div class="nfo-episode-header">
+                <div class="nfo-episode-header-left" role="button" tabindex="0" title="Episoden-Details ein-/ausklappen">
+                    <span class="nfo-episode-chevron" style="display: ${defaultSelectValue === "skip" ? "none" : "inline-flex"};">${startExpanded ? "▾" : "▸"}</span>
+                    <span style="font-weight: 600; font-size: 0.9em; word-break: break-all; color: var(--text-main);">${escapeHTML(basename)}</span>
                     ${status.exists ?
                         (!status.needs_review && status.complete ?
-                            '<span style="color:#10b981; font-size:0.8em; margin-left:6px; font-weight:600;">[Metadaten vollständig]</span>' :
-                            '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[Metadaten unvollständig]</span>') :
-                        '<span style="color:#ef4444; font-size:0.8em; margin-left:6px; font-weight:600;">[Keine NFO]</span>'
+                            '<span class="nfo-agent-status nfo-agent-status-success">Metadaten vollständig</span>' :
+                            '<span class="nfo-agent-status nfo-agent-status-warning">Metadaten unvollständig</span>') :
+                        '<span class="nfo-agent-status nfo-agent-status-danger">Keine NFO</span>'
                     }
+                    <span class="nfo-episode-summary-meta">${escapeHTML(buildSummaryText(displayedTitle, episodeFsk))}</span>
                 </div>
-                <div style="width: 140px;">
-                    <select class="nfo-agent-ep-mapping-select" data-file="${escapeHTML(basename)}" style="width: 100%; padding: 6px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(30,30,45,1); color: var(--text-main);">
-                        <option value="skip" ${defaultSelectValue === "skip" ? "selected" : ""}>⏭️ Überspringen</option>
-                        ${buildEpisodeOptionsHTML(scanData.files.length, defaultSelectValue)}
-                    </select>
+                <div class="nfo-episode-header-actions">
+                    <button type="button" class="nfo-episode-toggle-btn" style="display: ${defaultSelectValue === "skip" ? "none" : "inline-flex"}; align-items: center;">${startExpanded ? "Einklappen" : "Details"}</button>
+                    <div style="width: 145px;">
+                        <select class="nfo-agent-ep-mapping-select" data-file="${escapeHTML(basename)}">
+                            <option value="skip" ${defaultSelectValue === "skip" ? "selected" : ""}>⏭️ Überspringen</option>
+                            ${buildEpisodeOptionsHTML(scanData.files.length, defaultSelectValue)}
+                        </select>
+                    </div>
                 </div>
             </div>
-            <div class="nfo-agent-ep-override-container" style="display: ${defaultSelectValue === "skip" ? "none" : "flex"}; flex-direction: column; gap: 8px; border-top: 1px dashed var(--border-light); padding-top: 8px; margin-top: 4px;">
-                <div style="display: flex; gap: 8px;">
+            <div class="nfo-agent-ep-override-container" style="display: ${startExpanded ? "flex" : "none"}; flex-direction: column; gap: 8px; border-top: 1px dashed var(--border-light); padding-top: 10px; margin-top: 4px;">
+                <div style="display: flex; gap: 10px;">
                     <div style="flex: 1;">
-                        <label style="display: block; font-size: 0.75em; margin-bottom: 2px; color: var(--text-muted);">Episodentitel:</label>
-                        <input type="text" class="nfo-agent-ep-override-title" data-file="${escapeHTML(basename)}" value="${escapeHTML(displayedTitle)}" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.1); color: var(--text-main);">
+                        <label style="display: block; font-size: 0.78em; margin-bottom: 4px; color: var(--text-muted);">Episodentitel:</label>
+                        <input type="text" class="nfo-agent-ep-override-title" data-file="${escapeHTML(basename)}" value="${escapeHTML(displayedTitle)}">
                     </div>
-                    <div style="width: 130px;">
-                        <label style="display: block; font-size: 0.75em; margin-bottom: 2px; color: var(--text-muted);">Altersfreigabe:</label>
-                        <select class="nfo-agent-ep-override-fsk" data-file="${escapeHTML(basename)}" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(30,30,45,1); color: var(--text-main);">
+                    <div style="width: 150px;">
+                        <label style="display: block; font-size: 0.78em; margin-bottom: 4px; color: var(--text-muted);">Altersfreigabe:</label>
+                        <select class="nfo-agent-ep-override-fsk" data-file="${escapeHTML(basename)}">
                             <option value="" ${episodeFsk ? "" : "selected"}>Keine Angabe</option>
                             ${[0, 6, 12, 16, 18].map(value => `<option value="${value}" ${String(episodeFsk) === String(value) ? "selected" : ""}>FSK ${value}</option>`).join("")}
                         </select>
                     </div>
                 </div>
                 <div>
-                    <label style="display: block; font-size: 0.75em; margin-bottom: 2px; color: var(--text-muted);">Beschreibung (Episoden-Plot):</label>
-                    <textarea class="nfo-agent-ep-override-plot" data-file="${escapeHTML(basename)}" rows="2" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.1); color: var(--text-main); font-family: inherit; resize: vertical;">${escapeHTML(displayedPlot)}</textarea>
+                    <label style="display: block; font-size: 0.78em; margin-bottom: 4px; color: var(--text-muted);">Beschreibung (Episoden-Plot):</label>
+                    <textarea class="nfo-agent-ep-override-plot" data-file="${escapeHTML(basename)}" rows="2" style="resize: vertical;">${escapeHTML(displayedPlot)}</textarea>
                 </div>
             </div>
         `;
@@ -17876,6 +17888,67 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
 
         const select = row.querySelector(".nfo-agent-ep-mapping-select");
         const container = row.querySelector(".nfo-agent-ep-override-container");
+        const chevron = row.querySelector(".nfo-episode-chevron");
+        const toggleBtn = row.querySelector(".nfo-episode-toggle-btn");
+        const headerLeft = row.querySelector(".nfo-episode-header-left");
+        const summaryMeta = row.querySelector(".nfo-episode-summary-meta");
+        const epTitleInput = row.querySelector(".nfo-agent-ep-override-title");
+        const epFskSelect = row.querySelector(".nfo-agent-ep-override-fsk");
+
+        const syncEpisodeExpandedUI = (expanded) => {
+            if (!container) return;
+            if (select && select.value === "skip") {
+                container.style.display = "none";
+                if (chevron) chevron.style.display = "none";
+                if (toggleBtn) toggleBtn.style.display = "none";
+                return;
+            }
+            container.style.display = expanded ? "flex" : "none";
+            if (chevron) {
+                chevron.style.display = "inline-flex";
+                chevron.textContent = expanded ? "▾" : "▸";
+            }
+            if (toggleBtn) {
+                toggleBtn.style.display = "inline-flex";
+                toggleBtn.textContent = expanded ? "Einklappen" : "Details";
+            }
+        };
+
+        const updateSummaryMeta = () => {
+            if (!summaryMeta) return;
+            summaryMeta.textContent = buildSummaryText(
+                epTitleInput ? epTitleInput.value.trim() : "",
+                epFskSelect ? epFskSelect.value : ""
+            );
+        };
+
+        const toggleEpisodeDetails = () => {
+            if (!container || (select && select.value === "skip")) return;
+            const isCurrentlyOpen = container.style.display !== "none";
+            syncEpisodeExpandedUI(!isCurrentlyOpen);
+        };
+
+        if (toggleBtn && typeof toggleBtn.addEventListener === "function") {
+            toggleBtn.addEventListener("click", (e) => {
+                if (e && typeof e.stopPropagation === "function") e.stopPropagation();
+                toggleEpisodeDetails();
+            });
+        }
+        if (headerLeft && typeof headerLeft.addEventListener === "function") {
+            headerLeft.addEventListener("click", () => toggleEpisodeDetails());
+            headerLeft.addEventListener("keydown", (e) => {
+                if (e && (e.key === "Enter" || e.key === " ")) {
+                    if (typeof e.preventDefault === "function") e.preventDefault();
+                    toggleEpisodeDetails();
+                }
+            });
+        }
+        if (epTitleInput && typeof epTitleInput.addEventListener === "function") {
+            epTitleInput.addEventListener("input", updateSummaryMeta);
+        }
+        if (epFskSelect && typeof epFskSelect.addEventListener === "function") {
+            epFskSelect.addEventListener("change", updateSummaryMeta);
+        }
 
         // Dynamic episode metadata fetch helper
         const loadEpMetadata = async (val) => {
@@ -17901,6 +17974,7 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
                     if (select.value === val) {
                         if (titleInput) titleInput.value = data.title || "";
                         if (plotTextarea) plotTextarea.value = data.plot || "";
+                        updateSummaryMeta();
                     }
                 }
             } catch (err) {
@@ -17917,9 +17991,9 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
 
         select.addEventListener("change", () => {
             if (select.value === "skip") {
-                container.style.display = "none";
+                syncEpisodeExpandedUI(false);
             } else {
-                container.style.display = "flex";
+                syncEpisodeExpandedUI(container && container.style.display !== "none");
                 loadEpMetadata(select.value);
             }
         });

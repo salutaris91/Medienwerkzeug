@@ -7,6 +7,7 @@
     --bg-card: #18181b;
     --bg-glass: #18181b;
     --border-glass: #27272a;
+    --border-light: rgba(255, 255, 255, 0.16);
     --border-active: rgba(59, 130, 246, 0.4);
 
     --primary: #3b82f6;
@@ -53,6 +54,7 @@ body.theme-deep-space {
     --bg-card: #18181b;
     --bg-glass: #18181b;
     --border-glass: #27272a;
+    --border-light: rgba(255, 255, 255, 0.16);
     --primary: #3b82f6;
     --primary-rgb: 59, 130, 246;
     --accent: #2563eb;
@@ -79,6 +81,7 @@ body.theme-nordic-slate {
     --bg-card: rgba(26, 36, 56, 0.75);
     --bg-glass: rgba(15, 23, 42, 0.6);
     --border-glass: rgba(255, 255, 255, 0.07);
+    --border-light: rgba(255, 255, 255, 0.16);
     --primary: #0ea5e9;
     --primary-rgb: 14, 165, 233;
     --accent: #10b981;
@@ -100,6 +103,7 @@ body.theme-amber-warmth {
     --bg-card: rgba(38, 25, 20, 0.75);
     --bg-glass: rgba(24, 15, 12, 0.6);
     --border-glass: rgba(255, 255, 255, 0.07);
+    --border-light: rgba(255, 255, 255, 0.16);
     --primary: #f59e0b;
     --primary-rgb: 245, 158, 11;
     --accent: #d97706;
@@ -121,6 +125,7 @@ body.theme-apple-black {
     --bg-card: rgba(22, 22, 23, 0.85);
     --bg-glass: rgba(29, 29, 31, 0.7);
     --border-glass: rgba(255, 255, 255, 0.08);
+    --border-light: rgba(255, 255, 255, 0.18);
     --primary: #ffffff;
     --primary-rgb: 255, 255, 255;
     --accent: #0071e3;
@@ -141,7 +146,8 @@ body.theme-superfood-light {
     --bg-surface: #f4e6da;
     --bg-card: rgba(255, 255, 255, 0.75);
     --bg-glass: rgba(250, 240, 230, 0.6);
-    --border-glass: rgba(27, 52, 86, 0.12);
+    --border-glass: rgba(27, 52, 86, 0.15);
+    --border-light: rgba(27, 52, 86, 0.24);
     --primary: #1b3456;
     --primary-rgb: 27, 52, 86;
     --accent: #f08aa0;
@@ -151,8 +157,8 @@ body.theme-superfood-light {
     --text-main: #1b3456;
     --text-muted: #4a6b82;
     --text-dark: #1b3456;
-    --bg-input: rgba(27, 52, 86, 0.05);
-    --bg-input-focus: rgba(27, 52, 86, 0.1);
+    --bg-input: #ffffff;
+    --bg-input-focus: #ffffff;
     --logo-gradient: linear-gradient(135deg, #ffffff 30%, #f08aa0 100%);
     --bg-sticky: #ffffff;
     --bg-card: #ffffff;
@@ -3371,6 +3377,106 @@ body.runtime-docker .docker-only-info {
 .nfo-agent-field-source:empty,
 .nfo-agent-source-badge:empty {
     display: none;
+}
+
+.nfo-episode-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border: 1px solid var(--border-light);
+    padding: 10px 12px;
+    border-radius: 7px;
+    background: var(--bg-card);
+    text-align: left;
+    transition: border-color 0.15s ease;
+}
+
+.nfo-episode-row:hover {
+    border-color: var(--accent);
+}
+
+.nfo-episode-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.nfo-episode-header-left {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex: 1;
+    min-width: 180px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.nfo-episode-chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-light);
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    flex-shrink: 0;
+}
+
+.nfo-episode-summary-meta {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.nfo-episode-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nfo-episode-toggle-btn {
+    padding: 5px 10px;
+    height: 34px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    border-radius: 4px;
+    border: 1px solid var(--border-light);
+    background: var(--bg-input);
+    color: var(--text-main);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.nfo-episode-toggle-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.nfo-agent-ep-mapping-select,
+.nfo-agent-ep-override-fsk,
+.nfo-agent-ep-override-title,
+.nfo-agent-ep-override-plot {
+    width: 100%;
+    padding: 6px 8px;
+    font-size: 0.85em;
+    border-radius: 4px;
+    border: 1px solid var(--border-light);
+    background: var(--bg-input);
+    color: var(--text-main);
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.nfo-agent-ep-mapping-select,
+.nfo-agent-ep-override-fsk,
+.nfo-agent-ep-override-title {
+    height: 34px;
 }
 
 @media (max-width: 700px) {
