@@ -1742,3 +1742,27 @@ test('Review R2: a preview reload while a forecast is running reuses the pending
     assert.match(harness.estimateEl().textContent, /-50%/);
     assert.match(harness.doc.getElementById('mw-wizard-options-summary').textContent, /~/);
 });
+
+test('Review R3: closing while /api/process is still running is refused and does not navigate', async () => {
+    const { doc } = createWizardMockDom();
+    let closedCalls = 0;
+    let releaseProcess;
+    const wizard = createFilmWizard({
+        document: doc,
+        onClosed: () => { closedCalls += 1; },
+        fetch: async (url) => {
+            if (url === '/api/process') return new Promise((resolve) => { releaseProcess = () => resolve({ ok: true, status: 200, json: async () => ({ success: true }) }); });
+            return { ok: true, status: 200, json: async () => ({ destination: '/mnt/nas/Filme/Jaws (1975)', renames: [], subs: [], junk: [] }) };
+        },
+    });
+    wizard.open({ query: 'Jaws', projectName: 'Jaws.1975', autoSearch: false });
+    await wizard.selectMovieInWizard({ id: '578', name: 'Der weiße Hai', year: '1975', provider: 'manual' }, false);
+    wizard.goToStep(4);
+    await new Promise((r) => setTimeout(r, 0));
+    const processPromise = wizard.executeStep4Process();
+    assert.equal(wizard.close(), false);
+    assert.equal(closedCalls, 0);
+    releaseProcess();
+    await processPromise;
+    assert.equal(closedCalls, 1);
+});
