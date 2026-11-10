@@ -2397,12 +2397,33 @@ Jede Etappe soll einzeln im Alltag nutzbar sein, auch für einen einzelnen Film.
 - Gestaltung: kein langes Scrollen, klare Schritte, Fortschrittskopf; Orientierung an Emby, aber im bestehenden Design des Tools.
 - Einzelner Film und Reihe: gleicher Dialog oder Sammelmodus?
 - Zusammenspiel mit dem NFO-Agent (Health-Einstieg) und dem Inbox-Ablauf.
-- **E3-Notiz Übergabe-Altpfad im Film-Assistenten (Review E2, 2026-11-10):** `triggerHandover()` in `gui/static/js/film_wizard.js` ruft erst `close({ force: true })` (→ `onClosed` → `goHome()`, `currentProject=""`) und danach `onHandoverCallback` auf. Heute toter Pfad (Button `mw-wizard-btn-handover` existiert nicht mehr, app.js übergibt kein `onHandover`); beim Altcode-Rückbau in E3 entfernen oder Reihenfolge umdrehen.
+- **[x] erledigt — E3-Notiz Übergabe-Altpfad im Film-Assistenten (Review E2, 2026-11-10; entfernt in E3):** `triggerHandover()`, `getHandoverPayload()` und `onHandoverCallback` in `gui/static/js/film_wizard.js` sowie `wizardMovieOverrides` und `#btn-open-film-wizard` wurden beim Altcode-Rückbau in E3 entfernt.
 - **Abgewählte Bestands-NFO im Film-Assistenten (vertagt, Alex 2026-11-09):** Seit E2 steht eine im Inbox-Ordner vorhandene `.nfo` in Schritt 4 unter „Junk-Dateien“ (wird in den Papierkorb verschoben, der Assistent schreibt eine neue NFO). Nimmt man den Haken heraus, verschiebt das Backend (`safe_move_recursive`, `prefix_filter=None`) die alte NFO mit altem Namen zusätzlich ins Ziel → zwei NFOs im Filmordner (Verhalten wie vor E2). Offen: Hinweistext ergänzen („Ohne Haken wird die alte NFO zusätzlich mit ins Ziel verschoben.“) oder Verhalten ändern (z. B. abgewählte NFO in der Inbox belassen). Alex: „den satz erstmal rauslassen; lass uns das Thema auf die roadmap mit nehmen und hier vertagen“.
-- **Verarbeitungsoptionen doppelt (Entscheidung Alex 2026-11-09, E2 Variante A):** Schritt 4 des Wizards bekommt eigene Options-Bedienelemente (`mw-wizard-`-IDs), weil der Optionen-Block in `#context-movie` (`movie-option-*`) dauerhaft vom Doku-Pfad genutzt wird. Folge: ca. 40 Zeilen Markup und die Options-Defaults an zwei Stellen. Ob beide in eine gemeinsame Options-Komponente zusammengeführt werden, mit E3 (Altcode-Rückbau) entscheiden.
+- **Verarbeitungsoptionen doppelt (Entscheidung Alex 2026-11-09, E2 Variante A; bestätigt 2026-11-10 in E3 Option 3A: bewusst getrennt belassen):** Schritt 4 des Wizards hat eigene Options-Bedienelemente (`mw-wizard-`-IDs) im zweigeteilten Gruppen-Layout (Qualität/H.265/Original-löschen vs. Speicherort/Kopie), während der kompakte Optionen-Block in `#context-movie` (`movie-option-*`) dauerhaft ausschließlich vom Doku-Pfad genutzt wird. Bewusst keine künstliche gemeinsame Options-Komponente.
 
 **Fortschritt Etappen (`docs/sessions/2026-11-06-film-assistent/`):**
-- **Etappe E1:** [x] umgesetzt & Handtest Alex bestanden (2026-11-09, Branch `feat/film-wizard-e1`, Gate-A2 APPROVED + Live-Fixes für numerische TMDb-IDs, OFDb-Slug-Encoding/`itemprop="description"`-Plot und Wizard-UX).
+- **Etappe E1:** [x] umgesetzt & Handtest Alex bestanden (2026-11-09, Branch `feat/film-wizard-e1`, PR #168, Gate-A2 APPROVED + Live-Fixes für numerische TMDb-IDs, OFDb-Slug-Encoding/`itemprop="description"`-Plot und Wizard-UX).
+- **Etappe E2:** [x] umgesetzt & Handtest Alex bestanden (2026-11-10, Branch `feat/film-wizard-e2`, PR #170, Gate-A2 APPROVED + Live-Fixes für Zielordner-Reihenfolge, Zielpfad-Vorschau ohne Doppel-Ordner, Untertitel-Sprachkürzel und einklappbare Schritt-4-Gruppen).
+- **Etappe E3:** [x] umgesetzt & Handtest Alex bestanden (2026-11-10, Branch `feat/film-wizard-e3`, NFO-Agent-Filmpfad an `nfo_editor.js` angedockt, Film-Altcode entfernt, symmetrisches 2-Spalten-Editor-Grid, einklappbare Episoden-Karten im Serien-NFO-Agenten und Theme-Variablen-Fix für Doku/Serien-Vorschau).
 
 ### Aufwand (grob)
 Groß; nur in Etappen. Planung zuerst (Kreativteam, direkt am Code), danach je Etappe eine Gate-A2-Kette.
+
+---
+
+## 93. Geführten Assistenten auf Doku und Serien ausweiten
+
+- [ ] **Status:** Offen (Entscheidung Alex im E3-Handtest, 2026-11-10: nach Abschluss der Film-Assistent-Kette #92 angehen)
+
+**Einordnung / Priorität:** Mittel. Während Filme seit #92 direkt im geführten 4-Schritte-Assistenten (`#modal-film-wizard`) verarbeitet werden, laufen **Doku** (`#context-movie` + `#preview-modal`) und **Serien** (`#context-series` + `#preview-modal`) weiterhin über die lange Scroll-Ansicht mit anschließendem Vorschau-Modal. Im E3-Handtest wurden die dringendsten Theme-/Kontrast-Altlasten an `.mode-card` und `#preview-modal` bereits über CSS-Variablen behoben; mittelfristig sollen auch Doku und Serie in das geführte Assistenten-Muster überführt werden, damit `#context-movie`, `#context-series` und `#preview-modal` vollständig entfallen können.
+
+**Vorgeschlagene Aufteilung (nach Abschluss von #92 E6):**
+1. **Stufe 1 — Doku-Assistent (Einzeldokus in den bestehenden Wizard integrieren):**
+   - Einzeldokus nutzen im Backend und bei der Metadatensuche nahezu denselben Ablauf wie Filme (`media_type: "movie"`, abweichender Standard-Zielordner `/Dokus` bzw. Doku-Kategorie).
+   - Klick auf „Doku verarbeiten“ (`#mode-movie` bei `isDoku`) öffnet direkt `#modal-film-wizard` im Doku-Modus (Titel „Doku-Assistent“, Doku-Zielordner vorausgewählt); danach kann `#context-movie` komplett abgebaut werden.
+2. **Stufe 2 — Serien-Assistent (inkl. Staffel-/Episoden-Zuordnung):**
+   - Eigener geführter Ablauf für Serien (Lokales Profil oder TMDB/TVDB-Suche → Serien-Metadaten & Staffel/Episoden-Mapping → Artwork → Vorschau & Verarbeitung mit Namenskonflikt-/Staffel-Warnungen).
+   - Ablösung von `#context-series` und `#preview-modal-overlay`.
+
+### Aufwand (grob)
+Stufe 1 (Doku): klein bis mittel (~1 Gate-A2-Etappe). Stufe 2 (Serie): mittel bis groß (eigene Planung wegen Episoden-Mapping und Profil-Logik).

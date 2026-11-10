@@ -3,6 +3,13 @@ import assert from 'node:assert';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from '../../gui/static/js/nfo_editor.js';
+
+globalThis.renderNfoEditor = renderNfoEditor;
+globalThis.buildMovieNfoOverrides = buildMovieNfoOverrides;
+globalThis.buildWizardMovieOverrides = buildWizardMovieOverrides;
+globalThis.normalizeFsk = normalizeFsk;
+globalThis.parseGenres = parseGenres;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -581,6 +588,8 @@ test('NFO Agent movie mode renders movie.nfo without series controls', () => {
 
     assert.strictEqual(elements["nfo-agent-season-container"].style.display, "none");
     assert.strictEqual(elements["nfo-agent-episodes-section"].style.display, "none");
+    assert.strictEqual(elements["nfo-agent-series-fields"].classList.contains("hidden"), true);
+    assert.strictEqual(elements["nfo-agent-movie-editor"].classList.contains("hidden"), false);
     assert.strictEqual(elements["nfo-agent-modal-title"].textContent, "NFO Agent: Film-Metadaten");
     assert.strictEqual(elements["nfo-agent-search-label"].textContent, "Name des Films:");
     assert.strictEqual(elements["nfo-agent-title-label-text"].textContent, "Filmtitel (movie.nfo):");

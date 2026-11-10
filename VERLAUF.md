@@ -2,6 +2,11 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## 2026-11-10 — ROADMAP #92 Etappe E2: Ergebnis-Schritt für Filme + R8-Fix (PR #170)
+
+- **Umsetzung & Review:** Schritt 4 des Film-Assistenten ist echter Ergebnis-Schritt (Zielpfad, Umbenennungen, „Untertitel & Extras“, Junk, #91-Hinweis in einklappbaren Gruppen; H.265/Qualität/Original löschen mit Größenprognose über `/api/estimate-conversion`; NAS/pCloud-Ziele unter dem Zielpfad; „Jetzt final verarbeiten“ direkt aus dem Wizard, danach Rücksprung zur Startseite). Neues gemeinsames Modul `gui/static/js/preview_render.js` für Wizard und altes Vorschau-Modal inkl. R8-Fix (escapter Zielpfad). Gate-A2 (`2026-11-09-e2-task`): APPROVED nach 2 Runden; Handtest-/Review-Commits danach durch Prüf-Subagent (R1 REVISE → R2/R3 APPROVE).
+- **Handtest (OrbStack, Alex bestanden 2026-11-10):** 4 Befunde im Lauf behoben – fehlender `style.css`-Cache-Buster, Bestands-NFO jetzt als Junk mit Hinweis (Papierkorb, Wizard schreibt neue NFO), Rücksprung zur Startseite nach Schließen/Verarbeiten, erledigte Stepper-Schritte mit ✓ in Theme-Akzent statt festem Grün. Vertagt (ROADMAP #92): abgewählte Bestands-NFO landet zusätzlich im Ziel; E3-Notiz toter Übergabe-Pfad.
+
 ## 2026-11-09 — ROADMAP #92 Etappe E1: Geführter Film-Assistent (Wizard-Rahmen, NFO-Editor & Backend-Overrides) (PR #168)
 
 - **Umsetzung & Review:** Vier-Schritte-Film-Assistent (`gui/static/js/film_wizard.js`, `#modal-film-wizard` in `index.html`, `.mw-wizard-*` in `style.css`), wiederverwendbare Film-Editor-Komponente (`gui/static/js/nfo_editor.js`) und Backend-Override-Patching (`patch_nfo_fields(..., allow_clear=True)` für TMDb und OFDb in `processor.py`, `nfo_mutation.py` inkl. `wizard_overrides`-Flag und Fingerprint-Prüfung vor der ersten Mutation). Gate-A2-Reviewer (`2026-11-08-e1-reviewer-r2`): `VERDICT: APPROVE`.

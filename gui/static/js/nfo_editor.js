@@ -1,5 +1,6 @@
 const VALID_FSK_VALUES = new Set(["0", "6", "12", "16", "18"]);
 const ALL_FIELDS = ["title", "year", "plot", "fsk", "genres"];
+const SOURCE_BADGE_FIELDS = ["title", "year", "fsk", "genre", "plot"];
 
 export function normalizeFskValue(rawValue) {
     if (rawValue === null || rawValue === undefined) return "";
@@ -12,6 +13,8 @@ export function normalizeFskValue(rawValue) {
     }
     return "";
 }
+
+export const normalizeFsk = normalizeFskValue;
 
 export function parseGenresInput(rawValue) {
     if (Array.isArray(rawValue)) {
@@ -32,6 +35,8 @@ export function parseGenresInput(rawValue) {
     const parts = String(rawValue).split(/[,;]/);
     return parseGenresInput(parts);
 }
+
+export const parseGenres = parseGenresInput;
 
 export function formatGenresValue(genres) {
     if (Array.isArray(genres)) {
@@ -73,33 +78,80 @@ function snapshotsEqual(a, b) {
     return ALL_FIELDS.every((key) => fieldValuesEqual(key, a[key], b[key]));
 }
 
-function createFieldWrapper(doc, labelText, fieldKey, inputEl) {
+function safeSetAttribute(el, key, value) {
+    if (el && typeof el.setAttribute === "function") {
+        el.setAttribute(key, value);
+    }
+}
+
+function normalizeSourceFieldKey(field) {
+    const key = String(field || "").trim();
+    if (key === "genres") return "genre";
+    return SOURCE_BADGE_FIELDS.includes(key) ? key : "";
+}
+
+function createFieldWrapper(doc, labelText, fieldKey, inputEl, badgeEl = null) {
     const wrapper = doc.createElement("div");
     wrapper.className = `mw-wizard-field mw-wizard-field-${fieldKey}`;
-    wrapper.setAttribute("data-editor-field", fieldKey);
+    safeSetAttribute(wrapper, "data-editor-field", fieldKey);
 
     const label = doc.createElement("label");
     label.className = "mw-wizard-label";
     if (inputEl.id) {
-        label.setAttribute("for", inputEl.id);
+        safeSetAttribute(label, "for", inputEl.id);
     }
     label.textContent = labelText;
+    if (badgeEl) {
+        label.appendChild(badgeEl);
+    }
 
     wrapper.appendChild(label);
     wrapper.appendChild(inputEl);
     return wrapper;
 }
 
-export function renderNfoEditor(container, initialData = {}, options = {}) {
+export function renderNfoEditor(container, initialData = {}, onChangeOrOptions = null, maybeOptions = {}) {
     if (!container) {
         throw new Error("renderNfoEditor requires a valid container element");
     }
+    const directOnChange = typeof onChangeOrOptions === "function" ? onChangeOrOptions : null;
+    const options = directOnChange
+        ? (maybeOptions || {})
+        : ((onChangeOrOptions && typeof onChangeOrOptions === "object") ? onChangeOrOptions : (maybeOptions || {}));
+    const optionsOnChange = typeof options.onChange === "function" ? options.onChange : null;
+
     const doc = container.ownerDocument || document;
     const prefix = options.idPrefix || "mw-nfo-editor";
+    const showSourceBadges = options.showSourceBadges === true;
+    const titleLabelText = options.titleLabel || "Titel";
 
     container.innerHTML = "";
     if (container.children && container.children.length > 0) {
         container.children.length = 0;
+    }
+
+    const sourceBadges = {};
+    const fieldSources = {
+        title: "",
+        year: "",
+        fsk: "",
+        genre: "",
+        plot: "",
+    };
+
+    function createSourceBadge(sourceField) {
+        if (!showSourceBadges) return null;
+        const badge = doc.createElement("span");
+        badge.className = "nfo-agent-source-badge";
+        if (badge.classList && typeof badge.classList.add === "function") {
+            badge.classList.add("nfo-agent-source-badge");
+        }
+        safeSetAttribute(badge, "data-source-field", sourceField);
+        sourceBadges[sourceField] = badge;
+        if (sourceField === "genre") {
+            sourceBadges.genres = badge;
+        }
+        return badge;
     }
 
     const root = doc.createElement("div");
@@ -113,17 +165,19 @@ export function renderNfoEditor(container, initialData = {}, options = {}) {
     titleInput.id = `${prefix}-title`;
     titleInput.className = "mw-wizard-input";
     titleInput.placeholder = "Filmtitel...";
-    titleInput.setAttribute("data-field", "title");
+    safeSetAttribute(titleInput, "data-field", "title");
 
     const yearInput = doc.createElement("input");
     yearInput.type = "text";
     yearInput.id = `${prefix}-year`;
     yearInput.className = "mw-wizard-input";
     yearInput.placeholder = "z. B. 2024";
-    yearInput.setAttribute("data-field", "year");
+    safeSetAttribute(yearInput, "data-field", "year");
 
-    topRow.appendChild(createFieldWrapper(doc, "Titel", "title", titleInput));
-    topRow.appendChild(createFieldWrapper(doc, "Jahr", "year", yearInput));
+    const titleFieldWrapper = createFieldWrapper(doc, titleLabelText, "title", titleInput, createSourceBadge("title"));
+    const titleLabel = titleFieldWrapper.children && titleFieldWrapper.children[0] ? titleFieldWrapper.children[0] : null;
+    topRow.appendChild(titleFieldWrapper);
+    topRow.appendChild(createFieldWrapper(doc, "Jahr", "year", yearInput, createSourceBadge("year")));
 
     const metaRow = doc.createElement("div");
     metaRow.className = "mw-wizard-field-row";
@@ -131,7 +185,7 @@ export function renderNfoEditor(container, initialData = {}, options = {}) {
     const fskSelect = doc.createElement("select");
     fskSelect.id = `${prefix}-fsk`;
     fskSelect.className = "mw-wizard-select";
-    fskSelect.setAttribute("data-field", "fsk");
+    safeSetAttribute(fskSelect, "data-field", "fsk");
 
     const fskOptions = [
         { value: "", label: "Keine Angabe" },
@@ -153,21 +207,21 @@ export function renderNfoEditor(container, initialData = {}, options = {}) {
     genresInput.id = `${prefix}-genres`;
     genresInput.className = "mw-wizard-input";
     genresInput.placeholder = "z. B. Drama, Sci-Fi";
-    genresInput.setAttribute("data-field", "genres");
+    safeSetAttribute(genresInput, "data-field", "genres");
 
-    metaRow.appendChild(createFieldWrapper(doc, "FSK", "fsk", fskSelect));
-    metaRow.appendChild(createFieldWrapper(doc, "Genre", "genres", genresInput));
+    metaRow.appendChild(createFieldWrapper(doc, "Genre", "genres", genresInput, createSourceBadge("genre")));
+    metaRow.appendChild(createFieldWrapper(doc, "FSK", "fsk", fskSelect, createSourceBadge("fsk")));
 
     const plotTextarea = doc.createElement("textarea");
     plotTextarea.id = `${prefix}-plot`;
     plotTextarea.className = "mw-wizard-textarea";
-    plotTextarea.rows = 4;
+    plotTextarea.rows = 3;
     plotTextarea.placeholder = "Handlung / Beschreibung...";
-    plotTextarea.setAttribute("data-field", "plot");
+    safeSetAttribute(plotTextarea, "data-field", "plot");
 
     root.appendChild(topRow);
     root.appendChild(metaRow);
-    root.appendChild(createFieldWrapper(doc, "Plot", "plot", plotTextarea));
+    root.appendChild(createFieldWrapper(doc, "Plot", "plot", plotTextarea, createSourceBadge("plot")));
     container.appendChild(root);
 
     let baseline = normalizeSnapshot(initialData);
@@ -239,13 +293,20 @@ export function renderNfoEditor(container, initialData = {}, options = {}) {
     applyValuesToDom(baseline);
 
     function getValues() {
-        return {
+        const parsedGenres = parseGenresInput(genresInput.value);
+        const result = {
             title: String(titleInput.value ?? "").trim(),
             year: String(yearInput.value ?? "").trim(),
             plot: String(plotTextarea.value ?? "").trim(),
             fsk: normalizeFskValue(fskSelect.value),
-            genres: parseGenresInput(genresInput.value),
+            genres: parsedGenres,
         };
+        Object.defineProperty(result, "genre", {
+            value: parsedGenres,
+            enumerable: false,
+            configurable: true,
+        });
+        return result;
     }
 
     function setValues(newData = {}, markClean = true, setOptions = {}) {
@@ -306,7 +367,7 @@ export function renderNfoEditor(container, initialData = {}, options = {}) {
     }
 
     function isDirty() {
-        return !snapshotsEqual(getValues(), baseline) || touchedFields.size > 0;
+        return !snapshotsEqual(getValues(), baseline);
     }
 
     function buildMovieOverrides() {
@@ -343,12 +404,46 @@ export function renderNfoEditor(container, initialData = {}, options = {}) {
         };
     }
 
+    function setFieldSource(field, labelText = "") {
+        const key = normalizeSourceFieldKey(field);
+        if (!key) return;
+        const text = String(labelText ?? "");
+        fieldSources[key] = text;
+        if (sourceBadges[key]) {
+            sourceBadges[key].textContent = text;
+        }
+    }
+
+    function getFieldSource(field) {
+        const key = normalizeSourceFieldKey(field);
+        if (!key) return "";
+        if (sourceBadges[key]) {
+            return String(sourceBadges[key].textContent ?? "");
+        }
+        return fieldSources[key] || "";
+    }
+
+    function clearFieldSources(defaultText = "") {
+        for (const key of SOURCE_BADGE_FIELDS) {
+            setFieldSource(key, defaultText);
+        }
+    }
+
     const bindFieldEvents = (el, fieldKey) => {
         if (!el || typeof el.addEventListener !== "function") return;
+        const sourceKey = fieldKey === "genres" ? "genre" : fieldKey;
         const handler = () => {
             touchedFields.add(fieldKey);
-            if (typeof options.onChange === "function") {
-                options.onChange(getValues(), isDirty());
+            if (showSourceBadges || directOnChange) {
+                setFieldSource(sourceKey, "manuell");
+            }
+            const currentValues = getValues();
+            const dirty = isDirty();
+            if (directOnChange) {
+                directOnChange(currentValues, sourceKey, dirty);
+            }
+            if (optionsOnChange) {
+                optionsOnChange(currentValues, dirty);
             }
         };
         el.addEventListener("input", handler);
@@ -369,7 +464,15 @@ export function renderNfoEditor(container, initialData = {}, options = {}) {
             plot: plotTextarea,
             fsk: fskSelect,
             genres: genresInput,
+            titleInput,
+            yearInput,
+            plotInput: plotTextarea,
+            fskSelect,
+            genreInput: genresInput,
+            titleLabel,
+            sourceBadges,
         },
+        sourceBadges,
         getValues,
         setValues,
         applyProviderMetadata,
@@ -378,6 +481,9 @@ export function renderNfoEditor(container, initialData = {}, options = {}) {
         buildMovieOverrides,
         buildWizardMovieOverrides,
         getNfoOverrides,
+        setFieldSource,
+        getFieldSource,
+        clearFieldSources,
     };
 
     container._nfoEditor = controller;
@@ -410,11 +516,24 @@ export function buildMovieNfoOverrides(target) {
     };
 }
 
+export function buildWizardMovieOverrides(target) {
+    if (target && typeof target.buildWizardMovieOverrides === "function") {
+        return target.buildWizardMovieOverrides();
+    }
+    if (target && target._nfoEditor && typeof target._nfoEditor.buildWizardMovieOverrides === "function") {
+        return target._nfoEditor.buildWizardMovieOverrides();
+    }
+    return buildMovieNfoOverrides(target);
+}
+
 export default {
     renderNfoEditor,
     getNfoEditorValues,
     buildMovieNfoOverrides,
+    buildWizardMovieOverrides,
     normalizeFskValue,
+    normalizeFsk,
     parseGenresInput,
+    parseGenres,
     formatGenresValue,
 };

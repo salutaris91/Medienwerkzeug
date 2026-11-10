@@ -1,15 +1,15 @@
-import { applyTheme } from './js/theme.js?v=113';
-import { cleanSeriesName } from './js/utils.js?v=113';
-import { formatBytes } from './js/format.js?v=113';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=113';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=113';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=113';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=113';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=113';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=113';
-import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=113';
-import { renderNfoEditor, buildMovieNfoOverrides } from './js/nfo_editor.js?v=113';
-import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=113';
+import { applyTheme } from './js/theme.js?v=116';
+import { cleanSeriesName } from './js/utils.js?v=116';
+import { formatBytes } from './js/format.js?v=116';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=116';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=116';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=116';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=116';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=116';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=116';
+import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=116';
+import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from './js/nfo_editor.js?v=116';
+import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=116';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -227,7 +227,6 @@ let currentProjectIsDoku = false;
 let currentProjectSuggestedQuery = "";
 let selectedShow = null;
 let selectedMovie = null;
-let wizardMovieOverrides = null;
 let episodesData = {}; // maps episode number (string) to title/info
 let fetchedEpisodeMetadataCache = {}; // caches fetched episode metadata: provider_showid_season_episode -> {title, plot, aired}
 let eventSource = null;
@@ -1818,8 +1817,6 @@ function initViews() {
                 let ctxTarget = `context-${mode}`;
                 const ctx = document.getElementById(ctxTarget);
                 if(ctx) {
-                    ctx.classList.remove("hidden");
-
                     // Autofill logic based on current project
                     let cleanedQuery = currentProjectSuggestedQuery || currentProject;
                     if (cleanedQuery) {
@@ -1827,67 +1824,56 @@ function initViews() {
                         cleanedQuery = cleanedQuery.replace(/\([0-9]{4}\)/g, "").trim();
                     }
 
-
-
                     if (mode === "movie") {
                         const isDoku = currentProjectIsDoku || (cleanedQuery && (cleanedQuery.toLowerCase().includes("doku") || cleanedQuery.toLowerCase().includes("dokumentation")));
-                        const wizardLaunchBtn = document.getElementById("btn-open-film-wizard");
 
                         if (isDoku) {
-                            document.getElementById("context-movie-header").innerText = "Doku verarbeiten";
+                            ctx.classList.remove("hidden");
+                            const headerEl = document.getElementById("context-movie-header");
+                            if (headerEl) {
+                                headerEl.textContent = "Doku verarbeiten";
+                                headerEl.innerText = "Doku verarbeiten";
+                            }
                             document.getElementById("movie-nas-destination").value = getCatIdBySub("/Dokus/Einzelne Dokus", "3");
                             document.getElementById("movie-pcloud-destination").value = getCatIdBySub("/Dokus/Einzelne Dokus", "3");
-                            if (wizardLaunchBtn) wizardLaunchBtn.classList.add("hidden");
+                            document.getElementById("movie-search-query").value = cleanedQuery;
+                            searchMovie();
+                            updateSizeEstimation("movie");
+                            triggerQualityHintUpdates();
                         } else {
-                            document.getElementById("context-movie-header").innerText = "Film verarbeiten";
-                            document.getElementById("movie-nas-destination").value = getCatIdBySub("/Filme", "1");
-                            document.getElementById("movie-pcloud-destination").value = getCatIdBySub("/Filme", "1");
-                            if (wizardLaunchBtn) wizardLaunchBtn.classList.remove("hidden");
-                        }
-
-                        document.getElementById("movie-search-query").value = cleanedQuery;
-                        searchMovie();
-                        updateSizeEstimation("movie");
-                        triggerQualityHintUpdates();
-                        if (!isDoku && typeof openFilmWizard === "function" && document.getElementById("modal-film-wizard")) {
-                            openFilmWizard({
-                                query: cleanedQuery,
-                                projectName: currentProject,
-                                onProcessSuccess: () => connectLogStream(),
-                                onPersistOptions: saveConversionSettings,
-                                onClosed: () => { if (typeof window.goHome === "function") window.goHome(); },
-                                onLog: appendConsoleLog
-                            });
+                            ctx.classList.add("hidden");
+                            const nasDest = document.getElementById("movie-nas-destination");
+                            if (nasDest) nasDest.value = getCatIdBySub("/Filme", "1");
+                            const pcloudDest = document.getElementById("movie-pcloud-destination");
+                            if (pcloudDest) pcloudDest.value = getCatIdBySub("/Filme", "1");
+                            const searchQueryInput = document.getElementById("movie-search-query");
+                            if (searchQueryInput) searchQueryInput.value = cleanedQuery;
+                            if (typeof openFilmWizard === "function" && document.getElementById("modal-film-wizard")) {
+                                openFilmWizard({
+                                    query: cleanedQuery,
+                                    projectName: currentProject,
+                                    onProcessSuccess: () => connectLogStream(),
+                                    onPersistOptions: saveConversionSettings,
+                                    onClosed: () => { if (typeof window.goHome === "function") window.goHome(); },
+                                    onLog: appendConsoleLog
+                                });
+                            }
                         }
                     } else if (mode === "series") {
+                        ctx.classList.remove("hidden");
                         document.getElementById("series-nas-destination").value = getCatIdBySub("/Serien", "2");
                         document.getElementById("series-pcloud-destination").value = getCatIdBySub("/Serien", "2");
                         document.getElementById("series-search-query").value = cleanedQuery;
                         detectExistingSeries(currentProject);
                         updateSizeEstimation("series");
                         triggerQualityHintUpdates();
+                    } else {
+                        ctx.classList.remove("hidden");
                     }
                 }
             });
         }
     });
-
-    const btnOpenFilmWizard = document.getElementById("btn-open-film-wizard");
-    if (btnOpenFilmWizard) {
-        btnOpenFilmWizard.addEventListener("click", () => {
-            const queryVal = document.getElementById("movie-search-query")?.value?.trim() || currentProjectSuggestedQuery || currentProject || "";
-            if (typeof openFilmWizard === "function") {
-                openFilmWizard({
-                    query: queryVal,
-                    projectName: currentProject,
-                    onProcessSuccess: () => connectLogStream(),
-                    onPersistOptions: saveConversionSettings,
-                    onClosed: () => { if (typeof window.goHome === "function") window.goHome(); },
-                    onLog: appendConsoleLog
-                });
-            }
-        });
-    }
 
     // Dashboard Nav
     const navDashboard = document.getElementById("nav-dashboard");
@@ -2937,7 +2923,7 @@ async function scanProject(project) {
                 setTimeout(() => {
                     if (mediaType === "series") {
                         selectShow(metaObj);
-                    } else {
+                    } else if (mediaType === "movie" && currentProjectIsDoku) {
                         selectMovie(metaObj);
                     }
                 }, 100);
@@ -3176,6 +3162,11 @@ async function searchSeries() {
             if (targetMediaType === "movie") {
                 document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
                 document.getElementById("context-movie").classList.remove("hidden");
+                const movieHeader = document.getElementById("context-movie-header");
+                if (movieHeader) {
+                    movieHeader.textContent = "Doku verarbeiten";
+                    movieHeader.innerText = "Doku verarbeiten";
+                }
                 document.getElementById("movie-search-query").value = query;
                 selectMovie(showObj);
             } else {
@@ -3231,6 +3222,11 @@ async function searchSeries() {
                 if (targetMediaType === "movie") {
                     document.querySelectorAll(".context-panel").forEach(c => c.classList.add("hidden"));
                     document.getElementById("context-movie").classList.remove("hidden");
+                    const movieHeader = document.getElementById("context-movie-header");
+                    if (movieHeader) {
+                        movieHeader.textContent = "Doku verarbeiten";
+                        movieHeader.innerText = "Doku verarbeiten";
+                    }
                     document.getElementById("movie-search-query").value = showObj.name;
                     selectMovie(showObj);
 
@@ -4312,7 +4308,6 @@ async function searchMovie() {
 
 function selectMovie(movie) {
     selectedMovie = movie;
-    wizardMovieOverrides = null;
 
     const panel = document.getElementById("selected-movie-panel");
     const title = document.getElementById("selected-movie-title");
@@ -4595,24 +4590,9 @@ async function executeMovieWorkflow() {
     const movieTitle = document.getElementById("movie-nfo-title")?.value?.trim();
     const movieYear = document.getElementById("movie-nfo-year")?.value?.trim();
     const moviePlot = document.getElementById("movie-nfo-plot")?.value?.trim();
-    if (wizardMovieOverrides) {
-        const mergedWizardOverrides = { ...wizardMovieOverrides };
-        if (movieTitle || Object.prototype.hasOwnProperty.call(wizardMovieOverrides, "title")) {
-            mergedWizardOverrides.title = movieTitle !== undefined ? movieTitle : wizardMovieOverrides.title;
-        }
-        if (movieYear || Object.prototype.hasOwnProperty.call(wizardMovieOverrides, "year")) {
-            mergedWizardOverrides.year = movieYear !== undefined ? movieYear : wizardMovieOverrides.year;
-        }
-        if (moviePlot || Object.prototype.hasOwnProperty.call(wizardMovieOverrides, "plot")) {
-            mergedWizardOverrides.plot = moviePlot !== undefined ? moviePlot : wizardMovieOverrides.plot;
-        }
-        nfoOverrides.movie = mergedWizardOverrides;
-        payload.wizard_overrides = true;
-    } else {
-        if (movieTitle) nfoOverrides.movie.title = movieTitle;
-        if (movieYear) nfoOverrides.movie.year = movieYear;
-        if (moviePlot) nfoOverrides.movie.plot = moviePlot;
-    }
+    if (movieTitle) nfoOverrides.movie.title = movieTitle;
+    if (movieYear) nfoOverrides.movie.year = movieYear;
+    if (moviePlot) nfoOverrides.movie.plot = moviePlot;
     payload.nfo_overrides = nfoOverrides;
 
     openPreviewModal(payload);
@@ -16932,6 +16912,8 @@ let nfoAgentProfileProvider = "";
 let nfoAgentFieldSources = {};
 let nfoAgentEditContext = { originMode: "full", mode: "full", episodeFile: "", seasonName: "" };
 let nfoAgentHasRenderedMainNfo = false;
+let nfoAgentMovieEditor = null;
+let nfoAgentMovieModeActive = false;
 
 const NFO_AGENT_SOURCE_LABELS = {
     existing_nfo: "aus vorhandener NFO",
@@ -16942,10 +16924,74 @@ const NFO_AGENT_SOURCE_LABELS = {
     metadata_provider_missing: "Metadatensuche liefert keine Angabe"
 };
 
+function ensureNfoAgentMovieEditor() {
+    const container = document.getElementById("nfo-agent-movie-editor");
+    if (!container || typeof container.appendChild !== "function" || typeof renderNfoEditor !== "function") {
+        return null;
+    }
+    if (!nfoAgentMovieEditor || nfoAgentMovieEditor.container !== container) {
+        nfoAgentMovieEditor = renderNfoEditor(
+            container,
+            { title: "", year: "", plot: "", fsk: "", genre: [] },
+            (values, changedField) => {
+                if (changedField) {
+                    const normalized = changedField === "genres" ? "genre" : changedField;
+                    nfoAgentFieldSources[normalized] = "manual";
+                    const label = document.getElementById(`nfo-agent-${normalized}-source`);
+                    if (label) label.textContent = NFO_AGENT_SOURCE_LABELS.manual;
+                }
+                updateNfoAgentCompletenessWarning();
+            },
+            {
+                idPrefix: "nfo-agent-movie",
+                titleLabel: "Filmtitel (movie.nfo)",
+                showSourceBadges: true
+            }
+        );
+        Object.entries(nfoAgentFieldSources).forEach(([field, src]) => {
+            const normalized = field === "genres" ? "genre" : field;
+            const labelText = NFO_AGENT_SOURCE_LABELS[src || "missing"] || "Noch keine Angabe";
+            nfoAgentMovieEditor.setFieldSource(normalized, labelText);
+        });
+    }
+    return nfoAgentMovieEditor;
+}
+
 function setNfoAgentFieldSource(field, source) {
-    nfoAgentFieldSources[field] = source || "missing";
-    const label = document.getElementById(`nfo-agent-${field}-source`);
-    if (label) label.textContent = NFO_AGENT_SOURCE_LABELS[nfoAgentFieldSources[field]] || "Noch keine Angabe";
+    const normalized = field === "genres" ? "genre" : field;
+    const resolvedSource = source || "missing";
+    nfoAgentFieldSources[normalized] = resolvedSource;
+    const labelText = NFO_AGENT_SOURCE_LABELS[resolvedSource] || "Noch keine Angabe";
+    const label = document.getElementById(`nfo-agent-${normalized}-source`);
+    if (label) label.textContent = labelText;
+    if (nfoAgentMovieEditor && typeof nfoAgentMovieEditor.setFieldSource === "function") {
+        nfoAgentMovieEditor.setFieldSource(normalized, labelText);
+    }
+}
+const setNfoAgentSource = setNfoAgentFieldSource;
+
+function getNfoAgentMainFieldValues(mediaType) {
+    if (mediaType === "movie" && nfoAgentMovieEditor && nfoAgentMovieModeActive) {
+        const vals = nfoAgentMovieEditor.getValues();
+        const genreList = Array.isArray(vals.genres) ? vals.genres : (Array.isArray(vals.genre) ? vals.genre : []);
+        return {
+            title: (vals.title || "").trim(),
+            year: (vals.year || "").trim(),
+            plot: (vals.plot || "").trim(),
+            genres: genreList,
+            fsk: vals.fsk || ""
+        };
+    }
+    return {
+        title: (document.getElementById("nfo-agent-show-title")?.value || "").trim(),
+        year: (document.getElementById("nfo-agent-show-year")?.value || "").trim(),
+        plot: (document.getElementById("nfo-agent-show-plot")?.value || "").trim(),
+        genres: (document.getElementById("nfo-agent-show-genres")?.value || "")
+            .split(/[,;]/)
+            .map(value => value.trim())
+            .filter(Boolean),
+        fsk: document.getElementById("nfo-agent-show-fsk")?.value || ""
+    };
 }
 
 function updateNfoAgentCompletenessWarning() {
@@ -16956,12 +17002,13 @@ function updateNfoAgentCompletenessWarning() {
     const missing = [];
 
     if (includeMainFields) {
+        const mainValues = getNfoAgentMainFieldValues(mediaType);
         [
-            ["Titel", document.getElementById("nfo-agent-show-title")?.value],
-            ["Jahr", document.getElementById("nfo-agent-show-year")?.value],
-            ["Plot", document.getElementById("nfo-agent-show-plot")?.value],
-            ["Genre", document.getElementById("nfo-agent-show-genres")?.value],
-            ["FSK", document.getElementById("nfo-agent-show-fsk")?.value]
+            ["Titel", mainValues.title],
+            ["Jahr", mainValues.year],
+            ["Plot", mainValues.plot],
+            ["Genre", (mainValues.genres || []).join(", ")],
+            ["FSK", mainValues.fsk]
         ].forEach(([label, value]) => {
             if (!String(value || "").trim()) missing.push(label);
         });
@@ -17053,6 +17100,8 @@ function applyNfoAgentEditMode() {
 
     if (mediaType !== "tvshow") {
         if (modeBar) modeBar.style.display = "none";
+        if (detailsSection) detailsSection.style.display = "block";
+        updateNfoAgentCompletenessWarning();
         return;
     }
 
@@ -17149,6 +17198,13 @@ function openNfoAgentModal(path, options = {}) {
     if (genresInput) genresInput.value = "";
     const fskSelect = document.getElementById("nfo-agent-show-fsk");
     if (fskSelect) fskSelect.value = "";
+    nfoAgentMovieModeActive = false;
+    document.getElementById("nfo-agent-series-fields")?.classList?.remove("hidden");
+    document.getElementById("nfo-agent-movie-editor")?.classList?.add("hidden");
+    if (nfoAgentMovieEditor) {
+        nfoAgentMovieEditor.setValues({ title: "", year: "", plot: "", fsk: "", genre: [] });
+        nfoAgentMovieEditor.clearFieldSources();
+    }
     nfoAgentFieldSources = {};
     ["title", "year", "plot", "genre", "fsk"].forEach(field => setNfoAgentFieldSource(field, "missing"));
     const overwriteInput = document.getElementById("nfo-agent-overwrite-nfo");
@@ -17225,13 +17281,26 @@ function openNfoAgentModal(path, options = {}) {
             if (data.metadata_id) {
                 document.getElementById("nfo-agent-metadata-id").value = data.metadata_id;
             }
-            if (data.metadata_name) {
-                document.getElementById("nfo-agent-show-title").value = data.metadata_name;
-                document.getElementById("nfo-agent-show-year").value = data.metadata_year || "";
-                document.getElementById("nfo-agent-show-plot").value = data.metadata_plot || "";
+            if (data.type === "movie") {
+                const editor = ensureNfoAgentMovieEditor();
+                if (editor) {
+                    editor.setValues({
+                        title: data.metadata_name || "",
+                        year: data.metadata_year || "",
+                        plot: data.metadata_plot || "",
+                        fsk: data.metadata_fsk || "",
+                        genre: data.metadata_genres || []
+                    });
+                }
+            } else {
+                if (data.metadata_name) {
+                    document.getElementById("nfo-agent-show-title").value = data.metadata_name;
+                    document.getElementById("nfo-agent-show-year").value = data.metadata_year || "";
+                    document.getElementById("nfo-agent-show-plot").value = data.metadata_plot || "";
+                }
+                if (genresInput) genresInput.value = (data.metadata_genres || []).join(", ");
+                if (fskSelect) fskSelect.value = data.metadata_fsk || "";
             }
-            if (genresInput) genresInput.value = (data.metadata_genres || []).join(", ");
-            if (fskSelect) fskSelect.value = data.metadata_fsk || "";
             const initialSource = data.metadata_source === "nfo" ? "existing_nfo" : (data.metadata_source || "missing");
             setNfoAgentFieldSource("title", data.metadata_name ? initialSource : "missing");
             setNfoAgentFieldSource("year", data.metadata_year ? initialSource : "missing");
@@ -17293,6 +17362,8 @@ function triggerNfoAgentMediaTypeChange() {
     const titleLabelText = document.getElementById("nfo-agent-title-label-text");
     const filesHeading = document.getElementById("nfo-agent-files-heading");
     const detailsHeading = document.getElementById("nfo-agent-details-heading");
+    const seriesFields = document.getElementById("nfo-agent-series-fields");
+    const movieEditorContainer = document.getElementById("nfo-agent-movie-editor");
 
     // Clear and build options based on type
     providerSelect.innerHTML = "";
@@ -17302,8 +17373,11 @@ function triggerNfoAgentMediaTypeChange() {
             <option value="tmdb_tv">TMDb Serie</option>
             <option value="manual">Manuell</option>
         `;
+        nfoAgentMovieModeActive = false;
         seasonContainer.style.display = "block";
         epSection.style.display = "block";
+        if (seriesFields) seriesFields.classList.remove("hidden");
+        if (movieEditorContainer) movieEditorContainer.classList.add("hidden");
         if (modalTitle) modalTitle.textContent = "NFO Agent: Serien-Metadaten";
         if (searchLabel) searchLabel.textContent = "Name der Serie:";
         if (titleLabelText) titleLabelText.textContent = "Serientitel (tvshow.nfo):";
@@ -17318,14 +17392,26 @@ function triggerNfoAgentMediaTypeChange() {
         `;
         seasonContainer.style.display = "none";
         epSection.style.display = "none";
+        if (seriesFields) seriesFields.classList.add("hidden");
+        if (movieEditorContainer) movieEditorContainer.classList.remove("hidden");
         if (modalTitle) modalTitle.textContent = "NFO Agent: Film-Metadaten";
         if (searchLabel) searchLabel.textContent = "Name des Films:";
         if (titleLabelText) titleLabelText.textContent = "Filmtitel (movie.nfo):";
         else if (titleLabel) titleLabel.textContent = "Filmtitel (movie.nfo):";
         if (detailsHeading) detailsHeading.textContent = "Film-Metadaten";
+        const editor = ensureNfoAgentMovieEditor();
+        nfoAgentMovieModeActive = Boolean(editor);
+        if (editor) {
+            Object.entries(nfoAgentFieldSources).forEach(([field, src]) => {
+                const normalized = field === "genres" ? "genre" : field;
+                const labelText = NFO_AGENT_SOURCE_LABELS[src || "missing"] || "Noch keine Angabe";
+                editor.setFieldSource(normalized, labelText);
+            });
+        }
     }
 
     if (nfoAgentScanData) renderNfoAgentFiles(nfoAgentScanData);
+    else updateNfoAgentCompletenessWarning();
 }
 
 function searchNfoAgentMetadata() {
@@ -17469,11 +17555,24 @@ function applyNfoAgentMediathekSelection(item) {
     if (providerSelect) providerSelect.value = "manual";
     const idInput = document.getElementById("nfo-agent-metadata-id");
     if (idInput) idInput.value = "";
-    const titleInput = document.getElementById("nfo-agent-show-title");
     const queryText = String(item.id).split("url_mediathek:", 2)[1] || item.name || "";
-    if (titleInput && !titleInput.value.trim() && queryText) {
-        titleInput.value = queryText;
-        setNfoAgentFieldSource("title", "manual");
+    const mediaType = document.getElementById("nfo-agent-media-type")?.value;
+    if (mediaType === "movie") {
+        const editor = ensureNfoAgentMovieEditor();
+        if (editor) {
+            nfoAgentMovieModeActive = true;
+            const currentVals = editor.getValues();
+            if (!currentVals.title && queryText) {
+                editor.setValues({ ...currentVals, title: queryText });
+                setNfoAgentFieldSource("title", "manual");
+            }
+        }
+    } else {
+        const titleInput = document.getElementById("nfo-agent-show-title");
+        if (titleInput && !titleInput.value.trim() && queryText) {
+            titleInput.value = queryText;
+            setNfoAgentFieldSource("title", "manual");
+        }
     }
     updateNfoAgentCompletenessWarning();
 }
@@ -17520,13 +17619,27 @@ function loadNfoAgentDetails(id, provider, type, season) {
             if (meta.error) throw new Error(meta.error);
             // Populate Show / Movie details
             const metadataTitle = meta.name || meta.title || "";
-            document.getElementById("nfo-agent-show-title").value = metadataTitle;
-            document.getElementById("nfo-agent-show-year").value = meta.year || "";
-            document.getElementById("nfo-agent-show-plot").value = meta.plot || "";
-            const genresInput = document.getElementById("nfo-agent-show-genres");
-            if (genresInput) genresInput.value = (meta.genres || []).join(", ");
-            const fskSelect = document.getElementById("nfo-agent-show-fsk");
-            if (fskSelect) fskSelect.value = meta.fsk || "";
+            if (type === "movie") {
+                const editor = ensureNfoAgentMovieEditor();
+                if (editor) {
+                    nfoAgentMovieModeActive = true;
+                    editor.setValues({
+                        title: metadataTitle,
+                        year: meta.year || "",
+                        plot: meta.plot || "",
+                        fsk: meta.fsk || "",
+                        genre: meta.genres || []
+                    });
+                }
+            } else {
+                document.getElementById("nfo-agent-show-title").value = metadataTitle;
+                document.getElementById("nfo-agent-show-year").value = meta.year || "";
+                document.getElementById("nfo-agent-show-plot").value = meta.plot || "";
+                const genresInput = document.getElementById("nfo-agent-show-genres");
+                if (genresInput) genresInput.value = (meta.genres || []).join(", ");
+                const fskSelect = document.getElementById("nfo-agent-show-fsk");
+                if (fskSelect) fskSelect.value = meta.fsk || "";
+            }
             setNfoAgentFieldSource("title", metadataTitle ? "metadata_provider" : "metadata_provider_missing");
             setNfoAgentFieldSource("year", meta.year ? "metadata_provider" : "metadata_provider_missing");
             setNfoAgentFieldSource("plot", meta.plot ? "metadata_provider" : "metadata_provider_missing");
@@ -17715,47 +17828,59 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
         const defaultSelectValue = isFocusedEpisode
             ? (epNum || "skip")
             : (status.needs_review ? (epNum || "skip") : "skip");
+        const startExpanded = isFocusedEpisode && defaultSelectValue !== "skip";
+
+        const buildSummaryText = (titleVal, fskVal) => {
+            const parts = [];
+            if (titleVal) parts.push(titleVal);
+            if (fskVal) parts.push(`FSK ${fskVal}`);
+            return parts.length ? `· ${parts.join(" · ")}` : "";
+        };
 
         const row = document.createElement("div");
         row.className = "nfo-episode-row";
         row.dataset.file = basename;
         row.dataset.defaultMapping = epNum || "skip";
-        row.style = "display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--border-light); padding: 10px; border-radius: 6px; background: rgba(255,255,255,0.01); text-align: left;";
         row.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-                <div style="font-weight: 500; font-size: 0.9em; word-break: break-all; color: var(--text-main); flex: 1;">
-                    ${escapeHTML(basename)}
+            <div class="nfo-episode-header">
+                <div class="nfo-episode-header-left" role="button" tabindex="0" title="Episoden-Details ein-/ausklappen">
+                    <span class="nfo-episode-chevron" style="display: ${defaultSelectValue === "skip" ? "none" : "inline-flex"};">${startExpanded ? "▾" : "▸"}</span>
+                    <span style="font-weight: 600; font-size: 0.9em; word-break: break-all; color: var(--text-main);">${escapeHTML(basename)}</span>
                     ${status.exists ?
                         (!status.needs_review && status.complete ?
-                            '<span style="color:#10b981; font-size:0.8em; margin-left:6px; font-weight:600;">[Metadaten vollständig]</span>' :
-                            '<span style="color:#f59e0b; font-size:0.8em; margin-left:6px; font-weight:600;">[Metadaten unvollständig]</span>') :
-                        '<span style="color:#ef4444; font-size:0.8em; margin-left:6px; font-weight:600;">[Keine NFO]</span>'
+                            '<span class="nfo-agent-status nfo-agent-status-success">Metadaten vollständig</span>' :
+                            '<span class="nfo-agent-status nfo-agent-status-warning">Metadaten unvollständig</span>') :
+                        '<span class="nfo-agent-status nfo-agent-status-danger">Keine NFO</span>'
                     }
+                    <span class="nfo-episode-summary-meta">${escapeHTML(buildSummaryText(displayedTitle, episodeFsk))}</span>
                 </div>
-                <div style="width: 140px;">
-                    <select class="nfo-agent-ep-mapping-select" data-file="${escapeHTML(basename)}" style="width: 100%; padding: 6px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(30,30,45,1); color: var(--text-main);">
-                        <option value="skip" ${defaultSelectValue === "skip" ? "selected" : ""}>⏭️ Überspringen</option>
-                        ${buildEpisodeOptionsHTML(scanData.files.length, defaultSelectValue)}
-                    </select>
+                <div class="nfo-episode-header-actions">
+                    <button type="button" class="nfo-episode-toggle-btn" style="display: ${defaultSelectValue === "skip" ? "none" : "inline-flex"}; align-items: center;">${startExpanded ? "Einklappen" : "Details"}</button>
+                    <div style="width: 145px;">
+                        <select class="nfo-agent-ep-mapping-select" data-file="${escapeHTML(basename)}">
+                            <option value="skip" ${defaultSelectValue === "skip" ? "selected" : ""}>⏭️ Überspringen</option>
+                            ${buildEpisodeOptionsHTML(scanData.files.length, defaultSelectValue)}
+                        </select>
+                    </div>
                 </div>
             </div>
-            <div class="nfo-agent-ep-override-container" style="display: ${defaultSelectValue === "skip" ? "none" : "flex"}; flex-direction: column; gap: 8px; border-top: 1px dashed var(--border-light); padding-top: 8px; margin-top: 4px;">
-                <div style="display: flex; gap: 8px;">
+            <div class="nfo-agent-ep-override-container" style="display: ${startExpanded ? "flex" : "none"}; flex-direction: column; gap: 8px; border-top: 1px dashed var(--border-light); padding-top: 10px; margin-top: 4px;">
+                <div style="display: flex; gap: 10px;">
                     <div style="flex: 1;">
-                        <label style="display: block; font-size: 0.75em; margin-bottom: 2px; color: var(--text-muted);">Episodentitel:</label>
-                        <input type="text" class="nfo-agent-ep-override-title" data-file="${escapeHTML(basename)}" value="${escapeHTML(displayedTitle)}" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.1); color: var(--text-main);">
+                        <label style="display: block; font-size: 0.78em; margin-bottom: 4px; color: var(--text-muted);">Episodentitel:</label>
+                        <input type="text" class="nfo-agent-ep-override-title" data-file="${escapeHTML(basename)}" value="${escapeHTML(displayedTitle)}">
                     </div>
-                    <div style="width: 130px;">
-                        <label style="display: block; font-size: 0.75em; margin-bottom: 2px; color: var(--text-muted);">Altersfreigabe:</label>
-                        <select class="nfo-agent-ep-override-fsk" data-file="${escapeHTML(basename)}" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(30,30,45,1); color: var(--text-main);">
+                    <div style="width: 150px;">
+                        <label style="display: block; font-size: 0.78em; margin-bottom: 4px; color: var(--text-muted);">Altersfreigabe:</label>
+                        <select class="nfo-agent-ep-override-fsk" data-file="${escapeHTML(basename)}">
                             <option value="" ${episodeFsk ? "" : "selected"}>Keine Angabe</option>
                             ${[0, 6, 12, 16, 18].map(value => `<option value="${value}" ${String(episodeFsk) === String(value) ? "selected" : ""}>FSK ${value}</option>`).join("")}
                         </select>
                     </div>
                 </div>
                 <div>
-                    <label style="display: block; font-size: 0.75em; margin-bottom: 2px; color: var(--text-muted);">Beschreibung (Episoden-Plot):</label>
-                    <textarea class="nfo-agent-ep-override-plot" data-file="${escapeHTML(basename)}" rows="2" style="width: 100%; padding: 5px; font-size: 0.85em; border-radius: 4px; border: 1px solid var(--border-light); background: rgba(0,0,0,0.1); color: var(--text-main); font-family: inherit; resize: vertical;">${escapeHTML(displayedPlot)}</textarea>
+                    <label style="display: block; font-size: 0.78em; margin-bottom: 4px; color: var(--text-muted);">Beschreibung (Episoden-Plot):</label>
+                    <textarea class="nfo-agent-ep-override-plot" data-file="${escapeHTML(basename)}" rows="2" style="resize: vertical;">${escapeHTML(displayedPlot)}</textarea>
                 </div>
             </div>
         `;
@@ -17763,6 +17888,67 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
 
         const select = row.querySelector(".nfo-agent-ep-mapping-select");
         const container = row.querySelector(".nfo-agent-ep-override-container");
+        const chevron = row.querySelector(".nfo-episode-chevron");
+        const toggleBtn = row.querySelector(".nfo-episode-toggle-btn");
+        const headerLeft = row.querySelector(".nfo-episode-header-left");
+        const summaryMeta = row.querySelector(".nfo-episode-summary-meta");
+        const epTitleInput = row.querySelector(".nfo-agent-ep-override-title");
+        const epFskSelect = row.querySelector(".nfo-agent-ep-override-fsk");
+
+        const syncEpisodeExpandedUI = (expanded) => {
+            if (!container) return;
+            if (select && select.value === "skip") {
+                container.style.display = "none";
+                if (chevron) chevron.style.display = "none";
+                if (toggleBtn) toggleBtn.style.display = "none";
+                return;
+            }
+            container.style.display = expanded ? "flex" : "none";
+            if (chevron) {
+                chevron.style.display = "inline-flex";
+                chevron.textContent = expanded ? "▾" : "▸";
+            }
+            if (toggleBtn) {
+                toggleBtn.style.display = "inline-flex";
+                toggleBtn.textContent = expanded ? "Einklappen" : "Details";
+            }
+        };
+
+        const updateSummaryMeta = () => {
+            if (!summaryMeta) return;
+            summaryMeta.textContent = buildSummaryText(
+                epTitleInput ? epTitleInput.value.trim() : "",
+                epFskSelect ? epFskSelect.value : ""
+            );
+        };
+
+        const toggleEpisodeDetails = () => {
+            if (!container || (select && select.value === "skip")) return;
+            const isCurrentlyOpen = container.style.display !== "none";
+            syncEpisodeExpandedUI(!isCurrentlyOpen);
+        };
+
+        if (toggleBtn && typeof toggleBtn.addEventListener === "function") {
+            toggleBtn.addEventListener("click", (e) => {
+                if (e && typeof e.stopPropagation === "function") e.stopPropagation();
+                toggleEpisodeDetails();
+            });
+        }
+        if (headerLeft && typeof headerLeft.addEventListener === "function") {
+            headerLeft.addEventListener("click", () => toggleEpisodeDetails());
+            headerLeft.addEventListener("keydown", (e) => {
+                if (e && (e.key === "Enter" || e.key === " ")) {
+                    if (typeof e.preventDefault === "function") e.preventDefault();
+                    toggleEpisodeDetails();
+                }
+            });
+        }
+        if (epTitleInput && typeof epTitleInput.addEventListener === "function") {
+            epTitleInput.addEventListener("input", updateSummaryMeta);
+        }
+        if (epFskSelect && typeof epFskSelect.addEventListener === "function") {
+            epFskSelect.addEventListener("change", updateSummaryMeta);
+        }
 
         // Dynamic episode metadata fetch helper
         const loadEpMetadata = async (val) => {
@@ -17788,6 +17974,7 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
                     if (select.value === val) {
                         if (titleInput) titleInput.value = data.title || "";
                         if (plotTextarea) plotTextarea.value = data.plot || "";
+                        updateSummaryMeta();
                     }
                 }
             } catch (err) {
@@ -17802,14 +17989,16 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
             loadEpMetadata(defaultSelectValue);
         }
 
-        select.addEventListener("change", () => {
-            if (select.value === "skip") {
-                container.style.display = "none";
-            } else {
-                container.style.display = "flex";
-                loadEpMetadata(select.value);
-            }
-        });
+        if (select && typeof select.addEventListener === "function") {
+            select.addEventListener("change", () => {
+                if (select.value === "skip") {
+                    syncEpisodeExpandedUI(false);
+                } else {
+                    syncEpisodeExpandedUI(container && container.style.display !== "none");
+                    loadEpMetadata(select.value);
+                }
+            });
+        }
     });
 
     applyNfoAgentEditMode();
@@ -17883,14 +18072,12 @@ function submitNfoAgentJob() {
         }
     });
 
-    const showTitle = document.getElementById("nfo-agent-show-title").value.trim();
-    const showYear = document.getElementById("nfo-agent-show-year").value.trim();
-    const showPlot = document.getElementById("nfo-agent-show-plot").value.trim();
-    const showGenres = (document.getElementById("nfo-agent-show-genres")?.value || "")
-        .split(/[,;]/)
-        .map(value => value.trim())
-        .filter(Boolean);
-    const showFsk = document.getElementById("nfo-agent-show-fsk")?.value || "";
+    const mainValues = getNfoAgentMainFieldValues(mediaType);
+    const showTitle = mainValues.title;
+    const showYear = mainValues.year;
+    const showPlot = mainValues.plot;
+    const showGenres = mainValues.genres;
+    const showFsk = mainValues.fsk;
 
     if (provider === "manual" && !showId) {
         showId = JSON.stringify({ title: showTitle, year: showYear, plot: showPlot, genres: showGenres, fsk: showFsk });
@@ -18052,6 +18239,13 @@ function closeNfoAgentModal() {
     if (modal) {
         modal.classList.remove("active");
         modal.classList.add("hidden");
+    }
+    nfoAgentMovieModeActive = false;
+    document.getElementById("nfo-agent-series-fields")?.classList?.remove("hidden");
+    document.getElementById("nfo-agent-movie-editor")?.classList?.add("hidden");
+    if (nfoAgentMovieEditor) {
+        nfoAgentMovieEditor.setValues({ title: "", year: "", plot: "", fsk: "", genre: [] });
+        nfoAgentMovieEditor.clearFieldSources();
     }
 
     if (wasFskModalOpenForNfoAgent) {
