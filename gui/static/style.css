@@ -52,6 +52,7 @@ body.theme-deep-space {
     --bg-base: #09090b;
     --bg-surface: #18181b;
     --bg-card: #18181b;
+    --bg-main: var(--bg-surface);
     --bg-glass: #18181b;
     --border-glass: #27272a;
     --border-light: rgba(255, 255, 255, 0.16);
@@ -66,6 +67,7 @@ body.theme-deep-space {
     --text-dark: #475569;
     --bg-input: #27272a;
     --bg-input-focus: #3f3f46;
+    --bg-hover: var(--bg-input-focus);
     --bg-sticky: #18181b;
     --radius-lg: 10px;
     --radius-md: 6px;
@@ -79,6 +81,7 @@ body.theme-nordic-slate {
     --bg-base: #0b0f19;
     --bg-surface: #151d30;
     --bg-card: rgba(26, 36, 56, 0.75);
+    --bg-main: var(--bg-surface);
     --bg-glass: rgba(15, 23, 42, 0.6);
     --border-glass: rgba(255, 255, 255, 0.07);
     --border-light: rgba(255, 255, 255, 0.16);
@@ -93,6 +96,7 @@ body.theme-nordic-slate {
     --text-dark: #64748b;
     --bg-input: rgba(0, 0, 0, 0.25);
     --bg-input-focus: rgba(0, 0, 0, 0.35);
+    --bg-hover: var(--bg-input-focus);
     --bg-sticky: #151f34;
 }
 
@@ -101,6 +105,7 @@ body.theme-amber-warmth {
     --bg-base: #120c0a;
     --bg-surface: #1f1410;
     --bg-card: rgba(38, 25, 20, 0.75);
+    --bg-main: var(--bg-surface);
     --bg-glass: rgba(24, 15, 12, 0.6);
     --border-glass: rgba(255, 255, 255, 0.07);
     --border-light: rgba(255, 255, 255, 0.16);
@@ -115,6 +120,7 @@ body.theme-amber-warmth {
     --text-dark: #a17a50;
     --bg-input: rgba(0, 0, 0, 0.25);
     --bg-input-focus: rgba(0, 0, 0, 0.35);
+    --bg-hover: var(--bg-input-focus);
     --bg-sticky: #1e1510;
 }
 
@@ -123,6 +129,7 @@ body.theme-apple-black {
     --bg-base: #000000;
     --bg-surface: #111112;
     --bg-card: rgba(22, 22, 23, 0.85);
+    --bg-main: var(--bg-surface);
     --bg-glass: rgba(29, 29, 31, 0.7);
     --border-glass: rgba(255, 255, 255, 0.08);
     --border-light: rgba(255, 255, 255, 0.18);
@@ -137,6 +144,7 @@ body.theme-apple-black {
     --text-dark: #ffffff;
     --bg-input: rgba(255, 255, 255, 0.04);
     --bg-input-focus: rgba(255, 255, 255, 0.08);
+    --bg-hover: var(--bg-input-focus);
     --bg-sticky: #131314;
 }
 
@@ -159,9 +167,11 @@ body.theme-superfood-light {
     --text-dark: #1b3456;
     --bg-input: #ffffff;
     --bg-input-focus: #ffffff;
+    --bg-hover: #f4e6da;
     --logo-gradient: linear-gradient(135deg, #ffffff 30%, #f08aa0 100%);
     --bg-sticky: #ffffff;
     --bg-card: #ffffff;
+    --bg-main: #ffffff;
     --radius-lg: 10px;
     --shadow-glass: 0 4px 16px rgba(27, 52, 86, 0.06);
 }
@@ -1085,11 +1095,11 @@ select:focus {
     border: 1px solid var(--border-glass);
     padding: 10px;
     border-radius: var(--radius-sm);
-    background: rgba(0, 0, 0, 0.15);
+    background: var(--bg-surface);
 }
 
 .search-item {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--bg-input);
     border: 1px solid var(--border-glass);
     border-radius: var(--radius-sm);
     padding: 10px;
@@ -1098,8 +1108,8 @@ select:focus {
 }
 
 .search-item:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--bg-hover);
+    border-color: var(--accent);
 }
 
 .search-item-name {
@@ -1119,7 +1129,7 @@ select:focus {
 .selected-show-card {
     margin-top: 20px;
     padding: 15px;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-surface);
     border: 1px solid var(--border-glass);
     border-radius: var(--radius-md);
 }
@@ -1142,7 +1152,7 @@ select:focus {
     grid-template-columns: 1fr 1.2fr;
     gap: 20px;
     align-items: flex-start;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-surface);
     border: 1px solid var(--border-glass);
     border-radius: var(--radius-md);
     padding: 12px 18px;
@@ -1150,12 +1160,12 @@ select:focus {
 }
 
 .matching-row:hover {
-    border-color: rgba(255, 255, 255, 0.15);
+    border-color: var(--border-light);
 }
 
 .match-file {
     font-size: 13px;
-    color: #e2e8f0;
+    color: var(--text-main);
     word-break: break-all;
     overflow-wrap: break-word;
     white-space: normal;
@@ -1174,14 +1184,16 @@ select:focus {
     flex: 1;
     font-size: 13px;
     padding: 6px 10px;
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--bg-input);
+    color: var(--text-main);
+    border: 1px solid var(--border-light);
 }
 
 .match-search-input {
     font-size: 13px;
     padding: 6px 10px;
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid var(--border-glass);
+    background: var(--bg-input);
+    border: 1px solid var(--border-light);
     border-radius: var(--radius-sm);
     color: var(--text-main);
     outline: none;
@@ -1190,28 +1202,28 @@ select:focus {
 
 .match-search-input:focus {
     border-color: var(--accent);
-    background: rgba(0, 0, 0, 0.6);
+    background: var(--bg-input-focus);
 }
 
 .selected-match-info {
     font-size: 11.5px;
-    color: #94a3b8; /* slate-400 */
+    color: var(--text-muted);
     margin-top: 2px;
     word-break: break-all;
     overflow-wrap: break-word;
     white-space: normal;
     line-height: 1.45;
     padding: 4px 8px;
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--bg-input);
     border-radius: var(--radius-sm);
-    border-left: 3px solid rgba(255, 255, 255, 0.15);
+    border-left: 3px solid var(--border-light);
     transition: all 0.2s ease;
 }
 
 .selected-match-info.matched {
-    color: #a78bfa; /* violet-400 */
+    color: var(--accent);
     border-left-color: var(--accent);
-    background: rgba(139, 92, 246, 0.05);
+    background: rgba(var(--accent-rgb), 0.1);
 }
 
 /* Options Block */
@@ -1633,13 +1645,13 @@ select:focus {
 .mode-card:hover {
     border-color: var(--accent);
     transform: translateY(-5px);
-    box-shadow: 0 10px 25px rgba(6, 182, 212, 0.15);
-    background: rgba(30, 41, 59, 0.8);
+    box-shadow: 0 10px 25px rgba(var(--accent-rgb), 0.15);
+    background: var(--bg-surface);
 }
 
 .mode-card.active {
     border-color: var(--primary);
-    background: rgba(30, 41, 59, 0.9);
+    background: var(--bg-surface);
     box-shadow: 0 0 0 2px var(--primary);
 }
 
@@ -1704,7 +1716,7 @@ select:focus {
     left: 0;
     right: 0;
     z-index: 1000;
-    background: rgba(16, 11, 26, 0.95);
+    background: var(--bg-card);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--border-glass);
@@ -1720,7 +1732,7 @@ select:focus {
 .autocomplete-search-wrapper {
     padding: 8px 10px;
     border-bottom: 1px solid var(--border-glass);
-    background: rgba(20, 15, 30, 0.98);
+    background: var(--bg-surface);
     position: relative;
     display: flex;
     align-items: center;
@@ -1742,8 +1754,8 @@ select:focus {
     width: 100%;
     padding: 6px 10px 6px 28px;
     font-size: 12px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--border-glass);
+    background: var(--bg-input);
+    border: 1px solid var(--border-light);
     border-radius: var(--radius-sm);
     color: var(--text-main);
     outline: none;
@@ -1751,8 +1763,8 @@ select:focus {
 }
 
 .autocomplete-search-input:focus {
-    border-color: rgba(168, 85, 247, 0.5);
-    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--accent);
+    background: var(--bg-input-focus);
 }
 
 .autocomplete-items-container {
@@ -4405,3 +4417,5 @@ body.runtime-docker .docker-only-info {
 .mw-wizard-option-sub { padding-left: 22px; display: flex; flex-direction: column; gap: 4px; }
 .mw-wizard-option-sub.hidden { display: none; }
 .mw-wizard-footer { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-glass); }
+#preview-modal > div:first-child,
+#preview-modal > div:last-child { background: var(--bg-surface); }

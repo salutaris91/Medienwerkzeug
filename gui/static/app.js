@@ -17989,14 +17989,16 @@ function renderNfoAgentFiles(scanData, loadedEpisodes = {}) {
             loadEpMetadata(defaultSelectValue);
         }
 
-        select.addEventListener("change", () => {
-            if (select.value === "skip") {
-                syncEpisodeExpandedUI(false);
-            } else {
-                syncEpisodeExpandedUI(container && container.style.display !== "none");
-                loadEpMetadata(select.value);
-            }
-        });
+        if (select && typeof select.addEventListener === "function") {
+            select.addEventListener("change", () => {
+                if (select.value === "skip") {
+                    syncEpisodeExpandedUI(false);
+                } else {
+                    syncEpisodeExpandedUI(container && container.style.display !== "none");
+                    loadEpMetadata(select.value);
+                }
+            });
+        }
     });
 
     applyNfoAgentEditMode();

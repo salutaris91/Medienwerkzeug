@@ -2213,3 +2213,45 @@ test('E3-AK1 & NFO-Agent regression: movie branch mounts nfo_editor.js in #nfo-a
     globalThis.document.querySelectorAll = originalQuerySelectorAll;
     globalThis.document.querySelector = originalQuerySelector;
 });
+
+test('NFO Agent collapsible episode rows and theme variable consistency across all 5 themes', () => {
+    const styleCss = fs.readFileSync(path.resolve(__dirname, '../../gui/static/style.css'), 'utf8');
+    for (const theme of ['theme-deep-space', 'theme-nordic-slate', 'theme-amber-warmth', 'theme-apple-black', 'theme-superfood-light']) {
+        const idx = styleCss.indexOf(`body.${theme}`);
+        assert.ok(idx !== -1, `${theme} block present`);
+        const block = styleCss.slice(idx, styleCss.indexOf('}', idx));
+        assert.ok(block.includes('--border-light:'), `${theme} defines --border-light`);
+        assert.ok(block.includes('--bg-main:'), `${theme} defines --bg-main`);
+    }
+    assert.ok(!styleCss.includes('background: rgba(30, 41, 59, 0.9)'), 'hardcoded dark slate removed from .mode-card.active');
+
+    document.getElementById("nfo-agent-media-type").value = "tvshow";
+    const listEl = document.getElementById("nfo-agent-episodes-list");
+    const origAppend = listEl.appendChild;
+    let appended = [];
+    listEl.appendChild = (el) => appended.push(el);
+
+    const scanObj = {
+        files: ["Staffel 01/Show S01E01.mkv", "Staffel Backup/Bonus.mkv"],
+        file_nfo_statuses: {
+            "Staffel 01/Show S01E01.mkv": { exists: true, needs_review: true, complete: false, title: "Pilot", plot: "", fsk: "12" },
+            "Staffel Backup/Bonus.mkv": { exists: false, needs_review: false, complete: false }
+        }
+    };
+    globalThis.setNfoAgentScanData(scanObj);
+    globalThis.nfoAgentEditContext = { originMode: "full", mode: "full", episodeFile: "" };
+    globalThis.renderNfoAgentFiles(scanObj, {});
+    assert.strictEqual(appended.length, 2);
+    assert.ok(appended[0].innerHTML.includes('class="nfo-episode-toggle-btn"'), 'toggle button rendered for mapped episode');
+    assert.ok(appended[0].innerHTML.includes('>Details</button>'), 'toggle button shows Details when collapsed in full mode');
+    assert.ok(appended[0].innerHTML.includes('class="nfo-agent-ep-override-container" style="display: none;'), 'override container starts collapsed in full mode');
+
+    appended = [];
+    globalThis.nfoAgentEditContext = { originMode: "episode", mode: "episode", episodeFile: "Staffel 01/Show S01E01.mkv" };
+    globalThis.renderNfoAgentFiles(scanObj, {});
+    assert.strictEqual(appended.length, 2);
+    assert.ok(appended[0].innerHTML.includes('>Einklappen</button>'), 'toggle button shows Einklappen when expanded in episode mode');
+    assert.ok(appended[0].innerHTML.includes('class="nfo-agent-ep-override-container" style="display: flex;'), 'override container starts expanded in episode mode');
+
+    listEl.appendChild = origAppend;
+});

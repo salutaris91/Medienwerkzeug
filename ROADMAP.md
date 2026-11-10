@@ -2404,6 +2404,26 @@ Jede Etappe soll einzeln im Alltag nutzbar sein, auch für einen einzelnen Film.
 **Fortschritt Etappen (`docs/sessions/2026-11-06-film-assistent/`):**
 - **Etappe E1:** [x] umgesetzt & Handtest Alex bestanden (2026-11-09, Branch `feat/film-wizard-e1`, PR #168, Gate-A2 APPROVED + Live-Fixes für numerische TMDb-IDs, OFDb-Slug-Encoding/`itemprop="description"`-Plot und Wizard-UX).
 - **Etappe E2:** [x] umgesetzt & Handtest Alex bestanden (2026-11-10, Branch `feat/film-wizard-e2`, PR #170, Gate-A2 APPROVED + Live-Fixes für Zielordner-Reihenfolge, Zielpfad-Vorschau ohne Doppel-Ordner, Untertitel-Sprachkürzel und einklappbare Schritt-4-Gruppen).
+- **Etappe E3:** [x] umgesetzt & Handtest Alex bestanden (2026-11-10, Branch `feat/film-wizard-e3`, NFO-Agent-Filmpfad an `nfo_editor.js` angedockt, Film-Altcode entfernt, symmetrisches 2-Spalten-Editor-Grid, einklappbare Episoden-Karten im Serien-NFO-Agenten und Theme-Variablen-Fix für Doku/Serien-Vorschau).
 
 ### Aufwand (grob)
 Groß; nur in Etappen. Planung zuerst (Kreativteam, direkt am Code), danach je Etappe eine Gate-A2-Kette.
+
+---
+
+## 93. Geführten Assistenten auf Doku und Serien ausweiten
+
+- [ ] **Status:** Offen (Entscheidung Alex im E3-Handtest, 2026-11-10: nach Abschluss der Film-Assistent-Kette #92 angehen)
+
+**Einordnung / Priorität:** Mittel. Während Filme seit #92 direkt im geführten 4-Schritte-Assistenten (`#modal-film-wizard`) verarbeitet werden, laufen **Doku** (`#context-movie` + `#preview-modal`) und **Serien** (`#context-series` + `#preview-modal`) weiterhin über die lange Scroll-Ansicht mit anschließendem Vorschau-Modal. Im E3-Handtest wurden die dringendsten Theme-/Kontrast-Altlasten an `.mode-card` und `#preview-modal` bereits über CSS-Variablen behoben; mittelfristig sollen auch Doku und Serie in das geführte Assistenten-Muster überführt werden, damit `#context-movie`, `#context-series` und `#preview-modal` vollständig entfallen können.
+
+**Vorgeschlagene Aufteilung (nach Abschluss von #92 E6):**
+1. **Stufe 1 — Doku-Assistent (Einzeldokus in den bestehenden Wizard integrieren):**
+   - Einzeldokus nutzen im Backend und bei der Metadatensuche nahezu denselben Ablauf wie Filme (`media_type: "movie"`, abweichender Standard-Zielordner `/Dokus` bzw. Doku-Kategorie).
+   - Klick auf „Doku verarbeiten“ (`#mode-movie` bei `isDoku`) öffnet direkt `#modal-film-wizard` im Doku-Modus (Titel „Doku-Assistent“, Doku-Zielordner vorausgewählt); danach kann `#context-movie` komplett abgebaut werden.
+2. **Stufe 2 — Serien-Assistent (inkl. Staffel-/Episoden-Zuordnung):**
+   - Eigener geführter Ablauf für Serien (Lokales Profil oder TMDB/TVDB-Suche → Serien-Metadaten & Staffel/Episoden-Mapping → Artwork → Vorschau & Verarbeitung mit Namenskonflikt-/Staffel-Warnungen).
+   - Ablösung von `#context-series` und `#preview-modal-overlay`.
+
+### Aufwand (grob)
+Stufe 1 (Doku): klein bis mittel (~1 Gate-A2-Etappe). Stufe 2 (Serie): mittel bis groß (eigene Planung wegen Episoden-Mapping und Profil-Logik).
