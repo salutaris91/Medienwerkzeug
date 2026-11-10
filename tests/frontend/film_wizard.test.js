@@ -1549,6 +1549,8 @@ function createEstimateHarness(estimateResponder) {
     legacySlider.id = 'movie-quality-slider';
     let legacyChangeEvents = 0;
     legacySlider.addEventListener('change', () => { legacyChangeEvents += 1; });
+    let legacyInputEvents = 0;
+    legacySlider.addEventListener('input', () => { legacyInputEvents += 1; });
     doc.body.appendChild(legacySlider);
 
     const estimateCalls = [];
@@ -1584,6 +1586,7 @@ function createEstimateHarness(estimateResponder) {
     return {
         doc, wizard, estimateCalls, logs, flush, enterStep4,
         getLegacyChangeEvents: () => legacyChangeEvents,
+        getLegacyInputEvents: () => legacyInputEvents,
         getPersistCalls: () => persistCalls,
         estimateEl: () => doc.getElementById('mw-wizard-size-estimate'),
     };
@@ -1640,6 +1643,8 @@ test('Review R1: slider mirrors to the legacy slider without change events, fore
     assert.equal(harness.doc.getElementById('movie-quality-slider').value, '40');
     assert.equal(harness.getLegacyChangeEvents(), 0);
     assert.equal(harness.getPersistCalls(), 1);
+    // Legacy label/hints refresh via a single input event on release (no legacy estimate)
+    assert.equal(harness.getLegacyInputEvents(), 1);
     assert.equal(harness.estimateCalls.length, 2);
     assert.match(harness.estimateEl().textContent, /-75%/);
 
@@ -1717,4 +1722,23 @@ test('Handtest 2026-11-09 (4): completed steps show a check mark, active and ope
     assert.equal(dots[0].classList.contains('completed'), true);
     wizard.goToStep(1);
     assert.deepEqual(dots.map((dot) => dot.textContent), ['1', '2', '3', '4']);
+});
+
+test('Review R2: a preview reload while a forecast is running reuses the pending request instead of starting a second test run', async () => {
+    let releaseFirst;
+    const harness = createEstimateHarness(() => new Promise((resolve) => { releaseFirst = () => resolve(okEstimate(4000, 2000)); }));
+    await harness.enterStep4();
+    assert.equal(harness.estimateCalls.length, 1);
+    assert.match(harness.estimateEl().textContent, /läuft/);
+
+    harness.doc.getElementById('mw-wizard-nas-destination').dispatchEvent({ type: 'change' });
+    await harness.flush();
+    await harness.flush();
+    assert.equal(harness.estimateCalls.length, 1);
+
+    releaseFirst();
+    await harness.flush();
+    await harness.flush();
+    assert.match(harness.estimateEl().textContent, /-50%/);
+    assert.match(harness.doc.getElementById('mw-wizard-options-summary').textContent, /~/);
 });

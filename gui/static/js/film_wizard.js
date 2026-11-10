@@ -1,9 +1,9 @@
-import { renderNfoEditor, buildMovieNfoOverrides } from './nfo_editor.js?v=112';
-import { formatBytes } from './format.js?v=112';
+import { renderNfoEditor, buildMovieNfoOverrides } from './nfo_editor.js?v=113';
+import { formatBytes } from './format.js?v=113';
 import {
     renderPreviewData,
     collectPreviewSelection,
-} from './preview_render.js?v=112';
+} from './preview_render.js?v=113';
 
 let activeWizardInstance = null;
 
@@ -347,6 +347,7 @@ export function createFilmWizard(options = {}) {
     let lastSizeEstimateText = "";
     let lastPreviewVideoFiles = [];
     const sizeEstimateCache = new Map();
+    const sizeEstimateInFlight = new Map();
     let persistOptionsCallback = options.onPersistOptions || null;
     const previewCheckboxState = {
         renames: new Map(),
@@ -539,6 +540,56 @@ export function createFilmWizard(options = {}) {
         updateOptionsSummary();
     }
 
+    // Runs one forecast request and turns the answer into display texts. Shared per cache key while
+    // in flight, so a preview reload during a running forecast does not start a second ffmpeg test run.
+    function requestSizeEstimate(cacheKey, quality) {
+        if (sizeEstimateInFlight.has(cacheKey)) return sizeEstimateInFlight.get(cacheKey);
+        const pending = (async () => {
+            const res = await fetchFn("/api/estimate-conversion", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ project_name: currentProjectName, filenames: lastPreviewVideoFiles, quality }),
+            });
+            if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : "Fehler"}`);
+            const data = await res.json();
+            let sizeIn = 0;
+            let sizeOut = 0;
+            let firstFileError = "";
+            for (const est of Object.values((data && data.estimates) || {})) {
+                if (est && est.size_in !== undefined && est.size_out !== undefined) {
+                    sizeIn += est.size_in;
+                    sizeOut += est.size_out;
+                } else if (est && est.error && !firstFileError) {
+                    firstFileError = String(est.error);
+                }
+            }
+            if (sizeIn > 0) {
+                const pct = Math.round(((sizeIn - sizeOut) / sizeIn) * 100);
+                const result = {
+                    ok: true,
+                    summaryText: `~${formatBytes(sizeOut)}`,
+                    detailText: `Voraussichtliche Größe: ${formatBytes(sizeIn)} → ~${formatBytes(sizeOut)} (-${pct}%)`,
+                };
+                // Cache even if the caller has moved on: the result stays valid for these parameters.
+                sizeEstimateCache.set(cacheKey, result);
+                return result;
+            }
+            return {
+                ok: false,
+                summaryText: "",
+                detailText: firstFileError
+                    ? `Größenprognose nicht verfügbar (${firstFileError}).`
+                    : "Größenprognose nicht verfügbar.",
+            };
+        })();
+        sizeEstimateInFlight.set(cacheKey, pending);
+        pending.then(
+            () => sizeEstimateInFlight.delete(cacheKey),
+            () => sizeEstimateInFlight.delete(cacheKey)
+        );
+        return pending;
+    }
+
     // Size forecast via the existing /api/estimate-conversion (short test conversion, ~15 s).
     // Only runs with H.265 enabled; stale answers are discarded, errors are shown but never block.
     async function refreshSizeEstimate() {
@@ -563,41 +614,15 @@ export function createFilmWizard(options = {}) {
         }
         estimateEl.textContent = "Größenprognose läuft (Test-Konvertierung, ca. 15 Sek.)…";
         try {
-            const res = await fetchFn("/api/estimate-conversion", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ project_name: currentProjectName, filenames: lastPreviewVideoFiles, quality }),
-            });
+            const result = await requestSizeEstimate(cacheKey, quality);
             if (reqSeq !== sizeEstimateSeq) return null;
-            if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : "Fehler"}`);
-            const data = await res.json();
-            if (reqSeq !== sizeEstimateSeq) return null;
-            let sizeIn = 0;
-            let sizeOut = 0;
-            let firstFileError = "";
-            for (const est of Object.values((data && data.estimates) || {})) {
-                if (est && est.size_in !== undefined && est.size_out !== undefined) {
-                    sizeIn += est.size_in;
-                    sizeOut += est.size_out;
-                } else if (est && est.error && !firstFileError) {
-                    firstFileError = String(est.error);
-                }
-            }
-            if (sizeIn > 0) {
-                const pct = Math.round(((sizeIn - sizeOut) / sizeIn) * 100);
-                const result = {
-                    summaryText: `~${formatBytes(sizeOut)}`,
-                    detailText: `Voraussichtliche Größe: ${formatBytes(sizeIn)} → ~${formatBytes(sizeOut)} (-${pct}%)`,
-                };
-                sizeEstimateCache.set(cacheKey, result);
+            if (result.ok) {
                 showSizeEstimateResult(estimateEl, result);
             } else {
-                estimateEl.textContent = firstFileError
-                    ? `Größenprognose nicht verfügbar (${firstFileError}).`
-                    : "Größenprognose nicht verfügbar.";
+                estimateEl.textContent = result.detailText;
                 updateOptionsSummary();
             }
-            return data;
+            return result;
         } catch (err) {
             if (reqSeq !== sizeEstimateSeq) return null;
             const msg = err && err.message ? err.message : String(err);
@@ -704,11 +729,20 @@ export function createFilmWizard(options = {}) {
 
     // dispatchChange=false: only mirror the value. Used for H.265 and quality, whose legacy change
     // listeners start an ffmpeg size estimate for the (hidden) legacy panel on every event.
-    function syncOptionBackToContext(wizardEl, contextId, prop = "checked", { dispatchChange = true } = {}) {
+    function syncOptionBackToContext(wizardEl, contextId, prop = "checked", { dispatchChange = true, dispatchInput = false } = {}) {
         const ctxEl = getEl(contextId);
         if (!wizardEl || !ctxEl || (ctxEl.tagName !== "INPUT" && ctxEl.tagName !== "SELECT")) return;
         ctxEl[prop] = wizardEl[prop];
-        if (!dispatchChange) return;
+        if (!dispatchChange) {
+            // Legacy "input" listeners only refresh the value label and quality hints (no estimate),
+            // so the legacy panel stays in sync without starting an ffmpeg test run.
+            if (dispatchInput && typeof ctxEl.dispatchEvent === "function" && typeof Event === "function") {
+                try {
+                    ctxEl.dispatchEvent(new Event("input"));
+                } catch (_) {}
+            }
+            return;
+        }
         if (typeof ctxEl.dispatchEvent === "function" && typeof Event === "function") {
             try {
                 ctxEl.dispatchEvent(new Event("change"));
@@ -1355,7 +1389,7 @@ export function createFilmWizard(options = {}) {
         optQualitySlider.addEventListener("input", () => updateOptionSubcontainers());
         optQualitySlider.addEventListener("change", () => {
             updateOptionSubcontainers();
-            syncOptionBackToContext(optQualitySlider, "movie-quality-slider", "value", { dispatchChange: false });
+            syncOptionBackToContext(optQualitySlider, "movie-quality-slider", "value", { dispatchChange: false, dispatchInput: true });
             persistOptions();
             if (currentStep === 4 && hasValidPreview) refreshSizeEstimate();
         });

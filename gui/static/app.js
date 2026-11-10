@@ -1,15 +1,15 @@
-import { applyTheme } from './js/theme.js?v=112';
-import { cleanSeriesName } from './js/utils.js?v=112';
-import { formatBytes } from './js/format.js?v=112';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=112';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=112';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=112';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=112';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=112';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=112';
-import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=112';
-import { renderNfoEditor, buildMovieNfoOverrides } from './js/nfo_editor.js?v=112';
-import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=112';
+import { applyTheme } from './js/theme.js?v=113';
+import { cleanSeriesName } from './js/utils.js?v=113';
+import { formatBytes } from './js/format.js?v=113';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=113';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=113';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=113';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=113';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=113';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=113';
+import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=113';
+import { renderNfoEditor, buildMovieNfoOverrides } from './js/nfo_editor.js?v=113';
+import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=113';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
