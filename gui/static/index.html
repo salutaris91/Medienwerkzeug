@@ -6,7 +6,7 @@
     <meta name="description" content="Medienwerkzeug - Automatisches Umbennen, Konvertieren und Kopieren von Filmen und Serien auf das NAS.">
     <meta name="color-scheme" content="dark">
     <title>Medienwerkzeug v5.0 (Master-Detail)</title>
-    <link rel="stylesheet" href="style.css?v=58">
+    <link rel="stylesheet" href="style.css?v=59">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -2763,7 +2763,7 @@ group_add:
     </div>
 </div>
 
-    <script type="module" src="app.js?v=114"></script>
+    <script type="module" src="app.js?v=115"></script>
 
     <!-- Modal: Confirm Merge -->
     <div id="modal-confirm-merge" class="mw-modal-overlay">
@@ -3206,7 +3206,7 @@ group_add:
             </div>
 
             <!-- Search Results Panel -->
-            <div id="nfo-agent-search-results" style="display: none; margin-bottom: 16px; max-height: 280px; min-height: 60px; resize: vertical; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 4px; background: var(--bg-surface); padding: 8px;">
+            <div id="nfo-agent-search-results" style="display: none; margin-bottom: 12px; max-height: 240px; resize: vertical; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 4px; background: var(--bg-surface); padding: 8px;">
             </div>
 
             <!-- Advanced Settings (ID / Provider) -->
@@ -3253,19 +3253,19 @@ group_add:
                         <div id="nfo-agent-main-nfo-status"></div>
                     </div>
                     <div id="nfo-agent-series-fields">
-                        <div style="display: flex; gap: 12px;">
-                            <div style="flex: 1;">
-                                <label id="nfo-agent-title-label" style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);"><span id="nfo-agent-title-label-text">Serien-/Filmtitel (Haupt-NFO):</span> <small id="nfo-agent-title-source" class="nfo-agent-field-source">Noch keine Angabe</small></label>
-                                <input type="text" id="nfo-agent-show-title" style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--border-light); background: var(--bg-input); color: var(--text-main);">
+                        <div class="nfo-agent-metadata-grid">
+                            <div class="nfo-agent-field">
+                                <label id="nfo-agent-title-label" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 22px; color: var(--text-muted);"><span id="nfo-agent-title-label-text">Serien-/Filmtitel (Haupt-NFO):</span> <small id="nfo-agent-title-source" class="nfo-agent-field-source">Noch keine Angabe</small></label>
+                                <input type="text" id="nfo-agent-show-title">
                             </div>
-                            <div style="width: 100px;">
-                                <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Jahr: <small id="nfo-agent-year-source" class="nfo-agent-field-source">Noch keine Angabe</small></label>
-                                <input type="text" id="nfo-agent-show-year" style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--border-light); background: var(--bg-input); color: var(--text-main);">
+                            <div class="nfo-agent-field">
+                                <label style="display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 22px; color: var(--text-muted);">Jahr: <small id="nfo-agent-year-source" class="nfo-agent-field-source">Noch keine Angabe</small></label>
+                                <input type="text" id="nfo-agent-show-year">
                             </div>
                         </div>
-                        <div>
-                            <label style="display: block; font-size: 0.8em; margin-bottom: 4px; color: var(--text-muted);">Beschreibung (Plot): <small id="nfo-agent-plot-source" class="nfo-agent-field-source">Noch keine Angabe</small></label>
-                            <textarea id="nfo-agent-show-plot" rows="2" style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid var(--border-light); background: var(--bg-input); color: var(--text-main); font-family: inherit; font-size: 0.9em; resize: vertical;"></textarea>
+                        <div class="nfo-agent-field">
+                            <label style="display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 22px; color: var(--text-muted);">Beschreibung (Plot): <small id="nfo-agent-plot-source" class="nfo-agent-field-source">Noch keine Angabe</small></label>
+                            <textarea id="nfo-agent-show-plot" rows="2" style="width: 100%; padding: 7px 10px; border-radius: 4px; border: 1px solid var(--border-light); background: var(--bg-input); color: var(--text-main); font-family: inherit; font-size: 0.9em; resize: vertical; box-sizing: border-box;"></textarea>
                         </div>
                         <div class="nfo-agent-metadata-grid">
                             <label class="nfo-agent-field">

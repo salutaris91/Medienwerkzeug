@@ -209,13 +209,13 @@ export function renderNfoEditor(container, initialData = {}, onChangeOrOptions =
     genresInput.placeholder = "z. B. Drama, Sci-Fi";
     safeSetAttribute(genresInput, "data-field", "genres");
 
-    metaRow.appendChild(createFieldWrapper(doc, "FSK", "fsk", fskSelect, createSourceBadge("fsk")));
     metaRow.appendChild(createFieldWrapper(doc, "Genre", "genres", genresInput, createSourceBadge("genre")));
+    metaRow.appendChild(createFieldWrapper(doc, "FSK", "fsk", fskSelect, createSourceBadge("fsk")));
 
     const plotTextarea = doc.createElement("textarea");
     plotTextarea.id = `${prefix}-plot`;
     plotTextarea.className = "mw-wizard-textarea";
-    plotTextarea.rows = 4;
+    plotTextarea.rows = 3;
     plotTextarea.placeholder = "Handlung / Beschreibung...";
     safeSetAttribute(plotTextarea, "data-field", "plot");
 
