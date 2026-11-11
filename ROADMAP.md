@@ -60,8 +60,8 @@ die aktive After-Release-Roadmap übernommen.
 | 51 | NFO-Agent Vollständigkeit: FSK/Genre/Artwork | teilweise | klein–mittel |
 | 52 | NFO-Agent: Mehrstufiger Wizard (Quelle wählen → Prüfen & Bearbeiten) | geplant | mittel |
 | 53 | Health-Check: Schweregrade aus der Oberfläche entfernen | geplant | klein–mittel |
-| 54 | Metadatendienste: Alle Abrufe auf den Retry-Helfer umstellen | teilweise (Teil 1 erledigt) | mittel |
-| 55 | NFO-Agent: Multi-Provider-Metadatenvergleich mit Feld-Badges | geplant | mittel–groß |
+| 54 | Metadatendienste: Alle Abrufe auf den Retry-Helfer umstellen | erledigt (2026-11-11, E4) | mittel |
+| 55 | NFO-Agent: Multi-Provider-Metadatenvergleich mit Feld-Badges | erledigt (2026-11-11, E4) | mittel–groß |
 | 58 | Auth-Härtung: offener Default-Endpoint + fehlende Server-Whitelist | geplant | mittel |
 | 59 | API-Key löschen: expliziter UI-Weg (statt nur Ersetzen) | erledigt (2026-09-14) | klein–mittel |
 | 60 | Theme-Autosave: Fehler sichtbar statt nur in Browser-Konsole | erledigt | klein |
@@ -1632,13 +1632,15 @@ Alle externen Metadaten-Abrufe nutzen denselben Retry-Helfer (bzw. eine Binär-V
 ### Aufwand (grob)
 Mittel: mechanische Umstellung vieler Stellen mit sorgfältiger Prüfung der bestehenden Fehlerpfade.
 
-**Stand (Teil 1 erledigt):**
+**Stand (erledigt, 2026-11-11):**
 - **Teil 1 (JSON-Abrufe) erledigt:** Alle direkten `urllib.request.urlopen`-Aufrufe in `gui/mw_metadata.py`, deren Antwort als JSON verarbeitet wird, wurden auf `fetch_json_with_retry` umgestellt (`timeout=10`, frische `build_request`-Callables). Testabdeckung in `tests/test_metadata_retry.py`.
-- **Teil 2 (HTML- und Binär-Abrufe) offen:** Artwork-Downloads (`_download_with_timeout`) und HTML-Scraping (`fernsehserien.de`, `search_ofdb`, `resolve_mediathek_url_topic`) bleiben als Teil 2 offen.
+- **Teil 2 (HTML- und Binär-Abrufe) [x] erledigt (2026-11-11, Etappe E4 von #92):** `get_fernsehserien_episodes`, `search_ofdb` und `resolve_mediathek_url_topic` nutzen `fetch_html_with_retry` (inkl. `opener`-Unterstützung für `SmartRedirectHandler`); Artwork-/Binär-Downloads laufen über `_download_with_retry` mit frischem Request/File-Handle je Versuch, 0-Byte- und `Content-Length`-/Teildownload-Prüfung (`IncompleteRead`) sowie Aufräumen fehlerhafter Zieldateien.
 
 ---
 
 ## 55. NFO-Agent: Multi-Provider-Metadatenvergleich mit Feld-Badges
+
+**Status:** [x] erledigt (2026-11-11, Etappe E4 von #92, Branch `feat/film-wizard-e4`, Gate-A2 APPROVED nach 2 Runden; Handtest Alex offen: paralleler Multi-Provider-Abruf via `fetch_movie_comparison_data` und `/api/metadata/fetch`, klickbare Provider-Badges in `nfo_editor.js` mit automatischer Lücken-Auffüllung für Alternativ-Felder und kumulativer Genre-Vereinigung, 1-Klick-Paarung + Vergleichs-Checkboxen in Schritt 1 von `film_wizard.js`, Teil-Erfolg-Resilienz mit Hinweis-Banner).
 
 **Einordnung / Priorität:** Funktionserweiterung, Idee von Alex am 18.07.2026; baut auf Wizard (Item 52) und Retry-Helfer auf. Reihenfolge: nach Item 52.
 
@@ -2405,6 +2407,7 @@ Jede Etappe soll einzeln im Alltag nutzbar sein, auch für einen einzelnen Film.
 - **Etappe E1:** [x] umgesetzt & Handtest Alex bestanden (2026-11-09, Branch `feat/film-wizard-e1`, PR #168, Gate-A2 APPROVED + Live-Fixes für numerische TMDb-IDs, OFDb-Slug-Encoding/`itemprop="description"`-Plot und Wizard-UX).
 - **Etappe E2:** [x] umgesetzt & Handtest Alex bestanden (2026-11-10, Branch `feat/film-wizard-e2`, PR #170, Gate-A2 APPROVED + Live-Fixes für Zielordner-Reihenfolge, Zielpfad-Vorschau ohne Doppel-Ordner, Untertitel-Sprachkürzel und einklappbare Schritt-4-Gruppen).
 - **Etappe E3:** [x] umgesetzt & Handtest Alex bestanden (2026-11-10, Branch `feat/film-wizard-e3`, NFO-Agent-Filmpfad an `nfo_editor.js` angedockt, Film-Altcode entfernt, symmetrisches 2-Spalten-Editor-Grid, einklappbare Episoden-Karten im Serien-NFO-Agenten und Theme-Variablen-Fix für Doku/Serien-Vorschau).
+- **Etappe E4:** [x] umgesetzt (2026-11-11, Branch `feat/film-wizard-e4`, Gate-A2 APPROVED nach 2 Runden; Handtest Alex offen — Provider-Vergleich mit Feld-Badges in `nfo_editor.js`, 1-Klick-Gegentreffer-Paarung & Vergleichs-Checkboxen in Schritt 1, automatische Lücken-Auffüllung & kumulative Genres in Schritt 2, Teil-Erfolg-Resilienz sowie HTML-/Binär-Retry #54 Teil 2).
 
 ### Aufwand (grob)
 Groß; nur in Etappen. Planung zuerst (Kreativteam, direkt am Code), danach je Etappe eine Gate-A2-Kette.

@@ -1,6 +1,42 @@
 const VALID_FSK_VALUES = new Set(["0", "6", "12", "16", "18"]);
 const ALL_FIELDS = ["title", "year", "plot", "fsk", "genres"];
+const ALTERNATIVE_FIELDS = ["title", "year", "plot", "fsk"];
 const SOURCE_BADGE_FIELDS = ["title", "year", "fsk", "genre", "plot"];
+
+export function formatProviderLabel(provider) {
+    const prov = String(provider || "").trim().toLowerCase();
+    if (prov === "tmdb" || prov === "tmdb_movie") return "TMDb";
+    if (prov === "ofdb") return "OFDb";
+    if (prov === "manual") return "Manuell";
+    return prov ? prov.toUpperCase() : "";
+}
+
+function syncElementClasses(el, ...initialClasses) {
+    if (!el) return;
+    const clean = initialClasses.filter(Boolean);
+    el.className = clean.join(" ");
+    if (el.classList && typeof el.classList.add === "function") {
+        for (const cls of clean) {
+            el.classList.add(cls);
+        }
+    }
+}
+
+function setElementClass(el, className, active) {
+    if (!el || !className) return;
+    const isOn = Boolean(active);
+    if (el.classList && typeof el.classList.toggle === "function") {
+        el.classList.toggle(className, isOn);
+    }
+    const parts = String(el.className || "").split(/\s+/).filter(Boolean);
+    const has = parts.includes(className);
+    if (isOn && !has) {
+        parts.push(className);
+        el.className = parts.join(" ");
+    } else if (!isOn && has) {
+        el.className = parts.filter((c) => c !== className).join(" ");
+    }
+}
 
 export function normalizeFskValue(rawValue) {
     if (rawValue === null || rawValue === undefined) return "";
@@ -90,13 +126,13 @@ function normalizeSourceFieldKey(field) {
     return SOURCE_BADGE_FIELDS.includes(key) ? key : "";
 }
 
-function createFieldWrapper(doc, labelText, fieldKey, inputEl, badgeEl = null) {
+function createFieldWrapper(doc, labelText, fieldKey, inputEl, badgeEl = null, fieldBadgesContainer = null) {
     const wrapper = doc.createElement("div");
-    wrapper.className = `mw-wizard-field mw-wizard-field-${fieldKey}`;
+    syncElementClasses(wrapper, "mw-wizard-field", `mw-wizard-field-${fieldKey}`);
     safeSetAttribute(wrapper, "data-editor-field", fieldKey);
 
     const label = doc.createElement("label");
-    label.className = "mw-wizard-label";
+    syncElementClasses(label, "mw-wizard-label");
     if (inputEl.id) {
         safeSetAttribute(label, "for", inputEl.id);
     }
@@ -107,6 +143,9 @@ function createFieldWrapper(doc, labelText, fieldKey, inputEl, badgeEl = null) {
 
     wrapper.appendChild(label);
     wrapper.appendChild(inputEl);
+    if (fieldBadgesContainer) {
+        wrapper.appendChild(fieldBadgesContainer);
+    }
     return wrapper;
 }
 
@@ -126,9 +165,6 @@ export function renderNfoEditor(container, initialData = {}, onChangeOrOptions =
     const titleLabelText = options.titleLabel || "Titel";
 
     container.innerHTML = "";
-    if (container.children && container.children.length > 0) {
-        container.children.length = 0;
-    }
 
     const sourceBadges = {};
     const fieldSources = {
@@ -138,6 +174,38 @@ export function renderNfoEditor(container, initialData = {}, onChangeOrOptions =
         genre: "",
         plot: "",
     };
+    const fieldBadgeContainers = {};
+    const providerBadgesByField = {
+        title: {},
+        year: {},
+        genres: {},
+        fsk: {},
+        plot: {},
+    };
+    const selectedProvidersByField = {
+        title: new Set(),
+        year: new Set(),
+        genres: new Set(),
+        fsk: new Set(),
+        plot: new Set(),
+    };
+    const initialSelectedProvidersByField = {
+        title: new Set(),
+        year: new Set(),
+        genres: new Set(),
+        fsk: new Set(),
+        plot: new Set(),
+    };
+    let currentComparisonData = null;
+
+    function createFieldBadgesContainer(fieldKey) {
+        const badgesDiv = doc.createElement("div");
+        badgesDiv.id = `${prefix}-badges-${fieldKey}`;
+        syncElementClasses(badgesDiv, "mw-wizard-field-badges", "hidden");
+        safeSetAttribute(badgesDiv, "data-field-badges", fieldKey);
+        fieldBadgeContainers[fieldKey] = badgesDiv;
+        return badgesDiv;
+    }
 
     function createSourceBadge(sourceField) {
         if (!showSourceBadges) return null;
@@ -174,10 +242,19 @@ export function renderNfoEditor(container, initialData = {}, onChangeOrOptions =
     yearInput.placeholder = "z. B. 2024";
     safeSetAttribute(yearInput, "data-field", "year");
 
-    const titleFieldWrapper = createFieldWrapper(doc, titleLabelText, "title", titleInput, createSourceBadge("title"));
+    const titleFieldWrapper = createFieldWrapper(
+        doc,
+        titleLabelText,
+        "title",
+        titleInput,
+        createSourceBadge("title"),
+        createFieldBadgesContainer("title")
+    );
     const titleLabel = titleFieldWrapper.children && titleFieldWrapper.children[0] ? titleFieldWrapper.children[0] : null;
     topRow.appendChild(titleFieldWrapper);
-    topRow.appendChild(createFieldWrapper(doc, "Jahr", "year", yearInput, createSourceBadge("year")));
+    topRow.appendChild(
+        createFieldWrapper(doc, "Jahr", "year", yearInput, createSourceBadge("year"), createFieldBadgesContainer("year"))
+    );
 
     const metaRow = doc.createElement("div");
     metaRow.className = "mw-wizard-field-row";
@@ -209,8 +286,12 @@ export function renderNfoEditor(container, initialData = {}, onChangeOrOptions =
     genresInput.placeholder = "z. B. Drama, Sci-Fi";
     safeSetAttribute(genresInput, "data-field", "genres");
 
-    metaRow.appendChild(createFieldWrapper(doc, "Genre", "genres", genresInput, createSourceBadge("genre")));
-    metaRow.appendChild(createFieldWrapper(doc, "FSK", "fsk", fskSelect, createSourceBadge("fsk")));
+    metaRow.appendChild(
+        createFieldWrapper(doc, "Genre", "genres", genresInput, createSourceBadge("genre"), createFieldBadgesContainer("genres"))
+    );
+    metaRow.appendChild(
+        createFieldWrapper(doc, "FSK", "fsk", fskSelect, createSourceBadge("fsk"), createFieldBadgesContainer("fsk"))
+    );
 
     const plotTextarea = doc.createElement("textarea");
     plotTextarea.id = `${prefix}-plot`;
@@ -221,13 +302,26 @@ export function renderNfoEditor(container, initialData = {}, onChangeOrOptions =
 
     root.appendChild(topRow);
     root.appendChild(metaRow);
-    root.appendChild(createFieldWrapper(doc, "Plot", "plot", plotTextarea, createSourceBadge("plot")));
+    root.appendChild(
+        createFieldWrapper(doc, "Plot", "plot", plotTextarea, createSourceBadge("plot"), createFieldBadgesContainer("plot"))
+    );
     container.appendChild(root);
 
     let baseline = normalizeSnapshot(initialData);
     let isInternalDomWrite = false;
     const touchedFields = new Set();
     const loadedFields = new Set();
+
+    function updateFieldBadgeSelectionDom(fieldKey) {
+        const badgeMap = providerBadgesByField[fieldKey] || {};
+        const selectedSet = selectedProvidersByField[fieldKey] || new Set();
+        for (const [prov, btn] of Object.entries(badgeMap)) {
+            if (!btn || btn.disabled) continue;
+            const isSel = selectedSet.has(prov);
+            setElementClass(btn, "selected", isSel);
+            safeSetAttribute(btn, "aria-pressed", isSel ? "true" : "false");
+        }
+    }
 
     function instrumentElementValue(el, fieldKey) {
         if (!el) return;
@@ -245,6 +339,10 @@ export function renderNfoEditor(container, initialData = {}, onChangeOrOptions =
                     desc.set.call(this, v);
                     if (!isInternalDomWrite) {
                         touchedFields.add(fieldKey);
+                        if (selectedProvidersByField[fieldKey]) {
+                            selectedProvidersByField[fieldKey].clear();
+                            updateFieldBadgeSelectionDom(fieldKey);
+                        }
                     }
                 },
             });
@@ -260,6 +358,10 @@ export function renderNfoEditor(container, initialData = {}, onChangeOrOptions =
                     currentVal = String(v ?? "");
                     if (!isInternalDomWrite) {
                         touchedFields.add(fieldKey);
+                        if (selectedProvidersByField[fieldKey]) {
+                            selectedProvidersByField[fieldKey].clear();
+                            updateFieldBadgeSelectionDom(fieldKey);
+                        }
                     }
                 },
             });
@@ -363,7 +465,282 @@ export function renderNfoEditor(container, initialData = {}, onChangeOrOptions =
     function resetToInitial() {
         applyValuesToDom(baseline);
         touchedFields.clear();
+        for (const key of ALL_FIELDS) {
+            selectedProvidersByField[key] = new Set(initialSelectedProvidersByField[key]);
+            updateFieldBadgeSelectionDom(key);
+        }
         return { ...baseline, genres: [...baseline.genres] };
+    }
+
+    function clearProviderComparison() {
+        currentComparisonData = null;
+        for (const key of ALL_FIELDS) {
+            selectedProvidersByField[key].clear();
+            initialSelectedProvidersByField[key].clear();
+            providerBadgesByField[key] = {};
+            const containerEl = fieldBadgeContainers[key];
+            if (containerEl) {
+                containerEl.innerHTML = "";
+                setElementClass(containerEl, "hidden", true);
+            }
+        }
+    }
+
+    function getProviderComparison() {
+        return currentComparisonData;
+    }
+
+    function notifyChangeListeners(changedFieldKey) {
+        const sourceKey = changedFieldKey === "genres" ? "genre" : changedFieldKey;
+        const currentValues = getValues();
+        const dirty = isDirty();
+        if (directOnChange) {
+            directOnChange(currentValues, sourceKey, dirty);
+        }
+        if (optionsOnChange) {
+            optionsOnChange(currentValues, dirty);
+        }
+    }
+
+    function handleProviderBadgeClick(fieldKey, prov) {
+        if (!currentComparisonData || !currentComparisonData.providers || !currentComparisonData.providers[prov]) return;
+        const entry = currentComparisonData.providers[prov];
+        if (entry.status !== "ok" || !hasNonEmptyFieldValue(fieldKey, entry.fields[fieldKey])) return;
+
+        if (fieldKey === "genres") {
+            const sel = selectedProvidersByField.genres;
+            if (sel.has(prov)) {
+                if (sel.size > 1) {
+                    sel.delete(prov);
+                } else {
+                    sel.clear();
+                    sel.add(prov);
+                }
+            } else {
+                sel.add(prov);
+            }
+            const combined = [];
+            for (const p of currentComparisonData.provider_order) {
+                if (sel.has(p) && currentComparisonData.providers[p]?.status === "ok") {
+                    combined.push(...(currentComparisonData.providers[p].fields.genres || []));
+                }
+            }
+            const unionGenres = parseGenresInput(combined);
+            isInternalDomWrite = true;
+            try {
+                genresInput.value = formatGenresValue(unionGenres);
+            } finally {
+                isInternalDomWrite = false;
+            }
+        } else {
+            selectedProvidersByField[fieldKey] = new Set([prov]);
+            const newVal = entry.fields[fieldKey];
+            isInternalDomWrite = true;
+            try {
+                if (fieldKey === "title") titleInput.value = newVal;
+                else if (fieldKey === "year") yearInput.value = newVal;
+                else if (fieldKey === "plot") plotTextarea.value = newVal;
+                else if (fieldKey === "fsk") fskSelect.value = newVal;
+            } finally {
+                isInternalDomWrite = false;
+            }
+        }
+
+        touchedFields.add(fieldKey);
+        updateFieldBadgeSelectionDom(fieldKey);
+        const sourceKey = fieldKey === "genres" ? "genre" : fieldKey;
+        if (showSourceBadges || directOnChange) {
+            const activeLabels = Array.from(selectedProvidersByField[fieldKey]).map(formatProviderLabel);
+            setFieldSource(sourceKey, activeLabels.join(" + ") || formatProviderLabel(prov));
+        }
+        notifyChangeListeners(fieldKey);
+    }
+
+    function setProviderComparison(comparisonData, _comparisonOptions = {}) {
+        if (!comparisonData || typeof comparisonData !== "object" || !comparisonData.providers || typeof comparisonData.providers !== "object") {
+            clearProviderComparison();
+            return getValues();
+        }
+
+        const rawOrder = Array.isArray(comparisonData.provider_order) && comparisonData.provider_order.length > 0
+            ? comparisonData.provider_order
+            : Object.keys(comparisonData.providers);
+        const providerOrder = [];
+        const normalizedProviders = {};
+        let hasAnyOkProvider = false;
+
+        for (const rawProv of rawOrder) {
+            const prov = String(rawProv || "").trim().toLowerCase() === "tmdb_movie"
+                ? "tmdb"
+                : String(rawProv || "").trim().toLowerCase();
+            const rawEntry = comparisonData.providers[rawProv] ?? comparisonData.providers[prov];
+            if (!prov || !rawEntry || providerOrder.includes(prov)) continue;
+            providerOrder.push(prov);
+            const isError = String(rawEntry.status || "").toLowerCase() === "error" || Boolean(rawEntry.error);
+            if (!isError) hasAnyOkProvider = true;
+            normalizedProviders[prov] = {
+                provider: prov,
+                movie_id: String(rawEntry.movie_id ?? rawEntry.id ?? ""),
+                status: isError ? "error" : "ok",
+                error: isError ? String(rawEntry.error || "Nicht erreichbar") : null,
+                fields: isError ? normalizeSnapshot({}) : normalizeSnapshot(rawEntry.fields || rawEntry || {}),
+            };
+        }
+
+        if (providerOrder.length === 0) {
+            clearProviderComparison();
+            return getValues();
+        }
+
+        currentComparisonData = {
+            providers: normalizedProviders,
+            provider_order: providerOrder,
+        };
+
+        const currentVals = getValues();
+        for (const key of ALL_FIELDS) {
+            if (!fieldValuesEqual(key, currentVals[key], baseline[key])) {
+                touchedFields.add(key);
+            }
+        }
+
+        if (hasAnyOkProvider) {
+            const mergedBaseline = {
+                title: "",
+                year: "",
+                plot: "",
+                fsk: "",
+                genres: [],
+            };
+
+            for (const fieldKey of ALTERNATIVE_FIELDS) {
+                let winnerProv = null;
+                for (const prov of providerOrder) {
+                    const entry = normalizedProviders[prov];
+                    if (entry.status === "ok" && hasNonEmptyFieldValue(fieldKey, entry.fields[fieldKey])) {
+                        winnerProv = prov;
+                        break;
+                    }
+                }
+                if (winnerProv) {
+                    mergedBaseline[fieldKey] = normalizedProviders[winnerProv].fields[fieldKey];
+                    initialSelectedProvidersByField[fieldKey] = new Set([winnerProv]);
+                } else {
+                    mergedBaseline[fieldKey] = fieldKey === "title" ? (baseline.title || "") : "";
+                    initialSelectedProvidersByField[fieldKey] = new Set();
+                }
+            }
+
+            const genreContributors = [];
+            const combinedGenres = [];
+            for (const prov of providerOrder) {
+                const entry = normalizedProviders[prov];
+                if (entry.status === "ok" && hasNonEmptyFieldValue("genres", entry.fields.genres)) {
+                    genreContributors.push(prov);
+                    combinedGenres.push(...entry.fields.genres);
+                }
+            }
+            mergedBaseline.genres = parseGenresInput(combinedGenres);
+            initialSelectedProvidersByField.genres = new Set(genreContributors);
+
+            baseline = normalizeSnapshot(mergedBaseline);
+            for (const key of ALL_FIELDS) {
+                loadedFields.add(key);
+            }
+
+            const mergedDomValues = {};
+            for (const key of ALL_FIELDS) {
+                if (touchedFields.has(key)) {
+                    selectedProvidersByField[key] = new Set();
+                    mergedDomValues[key] = currentVals[key];
+                } else {
+                    selectedProvidersByField[key] = new Set(initialSelectedProvidersByField[key]);
+                    mergedDomValues[key] = baseline[key];
+                    if (showSourceBadges) {
+                        const sourceKey = key === "genres" ? "genre" : key;
+                        const labels = Array.from(selectedProvidersByField[key]).map(formatProviderLabel);
+                        if (labels.length > 0) setFieldSource(sourceKey, labels.join(" + "));
+                    }
+                }
+            }
+            applyValuesToDom(mergedDomValues);
+        } else {
+            for (const key of ALL_FIELDS) {
+                selectedProvidersByField[key] = new Set();
+                initialSelectedProvidersByField[key] = new Set();
+            }
+        }
+
+        for (const fieldKey of ALL_FIELDS) {
+            const badgeContainer = fieldBadgeContainers[fieldKey];
+            providerBadgesByField[fieldKey] = {};
+            if (!badgeContainer) continue;
+            badgeContainer.innerHTML = "";
+            setElementClass(badgeContainer, "hidden", false);
+
+            for (const prov of providerOrder) {
+                const entry = normalizedProviders[prov];
+                const provLabel = formatProviderLabel(prov);
+                const val = entry.fields[fieldKey];
+                const isErr = entry.status === "error";
+                const isEmpty = !isErr && !hasNonEmptyFieldValue(fieldKey, val);
+                const isSelected = !isErr && !isEmpty && selectedProvidersByField[fieldKey].has(prov);
+
+                let displayValue = "";
+                if (isErr) {
+                    displayValue = `${provLabel}: nicht erreichbar`;
+                } else if (isEmpty) {
+                    displayValue = fieldKey === "fsk" ? `${provLabel}: keine FSK` : `${provLabel}: keine Daten`;
+                } else if (fieldKey === "fsk") {
+                    displayValue = `FSK ${val}`;
+                } else if (fieldKey === "genres") {
+                    displayValue = formatGenresValue(val);
+                } else {
+                    displayValue = String(val);
+                }
+
+                const badgeBtn = doc.createElement("button");
+                badgeBtn.type = "button";
+                safeSetAttribute(badgeBtn, "data-provider", prov);
+                safeSetAttribute(badgeBtn, "data-field", fieldKey);
+                safeSetAttribute(badgeBtn, "aria-pressed", isSelected ? "true" : "false");
+
+                const classes = ["mw-wizard-provider-badge"];
+                if (isErr) {
+                    classes.push("error", "mw-wizard-badge-error");
+                    badgeBtn.disabled = true;
+                    safeSetAttribute(badgeBtn, "disabled", "disabled");
+                } else if (isEmpty) {
+                    classes.push("empty", "mw-wizard-badge-empty");
+                    badgeBtn.disabled = true;
+                    safeSetAttribute(badgeBtn, "disabled", "disabled");
+                } else if (isSelected) {
+                    classes.push("selected");
+                }
+                syncElementClasses(badgeBtn, ...classes);
+
+                const nameSpan = doc.createElement("span");
+                syncElementClasses(nameSpan, "mw-wizard-provider-name");
+                nameSpan.textContent = provLabel;
+
+                const valSpan = doc.createElement("span");
+                syncElementClasses(valSpan, "mw-wizard-provider-value");
+                valSpan.textContent = displayValue;
+
+                badgeBtn.appendChild(nameSpan);
+                badgeBtn.appendChild(valSpan);
+
+                badgeBtn.addEventListener("click", () => {
+                    if (isErr || isEmpty || badgeBtn.disabled) return;
+                    handleProviderBadgeClick(fieldKey, prov);
+                });
+
+                badgeContainer.appendChild(badgeBtn);
+                providerBadgesByField[fieldKey][prov] = badgeBtn;
+            }
+        }
+
+        return getValues();
     }
 
     function isDirty() {
@@ -434,6 +811,10 @@ export function renderNfoEditor(container, initialData = {}, onChangeOrOptions =
         const sourceKey = fieldKey === "genres" ? "genre" : fieldKey;
         const handler = () => {
             touchedFields.add(fieldKey);
+            if (selectedProvidersByField[fieldKey]) {
+                selectedProvidersByField[fieldKey].clear();
+                updateFieldBadgeSelectionDom(fieldKey);
+            }
             if (showSourceBadges || directOnChange) {
                 setFieldSource(sourceKey, "manuell");
             }
@@ -471,11 +852,18 @@ export function renderNfoEditor(container, initialData = {}, onChangeOrOptions =
             genreInput: genresInput,
             titleLabel,
             sourceBadges,
+            fieldBadges: fieldBadgeContainers,
+            providerBadges: providerBadgesByField,
         },
         sourceBadges,
+        fieldBadges: fieldBadgeContainers,
+        providerBadges: providerBadgesByField,
         getValues,
         setValues,
         applyProviderMetadata,
+        setProviderComparison,
+        getProviderComparison,
+        clearProviderComparison,
         resetToInitial,
         isDirty,
         buildMovieOverrides,
@@ -536,4 +924,5 @@ export default {
     parseGenresInput,
     parseGenres,
     formatGenresValue,
+    formatProviderLabel,
 };

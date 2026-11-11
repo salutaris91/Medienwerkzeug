@@ -879,29 +879,37 @@ def handle_api_series_detect():
 @search_api.route('/metadata/fetch', methods=['GET', 'POST'])
 def handle_api_metadata_fetch():
     try:
-        params = request.get_json() or {}
+        params = request.get_json(silent=True) or {}
     except Exception:
         params = {}
     query = request.args
-    media_type = query.get("media_type", "")
-    provider = query.get("provider", "")
-    
+    media_type = query.get("media_type") or params.get("media_type") or ""
+    provider = query.get("provider") or params.get("provider") or ""
+    providers = params.get("providers")
+    if providers is None and query.get("providers"):
+        try:
+            providers = json.loads(query.get("providers"))
+        except Exception:
+            providers = None
+
     result = {}
     try:
-        if media_type == "tv":
-            show_id = query.get("show_id", "")
+        if providers and isinstance(providers, (list, tuple, dict)) and (not media_type or media_type == "movie"):
+            result = mw_metadata.fetch_movie_comparison_data(providers)
+        elif media_type == "tv":
+            show_id = query.get("show_id", "") or str(params.get("show_id", "") or "")
             result = mw_metadata.fetch_show_nfo_data(provider, show_id)
         elif media_type == "movie":
-            movie_id = query.get("movie_id", "")
+            movie_id = query.get("movie_id", "") or str(params.get("movie_id", "") or "")
             result = mw_metadata.fetch_movie_nfo_data(provider, movie_id)
         elif media_type == "episode":
-            show_id = query.get("show_id", "")
-            season = query.get("season", "")
-            episode = query.get("episode", "")
+            show_id = query.get("show_id", "") or str(params.get("show_id", "") or "")
+            season = query.get("season", "") or str(params.get("season", "") or "")
+            episode = query.get("episode", "") or str(params.get("episode", "") or "")
             result = mw_metadata.fetch_episode_nfo_data(provider, show_id, season, episode)
     except Exception as e:
         result = {"error": str(e)}
-        
+
     return jsonify(result)
 
 

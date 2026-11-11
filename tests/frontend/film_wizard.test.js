@@ -1905,3 +1905,66 @@ globalThis.__resetSelectedMovie = () => { selectedMovie = null; };
     assert.ok(sandbox.__getSelectedMovie(), 'selectMovie called for Doku in scanProject');
     assert.equal(sandbox.__getSelectedMovie().id, '999');
 });
+
+test('E4 (Option 1A & 2A): Manual comparison checkboxes in Step 1 pair providers via Weiter and buildMovieBasePayload prefers TMDb as base provider', async () => {
+    const { doc } = createWizardMockDom();
+    const wizard = createFilmWizard({
+        document: doc,
+        fetch: async (url) => {
+            if (url.startsWith('/api/search')) {
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => [
+                        { id: 'ofdb_154_Matrix', name: 'Die Matrix (1999)', provider: 'ofdb' },
+                        { id: '603', name: 'The Matrix (1999)', provider: 'tmdb' },
+                    ],
+                };
+            }
+            if (url.startsWith('/api/metadata/fetch')) {
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ({
+                        providers: {
+                            tmdb: {
+                                provider: 'tmdb',
+                                movie_id: '603',
+                                status: 'ok',
+                                error: null,
+                                fields: { title: 'Matrix', year: '1999', plot: 'Neo wacht auf.', fsk: '', genres: ['Sci-Fi'] },
+                            },
+                            ofdb: {
+                                provider: 'ofdb',
+                                movie_id: 'ofdb_154_Matrix',
+                                status: 'ok',
+                                error: null,
+                                fields: { title: 'Die Matrix', year: '1999', plot: '', fsk: '16', genres: ['Action'] },
+                            },
+                        },
+                        provider_order: ['tmdb', 'ofdb'],
+                    }),
+                };
+            }
+            return { ok: true, status: 200, json: async () => ({}) };
+        },
+    });
+
+    wizard.open({ query: 'Matrix', autoSearch: false });
+    await wizard.performSearch('Matrix');
+
+    const cbs = doc.getElementById('mw-wizard-search-results').querySelectorAll('.mw-wizard-compare-cb');
+    assert.equal(cbs.length, 2);
+    cbs[0].checked = true;
+    cbs[1].checked = true;
+
+    doc.getElementById('mw-wizard-btn-next').click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    assert.equal(wizard.getCurrentStep(), 2);
+    const payload = wizard.buildMovieBasePayload();
+    assert.equal(payload.provider, 'tmdb');
+    assert.equal(payload.movie_id, '603');
+    assert.equal(payload.nfo_overrides.movie.fsk, '16');
+    assert.deepEqual(payload.nfo_overrides.movie.genres, ['Sci-Fi', 'Action']);
+});

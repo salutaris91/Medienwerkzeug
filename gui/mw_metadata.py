@@ -6,15 +6,73 @@ from gui.core.utils import load_settings
 from gui.core.persistence import load_env_keys
 from gui.core.helpers import log_message
 
-def _download_with_timeout(url, path, timeout=10):
+def _download_with_retry(url, path, timeout=10, attempts=3, context="", backoff_base=1.0, jitter=0.0):
+    import http.client
+    import random
+    import urllib.error
     import urllib.request
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=timeout) as r, open(path, "wb") as f:
-            f.write(r.read())
-    except Exception as e:
-        print(f"Warning: Download failed: {e}")
-        raise e
+
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                try:
+                    data = r.read()
+                except http.client.IncompleteRead as inc_exc:
+                    partial_bytes = len(inc_exc.partial or b"")
+                    expected_total = (
+                        partial_bytes + inc_exc.expected
+                        if isinstance(inc_exc.expected, int) and inc_exc.expected >= 0
+                        else "unbekannt"
+                    )
+                    raise OSError(
+                        f"Unvollständiger Download: {partial_bytes} von {expected_total} Bytes empfangen"
+                    ) from inc_exc
+                if not data:
+                    raise OSError("Download lieferte 0 Bytes")
+                headers = getattr(r, "headers", None)
+                content_length_raw = None
+                if headers is not None and hasattr(headers, "get"):
+                    content_length_raw = headers.get("Content-Length")
+                    if content_length_raw is None:
+                        content_length_raw = headers.get("content-length")
+                if content_length_raw is not None:
+                    try:
+                        expected_bytes = int(str(content_length_raw).strip())
+                    except (ValueError, TypeError):
+                        expected_bytes = -1
+                    if expected_bytes >= 0 and len(data) != expected_bytes:
+                        raise OSError(f"Unvollständiger Download: {len(data)} von {expected_bytes} Bytes empfangen")
+            try:
+                with open(path, "wb") as f:
+                    f.write(data)
+            except Exception:
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                except OSError:
+                    pass
+                raise
+            return len(data)
+        except urllib.error.HTTPError as e:
+            print(f"Warning: Download failed: {e}")
+            raise
+        except (TimeoutError, ConnectionError, urllib.error.URLError, http.client.IncompleteRead, OSError) as exc:
+            last_error = exc
+            log_message(f"⚠️ [Download] Versuch {attempt}/{attempts} fehlgeschlagen ({context or url}): {exc}")
+            if attempt < attempts:
+                if backoff_base == 1.0 and jitter == 0.0:
+                    time.sleep(attempt)
+                else:
+                    wait_seconds = attempt * backoff_base + (random.uniform(0, jitter) if jitter > 0 else 0.0)
+                    time.sleep(wait_seconds)
+    print(f"Warning: Download failed: {last_error}")
+    raise last_error
+
+
+def _download_with_timeout(url, path, timeout=10):
+    return _download_with_retry(url, path, timeout=timeout)
 
 def get_ext_from_url(url, fallback=".jpg"):
     try:
@@ -119,7 +177,7 @@ def make_tmdb_request(url, headers=None):
     return urllib.request.Request(url, headers=headers)
 
 
-def _open_with_retry(build_request, timeout=15, attempts=3, context=""):
+def _open_with_retry(build_request, timeout=15, attempts=3, context="", opener=None, backoff_base=1.0, jitter=0.0):
     """Read a metadata endpoint as bytes, retrying transient stalls.
 
     Read timeouts on a busy NAS are usually transient, so network-level
@@ -127,32 +185,56 @@ def _open_with_retry(build_request, timeout=15, attempts=3, context=""):
     errors (4xx/5xx) are real answers and are never retried. build_request
     is a callable so every attempt works on a fresh Request object.
     """
+    import http.client
+    import random
     import urllib.error
 
     last_error = None
     for attempt in range(1, attempts + 1):
         try:
             request = build_request()
-            with urllib.request.urlopen(request, timeout=timeout) as response:
+            open_call = opener.open if opener is not None else urllib.request.urlopen
+            with open_call(request, timeout=timeout) as response:
                 return response.read()
         except urllib.error.HTTPError:
             raise
-        except (TimeoutError, ConnectionError, urllib.error.URLError, OSError) as exc:
+        except (TimeoutError, ConnectionError, urllib.error.URLError, http.client.IncompleteRead, OSError) as exc:
             last_error = exc
             log_message(f"⚠️ [Metadaten] Versuch {attempt}/{attempts} fehlgeschlagen ({context}): {exc}")
             if attempt < attempts:
-                time.sleep(attempt)
+                if backoff_base == 1.0 and jitter == 0.0:
+                    time.sleep(attempt)
+                else:
+                    wait_seconds = attempt * backoff_base + (random.uniform(0, jitter) if jitter > 0 else 0.0)
+                    time.sleep(wait_seconds)
     raise last_error
 
 
-def fetch_json_with_retry(build_request, timeout=15, attempts=3, context=""):
+def fetch_json_with_retry(build_request, timeout=15, attempts=3, context="", backoff_base=1.0, jitter=0.0):
     """JSON variant of _open_with_retry (TMDB/TVDB APIs)."""
-    return json.loads(_open_with_retry(build_request, timeout=timeout, attempts=attempts, context=context).decode())
+    return json.loads(
+        _open_with_retry(
+            build_request,
+            timeout=timeout,
+            attempts=attempts,
+            context=context,
+            backoff_base=backoff_base,
+            jitter=jitter,
+        ).decode()
+    )
 
 
-def fetch_html_with_retry(build_request, timeout=15, attempts=3, context=""):
+def fetch_html_with_retry(build_request, timeout=15, attempts=3, context="", opener=None, backoff_base=1.0, jitter=0.0):
     """HTML variant of _open_with_retry (scraped sources like OFDb)."""
-    return _open_with_retry(build_request, timeout=timeout, attempts=attempts, context=context).decode('utf-8', errors='ignore')
+    return _open_with_retry(
+        build_request,
+        timeout=timeout,
+        attempts=attempts,
+        context=context,
+        opener=opener,
+        backoff_base=backoff_base,
+        jitter=jitter,
+    ).decode('utf-8', errors='ignore')
 
 def _handle_metadata_error(e, context=""):
     import urllib.error
@@ -548,11 +630,14 @@ def get_fernsehserien_episodes(series_name_or_url, season):
         url = f"https://www.fernsehserien.de/{url_name}/episodenguide/staffel-{season}"
 
     try:
-        req = urllib.request.Request(url, headers={
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
-        })
-        with urllib.request.urlopen(req, timeout=10) as response:
-            html = response.read().decode('utf-8')
+        html = fetch_html_with_retry(
+            lambda: urllib.request.Request(
+                url,
+                headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'},
+            ),
+            timeout=10,
+            context=f"fernsehserien.de {series_name_or_url} Staffel {season}",
+        )
 
         result = {}
         for match in re.finditer(r'<td class="episodenliste-episodennummer">.*?(\d+).*?</td>.*?<span itemprop="name">(.*?)</span>', html, re.IGNORECASE | re.DOTALL):
@@ -811,9 +896,12 @@ def search_ofdb(query):
     def _do_ofdb_search(q_str):
         url = "https://www.ofdb.de/suchergebnis/"
         data = urllib.parse.urlencode({'QSinput': q_str}).encode('utf-8')
-        req = urllib.request.Request(url, data=data, headers={'User-Agent': 'Mozilla/5.0'})
         try:
-            html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8', errors='ignore')
+            html = fetch_html_with_retry(
+                lambda: urllib.request.Request(url, data=data, headers={'User-Agent': 'Mozilla/5.0'}),
+                timeout=10,
+                context=f"OFDb Suche '{q_str}'",
+            )
         except Exception as e:
             print(f"[OFDb Search Error] Suche nach '{q_str}' fehlgeschlagen: {e}", file=sys.stderr)
             return []
@@ -1460,6 +1548,111 @@ def fetch_movie_nfo_data(provider, movie_id):
                 "title": "", "plot": "", "year": "", "fsk": "", "genres": [],
                 "error": f"TMDB-Filmmetadaten konnten nicht geladen werden: {e}",
             }
+
+
+def fetch_movie_comparison_data(providers_spec):
+    """Fetch unmerged movie metadata per provider in parallel (ROADMAP #55, E4-AK1/E4-AK2)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    if isinstance(providers_spec, str):
+        try:
+            providers_spec = json.loads(providers_spec)
+        except Exception:
+            providers_spec = []
+
+    normalized_specs = []
+    seen_providers = set()
+
+    def _add_spec(raw_prov, raw_movie_id):
+        prov = str(raw_prov or "").strip().lower()
+        if prov == "tmdb_movie":
+            prov = "tmdb"
+        movie_id = str(raw_movie_id if raw_movie_id is not None else "").strip()
+        if not prov or not movie_id or prov in seen_providers:
+            return
+        seen_providers.add(prov)
+        normalized_specs.append((prov, movie_id))
+
+    if isinstance(providers_spec, dict):
+        if "provider" in providers_spec and ("movie_id" in providers_spec or "id" in providers_spec):
+            _add_spec(
+                providers_spec.get("provider"),
+                providers_spec.get("movie_id") if providers_spec.get("movie_id") is not None else providers_spec.get("id"),
+            )
+        else:
+            for k, v in providers_spec.items():
+                if isinstance(v, dict):
+                    _add_spec(k, v.get("movie_id") if v.get("movie_id") is not None else v.get("id"))
+                else:
+                    _add_spec(k, v)
+    elif isinstance(providers_spec, (list, tuple)):
+        for item in providers_spec:
+            if isinstance(item, dict):
+                _add_spec(
+                    item.get("provider"),
+                    item.get("movie_id") if item.get("movie_id") is not None else item.get("id"),
+                )
+
+    def _empty_fields():
+        return {"title": "", "year": "", "plot": "", "fsk": "", "genres": []}
+
+    def _fetch_one(prov_and_id):
+        prov, movie_id = prov_and_id
+        try:
+            data = fetch_movie_nfo_data(prov, movie_id)
+            if not isinstance(data, dict):
+                return prov, {
+                    "provider": prov,
+                    "movie_id": movie_id,
+                    "status": "error",
+                    "error": f"Unerwartete Antwort von {prov}",
+                    "fields": _empty_fields(),
+                }
+            if data.get("error"):
+                return prov, {
+                    "provider": prov,
+                    "movie_id": movie_id,
+                    "status": "error",
+                    "error": str(data.get("error")),
+                    "fields": _empty_fields(),
+                }
+            raw_genres = data.get("genres")
+            genres_list = [str(g).strip() for g in raw_genres if str(g).strip()] if isinstance(raw_genres, (list, tuple)) else []
+            return prov, {
+                "provider": prov,
+                "movie_id": movie_id,
+                "status": "ok",
+                "error": None,
+                "fields": {
+                    "title": str(data.get("title") or "").strip(),
+                    "year": str(data.get("year") or "").strip(),
+                    "plot": str(data.get("plot") or "").strip(),
+                    "fsk": str(data.get("fsk") or "").strip(),
+                    "genres": genres_list,
+                },
+            }
+        except Exception as exc:
+            log_message(f"⚠️ [Provider-Vergleich] Abruf für {prov} ({movie_id}) fehlgeschlagen: {exc}")
+            return prov, {
+                "provider": prov,
+                "movie_id": movie_id,
+                "status": "error",
+                "error": str(exc),
+                "fields": _empty_fields(),
+            }
+
+    providers_result = {}
+    provider_order = [prov for prov, _ in normalized_specs]
+    if normalized_specs:
+        max_workers = max(1, min(4, len(normalized_specs)))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for prov, entry in executor.map(_fetch_one, normalized_specs):
+                providers_result[prov] = entry
+
+    return {
+        "providers": providers_result,
+        "provider_order": provider_order,
+    }
 
 def fetch_episode_nfo_data(provider, show_id, season, episode):
     if provider == "manual":
@@ -2636,13 +2829,16 @@ def resolve_mediathek_url_topic(url_or_topic):
     # Resolve URL to topic
     # 1. Try Scraping using a local SmartRedirectHandler
     try:
-        req = urllib.request.Request(
-            val,
-            headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"}
-        )
         opener = urllib.request.build_opener(SmartRedirectHandler)
-        with opener.open(req, timeout=5) as response:
-            html = response.read().decode('utf-8', errors='ignore')
+        html = fetch_html_with_retry(
+            lambda: urllib.request.Request(
+                val,
+                headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"}
+            ),
+            timeout=5,
+            context=f"Mediathek URL-Auflösung {val}",
+            opener=opener,
+        )
 
         title_match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE)
         if title_match:
