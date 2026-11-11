@@ -444,6 +444,146 @@ class TestArtworkDownload(unittest.TestCase):
                     self.assertTrue(res["logo"])
                     self.assertTrue(os.path.isfile(os.path.join(tmp_dir, "logo.png")))
 
+    def test_e5b_multi_backdrop_emby_jellyfin_cleanup_and_processor(self):
+        """E5b: Ordered multi-backdrop saves fanart/backdrop + -1/-2, cleans stale extras, rejects poster/logo/>10, and survives processor."""
+        png_data_url = "data:image/png;base64," + base64.b64encode(SAMPLE_PNG_BYTES).decode("ascii")
+        multi_spec = {
+            "mode": "multi",
+            "items": [
+                {"mode": "url", "url": "https://image.tmdb.org/t/p/original/bd_main.jpg"},
+                {"mode": "url", "url": "https://image.tmdb.org/t/p/original/bd_second.jpg"},
+                {"mode": "upload", "data_url": png_data_url},
+            ],
+        }
+
+        # 1. Direct validation: poster/logo multi and >10 backdrops raise ValueError
+        for invalid_role in ("poster", "logo"):
+            with self.assertRaises(ValueError):
+                mw_metadata._parse_artwork_override_spec(multi_spec, role=invalid_role)
+        too_many_spec = {
+            "mode": "multi",
+            "items": [
+                {"mode": "url", "url": f"https://image.tmdb.org/t/p/original/bd_{i}.jpg"}
+                for i in range(11)
+            ],
+        }
+        with self.assertRaises(ValueError):
+            mw_metadata._parse_artwork_override_spec(too_many_spec, role="backdrop")
+
+        # 2. Jellyfin naming (backdrop.jpg, backdrop-1.jpg, backdrop-2.png) + stale extra cleanup
+        with tempfile.TemporaryDirectory() as jf_dir:
+            stale_extra = os.path.join(jf_dir, "backdrop-3.jpg")
+            with open(stale_extra, "wb") as sf:
+                sf.write(b"stale")
+
+            with patch.object(
+                urllib.request,
+                "urlopen",
+                side_effect=lambda req, timeout=None: _FakeHttpResponse(
+                    headers={"Content-Length": str(len(SAMPLE_JPEG_BYTES))},
+                    raw_bytes=SAMPLE_JPEG_BYTES,
+                ),
+            ), patch.object(mw_metadata, "log_message", lambda msg: None):
+                res_jf = mw_metadata.apply_movie_artwork_overrides(
+                    jf_dir,
+                    "Matrix (1999)",
+                    {"backdrop": multi_spec, "poster": multi_spec},
+                    settings={"media_server": "jellyfin"},
+                )
+                self.assertTrue(res_jf["backdrop"]["ok"])
+                self.assertFalse(res_jf["poster"]["ok"])
+                self.assertIn("backdrop", res_jf["poster"]["error"])
+                self.assertTrue(os.path.isfile(os.path.join(jf_dir, "backdrop.jpg")))
+                self.assertTrue(os.path.isfile(os.path.join(jf_dir, "backdrop-1.jpg")))
+                self.assertTrue(os.path.isfile(os.path.join(jf_dir, "backdrop-2.png")))
+                self.assertFalse(os.path.exists(stale_extra))
+
+                # Switching back to a single backdrop cleans up backdrop-1.jpg and backdrop-2.png
+                res_single = mw_metadata.apply_movie_artwork_overrides(
+                    jf_dir,
+                    "Matrix (1999)",
+                    {"backdrop": {"mode": "url", "url": "https://image.tmdb.org/t/p/original/bd_only.jpg"}},
+                    settings={"media_server": "jellyfin"},
+                )
+                self.assertTrue(res_single["backdrop"]["ok"])
+                self.assertTrue(os.path.isfile(os.path.join(jf_dir, "backdrop.jpg")))
+                self.assertFalse(os.path.exists(os.path.join(jf_dir, "backdrop-1.jpg")))
+                self.assertFalse(os.path.exists(os.path.join(jf_dir, "backdrop-2.png")))
+
+        # 3. Full processor.process_worker run (Emby): fanart.jpg, fanart-1.jpg, fanart-2.png reach Outbox movie folder
+        with tempfile.TemporaryDirectory() as tmp_root:
+            orig_env = {
+                k: os.environ.get(k)
+                for k in ("MW_SETTINGS_FILE", "MW_JOBS_STATE_FILE", "MW_ENV_FILE", "MW_DATA_DIR")
+            }
+            try:
+                os.environ["MW_SETTINGS_FILE"] = os.path.join(tmp_root, "settings.json")
+                os.environ["MW_JOBS_STATE_FILE"] = os.path.join(tmp_root, "jobs_state.json")
+                os.environ["MW_ENV_FILE"] = os.path.join(tmp_root, ".env")
+                os.environ["MW_DATA_DIR"] = tmp_root
+                persistence._cached_settings = None
+                persistence._cached_env = None
+
+                inbox_dir = os.path.join(tmp_root, "inbox")
+                outbox_dir = os.path.join(tmp_root, "outbox")
+                nas_root = os.path.join(tmp_root, "nas")
+                os.makedirs(inbox_dir, exist_ok=True)
+                os.makedirs(outbox_dir, exist_ok=True)
+                os.makedirs(nas_root, exist_ok=True)
+
+                persistence.save_settings({
+                    "inbox_dir": inbox_dir,
+                    "outbox_dir": outbox_dir,
+                    "nas_root": nas_root,
+                    "media_server": "emby",
+                    "storage_targets": [{"id": "nas", "type": "nas", "root_path": nas_root, "enabled": True}],
+                })
+
+                proj_dir = os.path.join(inbox_dir, "Matrix_Multi")
+                os.makedirs(proj_dir, exist_ok=True)
+                with open(os.path.join(proj_dir, "matrix.mkv"), "wb") as f:
+                    f.write(b"video")
+
+                with patch("gui.core.trash.send_to_trash", return_value=True), \
+                     patch("gui.workers.processor.ensure_nas_mounted", return_value=True), \
+                     patch("gui.workers.processor.run_rsync_with_progress", return_value=True), \
+                     patch.object(
+                         urllib.request,
+                         "urlopen",
+                         side_effect=lambda req, timeout=None: _FakeHttpResponse(
+                             headers={"Content-Length": str(len(SAMPLE_JPEG_BYTES))},
+                             raw_bytes=SAMPLE_JPEG_BYTES,
+                         ),
+                     ):
+                    processor.process_worker({
+                        "project_name": "Matrix_Multi",
+                        "media_type": "movie",
+                        "movie_name": "Matrix (1999)",
+                        "movie_id": "manual",
+                        "provider": "manual",
+                        "convert": False,
+                        "copy_to_nas": False,
+                        "copy_to_pcloud": False,
+                        "delete_original": False,
+                        "overwrite_nfo": False,
+                        "wizard_overrides": True,
+                        "nfo_overrides": {"movie": {"title": "Matrix", "year": "1999"}},
+                        "artwork_overrides": {"backdrop": multi_spec},
+                    })
+
+                out_movie_dir = os.path.join(outbox_dir, "Filme", "Matrix (1999)")
+                self.assertTrue(os.path.isfile(os.path.join(out_movie_dir, "fanart.jpg")))
+                self.assertTrue(os.path.isfile(os.path.join(out_movie_dir, "fanart-1.jpg")))
+                self.assertTrue(os.path.isfile(os.path.join(out_movie_dir, "fanart-2.png")))
+            finally:
+                for k, v in orig_env.items():
+                    if v is None:
+                        os.environ.pop(k, None)
+                    else:
+                        os.environ[k] = v
+                persistence._cached_settings = None
+                persistence._cached_env = None
+
 
 if __name__ == "__main__":
     unittest.main()

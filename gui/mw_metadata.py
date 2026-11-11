@@ -1286,7 +1286,11 @@ def decode_and_validate_uploaded_image(data_url, max_bytes=15 * 1024 * 1024):
     raise ValueError("Ungültiges Bildformat: Nur echte JPEG-, PNG- oder WebP-Dateien sind erlaubt.")
 
 
-def _parse_artwork_override_spec(spec):
+MAX_MULTI_BACKDROPS = 10
+_NUMBERED_BACKDROP_RE = re.compile(r"^(?:fanart|backdrop)-(\d+)\.(?:jpg|jpeg|png|webp)$", re.IGNORECASE)
+
+
+def _parse_artwork_override_spec(spec, role=None, _allow_multi=True):
     if spec is None or spec == "" or spec == "auto":
         return "auto", ""
     if spec == "none":
@@ -1310,6 +1314,27 @@ def _parse_artwork_override_spec(spec):
             return "url", str(spec.get("url") or "").strip()
         if mode == "upload":
             return "upload", str(spec.get("data_url") or spec.get("dataUrl") or "").strip()
+        if mode == "multi":
+            if not _allow_multi:
+                raise ValueError("Verschachtelte 'multi'-Spezifikation ist nicht erlaubt.")
+            if role is not None and role != "backdrop":
+                raise ValueError("Mehrfachauswahl wird nur für Hintergrundbilder (backdrop) unterstützt.")
+            raw_items = spec.get("items")
+            if raw_items is None:
+                raw_items = []
+            if not isinstance(raw_items, list):
+                raise ValueError("Ungültige Artwork-Spezifikation: 'items' muss eine Liste sein.")
+            if len(raw_items) == 0:
+                return "none", ""
+            if len(raw_items) > MAX_MULTI_BACKDROPS:
+                raise ValueError(f"Maximal {MAX_MULTI_BACKDROPS} Hintergrundbilder erlaubt.")
+            parsed_items = []
+            for item_spec in raw_items:
+                item_mode, item_payload = _parse_artwork_override_spec(item_spec, role="backdrop", _allow_multi=False)
+                if item_mode not in ("url", "upload") or not item_payload:
+                    raise ValueError("Jeder Eintrag in 'items' muss eine gültige 'url'- oder 'upload'-Spezifikation sein.")
+                parsed_items.append((item_mode, item_payload))
+            return "multi", parsed_items
         raise ValueError(f"Unbekannter Artwork-Modus: {mode}")
     raise ValueError(f"Ungültige Artwork-Spezifikation: {spec}")
 
@@ -1327,18 +1352,78 @@ def _get_explicit_artwork_modes(artwork_overrides):
         if raw_spec is None:
             continue
         try:
-            mode, _ = _parse_artwork_override_spec(raw_spec)
+            mode, _ = _parse_artwork_override_spec(raw_spec, role=role)
         except ValueError:
             mode = "invalid"
-        if mode in ("none", "url", "upload", "invalid"):
+        if mode in ("none", "url", "upload", "multi", "invalid"):
             modes[role] = mode
     return modes
 
 
+def _save_single_artwork_item(item_mode, item_payload, folder_path, target_base, role, filename_base):
+    tmp_part_path = None
+    try:
+        if item_mode == "url":
+            ext = validate_tmdb_image_url(item_payload)
+            target_path = os.path.join(folder_path, f"{target_base}{ext}")
+            tmp_part_path = f"{target_path}.part"
+            _download_with_retry(
+                item_payload,
+                tmp_part_path,
+                timeout=15,
+                attempts=3,
+                context=f"Artwork {role} ({target_base}) {filename_base}",
+            )
+        elif item_mode == "upload":
+            raw_bytes, ext = decode_and_validate_uploaded_image(item_payload)
+            target_path = os.path.join(folder_path, f"{target_base}{ext}")
+            tmp_part_path = f"{target_path}.part"
+            with open(tmp_part_path, "wb") as f:
+                f.write(raw_bytes)
+        else:
+            raise ValueError(f"Unbekannter Artwork-Modus: {item_mode}")
+
+        for alt_ext in (".jpg", ".jpeg", ".png", ".webp"):
+            alt_path = os.path.join(folder_path, f"{target_base}{alt_ext}")
+            if alt_path != target_path and os.path.exists(alt_path):
+                try:
+                    os.remove(alt_path)
+                except OSError:
+                    pass
+
+        os.replace(tmp_part_path, target_path)
+        return target_path
+    except Exception:
+        if tmp_part_path and os.path.exists(tmp_part_path):
+            try:
+                os.remove(tmp_part_path)
+            except OSError:
+                pass
+        raise
+
+
+def _cleanup_extra_numbered_backdrops(folder_path, max_extra_index):
+    try:
+        entries = os.listdir(folder_path)
+    except OSError:
+        return
+    for entry in entries:
+        m = _NUMBERED_BACKDROP_RE.match(entry)
+        if not m:
+            continue
+        idx_num = int(m.group(1))
+        if idx_num <= 0 or idx_num > max_extra_index:
+            try:
+                os.remove(os.path.join(folder_path, entry))
+            except OSError:
+                pass
+
+
 def apply_movie_artwork_overrides(folder_path, filename_base, artwork_overrides, settings=None):
     """
-    Apply user-selected artwork overrides (TMDb URL, local Base64 upload, or explicit 'none' deselection)
-    for 'poster', 'backdrop'/'fanart', and 'logo' (ROADMAP #51, E5-AK2, Option 1A, Option 3A).
+    Apply user-selected artwork overrides (TMDb URL, local Base64 upload, ordered backdrop multi-select,
+    or explicit 'none' deselection) for 'poster', 'backdrop'/'fanart', and 'logo'
+    (ROADMAP #51, E5-AK2, Option 1A, Option 3A, E5b).
     """
     if not isinstance(artwork_overrides, dict) or not artwork_overrides:
         return {}
@@ -1365,52 +1450,52 @@ def apply_movie_artwork_overrides(folder_path, filename_base, artwork_overrides,
         raw_spec = role_specs.get(role)
         if raw_spec is None:
             continue
-        tmp_part_path = None
         try:
-            mode, payload = _parse_artwork_override_spec(raw_spec)
+            mode, payload = _parse_artwork_override_spec(raw_spec, role=role)
             if mode == "auto":
                 continue
             if mode == "none":
+                if role == "backdrop":
+                    _cleanup_extra_numbered_backdrops(folder_path, 0)
                 results[role] = {"ok": True, "mode": "none", "path": None, "error": None}
                 continue
 
             role_base = role_bases[role]
-            if mode == "url":
-                ext = validate_tmdb_image_url(payload)
-                target_path = os.path.join(folder_path, f"{role_base}{ext}")
-                tmp_part_path = f"{target_path}.part"
-                _download_with_retry(
-                    payload,
-                    tmp_part_path,
-                    timeout=15,
-                    attempts=3,
-                    context=f"Artwork {role} {filename_base}",
-                )
-            elif mode == "upload":
-                raw_bytes, ext = decode_and_validate_uploaded_image(payload)
-                target_path = os.path.join(folder_path, f"{role_base}{ext}")
-                tmp_part_path = f"{target_path}.part"
-                with open(tmp_part_path, "wb") as f:
-                    f.write(raw_bytes)
-            else:
-                raise ValueError(f"Unbekannter Artwork-Modus: {mode}")
-
-            for alt_ext in (".jpg", ".jpeg", ".png", ".webp"):
-                alt_path = os.path.join(folder_path, f"{role_base}{alt_ext}")
-                if alt_path != target_path and os.path.exists(alt_path):
+            if mode == "multi":
+                saved_paths = []
+                errors = []
+                for idx, (item_mode, item_payload) in enumerate(payload):
+                    target_base = role_base if idx == 0 else f"{role_base}-{idx}"
                     try:
-                        os.remove(alt_path)
-                    except OSError:
-                        pass
+                        saved_path = _save_single_artwork_item(
+                            item_mode,
+                            item_payload,
+                            folder_path,
+                            target_base,
+                            role,
+                            filename_base,
+                        )
+                        saved_paths.append(saved_path)
+                    except Exception as item_exc:
+                        log_message(f"⚠️ [Artwork] {role} #{idx + 1} ({target_base}) konnte nicht gespeichert werden: {item_exc}")
+                        errors.append(str(item_exc))
 
-            os.replace(tmp_part_path, target_path)
+                if saved_paths:
+                    _cleanup_extra_numbered_backdrops(folder_path, len(payload) - 1)
+                results[role] = {
+                    "ok": len(saved_paths) > 0 and len(errors) == 0,
+                    "mode": "multi",
+                    "path": saved_paths[0] if saved_paths else None,
+                    "paths": saved_paths,
+                    "error": "; ".join(errors) if errors else None,
+                }
+                continue
+
+            target_path = _save_single_artwork_item(mode, payload, folder_path, role_base, role, filename_base)
+            if role == "backdrop":
+                _cleanup_extra_numbered_backdrops(folder_path, 0)
             results[role] = {"ok": True, "mode": mode, "path": target_path, "error": None}
         except Exception as exc:
-            if tmp_part_path and os.path.exists(tmp_part_path):
-                try:
-                    os.remove(tmp_part_path)
-                except OSError:
-                    pass
             log_message(f"⚠️ [Artwork] {role} konnte nicht gespeichert werden: {exc}")
             results[role] = {"ok": False, "mode": "error", "path": None, "error": str(exc)}
 

@@ -643,3 +643,135 @@ test('E5-AK2 & E5-AK3: Candidate API failure and broken <img> error render retry
     assert.equal(brokenBox.classList.contains('hidden'), true);
     assert.match(firstImg.getAttribute('src'), /retry=/);
 });
+
+test('E5b: Hintergrundbild (16:9) label, ordered multi-select (✓ 1, ✓ 2, upload combination, max-10 limit, Step 4 summary), single-select Poster/Logo, and non-overlapping Logo grid CSS', async () => {
+    const indexHtml = fs.readFileSync(path.join(__dirname, '../../gui/static/index.html'), 'utf8');
+    const styleCss = fs.readFileSync(path.join(__dirname, '../../gui/static/style.css'), 'utf8');
+
+    // 1. Static HTML tab label and CSS non-overlap & opaque Superfood Light logo background
+    assert.match(indexHtml, /id="mw-wizard-tab-fanart"[^>]*>Hintergrundbild \(16:9\)<\/button>/);
+    assert.match(styleCss, /\.mw-wizard-artwork-grid\s*\{[^}]*max-height:\s*290px;[^}]*overflow-x:\s*hidden;/);
+    const tileRuleMatch = styleCss.match(/\.mw-wizard-artwork-tile\s*\{([^}]*)\}/);
+    assert.ok(tileRuleMatch, '.mw-wizard-artwork-tile rule must exist');
+    assert.match(tileRuleMatch[1], /min-width:\s*0/);
+    assert.match(tileRuleMatch[1], /min-height:\s*0/);
+    assert.doesNotMatch(tileRuleMatch[1], /min-height:\s*140px/);
+    assert.match(styleCss, /body\.theme-superfood-light\s+\.mw-wizard-artwork-grid-logo\s+\.mw-wizard-artwork-tile\s*\{\s*background:\s*var\(--primary\);/);
+
+    // 2. Dynamic DOM label, empty state text, ordered backdrop multi-select vs strict Poster/Logo single-select
+    const validPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+    const elevenBackdrops = Array.from({ length: 11 }, (_, idx) => ({
+        url: `https://image.tmdb.org/t/p/original/bd_${idx + 1}.jpg`,
+        thumb_url: `https://image.tmdb.org/t/p/w300/bd_${idx + 1}.jpg`,
+        lang: idx === 0 ? 'de' : '',
+        width: 1920,
+        height: 1080,
+    }));
+    const twoLogos = [
+        { url: 'https://image.tmdb.org/t/p/original/logo_1.png', thumb_url: 'https://image.tmdb.org/t/p/w185/logo_1.png', lang: 'de', width: 800, height: 300 },
+        { url: 'https://image.tmdb.org/t/p/original/logo_2.png', thumb_url: 'https://image.tmdb.org/t/p/w185/logo_2.png', lang: 'en', width: 800, height: 300 },
+    ];
+
+    let emptyBackdropMode = true;
+    const { doc } = createArtworkMockDom();
+    const wizard = createFilmWizard({
+        document: doc,
+        fetch: async (url) => {
+            if (url.startsWith('/api/metadata/fetch')) {
+                return { ok: true, status: 200, json: async () => ({ title: 'Matrix', year: '1999' }) };
+            }
+            if (url.startsWith('/api/artwork/candidates')) {
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => makeBackendCandidatesResponse({
+                        backdrops: emptyBackdropMode ? [] : elevenBackdrops,
+                        logos: twoLogos,
+                    }),
+                };
+            }
+            if (url.startsWith('/api/preview_process')) {
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ({ destination: '/nas/Filme/Matrix (1999)', renames: [], subs: [], junk: [] }),
+                };
+            }
+            return { ok: true, status: 200, json: async () => ({}) };
+        },
+    });
+
+    assert.equal(doc.getElementById('mw-wizard-tab-fanart').textContent, 'Hintergrundbild (16:9)');
+
+    wizard.open({ query: 'Matrix', projectName: 'Matrix.1999', autoSearch: false });
+    await wizard.selectMovieInWizard({ id: '603', name: 'Matrix (1999)', provider: 'tmdb' });
+    wizard.goToStep(3);
+    await new Promise((r) => setTimeout(r, 0));
+
+    const fanartPanel = doc.getElementById('mw-wizard-artwork-fanart');
+    const logoPanel = doc.getElementById('mw-wizard-artwork-logo');
+    assert.match(fanartPanel.textContent, /Kein Hintergrundbild bei TMDb verfügbar\./);
+
+    // Reload with 11 backdrops + 2 logos
+    emptyBackdropMode = false;
+    await wizard.loadArtworkCandidates({ force: true, resetSelection: true });
+
+    // Logo tab stays strictly 1-click single-select
+    doc.getElementById('mw-wizard-tab-logo').click();
+    logoPanel.querySelectorAll('.mw-wizard-artwork-tile')[1].click();
+    const logoSelected = logoPanel.querySelectorAll('.mw-wizard-artwork-tile').filter((t) => t.getAttribute('aria-pressed') === 'true');
+    assert.equal(logoSelected.length, 1);
+    assert.equal(wizard.getArtworkState().logo.selectedCount, 1);
+
+    // Backdrop tab supports ordered multi-select: bd_1 is preselected -> click bd_2 -> add custom upload -> 3 items (✓ 1, ✓ 2, ✓ 3)
+    doc.getElementById('mw-wizard-tab-fanart').click();
+    fanartPanel.querySelectorAll('.mw-wizard-artwork-tile')[1].click();
+    assert.equal(wizard.setCustomArtworkUpload('backdrop', validPngDataUrl, 'custom-bg.png'), true);
+
+    const bdState = wizard.getArtworkState().backdrop;
+    assert.equal(bdState.mode, 'multi');
+    assert.equal(bdState.selectedCount, 3);
+    const activeBdTiles = fanartPanel.querySelectorAll('.mw-wizard-artwork-tile').filter((t) => t.getAttribute('aria-pressed') === 'true');
+    assert.equal(activeBdTiles.length, 3);
+    // Upload tile is rendered first in DOM (index 0 in DOM, 3rd in selection order -> '✓ 3'); bd_1 is '✓ 1', bd_2 is '✓ 2'
+    assert.equal(activeBdTiles[0].querySelector('.mw-wizard-artwork-check').textContent, '✓ 3');
+    assert.equal(activeBdTiles[1].querySelector('.mw-wizard-artwork-check').textContent, '✓ 1');
+    assert.equal(activeBdTiles[2].querySelector('.mw-wizard-artwork-check').textContent, '✓ 2');
+
+    assert.deepEqual(wizard.buildMovieBasePayload().artwork_overrides.backdrop, {
+        mode: 'multi',
+        items: [
+            { mode: 'url', url: 'https://image.tmdb.org/t/p/original/bd_1.jpg' },
+            { mode: 'url', url: 'https://image.tmdb.org/t/p/original/bd_2.jpg' },
+            { mode: 'upload', data_url: validPngDataUrl },
+        ],
+    });
+
+    // Step 4 summary displays 'Hintergrundbild: 3 Bilder'
+    wizard.goToStep(4);
+    await new Promise((r) => setTimeout(r, 0));
+    const step4Summary = doc.getElementById('mw-wizard-step-4').textContent;
+    assert.match(step4Summary, /Hintergrundbild: 3 Bilder/);
+
+    // Go back to Step 3, fill up to 10 backdrops and verify 11th is rejected with clear message
+    wizard.goToStep(3);
+    for (let i = 2; i <= 8; i++) {
+        wizard.selectArtworkCandidate('backdrop', i);
+    }
+    assert.equal(wizard.getArtworkState().backdrop.selectedCount, 10);
+    wizard.selectArtworkCandidate('backdrop', 9);
+    assert.equal(wizard.getArtworkState().backdrop.selectedCount, 10);
+    assert.match(doc.getElementById('mw-wizard-artwork-source-info').textContent, /Maximal 10 Hintergrundbilder auswählbar/);
+
+    // Deselecting down to 1 item returns payload cleanly to backward-compatible single { mode: 'url', url } and badge '✓'
+    wizard.deselectArtworkRole('backdrop');
+    assert.equal(wizard.getArtworkState().backdrop.selectedCount, 0);
+    wizard.selectArtworkCandidate('backdrop', 1);
+    assert.equal(wizard.getArtworkState().backdrop.selectedCount, 1);
+    assert.deepEqual(wizard.buildMovieBasePayload().artwork_overrides.backdrop, {
+        mode: 'url',
+        url: 'https://image.tmdb.org/t/p/original/bd_2.jpg',
+    });
+    const singleSelectedTile = fanartPanel.querySelectorAll('.mw-wizard-artwork-tile').find((t) => t.getAttribute('aria-pressed') === 'true');
+    assert.equal(singleSelectedTile.querySelector('.mw-wizard-artwork-check').textContent, '✓');
+});

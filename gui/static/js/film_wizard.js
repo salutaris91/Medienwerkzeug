@@ -1,9 +1,9 @@
-import { renderNfoEditor, buildMovieNfoOverrides, formatProviderLabel } from './nfo_editor.js?v=120';
-import { formatBytes } from './format.js?v=120';
+import { renderNfoEditor, buildMovieNfoOverrides, formatProviderLabel } from './nfo_editor.js?v=121';
+import { formatBytes } from './format.js?v=121';
 import {
     renderPreviewData,
     collectPreviewSelection,
-} from './preview_render.js?v=120';
+} from './preview_render.js?v=121';
 
 let activeWizardInstance = null;
 
@@ -282,7 +282,7 @@ function buildWizardDom(doc, modalOverlay) {
             ]),
             mkEl(doc, "div", { cls: "mw-wizard-tabs", attrs: { role: "tablist", "aria-label": "Artwork-Rollen" } }, [
                 mkEl(doc, "button", { id: "mw-wizard-tab-poster", cls: "mw-wizard-tab active", type: "button", text: "Poster (2:3)", attrs: { "data-artwork-tab": "poster", role: "tab", "aria-selected": "true", "aria-controls": "mw-wizard-artwork-poster" } }),
-                mkEl(doc, "button", { id: "mw-wizard-tab-fanart", cls: "mw-wizard-tab", type: "button", text: "Fanart (16:9)", attrs: { "data-artwork-tab": "fanart", role: "tab", "aria-selected": "false", "aria-controls": "mw-wizard-artwork-fanart" } }),
+                mkEl(doc, "button", { id: "mw-wizard-tab-fanart", cls: "mw-wizard-tab", type: "button", text: "Hintergrundbild (16:9)", attrs: { "data-artwork-tab": "fanart", role: "tab", "aria-selected": "false", "aria-controls": "mw-wizard-artwork-fanart" } }),
                 mkEl(doc, "button", { id: "mw-wizard-tab-logo", cls: "mw-wizard-tab", type: "button", text: "Logo", attrs: { "data-artwork-tab": "logo", role: "tab", "aria-selected": "false", "aria-controls": "mw-wizard-artwork-logo" } }),
             ]),
             mkEl(doc, "div", { id: "mw-wizard-artwork-toolbar", cls: "mw-wizard-artwork-toolbar" }, [
@@ -291,7 +291,7 @@ function buildWizardDom(doc, modalOverlay) {
                 mkEl(doc, "button", { id: "mw-wizard-artwork-upload-btn", cls: "btn btn-secondary btn-sm", type: "button", text: "Eigenes Bild wählen…" }),
             ]),
             mkEl(doc, "div", { id: "mw-wizard-artwork-poster", cls: "mw-wizard-artwork-panel mw-wizard-artwork-placeholder active", attrs: { role: "tabpanel", "aria-labelledby": "mw-wizard-tab-poster" }, text: "Automatischer Poster-Download (TMDb) ist aktiv. Dieser Schritt kann übersprungen werden." }),
-            mkEl(doc, "div", { id: "mw-wizard-artwork-fanart", cls: "mw-wizard-artwork-panel mw-wizard-artwork-placeholder hidden", attrs: { role: "tabpanel", "aria-labelledby": "mw-wizard-tab-fanart", hidden: "" }, text: "Automatischer Fanart-/Backdrop-Download (TMDb) ist aktiv. Dieser Schritt kann übersprungen werden." }),
+            mkEl(doc, "div", { id: "mw-wizard-artwork-fanart", cls: "mw-wizard-artwork-panel mw-wizard-artwork-placeholder hidden", attrs: { role: "tabpanel", "aria-labelledby": "mw-wizard-tab-fanart", hidden: "" }, text: "Automatischer Hintergrundbild-Download (TMDb) ist aktiv. Dieser Schritt kann übersprungen werden." }),
             mkEl(doc, "div", { id: "mw-wizard-artwork-logo", cls: "mw-wizard-artwork-panel mw-wizard-artwork-placeholder hidden", attrs: { role: "tabpanel", "aria-labelledby": "mw-wizard-tab-logo", hidden: "" }, text: "Automatischer Logo-Download (TMDb) ist aktiv. Dieser Schritt kann übersprungen werden." }),
             mkEl(doc, "div", { id: "mw-wizard-tmdb-attribution", cls: "mw-wizard-tmdb-attribution" }, [
                 tmdbLogoWrap,
@@ -423,6 +423,7 @@ export function createFilmWizard(options = {}) {
     let artworkSkipped = false;
     let activeArtworkTab = "poster";
     const MAX_ARTWORK_UPLOAD_BYTES = 15 * 1024 * 1024;
+    const MAX_BACKDROP_SELECTION = 10;
     const ARTWORK_ROLES = ["poster", "backdrop", "logo"];
     let artworkRequestSeq = 0;
     let artworkSessionSeq = 0;
@@ -440,6 +441,7 @@ export function createFilmWizard(options = {}) {
         return {
             candidates: [],
             customUpload: null,
+            selectedItems: [],
             mode: "auto",
             selectedUrl: "",
             selectedThumbUrl: "",
@@ -447,6 +449,38 @@ export function createFilmWizard(options = {}) {
             explicit: false,
             uploadError: "",
         };
+    }
+
+    function syncBackdropStateFromItems(st) {
+        if (!st) return;
+        const items = Array.isArray(st.selectedItems) ? st.selectedItems : [];
+        st.selectedItems = items;
+        if (items.length === 0) {
+            st.mode = st.explicit ? "none" : "auto";
+            st.selectedUrl = "";
+            st.selectedThumbUrl = "";
+            st.selectedDataUrl = "";
+            return;
+        }
+        const first = items[0];
+        if (items.length === 1) {
+            if (first.mode === "upload") {
+                st.mode = "upload";
+                st.selectedDataUrl = String(first.dataUrl || "");
+                st.selectedUrl = "";
+                st.selectedThumbUrl = "";
+            } else {
+                st.mode = "url";
+                st.selectedUrl = String(first.url || "");
+                st.selectedThumbUrl = String(first.thumbUrl || first.url || "");
+                st.selectedDataUrl = "";
+            }
+            return;
+        }
+        st.mode = "multi";
+        st.selectedUrl = first.mode === "url" ? String(first.url || "") : "";
+        st.selectedThumbUrl = first.mode === "url" ? String(first.thumbUrl || first.url || "") : "";
+        st.selectedDataUrl = first.mode === "upload" ? String(first.dataUrl || "") : "";
     }
 
     let artworkState = {
@@ -885,6 +919,7 @@ export function createFilmWizard(options = {}) {
             if (!st) return false;
             return Boolean(
                 st.explicit ||
+                (st.mode === "multi" && Array.isArray(st.selectedItems) && st.selectedItems.length > 0) ||
                 (st.mode === "url" && st.selectedUrl) ||
                 (st.mode === "upload" && st.selectedDataUrl) ||
                 st.mode === "none"
@@ -905,6 +940,15 @@ export function createFilmWizard(options = {}) {
                 out[role] = { mode: "auto" };
             } else if (st.mode === "none") {
                 out[role] = { mode: "none" };
+            } else if (role === "backdrop" && Array.isArray(st.selectedItems) && st.selectedItems.length >= 2) {
+                out[role] = {
+                    mode: "multi",
+                    items: st.selectedItems.map((it) =>
+                        it.mode === "upload"
+                            ? { mode: "upload", data_url: it.dataUrl }
+                            : { mode: "url", url: it.url }
+                    ),
+                };
             } else if (st.mode === "upload" && st.selectedDataUrl) {
                 out[role] = { mode: "upload", data_url: st.selectedDataUrl };
             } else if (st.mode === "url" && st.selectedUrl) {
@@ -924,17 +968,27 @@ export function createFilmWizard(options = {}) {
             const isTmdb = baseProv === "tmdb" || baseProv === "tmdb_movie" || successfulProviders.has("tmdb");
             if (isTmdb) return "Standard-Artwork (TMDb)";
             const hasPreselectedUrl = ARTWORK_ROLES.some(
-                (r) => Boolean(artworkState[r] && artworkState[r].mode === "url" && artworkState[r].selectedUrl)
+                (r) => Boolean(
+                    artworkState[r] &&
+                    ((artworkState[r].mode === "url" && artworkState[r].selectedUrl) ||
+                        (artworkState[r].mode === "multi" && artworkState[r].selectedItems.length > 0))
+                )
             );
             return hasPreselectedUrl ? "TMDb-Vorauswahl" : "Kein Artwork ausgewählt";
         }
-        const labels = { poster: "Poster", backdrop: "Fanart", logo: "Logo" };
+        const labels = { poster: "Poster", backdrop: "Hintergrundbild", logo: "Logo" };
         return ARTWORK_ROLES.map((r) => {
             const st = artworkState[r];
             let statusText = "Auto";
-            if (st.mode === "none") statusText = "Kein Bild";
-            else if (st.mode === "upload") statusText = "Eigenes Bild";
-            else if (st.mode === "url") statusText = "TMDb-Auswahl";
+            if (r === "backdrop" && Array.isArray(st.selectedItems) && st.selectedItems.length >= 2) {
+                statusText = `${st.selectedItems.length} Bilder`;
+            } else if (st.mode === "none") {
+                statusText = "Kein Bild";
+            } else if (st.mode === "upload") {
+                statusText = "Eigenes Bild";
+            } else if (st.mode === "url") {
+                statusText = "TMDb-Auswahl";
+            }
             return `${labels[r]}: ${statusText}`;
         }).join(" · ");
     }
@@ -1263,7 +1317,7 @@ export function createFilmWizard(options = {}) {
 
     function artworkRoleLabel(role) {
         const norm = normalizeArtworkRole(role);
-        if (norm === "backdrop") return "Fanart";
+        if (norm === "backdrop") return "Hintergrundbild";
         if (norm === "logo") return "Logo";
         return "Poster";
     }
@@ -1303,7 +1357,7 @@ export function createFilmWizard(options = {}) {
             } else if (artworkCandidatesLoadedKey) {
                 artworkSourceInfo.textContent = "Kein passender TMDb-Eintrag für automatische Bildkandidaten gefunden.";
             } else {
-                artworkSourceInfo.textContent = "TMDb-Bildquelle (Poster, Fanart, Logo)";
+                artworkSourceInfo.textContent = "TMDb-Bildquelle (Poster, Hintergrundbild, Logo)";
             }
         }
         if (artworkMatchSelect) {
@@ -1430,7 +1484,19 @@ export function createFilmWizard(options = {}) {
         });
 
         if (st.customUpload && st.customUpload.dataUrl) {
-            const isUploadSelected = st.mode === "upload" && st.selectedDataUrl === st.customUpload.dataUrl;
+            let isUploadSelected = false;
+            let uploadCheckText = "✓";
+            if (normRole === "backdrop") {
+                const uploadIdx = Array.isArray(st.selectedItems)
+                    ? st.selectedItems.findIndex((it) => it.mode === "upload" && it.dataUrl === st.customUpload.dataUrl)
+                    : -1;
+                isUploadSelected = uploadIdx >= 0;
+                if (isUploadSelected && st.selectedItems.length >= 2) {
+                    uploadCheckText = `✓ ${uploadIdx + 1}`;
+                }
+            } else {
+                isUploadSelected = st.mode === "upload" && st.selectedDataUrl === st.customUpload.dataUrl;
+            }
             const uploadImg = mkEl(doc, "img", {
                 cls: "mw-wizard-artwork-image",
                 attrs: {
@@ -1448,7 +1514,7 @@ export function createFilmWizard(options = {}) {
                 },
             }, [
                 uploadImg,
-                mkEl(doc, "span", { cls: "mw-wizard-artwork-check", text: "✓", attrs: { "aria-hidden": "true" } }),
+                mkEl(doc, "span", { cls: "mw-wizard-artwork-check", text: uploadCheckText, attrs: { "aria-hidden": "true" } }),
                 mkEl(doc, "span", {
                     cls: "mw-wizard-artwork-meta",
                     text: st.customUpload.fileName ? `Eigenes Bild · ${st.customUpload.fileName}` : "Eigenes Bild",
@@ -1457,18 +1523,45 @@ export function createFilmWizard(options = {}) {
             uploadTile.addEventListener("click", () => {
                 artworkSkipped = false;
                 st.uploadError = "";
-                if (st.mode === "upload" && st.selectedDataUrl === st.customUpload.dataUrl) {
-                    st.mode = "none";
-                    st.selectedDataUrl = "";
-                    st.selectedUrl = "";
-                    st.selectedThumbUrl = "";
+                if (normRole === "backdrop") {
+                    const existingIdx = Array.isArray(st.selectedItems)
+                        ? st.selectedItems.findIndex((it) => it.mode === "upload")
+                        : -1;
+                    if (existingIdx >= 0) {
+                        st.selectedItems.splice(existingIdx, 1);
+                    } else {
+                        if (st.selectedItems.length >= MAX_BACKDROP_SELECTION) {
+                            setArtworkUploadError("backdrop", `Maximal ${MAX_BACKDROP_SELECTION} Hintergrundbilder auswählbar.`);
+                            return;
+                        }
+                        st.selectedItems.push({
+                            mode: "upload",
+                            dataUrl: st.customUpload.dataUrl,
+                            fileName: st.customUpload.fileName,
+                        });
+                    }
+                    st.explicit = true;
+                    syncBackdropStateFromItems(st);
                 } else {
-                    st.mode = "upload";
-                    st.selectedDataUrl = st.customUpload.dataUrl;
-                    st.selectedUrl = "";
-                    st.selectedThumbUrl = "";
+                    if (st.mode === "upload" && st.selectedDataUrl === st.customUpload.dataUrl) {
+                        st.mode = "none";
+                        st.selectedDataUrl = "";
+                        st.selectedUrl = "";
+                        st.selectedThumbUrl = "";
+                        st.selectedItems = [];
+                    } else {
+                        st.mode = "upload";
+                        st.selectedDataUrl = st.customUpload.dataUrl;
+                        st.selectedUrl = "";
+                        st.selectedThumbUrl = "";
+                        st.selectedItems = [{
+                            mode: "upload",
+                            dataUrl: st.customUpload.dataUrl,
+                            fileName: st.customUpload.fileName,
+                        }];
+                    }
+                    st.explicit = true;
                 }
-                st.explicit = true;
                 renderArtworkRolePanel(normRole);
                 updateArtworkToolbarState();
                 updateArtworkSourceBar();
@@ -1479,7 +1572,19 @@ export function createFilmWizard(options = {}) {
         if (hasCandidates) {
             st.candidates.forEach((cand, idx) => {
                 if (!cand || !cand.url) return;
-                const isSelected = st.mode === "url" && st.selectedUrl === cand.url;
+                let isSelected = false;
+                let checkText = "✓";
+                if (normRole === "backdrop") {
+                    const selIdx = Array.isArray(st.selectedItems)
+                        ? st.selectedItems.findIndex((it) => it.mode === "url" && it.url === cand.url)
+                        : -1;
+                    isSelected = selIdx >= 0;
+                    if (isSelected && st.selectedItems.length >= 2) {
+                        checkText = `✓ ${selIdx + 1}`;
+                    }
+                } else {
+                    isSelected = st.mode === "url" && st.selectedUrl === cand.url;
+                }
                 const tile = mkEl(doc, "button", {
                     cls: `mw-wizard-artwork-tile${isSelected ? " selected" : ""}`,
                     type: "button",
@@ -1529,7 +1634,7 @@ export function createFilmWizard(options = {}) {
                 const langLabel = rawLang ? rawLang.toUpperCase() : "Neutral";
                 const dimLabel = cand.width && cand.height ? `${cand.width}×${cand.height}` : "";
                 const metaText = [langLabel, dimLabel].filter(Boolean).join(" · ");
-                const checkEl = mkEl(doc, "span", { cls: "mw-wizard-artwork-check", text: "✓", attrs: { "aria-hidden": "true" } });
+                const checkEl = mkEl(doc, "span", { cls: "mw-wizard-artwork-check", text: checkText, attrs: { "aria-hidden": "true" } });
                 const metaEl = mkEl(doc, "span", { cls: "mw-wizard-artwork-meta", text: metaText });
 
                 tile.appendChild(img);
@@ -1583,11 +1688,16 @@ export function createFilmWizard(options = {}) {
         const snapshot = {};
         for (const role of ARTWORK_ROLES) {
             const st = artworkState[role];
+            const itemsCopy = Array.isArray(st.selectedItems)
+                ? st.selectedItems.map((it) => ({ ...it }))
+                : [];
             snapshot[role] = {
                 mode: st.mode,
                 selectedUrl: st.selectedUrl,
                 selectedThumbUrl: st.selectedThumbUrl,
                 selectedDataUrl: st.selectedDataUrl,
+                selectedCount: itemsCopy.length,
+                selectedItems: itemsCopy,
                 explicit: st.explicit,
                 uploadError: st.uploadError,
                 candidatesCount: Array.isArray(st.candidates) ? st.candidates.length : 0,
@@ -1629,18 +1739,43 @@ export function createFilmWizard(options = {}) {
 
         artworkSkipped = false;
         st.uploadError = "";
-        if (st.mode === "url" && st.selectedUrl === cand.url) {
-            st.mode = "none";
-            st.selectedUrl = "";
-            st.selectedThumbUrl = "";
-            st.selectedDataUrl = "";
+        if (normRole === "backdrop") {
+            const existingIdx = Array.isArray(st.selectedItems)
+                ? st.selectedItems.findIndex((it) => it.mode === "url" && it.url === cand.url)
+                : -1;
+            if (existingIdx >= 0) {
+                st.selectedItems.splice(existingIdx, 1);
+            } else {
+                if (st.selectedItems.length >= MAX_BACKDROP_SELECTION) {
+                    setArtworkUploadError("backdrop", `Maximal ${MAX_BACKDROP_SELECTION} Hintergrundbilder auswählbar.`);
+                    return getArtworkState();
+                }
+                st.selectedItems.push({
+                    mode: "url",
+                    url: String(cand.url),
+                    thumbUrl: String(cand.thumb_url || cand.preview_url || cand.url),
+                });
+            }
+            st.explicit = true;
+            syncBackdropStateFromItems(st);
         } else {
-            st.mode = "url";
-            st.selectedUrl = String(cand.url);
-            st.selectedThumbUrl = String(cand.thumb_url || cand.preview_url || cand.url);
-            st.selectedDataUrl = "";
+            if (st.mode === "url" && st.selectedUrl === cand.url) {
+                st.mode = "none";
+                st.selectedUrl = "";
+                st.selectedThumbUrl = "";
+                st.selectedDataUrl = "";
+                st.selectedItems = [];
+            } else {
+                const chosenUrl = String(cand.url);
+                const chosenThumb = String(cand.thumb_url || cand.preview_url || cand.url);
+                st.mode = "url";
+                st.selectedUrl = chosenUrl;
+                st.selectedThumbUrl = chosenThumb;
+                st.selectedDataUrl = "";
+                st.selectedItems = [{ mode: "url", url: chosenUrl, thumbUrl: chosenThumb }];
+            }
+            st.explicit = true;
         }
-        st.explicit = true;
         renderArtworkRolePanel(normRole);
         updateArtworkToolbarState();
         updateArtworkSourceBar();
@@ -1653,6 +1788,7 @@ export function createFilmWizard(options = {}) {
         if (!st) return getArtworkState();
         artworkSkipped = false;
         st.uploadError = "";
+        st.selectedItems = [];
         st.mode = "none";
         st.selectedUrl = "";
         st.selectedThumbUrl = "";
@@ -1681,17 +1817,49 @@ export function createFilmWizard(options = {}) {
             return false;
         }
 
-        artworkSkipped = false;
-        st.uploadError = "";
-        st.customUpload = {
+        const normalizedUpload = {
             dataUrl: `data:image/${headerMatch[1].toLowerCase()};base64,${b64Payload}`,
             fileName: String(fileName || "upload"),
         };
-        st.mode = "upload";
-        st.selectedDataUrl = st.customUpload.dataUrl;
-        st.selectedUrl = "";
-        st.selectedThumbUrl = "";
-        st.explicit = true;
+
+        if (normRole === "backdrop") {
+            const existingUploadIdx = Array.isArray(st.selectedItems)
+                ? st.selectedItems.findIndex((it) => it.mode === "upload")
+                : -1;
+            if (existingUploadIdx < 0 && st.selectedItems.length >= MAX_BACKDROP_SELECTION) {
+                setArtworkUploadError("backdrop", `Maximal ${MAX_BACKDROP_SELECTION} Hintergrundbilder auswählbar.`);
+                return false;
+            }
+            artworkSkipped = false;
+            st.uploadError = "";
+            st.customUpload = normalizedUpload;
+            const uploadEntry = {
+                mode: "upload",
+                dataUrl: normalizedUpload.dataUrl,
+                fileName: normalizedUpload.fileName,
+            };
+            if (existingUploadIdx >= 0) {
+                st.selectedItems[existingUploadIdx] = uploadEntry;
+            } else {
+                st.selectedItems.push(uploadEntry);
+            }
+            st.explicit = true;
+            syncBackdropStateFromItems(st);
+        } else {
+            artworkSkipped = false;
+            st.uploadError = "";
+            st.customUpload = normalizedUpload;
+            st.mode = "upload";
+            st.selectedDataUrl = normalizedUpload.dataUrl;
+            st.selectedUrl = "";
+            st.selectedThumbUrl = "";
+            st.selectedItems = [{
+                mode: "upload",
+                dataUrl: normalizedUpload.dataUrl,
+                fileName: normalizedUpload.fileName,
+            }];
+            st.explicit = true;
+        }
         renderArtworkRolePanel(normRole);
         updateArtworkToolbarState();
         updateArtworkSourceBar();
@@ -1793,12 +1961,16 @@ export function createFilmWizard(options = {}) {
                 st.candidates = list;
                 if (resetSelection || !st.explicit) {
                     if (list.length > 0 && list[0] && list[0].url) {
+                        const firstUrl = String(list[0].url);
+                        const firstThumb = String(list[0].thumb_url || list[0].preview_url || list[0].url);
+                        st.selectedItems = [{ mode: "url", url: firstUrl, thumbUrl: firstThumb }];
                         st.mode = "url";
-                        st.selectedUrl = String(list[0].url);
-                        st.selectedThumbUrl = String(list[0].thumb_url || list[0].preview_url || list[0].url);
+                        st.selectedUrl = firstUrl;
+                        st.selectedThumbUrl = firstThumb;
                         st.selectedDataUrl = "";
                         st.explicit = Boolean(markExplicit);
                     } else if (!st.customUpload) {
+                        st.selectedItems = [];
                         st.mode = "auto";
                         st.selectedUrl = "";
                         st.selectedThumbUrl = "";

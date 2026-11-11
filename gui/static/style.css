@@ -4394,24 +4394,25 @@ body.runtime-docker .docker-only-info {
 .mw-wizard-artwork-toolbar .btn.active { border-color: var(--accent); background: rgba(var(--accent-rgb), 0.18); color: var(--text-main); font-weight: 600; }
 .mw-wizard-artwork-panel { min-height: 160px; }
 .mw-wizard-artwork-panel.hidden { display: none; }
-.mw-wizard-artwork-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); max-height: 360px; overflow-y: auto; padding: 4px 2px; }
+.mw-wizard-artwork-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); max-height: 290px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding: 4px 2px; }
 .mw-wizard-artwork-grid-backdrop { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
 .mw-wizard-artwork-grid-logo { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
-.mw-wizard-artwork-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0; border-radius: var(--radius-md); border: 2px solid var(--border-light); background: var(--bg-surface); color: var(--text-main); cursor: pointer; overflow: hidden; transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease; min-height: 140px; }
-.mw-wizard-artwork-grid-poster .mw-wizard-artwork-tile { aspect-ratio: 2 / 3; }
-.mw-wizard-artwork-grid-backdrop .mw-wizard-artwork-tile { aspect-ratio: 16 / 9; }
-.mw-wizard-artwork-grid-logo .mw-wizard-artwork-tile { aspect-ratio: 16 / 7; padding: 10px; background: var(--bg-input); }
-body.theme-superfood-light .mw-wizard-artwork-grid-logo .mw-wizard-artwork-tile { background: rgba(var(--primary-rgb), 0.78); }
+.mw-wizard-artwork-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; min-width: 0; min-height: 0; box-sizing: border-box; padding: 0; border-radius: var(--radius-md); border: 2px solid var(--border-light); background: var(--bg-surface); color: var(--text-main); cursor: pointer; overflow: hidden; transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease; }
+.mw-wizard-artwork-tile.empty, .mw-wizard-artwork-tile.error, .mw-wizard-artwork-tile.loading { min-height: 110px; }
+.mw-wizard-artwork-grid-poster .mw-wizard-artwork-tile { aspect-ratio: 2 / 3; min-height: 0; }
+.mw-wizard-artwork-grid-backdrop .mw-wizard-artwork-tile { aspect-ratio: 16 / 9; min-height: 0; }
+.mw-wizard-artwork-grid-logo .mw-wizard-artwork-tile { aspect-ratio: 16 / 7; min-height: 0; padding: 10px; background: var(--bg-input); }
+body.theme-superfood-light .mw-wizard-artwork-grid-logo .mw-wizard-artwork-tile { background: var(--primary); }
 .mw-wizard-artwork-tile:hover:not(.empty):not(.loading) { transform: translateY(-2px); border-color: var(--accent); }
 .mw-wizard-artwork-tile.selected { border: 3px solid var(--accent); box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.28); }
-.mw-wizard-artwork-image { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mw-wizard-artwork-image { width: 100%; height: 100%; max-width: 100%; max-height: 100%; min-width: 0; min-height: 0; object-fit: cover; display: block; }
 .mw-wizard-artwork-grid-logo .mw-wizard-artwork-image { object-fit: contain; }
-.mw-wizard-artwork-check { display: none; position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--bg-base); font-size: 0.8rem; font-weight: 700; align-items: center; justify-content: center; pointer-events: none; }
+.mw-wizard-artwork-check { display: none; position: absolute; top: 8px; right: 8px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px; box-sizing: border-box; background: var(--accent); color: var(--bg-base); font-size: 0.78rem; font-weight: 700; white-space: nowrap; align-items: center; justify-content: center; pointer-events: none; }
 .mw-wizard-artwork-tile.selected .mw-wizard-artwork-check { display: inline-flex; }
 .mw-wizard-artwork-meta { position: absolute; bottom: 6px; left: 6px; padding: 2px 6px; border-radius: var(--radius-sm); background: var(--bg-base); color: var(--text-main); border: 1px solid var(--border-glass); font-size: 0.7rem; font-weight: 600; pointer-events: none; opacity: 0.9; }
 .mw-wizard-artwork-tile.loading { cursor: default; border-style: solid; }
-.mw-wizard-artwork-skeleton { width: 100%; height: 100%; min-height: 120px; background: var(--bg-input); animation: pulse 1.5s infinite; }
-.mw-wizard-artwork-tile.empty { grid-column: 1 / -1; aspect-ratio: auto; min-height: 110px; padding: 20px; border-style: dashed; border-color: var(--border-glass); color: var(--text-muted); font-size: 0.85rem; cursor: default; text-align: center; }
+.mw-wizard-artwork-skeleton { width: 100%; height: 100%; min-height: 0; background: var(--bg-input); animation: pulse 1.5s infinite; }
+.mw-wizard-artwork-grid .mw-wizard-artwork-tile.empty, .mw-wizard-artwork-tile.empty { grid-column: 1 / -1; aspect-ratio: auto; min-height: 110px; padding: 20px; border-style: dashed; border-color: var(--border-glass); color: var(--text-muted); font-size: 0.85rem; cursor: default; text-align: center; }
 .mw-wizard-artwork-tile.error { border-style: dashed; border-color: var(--danger); color: var(--danger); padding: 14px; gap: 8px; text-align: center; cursor: default; }
 .mw-wizard-artwork-broken { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px; font-size: 0.78rem; color: var(--danger); }
 .mw-wizard-artwork-placeholder { padding: 24px 16px; text-align: center; background: var(--bg-surface); border: 1px dashed var(--border-glass); border-radius: var(--radius-md); color: var(--text-muted); font-size: 0.9rem; }
