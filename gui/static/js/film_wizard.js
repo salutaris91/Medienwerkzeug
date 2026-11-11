@@ -1969,7 +1969,24 @@ export function createFilmWizard(options = {}) {
                         st.selectedThumbUrl = firstThumb;
                         st.selectedDataUrl = "";
                         st.explicit = Boolean(markExplicit);
-                    } else if (!st.customUpload) {
+                    } else if (st.customUpload) {
+                        st.selectedItems = Array.isArray(st.selectedItems)
+                            ? st.selectedItems.filter((it) => it && it.mode === "upload")
+                            : [];
+                        if (role === "backdrop") {
+                            syncBackdropStateFromItems(st);
+                        } else if (st.selectedItems.length > 0) {
+                            st.mode = "upload";
+                            st.selectedDataUrl = String(st.selectedItems[0].dataUrl || "");
+                            st.selectedUrl = "";
+                            st.selectedThumbUrl = "";
+                        } else {
+                            st.mode = st.explicit ? "none" : "auto";
+                            st.selectedUrl = "";
+                            st.selectedThumbUrl = "";
+                            st.selectedDataUrl = "";
+                        }
+                    } else {
                         st.selectedItems = [];
                         st.mode = "auto";
                         st.selectedUrl = "";

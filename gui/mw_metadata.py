@@ -1287,7 +1287,7 @@ def decode_and_validate_uploaded_image(data_url, max_bytes=15 * 1024 * 1024):
 
 
 MAX_MULTI_BACKDROPS = 10
-_NUMBERED_BACKDROP_RE = re.compile(r"^(?:fanart|backdrop)-(\d+)\.(?:jpg|jpeg|png|webp)$", re.IGNORECASE)
+_NUMBERED_BACKDROP_RE = re.compile(r"^(fanart|backdrop)-(\d+)\.(?:jpg|jpeg|png|webp)$", re.IGNORECASE)
 
 
 def _parse_artwork_override_spec(spec, role=None, _allow_multi=True):
@@ -1402,7 +1402,8 @@ def _save_single_artwork_item(item_mode, item_payload, folder_path, target_base,
         raise
 
 
-def _cleanup_extra_numbered_backdrops(folder_path, max_extra_index):
+def _cleanup_extra_numbered_backdrops(folder_path, max_extra_index, preferred_base=None):
+    pref_lower = preferred_base.lower() if preferred_base else None
     try:
         entries = os.listdir(folder_path)
     except OSError:
@@ -1411,8 +1412,9 @@ def _cleanup_extra_numbered_backdrops(folder_path, max_extra_index):
         m = _NUMBERED_BACKDROP_RE.match(entry)
         if not m:
             continue
-        idx_num = int(m.group(1))
-        if idx_num <= 0 or idx_num > max_extra_index:
+        prefix_lower = m.group(1).lower()
+        idx_num = int(m.group(2))
+        if idx_num <= 0 or idx_num > max_extra_index or (pref_lower and prefix_lower != pref_lower):
             try:
                 os.remove(os.path.join(folder_path, entry))
             except OSError:
@@ -1465,7 +1467,8 @@ def apply_movie_artwork_overrides(folder_path, filename_base, artwork_overrides,
                 saved_paths = []
                 errors = []
                 for idx, (item_mode, item_payload) in enumerate(payload):
-                    target_base = role_base if idx == 0 else f"{role_base}-{idx}"
+                    save_idx = len(saved_paths)
+                    target_base = role_base if save_idx == 0 else f"{role_base}-{save_idx}"
                     try:
                         saved_path = _save_single_artwork_item(
                             item_mode,
@@ -1481,7 +1484,7 @@ def apply_movie_artwork_overrides(folder_path, filename_base, artwork_overrides,
                         errors.append(str(item_exc))
 
                 if saved_paths:
-                    _cleanup_extra_numbered_backdrops(folder_path, len(payload) - 1)
+                    _cleanup_extra_numbered_backdrops(folder_path, len(saved_paths) - 1, preferred_base=role_base)
                 results[role] = {
                     "ok": len(saved_paths) > 0 and len(errors) == 0,
                     "mode": "multi",
@@ -1493,7 +1496,7 @@ def apply_movie_artwork_overrides(folder_path, filename_base, artwork_overrides,
 
             target_path = _save_single_artwork_item(mode, payload, folder_path, role_base, role, filename_base)
             if role == "backdrop":
-                _cleanup_extra_numbered_backdrops(folder_path, 0)
+                _cleanup_extra_numbered_backdrops(folder_path, 0, preferred_base=role_base)
             results[role] = {"ok": True, "mode": mode, "path": target_path, "error": None}
         except Exception as exc:
             log_message(f"⚠️ [Artwork] {role} konnte nicht gespeichert werden: {exc}")

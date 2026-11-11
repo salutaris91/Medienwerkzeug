@@ -498,7 +498,45 @@ class TestArtworkDownload(unittest.TestCase):
                 self.assertTrue(os.path.isfile(os.path.join(jf_dir, "backdrop-2.png")))
                 self.assertFalse(os.path.exists(stale_extra))
 
-                # Switching back to a single backdrop cleans up backdrop-1.jpg and backdrop-2.png
+                # Partial failure on item #1 shifts surviving items gaplessly to backdrop.jpg + backdrop-1.png
+                with open(os.path.join(jf_dir, "backdrop-2.jpg"), "wb") as sf2, \
+                     open(os.path.join(jf_dir, "fanart-1.jpg"), "wb") as sf_emby:
+                    sf2.write(b"stale2")
+                    sf_emby.write(b"stale-emby")
+
+                def partial_fail_urlopen(req, timeout=None):
+                    if "dead_first" in req.full_url:
+                        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
+                    return _FakeHttpResponse(
+                        headers={"Content-Length": str(len(SAMPLE_JPEG_BYTES))},
+                        raw_bytes=SAMPLE_JPEG_BYTES,
+                    )
+
+                with patch.object(urllib.request, "urlopen", side_effect=partial_fail_urlopen), \
+                     patch.object(mw_metadata.time, "sleep", lambda s: None):
+                    res_partial = mw_metadata.apply_movie_artwork_overrides(
+                        jf_dir,
+                        "Matrix (1999)",
+                        {
+                            "backdrop": {
+                                "mode": "multi",
+                                "items": [
+                                    {"mode": "url", "url": "https://image.tmdb.org/t/p/original/dead_first.jpg"},
+                                    {"mode": "url", "url": "https://image.tmdb.org/t/p/original/good_second.jpg"},
+                                    {"mode": "upload", "data_url": png_data_url},
+                                ],
+                            }
+                        },
+                        settings={"media_server": "jellyfin"},
+                    )
+                self.assertFalse(res_partial["backdrop"]["ok"])
+                self.assertEqual(len(res_partial["backdrop"]["paths"]), 2)
+                self.assertTrue(os.path.isfile(os.path.join(jf_dir, "backdrop.jpg")))
+                self.assertTrue(os.path.isfile(os.path.join(jf_dir, "backdrop-1.png")))
+                self.assertFalse(os.path.exists(os.path.join(jf_dir, "backdrop-2.jpg")))
+                self.assertFalse(os.path.exists(os.path.join(jf_dir, "fanart-1.jpg")))
+
+                # Switching back to a single backdrop cleans up backdrop-1.png
                 res_single = mw_metadata.apply_movie_artwork_overrides(
                     jf_dir,
                     "Matrix (1999)",
@@ -508,6 +546,7 @@ class TestArtworkDownload(unittest.TestCase):
                 self.assertTrue(res_single["backdrop"]["ok"])
                 self.assertTrue(os.path.isfile(os.path.join(jf_dir, "backdrop.jpg")))
                 self.assertFalse(os.path.exists(os.path.join(jf_dir, "backdrop-1.jpg")))
+                self.assertFalse(os.path.exists(os.path.join(jf_dir, "backdrop-1.png")))
                 self.assertFalse(os.path.exists(os.path.join(jf_dir, "backdrop-2.png")))
 
         # 3. Full processor.process_worker run (Emby): fanart.jpg, fanart-1.jpg, fanart-2.png reach Outbox movie folder

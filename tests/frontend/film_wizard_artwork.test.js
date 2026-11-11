@@ -774,4 +774,32 @@ test('E5b: Hintergrundbild (16:9) label, ordered multi-select (✓ 1, ✓ 2, upl
     });
     const singleSelectedTile = fanartPanel.querySelectorAll('.mw-wizard-artwork-tile').find((t) => t.getAttribute('aria-pressed') === 'true');
     assert.equal(singleSelectedTile.querySelector('.mw-wizard-artwork-check').textContent, '✓');
+
+    // Re-add custom upload alongside bd_2 ([bd_2, upload]), and on Logo upload then pick a TMDb URL,
+    // then reload a movie with 0 backdrops & 0 logos (resetSelection: true) -> orphaned TMDb URLs MUST be stripped!
+    wizard.setCustomArtworkUpload('backdrop', validPngDataUrl, 'custom-bg.png');
+    assert.equal(wizard.getArtworkState().backdrop.selectedCount, 2);
+    wizard.setCustomArtworkUpload('logo', validPngDataUrl, 'custom-logo.png');
+    wizard.selectArtworkCandidate('logo', 0);
+    assert.equal(wizard.getArtworkState().logo.mode, 'url');
+
+    emptyBackdropMode = true;
+    twoLogos.length = 0;
+    await wizard.loadArtworkCandidates({ force: true, resetSelection: true });
+
+    const bdAfterEmpty = wizard.getArtworkState().backdrop;
+    assert.equal(bdAfterEmpty.mode, 'upload');
+    assert.equal(bdAfterEmpty.selectedCount, 1);
+    assert.equal(bdAfterEmpty.selectedUrl, '');
+    assert.deepEqual(wizard.buildMovieBasePayload().artwork_overrides.backdrop, {
+        mode: 'upload',
+        data_url: validPngDataUrl,
+    });
+    const remainingUploadTile = fanartPanel.querySelector('.mw-wizard-artwork-tile-upload');
+    assert.equal(remainingUploadTile.querySelector('.mw-wizard-artwork-check').textContent, '✓');
+
+    const logoAfterEmpty = wizard.getArtworkState().logo;
+    assert.equal(logoAfterEmpty.mode, 'none');
+    assert.equal(logoAfterEmpty.selectedUrl, '');
+    assert.equal(logoAfterEmpty.selectedCount, 0);
 });
