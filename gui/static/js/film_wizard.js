@@ -919,7 +919,15 @@ export function createFilmWizard(options = {}) {
     function formatArtworkSummaryLine() {
         if (artworkSkipped) return "Übersprungen (Standard-Artwork)";
         const hasExplicit = ARTWORK_ROLES.some((r) => Boolean(artworkState[r] && artworkState[r].explicit));
-        if (!hasExplicit) return "Standard-Artwork (TMDb)";
+        if (!hasExplicit) {
+            const baseProv = String((selectedMovie && selectedMovie.provider) || "manual").toLowerCase();
+            const isTmdb = baseProv === "tmdb" || baseProv === "tmdb_movie" || successfulProviders.has("tmdb");
+            if (isTmdb) return "Standard-Artwork (TMDb)";
+            const hasPreselectedUrl = ARTWORK_ROLES.some(
+                (r) => Boolean(artworkState[r] && artworkState[r].mode === "url" && artworkState[r].selectedUrl)
+            );
+            return hasPreselectedUrl ? "TMDb-Vorauswahl" : "Kein Artwork ausgewählt";
+        }
         const labels = { poster: "Poster", backdrop: "Fanart", logo: "Logo" };
         return ARTWORK_ROLES.map((r) => {
             const st = artworkState[r];
@@ -2413,6 +2421,7 @@ export function createFilmWizard(options = {}) {
             const expectedArtworkSession = artworkSessionSeq;
             const reqUploadSeq = ++uploadSeqByRole[targetRole];
             const file = artworkUploadInputEl.files && artworkUploadInputEl.files[0];
+            artworkUploadInputEl.value = "";
             if (!file) return;
             const fName = String(file.name || "upload");
             const fType = String(file.type || "").toLowerCase();

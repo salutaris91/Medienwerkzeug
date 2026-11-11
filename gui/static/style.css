@@ -4401,6 +4401,7 @@ body.runtime-docker .docker-only-info {
 .mw-wizard-artwork-grid-poster .mw-wizard-artwork-tile { aspect-ratio: 2 / 3; }
 .mw-wizard-artwork-grid-backdrop .mw-wizard-artwork-tile { aspect-ratio: 16 / 9; }
 .mw-wizard-artwork-grid-logo .mw-wizard-artwork-tile { aspect-ratio: 16 / 7; padding: 10px; background: var(--bg-input); }
+body.theme-superfood-light .mw-wizard-artwork-grid-logo .mw-wizard-artwork-tile { background: rgba(var(--primary-rgb), 0.78); }
 .mw-wizard-artwork-tile:hover:not(.empty):not(.loading) { transform: translateY(-2px); border-color: var(--accent); }
 .mw-wizard-artwork-tile.selected { border: 3px solid var(--accent); box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.28); }
 .mw-wizard-artwork-image { width: 100%; height: 100%; object-fit: cover; display: block; }

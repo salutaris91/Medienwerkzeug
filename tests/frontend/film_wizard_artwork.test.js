@@ -518,8 +518,10 @@ test('Option 1A: Visible upload button click (static & dynamic DOM) and async Fi
 
         // 1. Start reading a Poster file on 'poster' tab, then switch to 'logo' tab BEFORE FileReader finishes
         assert.equal(wizard.getActiveArtworkTab(), 'poster');
+        uploadInput.value = 'C:\\fakepath\\my-poster.png';
         uploadInput.files = [{ name: 'my-poster.png', type: 'image/png', size: 128 }];
         uploadInput.dispatchEvent({ type: 'change' });
+        assert.equal(uploadInput.value, '', 'Upload input value must be cleared after reading file so re-selecting the same file fires change again');
         assert.equal(readerInstances.length, 1);
         const posterReader = readerInstances[0];
 
