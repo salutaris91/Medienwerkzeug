@@ -2,6 +2,11 @@
 
 Hier befindet sich die kumulative Historie des projektfortschritts, ausgelagert aus `STAND.md`.
 
+## 2026-11-10 — ROADMAP #92 Etappe E3: NFO-Agent-Filmpfad andocken + Altcode-Rückbau (PR #171)
+
+- **Umsetzung & Review:** Der Film-Zweig (`mediaType === "movie"`) von `#modal-nfo-agent` nutzt jetzt das gemeinsame Editor-Modul `gui/static/js/nfo_editor.js` (inkl. optionaler Quellen-Badges `showSourceBadges`/`setFieldSource`/`getFieldSource` und verlustfreiem Moduswechsel `tvshow ↔ movie` im geöffneten Dialog). Der Übergabe-Altpfad aus E1 (`triggerHandover`, `getHandoverPayload`, `onHandoverCallback` in `film_wizard.js`, `wizardMovieOverrides` in `app.js`, `#btn-open-film-wizard` in `index.html`) wurde entfernt; `#mode-movie` öffnet bei regulären Filmen direkt den `Film-Assistent`, während `#context-movie` rein für den Doku-Pfad erhalten bleibt. Gate-A2 (`2026-11-10-e3-task`): APPROVED in Runde 3; Post-Gate-Commits durch unabhängigen Reviewer-Subagent mit `VERDICT: APPROVE` abgenommen.
+- **Handtest (OrbStack, Alex bestanden 2026-11-10):** 3 UI-/Theme-Nachbesserungen im Lauf umgesetzt — symmetrisches 2-Spalten-Grid (`[Titel | Jahr]` + `[Genre | FSK]`, `height: 38px`) und Hover-Kontrast-Fix (`--accent-hover`), einklappbare Episoden-Karten (`Details`/`Einklappen`) im Serien-NFO-Agenten sowie vollständige Theme-Variablen (`--border-light`, `--bg-main`, `--bg-hover`, `#preview-modal`, `.mode-card`) für alle 5 Themes. Neues Folge-Item **ROADMAP #93 („Geführten Assistenten auf Doku und Serien ausweiten“)** aufgenommen.
+
 ## 2026-11-10 — ROADMAP #92 Etappe E2: Ergebnis-Schritt für Filme + R8-Fix (PR #170)
 
 - **Umsetzung & Review:** Schritt 4 des Film-Assistenten ist echter Ergebnis-Schritt (Zielpfad, Umbenennungen, „Untertitel & Extras“, Junk, #91-Hinweis in einklappbaren Gruppen; H.265/Qualität/Original löschen mit Größenprognose über `/api/estimate-conversion`; NAS/pCloud-Ziele unter dem Zielpfad; „Jetzt final verarbeiten“ direkt aus dem Wizard, danach Rücksprung zur Startseite). Neues gemeinsames Modul `gui/static/js/preview_render.js` für Wizard und altes Vorschau-Modal inkl. R8-Fix (escapter Zielpfad). Gate-A2 (`2026-11-09-e2-task`): APPROVED nach 2 Runden; Handtest-/Review-Commits danach durch Prüf-Subagent (R1 REVISE → R2/R3 APPROVE).

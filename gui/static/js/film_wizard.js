@@ -1,11 +1,46 @@
-import { renderNfoEditor, buildMovieNfoOverrides } from './nfo_editor.js?v=116';
-import { formatBytes } from './format.js?v=116';
+import { renderNfoEditor, buildMovieNfoOverrides, formatProviderLabel } from './nfo_editor.js?v=119';
+import { formatBytes } from './format.js?v=119';
 import {
     renderPreviewData,
     collectPreviewSelection,
-} from './preview_render.js?v=116';
+} from './preview_render.js?v=119';
 
 let activeWizardInstance = null;
+
+function parseSearchItemTitleAndYear(item) {
+    const rawName = String(item?.name || item?.title || "").trim();
+    const yearMatch = rawName.match(/\((\d{4})\)\s*$/);
+    const year = yearMatch ? yearMatch[1] : String(item?.year || "").trim();
+    const titlePart = rawName.replace(/\s*\((?:\d{4}|\?\?\?\?)\)\s*$/, "").trim();
+    const normTitle = titlePart.toLowerCase().replace(/[^a-z0-9äöüß]+/gi, "");
+    return { normTitle, year };
+}
+
+function findCounterpartInSearchResults(clickedItem, results) {
+    if (!clickedItem || !Array.isArray(results) || results.length === 0) return null;
+    const clickedProv = String(clickedItem.provider || "tmdb").toLowerCase() === "tmdb_movie"
+        ? "tmdb"
+        : String(clickedItem.provider || "tmdb").toLowerCase();
+    const targetProv = clickedProv === "ofdb" ? "tmdb" : "ofdb";
+    const { normTitle, year } = parseSearchItemTitleAndYear(clickedItem);
+    if (!normTitle) return null;
+
+    for (const cand of results) {
+        const candProv = String(cand?.provider || "tmdb").toLowerCase() === "tmdb_movie"
+            ? "tmdb"
+            : String(cand?.provider || "tmdb").toLowerCase();
+        if (candProv !== targetProv) continue;
+        const candParsed = parseSearchItemTitleAndYear(cand);
+        if (candParsed.normTitle !== normTitle) continue;
+        if (year && candParsed.year && year !== candParsed.year) continue;
+        return {
+            id: String(cand.id ?? ""),
+            name: String(cand.name || cand.title || ""),
+            provider: candProv,
+        };
+    }
+    return null;
+}
 
 function mkEl(doc, tag, { id = "", cls = "", text = "", type = "", attrs = {} } = {}, children = []) {
     const el = doc.createElement(tag);
@@ -327,6 +362,9 @@ export function createFilmWizard(options = {}) {
 
     let currentStep = 1;
     let selectedMovie = null;
+    let selectedProviders = [];
+    const successfulProviders = new Map();
+    let lastSearchResults = [];
     let currentProjectName = options.projectName || "";
     let artworkSkipped = false;
     let activeArtworkTab = "poster";
@@ -778,12 +816,25 @@ export function createFilmWizard(options = {}) {
         const parsedQuality = optQualitySlider ? parseInt(optQualitySlider.value, 10) : 60;
         const quality = isNaN(parsedQuality) ? 60 : parsedQuality;
 
+        let resolvedProvider = String(baseMovie.provider || "manual");
+        let resolvedMovieId = String(baseMovie.id || "manual");
+        if (resolvedProvider !== "manual") {
+            if (successfulProviders.has("tmdb") && successfulProviders.get("tmdb")) {
+                resolvedProvider = "tmdb";
+                resolvedMovieId = String(successfulProviders.get("tmdb"));
+            } else if (successfulProviders.size > 0 && !successfulProviders.has(resolvedProvider.toLowerCase())) {
+                const [firstOkProv, firstOkId] = successfulProviders.entries().next().value;
+                resolvedProvider = String(firstOkProv);
+                resolvedMovieId = String(firstOkId);
+            }
+        }
+
         return {
             media_type: "movie",
             project_name: currentProjectName,
             movie_name: finalMovieName,
-            movie_id: String(baseMovie.id || "manual"),
-            provider: String(baseMovie.provider || "manual"),
+            movie_id: resolvedMovieId,
+            provider: resolvedProvider,
             convert,
             quality,
             delete_original: deleteOrig,
@@ -1101,34 +1152,134 @@ export function createFilmWizard(options = {}) {
         }
     }
 
+    function collectCheckedSearchItems() {
+        if (!searchResults || typeof searchResults.querySelectorAll !== "function") return [];
+        const cbs = searchResults.querySelectorAll(".mw-wizard-compare-cb");
+        const checked = [];
+        for (const cb of cbs) {
+            if (cb && cb.checked) {
+                const id = (cb.dataset && cb.dataset.id !== undefined ? cb.dataset.id : cb.getAttribute("data-id")) || "";
+                const prov = (cb.dataset && cb.dataset.provider !== undefined ? cb.dataset.provider : cb.getAttribute("data-provider")) || "tmdb";
+                const name = (cb.dataset && cb.dataset.name !== undefined ? cb.dataset.name : cb.getAttribute("data-name")) || "";
+                checked.push({ id: String(id), name: String(name), provider: String(prov) });
+            }
+        }
+        return checked;
+    }
+
     async function loadMovieMetadata(movie, reqSeq = ++metadataRequestSeq) {
         if (!movie || !fetchFn || movie.provider === "manual") return;
         const expectedMovie = selectedMovie;
+        const providersToFetch = selectedProviders.length > 0
+            ? selectedProviders.slice()
+            : [{ id: String(movie.id || ""), name: movie.name || "", provider: movie.provider || "tmdb" }];
         hideError();
-        const providerUpper = String(movie.provider || "").toUpperCase();
+        const headerBadgeText = providersToFetch.length > 1
+            ? providersToFetch.map((p) => formatProviderLabel(p.provider)).join(" + ")
+            : String(movie.provider || "").toUpperCase();
         if (providerBadge) {
-            providerBadge.textContent = `${providerUpper} · Lade Metadaten...`;
+            providerBadge.textContent = `${headerBadgeText} · Lade Metadaten...`;
             providerBadge.classList.remove("mw-wizard-badge-error");
             providerBadge.classList.add("mw-wizard-badge-loading");
         }
         try {
             const url = `/api/metadata/fetch?media_type=movie&provider=${encodeURIComponent(movie.provider)}&movie_id=${encodeURIComponent(movie.id)}`;
-            const res = await fetchFn(url);
+            const fetchOptions = {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    media_type: "movie",
+                    providers: providersToFetch.map((p) => ({
+                        provider: String(p.provider || "tmdb"),
+                        movie_id: String(p.id || ""),
+                    })),
+                }),
+            };
+            const res = await fetchFn(url, fetchOptions);
             if (reqSeq !== metadataRequestSeq || selectedMovie !== expectedMovie) return;
             if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : "Fehler"}`);
             const data = await res.json();
             if (reqSeq !== metadataRequestSeq || selectedMovie !== expectedMovie) return;
-            if (data && data.error) throw new Error(data.error);
-            if (providerBadge) {
-                providerBadge.textContent = providerUpper;
-                providerBadge.classList.remove("mw-wizard-badge-loading");
+
+            if (data && data.providers && typeof data.providers === "object") {
+                const order = Array.isArray(data.provider_order) && data.provider_order.length > 0
+                    ? data.provider_order
+                    : Object.keys(data.providers);
+                const okProviders = [];
+                const errProviders = [];
+                successfulProviders.clear();
+
+                for (const prov of order) {
+                    const entry = data.providers[prov];
+                    if (!entry || entry.status === "error" || entry.error) {
+                        errProviders.push(prov);
+                    } else {
+                        okProviders.push(prov);
+                        successfulProviders.set(prov, String(entry.movie_id || ""));
+                        if (entry.fields && !entry.fields.title && (prov === String(movie.provider || "").toLowerCase() || order.length === 1)) {
+                            entry.fields.title = movie.name || "";
+                        }
+                    }
+                }
+
+                nfoEditor.setProviderComparison(data);
+
+                if (okProviders.length === 0) {
+                    const firstErrProv = errProviders[0];
+                    const errMsg = (firstErrProv && data.providers[firstErrProv]?.error) || "Provider nicht erreichbar";
+                    showError(`Metadaten-Abruf fehlgeschlagen (${errMsg})`, () => loadMovieMetadata(movie));
+                    return;
+                }
+
+                if (errProviders.length > 0) {
+                    showError(
+                        "Einige Provider sind nicht erreichbar. Du kannst mit den geladenen Daten fortfahren.",
+                        () => loadMovieMetadata(movie)
+                    );
+                    if (providerBadge) {
+                        providerBadge.textContent = `${order.map(formatProviderLabel).join(" + ")} (Teil-Erfolg)`;
+                        providerBadge.classList.remove("mw-wizard-badge-loading", "mw-wizard-badge-error");
+                    }
+                    return;
+                }
+
+                if (providerBadge) {
+                    providerBadge.textContent = order.length > 1
+                        ? order.map(formatProviderLabel).join(" + ")
+                        : String(order[0] || movie.provider || "").toUpperCase();
+                    providerBadge.classList.remove("mw-wizard-badge-loading", "mw-wizard-badge-error");
+                }
+                return;
             }
-            nfoEditor.applyProviderMetadata({
+
+            if (data && data.error) throw new Error(data.error);
+            const normProv = String(movie.provider || "tmdb").toLowerCase() === "tmdb_movie"
+                ? "tmdb"
+                : String(movie.provider || "tmdb").toLowerCase();
+            successfulProviders.clear();
+            successfulProviders.set(normProv, String(movie.id || ""));
+            if (providerBadge) {
+                providerBadge.textContent = String(movie.provider || "").toUpperCase();
+                providerBadge.classList.remove("mw-wizard-badge-loading", "mw-wizard-badge-error");
+            }
+            const resolvedFields = {
                 title: (data.title !== undefined && data.title !== "") ? data.title : (data.name || movie.name || ""),
                 year: data.year ?? "",
                 plot: data.plot ?? "",
                 fsk: data.fsk ?? "",
                 genres: Array.isArray(data.genres) ? data.genres : (data.genres ?? []),
+            };
+            nfoEditor.setProviderComparison({
+                providers: {
+                    [normProv]: {
+                        provider: normProv,
+                        movie_id: String(movie.id || ""),
+                        status: "ok",
+                        error: null,
+                        fields: resolvedFields,
+                    },
+                },
+                provider_order: [normProv],
             });
         } catch (err) {
             if (reqSeq !== metadataRequestSeq || selectedMovie !== expectedMovie) return;
@@ -1136,17 +1287,54 @@ export function createFilmWizard(options = {}) {
         }
     }
 
-    async function selectMovieInWizard(movie, fetchMeta = true) {
+    async function selectMovieInWizard(movie, fetchMeta = true, comparisonMovies = null) {
         const reqSeq = ++metadataRequestSeq;
         selectedMovie = {
             id: String(movie.id || "manual"),
             name: movie.name || movie.title || "",
             provider: movie.provider || "manual",
         };
+        successfulProviders.clear();
+        nfoEditor.clearProviderComparison();
+
         const isManual = selectedMovie.provider === "manual";
+        if (isManual) {
+            selectedProviders = [];
+        } else if (Array.isArray(comparisonMovies) && comparisonMovies.length > 0) {
+            const seenProvs = new Set();
+            const list = [];
+            for (const item of [selectedMovie, ...comparisonMovies]) {
+                if (!item || !item.provider || item.provider === "manual") continue;
+                const normProv = String(item.provider).toLowerCase() === "tmdb_movie"
+                    ? "tmdb"
+                    : String(item.provider).toLowerCase();
+                if (seenProvs.has(normProv)) continue;
+                seenProvs.add(normProv);
+                list.push({
+                    id: String(item.id || ""),
+                    name: String(item.name || item.title || ""),
+                    provider: normProv,
+                });
+            }
+            selectedProviders = list;
+        } else {
+            const normProv = String(selectedMovie.provider).toLowerCase() === "tmdb_movie"
+                ? "tmdb"
+                : String(selectedMovie.provider).toLowerCase();
+            selectedProviders = [{
+                id: selectedMovie.id,
+                name: selectedMovie.name,
+                provider: normProv,
+            }];
+        }
+
         if (selectedInfo) selectedInfo.textContent = selectedMovie.name || (isManual ? "Metadaten manuell eintragen" : "");
         if (providerBadge) {
-            providerBadge.textContent = isManual ? "Metadaten manuell eintragen" : String(selectedMovie.provider).toUpperCase();
+            providerBadge.textContent = isManual
+                ? "Metadaten manuell eintragen"
+                : (selectedProviders.length > 1
+                    ? selectedProviders.map((p) => formatProviderLabel(p.provider)).join(" + ")
+                    : String(selectedMovie.provider).toUpperCase());
             providerBadge.classList.remove("mw-wizard-badge-error", "mw-wizard-badge-loading");
         }
         const initialLoaded = [];
@@ -1181,23 +1369,66 @@ export function createFilmWizard(options = {}) {
             if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : "Fehler"}`);
             const items = await res.json();
             if (!Array.isArray(items)) throw new Error((items && items.error) || "Unerwartetes Suchergebnis");
+            lastSearchResults = items.map((item) => ({
+                id: String(item.id ?? ""),
+                name: String(item.name || item.title || ""),
+                provider: String(item.provider || "tmdb"),
+            }));
             if (searchResults) {
                 searchResults.innerHTML = "";
                 for (const item of items) {
+                    const prov = String(item.provider || "tmdb");
+                    const compareCb = mkEl(doc, "input", {
+                        cls: "mw-wizard-compare-cb",
+                        type: "checkbox",
+                        attrs: {
+                            "data-provider": prov,
+                            "data-id": item.id ?? "",
+                            "data-name": item.name || "",
+                            title: "Zum Provider-Vergleich auswählen",
+                        },
+                    });
+                    compareCb.addEventListener("click", (e) => {
+                        if (e && typeof e.stopPropagation === "function") e.stopPropagation();
+                        if (compareCb.checked && searchResults && typeof searchResults.querySelectorAll === "function") {
+                            const allCbs = searchResults.querySelectorAll(".mw-wizard-compare-cb");
+                            for (const otherCb of allCbs) {
+                                if (otherCb !== compareCb) {
+                                    const otherProv = (otherCb.dataset && otherCb.dataset.provider) || otherCb.getAttribute("data-provider");
+                                    if (otherProv === prov) {
+                                        otherCb.checked = false;
+                                    }
+                                }
+                            }
+                        }
+                    });
+
                     const row = mkEl(
                         doc,
                         "div",
                         {
                             cls: "search-item mw-wizard-search-item",
-                            attrs: { "data-id": item.id ?? "", "data-name": item.name ?? "", "data-provider": item.provider ?? "tmdb" },
+                            attrs: { "data-id": item.id ?? "", "data-name": item.name ?? "", "data-provider": prov },
                         },
                         [
-                            mkEl(doc, "div", { cls: "search-item-name", text: item.name || "" }),
-                            mkEl(doc, "div", { cls: "search-item-provider", text: `Metadatendienst: ${item.provider || "tmdb"}` }),
+                            mkEl(doc, "div", { cls: "mw-wizard-search-item-main" }, [
+                                compareCb,
+                                mkEl(doc, "div", { cls: "search-item-name", text: item.name || "" }),
+                            ]),
+                            mkEl(doc, "div", { cls: "search-item-provider", text: `Metadatendienst: ${prov}` }),
                         ]
                     );
-                    row.addEventListener("click", () => {
-                        selectMovieInWizard({ id: item.id, name: item.name, provider: item.provider || "tmdb" });
+                    row.addEventListener("click", (e) => {
+                        if (e && e.target === compareCb) return;
+                        const clickedMovie = { id: item.id, name: item.name, provider: prov };
+                        const checkedList = collectCheckedSearchItems();
+                        if (checkedList.length > 0) {
+                            selectMovieInWizard(clickedMovie, true, [clickedMovie, ...checkedList]);
+                            return;
+                        }
+                        const counterpart = findCounterpartInSearchResults(clickedMovie, lastSearchResults);
+                        const comparisonList = counterpart ? [clickedMovie, counterpart] : [clickedMovie];
+                        selectMovieInWizard(clickedMovie, true, comparisonList);
                     });
                     searchResults.appendChild(row);
                 }
@@ -1232,6 +1463,10 @@ export function createFilmWizard(options = {}) {
         if (searchInput) searchInput.value = initialQuery;
         if (searchResults) searchResults.innerHTML = "";
         selectedMovie = null;
+        selectedProviders = [];
+        successfulProviders.clear();
+        lastSearchResults = [];
+        nfoEditor.clearProviderComparison();
         nfoEditor.setValues(
             { title: initialQuery, year: "", plot: "", fsk: "", genres: [] },
             true,
@@ -1286,10 +1521,19 @@ export function createFilmWizard(options = {}) {
     function nextStep() {
         if (isExecutingProcess) return currentStep;
         if (currentStep === 1) {
+            const checkedItems = collectCheckedSearchItems();
+            if (checkedItems.length > 0) {
+                const primaryItem = checkedItems.find((it) => String(it.provider).toLowerCase() === "tmdb") || checkedItems[0];
+                selectMovieInWizard(primaryItem, true, checkedItems);
+                return currentStep;
+            }
             if (!selectedMovie) {
                 metadataRequestSeq += 1;
                 const manualTitle = searchInput ? String(searchInput.value || "").trim() : "";
                 selectedMovie = { id: "manual", name: manualTitle || "Unbekannter Film", provider: "manual" };
+                selectedProviders = [];
+                successfulProviders.clear();
+                nfoEditor.clearProviderComparison();
                 if (selectedInfo) selectedInfo.textContent = selectedMovie.name;
                 if (providerBadge) {
                     providerBadge.textContent = "Metadaten manuell eintragen";

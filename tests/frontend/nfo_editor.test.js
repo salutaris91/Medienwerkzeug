@@ -11,20 +11,60 @@ import {
 function createMockDom() {
     const byId = new Map();
 
+    function collectText(el) {
+        let out = (el._textParts || []).join('');
+        for (const ch of el._childNodes || []) out += collectText(ch);
+        return out;
+    }
+
+    function createHtmlCollectionView(childNodes) {
+        return new Proxy(childNodes, {
+            get(target, prop, receiver) {
+                if (prop === 'length') return target.length;
+                if (prop === 'item') return (idx) => target[idx] || null;
+                if (prop === 'push' || prop === 'pop' || prop === 'splice' || prop === 'shift' || prop === 'unshift') {
+                    return undefined;
+                }
+                const val = Reflect.get(target, prop, receiver);
+                return typeof val === 'function' ? val.bind(target) : val;
+            },
+            set(_target, prop) {
+                if (prop === 'length' || /^\d+$/.test(String(prop))) {
+                    throw new TypeError(`Cannot assign to read only property '${String(prop)}' of object '#<HTMLCollection>'`);
+                }
+                return false;
+            },
+        });
+    }
+
     function makeElement(tagName) {
         const classes = new Set();
         const attrs = new Map();
         const listeners = {};
+        const childNodes = [];
+        const childrenView = createHtmlCollectionView(childNodes);
         const el = {
             tagName: String(tagName).toUpperCase(),
             id: '',
             className: '',
             type: '',
             value: '',
+            disabled: false,
             placeholder: '',
-            textContent: '',
             rows: 0,
-            children: [],
+            _childNodes: childNodes,
+            _textParts: [],
+            get children() {
+                return childrenView;
+            },
+            get textContent() {
+                return collectText(el);
+            },
+            set textContent(v) {
+                const str = String(v ?? '');
+                childNodes.length = 0;
+                el._textParts = [str];
+            },
             ownerDocument: null,
             classList: {
                 add: (...names) => names.forEach((n) => classes.add(n)),
@@ -48,13 +88,17 @@ function createMockDom() {
                 return attrs.has(k) ? attrs.get(k) : null;
             },
             appendChild(child) {
-                el.children.push(child);
+                childNodes.push(child);
                 if (child.id) byId.set(child.id, child);
                 return child;
             },
             addEventListener(type, fn) {
                 listeners[type] = listeners[type] || [];
                 listeners[type].push(fn);
+            },
+            click() {
+                if (el.disabled) return;
+                (listeners.click || []).forEach((fn) => fn({ type: 'click', target: el, preventDefault() {}, stopPropagation() {} }));
             },
             dispatchEvent(evt) {
                 const list = listeners[evt.type] || [];
@@ -66,7 +110,10 @@ function createMockDom() {
                 return '';
             },
             set(val) {
-                if (val === '') el.children.length = 0;
+                if (val === '') {
+                    childNodes.length = 0;
+                    el._textParts = [];
+                }
             },
         });
         return el;
@@ -240,4 +287,39 @@ test('E3-AK1: renderNfoEditor supports showSourceBadges, titleLabel, setFieldSou
     assert.equal(typeof legacyEvents[1].dirty, 'boolean');
     assert.equal(legacyEvents[1].dirty, false);
     assert.equal(legacyEditor.isDirty(), false);
+});
+
+test('E4: setProviderComparison and clearProviderComparison manage per-field provider badge containers with read-only HTMLCollection children.length', () => {
+    const { container } = createMockDom();
+    const editor = renderNfoEditor(container);
+
+    // Native HTMLCollection has a getter-only .length in strict mode
+    assert.throws(() => {
+        container.children.length = 0;
+    }, TypeError);
+    assert.throws(() => {
+        editor.fieldBadges.fsk.children.length = 0;
+    }, TypeError);
+
+    assert.equal(editor.getProviderComparison(), null);
+    assert.equal(editor.fieldBadges.fsk.classList.contains('hidden'), true);
+
+    editor.setProviderComparison({
+        providers: {
+            tmdb: { status: 'ok', fields: { title: 'Dune', year: '2021', plot: 'Arrakis', fsk: '', genres: ['Sci-Fi'] } },
+            ofdb: { status: 'ok', fields: { title: 'Dune', year: '2021', plot: '', fsk: '12', genres: ['Abenteuer'] } },
+        },
+        provider_order: ['tmdb', 'ofdb'],
+    });
+
+    assert.ok(editor.getProviderComparison());
+    assert.equal(editor.fieldBadges.fsk.classList.contains('hidden'), false);
+    assert.equal(editor.fieldBadges.fsk.children.length, 2);
+    assert.equal(editor.getValues().fsk, '12');
+    assert.deepEqual(editor.getValues().genres, ['Sci-Fi', 'Abenteuer']);
+
+    editor.clearProviderComparison();
+    assert.equal(editor.getProviderComparison(), null);
+    assert.equal(editor.fieldBadges.fsk.classList.contains('hidden'), true);
+    assert.equal(editor.fieldBadges.fsk.children.length, 0);
 });
