@@ -508,27 +508,11 @@ export function renderNfoEditor(container, initialData = {}, onChangeOrOptions =
         if (entry.status !== "ok" || !hasNonEmptyFieldValue(fieldKey, entry.fields[fieldKey])) return;
 
         if (fieldKey === "genres") {
-            const sel = selectedProvidersByField.genres;
-            if (sel.has(prov)) {
-                if (sel.size > 1) {
-                    sel.delete(prov);
-                } else {
-                    sel.clear();
-                    sel.add(prov);
-                }
-            } else {
-                sel.add(prov);
-            }
-            const combined = [];
-            for (const p of currentComparisonData.provider_order) {
-                if (sel.has(p) && currentComparisonData.providers[p]?.status === "ok") {
-                    combined.push(...(currentComparisonData.providers[p].fields.genres || []));
-                }
-            }
-            const unionGenres = parseGenresInput(combined);
+            selectedProvidersByField.genres = new Set([prov]);
+            const chosenGenres = parseGenresInput(entry.fields.genres || []);
             isInternalDomWrite = true;
             try {
-                genresInput.value = formatGenresValue(unionGenres);
+                genresInput.value = formatGenresValue(chosenGenres);
             } finally {
                 isInternalDomWrite = false;
             }

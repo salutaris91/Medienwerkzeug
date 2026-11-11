@@ -4370,12 +4370,13 @@ body.runtime-docker .docker-only-info {
 .mw-wizard-input, .mw-wizard-select { height: 38px; }
 .mw-wizard-field-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
 .mw-wizard-field-badges.hidden { display: none; }
-.mw-wizard-provider-badge { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-light); background: var(--bg-surface); color: var(--text-main); font-family: inherit; font-size: 0.76rem; line-height: 1.3; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; text-align: left; }
-.mw-wizard-provider-badge:hover:not(:disabled) { border-color: var(--accent); background: var(--bg-hover); }
-.mw-wizard-provider-badge.selected { border-color: var(--accent); background: var(--bg-card); color: var(--text-main); font-weight: 600; }
-.mw-wizard-provider-badge.selected .mw-wizard-provider-name { color: var(--accent); }
-.mw-wizard-provider-badge.empty { border-style: dashed; border-color: var(--border-light); color: var(--text-muted); opacity: 0.72; cursor: default; }
-.mw-wizard-provider-badge.error { border-color: var(--danger); color: var(--danger); cursor: default; }
+.mw-wizard-provider-badge { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 9px; border-radius: var(--radius-sm); border: 1px solid var(--border-light); background: var(--bg-input); color: var(--text-muted); font-family: inherit; font-size: 0.76rem; line-height: 1.3; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease; text-align: left; }
+.mw-wizard-provider-badge:hover:not(:disabled) { border-color: var(--accent); background: var(--bg-hover); color: var(--text-main); }
+.mw-wizard-provider-badge.selected { border-color: var(--accent); background: rgba(var(--accent-rgb), 0.22); box-shadow: inset 0 0 0 1px var(--accent); color: var(--text-main); font-weight: 600; }
+.mw-wizard-provider-badge.selected .mw-wizard-provider-name { background: var(--accent); color: var(--bg-base); padding: 1px 6px; border-radius: var(--radius-sm); font-weight: 700; }
+.mw-wizard-provider-badge.selected .mw-wizard-provider-name::before { content: "✓ "; }
+.mw-wizard-provider-badge.empty { background: transparent; border-style: dashed; border-color: var(--border-light); color: var(--text-muted); opacity: 0.65; cursor: default; }
+.mw-wizard-provider-badge.error { background: transparent; border-color: var(--danger); color: var(--danger); cursor: default; }
 .mw-wizard-provider-name { font-weight: 600; color: var(--text-muted); flex-shrink: 0; }
 .mw-wizard-provider-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 340px; }
 @media (max-width: 700px) {

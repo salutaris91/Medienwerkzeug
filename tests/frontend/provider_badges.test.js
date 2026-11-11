@@ -268,15 +268,23 @@ test('E4-AK1 & Option 2A: setProviderComparison renders per-provider badges, mar
     assert.equal(titleOfdbBadge.classList.contains('selected'), true);
     assert.equal(titleTmdbBadge.classList.contains('selected'), false);
 
-    // Clicking Genre badge toggles provider contribution in cumulative Genre field
+    // Clicking Genre badge selects exclusively that provider's genres (e.g. clicking TMDb sets only TMDb genres without OFDb extras)
     const genreTmdbBadge = editor.providerBadges.genres.tmdb;
     const genreOfdbBadge = editor.providerBadges.genres.ofdb;
     assert.equal(genreTmdbBadge.classList.contains('selected'), true);
     assert.equal(genreOfdbBadge.classList.contains('selected'), true);
-    genreOfdbBadge.click();
+    genreTmdbBadge.click();
     assert.deepEqual(editor.getValues().genres, ['Western', 'Drama']);
-    assert.equal(genreOfdbBadge.classList.contains('selected'), false);
     assert.equal(genreTmdbBadge.classList.contains('selected'), true);
+    assert.equal(genreOfdbBadge.classList.contains('selected'), false);
+
+    // Clicking OFDb Genre badge switches to exclusively OFDb's genres, then back to TMDb
+    genreOfdbBadge.click();
+    assert.deepEqual(editor.getValues().genres, ['Thriller', 'Drama']);
+    assert.equal(genreOfdbBadge.classList.contains('selected'), true);
+    assert.equal(genreTmdbBadge.classList.contains('selected'), false);
+    genreTmdbBadge.click();
+    assert.deepEqual(editor.getValues().genres, ['Western', 'Drama']);
 
     // buildWizardMovieOverrides includes all merged & chosen fields
     const overrides = editor.buildWizardMovieOverrides();
