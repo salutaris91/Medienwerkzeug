@@ -247,6 +247,9 @@ registrierte Hinweisarten aus `health_issue_registry.py`); jedes Issue trägt
 ### `GET|POST /api/search?type=<movie|tv>&q=<Begriff>`
 Sucht Filme/Serien (TMDB/TVDB/TVmaze).
 
+### `GET|POST /api/artwork/candidates`
+Liefert sortierte TMDb-Bildkandidaten (`posters`, `backdrops`, `logos`, Sprachreihenfolge `de` → sprachneutral → `en`) für Schritt 3 des Film-Assistenten. Akzeptiert `tmdb_id` (direkte numerische TMDb-ID) oder `query` (+ optional `year`) für die automatische TMDb-Titelsuche bei OFDb-/Manuell-Importen. Antwortet mit `tmdb_id`, `matched_title`, `matches` (`[{id, name}]`) sowie je Rolle Original-URL (`url`), Thumbnail-URL (`thumb_url`, `w185`/`w300`), Sprache (`lang`) und Abmessungen (`width`, `height`).
+
 ### `GET|POST /api/fetch-show-info`, `/api/fetch-episodes`, `/api/match-episodes`, `/api/series-detect`, `/api/guess-season`
 Serien-Details, Episodenlisten, Episoden-Zuordnung, Serien-Erkennung, Staffel-Schätzung.
 
@@ -284,6 +287,7 @@ Für `media_type == "movie"` enthält die Response zusätzlich das nicht-blockie
 Reiht einen Verarbeitungs-Job in die Queue ein (Payload: `media_type`,
 `mappings`, Ziel-IDs, `copy_to_nas`/`copy_to_pcloud`, `is_anime`, optional `files` etc.).
 Der optionale Parameter `files` ist nur für `media_type` `'tv'` erlaubt (andere Medientypen werden mit HTTP 400 abgewiesen). Bei gesetztem `files`-Parameter wird der Job mit striktem Scope auf die übergebenen Dateien und deren Begleitdateien ausgeführt (`<stem>.nfo` und `<stem>.sfv` gelten nicht als Begleitdateien und verbleiben im Quellordner). Bei Aufträgen mit `files` dürfen explizite Zielangaben (`new` in `explicit_renames` oder `explicit_subs`) keine Pfadtrennzeichen (`/` oder `\`) enthalten und nicht leer sein; andernfalls bricht der Job vor jeder Dateibewegung laut ab.
+Für `media_type` `'movie'` steuert das optionale Objekt `artwork_overrides` (`poster`, `backdrop`, `logo`) die Bildspeicherung unabhängig vom gewählten NFO-Provider (`auto`, `none`, `url` nur für validierte `https://image.tmdb.org/t/p/...`-URLs, `upload` für lokale Base64-Data-URLs bis 15 MB mit Magic-Byte-Prüfung auf JPEG/PNG/WebP).
 ```json
 { "status": "ok", "task_id": "<uuid>" }
 ```
