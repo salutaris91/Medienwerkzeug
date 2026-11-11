@@ -6,7 +6,7 @@
     <meta name="description" content="Medienwerkzeug - Automatisches Umbennen, Konvertieren und Kopieren von Filmen und Serien auf das NAS.">
     <meta name="color-scheme" content="dark">
     <title>Medienwerkzeug v5.0 (Master-Detail)</title>
-    <link rel="stylesheet" href="style.css?v=63">
+    <link rel="stylesheet" href="style.css?v=65">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -2763,7 +2763,7 @@ group_add:
     </div>
 </div>
 
-    <script type="module" src="app.js?v=119"></script>
+    <script type="module" src="app.js?v=121"></script>
 
     <!-- Modal: Confirm Merge -->
     <div id="modal-confirm-merge" class="mw-modal-overlay">
@@ -3367,15 +3367,35 @@ group_add:
                 </section>
 
                 <section id="mw-wizard-step-3" class="mw-wizard-panel hidden" data-step-panel="3">
-                    <div class="mw-wizard-tabs">
-                        <button type="button" id="mw-wizard-tab-poster" class="mw-wizard-tab active" data-artwork-tab="poster">Poster (2:3)</button>
-                        <button type="button" id="mw-wizard-tab-fanart" class="mw-wizard-tab" data-artwork-tab="fanart">Fanart (16:9)</button>
+                    <div id="mw-wizard-artwork-source-bar" class="mw-wizard-artwork-source-bar">
+                        <span id="mw-wizard-artwork-source-info" class="mw-wizard-artwork-source-info">Bildquelle: TMDb</span>
+                        <select id="mw-wizard-artwork-match-select" class="mw-wizard-select mw-wizard-artwork-match-select hidden" aria-label="TMDb-Film für Artwork wählen"></select>
+                        <input type="text" id="mw-wizard-artwork-search-input" class="mw-wizard-input mw-wizard-artwork-search-input" placeholder="Anderen Filmtitel für TMDb-Bilder suchen..." aria-label="Filmtitel für TMDb-Bilder suchen">
+                        <button type="button" id="mw-wizard-artwork-search-btn" class="btn btn-secondary btn-sm">Bilder suchen</button>
                     </div>
-                    <div id="mw-wizard-artwork-poster" class="mw-wizard-artwork-placeholder active">
-                        Automatischer Poster-Download (TMDb) ist aktiv. Dieser Schritt kann übersprungen werden.
+                    <div class="mw-wizard-tabs" role="tablist" aria-label="Artwork-Rollen">
+                        <button type="button" id="mw-wizard-tab-poster" class="mw-wizard-tab active" role="tab" aria-selected="true" aria-controls="mw-wizard-artwork-poster" data-artwork-tab="poster">Poster (2:3)</button>
+                        <button type="button" id="mw-wizard-tab-fanart" class="mw-wizard-tab" role="tab" aria-selected="false" aria-controls="mw-wizard-artwork-fanart" data-artwork-tab="fanart">Hintergrundbild (16:9)</button>
+                        <button type="button" id="mw-wizard-tab-logo" class="mw-wizard-tab" role="tab" aria-selected="false" aria-controls="mw-wizard-artwork-logo" data-artwork-tab="logo">Logo</button>
                     </div>
-                    <div id="mw-wizard-artwork-fanart" class="mw-wizard-artwork-placeholder hidden">
-                        Automatischer Fanart-/Backdrop-Download (TMDb) ist aktiv. Dieser Schritt kann übersprungen werden.
+                    <div id="mw-wizard-artwork-toolbar" class="mw-wizard-artwork-toolbar">
+                        <button type="button" id="mw-wizard-artwork-deselect-btn" class="btn btn-secondary btn-sm" aria-pressed="false">Kein Bild für diese Rolle</button>
+                        <input type="file" id="mw-wizard-artwork-upload-input" class="hidden" accept=".jpg,.jpeg,.png,.webp" aria-label="Eigenes Bild hochladen">
+                        <button type="button" id="mw-wizard-artwork-upload-btn" class="btn btn-secondary btn-sm">Eigenes Bild wählen…</button>
+                    </div>
+                    <div id="mw-wizard-artwork-poster" class="mw-wizard-artwork-panel active" role="tabpanel" aria-labelledby="mw-wizard-tab-poster"></div>
+                    <div id="mw-wizard-artwork-fanart" class="mw-wizard-artwork-panel hidden" role="tabpanel" aria-labelledby="mw-wizard-tab-fanart" hidden></div>
+                    <div id="mw-wizard-artwork-logo" class="mw-wizard-artwork-panel hidden" role="tabpanel" aria-labelledby="mw-wizard-tab-logo" hidden></div>
+                    <div id="mw-wizard-tmdb-attribution" class="mw-wizard-tmdb-attribution">
+                        <span class="mw-wizard-tmdb-logo-wrap">
+                            <svg id="mw-wizard-tmdb-logo" class="mw-wizard-tmdb-logo" role="img" aria-label="TMDB" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 24" width="60" height="12">
+                                <rect width="120" height="24" rx="4" fill="#0d253f"></rect>
+                                <rect x="78" y="6" width="34" height="12" rx="6" fill="#01b4e4"></rect>
+                                <circle cx="84" cy="12" r="4" fill="#90cea1"></circle>
+                                <path d="M10 7h12v3h-4.5v7h-3v-7H10V7zm15 0h3.2l2.8 5.2L33.8 7H37v10h-2.8v-5.5l-2.5 4.5h-1.4l-2.5-4.5V17H25V7zm16 0h4.8c3 0 5 2 5 5s-2 5-5 5H41V7zm2.8 2.5v5h1.9c1.4 0 2.3-.9 2.3-2.5s-.9-2.5-2.3-2.5h-1.9zM54 7h5.2c2.1 0 3.5 1 3.5 2.5 0 1-.6 1.8-1.5 2.1 1.1.3 1.8 1.1 1.8 2.3 0 1.8-1.5 3.1-3.8 3.1H54V7zm2.8 2.2v1.8h2c.7 0 1.1-.4 1.1-.9s-.4-.9-1.1-.9h-2zm0 3.8v2h2.2c.8 0 1.3-.4 1.3-1s-.5-1-1.3-1h-2.2z" fill="#90cea1"></path>
+                            </svg>
+                        </span>
+                        <span id="mw-wizard-tmdb-attribution-text" class="mw-wizard-tmdb-attribution-text">This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
                     </div>
                 </section>
 

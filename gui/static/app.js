@@ -1,15 +1,15 @@
-import { applyTheme } from './js/theme.js?v=119';
-import { cleanSeriesName } from './js/utils.js?v=119';
-import { formatBytes } from './js/format.js?v=119';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=119';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=119';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=119';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=119';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=119';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=119';
-import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=119';
-import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from './js/nfo_editor.js?v=119';
-import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=119';
+import { applyTheme } from './js/theme.js?v=121';
+import { cleanSeriesName } from './js/utils.js?v=121';
+import { formatBytes } from './js/format.js?v=121';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=121';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=121';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=121';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=121';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=121';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=121';
+import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=121';
+import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from './js/nfo_editor.js?v=121';
+import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=121';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER

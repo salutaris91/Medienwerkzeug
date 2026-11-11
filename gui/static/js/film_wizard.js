@@ -1,9 +1,9 @@
-import { renderNfoEditor, buildMovieNfoOverrides, formatProviderLabel } from './nfo_editor.js?v=119';
-import { formatBytes } from './format.js?v=119';
+import { renderNfoEditor, buildMovieNfoOverrides, formatProviderLabel } from './nfo_editor.js?v=121';
+import { formatBytes } from './format.js?v=121';
 import {
     renderPreviewData,
     collectPreviewSelection,
-} from './preview_render.js?v=119';
+} from './preview_render.js?v=121';
 
 let activeWizardInstance = null;
 
@@ -50,6 +50,8 @@ function mkEl(doc, tag, { id = "", cls = "", text = "", type = "", attrs = {} } 
     if (text) el.textContent = text;
     for (const [k, v] of Object.entries(attrs)) {
         el.setAttribute(k, String(v));
+        if (k === "src") el.src = String(v);
+        if (k === "alt") el.alt = String(v);
     }
     for (const ch of children) {
         if (ch) el.appendChild(ch);
@@ -241,17 +243,60 @@ function buildWizardDom(doc, modalOverlay) {
         ]
     );
 
+    const artworkSearchInput = mkEl(doc, "input", {
+        id: "mw-wizard-artwork-search-input",
+        cls: "mw-wizard-input mw-wizard-artwork-search-input",
+        type: "text",
+        attrs: { "aria-label": "Filmtitel für TMDb-Bilder suchen" },
+    });
+    artworkSearchInput.placeholder = "Anderen Filmtitel für TMDb-Bilder suchen...";
+
+    const artworkUploadInput = mkEl(doc, "input", {
+        id: "mw-wizard-artwork-upload-input",
+        cls: "hidden",
+        type: "file",
+        attrs: {
+            accept: ".jpg,.jpeg,.png,.webp",
+            "aria-label": "Eigenes Bild hochladen",
+        },
+    });
+
+    const tmdbLogoWrap = mkEl(doc, "span", { cls: "mw-wizard-tmdb-logo-wrap" });
+    tmdbLogoWrap.innerHTML = '<svg id="mw-wizard-tmdb-logo" class="mw-wizard-tmdb-logo" role="img" aria-label="TMDB" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 24" width="60" height="12"><rect width="120" height="24" rx="4" fill="#0d253f"></rect><rect x="78" y="6" width="34" height="12" rx="6" fill="#01b4e4"></rect><circle cx="84" cy="12" r="4" fill="#90cea1"></circle><path d="M10 7h12v3h-4.5v7h-3v-7H10V7zm15 0h3.2l2.8 5.2L33.8 7H37v10h-2.8v-5.5l-2.5 4.5h-1.4l-2.5-4.5V17H25V7zm16 0h4.8c3 0 5 2 5 5s-2 5-5 5H41V7zm2.8 2.5v5h1.9c1.4 0 2.3-.9 2.3-2.5s-.9-2.5-2.3-2.5h-1.9zM54 7h5.2c2.1 0 3.5 1 3.5 2.5 0 1-.6 1.8-1.5 2.1 1.1.3 1.8 1.1 1.8 2.3 0 1.8-1.5 3.1-3.8 3.1H54V7zm2.8 2.2v1.8h2c.7 0 1.1-.4 1.1-.9s-.4-.9-1.1-.9h-2zm0 3.8v2h2.2c.8 0 1.3-.4 1.3-1s-.5-1-1.3-1h-2.2z" fill="#90cea1"></path></svg>';
+    const parsedSvg = tmdbLogoWrap.children && tmdbLogoWrap.children[0];
+    if (parsedSvg && typeof parsedSvg.setAttribute === "function") {
+        parsedSvg.setAttribute("role", "img");
+        parsedSvg.setAttribute("aria-label", "TMDB");
+    }
+
     const step3 = mkEl(
         doc,
         "section",
         { id: "mw-wizard-step-3", cls: "mw-wizard-panel hidden", attrs: { "data-step-panel": "3" } },
         [
-            mkEl(doc, "div", { cls: "mw-wizard-tabs" }, [
-                mkEl(doc, "button", { id: "mw-wizard-tab-poster", cls: "mw-wizard-tab active", type: "button", text: "Poster (2:3)", attrs: { "data-artwork-tab": "poster" } }),
-                mkEl(doc, "button", { id: "mw-wizard-tab-fanart", cls: "mw-wizard-tab", type: "button", text: "Fanart (16:9)", attrs: { "data-artwork-tab": "fanart" } }),
+            mkEl(doc, "div", { id: "mw-wizard-artwork-source-bar", cls: "mw-wizard-artwork-source-bar" }, [
+                mkEl(doc, "span", { id: "mw-wizard-artwork-source-info", cls: "mw-wizard-artwork-source-info", text: "Bildquelle: TMDb" }),
+                mkEl(doc, "select", { id: "mw-wizard-artwork-match-select", cls: "mw-wizard-select mw-wizard-artwork-match-select hidden", attrs: { "aria-label": "TMDb-Film für Artwork wählen" } }),
+                artworkSearchInput,
+                mkEl(doc, "button", { id: "mw-wizard-artwork-search-btn", cls: "btn btn-secondary btn-sm", type: "button", text: "Bilder suchen" }),
             ]),
-            mkEl(doc, "div", { id: "mw-wizard-artwork-poster", cls: "mw-wizard-artwork-placeholder active", text: "Automatischer Poster-Download (TMDb) ist aktiv. Dieser Schritt kann übersprungen werden." }),
-            mkEl(doc, "div", { id: "mw-wizard-artwork-fanart", cls: "mw-wizard-artwork-placeholder hidden", text: "Automatischer Fanart-/Backdrop-Download (TMDb) ist aktiv. Dieser Schritt kann übersprungen werden." }),
+            mkEl(doc, "div", { cls: "mw-wizard-tabs", attrs: { role: "tablist", "aria-label": "Artwork-Rollen" } }, [
+                mkEl(doc, "button", { id: "mw-wizard-tab-poster", cls: "mw-wizard-tab active", type: "button", text: "Poster (2:3)", attrs: { "data-artwork-tab": "poster", role: "tab", "aria-selected": "true", "aria-controls": "mw-wizard-artwork-poster" } }),
+                mkEl(doc, "button", { id: "mw-wizard-tab-fanart", cls: "mw-wizard-tab", type: "button", text: "Hintergrundbild (16:9)", attrs: { "data-artwork-tab": "fanart", role: "tab", "aria-selected": "false", "aria-controls": "mw-wizard-artwork-fanart" } }),
+                mkEl(doc, "button", { id: "mw-wizard-tab-logo", cls: "mw-wizard-tab", type: "button", text: "Logo", attrs: { "data-artwork-tab": "logo", role: "tab", "aria-selected": "false", "aria-controls": "mw-wizard-artwork-logo" } }),
+            ]),
+            mkEl(doc, "div", { id: "mw-wizard-artwork-toolbar", cls: "mw-wizard-artwork-toolbar" }, [
+                mkEl(doc, "button", { id: "mw-wizard-artwork-deselect-btn", cls: "btn btn-secondary btn-sm", type: "button", text: "Kein Bild für diese Rolle", attrs: { "aria-pressed": "false" } }),
+                artworkUploadInput,
+                mkEl(doc, "button", { id: "mw-wizard-artwork-upload-btn", cls: "btn btn-secondary btn-sm", type: "button", text: "Eigenes Bild wählen…" }),
+            ]),
+            mkEl(doc, "div", { id: "mw-wizard-artwork-poster", cls: "mw-wizard-artwork-panel mw-wizard-artwork-placeholder active", attrs: { role: "tabpanel", "aria-labelledby": "mw-wizard-tab-poster" }, text: "Automatischer Poster-Download (TMDb) ist aktiv. Dieser Schritt kann übersprungen werden." }),
+            mkEl(doc, "div", { id: "mw-wizard-artwork-fanart", cls: "mw-wizard-artwork-panel mw-wizard-artwork-placeholder hidden", attrs: { role: "tabpanel", "aria-labelledby": "mw-wizard-tab-fanart", hidden: "" }, text: "Automatischer Hintergrundbild-Download (TMDb) ist aktiv. Dieser Schritt kann übersprungen werden." }),
+            mkEl(doc, "div", { id: "mw-wizard-artwork-logo", cls: "mw-wizard-artwork-panel mw-wizard-artwork-placeholder hidden", attrs: { role: "tabpanel", "aria-labelledby": "mw-wizard-tab-logo", hidden: "" }, text: "Automatischer Logo-Download (TMDb) ist aktiv. Dieser Schritt kann übersprungen werden." }),
+            mkEl(doc, "div", { id: "mw-wizard-tmdb-attribution", cls: "mw-wizard-tmdb-attribution" }, [
+                tmdbLogoWrap,
+                mkEl(doc, "span", { id: "mw-wizard-tmdb-attribution-text", cls: "mw-wizard-tmdb-attribution-text", text: "This product uses the TMDB API but is not endorsed or certified by TMDB." }),
+            ]),
         ]
     );
 
@@ -334,8 +379,17 @@ export function createFilmWizard(options = {}) {
     const editorContainer = getEl("mw-wizard-nfo-editor-container");
     const tabPoster = getEl("mw-wizard-tab-poster");
     const tabFanart = getEl("mw-wizard-tab-fanart");
+    const tabLogo = getEl("mw-wizard-tab-logo");
     const posterPanel = getEl("mw-wizard-artwork-poster");
     const fanartPanel = getEl("mw-wizard-artwork-fanart");
+    const logoPanel = getEl("mw-wizard-artwork-logo");
+    const artworkSourceInfo = getEl("mw-wizard-artwork-source-info");
+    const artworkMatchSelect = getEl("mw-wizard-artwork-match-select");
+    const artworkSearchInputEl = getEl("mw-wizard-artwork-search-input");
+    const artworkSearchBtn = getEl("mw-wizard-artwork-search-btn");
+    const artworkDeselectBtn = getEl("mw-wizard-artwork-deselect-btn");
+    const artworkUploadInputEl = getEl("mw-wizard-artwork-upload-input");
+    const artworkUploadBtn = getEl("mw-wizard-artwork-upload-btn");
     const summaryBox = getEl("mw-wizard-summary");
     const resultTitleEl = getEl("mw-wizard-result-title");
     const destEl = getEl("mw-wizard-destination");
@@ -368,6 +422,72 @@ export function createFilmWizard(options = {}) {
     let currentProjectName = options.projectName || "";
     let artworkSkipped = false;
     let activeArtworkTab = "poster";
+    const MAX_ARTWORK_UPLOAD_BYTES = 15 * 1024 * 1024;
+    const MAX_BACKDROP_SELECTION = 10;
+    const ARTWORK_ROLES = ["poster", "backdrop", "logo"];
+    let artworkRequestSeq = 0;
+    let artworkSessionSeq = 0;
+    const uploadSeqByRole = { poster: 0, backdrop: 0, logo: 0 };
+    let artworkCandidatesLoadedKey = "";
+    let artworkResolvedTmdbId = "";
+    let artworkResolvedTitle = "";
+    let artworkMatches = [];
+    let artworkOverrideTmdbId = "";
+    let artworkOverrideQuery = "";
+    let artworkLoading = false;
+    let artworkLoadError = "";
+
+    function createInitialArtworkRoleState() {
+        return {
+            candidates: [],
+            customUpload: null,
+            selectedItems: [],
+            mode: "auto",
+            selectedUrl: "",
+            selectedThumbUrl: "",
+            selectedDataUrl: "",
+            explicit: false,
+            uploadError: "",
+        };
+    }
+
+    function syncBackdropStateFromItems(st) {
+        if (!st) return;
+        const items = Array.isArray(st.selectedItems) ? st.selectedItems : [];
+        st.selectedItems = items;
+        if (items.length === 0) {
+            st.mode = st.explicit ? "none" : "auto";
+            st.selectedUrl = "";
+            st.selectedThumbUrl = "";
+            st.selectedDataUrl = "";
+            return;
+        }
+        const first = items[0];
+        if (items.length === 1) {
+            if (first.mode === "upload") {
+                st.mode = "upload";
+                st.selectedDataUrl = String(first.dataUrl || "");
+                st.selectedUrl = "";
+                st.selectedThumbUrl = "";
+            } else {
+                st.mode = "url";
+                st.selectedUrl = String(first.url || "");
+                st.selectedThumbUrl = String(first.thumbUrl || first.url || "");
+                st.selectedDataUrl = "";
+            }
+            return;
+        }
+        st.mode = "multi";
+        st.selectedUrl = first.mode === "url" ? String(first.url || "") : "";
+        st.selectedThumbUrl = first.mode === "url" ? String(first.thumbUrl || first.url || "") : "";
+        st.selectedDataUrl = first.mode === "upload" ? String(first.dataUrl || "") : "";
+    }
+
+    let artworkState = {
+        poster: createInitialArtworkRoleState(),
+        backdrop: createInitialArtworkRoleState(),
+        logo: createInitialArtworkRoleState(),
+    };
     let onProcessSuccessCallback = options.onProcessSuccess || null;
     // Called after every successful close (×, ESC, after starting the process) so the app can leave
     // the project view instead of falling back to the legacy movie panel.
@@ -786,6 +906,93 @@ export function createFilmWizard(options = {}) {
         }
     }
 
+    function buildArtworkOverridesPayload(resolvedProvider = "tmdb") {
+        if (artworkSkipped) return undefined;
+        const normProv = String(resolvedProvider || "").toLowerCase();
+        const isTmdbProvider = normProv === "tmdb" || normProv === "tmdb_movie";
+        const hasExplicitSelection = ARTWORK_ROLES.some((role) => {
+            const st = artworkState[role];
+            return Boolean(st && st.explicit);
+        });
+        const hasAnySelection = ARTWORK_ROLES.some((role) => {
+            const st = artworkState[role];
+            if (!st) return false;
+            return Boolean(
+                st.explicit ||
+                (st.mode === "multi" && Array.isArray(st.selectedItems) && st.selectedItems.length > 0) ||
+                (st.mode === "url" && st.selectedUrl) ||
+                (st.mode === "upload" && st.selectedDataUrl) ||
+                st.mode === "none"
+            );
+        });
+        if (isTmdbProvider) {
+            if (!hasExplicitSelection) return undefined;
+        } else if (!hasAnySelection) {
+            return undefined;
+        }
+
+        const out = {};
+        for (const role of ARTWORK_ROLES) {
+            const st = artworkState[role];
+            if (!st) {
+                out[role] = { mode: "auto" };
+            } else if (isTmdbProvider && !st.explicit) {
+                out[role] = { mode: "auto" };
+            } else if (st.mode === "none") {
+                out[role] = { mode: "none" };
+            } else if (role === "backdrop" && Array.isArray(st.selectedItems) && st.selectedItems.length >= 2) {
+                out[role] = {
+                    mode: "multi",
+                    items: st.selectedItems.map((it) =>
+                        it.mode === "upload"
+                            ? { mode: "upload", data_url: it.dataUrl }
+                            : { mode: "url", url: it.url }
+                    ),
+                };
+            } else if (st.mode === "upload" && st.selectedDataUrl) {
+                out[role] = { mode: "upload", data_url: st.selectedDataUrl };
+            } else if (st.mode === "url" && st.selectedUrl) {
+                out[role] = { mode: "url", url: st.selectedUrl };
+            } else {
+                out[role] = { mode: "auto" };
+            }
+        }
+        return out;
+    }
+
+    function formatArtworkSummaryLine() {
+        if (artworkSkipped) return "Übersprungen (Standard-Artwork)";
+        const hasExplicit = ARTWORK_ROLES.some((r) => Boolean(artworkState[r] && artworkState[r].explicit));
+        if (!hasExplicit) {
+            const baseProv = String((selectedMovie && selectedMovie.provider) || "manual").toLowerCase();
+            const isTmdb = baseProv === "tmdb" || baseProv === "tmdb_movie" || successfulProviders.has("tmdb");
+            if (isTmdb) return "Standard-Artwork (TMDb)";
+            const hasPreselectedUrl = ARTWORK_ROLES.some(
+                (r) => Boolean(
+                    artworkState[r] &&
+                    ((artworkState[r].mode === "url" && artworkState[r].selectedUrl) ||
+                        (artworkState[r].mode === "multi" && artworkState[r].selectedItems.length > 0))
+                )
+            );
+            return hasPreselectedUrl ? "TMDb-Vorauswahl" : "Kein Artwork ausgewählt";
+        }
+        const labels = { poster: "Poster", backdrop: "Hintergrundbild", logo: "Logo" };
+        return ARTWORK_ROLES.map((r) => {
+            const st = artworkState[r];
+            let statusText = "Auto";
+            if (r === "backdrop" && Array.isArray(st.selectedItems) && st.selectedItems.length >= 2) {
+                statusText = `${st.selectedItems.length} Bilder`;
+            } else if (st.mode === "none") {
+                statusText = "Kein Bild";
+            } else if (st.mode === "upload") {
+                statusText = "Eigenes Bild";
+            } else if (st.mode === "url") {
+                statusText = "TMDb-Auswahl";
+            }
+            return `${labels[r]}: ${statusText}`;
+        }).join(" · ");
+    }
+
     function buildMovieBasePayload() {
         const overrides = typeof nfoEditor.buildWizardMovieOverrides === "function"
             ? nfoEditor.buildWizardMovieOverrides()
@@ -829,7 +1036,7 @@ export function createFilmWizard(options = {}) {
             }
         }
 
-        return {
+        const payload = {
             media_type: "movie",
             project_name: currentProjectName,
             movie_name: finalMovieName,
@@ -847,6 +1054,11 @@ export function createFilmWizard(options = {}) {
             wizard_overrides: true,
             nfo_overrides: overrides,
         };
+        const artworkOverrides = buildArtworkOverridesPayload(resolvedProvider);
+        if (artworkOverrides !== undefined) {
+            payload.artwork_overrides = artworkOverrides;
+        }
+        return payload;
     }
 
     function buildProcessPayload() {
@@ -879,7 +1091,7 @@ export function createFilmWizard(options = {}) {
             `Jahr: ${vals.year || "—"}`,
             `FSK: ${vals.fsk !== "" ? `FSK ${vals.fsk}` : "Keine Angabe"}`,
             `Genre: ${vals.genres.length > 0 ? vals.genres.join(", ") : "Keine Angabe"}`,
-            `Artwork: ${artworkSkipped ? "Übersprungen (Standard-Artwork)" : "Standard-Artwork (TMDb)"}`,
+            `Artwork: ${formatArtworkSummaryLine()}`,
         ];
         for (const text of lines) {
             summaryBox.appendChild(mkEl(doc, "div", { cls: "mw-wizard-summary-row", text }));
@@ -1096,6 +1308,747 @@ export function createFilmWizard(options = {}) {
         }
     }
 
+    function normalizeArtworkRole(roleOrTab) {
+        const val = String(roleOrTab || "poster").trim().toLowerCase();
+        if (val === "fanart" || val === "backdrop" || val === "backdrops") return "backdrop";
+        if (val === "logo" || val === "logos") return "logo";
+        return "poster";
+    }
+
+    function artworkRoleLabel(role) {
+        const norm = normalizeArtworkRole(role);
+        if (norm === "backdrop") return "Hintergrundbild";
+        if (norm === "logo") return "Logo";
+        return "Poster";
+    }
+
+    function getArtworkRolePanel(role) {
+        const norm = normalizeArtworkRole(role);
+        if (norm === "backdrop") return fanartPanel;
+        if (norm === "logo") return logoPanel;
+        return posterPanel;
+    }
+
+    function updateArtworkToolbarState() {
+        const activeRole = normalizeArtworkRole(activeArtworkTab);
+        const st = artworkState[activeRole];
+        const isNone = Boolean(st && st.mode === "none");
+        if (artworkDeselectBtn) {
+            if (artworkDeselectBtn.classList) artworkDeselectBtn.classList.toggle("active", isNone);
+            if (typeof artworkDeselectBtn.setAttribute === "function") {
+                artworkDeselectBtn.setAttribute("aria-pressed", isNone ? "true" : "false");
+            }
+        }
+    }
+
+    function updateArtworkSourceBar() {
+        const activeRole = normalizeArtworkRole(activeArtworkTab);
+        const activeUploadError = artworkState[activeRole] && artworkState[activeRole].uploadError;
+        if (artworkSourceInfo) {
+            if (artworkLoading) {
+                artworkSourceInfo.textContent = "TMDb-Bildkandidaten werden geladen…";
+            } else if (activeUploadError) {
+                artworkSourceInfo.textContent = activeUploadError;
+            } else if (artworkLoadError) {
+                artworkSourceInfo.textContent = `TMDb-Bildabruf fehlgeschlagen: ${artworkLoadError}`;
+            } else if (artworkResolvedTmdbId) {
+                const titleInfo = artworkResolvedTitle ? `${artworkResolvedTitle} · ` : "";
+                artworkSourceInfo.textContent = `TMDb-Bildquelle: ${titleInfo}#${artworkResolvedTmdbId}`;
+            } else if (artworkCandidatesLoadedKey) {
+                artworkSourceInfo.textContent = "Kein passender TMDb-Eintrag für automatische Bildkandidaten gefunden.";
+            } else {
+                artworkSourceInfo.textContent = "TMDb-Bildquelle (Poster, Hintergrundbild, Logo)";
+            }
+        }
+        if (artworkMatchSelect) {
+            artworkMatchSelect.innerHTML = "";
+            if (Array.isArray(artworkMatches) && artworkMatches.length > 1) {
+                for (const m of artworkMatches) {
+                    const mId = String((m && (m.id ?? m.tmdb_id)) || "").trim();
+                    if (!mId) continue;
+                    const opt = mkEl(doc, "option", {
+                        text: String(m.name || m.title || `TMDb #${mId}`),
+                        attrs: { value: mId },
+                    });
+                    opt.value = mId;
+                    if (mId === artworkResolvedTmdbId) {
+                        opt.selected = true;
+                        opt.setAttribute("selected", "selected");
+                    }
+                    artworkMatchSelect.appendChild(opt);
+                }
+                if (artworkResolvedTmdbId) artworkMatchSelect.value = artworkResolvedTmdbId;
+                artworkMatchSelect.classList.remove("hidden");
+            } else {
+                artworkMatchSelect.classList.add("hidden");
+            }
+        }
+    }
+
+    function renderArtworkRolePanel(role) {
+        const normRole = normalizeArtworkRole(role);
+        const panel = getArtworkRolePanel(normRole);
+        if (!panel) return;
+        const st = artworkState[normRole];
+        if (!st) return;
+
+        if (artworkLoading) {
+            panel.classList.remove("mw-wizard-artwork-placeholder");
+            panel.innerHTML = "";
+            const loadingGrid = mkEl(doc, "div", {
+                cls: `mw-wizard-artwork-grid mw-wizard-artwork-grid-${normRole}`,
+                attrs: { "data-artwork-role": normRole, "aria-busy": "true" },
+            });
+            for (let i = 0; i < 3; i++) {
+                loadingGrid.appendChild(mkEl(doc, "div", {
+                    cls: "mw-wizard-artwork-tile loading",
+                    attrs: { "data-artwork-role": normRole },
+                }, [
+                    mkEl(doc, "div", { cls: "mw-wizard-artwork-skeleton" }),
+                ]));
+            }
+            panel.appendChild(loadingGrid);
+            return;
+        }
+
+        const uploadErrorEl = st.uploadError
+            ? mkEl(doc, "div", {
+                  cls: "mw-wizard-artwork-tile error mw-wizard-artwork-upload-error",
+                  attrs: { "data-artwork-role": normRole, "data-artwork-upload-error": "true" },
+                  text: st.uploadError,
+              })
+            : null;
+
+        if (artworkLoadError && !st.customUpload && (!Array.isArray(st.candidates) || st.candidates.length === 0)) {
+            panel.classList.remove("mw-wizard-artwork-placeholder");
+            panel.innerHTML = "";
+            if (uploadErrorEl) panel.appendChild(uploadErrorEl);
+            const retryTileBtn = mkEl(doc, "button", {
+                cls: "btn btn-secondary btn-sm mw-wizard-artwork-retry-btn",
+                type: "button",
+                text: "Erneut versuchen",
+                attrs: { "data-artwork-role": normRole },
+            });
+            retryTileBtn.addEventListener("click", () => {
+                loadArtworkCandidates({ force: true });
+            });
+            const errTile = mkEl(doc, "div", {
+                cls: "mw-wizard-artwork-tile error",
+                attrs: { "data-artwork-role": normRole, "data-artwork-error": "true" },
+            }, [
+                mkEl(doc, "div", {
+                    cls: "mw-wizard-artwork-error-text",
+                    text: `${artworkRoleLabel(normRole)}-Kandidaten konnten nicht geladen werden (${artworkLoadError}).`,
+                }),
+                retryTileBtn,
+            ]);
+            panel.appendChild(errTile);
+            return;
+        }
+
+        const hasCandidates = Array.isArray(st.candidates) && st.candidates.length > 0;
+        if (!st.customUpload && !hasCandidates) {
+            panel.innerHTML = "";
+            if (uploadErrorEl) {
+                panel.classList.remove("mw-wizard-artwork-placeholder");
+                panel.appendChild(uploadErrorEl);
+            }
+            if (artworkCandidatesLoadedKey) {
+                panel.classList.remove("mw-wizard-artwork-placeholder");
+                const emptyGrid = mkEl(doc, "div", {
+                    cls: `mw-wizard-artwork-grid mw-wizard-artwork-grid-${normRole}`,
+                    attrs: { "data-artwork-role": normRole },
+                }, [
+                    mkEl(doc, "div", {
+                        cls: "mw-wizard-artwork-tile empty",
+                        attrs: { "data-artwork-role": normRole },
+                        text: `Kein ${artworkRoleLabel(normRole)} bei TMDb verfügbar.`,
+                    }),
+                ]);
+                panel.appendChild(emptyGrid);
+            } else if (!uploadErrorEl) {
+                panel.classList.add("mw-wizard-artwork-placeholder");
+                panel.textContent = `Automatischer ${artworkRoleLabel(normRole)}-Download (TMDb) ist aktiv. Dieser Schritt kann übersprungen werden.`;
+            }
+            return;
+        }
+
+        panel.classList.remove("mw-wizard-artwork-placeholder");
+        panel.innerHTML = "";
+        if (uploadErrorEl) {
+            panel.appendChild(uploadErrorEl);
+        }
+        const grid = mkEl(doc, "div", {
+            cls: `mw-wizard-artwork-grid mw-wizard-artwork-grid-${normRole}`,
+            attrs: { "data-artwork-role": normRole },
+        });
+
+        if (st.customUpload && st.customUpload.dataUrl) {
+            let isUploadSelected = false;
+            let uploadCheckText = "✓";
+            if (normRole === "backdrop") {
+                const uploadIdx = Array.isArray(st.selectedItems)
+                    ? st.selectedItems.findIndex((it) => it.mode === "upload" && it.dataUrl === st.customUpload.dataUrl)
+                    : -1;
+                isUploadSelected = uploadIdx >= 0;
+                if (isUploadSelected && st.selectedItems.length >= 2) {
+                    uploadCheckText = `✓ ${uploadIdx + 1}`;
+                }
+            } else {
+                isUploadSelected = st.mode === "upload" && st.selectedDataUrl === st.customUpload.dataUrl;
+            }
+            const uploadImg = mkEl(doc, "img", {
+                cls: "mw-wizard-artwork-image",
+                attrs: {
+                    src: st.customUpload.dataUrl,
+                    alt: st.customUpload.fileName || `Eigenes ${artworkRoleLabel(normRole)}`,
+                },
+            });
+            const uploadTile = mkEl(doc, "button", {
+                cls: `mw-wizard-artwork-tile mw-wizard-artwork-tile-upload${isUploadSelected ? " selected" : ""}`,
+                type: "button",
+                attrs: {
+                    "aria-pressed": isUploadSelected ? "true" : "false",
+                    "data-artwork-role": normRole,
+                    "data-artwork-source": "upload",
+                },
+            }, [
+                uploadImg,
+                mkEl(doc, "span", { cls: "mw-wizard-artwork-check", text: uploadCheckText, attrs: { "aria-hidden": "true" } }),
+                mkEl(doc, "span", {
+                    cls: "mw-wizard-artwork-meta",
+                    text: st.customUpload.fileName ? `Eigenes Bild · ${st.customUpload.fileName}` : "Eigenes Bild",
+                }),
+            ]);
+            uploadTile.addEventListener("click", () => {
+                artworkSkipped = false;
+                st.uploadError = "";
+                if (normRole === "backdrop") {
+                    const existingIdx = Array.isArray(st.selectedItems)
+                        ? st.selectedItems.findIndex((it) => it.mode === "upload")
+                        : -1;
+                    if (existingIdx >= 0) {
+                        st.selectedItems.splice(existingIdx, 1);
+                    } else {
+                        if (st.selectedItems.length >= MAX_BACKDROP_SELECTION) {
+                            setArtworkUploadError("backdrop", `Maximal ${MAX_BACKDROP_SELECTION} Hintergrundbilder auswählbar.`);
+                            return;
+                        }
+                        st.selectedItems.push({
+                            mode: "upload",
+                            dataUrl: st.customUpload.dataUrl,
+                            fileName: st.customUpload.fileName,
+                        });
+                    }
+                    st.explicit = true;
+                    syncBackdropStateFromItems(st);
+                } else {
+                    if (st.mode === "upload" && st.selectedDataUrl === st.customUpload.dataUrl) {
+                        st.mode = "none";
+                        st.selectedDataUrl = "";
+                        st.selectedUrl = "";
+                        st.selectedThumbUrl = "";
+                        st.selectedItems = [];
+                    } else {
+                        st.mode = "upload";
+                        st.selectedDataUrl = st.customUpload.dataUrl;
+                        st.selectedUrl = "";
+                        st.selectedThumbUrl = "";
+                        st.selectedItems = [{
+                            mode: "upload",
+                            dataUrl: st.customUpload.dataUrl,
+                            fileName: st.customUpload.fileName,
+                        }];
+                    }
+                    st.explicit = true;
+                }
+                renderArtworkRolePanel(normRole);
+                updateArtworkToolbarState();
+                updateArtworkSourceBar();
+            });
+            grid.appendChild(uploadTile);
+        }
+
+        if (hasCandidates) {
+            st.candidates.forEach((cand, idx) => {
+                if (!cand || !cand.url) return;
+                let isSelected = false;
+                let checkText = "✓";
+                if (normRole === "backdrop") {
+                    const selIdx = Array.isArray(st.selectedItems)
+                        ? st.selectedItems.findIndex((it) => it.mode === "url" && it.url === cand.url)
+                        : -1;
+                    isSelected = selIdx >= 0;
+                    if (isSelected && st.selectedItems.length >= 2) {
+                        checkText = `✓ ${selIdx + 1}`;
+                    }
+                } else {
+                    isSelected = st.mode === "url" && st.selectedUrl === cand.url;
+                }
+                const tile = mkEl(doc, "button", {
+                    cls: `mw-wizard-artwork-tile${isSelected ? " selected" : ""}`,
+                    type: "button",
+                    attrs: {
+                        "aria-pressed": isSelected ? "true" : "false",
+                        "data-artwork-role": normRole,
+                        "data-artwork-url": cand.url,
+                        "data-artwork-index": String(idx),
+                    },
+                });
+                const imgSrc = String(cand.thumb_url || cand.preview_url || cand.url);
+                const img = mkEl(doc, "img", {
+                    cls: "mw-wizard-artwork-image",
+                    attrs: {
+                        src: imgSrc,
+                        alt: `${artworkRoleLabel(normRole)} ${idx + 1}`,
+                        loading: "lazy",
+                    },
+                });
+                const imgRetryBtn = mkEl(doc, "button", {
+                    cls: "btn btn-secondary btn-sm mw-wizard-artwork-img-retry-btn",
+                    type: "button",
+                    text: "Erneut laden",
+                });
+                const brokenBox = mkEl(doc, "div", { cls: "mw-wizard-artwork-broken hidden" }, [
+                    mkEl(doc, "span", { cls: "mw-wizard-artwork-broken-text", text: "Bild nicht geladen" }),
+                    imgRetryBtn,
+                ]);
+                img.addEventListener("error", () => {
+                    tile.classList.add("error");
+                    img.classList.add("hidden");
+                    brokenBox.classList.remove("hidden");
+                });
+                imgRetryBtn.addEventListener("click", (e) => {
+                    if (e && typeof e.stopPropagation === "function") e.stopPropagation();
+                    if (e && typeof e.preventDefault === "function") e.preventDefault();
+                    tile.classList.remove("error");
+                    brokenBox.classList.add("hidden");
+                    img.classList.remove("hidden");
+                    const sep = imgSrc.includes("?") ? "&" : "?";
+                    const nextSrc = `${imgSrc}${sep}retry=${Date.now()}`;
+                    img.setAttribute("src", nextSrc);
+                    img.src = nextSrc;
+                });
+
+                const rawLang = String(cand.lang ?? cand.iso_639_1 ?? "").trim();
+                const langLabel = rawLang ? rawLang.toUpperCase() : "Neutral";
+                const dimLabel = cand.width && cand.height ? `${cand.width}×${cand.height}` : "";
+                const metaText = [langLabel, dimLabel].filter(Boolean).join(" · ");
+                const checkEl = mkEl(doc, "span", { cls: "mw-wizard-artwork-check", text: checkText, attrs: { "aria-hidden": "true" } });
+                const metaEl = mkEl(doc, "span", { cls: "mw-wizard-artwork-meta", text: metaText });
+
+                tile.appendChild(img);
+                tile.appendChild(checkEl);
+                tile.appendChild(brokenBox);
+                tile.appendChild(metaEl);
+
+                tile.addEventListener("click", () => {
+                    selectArtworkCandidate(normRole, idx);
+                });
+                grid.appendChild(tile);
+            });
+        }
+
+        panel.appendChild(grid);
+    }
+
+    function renderAllArtworkPanels() {
+        updateArtworkSourceBar();
+        for (const role of ARTWORK_ROLES) {
+            renderArtworkRolePanel(role);
+        }
+        updateArtworkToolbarState();
+    }
+
+    function resetArtworkState() {
+        artworkRequestSeq += 1;
+        artworkSessionSeq += 1;
+        uploadSeqByRole.poster += 1;
+        uploadSeqByRole.backdrop += 1;
+        uploadSeqByRole.logo += 1;
+        artworkCandidatesLoadedKey = "";
+        artworkResolvedTmdbId = "";
+        artworkResolvedTitle = "";
+        artworkMatches = [];
+        artworkOverrideTmdbId = "";
+        artworkOverrideQuery = "";
+        artworkLoading = false;
+        artworkLoadError = "";
+        artworkState = {
+            poster: createInitialArtworkRoleState(),
+            backdrop: createInitialArtworkRoleState(),
+            logo: createInitialArtworkRoleState(),
+        };
+        if (artworkSearchInputEl) artworkSearchInputEl.value = "";
+        if (artworkUploadInputEl) artworkUploadInputEl.value = "";
+        renderAllArtworkPanels();
+    }
+
+    function getArtworkState() {
+        const snapshot = {};
+        for (const role of ARTWORK_ROLES) {
+            const st = artworkState[role];
+            const itemsCopy = Array.isArray(st.selectedItems)
+                ? st.selectedItems.map((it) => ({ ...it }))
+                : [];
+            snapshot[role] = {
+                mode: st.mode,
+                selectedUrl: st.selectedUrl,
+                selectedThumbUrl: st.selectedThumbUrl,
+                selectedDataUrl: st.selectedDataUrl,
+                selectedCount: itemsCopy.length,
+                selectedItems: itemsCopy,
+                explicit: st.explicit,
+                uploadError: st.uploadError,
+                candidatesCount: Array.isArray(st.candidates) ? st.candidates.length : 0,
+                hasCustomUpload: Boolean(st.customUpload && st.customUpload.dataUrl),
+            };
+        }
+        return snapshot;
+    }
+
+    function setArtworkUploadError(role, message) {
+        const normRole = normalizeArtworkRole(role || activeArtworkTab);
+        const st = artworkState[normRole];
+        if (!st) return;
+        st.uploadError = String(message || "");
+        if (logFn && st.uploadError) {
+            try { logFn(`[System]: ${st.uploadError}`); } catch (_) {}
+        }
+        renderArtworkRolePanel(normRole);
+        updateArtworkSourceBar();
+    }
+
+    function selectArtworkCandidate(role, indexOrUrl) {
+        const normRole = normalizeArtworkRole(role || activeArtworkTab);
+        const st = artworkState[normRole];
+        if (!st || !Array.isArray(st.candidates)) return getArtworkState();
+
+        let cand = null;
+        if (typeof indexOrUrl === "number" || /^\d+$/.test(String(indexOrUrl))) {
+            const idx = Number(indexOrUrl);
+            if (idx >= 0 && idx < st.candidates.length) {
+                cand = st.candidates[idx];
+            }
+        }
+        if (!cand && indexOrUrl) {
+            const targetUrl = String(indexOrUrl);
+            cand = st.candidates.find((c) => c && (c.url === targetUrl || c.thumb_url === targetUrl || c.preview_url === targetUrl)) || null;
+        }
+        if (!cand || !cand.url) return getArtworkState();
+
+        artworkSkipped = false;
+        st.uploadError = "";
+        if (normRole === "backdrop") {
+            const existingIdx = Array.isArray(st.selectedItems)
+                ? st.selectedItems.findIndex((it) => it.mode === "url" && it.url === cand.url)
+                : -1;
+            if (existingIdx >= 0) {
+                st.selectedItems.splice(existingIdx, 1);
+            } else {
+                if (st.selectedItems.length >= MAX_BACKDROP_SELECTION) {
+                    setArtworkUploadError("backdrop", `Maximal ${MAX_BACKDROP_SELECTION} Hintergrundbilder auswählbar.`);
+                    return getArtworkState();
+                }
+                st.selectedItems.push({
+                    mode: "url",
+                    url: String(cand.url),
+                    thumbUrl: String(cand.thumb_url || cand.preview_url || cand.url),
+                });
+            }
+            st.explicit = true;
+            syncBackdropStateFromItems(st);
+        } else {
+            if (st.mode === "url" && st.selectedUrl === cand.url) {
+                st.mode = "none";
+                st.selectedUrl = "";
+                st.selectedThumbUrl = "";
+                st.selectedDataUrl = "";
+                st.selectedItems = [];
+            } else {
+                const chosenUrl = String(cand.url);
+                const chosenThumb = String(cand.thumb_url || cand.preview_url || cand.url);
+                st.mode = "url";
+                st.selectedUrl = chosenUrl;
+                st.selectedThumbUrl = chosenThumb;
+                st.selectedDataUrl = "";
+                st.selectedItems = [{ mode: "url", url: chosenUrl, thumbUrl: chosenThumb }];
+            }
+            st.explicit = true;
+        }
+        renderArtworkRolePanel(normRole);
+        updateArtworkToolbarState();
+        updateArtworkSourceBar();
+        return getArtworkState();
+    }
+
+    function deselectArtworkRole(role) {
+        const normRole = normalizeArtworkRole(role || activeArtworkTab);
+        const st = artworkState[normRole];
+        if (!st) return getArtworkState();
+        artworkSkipped = false;
+        st.uploadError = "";
+        st.selectedItems = [];
+        st.mode = "none";
+        st.selectedUrl = "";
+        st.selectedThumbUrl = "";
+        st.selectedDataUrl = "";
+        st.explicit = true;
+        renderArtworkRolePanel(normRole);
+        updateArtworkToolbarState();
+        updateArtworkSourceBar();
+        return getArtworkState();
+    }
+
+    function setCustomArtworkUpload(role, dataUrl, fileName = "upload.png") {
+        const normRole = normalizeArtworkRole(role || activeArtworkTab);
+        const st = artworkState[normRole];
+        if (!st) return false;
+        const rawDataUrl = String(dataUrl || "").trim();
+        const headerMatch = rawDataUrl.match(/^data:image\/(jpeg|jpg|png|webp);base64,([a-z0-9+/=\s]+)$/i);
+        if (!headerMatch) {
+            setArtworkUploadError(normRole, "Ungültiges Bildformat für den Artwork-Upload (erlaubt: JPG, PNG, WebP).");
+            return false;
+        }
+        const b64Payload = headerMatch[2].replace(/\s+/g, "");
+        const approxBytes = Math.floor((b64Payload.length * 3) / 4);
+        if (approxBytes <= 0 || approxBytes > MAX_ARTWORK_UPLOAD_BYTES) {
+            setArtworkUploadError(normRole, "Artwork-Upload abgelehnt (Datei leer oder größer als 15 MB).");
+            return false;
+        }
+
+        const normalizedUpload = {
+            dataUrl: `data:image/${headerMatch[1].toLowerCase()};base64,${b64Payload}`,
+            fileName: String(fileName || "upload"),
+        };
+
+        if (normRole === "backdrop") {
+            const existingUploadIdx = Array.isArray(st.selectedItems)
+                ? st.selectedItems.findIndex((it) => it.mode === "upload")
+                : -1;
+            if (existingUploadIdx < 0 && st.selectedItems.length >= MAX_BACKDROP_SELECTION) {
+                setArtworkUploadError("backdrop", `Maximal ${MAX_BACKDROP_SELECTION} Hintergrundbilder auswählbar.`);
+                return false;
+            }
+            artworkSkipped = false;
+            st.uploadError = "";
+            st.customUpload = normalizedUpload;
+            const uploadEntry = {
+                mode: "upload",
+                dataUrl: normalizedUpload.dataUrl,
+                fileName: normalizedUpload.fileName,
+            };
+            if (existingUploadIdx >= 0) {
+                st.selectedItems[existingUploadIdx] = uploadEntry;
+            } else {
+                st.selectedItems.push(uploadEntry);
+            }
+            st.explicit = true;
+            syncBackdropStateFromItems(st);
+        } else {
+            artworkSkipped = false;
+            st.uploadError = "";
+            st.customUpload = normalizedUpload;
+            st.mode = "upload";
+            st.selectedDataUrl = normalizedUpload.dataUrl;
+            st.selectedUrl = "";
+            st.selectedThumbUrl = "";
+            st.selectedItems = [{
+                mode: "upload",
+                dataUrl: normalizedUpload.dataUrl,
+                fileName: normalizedUpload.fileName,
+            }];
+            st.explicit = true;
+        }
+        renderArtworkRolePanel(normRole);
+        updateArtworkToolbarState();
+        updateArtworkSourceBar();
+        return true;
+    }
+
+    function resolveDefaultArtworkQuery() {
+        const vals = nfoEditor.getValues();
+        let defaultTmdbId = "";
+        if (artworkOverrideTmdbId && /^\d+$/.test(artworkOverrideTmdbId)) {
+            defaultTmdbId = artworkOverrideTmdbId;
+        } else if (successfulProviders.has("tmdb") && /^\d+$/.test(String(successfulProviders.get("tmdb") || ""))) {
+            defaultTmdbId = String(successfulProviders.get("tmdb"));
+        } else if (
+            selectedMovie &&
+            (String(selectedMovie.provider).toLowerCase() === "tmdb" || String(selectedMovie.provider).toLowerCase() === "tmdb_movie") &&
+            /^\d+$/.test(String(selectedMovie.id || ""))
+        ) {
+            defaultTmdbId = String(selectedMovie.id);
+        }
+        const query = artworkOverrideQuery || String(vals.title || (selectedMovie ? selectedMovie.name : "") || "").trim();
+        const year = String(vals.year || "").trim();
+        return { tmdbId: defaultTmdbId, query, year };
+    }
+
+    async function loadArtworkCandidates(opts = {}) {
+        const defaults = resolveDefaultArtworkQuery();
+        const resolvedTmdbId = opts.tmdbId !== undefined ? String(opts.tmdbId || "").trim() : defaults.tmdbId;
+        const resolvedQuery = opts.query !== undefined ? String(opts.query || "").trim() : defaults.query;
+        const resolvedYear = opts.year !== undefined ? String(opts.year || "").trim() : defaults.year;
+        const markExplicit = Boolean(opts.markExplicit);
+        const resetSelection = Boolean(opts.resetSelection);
+
+        const targetKey = resolvedTmdbId ? `tmdb:${resolvedTmdbId}` : `q:${resolvedQuery}|y:${resolvedYear}`;
+        if (!opts.force && artworkCandidatesLoadedKey === targetKey && !artworkLoadError && !artworkLoading) {
+            renderAllArtworkPanels();
+            return null;
+        }
+        if (!fetchFn || (!resolvedTmdbId && !resolvedQuery)) {
+            renderAllArtworkPanels();
+            return null;
+        }
+
+        const reqSeq = ++artworkRequestSeq;
+        const reqSession = sessionSeq;
+        artworkLoading = true;
+        artworkLoadError = "";
+        renderAllArtworkPanels();
+
+        const params = new URLSearchParams();
+        if (resolvedTmdbId) params.set("tmdb_id", resolvedTmdbId);
+        if (resolvedQuery) params.set("query", resolvedQuery);
+        if (resolvedYear) params.set("year", resolvedYear);
+        const url = `/api/artwork/candidates?${params.toString()}`;
+
+        try {
+            const res = await fetchFn(url);
+            if (reqSeq !== artworkRequestSeq || reqSession !== sessionSeq) return null;
+            if (!res || !res.ok) {
+                let errMsg = `HTTP ${res ? res.status : "Fehler"}`;
+                if (res && typeof res.json === "function") {
+                    try {
+                        const errData = await res.json();
+                        if (errData && (errData.error || errData.message)) {
+                            errMsg = String(errData.error || errData.message);
+                        }
+                    } catch (_) {}
+                }
+                throw new Error(errMsg);
+            }
+            const data = await res.json();
+            if (reqSeq !== artworkRequestSeq || reqSession !== sessionSeq) return null;
+            if (data && (data.status === "error" || data.error)) {
+                throw new Error(String(data.error || "TMDb-Bildabruf fehlgeschlagen"));
+            }
+
+            artworkLoading = false;
+            artworkLoadError = "";
+            artworkCandidatesLoadedKey = targetKey;
+            artworkResolvedTmdbId = String((data && data.tmdb_id) || resolvedTmdbId || "");
+            artworkResolvedTitle = String((data && (data.matched_title || data.resolved_title)) || resolvedQuery || "");
+            artworkMatches = (data && Array.isArray(data.matches)) ? data.matches : [];
+
+            const candsFallback = (data && data.candidates && typeof data.candidates === "object") ? data.candidates : {};
+            const roleLists = {
+                poster: Array.isArray(data && data.posters)
+                    ? data.posters
+                    : (Array.isArray(candsFallback.poster) ? candsFallback.poster : []),
+                backdrop: Array.isArray(data && data.backdrops)
+                    ? data.backdrops
+                    : (Array.isArray(candsFallback.backdrop) ? candsFallback.backdrop : []),
+                logo: Array.isArray(data && data.logos)
+                    ? data.logos
+                    : (Array.isArray(candsFallback.logo) ? candsFallback.logo : []),
+            };
+            for (const role of ARTWORK_ROLES) {
+                const list = roleLists[role] || [];
+                const st = artworkState[role];
+                st.candidates = list;
+                if (resetSelection || !st.explicit) {
+                    if (list.length > 0 && list[0] && list[0].url) {
+                        const firstUrl = String(list[0].url);
+                        const firstThumb = String(list[0].thumb_url || list[0].preview_url || list[0].url);
+                        st.selectedItems = [{ mode: "url", url: firstUrl, thumbUrl: firstThumb }];
+                        st.mode = "url";
+                        st.selectedUrl = firstUrl;
+                        st.selectedThumbUrl = firstThumb;
+                        st.selectedDataUrl = "";
+                        st.explicit = Boolean(markExplicit);
+                    } else if (st.customUpload) {
+                        st.selectedItems = Array.isArray(st.selectedItems)
+                            ? st.selectedItems.filter((it) => it && it.mode === "upload")
+                            : [];
+                        if (role === "backdrop") {
+                            syncBackdropStateFromItems(st);
+                        } else if (st.selectedItems.length > 0) {
+                            st.mode = "upload";
+                            st.selectedDataUrl = String(st.selectedItems[0].dataUrl || "");
+                            st.selectedUrl = "";
+                            st.selectedThumbUrl = "";
+                        } else {
+                            st.mode = st.explicit ? "none" : "auto";
+                            st.selectedUrl = "";
+                            st.selectedThumbUrl = "";
+                            st.selectedDataUrl = "";
+                        }
+                    } else {
+                        st.selectedItems = [];
+                        st.mode = "auto";
+                        st.selectedUrl = "";
+                        st.selectedThumbUrl = "";
+                        st.selectedDataUrl = "";
+                        st.explicit = false;
+                    }
+                }
+            }
+            renderAllArtworkPanels();
+            return data;
+        } catch (err) {
+            if (reqSeq !== artworkRequestSeq || reqSession !== sessionSeq) return null;
+            artworkLoading = false;
+            artworkLoadError = err && err.message ? String(err.message) : String(err || "TMDb nicht erreichbar");
+            renderAllArtworkPanels();
+            return null;
+        }
+    }
+
+    function ensureArtworkCandidatesForStep3() {
+        const defaults = resolveDefaultArtworkQuery();
+        if (artworkSearchInputEl && !artworkSearchInputEl.value) {
+            artworkSearchInputEl.value = defaults.query || defaults.tmdbId || "";
+        }
+        loadArtworkCandidates({
+            tmdbId: defaults.tmdbId,
+            query: defaults.query,
+            year: defaults.year,
+            markExplicit: false,
+            resetSelection: false,
+        });
+    }
+
+    function triggerManualArtworkSearch() {
+        const rawInput = artworkSearchInputEl ? String(artworkSearchInputEl.value || "").trim() : "";
+        if (!rawInput) return null;
+        const year = String(nfoEditor.getValues().year || "").trim();
+        if (/^\d+$/.test(rawInput)) {
+            artworkOverrideTmdbId = rawInput;
+            artworkOverrideQuery = "";
+            return loadArtworkCandidates({
+                tmdbId: rawInput,
+                query: "",
+                year: "",
+                markExplicit: true,
+                resetSelection: true,
+                force: true,
+            });
+        }
+        artworkOverrideTmdbId = "";
+        artworkOverrideQuery = rawInput;
+        return loadArtworkCandidates({
+            tmdbId: "",
+            query: rawInput,
+            year,
+            markExplicit: true,
+            resetSelection: true,
+            force: true,
+        });
+    }
+
     function goToStep(stepNumber) {
         const nextStepNum = Math.max(1, Math.min(4, Number(stepNumber) || 1));
         if (currentStep === 4 && nextStepNum !== 4) {
@@ -1131,6 +2084,10 @@ export function createFilmWizard(options = {}) {
         if (nextBtn) nextBtn.classList.toggle("hidden", currentStep === 4);
         if (executeBtn) executeBtn.classList.toggle("hidden", currentStep !== 4);
         updateExecuteButtonState();
+        if (currentStep === 3) {
+            artworkSkipped = false;
+            ensureArtworkCandidatesForStep3();
+        }
         if (currentStep === 4) {
             renderSummary();
             loadStep4Preview();
@@ -1139,17 +2096,39 @@ export function createFilmWizard(options = {}) {
     }
 
     function switchArtworkTab(tabName) {
-        activeArtworkTab = tabName === "fanart" ? "fanart" : "poster";
-        if (tabPoster) tabPoster.classList.toggle("active", activeArtworkTab === "poster");
-        if (tabFanart) tabFanart.classList.toggle("active", activeArtworkTab === "fanart");
-        if (posterPanel) {
-            posterPanel.classList.toggle("active", activeArtworkTab === "poster");
-            posterPanel.classList.toggle("hidden", activeArtworkTab !== "poster");
+        const raw = String(tabName || "poster").trim().toLowerCase();
+        if (raw === "fanart" || raw === "backdrop") {
+            activeArtworkTab = "fanart";
+        } else if (raw === "logo") {
+            activeArtworkTab = "logo";
+        } else {
+            activeArtworkTab = "poster";
         }
-        if (fanartPanel) {
-            fanartPanel.classList.toggle("active", activeArtworkTab === "fanart");
-            fanartPanel.classList.toggle("hidden", activeArtworkTab !== "fanart");
+        const tabPairs = [
+            ["poster", tabPoster, posterPanel],
+            ["fanart", tabFanart, fanartPanel],
+            ["logo", tabLogo, logoPanel],
+        ];
+        for (const [key, tabEl, panelEl] of tabPairs) {
+            const isActive = activeArtworkTab === key;
+            if (tabEl) {
+                tabEl.classList.toggle("active", isActive);
+                if (typeof tabEl.setAttribute === "function") {
+                    tabEl.setAttribute("aria-selected", isActive ? "true" : "false");
+                }
+            }
+            if (panelEl) {
+                panelEl.classList.toggle("active", isActive);
+                panelEl.classList.toggle("hidden", !isActive);
+                if (isActive) {
+                    if (typeof panelEl.removeAttribute === "function") panelEl.removeAttribute("hidden");
+                } else if (typeof panelEl.setAttribute === "function") {
+                    panelEl.setAttribute("hidden", "");
+                }
+            }
         }
+        updateArtworkToolbarState();
+        updateArtworkSourceBar();
     }
 
     function collectCheckedSearchItems() {
@@ -1296,6 +2275,7 @@ export function createFilmWizard(options = {}) {
         };
         successfulProviders.clear();
         nfoEditor.clearProviderComparison();
+        resetArtworkState();
 
         const isManual = selectedMovie.provider === "manual";
         if (isManual) {
@@ -1451,6 +2431,7 @@ export function createFilmWizard(options = {}) {
         clearPreviewCheckboxState();
         hideError();
         artworkSkipped = false;
+        resetArtworkState();
         switchArtworkTab("poster");
         if (openOptions.projectName !== undefined) currentProjectName = String(openOptions.projectName || "");
         if (openOptions.onProcessSuccess) onProcessSuccessCallback = openOptions.onProcessSuccess;
@@ -1490,6 +2471,11 @@ export function createFilmWizard(options = {}) {
         resetSizeEstimate();
         metadataRequestSeq += 1;
         previewRequestSeq += 1;
+        artworkRequestSeq += 1;
+        artworkSessionSeq += 1;
+        uploadSeqByRole.poster += 1;
+        uploadSeqByRole.backdrop += 1;
+        uploadSeqByRole.logo += 1;
         hasValidPreview = false;
         currentPreviewPayload = null;
         updateExecuteButtonState();
@@ -1534,6 +2520,7 @@ export function createFilmWizard(options = {}) {
                 selectedProviders = [];
                 successfulProviders.clear();
                 nfoEditor.clearProviderComparison();
+                resetArtworkState();
                 if (selectedInfo) selectedInfo.textContent = selectedMovie.name;
                 if (providerBadge) {
                     providerBadge.textContent = "Metadaten manuell eintragen";
@@ -1581,7 +2568,98 @@ export function createFilmWizard(options = {}) {
     });
     bindClick(tabPoster, () => switchArtworkTab("poster"));
     bindClick(tabFanart, () => switchArtworkTab("fanart"));
+    bindClick(tabLogo, () => switchArtworkTab("logo"));
+    bindClick(artworkDeselectBtn, () => deselectArtworkRole(activeArtworkTab));
+    bindClick(artworkUploadBtn, () => {
+        if (artworkUploadInputEl && typeof artworkUploadInputEl.click === "function") {
+            artworkUploadInputEl.click();
+        }
+    });
+    bindClick(artworkSearchBtn, () => triggerManualArtworkSearch());
     bindClick(retryBtn, () => typeof lastRetryAction === "function" && lastRetryAction());
+
+    if (artworkSearchInputEl && typeof artworkSearchInputEl.addEventListener === "function") {
+        artworkSearchInputEl.addEventListener("keydown", (e) => {
+            if (e && e.key === "Enter") {
+                if (typeof e.preventDefault === "function") e.preventDefault();
+                triggerManualArtworkSearch();
+            }
+        });
+    }
+    if (artworkMatchSelect && typeof artworkMatchSelect.addEventListener === "function") {
+        artworkMatchSelect.addEventListener("change", () => {
+            const chosenId = String(artworkMatchSelect.value || "").trim();
+            if (chosenId && /^\d+$/.test(chosenId)) {
+                artworkOverrideTmdbId = chosenId;
+                artworkOverrideQuery = "";
+                loadArtworkCandidates({
+                    tmdbId: chosenId,
+                    query: "",
+                    year: "",
+                    markExplicit: true,
+                    resetSelection: true,
+                    force: true,
+                });
+            }
+        });
+    }
+    if (artworkUploadInputEl && typeof artworkUploadInputEl.addEventListener === "function") {
+        artworkUploadInputEl.addEventListener("change", () => {
+            const targetRole = normalizeArtworkRole(activeArtworkTab);
+            const expectedSession = sessionSeq;
+            const expectedArtworkSession = artworkSessionSeq;
+            const reqUploadSeq = ++uploadSeqByRole[targetRole];
+            const file = artworkUploadInputEl.files && artworkUploadInputEl.files[0];
+            artworkUploadInputEl.value = "";
+            if (!file) return;
+            const fName = String(file.name || "upload");
+            const fType = String(file.type || "").toLowerCase();
+            const fSize = Number(file.size || 0);
+            if (fSize <= 0 || fSize > MAX_ARTWORK_UPLOAD_BYTES) {
+                setArtworkUploadError(targetRole, "Artwork-Upload abgelehnt (Datei leer oder größer als 15 MB).");
+                return;
+            }
+            const validExt = /\.(jpe?g|png|webp)$/i.test(fName);
+            const validMime = /^image\/(jpeg|jpg|png|webp)$/.test(fType);
+            if (!validExt && !validMime) {
+                setArtworkUploadError(targetRole, "Ungültiges Bildformat für den Artwork-Upload (erlaubt: JPG, PNG, WebP).");
+                return;
+            }
+            if (typeof globalThis.FileReader !== "function") {
+                setArtworkUploadError(targetRole, "FileReader wird in dieser Umgebung nicht unterstützt.");
+                return;
+            }
+            const reader = new globalThis.FileReader();
+            const isStale = () => (
+                expectedSession !== sessionSeq ||
+                expectedArtworkSession !== artworkSessionSeq ||
+                reqUploadSeq !== uploadSeqByRole[targetRole]
+            );
+            reader.onload = () => {
+                if (isStale()) return;
+                if (typeof reader.result === "string" && reader.result) {
+                    setCustomArtworkUpload(targetRole, reader.result, fName);
+                } else {
+                    setArtworkUploadError(targetRole, `Eigenes Bild (${fName}) konnte nicht gelesen werden.`);
+                }
+            };
+            reader.onerror = () => {
+                if (isStale()) return;
+                setArtworkUploadError(targetRole, `Fehler beim Lesen der Bilddatei (${fName}).`);
+            };
+            reader.onabort = () => {
+                if (isStale()) return;
+                setArtworkUploadError(targetRole, `Lesen der Bilddatei (${fName}) wurde abgebrochen.`);
+            };
+            try {
+                reader.readAsDataURL(file);
+            } catch (err) {
+                if (!isStale()) {
+                    setArtworkUploadError(targetRole, `Fehler beim Lesen der Bilddatei (${fName}): ${err && err.message ? err.message : err}`);
+                }
+            }
+        });
+    }
 
     bindGroupToggle("mw-wizard-group-renames", "mw-wizard-group-header-renames", "mw-wizard-list-renames");
     bindGroupToggle("mw-wizard-group-subs", "mw-wizard-group-header-subs", "mw-wizard-list-subs");
@@ -1665,6 +2743,11 @@ export function createFilmWizard(options = {}) {
         selectMovieInWizard,
         performSearch,
         switchArtworkTab,
+        loadArtworkCandidates,
+        selectArtworkCandidate,
+        deselectArtworkRole,
+        setCustomArtworkUpload,
+        getArtworkState,
         handleEscapeKey,
         buildMovieBasePayload,
         buildProcessPayload,

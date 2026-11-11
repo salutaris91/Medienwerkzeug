@@ -131,6 +131,11 @@ class MetadataProviderUnavailable(Exception):
         super().__init__(message)
         self.status_code = status_code
 
+
+class MetadataKeyMissing(MetadataProviderUnavailable):
+    def __init__(self, message="TMDB_API_KEY ist nicht konfiguriert.", status_code=503):
+        super().__init__(message, status_code=status_code)
+
 def check_tmdb_auth_method():
     """
     Checks the format of TMDB_API_KEY and returns ('v3', key) or ('v4', token)
@@ -1067,7 +1072,448 @@ def fetch_tmdb_images(media_type, tmdb_id):
         return {}
 
 
-def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, nfo_overrides=None, overwrite=False):
+def fetch_tmdb_image_candidates(media_type, tmdb_id, limit_per_role=24):
+    """
+    Fetch candidate lists per role ('posters', 'backdrops', 'logos') from TMDb (ROADMAP #51, E5-AK1).
+    Sorted by language priority (de -> neutral -> en -> other) so index 0 matches fetch_tmdb_images().
+    """
+    if not TMDB_API_KEY or not str(TMDB_API_KEY).strip():
+        raise MetadataKeyMissing("TMDB_API_KEY ist nicht konfiguriert.")
+
+    clean_id = str(tmdb_id or "").strip()
+    if clean_id.lower().startswith("tmdb:"):
+        clean_id = clean_id[5:].strip()
+    if not clean_id:
+        return {
+            "tmdb_id": "",
+            "posters": [],
+            "backdrops": [],
+            "logos": [],
+        }
+
+    url = (
+        f"https://api.themoviedb.org/3/{media_type}/{clean_id}/images"
+        f"?api_key={TMDB_API_KEY}&include_image_language=de,en,null"
+    )
+    try:
+        data = fetch_json_with_retry(
+            lambda: make_tmdb_request(url),
+            timeout=10,
+            context=f"TMDb {media_type} Bildkandidaten {clean_id}",
+        )
+    except MetadataProviderUnavailable:
+        raise
+    except Exception as e:
+        log_message(f"⚠️ [Artwork] TMDb-Bildkandidaten für {media_type}/{clean_id} nicht abrufbar: {e}")
+        _handle_metadata_error(e, context="[TMDb Artwork Error]")
+        raise MetadataProviderUnavailable(
+            f"TMDb-Bildkandidaten konnten nicht geladen werden: {e}",
+            status_code=503,
+        ) from e
+
+    def _lang_priority(item):
+        lang = item.get("iso_639_1")
+        if lang == "de":
+            return 0
+        if not lang:
+            return 1
+        if lang == "en":
+            return 2
+        return 3
+
+    max_items = max(0, int(limit_per_role or 24))
+
+    def _build_role_list(raw_items, thumb_size):
+        if not isinstance(raw_items, list):
+            return []
+        valid_items = [
+            it for it in raw_items
+            if isinstance(it, dict) and str(it.get("file_path") or "").strip().startswith("/")
+        ]
+        sorted_items = sorted(valid_items, key=_lang_priority)[:max_items]
+        out = []
+        for item in sorted_items:
+            file_path = str(item.get("file_path")).strip()
+            out.append({
+                "url": f"https://image.tmdb.org/t/p/original{file_path}",
+                "thumb_url": f"https://image.tmdb.org/t/p/{thumb_size}{file_path}",
+                "lang": str(item.get("iso_639_1") or ""),
+                "width": int(item.get("width") or 0),
+                "height": int(item.get("height") or 0),
+            })
+        return out
+
+    return {
+        "tmdb_id": clean_id,
+        "posters": _build_role_list(data.get("posters", []), "w185"),
+        "backdrops": _build_role_list(data.get("backdrops", []), "w300"),
+        "logos": _build_role_list(data.get("logos", []), "w185"),
+    }
+
+
+def resolve_movie_artwork_candidates(tmdb_id="", query="", year="", limit_per_role=24):
+    """
+    Resolve TMDb image candidates either directly by numeric tmdb_id or via TMDb title search (Option 2A).
+    """
+    if not TMDB_API_KEY or not str(TMDB_API_KEY).strip():
+        raise MetadataKeyMissing("TMDB_API_KEY ist nicht konfiguriert.")
+
+    clean_id = str(tmdb_id or "").strip()
+    if clean_id.lower().startswith("tmdb:"):
+        clean_id = clean_id[5:].strip()
+
+    if clean_id.isdigit():
+        cand = fetch_tmdb_image_candidates("movie", clean_id, limit_per_role=limit_per_role)
+        return {
+            "tmdb_id": clean_id,
+            "matched_title": "",
+            "matches": [],
+            "posters": cand.get("posters", []),
+            "backdrops": cand.get("backdrops", []),
+            "logos": cand.get("logos", []),
+        }
+
+    clean_query = str(query or "").strip()
+    clean_year = str(year or "").strip()
+    if not clean_year:
+        ym = re.search(r"\((\d{4})\)\s*$", clean_query)
+        if ym:
+            clean_year = ym.group(1)
+
+    if not clean_query:
+        return {
+            "tmdb_id": "",
+            "matched_title": "",
+            "matches": [],
+            "posters": [],
+            "backdrops": [],
+            "logos": [],
+        }
+
+    results = search_tmdb_movie(clean_query)
+    if not results:
+        return {
+            "tmdb_id": "",
+            "matched_title": "",
+            "matches": [],
+            "posters": [],
+            "backdrops": [],
+            "logos": [],
+        }
+
+    chosen = results[0]
+    if clean_year and re.match(r"^\d{4}$", clean_year):
+        for r in results:
+            if f"({clean_year})" in str(r.get("name", "")) or str(r.get("year", "")) == clean_year:
+                chosen = r
+                break
+
+    chosen_id = str(chosen.get("id", "")).strip()
+    matches = [
+        {"id": str(r.get("id", "")), "name": str(r.get("name", ""))}
+        for r in results
+        if r.get("id") is not None
+    ]
+    cand = fetch_tmdb_image_candidates("movie", chosen_id, limit_per_role=limit_per_role) if chosen_id else {}
+    return {
+        "tmdb_id": chosen_id,
+        "matched_title": str(chosen.get("name", "")),
+        "matches": matches,
+        "posters": cand.get("posters", []),
+        "backdrops": cand.get("backdrops", []),
+        "logos": cand.get("logos", []),
+    }
+
+
+def validate_tmdb_image_url(url):
+    """
+    Strict SSRF guard for TMDb artwork downloads: only https://image.tmdb.org/t/p/<size>/<file>.(jpg|jpeg|png|webp).
+    Returns normalized file extension ('.jpg', '.png', '.webp').
+    """
+    raw = str(url or "").strip()
+    if not raw:
+        raise ValueError("Leere TMDb-Bild-URL.")
+    parsed = urllib.parse.urlparse(raw)
+    if parsed.scheme != "https" or parsed.netloc != "image.tmdb.org" or parsed.username or parsed.password:
+        raise ValueError(f"Nicht erlaubte Bild-URL (nur https://image.tmdb.org ist zulässig): {raw}")
+    if ".." in parsed.path or "\\" in parsed.path or not parsed.path.startswith("/t/p/"):
+        raise ValueError(f"Ungültiger TMDb-Bildpfad: {raw}")
+    parts = [p for p in parsed.path.split("/") if p]
+    if len(parts) != 4 or parts[0] != "t" or parts[1] != "p":
+        raise ValueError(f"Ungültige TMDb-Pfadstruktur: {raw}")
+    size_seg, filename_seg = parts[2], parts[3]
+    if not re.match(r"^[A-Za-z0-9_]+$", size_seg):
+        raise ValueError(f"Ungültige TMDb-Bildgröße: {size_seg}")
+    _, ext = os.path.splitext(filename_seg)
+    ext_lower = ext.lower()
+    if ext_lower not in (".jpg", ".jpeg", ".png", ".webp"):
+        raise ValueError(f"Nicht unterstützte Bild-Endung: {ext}")
+    return ".jpg" if ext_lower == ".jpeg" else ext_lower
+
+
+def decode_and_validate_uploaded_image(data_url, max_bytes=15 * 1024 * 1024):
+    """
+    Decode a Base64 data URL and verify byte size (<= 15 MB) and genuine JPEG/PNG/WebP magic bytes (Option 1A).
+    Returns (raw_bytes, ext).
+    """
+    import base64
+
+    raw_str = str(data_url or "").strip()
+    if not raw_str:
+        raise ValueError("Leere Bild-Data-URL.")
+    max_str_len = int(max_bytes * 1.38) + 128
+    if len(raw_str) > max_str_len:
+        raise ValueError("Bilddatei überschreitet das Größenlimit von 15 MB.")
+    m = re.match(r"^data:image/(?:jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=\s]+)$", raw_str, re.IGNORECASE)
+    if not m:
+        raise ValueError("Ungültige Data-URL: Erwartet wird data:image/(jpeg|png|webp);base64,...")
+    b64_payload = re.sub(r"\s+", "", m.group(1))
+    try:
+        raw = base64.b64decode(b64_payload, validate=True)
+    except Exception as exc:
+        raise ValueError(f"Ungültige Base64-Bilddaten: {exc}") from exc
+    if not raw:
+        raise ValueError("Hochgeladenes Bild ist leer (0 Bytes).")
+    if len(raw) > max_bytes:
+        raise ValueError("Bilddatei überschreitet das Größenlimit von 15 MB.")
+
+    if raw.startswith(b"\xff\xd8\xff"):
+        return raw, ".jpg"
+    if raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        return raw, ".png"
+    if len(raw) >= 12 and raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        return raw, ".webp"
+    raise ValueError("Ungültiges Bildformat: Nur echte JPEG-, PNG- oder WebP-Dateien sind erlaubt.")
+
+
+MAX_MULTI_BACKDROPS = 10
+_NUMBERED_BACKDROP_RE = re.compile(r"^(fanart|backdrop)-(\d+)\.(?:jpg|jpeg|png|webp)$", re.IGNORECASE)
+
+
+def _parse_artwork_override_spec(spec, role=None, _allow_multi=True):
+    if spec is None or spec == "" or spec == "auto":
+        return "auto", ""
+    if spec == "none":
+        return "none", ""
+    if isinstance(spec, str):
+        s = spec.strip()
+        if s.lower() == "auto" or not s:
+            return "auto", ""
+        if s.lower() == "none":
+            return "none", ""
+        if s.lower().startswith("data:"):
+            return "upload", s
+        return "url", s
+    if isinstance(spec, dict):
+        mode = str(spec.get("mode") or "").strip().lower()
+        if mode in ("", "auto"):
+            return "auto", ""
+        if mode == "none":
+            return "none", ""
+        if mode == "url":
+            return "url", str(spec.get("url") or "").strip()
+        if mode == "upload":
+            return "upload", str(spec.get("data_url") or spec.get("dataUrl") or "").strip()
+        if mode == "multi":
+            if not _allow_multi:
+                raise ValueError("Verschachtelte 'multi'-Spezifikation ist nicht erlaubt.")
+            if role is not None and role != "backdrop":
+                raise ValueError("Mehrfachauswahl wird nur für Hintergrundbilder (backdrop) unterstützt.")
+            raw_items = spec.get("items")
+            if raw_items is None:
+                raw_items = []
+            if not isinstance(raw_items, list):
+                raise ValueError("Ungültige Artwork-Spezifikation: 'items' muss eine Liste sein.")
+            if len(raw_items) == 0:
+                return "none", ""
+            if len(raw_items) > MAX_MULTI_BACKDROPS:
+                raise ValueError(f"Maximal {MAX_MULTI_BACKDROPS} Hintergrundbilder erlaubt.")
+            parsed_items = []
+            for item_spec in raw_items:
+                item_mode, item_payload = _parse_artwork_override_spec(item_spec, role="backdrop", _allow_multi=False)
+                if item_mode not in ("url", "upload") or not item_payload:
+                    raise ValueError("Jeder Eintrag in 'items' muss eine gültige 'url'- oder 'upload'-Spezifikation sein.")
+                parsed_items.append((item_mode, item_payload))
+            return "multi", parsed_items
+        raise ValueError(f"Unbekannter Artwork-Modus: {mode}")
+    raise ValueError(f"Ungültige Artwork-Spezifikation: {spec}")
+
+
+def _get_explicit_artwork_modes(artwork_overrides):
+    if not isinstance(artwork_overrides, dict):
+        return {}
+    modes = {}
+    role_sources = {
+        "poster": artwork_overrides.get("poster"),
+        "backdrop": artwork_overrides.get("backdrop") if "backdrop" in artwork_overrides else artwork_overrides.get("fanart"),
+        "logo": artwork_overrides.get("logo"),
+    }
+    for role, raw_spec in role_sources.items():
+        if raw_spec is None:
+            continue
+        try:
+            mode, _ = _parse_artwork_override_spec(raw_spec, role=role)
+        except ValueError:
+            mode = "invalid"
+        if mode in ("none", "url", "upload", "multi", "invalid"):
+            modes[role] = mode
+    return modes
+
+
+def _save_single_artwork_item(item_mode, item_payload, folder_path, target_base, role, filename_base):
+    tmp_part_path = None
+    try:
+        if item_mode == "url":
+            ext = validate_tmdb_image_url(item_payload)
+            target_path = os.path.join(folder_path, f"{target_base}{ext}")
+            tmp_part_path = f"{target_path}.part"
+            _download_with_retry(
+                item_payload,
+                tmp_part_path,
+                timeout=15,
+                attempts=3,
+                context=f"Artwork {role} ({target_base}) {filename_base}",
+            )
+        elif item_mode == "upload":
+            raw_bytes, ext = decode_and_validate_uploaded_image(item_payload)
+            target_path = os.path.join(folder_path, f"{target_base}{ext}")
+            tmp_part_path = f"{target_path}.part"
+            with open(tmp_part_path, "wb") as f:
+                f.write(raw_bytes)
+        else:
+            raise ValueError(f"Unbekannter Artwork-Modus: {item_mode}")
+
+        for alt_ext in (".jpg", ".jpeg", ".png", ".webp"):
+            alt_path = os.path.join(folder_path, f"{target_base}{alt_ext}")
+            if alt_path != target_path and os.path.exists(alt_path):
+                try:
+                    os.remove(alt_path)
+                except OSError:
+                    pass
+
+        os.replace(tmp_part_path, target_path)
+        return target_path
+    except Exception:
+        if tmp_part_path and os.path.exists(tmp_part_path):
+            try:
+                os.remove(tmp_part_path)
+            except OSError:
+                pass
+        raise
+
+
+def _cleanup_extra_numbered_backdrops(folder_path, max_extra_index, preferred_base=None):
+    pref_lower = preferred_base.lower() if preferred_base else None
+    try:
+        entries = os.listdir(folder_path)
+    except OSError:
+        return
+    for entry in entries:
+        m = _NUMBERED_BACKDROP_RE.match(entry)
+        if not m:
+            continue
+        prefix_lower = m.group(1).lower()
+        idx_num = int(m.group(2))
+        if idx_num <= 0 or idx_num > max_extra_index or (pref_lower and prefix_lower != pref_lower):
+            try:
+                os.remove(os.path.join(folder_path, entry))
+            except OSError:
+                pass
+
+
+def apply_movie_artwork_overrides(folder_path, filename_base, artwork_overrides, settings=None):
+    """
+    Apply user-selected artwork overrides (TMDb URL, local Base64 upload, ordered backdrop multi-select,
+    or explicit 'none' deselection) for 'poster', 'backdrop'/'fanart', and 'logo'
+    (ROADMAP #51, E5-AK2, Option 1A, Option 3A, E5b).
+    """
+    if not isinstance(artwork_overrides, dict) or not artwork_overrides:
+        return {}
+
+    cfg = settings if isinstance(settings, dict) else load_settings()
+    server_type = cfg.get("media_server", "emby")
+    validator = artwork_validators.get_validator(server_type)
+    pref_backdrop = validator.get_preferred_movie_backdrop_name(f"{filename_base}.mkv")
+    backdrop_base, _ = os.path.splitext(pref_backdrop)
+
+    role_bases = {
+        "poster": "poster",
+        "backdrop": backdrop_base or "fanart",
+        "logo": "logo",
+    }
+    role_specs = {
+        "poster": artwork_overrides.get("poster"),
+        "backdrop": artwork_overrides.get("backdrop") if "backdrop" in artwork_overrides else artwork_overrides.get("fanart"),
+        "logo": artwork_overrides.get("logo"),
+    }
+
+    results = {}
+    for role in ("poster", "backdrop", "logo"):
+        raw_spec = role_specs.get(role)
+        if raw_spec is None:
+            continue
+        try:
+            mode, payload = _parse_artwork_override_spec(raw_spec, role=role)
+            if mode == "auto":
+                continue
+            if mode == "none":
+                if role == "backdrop":
+                    _cleanup_extra_numbered_backdrops(folder_path, 0)
+                results[role] = {"ok": True, "mode": "none", "path": None, "error": None}
+                continue
+
+            role_base = role_bases[role]
+            if mode == "multi":
+                saved_paths = []
+                errors = []
+                for idx, (item_mode, item_payload) in enumerate(payload):
+                    save_idx = len(saved_paths)
+                    target_base = role_base if save_idx == 0 else f"{role_base}-{save_idx}"
+                    try:
+                        saved_path = _save_single_artwork_item(
+                            item_mode,
+                            item_payload,
+                            folder_path,
+                            target_base,
+                            role,
+                            filename_base,
+                        )
+                        saved_paths.append(saved_path)
+                    except Exception as item_exc:
+                        log_message(f"⚠️ [Artwork] {role} #{idx + 1} ({target_base}) konnte nicht gespeichert werden: {item_exc}")
+                        errors.append(str(item_exc))
+
+                if saved_paths:
+                    _cleanup_extra_numbered_backdrops(folder_path, len(saved_paths) - 1, preferred_base=role_base)
+                results[role] = {
+                    "ok": len(saved_paths) > 0 and len(errors) == 0,
+                    "mode": "multi",
+                    "path": saved_paths[0] if saved_paths else None,
+                    "paths": saved_paths,
+                    "error": "; ".join(errors) if errors else None,
+                }
+                continue
+
+            target_path = _save_single_artwork_item(mode, payload, folder_path, role_base, role, filename_base)
+            if role == "backdrop":
+                _cleanup_extra_numbered_backdrops(folder_path, 0, preferred_base=role_base)
+            results[role] = {"ok": True, "mode": mode, "path": target_path, "error": None}
+        except Exception as exc:
+            log_message(f"⚠️ [Artwork] {role} konnte nicht gespeichert werden: {exc}")
+            results[role] = {"ok": False, "mode": "error", "path": None, "error": str(exc)}
+
+    return results
+
+
+def generate_movie_nfo(
+    tmdb_id,
+    folder_path,
+    filename_base,
+    fallback_json=None,
+    nfo_overrides=None,
+    overwrite=False,
+    artwork_overrides=None,
+):
 
     import os
     nfo_path = os.path.join(folder_path, f"{filename_base}.nfo")
@@ -1103,12 +1549,22 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             if os.path.exists(os.path.join(folder_path, f"{filename_base}-backdrop{ext}")): return True
         return False
 
+    explicit_art_modes = _get_explicit_artwork_modes(artwork_overrides)
     needs_nfo = overwrite or not os.path.exists(nfo_path)
     if not needs_nfo and not overwrite:
         log_message(f"[NFO] {nfo_path}: skipped (already exists)")
-    needs_poster = not has_movie_poster()
-    needs_fanart = not has_movie_fanart()
-    needs_logo = validator.supports_logos and not any(os.path.exists(os.path.join(folder_path, f"logo{ext}")) or os.path.exists(os.path.join(folder_path, f"clearlogo{ext}")) or os.path.exists(os.path.join(folder_path, f"{filename_base}-logo{ext}")) for ext in (".jpg", ".png", ".webp"))
+    needs_poster = (not has_movie_poster()) and ("poster" not in explicit_art_modes)
+    needs_fanart = (not has_movie_fanart()) and ("backdrop" not in explicit_art_modes)
+    needs_logo = (
+        validator.supports_logos
+        and ("logo" not in explicit_art_modes)
+        and not any(
+            os.path.exists(os.path.join(folder_path, f"logo{ext}"))
+            or os.path.exists(os.path.join(folder_path, f"clearlogo{ext}"))
+            or os.path.exists(os.path.join(folder_path, f"{filename_base}-logo{ext}"))
+            for ext in (".jpg", ".png", ".webp")
+        )
+    )
     needs_banner = validator.supports_banners and not any(os.path.exists(os.path.join(folder_path, f"banner{ext}")) or os.path.exists(os.path.join(folder_path, f"{filename_base}-banner{ext}")) for ext in (".jpg", ".png", ".webp"))
 
     if isinstance(tmdb_id, str) and tmdb_id.startswith("url_mediathek:"):
@@ -1133,7 +1589,14 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
                 log_message(f"[NFO] {nfo_path}: created (provider='mediathek')")
-        return {"nfo": needs_nfo, "poster": False, "fanart": False, "msg": "Mediathek Film NFO erstellt"}
+        art_res = apply_movie_artwork_overrides(folder_path, filename_base, artwork_overrides, settings=settings) if artwork_overrides else {}
+        return {
+            "nfo": needs_nfo,
+            "poster": bool(art_res.get("poster", {}).get("path")),
+            "fanart": bool(art_res.get("backdrop", {}).get("path")),
+            "logo": bool(art_res.get("logo", {}).get("path")),
+            "msg": "Mediathek Film NFO erstellt",
+        }
 
     if tmdb_id == "manual" or (isinstance(tmdb_id, str) and tmdb_id.startswith("{")):
         if needs_nfo:
@@ -1162,7 +1625,14 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             with open(nfo_path, 'w', encoding='utf-8') as f:
                 f.write(xml)
                 log_message(f"[NFO] {nfo_path}: created (provider='manual')")
-        return {"nfo": needs_nfo, "poster": False, "fanart": False, "msg": "Manuelle Film NFO erstellt"}
+        art_res = apply_movie_artwork_overrides(folder_path, filename_base, artwork_overrides, settings=settings) if artwork_overrides else {}
+        return {
+            "nfo": needs_nfo,
+            "poster": bool(art_res.get("poster", {}).get("path")),
+            "fanart": bool(art_res.get("backdrop", {}).get("path")),
+            "logo": bool(art_res.get("logo", {}).get("path")),
+            "msg": "Manuelle Film NFO erstellt",
+        }
 
     if isinstance(tmdb_id, str) and (tmdb_id.startswith("http://") or tmdb_id.startswith("https://")):
         downloaded_poster = False
@@ -1212,20 +1682,29 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
                 except Exception as e:
                     print(f"[ytdlp poster error] {e}")
 
-        return {"nfo": needs_nfo, "poster": downloaded_poster, "fanart": False, "msg": "ytdlp movie NFO erstellt"}
+        art_res = apply_movie_artwork_overrides(folder_path, filename_base, artwork_overrides, settings=settings) if artwork_overrides else {}
+        return {
+            "nfo": needs_nfo,
+            "poster": downloaded_poster or bool(art_res.get("poster", {}).get("path")),
+            "fanart": bool(art_res.get("backdrop", {}).get("path")),
+            "logo": bool(art_res.get("logo", {}).get("path")),
+            "msg": "ytdlp movie NFO erstellt",
+        }
 
-    if not (needs_nfo or needs_poster or needs_fanart):
-        return {"nfo": False, "poster": False, "fanart": False, "msg": "existiert"}
+    if not (needs_nfo or needs_poster or needs_fanart) and not explicit_art_modes:
+        return {"nfo": False, "poster": False, "fanart": False, "logo": False, "msg": "existiert"}
 
-    url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}&language=de-DE&append_to_response=credits,release_dates"
-    try:
-        data = fetch_json_with_retry(
-            lambda: make_tmdb_request(url),
-            timeout=10,
-            context=f"TMDb Film NFO {tmdb_id}",
-        )
-    except Exception as e:
-        return {"error": str(e)}
+    data = {}
+    if needs_nfo or needs_poster or needs_fanart:
+        url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}&language=de-DE&append_to_response=credits,release_dates"
+        try:
+            data = fetch_json_with_retry(
+                lambda: make_tmdb_request(url),
+                timeout=10,
+                context=f"TMDb Film NFO {tmdb_id}",
+            )
+        except Exception as e:
+            return {"error": str(e)}
 
     if needs_nfo:
         yt_data = {}
@@ -1296,7 +1775,7 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
             log_message(f"[NFO] {nfo_path}: created (provider='tmdb')")
 
     # Download images using TMDB Images API for German-localized/higher-quality art
-    if (needs_poster or needs_fanart or needs_logo or needs_banner) and str(tmdb_id).isdigit():
+    if (needs_poster or needs_fanart or needs_logo) and str(tmdb_id).isdigit():
         images = fetch_tmdb_images("movie", tmdb_id)
 
         if needs_poster and images.get('poster'):
@@ -1351,7 +1830,28 @@ def generate_movie_nfo(tmdb_id, folder_path, filename_base, fallback_json=None, 
         except Exception as e:
             print(f"[Artwork Error] Fallback-Fanart-Download für Film '{filename_base}' fehlgeschlagen: {e}", file=sys.stderr)
 
-    return {"nfo": needs_nfo, "poster": not needs_poster, "fanart": not needs_fanart, "logo": not needs_logo, "banner": not needs_banner}
+    art_res = (
+        apply_movie_artwork_overrides(folder_path, filename_base, artwork_overrides, settings=settings)
+        if artwork_overrides
+        else {}
+    )
+    poster_done = (
+        bool(art_res.get("poster", {}).get("path"))
+        if "poster" in explicit_art_modes
+        else (not needs_poster)
+    )
+    fanart_done = (
+        bool(art_res.get("backdrop", {}).get("path"))
+        if "backdrop" in explicit_art_modes
+        else (not needs_fanart)
+    )
+    logo_done = (
+        bool(art_res.get("logo", {}).get("path"))
+        if "logo" in explicit_art_modes
+        else (not needs_logo)
+    )
+
+    return {"nfo": needs_nfo, "poster": poster_done, "fanart": fanart_done, "logo": logo_done, "banner": not needs_banner}
 
 def fetch_show_nfo_data(provider, show_id):
     from gui.core.nfo_mutation import normalize_fsk

@@ -876,6 +876,44 @@ def handle_api_series_detect():
 
 
 
+@search_api.route('/artwork/candidates', methods=['GET', 'POST'])
+def handle_api_artwork_candidates():
+    try:
+        raw_params = request.get_json(silent=True)
+        if raw_params is not None and not isinstance(raw_params, dict):
+            return jsonify({"error": "Ungültiger JSON-Body: JSON-Objekt erwartet."}), 400
+        params = raw_params or {}
+        query_args = request.args
+        tmdb_id = (
+            query_args.get("tmdb_id")
+            or query_args.get("movie_id")
+            or params.get("tmdb_id")
+            or params.get("movie_id")
+            or ""
+        )
+        query = (
+            query_args.get("query")
+            or query_args.get("title")
+            or params.get("query")
+            or params.get("title")
+            or ""
+        )
+        year = query_args.get("year") or params.get("year") or ""
+
+        result = mw_metadata.resolve_movie_artwork_candidates(
+            tmdb_id=str(tmdb_id),
+            query=str(query),
+            year=str(year),
+        )
+        return jsonify(result), 200
+    except mw_metadata.MetadataKeyMissing as e:
+        return jsonify({"error": str(e)}), getattr(e, "status_code", 503)
+    except mw_metadata.MetadataProviderUnavailable as e:
+        return jsonify({"error": str(e)}), getattr(e, "status_code", 503)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
+
 @search_api.route('/metadata/fetch', methods=['GET', 'POST'])
 def handle_api_metadata_fetch():
     try:
