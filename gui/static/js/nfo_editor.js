@@ -312,12 +312,27 @@ export function renderNfoEditor(container, initialData = {}, onChangeOrOptions =
     const touchedFields = new Set();
     const loadedFields = new Set();
 
+    function getNonEmptyGenreProviders() {
+        if (!currentComparisonData || !currentComparisonData.providers) return [];
+        const result = [];
+        for (const p of currentComparisonData.provider_order || []) {
+            const entry = currentComparisonData.providers[p];
+            if (entry && entry.status === "ok" && hasNonEmptyFieldValue("genres", entry.fields.genres)) {
+                result.push(p);
+            }
+        }
+        return result;
+    }
+
     function updateFieldBadgeSelectionDom(fieldKey) {
         const badgeMap = providerBadgesByField[fieldKey] || {};
         const selectedSet = selectedProvidersByField[fieldKey] || new Set();
+        const nonEmptyGenres = fieldKey === "genres" ? getNonEmptyGenreProviders() : [];
         for (const [prov, btn] of Object.entries(badgeMap)) {
             if (!btn || btn.disabled) continue;
-            const isSel = selectedSet.has(prov);
+            const isSel = (fieldKey === "genres" && prov === "all")
+                ? (nonEmptyGenres.length >= 2 && nonEmptyGenres.every((p) => selectedSet.has(p)))
+                : selectedSet.has(prov);
             setElementClass(btn, "selected", isSel);
             safeSetAttribute(btn, "aria-pressed", isSel ? "true" : "false");
         }
@@ -503,7 +518,32 @@ export function renderNfoEditor(container, initialData = {}, onChangeOrOptions =
     }
 
     function handleProviderBadgeClick(fieldKey, prov) {
-        if (!currentComparisonData || !currentComparisonData.providers || !currentComparisonData.providers[prov]) return;
+        if (!currentComparisonData || !currentComparisonData.providers) return;
+        if (fieldKey === "genres" && prov === "all") {
+            const allProvs = getNonEmptyGenreProviders();
+            if (allProvs.length === 0) return;
+            selectedProvidersByField.genres = new Set(allProvs);
+            const combined = [];
+            for (const p of allProvs) {
+                combined.push(...(currentComparisonData.providers[p].fields.genres || []));
+            }
+            const unionGenres = parseGenresInput(combined);
+            isInternalDomWrite = true;
+            try {
+                genresInput.value = formatGenresValue(unionGenres);
+            } finally {
+                isInternalDomWrite = false;
+            }
+            touchedFields.add(fieldKey);
+            updateFieldBadgeSelectionDom(fieldKey);
+            if (showSourceBadges || directOnChange) {
+                const activeLabels = Array.from(selectedProvidersByField.genres).map(formatProviderLabel);
+                setFieldSource("genre", activeLabels.join(" + "));
+            }
+            notifyChangeListeners(fieldKey);
+            return;
+        }
+        if (!currentComparisonData.providers[prov]) return;
         const entry = currentComparisonData.providers[prov];
         if (entry.status !== "ok" || !hasNonEmptyFieldValue(fieldKey, entry.fields[fieldKey])) return;
 
@@ -721,6 +761,39 @@ export function renderNfoEditor(container, initialData = {}, onChangeOrOptions =
 
                 badgeContainer.appendChild(badgeBtn);
                 providerBadgesByField[fieldKey][prov] = badgeBtn;
+            }
+
+            if (fieldKey === "genres") {
+                const nonEmptyGenres = getNonEmptyGenreProviders();
+                if (nonEmptyGenres.length >= 2) {
+                    const isAllSelected = nonEmptyGenres.every((p) => selectedProvidersByField.genres.has(p));
+                    const combineBtn = doc.createElement("button");
+                    combineBtn.type = "button";
+                    safeSetAttribute(combineBtn, "data-provider", "all");
+                    safeSetAttribute(combineBtn, "data-field", "genres");
+                    safeSetAttribute(combineBtn, "aria-pressed", isAllSelected ? "true" : "false");
+                    const combineClasses = ["mw-wizard-provider-badge", "mw-wizard-provider-badge-combine"];
+                    if (isAllSelected) combineClasses.push("selected");
+                    syncElementClasses(combineBtn, ...combineClasses);
+
+                    const nameSpan = doc.createElement("span");
+                    syncElementClasses(nameSpan, "mw-wizard-provider-name");
+                    nameSpan.textContent = "Kombinieren";
+
+                    const valSpan = doc.createElement("span");
+                    syncElementClasses(valSpan, "mw-wizard-provider-value");
+                    valSpan.textContent = "Beide Quellen";
+
+                    combineBtn.appendChild(nameSpan);
+                    combineBtn.appendChild(valSpan);
+                    combineBtn.addEventListener("click", () => {
+                        if (combineBtn.disabled) return;
+                        handleProviderBadgeClick("genres", "all");
+                    });
+
+                    badgeContainer.appendChild(combineBtn);
+                    providerBadgesByField.genres.all = combineBtn;
+                }
             }
         }
 

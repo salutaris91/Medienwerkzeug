@@ -271,18 +271,28 @@ test('E4-AK1 & Option 2A: setProviderComparison renders per-provider badges, mar
     // Clicking Genre badge selects exclusively that provider's genres (e.g. clicking TMDb sets only TMDb genres without OFDb extras)
     const genreTmdbBadge = editor.providerBadges.genres.tmdb;
     const genreOfdbBadge = editor.providerBadges.genres.ofdb;
+    const genreCombineBadge = editor.providerBadges.genres.all;
+    assert.ok(genreCombineBadge);
     assert.equal(genreTmdbBadge.classList.contains('selected'), true);
     assert.equal(genreOfdbBadge.classList.contains('selected'), true);
+    assert.equal(genreCombineBadge.classList.contains('selected'), true);
     genreTmdbBadge.click();
     assert.deepEqual(editor.getValues().genres, ['Western', 'Drama']);
     assert.equal(genreTmdbBadge.classList.contains('selected'), true);
     assert.equal(genreOfdbBadge.classList.contains('selected'), false);
+    assert.equal(genreCombineBadge.classList.contains('selected'), false);
+
+    // Clicking "Kombinieren · Beide Quellen" restores the deduplicated union of both providers
+    genreCombineBadge.click();
+    assert.deepEqual(editor.getValues().genres, ['Western', 'Drama', 'Thriller']);
+    assert.equal(genreCombineBadge.classList.contains('selected'), true);
 
     // Clicking OFDb Genre badge switches to exclusively OFDb's genres, then back to TMDb
     genreOfdbBadge.click();
     assert.deepEqual(editor.getValues().genres, ['Thriller', 'Drama']);
     assert.equal(genreOfdbBadge.classList.contains('selected'), true);
     assert.equal(genreTmdbBadge.classList.contains('selected'), false);
+    assert.equal(genreCombineBadge.classList.contains('selected'), false);
     genreTmdbBadge.click();
     assert.deepEqual(editor.getValues().genres, ['Western', 'Drama']);
 
