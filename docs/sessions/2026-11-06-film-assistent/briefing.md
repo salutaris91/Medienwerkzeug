@@ -104,7 +104,8 @@ Formuliert als ausführbare Tests („es prüft, dass …“) bzw. dokumentierte
 ### E6 — Filmreihen-Vorab-Queue (roadmap#69)
 - **Ziel:** FP1-beschlossene Vorab-Queue (keine Dialog-Schleife): Mehrfachauswahl in der Inbox, „als Filme einreihen“, Wizard arbeitet Liste nacheinander ab, Kopf „Film X von N“; Abbruch fest; Teil-Erfolg je Film dank E4-Rahmenwerk.
 - **Akzeptanzkriterien:** E6-AK1, E6-AK2, E6-AK3.
-- **Erlaubte Dateien:** `gui/static/app.js` (Inbox-Auswahl #65, Queue-Steuerung), `gui/static/js/film_wizard.js`, `gui/static/index.html`, `tests/frontend/film_queue.test.js` (neu). Bewusster Spielraum API-Schicht: nur falls ein Queue-Endpunkt nötig wird, eine Datei unter `gui/api/` (im PR zu benennen) plus Backend-Test `tests/test_movie_queue.py` (neu).
+- **Erlaubte Dateien:** `gui/static/app.js`, `gui/static/js/film_wizard.js`, `gui/static/index.html`, `gui/static/style.css`, `tests/frontend/film_wizard.test.js`, `tests/frontend/film_queue.test.js`
+- **Hinweise zu den erlaubten Dateien (E6, nicht Teil der Pfadliste):** `film_queue.test.js` ist neu. `gui/static/app.js` implementiert die getrennte Film-Mehrfachauswahl (`selectedInboxMovieProjects` + `.smart-inbox-movie-cb`, ohne die `#65`/`#77`-Serien-Sperre für `.smart-inbox-cb` aufzubrechen) und startet die Vorab-Queue über `#btn-bulk-queue-movies` („Als Filme einreihen“). Kein neuer Backend-Endpunkt nötig, da `POST /api/process` (`gui/api/queue_api.py`) jeden bestätigten Film sofort einzeln in die `job_queue` einreiht. Ergänzt durch Alex' Freigabe vom 2026-11-11 („ja sehr gerne“, Ansatz A): `gui/static/style.css` für `.mw-wizard-series-context` (Theme-Variablen über alle 5 Themes inkl. `Superfood Light`) und `tests/frontend/film_wizard.test.js` für ergänzende Wizard-Queue-Unit-Tests.
 - **Diff-Schätzung:** ~15–30 KB.
 - **Abbruchkriterium:** Häufigkeit laut D4-Antwort „< 1×/Monat“ und Alex kippt die Etappe → Etappe entfällt (Einzelfilm-Ablauf bleibt unabhängig nutzbar).
 
