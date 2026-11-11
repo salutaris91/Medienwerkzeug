@@ -1,15 +1,15 @@
-import { applyTheme } from './js/theme.js?v=121';
-import { cleanSeriesName } from './js/utils.js?v=121';
-import { formatBytes } from './js/format.js?v=121';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=121';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=121';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=121';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=121';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=121';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=121';
-import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=121';
-import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from './js/nfo_editor.js?v=121';
-import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=121';
+import { applyTheme } from './js/theme.js?v=122';
+import { cleanSeriesName } from './js/utils.js?v=122';
+import { formatBytes } from './js/format.js?v=122';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=122';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=122';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=122';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=122';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=122';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=122';
+import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=122';
+import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from './js/nfo_editor.js?v=122';
+import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=122';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -12514,6 +12514,7 @@ function formatDateDe(timestamp) {
 
 let currentSmartInboxRawSuggestions = [];
 let selectedInboxProjects = new Set();
+let selectedInboxMovieProjects = new Set();
 let unlockedMovieProjects = new Set();
 let appliedInboxGroups = new Set();
 let expandedInboxGroups = new Set();
@@ -12555,6 +12556,27 @@ function isInboxProjectEligibleForSelection(item) {
     const isTvSingle = (item.media_type === "tv" && (item.is_dir === false || (item.is_dir === true && Boolean(item.single_video_relpath))));
     const isUnlockedMovie = (item.media_type === "movie" && item.is_dir === false && unlockedMovieProjects.has(item.project));
     return Boolean(isTvSingle || isUnlockedMovie);
+}
+
+function isInboxProjectEligibleForMovieQueue(item) {
+    if (!item || item.is_group === true) return false;
+    if (item.media_type !== "movie") return false;
+    if (item.is_dir === false && unlockedMovieProjects.has(item.project)) return false;
+    return true;
+}
+
+function buildMovieQueryFromInboxItem(item) {
+    let q = String((item && item.suggested_query) || (item && item.project) || "").trim();
+    if (!item?.suggested_query && item?.is_dir === false) {
+        q = q.replace(/\.[a-z0-9]{2,4}$/i, "");
+    }
+    q = q
+        .replace(/[._\-]+/g, " ")
+        .trim()
+        .replace(/\([0-9]{4}\)/g, "")
+        .replace(/\s+(?:19|20)\d{2}$/, "")
+        .trim();
+    return q || String(item?.project || "").trim();
 }
 
 function detectInboxGroups(suggestions) {
@@ -12957,34 +12979,163 @@ function detectManualGroupSeriesName(files, fallbackName) {
     return common || fallbackName || "";
 }
 
+function formatBulkCountLabel(seriesCount, movieCount) {
+    if (seriesCount >= 1 && movieCount === 0) {
+        return `${seriesCount} ausgewählt`;
+    }
+    if (movieCount >= 1 && seriesCount === 0) {
+        return `${movieCount} ${movieCount === 1 ? "Film" : "Filme"} ausgewählt`;
+    }
+    return `${movieCount} ${movieCount === 1 ? "Film" : "Filme"} · ${seriesCount} Serien-Einträge ausgewählt`;
+}
+
 function updateBulkActionsBarUI() {
     const bulkBar = document.getElementById("smart-inbox-bulk-actions");
     if (!bulkBar) return;
-    const count = selectedInboxProjects.size;
-    if (count >= 1) {
+    const seriesCount = selectedInboxProjects.size;
+    const movieCount = selectedInboxMovieProjects.size;
+    const totalCount = seriesCount + movieCount;
+    if (totalCount >= 1) {
         const bulkErrorHtml = bulkStartError
             ? `<div class="smart-inbox-group-banner-error" role="alert" aria-live="polite" style="width: 100%;">${escapeHTML(bulkStartError)}</div>`
+            : "";
+        const countLabel = formatBulkCountLabel(seriesCount, movieCount);
+        const movieBtnHtml = movieCount >= 1
+            ? `<button type="button" class="btn btn-primary btn-xs" id="btn-bulk-queue-movies">${seriesCount >= 1 ? `Filme einreihen (${movieCount})` : "Als Filme einreihen"}</button>`
+            : "";
+        const seriesBtnHtml = seriesCount >= 1
+            ? `<button type="button" class="btn btn-primary btn-xs" id="btn-bulk-group-series">Ausgewählte als Serie verarbeiten</button>`
             : "";
         bulkBar.style.display = "flex";
         bulkBar.innerHTML = `
             <div class="smart-inbox-bulk-info">
-                <span id="smart-inbox-bulk-count">${count} ausgewählt</span>
+                <span id="smart-inbox-bulk-count">${countLabel}</span>
             </div>
             ${bulkErrorHtml}
             <div class="smart-inbox-bulk-buttons">
-                <button class="btn btn-secondary btn-xs" id="btn-bulk-deselect">Auswahl aufheben</button>
-                <button class="btn btn-primary btn-xs" id="btn-bulk-group-series">Ausgewählte als Serie verarbeiten</button>
+                <button type="button" class="btn btn-secondary btn-xs" id="btn-bulk-deselect">Auswahl aufheben</button>
+                ${movieBtnHtml}
+                ${seriesBtnHtml}
             </div>
         `;
         bulkBar.querySelector("#btn-bulk-deselect")?.addEventListener("click", () => {
             bulkStartError = null;
             selectedInboxProjects.clear();
+            selectedInboxMovieProjects.clear();
             updateBulkActionsBarUI();
             const smartInboxList = document.getElementById("smart-inbox-list");
             if (smartInboxList) {
                 smartInboxList.querySelectorAll(".smart-inbox-cb").forEach(cb => {
                     cb.checked = false;
                 });
+                smartInboxList.querySelectorAll(".smart-inbox-movie-cb").forEach(cb => {
+                    cb.checked = false;
+                });
+            }
+        });
+        bulkBar.querySelector("#btn-bulk-queue-movies")?.addEventListener("click", (e) => {
+            if (groupWorkflowRunning) return;
+            const btn = e.currentTarget || e.target;
+            if (btn && btn.disabled) return;
+            groupWorkflowRunning = true;
+            let originalContent = "";
+            if (btn) {
+                btn.disabled = true;
+                originalContent = btn.innerHTML;
+                btn.textContent = "wird gestartet…";
+            }
+            try {
+                const rawSuggestions = Array.isArray(currentSmartInboxRawSuggestions) ? currentSmartInboxRawSuggestions : [];
+                const processing = (typeof activeProjectsProcessing !== "undefined" && activeProjectsProcessing) ? activeProjectsProcessing : new Set();
+
+                const validMovies = [];
+                const skippedProjects = [];
+
+                for (const proj of Array.from(selectedInboxMovieProjects)) {
+                    const match = rawSuggestions.find(s => s && s.project === proj);
+                    if (match && !processing.has(proj) && isInboxProjectEligibleForMovieQueue(match)) {
+                        validMovies.push(match);
+                    } else {
+                        skippedProjects.push(proj);
+                    }
+                }
+
+                if (skippedProjects.length > 0) {
+                    const allMovieCheckboxes = document.querySelectorAll(".smart-inbox-movie-cb");
+                    for (const proj of skippedProjects) {
+                        selectedInboxMovieProjects.delete(proj);
+                        allMovieCheckboxes.forEach(cb => {
+                            if (cb.dataset?.project === proj) {
+                                cb.checked = false;
+                            }
+                        });
+                    }
+                    const countEl = document.getElementById("smart-inbox-bulk-count");
+                    if (countEl) {
+                        countEl.textContent = formatBulkCountLabel(selectedInboxProjects.size, selectedInboxMovieProjects.size);
+                    }
+                }
+
+                if (validMovies.length === 0) {
+                    alert("Keiner der ausgewählten Filme ist noch verfügbar in der Inbox – nichts gestartet.");
+                    updateBulkActionsBarUI();
+                    return;
+                }
+
+                if (skippedProjects.length > 0) {
+                    const skippedCount = skippedProjects.length;
+                    alert(skippedCount === 1
+                        ? "1 Eintrag ist nicht mehr in der Inbox und wurde übersprungen."
+                        : `${skippedCount} Einträge sind nicht mehr in der Inbox und wurden übersprungen.`);
+                }
+
+                bulkStartError = null;
+                const queueItems = validMovies.map(item => ({
+                    projectName: item.project,
+                    query: buildMovieQueryFromInboxItem(item),
+                }));
+
+                if (typeof getCatIdBySub === "function") {
+                    const nasDest = document.getElementById("movie-nas-destination");
+                    if (nasDest) nasDest.value = getCatIdBySub("/Filme", "1");
+                    const pcloudDest = document.getElementById("movie-pcloud-destination");
+                    if (pcloudDest) pcloudDest.value = getCatIdBySub("/Filme", "1");
+                }
+
+                if (typeof openFilmWizard !== "function" || !document.getElementById("modal-film-wizard")) {
+                    throw new Error("Film-Assistent ist nicht verfügbar.");
+                }
+
+                openFilmWizard({
+                    queue: queueItems,
+                    onProcessSuccess: () => {
+                        if (typeof connectLogStream === "function") connectLogStream();
+                    },
+                    onPersistOptions: typeof saveConversionSettings === "function" ? saveConversionSettings : undefined,
+                    onClosed: () => {
+                        if (typeof window !== "undefined" && typeof window.goHome === "function") window.goHome();
+                    },
+                    onLog: typeof appendConsoleLog === "function" ? appendConsoleLog : undefined,
+                });
+
+                selectedInboxMovieProjects.clear();
+                const smartInboxList = document.getElementById("smart-inbox-list");
+                if (smartInboxList) {
+                    smartInboxList.querySelectorAll(".smart-inbox-movie-cb").forEach(cb => {
+                        cb.checked = false;
+                    });
+                }
+                updateBulkActionsBarUI();
+            } catch (err) {
+                console.error("Film-Queue-Start fehlgeschlagen:", err);
+                bulkStartError = "Start der Film-Queue fehlgeschlagen. Bitte erneut versuchen.";
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalContent;
+                }
+                updateBulkActionsBarUI();
+            } finally {
+                groupWorkflowRunning = false;
             }
         });
         bulkBar.querySelector("#btn-bulk-group-series")?.addEventListener("click", async (e) => {
@@ -13322,6 +13473,12 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
             selectedInboxProjects.delete(proj);
         }
     }
+    for (const proj of Array.from(selectedInboxMovieProjects)) {
+        const item = suggestions.find(s => s && s.project === proj);
+        if (!item || currentProcessing.has(proj) || !isInboxProjectEligibleForMovieQueue(item)) {
+            selectedInboxMovieProjects.delete(proj);
+        }
+    }
     updateBulkActionsBarUI();
 
     cardSmartInbox.style.display = "block";
@@ -13574,6 +13731,10 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                 } else {
                     checkboxHtml = `<input type="checkbox" class="smart-inbox-cb" data-project="${escapeHTML(item.project)}" ${isChecked ? 'checked' : ''} ${disabledAttr} aria-label="Auswählen für Serie">`;
                 }
+            } else if (isInboxProjectEligibleForMovieQueue(item)) {
+                const isMovieChecked = selectedInboxMovieProjects.has(item.project);
+                const disabledAttr = isProcessing ? 'disabled style="cursor: not-allowed; opacity: 0.5;"' : 'style="cursor: pointer;"';
+                checkboxHtml = `<input type="checkbox" class="smart-inbox-movie-cb" data-project="${escapeHTML(item.project)}" ${isMovieChecked ? 'checked' : ''} ${disabledAttr} aria-label="Film für Vorab-Queue auswählen">`;
             }
 
             // Movie lock notice / unlock link (AK3, AK13)
@@ -13648,10 +13809,23 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                 });
             }
 
+            const movieCb = itemDiv.querySelector(".smart-inbox-movie-cb");
+            if (movieCb) {
+                movieCb.addEventListener("change", () => {
+                    if (movieCb.checked) {
+                        selectedInboxMovieProjects.add(item.project);
+                    } else {
+                        selectedInboxMovieProjects.delete(item.project);
+                    }
+                    updateBulkActionsBarUI();
+                });
+            }
+
             const unlockLink = itemDiv.querySelector(".btn-unlock-movie-series");
             if (unlockLink) {
                 unlockLink.addEventListener("click", (e) => {
                     e.preventDefault();
+                    selectedInboxMovieProjects.delete(item.project);
                     unlockedMovieProjects.add(item.project);
                     renderSmartInboxList(currentSmartInboxRawSuggestions, typeof activeProjectsProcessing !== "undefined" ? activeProjectsProcessing : new Set());
                 });

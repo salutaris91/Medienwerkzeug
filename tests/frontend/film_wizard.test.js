@@ -1968,3 +1968,21 @@ test('E4 (Option 1A & 2A): Manual comparison checkboxes in Step 1 pair providers
     assert.equal(payload.nfo_overrides.movie.fsk, '16');
     assert.deepEqual(payload.nfo_overrides.movie.genres, ['Sci-Fi', 'Action']);
 });
+
+test('E6 Regression: Single-movie open keeps #mw-wizard-series-context hidden and getQueueState().active === false', () => {
+    const { doc } = createWizardMockDom();
+    const wizard = createFilmWizard({
+        document: doc,
+        fetch: async () => ({ ok: true, status: 200, json: async () => [] }),
+    });
+
+    wizard.open({ projectName: 'Matrix (1999)', query: 'Matrix', autoSearch: false });
+
+    const seriesContext = doc.getElementById('mw-wizard-series-context');
+    assert.ok(seriesContext, '#mw-wizard-series-context must exist in wizard DOM');
+    assert.equal(seriesContext.classList.contains('hidden'), true, '#mw-wizard-series-context stays hidden in single-movie mode');
+    const qState = wizard.getQueueState();
+    assert.equal(qState.active, false);
+    assert.equal(qState.total, 0);
+    assert.deepEqual(qState.items, []);
+});
