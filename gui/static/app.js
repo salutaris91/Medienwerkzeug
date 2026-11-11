@@ -12980,6 +12980,9 @@ function detectManualGroupSeriesName(files, fallbackName) {
 }
 
 function formatBulkCountLabel(seriesCount, movieCount) {
+    if (seriesCount === 0 && movieCount === 0) {
+        return "0 ausgewählt";
+    }
     if (seriesCount >= 1 && movieCount === 0) {
         return `${seriesCount} ausgewählt`;
     }

@@ -4347,7 +4347,7 @@ body.runtime-docker .docker-only-info {
 .mw-wizard-queue-actions { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .mw-wizard-queue-status { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .mw-wizard-queue-chip { font-size: 0.76rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-light); background: var(--bg-hover); color: var(--text-main); }
-.mw-wizard-queue-chip.ok { border-color: var(--accent); color: var(--accent); }
+.mw-wizard-queue-chip.ok { border-color: var(--accent); background: rgba(var(--accent-rgb), 0.22); color: var(--text-main); }
 .mw-wizard-queue-chip.muted { color: var(--text-muted); }
 .mw-wizard-queue-chip.error { border-color: var(--danger); color: var(--danger); }
 .mw-wizard-title { margin: 0; font-size: 1.15rem; color: var(--text-main); }
