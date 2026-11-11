@@ -2109,6 +2109,11 @@ def process_worker(params):
                         or (isinstance(nfo_overrides, dict) and nfo_overrides.get("wizard"))
                     )
                     has_wizard_movie_overrides = bool(is_wizard_overrides and has_movie_overrides)
+                    artwork_overrides = (
+                        params.get("artwork_overrides")
+                        if isinstance(params.get("artwork_overrides"), dict)
+                        else None
+                    )
                     generated_nfo_path = os.path.join(current_dir, f"{clean_movie_name}.nfo")
 
                     if has_wizard_movie_overrides:
@@ -2123,13 +2128,25 @@ def process_worker(params):
 
                             if provider == "ofdb":
                                 res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
+                                if artwork_overrides:
+                                    mw_metadata.apply_movie_artwork_overrides(
+                                        current_dir,
+                                        clean_movie_name,
+                                        artwork_overrides,
+                                        settings=settings,
+                                    )
                             else:
+                                nfo_kwargs = {
+                                    "nfo_overrides": movie_overrides,
+                                    "overwrite": True,
+                                }
+                                if artwork_overrides is not None:
+                                    nfo_kwargs["artwork_overrides"] = artwork_overrides
                                 res = mw_metadata.generate_movie_nfo(
                                     movie_id,
                                     current_dir,
                                     clean_movie_name,
-                                    nfo_overrides=movie_overrides,
-                                    overwrite=True,
+                                    **nfo_kwargs,
                                 )
                             log_message(f"Movie NFO Status: {res}")
 
@@ -2172,13 +2189,25 @@ def process_worker(params):
 
                             if provider == "ofdb":
                                 res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
+                                if artwork_overrides:
+                                    mw_metadata.apply_movie_artwork_overrides(
+                                        current_dir,
+                                        clean_movie_name,
+                                        artwork_overrides,
+                                        settings=settings,
+                                    )
                             else:
+                                nfo_kwargs = {
+                                    "nfo_overrides": movie_overrides,
+                                    "overwrite": should_overwrite_movie,
+                                }
+                                if artwork_overrides is not None:
+                                    nfo_kwargs["artwork_overrides"] = artwork_overrides
                                 res = mw_metadata.generate_movie_nfo(
                                     movie_id,
                                     current_dir,
                                     clean_movie_name,
-                                    nfo_overrides=movie_overrides,
-                                    overwrite=should_overwrite_movie,
+                                    **nfo_kwargs,
                                 )
                             log_message(f"Movie NFO Status: {res}")
                         except Exception as e:
