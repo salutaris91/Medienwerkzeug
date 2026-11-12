@@ -2370,7 +2370,7 @@ Klein je Punkt; R1 und R3 zuerst, R6 und R9 nur mit eigenem Plan und Alex-Go.
 
 ## 92. Geführter Film-Assistent (Oberpunkt): Filme Schritt für Schritt durch Metadaten, Vergleich und Bildauswahl führen
 
-- [x] **Status:** erledigt (2026-11-11, alle Etappen E1–E6 umgesetzt; Handtest E6 offen; vertagte Einzelnotizen siehe unten, Ausweitung auf Doku und Serien siehe #93)
+- [x] **Status:** erledigt (2026-11-12, alle Etappen E1–E6 inkl. E6b umgesetzt und im Handtest/NAS abgenommen, PR #174; vertagte Einzelnotizen siehe unten, Ausweitung auf Doku und Serien siehe #93)
 
 **Einordnung / Priorität:** Mittel bis hoch, größtes geplantes Alltags-Feature. Idee und Entscheidung von Alex (2026-11-05): Der Nutzer soll durch die Verarbeitung (auch mehrerer Filme einer Reihe) geführt werden, statt in langen Scroll-Ansichten zu arbeiten; Metadaten eintragen und das Ergebnis sehen, Bilder auswählen, ähnlich wie bei Emby. Soll sich im Alltag nützlich anfühlen und gut aussehen. Wird zusammen mit dem Kreativteam direkt am Code geplant (eigene Planungskette, Alex-Go je Kette).
 
@@ -2417,7 +2417,7 @@ Jede Etappe soll einzeln im Alltag nutzbar sein, auch für einen einzelnen Film.
 - **Etappe E3:** [x] umgesetzt & Handtest Alex bestanden (2026-11-10, Branch `feat/film-wizard-e3`, NFO-Agent-Filmpfad an `nfo_editor.js` angedockt, Film-Altcode entfernt, symmetrisches 2-Spalten-Editor-Grid, einklappbare Episoden-Karten im Serien-NFO-Agenten und Theme-Variablen-Fix für Doku/Serien-Vorschau).
 - **Etappe E4:** [x] umgesetzt & Handtest Alex bestanden (2026-11-11, Branch `feat/film-wizard-e4`, Gate-A2 APPROVED nach 2 Runden + 2 Handtest-Nachbesserungen — Provider-Vergleich mit Feld-Badges in `nfo_editor.js`, 1-Klick-Gegentreffer-Paarung & Vergleichs-Checkboxen in Schritt 1, automatische Lücken-Auffüllung & kumulative Genres inkl. `Kombinieren · Beide Quellen`-Badge sowie verstärktem `.selected`-Kontrast mit `✓`-Präfix in Schritt 2, Teil-Erfolg-Resilienz sowie HTML-/Binär-Retry #54 Teil 2).
 - **Etappe E5:** [x] umgesetzt & Handtest Alex bestanden (2026-11-11, Branch `feat/film-wizard-e5`, PR #173 — Artwork-Auswahl in Schritt 3 mit 3 Rollen-Tabs `Poster (2:3)` / `Hintergrundbild (16:9)` / `Logo`, geordnete Mehrfachauswahl bis 10 Hintergrundbilder als `fanart-1.*`/`backdrop-1.*` bei 1-Klick-Einzelauswahl für Poster & Logo, `fetch_tmdb_image_candidates()` + `/api/artwork/candidates`, provider-unabhängige TMDb-Bildsuche für OFDb/Manuell, lokaler Datei-Upload bis 15 MB mit Magic-Byte-Prüfung, explizite Abwahl `"none"`, Retry + Content-Length-Integritätsprüfung via `_download_with_retry`, SSRF-Guard, überlappungsfreies Logo-Grid und sichtbare TMDb-Attribution).
-- **Etappe E6:** [x] umgesetzt (2026-11-11, Branch `feat/film-wizard-e6`, Gate-A2 `2026-11-11-e6-task-run1` APPROVED nach 2 Runden — Film-Mehrfachauswahl `.smart-inbox-movie-cb` + „Als Filme einreihen“ in `gui/static/app.js`, Vorab-Queue `#mw-wizard-series-context` mit „Film X von N“, Optionen-Mitnahme, „Einreihen & nächster Film“, „Film überspringen“, Stale-Search-Guard `searchRequestSeq` und Provider-Fehler-/Teil-Erfolg-Resilienz in `gui/static/js/film_wizard.js`; Handtest offen).
+- **Etappe E6:** [x] umgesetzt & Handtest Alex bestanden (2026-11-12, Branch `feat/film-wizard-e6`, PR #174, Gate-A2 `e6-task-run1` & `e6b-task-run1` APPROVED — Film-Mehrfachauswahl `.smart-inbox-movie-cb` + „Als Filmreihe verarbeiten“ in `gui/static/app.js`, Vorab-Queue `#mw-wizard-series-context` mit „Film X von N“, Optionen-Mitnahme, „Einreihen & nächster Film“, „Film überspringen“, Stale-Search-Guard `searchRequestSeq`, beidseitiges `Film ↔ Serie`-Überschreiben inkl. `scanProject`-NFO-Guard, sprungfreie Inline-Bulk-Leiste sowie ungekürzte Junk-/Vorschau-Dateinamen mit Dateityp-Badge).
 
 ### Aufwand (grob)
 Groß; nur in Etappen. Planung zuerst (Kreativteam, direkt am Code), danach je Etappe eine Gate-A2-Kette.
@@ -2440,3 +2440,32 @@ Groß; nur in Etappen. Planung zuerst (Kreativteam, direkt am Code), danach je E
 
 ### Aufwand (grob)
 Stufe 1 (Doku): klein bis mittel (~1 Gate-A2-Etappe). Stufe 2 (Serie): mittel bis groß (eigene Planung wegen Episoden-Mapping und Profil-Logik).
+
+---
+
+## 94. Dateinamen-Unterzeile & fehlertolerante Live-Suche im Film-Assistenten (und in der Smart Inbox)
+
+- [ ] **Status:** Offen (Idee von Alex aus dem NAS-Praxistest am 2026-11-12 anhand des Ordners `EMwimA2000` → *„Ey Mann, wo is’ mein Auto?“* (2000))
+
+**Einordnung / Priorität:** Mittel bis hoch — direkte Alltags-Erleichterung bei kryptisch abgekürzten Ordnernamen und umgangssprachlichen oder schwer zu erratenden Filmtiteln.
+
+### Ausgangslage & konkretes Praxisbeispiel (`EMwimA2000`)
+1. **Unsichtbarer Original-Dateiname bei Ordner-Projekten:**
+   - Heißt ein Inbox-Ordner abgekürzt (z. B. `EMwimA2000`), zeigt die Smart Inbox aktuell nur den Ordnernamen (`EMwimA2000 · 1 Datei(en)`), obwohl `get_inbox_suggestions` (`gui/api/project_api.py`, `single_video_relpath`) den relativen Pfad der enthaltenen Videodatei bereits ermittelt.
+   - Öffnet man den **Film-Assistenten** (`#modal-film-wizard`) für einen einzelnen Film, ist `#mw-wizard-series-context` ausgeblendet: Unter der Überschrift „Film-Assistent“ sieht man weder den Ordnernamen noch, wie die eigentliche Videodatei im Ordner benannt ist — wichtige Hinweise aus dem Dateinamen gehen beim Tippen im Suchfeld verloren.
+2. **Kein Live-Feedback beim Tippen & strikte Wort-UND-Verknüpfung bei TMDb:**
+   - Die Suche in Schritt 1 startet erst per Klick auf „Suchen“ oder `Enter`.
+   - TMDbs `/3/search/movie`-Endpunkt (`search_tmdb_movie` in `gui/mw_metadata.py`) verlangt, dass **jedes** eingegebene Wort im Titel vorkommt. Da der deutsche Titel bei TMDb umgangssprachlich **„Ey Mann, wo is’ mein Auto?“** (`is’` statt `ist`) geschrieben ist, liefert die naheliegende Eingabe *„Wo ist mein Auto“* `0` Treffer, während ein kürzerer Teilbegriff wie *„mein Auto“* sofort trifft.
+
+### Ziel & Bausteine
+1. **Dateinamen-Unterzeile im Film-Assistenten (und optional in der Smart Inbox):**
+   - Im Kopf von `#modal-film-wizard` (direkt unter dem Titel bzw. im Projektkontext, **auch bei Einzelfilmen**) klein und gedimmt den Projektordner **und** den tatsächlichen Dateinamen der enthaltenen Videodatei(en) anzeigen (z. B. `Ordner: EMwimA2000 · Datei: Ey.Mann.wo.is.mein.Auto.2000.mkv`).
+   - Konsistent dazu in der Smart Inbox unter dem Projekttitel klein den Videodateinamen einblenden, sobald `is_dir === true` gilt und der Basisname der Videodatei vom Ordnernamen abweicht.
+2. **Debounced Live-Suche (Typeahead) in Schritt 1 des Film-Assistenten:**
+   - Ab `>= 2–3` Zeichen im Suchfeld automatisch mit **~350–400 ms Debounce** suchen; veraltete Requests über `AbortController` + `searchRequestSeq` abbrechen.
+   - *Technischer Hinweis für die Planung:* TMDb erlaubt ~40–50 Requests/s problemlos; da `/api/search` im Film-Assistenten parallel auch OFDb (HTML-Scraping) abfragt, schützt das Debounce-Fenster (ggf. mit schnellem TMDb-First-Render oder leicht höherem Debounce für OFDb) zuverlässig vor unnötiger Scraping-Last.
+3. **Fehlertoleranter Teilwort-/Umgangssprachen-Fallback in `search_tmdb_movie`:**
+   - Liefert die exakte Wortkette bei TMDb `0` Treffer, automatisch einen zweiten Versuch mit bereinigten Kurz-/Funktionswörtern (z. B. `ist`/`is`, Satzzeichen, Artikel) bzw. den längsten Inhaltswörtern (z. B. `mein Auto`) sowie optional erkannter Jahreszahl (`2000` aus `EMwimA2000` als `year`-Hinweis) ausführen und Treffer dedupliziert zusammenführen.
+
+### Aufwand (grob)
+Klein bis mittel (1 kompakte Gate-A2-Etappe über `gui/mw_metadata.py`, `gui/api/project_api.py` / Scan-Kontext, `gui/static/js/film_wizard.js` und `gui/static/app.js`).
