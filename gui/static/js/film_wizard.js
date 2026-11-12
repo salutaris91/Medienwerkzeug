@@ -1,9 +1,9 @@
-import { renderNfoEditor, buildMovieNfoOverrides, formatProviderLabel } from './nfo_editor.js?v=122';
-import { formatBytes } from './format.js?v=122';
+import { renderNfoEditor, buildMovieNfoOverrides, formatProviderLabel } from './nfo_editor.js?v=123';
+import { formatBytes } from './format.js?v=123';
 import {
     renderPreviewData,
     collectPreviewSelection,
-} from './preview_render.js?v=122';
+} from './preview_render.js?v=123';
 
 let activeWizardInstance = null;
 

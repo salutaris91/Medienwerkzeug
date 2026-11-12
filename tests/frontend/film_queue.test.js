@@ -11,7 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appJsPath = path.resolve(__dirname, '../../gui/static/app.js');
 const indexHtmlPath = path.resolve(__dirname, '../../gui/static/index.html');
 const styleCssPath = path.resolve(__dirname, '../../gui/static/style.css');
-const VOID_TAGS = new Set(['img', 'input', 'br', 'hr', 'source', 'meta', 'link']);
+const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 
 function decodeEntities(str) {
     return String(str || '')
@@ -237,8 +237,14 @@ function setupInboxAndWizardHarness({ fetchImpl, confirmImpl } = {}) {
         if (!el) { el = doc.createElement(tag); el.id = id; doc.body.appendChild(el); }
         return el;
     };
-    ['card-smart-inbox', 'smart-inbox-list', 'smart-inbox-sort-bar', 'smart-inbox-group-banner',
-     'smart-inbox-bulk-actions', 'modal-film-wizard', 'console-pulse'].forEach((id) => ensureEl(id, 'div'));
+    const cardInbox = ensureEl('card-smart-inbox', 'div');
+    const groupBanner = doc.createElement('div'); groupBanner.id = 'smart-inbox-group-banner'; cardInbox.appendChild(groupBanner);
+    const sortBar = doc.createElement('div'); sortBar.id = 'smart-inbox-sort-bar'; cardInbox.appendChild(sortBar);
+    const bulkActions = doc.createElement('div'); bulkActions.id = 'smart-inbox-bulk-actions'; sortBar.appendChild(bulkActions);
+    const inboxList = doc.createElement('div'); inboxList.id = 'smart-inbox-list'; cardInbox.appendChild(inboxList);
+    ['modal-film-wizard', 'console-pulse', 'current-project-title', 'current-project-path',
+     'project-stats-container', 'stats-badges-container', 'files-table-body', 'view-folder',
+     'folder-mode-selector', 'recursive-mode-notice', 'mode-series', 'mode-movie'].forEach((id) => ensureEl(id, 'div'));
     ensureEl('movie-nas-destination', 'select').value = '1';
     ensureEl('movie-pcloud-destination', 'select').value = '1';
     ensureEl('movie-option-convert', 'input').checked = true;
@@ -284,6 +290,9 @@ globalThis.updateBulkActionsBarUI = updateBulkActionsBarUI;
 globalThis.selectedInboxProjects = selectedInboxProjects;
 globalThis.selectedInboxMovieProjects = selectedInboxMovieProjects;
 globalThis.unlockedMovieProjects = unlockedMovieProjects;
+globalThis.unlockedSeriesAsMovieProjects = unlockedSeriesAsMovieProjects;
+globalThis.scanProject = scanProject;
+globalThis.setSelectShowStub = (fn) => { selectShow = fn; };
 globalThis.getActiveProjectsProcessing = () => activeProjectsProcessing;
 globalThis.setCurrentSmartInboxRawSuggestions = (arr) => { currentSmartInboxRawSuggestions = arr; };
 `;
@@ -292,6 +301,7 @@ globalThis.setCurrentSmartInboxRawSuggestions = (arr) => { currentSmartInboxRawS
         document: doc,
         window: { fetch: activeFetch, scrollTo: () => {}, addEventListener: () => {}, goHome: () => {} },
         fetch: activeFetch,
+        Event: class { constructor(type) { this.type = type; } },
         localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
         sessionStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
         setTimeout: (fn) => { if (typeof fn === 'function') fn(); return 0; },
@@ -381,7 +391,7 @@ test('E6-AK1: Movie multi-select in Smart Inbox preserves #65 series lock, opens
     }
     assert.equal(doc.getElementById('smart-inbox-bulk-count').textContent, '3 Filme ausgewählt');
     const queueBtn = doc.getElementById('btn-bulk-queue-movies');
-    assert.equal(queueBtn.textContent, 'Als Filme einreihen');
+    assert.equal(queueBtn.textContent, 'Als Filmreihe verarbeiten (3)');
     queueBtn.click();
     await flushAsync();
 
@@ -669,9 +679,9 @@ test('E6-AK3: Provider errors at Film k show error chip in queue header, ignore 
 });
 
 // ============================================================================
-// Inbox Edge Cases (#77 pruning, processing skip, mixed selection, deselect) & Theme/DOM Sync
+// Inbox Edge Cases (#77 pruning, processing skip, exclusive locks, deselect) & Theme/DOM Sync
 // ============================================================================
-test('E6 Inbox Edge Cases & Theme Check: #77 unavailable and processing movie pruning, mixed selection count, and CSS variable-only styling', () => {
+test('E6 Inbox Edge Cases & Theme Check: #77 unavailable and processing movie pruning, exclusive checkbox locks, and CSS variable-only styling', () => {
     const { doc, wizard, sandbox, alerts } = setupInboxAndWizardHarness();
     sandbox.renderSmartInboxList([
         { project: 'FilmA.2020', media_type: 'movie', is_dir: true, video_count: 1 },
@@ -680,18 +690,24 @@ test('E6 Inbox Edge Cases & Theme Check: #77 unavailable and processing movie pr
         { project: 'SerieA.S01E01.mkv', media_type: 'tv', is_dir: false, video_count: 1 },
     ], new Set());
     const inboxList = doc.getElementById('smart-inbox-list');
+    const movieCbs = inboxList.querySelectorAll('.smart-inbox-movie-cb');
+    const seriesCb = inboxList.querySelector('.smart-inbox-cb');
 
-    for (const el of inboxList.querySelectorAll('.smart-inbox-movie-cb')) {
+    // Selecting 1 movie shows singular button label without count and locks series checkbox
+    movieCbs[0].checked = true;
+    movieCbs[0].dispatchEvent({ type: 'change' });
+    assert.equal(doc.getElementById('btn-bulk-queue-movies').textContent, 'Als Filmreihe verarbeiten');
+    assert.equal(seriesCb.disabled, true);
+    assert.equal(seriesCb.getAttribute('title'), 'Erst Filmreihe starten oder Auswahl aufheben');
+
+    // Selecting all 3 movies shows count (3) on button
+    for (const el of movieCbs.slice(1)) {
         el.checked = true;
         el.dispatchEvent({ type: 'change' });
     }
-    const seriesCb = inboxList.querySelector('.smart-inbox-cb');
-    seriesCb.checked = true;
-    seriesCb.dispatchEvent({ type: 'change' });
-
-    assert.equal(doc.getElementById('smart-inbox-bulk-count').textContent, '3 Filme · 1 Serien-Einträge ausgewählt');
-    assert.equal(doc.getElementById('btn-bulk-queue-movies').textContent, 'Filme einreihen (3)');
-    assert.ok(doc.getElementById('btn-bulk-group-series'));
+    assert.equal(doc.getElementById('smart-inbox-bulk-count').textContent, '3 Filme ausgewählt');
+    assert.equal(doc.getElementById('btn-bulk-queue-movies').textContent, 'Als Filmreihe verarbeiten (3)');
+    assert.equal(doc.getElementById('btn-bulk-group-series'), null);
 
     // Film "B".mkv disappears AND FilmProcessing.mkv enters activeProjectsProcessing before click -> both skipped with alert, only FilmA.2020 starts in queue
     sandbox.getActiveProjectsProcessing().add('FilmProcessing.mkv');
@@ -707,9 +723,21 @@ test('E6 Inbox Edge Cases & Theme Check: #77 unavailable and processing movie pr
     assert.equal(wizard.getQueueState().total, 1);
     assert.equal(wizard.getQueueState().items[0].projectName, 'FilmA.2020');
 
+    // Queue start cleared movie selection -> series checkbox is unlocked again
+    assert.equal(seriesCb.disabled, false);
+    assert.equal(seriesCb.getAttribute('title'), null);
+
+    // Selecting series checkbox locks movie checkboxes and shows new series button text
+    seriesCb.checked = true;
+    seriesCb.dispatchEvent({ type: 'change' });
+    assert.equal(movieCbs[0].disabled, true);
+    assert.equal(movieCbs[0].getAttribute('title'), 'Erst Serien-Auswahl starten oder Auswahl aufheben');
+    assert.equal(doc.getElementById('btn-bulk-group-series').textContent, 'Ausgewählte Folgen als Serie verarbeiten');
+
     doc.getElementById('btn-bulk-deselect').click();
     assert.equal(sandbox.selectedInboxProjects.size, 0);
     assert.equal(sandbox.selectedInboxMovieProjects.size, 0);
+    assert.equal(movieCbs[0].disabled, false);
     assert.equal(doc.getElementById('smart-inbox-bulk-actions').style.display, 'none');
 
     const indexHtml = fs.readFileSync(indexHtmlPath, 'utf8');
@@ -726,4 +754,223 @@ test('E6 Inbox Edge Cases & Theme Check: #77 unavailable and processing movie pr
     assert.match(queueCssSlice, /var\(--accent\)/);
     assert.match(queueCssSlice, /var\(--danger\)/);
     assert.doesNotMatch(queueCssSlice, /#[0-9a-fA-F]{3,8}/);
+});
+
+// ============================================================================
+// E6b (1)-(5): Bidirektionale Medienart-Korrektur (Film <-> Serie), Zero-Jump-Leiste & Superfood Light Kontrast
+// ============================================================================
+test('E6b: Bidirectional Film <-> Serie override for folders and files, NFO scanProject guard, zero-jump toolbar DOM, and Superfood Light contrast', async () => {
+    let scanResponseData = { current_dir: '/inbox', files: ['video.mkv'] };
+    const { doc, wizard, sandbox } = setupInboxAndWizardHarness({
+        fetchImpl: async (url) => {
+            if (String(url).startsWith('/api/scan-project')) {
+                return { ok: true, status: 200, json: async () => scanResponseData };
+            }
+            return { ok: true, status: 200, json: async () => ({}) };
+        },
+    });
+    const suggestions = [
+        {
+            project: 'Zurück in die Zukunft (1985)',
+            suggested_query: 'Zurück in die Zukunft',
+            media_type: 'movie',
+            is_dir: true,
+            video_count: 1,
+            single_video_relpath: 'Zurück in die Zukunft (1985)/back1.mkv',
+        },
+        {
+            project: 'Back.to.the.Future.2.1989.mkv',
+            suggested_query: 'Back to the Future 2',
+            media_type: 'movie',
+            is_dir: false,
+            video_count: 1,
+        },
+        {
+            project: 'Breaking.Bad.S01E01.mkv',
+            suggested_query: 'Breaking Bad',
+            media_type: 'tv',
+            is_dir: false,
+            video_count: 1,
+        },
+        {
+            project: 'Breaking.Bad.S01E03.Folder',
+            suggested_query: 'Breaking Bad',
+            media_type: 'tv',
+            is_dir: true,
+            video_count: 1,
+            single_video_relpath: 'Breaking.Bad.S01E03.Folder/bb_s01e03.mkv',
+        },
+    ];
+    sandbox.renderSmartInboxList(suggestions, new Set());
+    const inboxList = doc.getElementById('smart-inbox-list');
+
+    // (1a) Both movie folder AND loose movie file offer .btn-unlock-movie-series (without "Film (für Serie gesperrt)"), switch to Serie, and reset back to Film
+    for (const movieProj of ['Zurück in die Zukunft (1985)', 'Back.to.the.Future.2.1989.mkv']) {
+        const row = inboxList.querySelector(`[data-project="${movieProj}"]`);
+        assert.ok(row, `Row for ${movieProj} must exist`);
+        assert.equal(row.innerHTML.includes('Film (für Serie gesperrt)'), false);
+        assert.ok(row.querySelector('.smart-inbox-movie-cb'));
+        assert.equal(row.querySelector('.smart-inbox-cb'), null);
+        assert.equal(row.querySelector('.btn-select-smart').getAttribute('data-media-type'), 'movie');
+        const unlockBtn = row.querySelector('.btn-unlock-movie-series');
+        assert.ok(unlockBtn, `${movieProj} must offer .btn-unlock-movie-series`);
+        assert.equal(unlockBtn.textContent, 'Als Serie / Folge behandeln');
+
+        unlockBtn.click();
+        const rowUnlocked = inboxList.querySelector(`[data-project="${movieProj}"]`);
+        assert.ok(rowUnlocked.querySelector('.smart-inbox-cb'), `${movieProj} unlocked as series must get .smart-inbox-cb`);
+        assert.equal(rowUnlocked.querySelector('.smart-inbox-movie-cb'), null);
+        assert.equal(rowUnlocked.querySelector('.btn-select-smart').getAttribute('data-media-type'), 'tv');
+        const resetBtn = rowUnlocked.querySelector('.btn-reset-movie-series');
+        assert.ok(resetBtn);
+        assert.equal(resetBtn.textContent, 'Auf Film zurücksetzen');
+
+        resetBtn.click();
+        const rowReset = inboxList.querySelector(`[data-project="${movieProj}"]`);
+        assert.ok(rowReset.querySelector('.smart-inbox-movie-cb'), `${movieProj} reset to movie must get .smart-inbox-movie-cb again`);
+        assert.equal(rowReset.querySelector('.smart-inbox-cb'), null);
+        assert.equal(rowReset.querySelector('.btn-select-smart').getAttribute('data-media-type'), 'movie');
+    }
+
+    // (1b) Both loose series episode AND series folder offer .btn-unlock-series-movie ("Als Film behandeln"), switch to Film, and reset back to Serie
+    for (const seriesProj of ['Breaking.Bad.S01E01.mkv', 'Breaking.Bad.S01E03.Folder']) {
+        const sRow = inboxList.querySelector(`[data-project="${seriesProj}"]`);
+        assert.ok(sRow, `Row for ${seriesProj} must exist`);
+        assert.ok(sRow.querySelector('.smart-inbox-cb'));
+        assert.equal(sRow.querySelector('.smart-inbox-movie-cb'), null);
+        assert.equal(sRow.querySelector('.btn-select-smart').getAttribute('data-media-type'), 'tv');
+        const sUnlockBtn = sRow.querySelector('.btn-unlock-series-movie');
+        assert.ok(sUnlockBtn, `${seriesProj} must offer .btn-unlock-series-movie`);
+        assert.equal(sUnlockBtn.textContent, 'Als Film behandeln');
+
+        sUnlockBtn.click();
+        assert.equal(doc.getElementById('smart-inbox-group-banner').style.display, 'none', 'Single remaining episode must not trigger auto-group banner');
+        const sRowAsMovie = inboxList.querySelector(`[data-project="${seriesProj}"]`);
+        assert.ok(sRowAsMovie.querySelector('.smart-inbox-movie-cb'), `${seriesProj} unlocked as movie must get .smart-inbox-movie-cb`);
+        assert.equal(sRowAsMovie.querySelector('.smart-inbox-cb'), null);
+        assert.equal(sRowAsMovie.querySelector('.btn-select-smart').getAttribute('data-media-type'), 'movie');
+        const sResetBtn = sRowAsMovie.querySelector('.btn-reset-series-movie');
+        assert.ok(sResetBtn);
+        assert.equal(sResetBtn.textContent, 'Auf Serie zurücksetzen');
+
+        sResetBtn.click();
+        const sRowReset = inboxList.querySelector(`[data-project="${seriesProj}"]`);
+        assert.ok(sRowReset.querySelector('.smart-inbox-cb'), `${seriesProj} reset to series must get .smart-inbox-cb again`);
+        assert.equal(sRowReset.querySelector('.smart-inbox-movie-cb'), null);
+        assert.equal(sRowReset.querySelector('.btn-select-smart').getAttribute('data-media-type'), 'tv');
+    }
+
+    // (1c) scanProject respects explicit override even when folder contains conflicting NFO metadata
+    const clickedModes = [];
+    const selectedShows = [];
+    doc.getElementById('mode-series').addEventListener('click', () => clickedModes.push('series'));
+    doc.getElementById('mode-movie').addEventListener('click', () => clickedModes.push('movie'));
+    sandbox.setSelectShowStub((meta) => selectedShows.push(meta));
+
+    // Movie folder overridden as Serie, but existing NFO says tmdb_movie -> must stay 'series'
+    inboxList.querySelector('[data-project="Zurück in die Zukunft (1985)"] .btn-unlock-movie-series').click();
+    scanResponseData = {
+        current_dir: '/inbox/Zurück in die Zukunft (1985)',
+        files: ['back1.mkv'],
+        metadata_provider: 'tmdb_movie',
+        metadata_id: '105',
+        metadata_name: 'Zurück in die Zukunft',
+    };
+    await sandbox.scanProject('Zurück in die Zukunft (1985)');
+    assert.deepEqual(clickedModes, ['series'], 'Overridden movie->series must activate mode-series despite tmdb_movie NFO');
+    assert.equal(selectedShows.length, 1);
+    assert.equal(selectedShows[0].id, '105');
+    inboxList.querySelector('[data-project="Zurück in die Zukunft (1985)"] .btn-reset-movie-series').click();
+
+    // Series folder overridden as Film, but existing NFO says tvdb -> must stay 'movie'
+    clickedModes.length = 0;
+    selectedShows.length = 0;
+    inboxList.querySelector('[data-project="Breaking.Bad.S01E03.Folder"] .btn-unlock-series-movie').click();
+    scanResponseData = {
+        current_dir: '/inbox/Breaking.Bad.S01E03.Folder',
+        files: ['bb_s01e03.mkv'],
+        metadata_provider: 'tvdb',
+        metadata_id: '81189',
+        metadata_name: 'Breaking Bad',
+    };
+    await sandbox.scanProject('Breaking.Bad.S01E03.Folder');
+    assert.deepEqual(clickedModes, ['movie'], 'Overridden series->movie must activate mode-movie despite tvdb NFO');
+    assert.equal(selectedShows.length, 0, 'Overridden series->movie must not invoke selectShow');
+    inboxList.querySelector('[data-project="Breaking.Bad.S01E03.Folder"] .btn-reset-series-movie').click();
+
+    // Queue unlocked series-as-movie together with regular movie folder into Filmreihe wizard
+    inboxList.querySelector('[data-project="Breaking.Bad.S01E01.mkv"] .btn-unlock-series-movie').click();
+    for (const proj of ['Zurück in die Zukunft (1985)', 'Breaking.Bad.S01E01.mkv']) {
+        const cb = inboxList.querySelector(`[data-project="${proj}"] .smart-inbox-movie-cb`);
+        cb.checked = true;
+        cb.dispatchEvent({ type: 'change' });
+    }
+    assert.equal(doc.getElementById('btn-bulk-queue-movies').textContent, 'Als Filmreihe verarbeiten (2)');
+    doc.getElementById('btn-bulk-queue-movies').click();
+    await flushAsync();
+    assert.equal(wizard.getQueueState().active, true);
+    assert.deepEqual(
+        wizard.getQueueState().items.map((it) => it.projectName),
+        ['Zurück in die Zukunft (1985)', 'Breaking.Bad.S01E01.mkv']
+    );
+
+    // Reset series entry back to series -> gets .smart-inbox-cb again
+    inboxList.querySelector('[data-project="Breaking.Bad.S01E01.mkv"] .btn-reset-series-movie').click();
+    assert.ok(inboxList.querySelector('[data-project="Breaking.Bad.S01E01.mkv"] .smart-inbox-cb'));
+
+    // (2), (3), (5) Zero-jump toolbar DOM parent-child nesting, sticky container hierarchy, and Superfood Light CSS checks
+    const indexHtml = fs.readFileSync(indexHtmlPath, 'utf8');
+    const styleCss = fs.readFileSync(styleCssPath, 'utf8');
+
+    const { doc: htmlDoc } = createQueueDom();
+    htmlDoc.body.innerHTML = indexHtml.replace(/<!--[\s\S]*?-->/g, '').replace(/<!DOCTYPE[^>]*>/i, '');
+    const sortBarDom = htmlDoc.getElementById('smart-inbox-sort-bar');
+    const bulkActionsDom = htmlDoc.getElementById('smart-inbox-bulk-actions');
+    const inboxListDom = htmlDoc.getElementById('smart-inbox-list');
+    assert.ok(sortBarDom, '#smart-inbox-sort-bar must exist in index.html DOM');
+    assert.ok(bulkActionsDom, '#smart-inbox-bulk-actions must exist in index.html DOM');
+    assert.ok(inboxListDom, '#smart-inbox-list must exist in index.html DOM');
+    assert.equal(
+        bulkActionsDom.parentNode,
+        sortBarDom,
+        '#smart-inbox-bulk-actions must be a direct DOM child of #smart-inbox-sort-bar (not a sibling)'
+    );
+    assert.equal(
+        sortBarDom.querySelector('#smart-inbox-bulk-actions'),
+        bulkActionsDom,
+        '#smart-inbox-sort-bar must contain #smart-inbox-bulk-actions as a descendant'
+    );
+    assert.equal(
+        sortBarDom.parentNode,
+        inboxListDom.parentNode,
+        '#smart-inbox-sort-bar and #smart-inbox-list must share the same parent container so position: sticky spans the full inbox scroll range'
+    );
+
+    // Negative control: verify DOM check catches a sibling #smart-inbox-bulk-actions layout
+    const { doc: legacyDoc } = createQueueDom();
+    legacyDoc.body.innerHTML = '<div><div id="smart-inbox-sort-bar"></div><div id="smart-inbox-bulk-actions"></div><div id="smart-inbox-list"></div></div>';
+    assert.notEqual(
+        legacyDoc.getElementById('smart-inbox-bulk-actions').parentNode,
+        legacyDoc.getElementById('smart-inbox-sort-bar'),
+        'DOM parentNode check must reject sibling #smart-inbox-bulk-actions'
+    );
+
+    const sortBarRuleMatch = styleCss.match(/#smart-inbox-sort-bar\s*\{([^}]+)\}/);
+    assert.ok(sortBarRuleMatch, '#smart-inbox-sort-bar rule must exist in style.css');
+    assert.match(sortBarRuleMatch[1], /position:\s*sticky/);
+    assert.match(sortBarRuleMatch[1], /top:\s*0/);
+    assert.match(sortBarRuleMatch[1], /z-index:\s*10/);
+    assert.match(sortBarRuleMatch[1], /flex-wrap:\s*nowrap/);
+    assert.match(sortBarRuleMatch[1], /background:\s*var\(--bg-sticky/);
+
+    const hoverRuleMatch = styleCss.match(/\.btn-unlock-movie-series:hover[\s\S]*?\{([^}]+)\}/);
+    assert.ok(hoverRuleMatch, '.btn-unlock-movie-series:hover rule must exist');
+    assert.match(hoverRuleMatch[1], /color:\s*var\(--text-main\)/);
+    assert.match(hoverRuleMatch[1], /background:\s*var\(--bg-hover\)/);
+    assert.doesNotMatch(hoverRuleMatch[1], /#fff(?:fff)?\b/i);
+
+    assert.match(styleCss, /--text-on-primary:\s*#ffffff/);
+    const btnPrimaryMatch = styleCss.match(/\.btn-primary\s*\{([^}]+)\}/);
+    assert.ok(btnPrimaryMatch);
+    assert.match(btnPrimaryMatch[1], /color:\s*var\(--text-on-primary\)/);
 });

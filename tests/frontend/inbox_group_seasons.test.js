@@ -1151,7 +1151,7 @@ test('E1-AK7: Gemeinsame Sperre weist Zweitstarts von allen vier Startstellen (B
 
         const activeCtrls = getControls();
         const candidates = [
-            { key: 'bulkBtn', btn: activeCtrls.bulkBtn, expectedText: 'Ausgewählte als Serie verarbeiten' },
+            { key: 'bulkBtn', btn: activeCtrls.bulkBtn, expectedText: 'Ausgewählte Folgen als Serie verarbeiten' },
             { key: 'allBtn', btn: activeCtrls.allBtn, expectedText: 'Alle verarbeiten' },
             { key: 'season2Btn', btn: activeCtrls.season2Btn, expectedText: 'Staffel 2 (1)' }
         ];
@@ -1466,7 +1466,7 @@ test('E2-AK3: Erzwungener Start-Fehler aus der Bulk-Leiste zeigt Inline-Meldung 
     const retryBulkBtn = env.bulkBar.querySelector('#btn-bulk-group-series');
     assert.ok(retryBulkBtn);
     assert.strictEqual(retryBulkBtn.disabled, false);
-    assert.strictEqual(retryBulkBtn.textContent, 'Ausgewählte als Serie verarbeiten');
+    assert.strictEqual(retryBulkBtn.textContent, 'Ausgewählte Folgen als Serie verarbeiten (2)');
 
     shouldThrowInQualityHint = false;
     env.viewEmpty.className = 'view-panel active';
