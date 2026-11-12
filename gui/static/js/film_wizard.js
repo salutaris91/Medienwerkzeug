@@ -1,9 +1,9 @@
-import { renderNfoEditor, buildMovieNfoOverrides, formatProviderLabel } from './nfo_editor.js?v=121';
-import { formatBytes } from './format.js?v=121';
+import { renderNfoEditor, buildMovieNfoOverrides, formatProviderLabel } from './nfo_editor.js?v=124';
+import { formatBytes } from './format.js?v=124';
 import {
     renderPreviewData,
     collectPreviewSelection,
-} from './preview_render.js?v=121';
+} from './preview_render.js?v=124';
 
 let activeWizardInstance = null;
 
@@ -323,11 +323,37 @@ function buildWizardDom(doc, modalOverlay) {
         ]
     );
 
+    const seriesContext = mkEl(
+        doc,
+        "div",
+        {
+            id: "mw-wizard-series-context",
+            cls: "mw-wizard-series-context hidden",
+            attrs: { role: "region", "aria-label": "Filmreihen-Fortschritt" },
+        },
+        [
+            mkEl(doc, "div", { cls: "mw-wizard-queue-main" }, [
+                mkEl(doc, "span", { cls: "mw-wizard-queue-icon", text: "🎬", attrs: { "aria-hidden": "true" } }),
+                mkEl(doc, "span", { id: "mw-wizard-queue-label", cls: "mw-wizard-queue-label" }),
+            ]),
+            mkEl(doc, "div", { cls: "mw-wizard-queue-actions" }, [
+                mkEl(doc, "div", { id: "mw-wizard-queue-status", cls: "mw-wizard-queue-status", attrs: { "aria-live": "polite" } }),
+                mkEl(doc, "button", {
+                    id: "mw-wizard-queue-skip-btn",
+                    cls: "btn btn-secondary btn-sm mw-wizard-queue-skip-btn",
+                    type: "button",
+                    text: "Film überspringen →",
+                }),
+            ]),
+        ]
+    );
+
     const modal = mkEl(doc, "div", { cls: "mw-modal mw-wizard-modal" }, [
         mkEl(doc, "div", { cls: "mw-wizard-header" }, [
             mkEl(doc, "h3", { id: "mw-wizard-title", cls: "mw-wizard-title", text: "Film-Assistent" }),
             mkEl(doc, "button", { id: "mw-wizard-close", cls: "close-modal mw-wizard-close-btn", type: "button", text: "×", attrs: { "aria-label": "Schließen" } }),
         ]),
+        seriesContext,
         stepper,
         mkEl(doc, "div", { id: "mw-wizard-error-banner", cls: "mw-wizard-error-banner hidden" }, [
             mkEl(doc, "span", { id: "mw-wizard-error-text", cls: "mw-wizard-error-text" }),
@@ -364,6 +390,10 @@ export function createFilmWizard(options = {}) {
 
     const getEl = (id) => doc.getElementById(id);
     const panels = [1, 2, 3, 4].map((n) => getEl(`mw-wizard-step-${n}`));
+    const seriesContextEl = getEl("mw-wizard-series-context");
+    const queueLabelEl = getEl("mw-wizard-queue-label");
+    const queueStatusEl = getEl("mw-wizard-queue-status");
+    const queueSkipBtn = getEl("mw-wizard-queue-skip-btn");
     const stepperEl = getEl("mw-wizard-stepper");
     const closeBtn = getEl("mw-wizard-close");
     const backBtn = getEl("mw-wizard-btn-back");
@@ -415,6 +445,10 @@ export function createFilmWizard(options = {}) {
     const optPcloudDest = getEl("mw-wizard-pcloud-destination");
 
     let currentStep = 1;
+    let queueActive = false;
+    let queueItems = [];
+    let queueIndex = 0;
+    let queueCurrentError = "";
     let selectedMovie = null;
     let selectedProviders = [];
     const successfulProviders = new Map();
@@ -494,6 +528,7 @@ export function createFilmWizard(options = {}) {
     let onClosedCallback = options.onClosed || null;
     let lastRetryAction = null;
     let sessionSeq = 0;
+    let searchRequestSeq = 0;
     let metadataRequestSeq = 0;
     let previewRequestSeq = 0;
     let currentPreviewPayload = null;
@@ -549,11 +584,97 @@ export function createFilmWizard(options = {}) {
         return true;
     }
 
+    function normalizeQueueInput(rawQueue) {
+        if (!Array.isArray(rawQueue)) return [];
+        const out = [];
+        for (const entry of rawQueue) {
+            if (!entry) continue;
+            const projectName = typeof entry === "string"
+                ? entry.trim()
+                : String(entry.projectName || entry.project || "").trim();
+            if (!projectName) continue;
+            let query = typeof entry === "object" && entry.query !== undefined
+                ? String(entry.query || "").trim()
+                : "";
+            if (!query) {
+                query = projectName
+                    .replace(/\.[a-z0-9]{2,4}$/i, "")
+                    .replace(/[._\-]/g, " ")
+                    .trim()
+                    .replace(/\([0-9]{4}\)/g, "")
+                    .trim() || projectName;
+            }
+            out.push({
+                projectName,
+                query,
+                status: "pending",
+                hadError: false,
+            });
+        }
+        return out;
+    }
+
+    function renderQueueHeader() {
+        if (!queueActive || queueItems.length === 0) {
+            if (seriesContextEl && seriesContextEl.classList) {
+                seriesContextEl.classList.add("hidden");
+            }
+            if (queueLabelEl) queueLabelEl.textContent = "";
+            if (queueStatusEl) queueStatusEl.innerHTML = "";
+            return;
+        }
+        if (seriesContextEl && seriesContextEl.classList) {
+            seriesContextEl.classList.remove("hidden");
+        }
+        const currentItem = queueItems[queueIndex] || queueItems[0];
+        if (queueLabelEl) {
+            queueLabelEl.textContent = `Film ${queueIndex + 1} von ${queueItems.length} · ${currentItem ? currentItem.projectName : ""}`;
+        }
+        if (queueStatusEl) {
+            queueStatusEl.innerHTML = "";
+            const queuedCount = queueItems.filter((it) => it.status === "queued").length;
+            const skippedCount = queueItems.filter((it) => it.status === "skipped").length;
+            if (queuedCount > 0) {
+                queueStatusEl.appendChild(
+                    mkEl(doc, "span", { cls: "mw-wizard-queue-chip ok", text: `✓ ${queuedCount} eingereiht` })
+                );
+            }
+            if (skippedCount > 0) {
+                queueStatusEl.appendChild(
+                    mkEl(doc, "span", { cls: "mw-wizard-queue-chip muted", text: `${skippedCount} übersprungen` })
+                );
+            }
+            if (queueCurrentError !== "") {
+                queueStatusEl.appendChild(
+                    mkEl(doc, "span", {
+                        id: "mw-wizard-queue-error-chip",
+                        cls: "mw-wizard-queue-chip error",
+                        text: `⚠ ${queueCurrentError}`,
+                        attrs: { role: "status" },
+                    })
+                );
+            }
+        }
+        if (queueSkipBtn) {
+            queueSkipBtn.disabled = Boolean(isExecutingProcess);
+            queueSkipBtn.textContent = queueIndex < queueItems.length - 1
+                ? "Film überspringen →"
+                : "Film überspringen & schließen";
+        }
+    }
+
     function updateExecuteButtonState() {
         if (!executeBtn) return;
         executeBtn.disabled = Boolean(isExecutingProcess || currentStep !== 4 || !hasValidPreview);
         if (!isExecutingProcess) {
-            executeBtn.textContent = "Jetzt final verarbeiten";
+            if (queueActive && queueIndex < queueItems.length - 1) {
+                executeBtn.textContent = "Einreihen & nächster Film";
+            } else {
+                executeBtn.textContent = "Jetzt final verarbeiten";
+            }
+        }
+        if (queueSkipBtn) {
+            queueSkipBtn.disabled = Boolean(isExecutingProcess);
         }
     }
 
@@ -1213,6 +1334,10 @@ export function createFilmWizard(options = {}) {
             snapshotPreviewCheckboxState();
             currentPreviewPayload = basePayload;
             hasValidPreview = true;
+            if (queueActive && queueCurrentError === "Vorschau fehlgeschlagen") {
+                queueCurrentError = "";
+                renderQueueHeader();
+            }
             updateExecuteButtonState();
             lastPreviewVideoFiles = extractVideoFiles(displayData.renames);
             refreshSizeEstimate();
@@ -1226,6 +1351,11 @@ export function createFilmWizard(options = {}) {
             const msg = err && err.message ? err.message : String(err);
             if (destEl) destEl.textContent = "Vorschau konnte nicht geladen werden.";
             if (listRenames) listRenames.innerHTML = "";
+            if (queueActive && !queueCurrentError) {
+                queueCurrentError = "Vorschau fehlgeschlagen";
+                if (queueItems[queueIndex]) queueItems[queueIndex].hadError = true;
+                renderQueueHeader();
+            }
             showError(`Vorschau fehlgeschlagen: ${msg}`, () => loadStep4Preview());
             if (logFn) {
                 try {
@@ -1250,6 +1380,9 @@ export function createFilmWizard(options = {}) {
             executeBtn.disabled = true;
             executeBtn.textContent = "wird gestartet…";
         }
+        if (queueSkipBtn) {
+            queueSkipBtn.disabled = true;
+        }
 
         const finalPayload = buildProcessPayload();
 
@@ -1262,12 +1395,27 @@ export function createFilmWizard(options = {}) {
 
             if (res && res.ok) {
                 isExecutingProcess = false;
-                updateExecuteButtonState();
                 if (procSession === sessionSeq) {
-                    close({ force: true });
-                    if (typeof sessionSuccessCb === "function") {
-                        sessionSuccessCb(finalPayload);
+                    if (queueActive && queueItems[queueIndex]) {
+                        queueItems[queueIndex].status = "queued";
                     }
+                    if (queueActive && queueIndex < queueItems.length - 1) {
+                        loadQueueItemAt(queueIndex + 1, { autoSearch: true });
+                    } else {
+                        updateExecuteButtonState();
+                        close({ force: true });
+                    }
+                    if (typeof sessionSuccessCb === "function") {
+                        try {
+                            sessionSuccessCb(finalPayload);
+                        } catch (cbErr) {
+                            if (logFn) {
+                                try { logFn(`[System]: Nachbereitung nach Prozessstart fehlgeschlagen: ${cbErr && cbErr.message ? cbErr.message : cbErr}`); } catch (_) {}
+                            }
+                        }
+                    }
+                } else {
+                    updateExecuteButtonState();
                 }
                 return finalPayload;
             }
@@ -2206,11 +2354,21 @@ export function createFilmWizard(options = {}) {
                 if (okProviders.length === 0) {
                     const firstErrProv = errProviders[0];
                     const errMsg = (firstErrProv && data.providers[firstErrProv]?.error) || "Provider nicht erreichbar";
+                    if (queueActive) {
+                        queueCurrentError = "Metadaten-Abruf fehlgeschlagen";
+                        if (queueItems[queueIndex]) queueItems[queueIndex].hadError = true;
+                        renderQueueHeader();
+                    }
                     showError(`Metadaten-Abruf fehlgeschlagen (${errMsg})`, () => loadMovieMetadata(movie));
                     return;
                 }
 
                 if (errProviders.length > 0) {
+                    if (queueActive) {
+                        queueCurrentError = `Teil-Erfolg (${errProviders.map(formatProviderLabel).join(", ")} nicht erreichbar)`;
+                        if (queueItems[queueIndex]) queueItems[queueIndex].hadError = true;
+                        renderQueueHeader();
+                    }
                     showError(
                         "Einige Provider sind nicht erreichbar. Du kannst mit den geladenen Daten fortfahren.",
                         () => loadMovieMetadata(movie)
@@ -2222,6 +2380,10 @@ export function createFilmWizard(options = {}) {
                     return;
                 }
 
+                if (queueActive && queueCurrentError) {
+                    queueCurrentError = "";
+                    renderQueueHeader();
+                }
                 if (providerBadge) {
                     providerBadge.textContent = order.length > 1
                         ? order.map(formatProviderLabel).join(" + ")
@@ -2232,6 +2394,10 @@ export function createFilmWizard(options = {}) {
             }
 
             if (data && data.error) throw new Error(data.error);
+            if (queueActive && queueCurrentError) {
+                queueCurrentError = "";
+                renderQueueHeader();
+            }
             const normProv = String(movie.provider || "tmdb").toLowerCase() === "tmdb_movie"
                 ? "tmdb"
                 : String(movie.provider || "tmdb").toLowerCase();
@@ -2262,11 +2428,17 @@ export function createFilmWizard(options = {}) {
             });
         } catch (err) {
             if (reqSeq !== metadataRequestSeq || selectedMovie !== expectedMovie) return;
+            if (queueActive) {
+                queueCurrentError = "Metadaten-Abruf fehlgeschlagen";
+                if (queueItems[queueIndex]) queueItems[queueIndex].hadError = true;
+                renderQueueHeader();
+            }
             showError(`Metadaten-Abruf fehlgeschlagen (${err.message || err})`, () => loadMovieMetadata(movie));
         }
     }
 
     async function selectMovieInWizard(movie, fetchMeta = true, comparisonMovies = null) {
+        searchRequestSeq += 1;
         const reqSeq = ++metadataRequestSeq;
         selectedMovie = {
             id: String(movie.id || "manual"),
@@ -2339,6 +2511,16 @@ export function createFilmWizard(options = {}) {
     async function performSearch(queryOverride) {
         const query = String(queryOverride ?? (searchInput ? searchInput.value : "") ?? "").trim();
         if (!query || !fetchFn) return [];
+        const reqSeq = ++searchRequestSeq;
+        const reqSession = sessionSeq;
+        const reqQueueIndex = queueIndex;
+        const reqProjectName = currentProjectName;
+        const isStaleSearch = () => (
+            reqSeq !== searchRequestSeq ||
+            reqSession !== sessionSeq ||
+            (queueActive && reqQueueIndex !== queueIndex) ||
+            reqProjectName !== currentProjectName
+        );
         hideError();
         if (searchResults) {
             searchResults.innerHTML = "";
@@ -2346,8 +2528,10 @@ export function createFilmWizard(options = {}) {
         }
         try {
             const res = await fetchFn(`/api/search?type=movie&q=${encodeURIComponent(query)}`);
+            if (isStaleSearch()) return [];
             if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : "Fehler"}`);
             const items = await res.json();
+            if (isStaleSearch()) return [];
             if (!Array.isArray(items)) throw new Error((items && items.error) || "Unerwartetes Suchergebnis");
             lastSearchResults = items.map((item) => ({
                 id: String(item.id ?? ""),
@@ -2413,17 +2597,27 @@ export function createFilmWizard(options = {}) {
                     searchResults.appendChild(row);
                 }
             }
+            if (queueActive && queueCurrentError) {
+                queueCurrentError = "";
+                renderQueueHeader();
+            }
             return items;
         } catch (err) {
+            if (isStaleSearch()) return [];
             if (searchResults) searchResults.innerHTML = "";
+            if (queueActive) {
+                queueCurrentError = "Provider-Suche fehlgeschlagen";
+                if (queueItems[queueIndex]) queueItems[queueIndex].hadError = true;
+                renderQueueHeader();
+            }
             showError(`Suche fehlgeschlagen: ${err.message || err}`, () => performSearch(query));
             return [];
         }
     }
 
-    function open(openOptions = {}) {
-        sessionSeq += 1;
+    function resetCurrentMovieState() {
         resetSizeEstimate();
+        searchRequestSeq += 1;
         metadataRequestSeq += 1;
         previewRequestSeq += 1;
         hasValidPreview = false;
@@ -2433,21 +2627,91 @@ export function createFilmWizard(options = {}) {
         artworkSkipped = false;
         resetArtworkState();
         switchArtworkTab("poster");
-        if (openOptions.projectName !== undefined) currentProjectName = String(openOptions.projectName || "");
-        if (openOptions.onProcessSuccess) onProcessSuccessCallback = openOptions.onProcessSuccess;
-        if (openOptions.onClosed) onClosedCallback = openOptions.onClosed;
-        if (openOptions.onPersistOptions) persistOptionsCallback = openOptions.onPersistOptions;
-        if (openOptions.onLog) logFn = openOptions.onLog;
-        syncWizardOptionsFromContext(openOptions);
-
-        const initialQuery = String(openOptions.query ?? "").trim();
-        if (searchInput) searchInput.value = initialQuery;
         if (searchResults) searchResults.innerHTML = "";
         selectedMovie = null;
         selectedProviders = [];
         successfulProviders.clear();
         lastSearchResults = [];
         nfoEditor.clearProviderComparison();
+    }
+
+    function loadQueueItemAt(idx, { autoSearch = true } = {}) {
+        if (!queueActive || idx < 0 || idx >= queueItems.length) return false;
+        queueIndex = idx;
+        queueCurrentError = "";
+        const item = queueItems[queueIndex];
+        currentProjectName = item.projectName;
+        resetCurrentMovieState();
+        const initialQuery = String(item.query || item.projectName || "").trim();
+        if (searchInput) searchInput.value = initialQuery;
+        nfoEditor.setValues(
+            { title: initialQuery, year: "", plot: "", fsk: "", genres: [] },
+            true,
+            { loadedFields: initialQuery ? ["title"] : [] }
+        );
+        renderQueueHeader();
+        goToStep(1);
+        updateExecuteButtonState();
+        if (initialQuery && autoSearch !== false && fetchFn) {
+            performSearch(initialQuery);
+        }
+        return true;
+    }
+
+    function skipQueueMovie() {
+        if (!queueActive || isExecutingProcess || queueItems.length === 0) return false;
+        if (queueItems[queueIndex]) {
+            queueItems[queueIndex].status = "skipped";
+        }
+        if (queueIndex < queueItems.length - 1) {
+            loadQueueItemAt(queueIndex + 1, { autoSearch: true });
+            return true;
+        }
+        close({ force: true });
+        return true;
+    }
+
+    function getQueueState() {
+        return {
+            active: queueActive,
+            index: queueIndex,
+            total: queueItems.length,
+            currentError: queueCurrentError,
+            items: queueItems.map((it) => ({ ...it })),
+        };
+    }
+
+    function open(openOptions = {}) {
+        sessionSeq += 1;
+        if (openOptions.onProcessSuccess) onProcessSuccessCallback = openOptions.onProcessSuccess;
+        if (openOptions.onClosed) onClosedCallback = openOptions.onClosed;
+        if (openOptions.onPersistOptions) persistOptionsCallback = openOptions.onPersistOptions;
+        if (openOptions.onLog) logFn = openOptions.onLog;
+        syncWizardOptionsFromContext(openOptions);
+
+        const normalizedQueue = normalizeQueueInput(openOptions.queue);
+        if (normalizedQueue.length > 0) {
+            queueActive = true;
+            queueItems = normalizedQueue;
+            queueIndex = 0;
+            queueCurrentError = "";
+            modalOverlay.classList.remove("hidden");
+            modalOverlay.classList.add("active");
+            loadQueueItemAt(0, { autoSearch: openOptions.autoSearch !== false });
+            return;
+        }
+
+        queueActive = false;
+        queueItems = [];
+        queueIndex = 0;
+        queueCurrentError = "";
+        renderQueueHeader();
+
+        if (openOptions.projectName !== undefined) currentProjectName = String(openOptions.projectName || "");
+        resetCurrentMovieState();
+
+        const initialQuery = String(openOptions.query ?? "").trim();
+        if (searchInput) searchInput.value = initialQuery;
         nfoEditor.setValues(
             { title: initialQuery, year: "", plot: "", fsk: "", genres: [] },
             true,
@@ -2468,7 +2732,10 @@ export function createFilmWizard(options = {}) {
             if (!confirmFn("Änderungen im Film-Assistenten verwerfen?")) return false;
         }
         sessionSeq += 1;
+        queueActive = false;
+        renderQueueHeader();
         resetSizeEstimate();
+        searchRequestSeq += 1;
         metadataRequestSeq += 1;
         previewRequestSeq += 1;
         artworkRequestSeq += 1;
@@ -2514,6 +2781,7 @@ export function createFilmWizard(options = {}) {
                 return currentStep;
             }
             if (!selectedMovie) {
+                searchRequestSeq += 1;
                 metadataRequestSeq += 1;
                 const manualTitle = searchInput ? String(searchInput.value || "").trim() : "";
                 selectedMovie = { id: "manual", name: manualTitle || "Unbekannter Film", provider: "manual" };
@@ -2557,6 +2825,7 @@ export function createFilmWizard(options = {}) {
 
     const bindClick = (el, fn) => el && typeof el.addEventListener === "function" && el.addEventListener("click", fn);
     bindClick(closeBtn, () => close({ force: false }));
+    bindClick(queueSkipBtn, () => skipQueueMovie());
     bindClick(backBtn, () => prevStep());
     bindClick(skipBtn, () => skipCurrentStep());
     bindClick(nextBtn, () => nextStep());
@@ -2753,6 +3022,8 @@ export function createFilmWizard(options = {}) {
         buildProcessPayload,
         loadStep4Preview,
         executeStep4Process,
+        skipQueueMovie,
+        getQueueState,
         getCurrentStep: () => currentStep,
         isArtworkSkipped: () => artworkSkipped,
         getActiveArtworkTab: () => activeArtworkTab,

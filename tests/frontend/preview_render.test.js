@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
     escapeHTML,
+    splitPreviewPath,
     formatDestinationHtml,
     renderPreviewDestination,
     createPreviewCheckbox,
@@ -10,6 +14,9 @@ import {
     collectPreviewSelection,
     renderPreviewData,
 } from '../../gui/static/js/preview_render.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const styleCssPath = path.resolve(__dirname, '../../gui/static/style.css');
 
 function createMiniDomElement(tagName = 'div') {
     const classSet = new Set();
@@ -192,4 +199,71 @@ test('E2-AK4 (4): renderPreviewData catches and logs errors in #91 similar_exist
     assert.match(listJunk.innerHTML, /info\.nfo/);
     assert.equal(escapeHTML("a&b"), "a&amp;b");
     assert.equal(renderSimilarExistingHint(null, null, null), false);
+});
+
+test('E6b (6): createPreviewCheckbox renders uncut filename, subfolder prefix, title tooltip, and file-type badge while keeping full path in data-old', () => {
+    const nfoRel = 'The.Piano.Tuner.2026.German.DL.1080p.DV.HDR.WEBRip.AV1-WOTT/The.Piano.Tuner.2026.German.DL.1080p.DV.HDR.WEBRip.AV1-WOTT.nfo';
+    const jpgRel = 'The.Piano.Tuner.2026.German.DL.1080p.DV.HDR.WEBRip.AV1-WOTT/The.Piano.Tuner.2026.German.DL.1080p.DV.HDR.WEBRip.AV1-WOTT.jpg';
+
+    assert.deepEqual(splitPreviewPath(nfoRel), {
+        dirPath: 'The.Piano.Tuner.2026.German.DL.1080p.DV.HDR.WEBRip.AV1-WOTT',
+        fileName: 'The.Piano.Tuner.2026.German.DL.1080p.DV.HDR.WEBRip.AV1-WOTT.nfo',
+        extLabel: 'NFO',
+    });
+    assert.deepEqual(splitPreviewPath('PlainFileWithoutExt'), {
+        dirPath: '',
+        fileName: 'PlainFileWithoutExt',
+        extLabel: 'DATEI',
+    });
+
+    const container = createMiniDomElement('div');
+    renderPreviewList(container, [nfoRel, jpgRel], 'junk', 'Leer', true);
+    const html = container.innerHTML;
+
+    // 1. data-old retains full relative path and collectPreviewSelection returns full path in explicit_junk
+    assert.ok(html.includes(`data-old="${nfoRel}"`));
+    assert.ok(html.includes(`data-old="${jpgRel}"`));
+    const extractedOlds = [...html.matchAll(/class="preview-cb-junk"\s+data-old="([^"]+)"\s+data-new="([^"]*)"/g)];
+    const mockRoot = {
+        querySelectorAll(sel) {
+            if (sel === '.preview-cb-junk:checked') {
+                return extractedOlds.map((m) => ({
+                    checked: true,
+                    dataset: { old: m[1], new: m[2] },
+                    getAttribute: (k) => (k === 'data-old' ? m[1] : k === 'data-new' ? m[2] : null),
+                }));
+            }
+            return [];
+        },
+    };
+    assert.deepEqual(collectPreviewSelection(mockRoot).explicit_junk, [nfoRel, jpgRel]);
+
+    // 2. Full filename, dimmed directory prefix, full-path title tooltip, and NFO / JPG extension badges
+    assert.ok(html.includes('class="mw-wizard-result-item-dir">The.Piano.Tuner.2026.German.DL.1080p.DV.HDR.WEBRip.AV1-WOTT/</div>'));
+    assert.ok(html.includes('class="mw-wizard-result-item-filename">The.Piano.Tuner.2026.German.DL.1080p.DV.HDR.WEBRip.AV1-WOTT.nfo</div>'));
+    assert.ok(html.includes('class="mw-wizard-result-item-filename">The.Piano.Tuner.2026.German.DL.1080p.DV.HDR.WEBRip.AV1-WOTT.jpg</div>'));
+    assert.ok(html.includes(`title="${nfoRel}"`));
+    assert.ok(html.includes('class="mw-wizard-result-item-ext">NFO</span>'));
+    assert.ok(html.includes('class="mw-wizard-result-item-ext">JPG</span>'));
+
+    // Rename item also shows directory prefix, old/new names, and target extension badge
+    const renameHtml = createPreviewCheckbox(
+        { old: 'SubDir/raw.mkv', new: 'SubDir/The Piano Tuner (2026).mkv' },
+        true,
+        'renames'
+    );
+    assert.ok(renameHtml.includes('data-old="SubDir/raw.mkv"'));
+    assert.ok(renameHtml.includes('data-new="SubDir/The Piano Tuner (2026).mkv"'));
+    assert.ok(renameHtml.includes('class="mw-wizard-result-item-dir">SubDir/</div>'));
+    assert.ok(renameHtml.includes('class="mw-wizard-result-item-old">raw.mkv</div>'));
+    assert.ok(renameHtml.includes('class="mw-wizard-result-item-new">SubDir/The Piano Tuner (2026).mkv</div>'));
+    assert.ok(renameHtml.includes('class="mw-wizard-result-item-ext">MKV</span>'));
+
+    // 3. CSS check: .mw-wizard-result-item-filename uses overflow-wrap: anywhere and no ellipsis or line-through
+    const styleCss = fs.readFileSync(styleCssPath, 'utf8');
+    const filenameRuleMatch = styleCss.match(/\.mw-wizard-result-item-filename\s*\{([^}]+)\}/);
+    assert.ok(filenameRuleMatch, '.mw-wizard-result-item-filename rule must exist in style.css');
+    assert.match(filenameRuleMatch[1], /overflow-wrap:\s*anywhere/);
+    assert.doesNotMatch(filenameRuleMatch[1], /text-overflow:\s*ellipsis/);
+    assert.doesNotMatch(filenameRuleMatch[1], /line-through/);
 });

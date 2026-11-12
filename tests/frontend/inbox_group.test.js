@@ -887,7 +887,7 @@ test('AK3: Banner "Ignorieren" saves to localStorage and keeps banner visible wi
     assert.strictEqual(globalThis.sessionStorage.getItem('smart-inbox-ignore-group-Show'), null);
 });
 
-test('AK3 & AK13: Film entries show lock notice and "Als Serie / Folge behandeln" link', () => {
+test('AK3 & AK13: Film entries show "Als Serie / Folge behandeln" link without redundant lock text', () => {
     const env = setupTestEnvironment();
     const suggestions = [
         {
@@ -896,18 +896,27 @@ test('AK3 & AK13: Film entries show lock notice and "Als Serie / Folge behandeln
             media_type: 'movie',
             is_dir: false,
             video_count: 1
+        },
+        {
+            project: 'Zurück in die Zukunft (1985)',
+            suggested_query: 'Zurück in die Zukunft',
+            media_type: 'movie',
+            is_dir: true,
+            video_count: 1
         }
     ];
 
     globalThis.renderSmartInboxList(suggestions, new Set());
 
-    const item = env.smartInboxList.querySelector('.smart-inbox-item');
-    assert.ok(item);
-    assert.ok(item.innerHTML.includes('Film (für Serie gesperrt)'));
-    const unlockLink = item.querySelector('.btn-unlock-movie-series');
-    assert.ok(unlockLink, 'Must provide unlock link');
-    assert.ok(unlockLink.innerHTML.includes('Als Serie / Folge behandeln'), 'Must show "Als Serie / Folge behandeln"');
-    assert.strictEqual(unlockLink.innerHTML.includes('Trotzdem als Serie freigeben'), false, 'Must not show "Trotzdem als Serie freigeben"');
+    const items = env.smartInboxList.querySelectorAll('.smart-inbox-item');
+    assert.strictEqual(items.length, 2);
+    for (const item of items) {
+        assert.strictEqual(item.innerHTML.includes('Film (für Serie gesperrt)'), false);
+        const unlockLink = item.querySelector('.btn-unlock-movie-series');
+        assert.ok(unlockLink, 'Must provide unlock link');
+        assert.ok(unlockLink.innerHTML.includes('Als Serie / Folge behandeln'), 'Must show "Als Serie / Folge behandeln"');
+        assert.strictEqual(unlockLink.innerHTML.includes('Trotzdem als Serie freigeben'), false, 'Must not show "Trotzdem als Serie freigeben"');
+    }
 });
 
 // --------------------------------------------------------------------------
@@ -1460,13 +1469,13 @@ test('F2: Beschriftungen - Gruppenzeile "Alle verarbeiten", Banner "Als Serie gr
     assert.ok(groupSelectBtn.innerHTML.includes('Alle verarbeiten'), 'Group row button must be labeled "Alle verarbeiten"');
     assert.strictEqual(groupSelectBtn.innerHTML.includes('Als Serie gruppieren'), false, 'Group row button must NOT be labeled "Als Serie gruppieren"');
 
-    // (b) Sammelknopf: "Ausgewählte als Serie verarbeiten"
+    // (b) Sammelknopf: "Ausgewählte Folgen als Serie verarbeiten"
     globalThis.selectedInboxProjects.clear();
     globalThis.selectedInboxProjects.add('Show.S01E01.mkv');
     globalThis.updateBulkActionsBarUI();
     const bulkBtn = env.bulkBar.querySelector('#btn-bulk-group-series');
     assert.ok(bulkBtn);
-    assert.ok(bulkBtn.innerHTML.includes('Ausgewählte als Serie verarbeiten'), 'Bulk button must have text "Ausgewählte als Serie verarbeiten"');
+    assert.ok(bulkBtn.innerHTML.includes('Ausgewählte Folgen als Serie verarbeiten'), 'Bulk button must have text "Ausgewählte Folgen als Serie verarbeiten"');
     assert.strictEqual(bulkBtn.innerHTML.includes('Ausgewählte als Serie gruppieren'), false, 'Bulk button must NOT have old text "Ausgewählte als Serie gruppieren"');
 
     // (a) Link 'Als Serie / Folge behandeln' bei gesperrten Filmen
@@ -2229,15 +2238,20 @@ test('Follow-up (c): Preselection for "Foo.S01E99/Real.Show.S02E05.mkv" results 
     assert.strictEqual(guessSeasonAndEpisode(fileName), 'S02E05', 'guessSeasonAndEpisode on filename must return S02E05');
 });
 
-test('Follow-up (d): style.css contains position: sticky for #smart-inbox-bulk-actions', () => {
+test('Follow-up (d): style.css applies position: sticky to the common toolbar container #smart-inbox-sort-bar wrapping #smart-inbox-bulk-actions', () => {
     const styleCssPath = path.resolve(__dirname, '../../gui/static/style.css');
     const styleCss = fs.readFileSync(styleCssPath, 'utf8');
 
-    const ruleMatch = styleCss.match(/#smart-inbox-bulk-actions\s*\{([^}]+)\}/);
-    assert.ok(ruleMatch, 'style.css must define a rule for #smart-inbox-bulk-actions');
-    const ruleBody = ruleMatch[1];
+    const sortRuleMatch = styleCss.match(/#smart-inbox-sort-bar\s*\{([^}]+)\}/);
+    assert.ok(sortRuleMatch, 'style.css must define a rule for #smart-inbox-sort-bar');
+    const sortRuleBody = sortRuleMatch[1];
 
-    assert.match(ruleBody, /position\s*:\s*sticky\s*;/, '#smart-inbox-bulk-actions must have position: sticky');
-    assert.match(ruleBody, /top\s*:\s*0\s*;/, '#smart-inbox-bulk-actions must have top: 0');
-    assert.match(ruleBody, /z-index\s*:\s*\d+\s*;/, '#smart-inbox-bulk-actions must define a z-index');
+    assert.match(sortRuleBody, /position\s*:\s*sticky\s*;/, '#smart-inbox-sort-bar must have position: sticky so the toolbar and nested bulk actions stay visible while scrolling the inbox list');
+    assert.match(sortRuleBody, /top\s*:\s*0\s*;/, '#smart-inbox-sort-bar must have top: 0');
+    assert.match(sortRuleBody, /z-index\s*:\s*\d+\s*;/, '#smart-inbox-sort-bar must define a z-index');
+    assert.match(sortRuleBody, /background\s*:\s*var\(--bg-sticky/, '#smart-inbox-sort-bar must use --bg-sticky background when sticky');
+
+    const bulkRuleMatch = styleCss.match(/#smart-inbox-bulk-actions\s*\{([^}]+)\}/);
+    assert.ok(bulkRuleMatch, 'style.css must define a rule for #smart-inbox-bulk-actions');
+    assert.doesNotMatch(bulkRuleMatch[1], /position\s*:\s*sticky\s*;/, '#smart-inbox-bulk-actions must not trap position: sticky on the child element inside #smart-inbox-sort-bar');
 });

@@ -1926,6 +1926,8 @@ Klein (Bedingung + ein Test).
 
 ## 69. Filmreihe am Stück verarbeiten (mehrere Filme auswählen, nacheinander als Filme einreihen)
 
+- [x] **Status:** erledigt (2026-11-11, umgesetzt in #92 Etappe E6 — getrennte Film-Mehrfachauswahl `.smart-inbox-movie-cb` + Sammelaktion „Als Filme einreihen“ in `gui/static/app.js` bei unveränderter `#65`-Serien-Sperre auf `.smart-inbox-cb`, Vorab-Queue „Film X von N“ mit Optionen-Mitnahme, Abbruch-Sicherheit, „Film überspringen“ und sichtbarer Provider-Fehler-/Teil-Erfolg-Anzeige im Kopf von `gui/static/js/film_wizard.js`; Handtest offen)
+
 **Einordnung / Priorität:** Komfort für den Filmimport. Aus der #65-Planung ausgegliedert (Alex, 08.10.2026: „1–4 ja, Regeln 1–3 ja“). Bezug zu #65 (Auswahlkästchen) und #20.
 
 **Problem:**
@@ -2368,6 +2370,8 @@ Klein je Punkt; R1 und R3 zuerst, R6 und R9 nur mit eigenem Plan und Alex-Go.
 
 ## 92. Geführter Film-Assistent (Oberpunkt): Filme Schritt für Schritt durch Metadaten, Vergleich und Bildauswahl führen
 
+- [x] **Status:** erledigt (2026-11-11, alle Etappen E1–E6 umgesetzt; Handtest E6 offen; vertagte Einzelnotizen siehe unten, Ausweitung auf Doku und Serien siehe #93)
+
 **Einordnung / Priorität:** Mittel bis hoch, größtes geplantes Alltags-Feature. Idee und Entscheidung von Alex (2026-11-05): Der Nutzer soll durch die Verarbeitung (auch mehrerer Filme einer Reihe) geführt werden, statt in langen Scroll-Ansichten zu arbeiten; Metadaten eintragen und das Ergebnis sehen, Bilder auswählen, ähnlich wie bei Emby. Soll sich im Alltag nützlich anfühlen und gut aussehen. Wird zusammen mit dem Kreativteam direkt am Code geplant (eigene Planungskette, Alex-Go je Kette).
 
 **Problem:**
@@ -2412,7 +2416,8 @@ Jede Etappe soll einzeln im Alltag nutzbar sein, auch für einen einzelnen Film.
 - **Etappe E2:** [x] umgesetzt & Handtest Alex bestanden (2026-11-10, Branch `feat/film-wizard-e2`, PR #170, Gate-A2 APPROVED + Live-Fixes für Zielordner-Reihenfolge, Zielpfad-Vorschau ohne Doppel-Ordner, Untertitel-Sprachkürzel und einklappbare Schritt-4-Gruppen).
 - **Etappe E3:** [x] umgesetzt & Handtest Alex bestanden (2026-11-10, Branch `feat/film-wizard-e3`, NFO-Agent-Filmpfad an `nfo_editor.js` angedockt, Film-Altcode entfernt, symmetrisches 2-Spalten-Editor-Grid, einklappbare Episoden-Karten im Serien-NFO-Agenten und Theme-Variablen-Fix für Doku/Serien-Vorschau).
 - **Etappe E4:** [x] umgesetzt & Handtest Alex bestanden (2026-11-11, Branch `feat/film-wizard-e4`, Gate-A2 APPROVED nach 2 Runden + 2 Handtest-Nachbesserungen — Provider-Vergleich mit Feld-Badges in `nfo_editor.js`, 1-Klick-Gegentreffer-Paarung & Vergleichs-Checkboxen in Schritt 1, automatische Lücken-Auffüllung & kumulative Genres inkl. `Kombinieren · Beide Quellen`-Badge sowie verstärktem `.selected`-Kontrast mit `✓`-Präfix in Schritt 2, Teil-Erfolg-Resilienz sowie HTML-/Binär-Retry #54 Teil 2).
-- **Etappe E5:** [x] umgesetzt (2026-11-11, Branch `feat/film-wizard-e5`, PR #173 — Artwork-Auswahl in Schritt 3 mit 3 Rollen-Tabs `Poster (2:3)` / `Hintergrundbild (16:9)` / `Logo`, geordnete Mehrfachauswahl bis 10 Hintergrundbilder als `fanart-1.*`/`backdrop-1.*` bei 1-Klick-Einzelauswahl für Poster & Logo, `fetch_tmdb_image_candidates()` + `/api/artwork/candidates`, provider-unabhängige TMDb-Bildsuche für OFDb/Manuell, lokaler Datei-Upload bis 15 MB mit Magic-Byte-Prüfung, explizite Abwahl `"none"`, Retry + Content-Length-Integritätsprüfung via `_download_with_retry`, SSRF-Guard, überlappungsfreies Logo-Grid und sichtbare TMDb-Attribution; Handtest-Runde 2 offen).
+- **Etappe E5:** [x] umgesetzt & Handtest Alex bestanden (2026-11-11, Branch `feat/film-wizard-e5`, PR #173 — Artwork-Auswahl in Schritt 3 mit 3 Rollen-Tabs `Poster (2:3)` / `Hintergrundbild (16:9)` / `Logo`, geordnete Mehrfachauswahl bis 10 Hintergrundbilder als `fanart-1.*`/`backdrop-1.*` bei 1-Klick-Einzelauswahl für Poster & Logo, `fetch_tmdb_image_candidates()` + `/api/artwork/candidates`, provider-unabhängige TMDb-Bildsuche für OFDb/Manuell, lokaler Datei-Upload bis 15 MB mit Magic-Byte-Prüfung, explizite Abwahl `"none"`, Retry + Content-Length-Integritätsprüfung via `_download_with_retry`, SSRF-Guard, überlappungsfreies Logo-Grid und sichtbare TMDb-Attribution).
+- **Etappe E6:** [x] umgesetzt (2026-11-11, Branch `feat/film-wizard-e6`, Gate-A2 `2026-11-11-e6-task-run1` APPROVED nach 2 Runden — Film-Mehrfachauswahl `.smart-inbox-movie-cb` + „Als Filme einreihen“ in `gui/static/app.js`, Vorab-Queue `#mw-wizard-series-context` mit „Film X von N“, Optionen-Mitnahme, „Einreihen & nächster Film“, „Film überspringen“, Stale-Search-Guard `searchRequestSeq` und Provider-Fehler-/Teil-Erfolg-Resilienz in `gui/static/js/film_wizard.js`; Handtest offen).
 
 ### Aufwand (grob)
 Groß; nur in Etappen. Planung zuerst (Kreativteam, direkt am Code), danach je Etappe eine Gate-A2-Kette.

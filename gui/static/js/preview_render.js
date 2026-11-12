@@ -19,13 +19,32 @@ export function renderPreviewDestination(destEl, destination) {
     return html;
 }
 
+export function splitPreviewPath(rawPath) {
+    const str = String(rawPath ?? "");
+    const lastSep = Math.max(str.lastIndexOf("/"), str.lastIndexOf("\\"));
+    const fileName = lastSep >= 0 ? str.slice(lastSep + 1) : str;
+    const dirPath = lastSep > 0 ? str.slice(0, lastSep) : "";
+    const dotIdx = fileName.lastIndexOf(".");
+    const extLabel = (dotIdx > 0 && dotIdx < fileName.length - 1)
+        ? fileName.slice(dotIdx + 1).toUpperCase()
+        : "DATEI";
+    return { fileName: fileName || str, dirPath, extLabel };
+}
+
 export function createPreviewCheckbox(item, checked = true, groupName = "renames") {
     const rawOld = (typeof item === "object" && item !== null) ? (item.old || "") : (item || "");
     const rawNew = (typeof item === "object" && item !== null) ? (item.new || "") : "";
     const safeOld = escapeHTML(rawOld);
     const safeNew = escapeHTML(rawNew);
     const safeGroup = escapeHTML(groupName);
-    return `<label class="mw-wizard-result-item"><input type="checkbox" class="preview-cb-${safeGroup}" data-old="${safeOld}" data-new="${safeNew}" ${checked ? "checked" : ""}><div class="mw-wizard-result-item-body"><div class="mw-wizard-result-item-old">${safeOld}</div>${rawNew ? `<div class="mw-wizard-result-item-new">${safeNew}</div>` : ""}</div></label>`;
+    const { fileName, dirPath, extLabel } = splitPreviewPath(rawOld);
+    const safeFileName = escapeHTML(fileName);
+    const safeDirHtml = dirPath ? `<div class="mw-wizard-result-item-dir">${escapeHTML(dirPath)}/</div>` : "";
+    const safeExtHtml = `<span class="mw-wizard-result-item-ext">${escapeHTML(extLabel)}</span>`;
+    if (!rawNew) {
+        return `<label class="mw-wizard-result-item mw-wizard-result-item-junk" title="${safeOld}"><input type="checkbox" class="preview-cb-${safeGroup}" data-old="${safeOld}" data-new="${safeNew}" ${checked ? "checked" : ""}><div class="mw-wizard-result-item-body"><div class="mw-wizard-result-item-filename">${safeFileName}</div>${safeDirHtml}</div>${safeExtHtml}</label>`;
+    }
+    return `<label class="mw-wizard-result-item" title="${safeOld}"><input type="checkbox" class="preview-cb-${safeGroup}" data-old="${safeOld}" data-new="${safeNew}" ${checked ? "checked" : ""}><div class="mw-wizard-result-item-body"><div class="mw-wizard-result-item-old">${safeFileName}</div>${safeDirHtml}<div class="mw-wizard-result-item-new">${safeNew}</div></div>${safeExtHtml}</label>`;
 }
 
 export function renderPreviewList(containerEl, items, groupName, emptyMessage = "Keine Einträge.", checked = true) {

@@ -844,7 +844,7 @@ test('AK5: Bulk-Klick wenn alle Einträge ohne Treffer sind: startSeriesGroupWor
 
     // Button is restored and enabled
     assert.strictEqual(bulkBtn.disabled, false, 'Button must be re-enabled');
-    assert.ok(bulkBtn.innerHTML.includes('Ausgewählte als Serie verarbeiten'), 'Button text must be restored');
+    assert.ok(bulkBtn.innerHTML.includes('Ausgewählte Folgen als Serie verarbeiten'), 'Button text must be restored');
 
     // Selection has been cleared
     assert.strictEqual(globalThis.selectedInboxProjects.size, 0);

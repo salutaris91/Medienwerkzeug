@@ -6,7 +6,7 @@
     <meta name="description" content="Medienwerkzeug - Automatisches Umbennen, Konvertieren und Kopieren von Filmen und Serien auf das NAS.">
     <meta name="color-scheme" content="dark">
     <title>Medienwerkzeug v5.0 (Master-Detail)</title>
-    <link rel="stylesheet" href="style.css?v=65">
+    <link rel="stylesheet" href="style.css?v=68">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -460,12 +460,14 @@
                         </div>
                         <div id="smart-inbox-group-banner" style="display: none;"></div>
                         <div id="smart-inbox-sort-bar" role="toolbar" style="display: none;">
-                            <span style="font-size: 0.8em; color: var(--text-muted); font-weight: 500;">Sortieren:</span>
-                            <button class="btn btn-secondary btn-xs smart-inbox-sort-btn" data-field="name" aria-pressed="false">Name</button>
-                            <button class="btn btn-secondary btn-xs smart-inbox-sort-btn" data-field="date" aria-pressed="false">Datum</button>
-                            <button class="btn btn-secondary btn-xs smart-inbox-sort-btn" data-field="size" aria-pressed="false">Größe</button>
+                            <div class="smart-inbox-sort-controls">
+                                <span style="font-size: 0.8em; color: var(--text-muted); font-weight: 500;">Sortieren:</span>
+                                <button class="btn btn-secondary btn-xs smart-inbox-sort-btn" data-field="name" aria-pressed="false">Name</button>
+                                <button class="btn btn-secondary btn-xs smart-inbox-sort-btn" data-field="date" aria-pressed="false">Datum</button>
+                                <button class="btn btn-secondary btn-xs smart-inbox-sort-btn" data-field="size" aria-pressed="false">Größe</button>
+                            </div>
+                            <div id="smart-inbox-bulk-actions" role="toolbar" style="display: none;"></div>
                         </div>
-                        <div id="smart-inbox-bulk-actions" role="toolbar" style="display: none;"></div>
                         <div id="smart-inbox-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
                     </div>
 
@@ -2763,7 +2765,7 @@ group_add:
     </div>
 </div>
 
-    <script type="module" src="app.js?v=121"></script>
+    <script type="module" src="app.js?v=124"></script>
 
     <!-- Modal: Confirm Merge -->
     <div id="modal-confirm-merge" class="mw-modal-overlay">
@@ -3322,6 +3324,17 @@ group_add:
             <div class="mw-wizard-header">
                 <h3 id="mw-wizard-title" class="mw-wizard-title">Film-Assistent</h3>
                 <button type="button" id="mw-wizard-close" class="close-modal mw-wizard-close-btn" aria-label="Schließen">&times;</button>
+            </div>
+
+            <div id="mw-wizard-series-context" class="mw-wizard-series-context hidden" role="region" aria-label="Filmreihen-Fortschritt">
+                <div class="mw-wizard-queue-main">
+                    <span class="mw-wizard-queue-icon" aria-hidden="true">&#127916;</span>
+                    <span id="mw-wizard-queue-label" class="mw-wizard-queue-label"></span>
+                </div>
+                <div class="mw-wizard-queue-actions">
+                    <div id="mw-wizard-queue-status" class="mw-wizard-queue-status" aria-live="polite"></div>
+                    <button type="button" id="mw-wizard-queue-skip-btn" class="btn btn-secondary btn-sm mw-wizard-queue-skip-btn">Film überspringen &rarr;</button>
+                </div>
             </div>
 
             <div id="mw-wizard-stepper" class="mw-wizard-stepper">
