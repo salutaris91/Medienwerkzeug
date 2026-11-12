@@ -2451,11 +2451,11 @@ Stufe 1 (Doku): klein bis mittel (~1 Gate-A2-Etappe). Stufe 2 (Serie): mittel bi
 
 ### Ausgangslage & konkretes Praxisbeispiel (`EMwimA2000`)
 1. **Unsichtbarer Original-Dateiname bei Ordner-Projekten:**
-   - Heißt ein Inbox-Ordner abgekürzt (z. B. `EMwimA2000`), zeigt die Smart Inbox aktuell nur den Ordnernamen (`EMwimA2000 · 1 Datei(en)`), obwohl [`get_inbox_suggestions`](file:///Users/alex/Documents/Medienwerkzeug/gui/api/project_api.py#L1525-L1539) den relativen Pfad der enthaltenen Videodatei (`single_video_relpath`) bereits ermittelt.
+   - Heißt ein Inbox-Ordner abgekürzt (z. B. `EMwimA2000`), zeigt die Smart Inbox aktuell nur den Ordnernamen (`EMwimA2000 · 1 Datei(en)`), obwohl `get_inbox_suggestions` (`gui/api/project_api.py`, `single_video_relpath`) den relativen Pfad der enthaltenen Videodatei bereits ermittelt.
    - Öffnet man den **Film-Assistenten** (`#modal-film-wizard`) für einen einzelnen Film, ist `#mw-wizard-series-context` ausgeblendet: Unter der Überschrift „Film-Assistent“ sieht man weder den Ordnernamen noch, wie die eigentliche Videodatei im Ordner benannt ist — wichtige Hinweise aus dem Dateinamen gehen beim Tippen im Suchfeld verloren.
 2. **Kein Live-Feedback beim Tippen & strikte Wort-UND-Verknüpfung bei TMDb:**
    - Die Suche in Schritt 1 startet erst per Klick auf „Suchen“ oder `Enter`.
-   - TMDbs `/3/search/movie`-Endpunkt ([`search_tmdb_movie`](file:///Users/alex/Documents/Medienwerkzeug/gui/mw_metadata.py#L704-L738)) verlangt, dass **jedes** eingegebene Wort im Titel vorkommt. Da der deutsche Titel bei TMDb umgangssprachlich **„Ey Mann, wo is’ mein Auto?“** (`is’` statt `ist`) geschrieben ist, liefert die naheliegende Eingabe *„Wo ist mein Auto“* `0` Treffer, während ein kürzerer Teilbegriff wie *„mein Auto“* sofort trifft.
+   - TMDbs `/3/search/movie`-Endpunkt (`search_tmdb_movie` in `gui/mw_metadata.py`) verlangt, dass **jedes** eingegebene Wort im Titel vorkommt. Da der deutsche Titel bei TMDb umgangssprachlich **„Ey Mann, wo is’ mein Auto?“** (`is’` statt `ist`) geschrieben ist, liefert die naheliegende Eingabe *„Wo ist mein Auto“* `0` Treffer, während ein kürzerer Teilbegriff wie *„mein Auto“* sofort trifft.
 
 ### Ziel & Bausteine
 1. **Dateinamen-Unterzeile im Film-Assistenten (und optional in der Smart Inbox):**
