@@ -1,11 +1,12 @@
 # Aufgabe Etappe E6b — Handtest-Nachzug Smart-Inbox & Filmreihe (ROADMAP #92, #69)
 
-Grundlage: `docs/sessions/2026-11-06-film-assistent/briefing.md` (Etappe E6) und Alex' Handtest-Freigabe vom 2026-11-11 auf PR #174 (`feat/film-wizard-e6` HEAD `ee45527`):
+Grundlage: `docs/sessions/2026-11-06-film-assistent/briefing.md` (Etappe E6) und Alex' Handtest-Freigaben vom 2026-11-11 und 2026-11-12 auf PR #174 (`feat/film-wizard-e6`):
 > Alex: „Ja, ich folge all deinen Empfehlungen zu 1, 2 und 3. Da folge ich deinem Ansatz. Macht ja auch Sinn, dass man da keine Mischung zulässt, weil man verarbeitet ja nicht alles immer gleichzeitig, sondern eins nach dem anderen. Deswegen passt das aus meiner Sicht. Und gerne bei der Notiz am Rande, gerne das mit fixen, ja.“
+> Alex: „ja gerne ansatz 1“
 
 ## Ziel & Umfang
 
-Nachbesserung aus dem OrbStack-Handtest (E6b) mit fünf klar abgegrenzten Punkten:
+Nachbesserung aus dem OrbStack-Handtest (E6b) mit sechs klar abgegrenzten Punkten:
 1. **Beidseitiges Überschreiben des erkannten Medientyps (`Film ↔ Serie`) direkt in der Smart-Inbox — für Ordner UND lose Dateien:**
    - Alle Film-Einträge (`media_type === "movie"`, sowohl `is_dir: false` als auch `is_dir: true`) zeigen den Link **`Als Serie / Folge behandeln`** (ohne den alten Zusatztext `Film (für Serie gesperrt)`). Nach Klick wechselt der Eintrag auf Serie (`Als Serie freigegeben` + Rücksetz-Link **`Auf Film zurücksetzen`**).
    - Alle Serien-Einträge (`media_type === "tv"`, `!item.is_group`, sowohl `is_dir: false` als auch `is_dir: true`) zeigen den Link **`Als Film behandeln`**. Nach Klick wechselt der Eintrag auf Film (`Als Film freigegeben` + Rücksetz-Link **`Auf Serie zurücksetzen`**).
@@ -20,6 +21,10 @@ Nachbesserung aus dem OrbStack-Handtest (E6b) mit fünf klar abgegrenzten Punkte
    - Button `#btn-bulk-group-series`: **`Ausgewählte Folgen als Serie verarbeiten`** (bei 1 Folge) bzw. **`Ausgewählte Folgen als Serie verarbeiten (${seriesCount})`** (ab 2 Folgen).
 5. **Schriftkontrast auf `.btn-primary` in `Superfood Light` (`gui/static/style.css`):**
    - `.btn-primary` (und `.btn-accent`) setzen `color: var(--text-on-primary, #ffffff);` mit `--text-on-primary: #ffffff;` in `:root`, damit Buttons wie `Auswählen` und `Als Filmreihe verarbeiten` in `Superfood Light` nicht dunkelblauen Text `#1b3456` auf dunkelblauem Verlauf `#1b3456 → #f08aa0` rendern.
+6. **Ungekürzte Dateinamen + Dateityp-Badge bei Junk-Dateien & Vorschau-Zeilen (`gui/static/js/preview_render.js` & `gui/static/style.css`, Ansatz 1):**
+   - Bisher schnitt `.mw-wizard-result-item-old` lange `Ordner/Datei.ext`-Pfade rechts per `text-overflow: ellipsis` ab, sodass Dateiname und Dateiendung (`.nfo`, `.jpg`, `.txt`, `-sample.mkv`) komplett unsichtbar waren.
+   - `data-old` und `data-new` auf der Checkbox bleiben 1:1 unverändert (Backend-Payload unangetastet).
+   - Für die Darstellung zerlegt `preview_render.js` den Pfad in den reinen **Dateinamen** (umbrechend mit `overflow-wrap: anywhere`, niemals mit `...` abgeschnitten; bei Junk-Einträgen ohne `line-through`), den optionalen **Unterordnerpfad** klein/gedimmt darunter (`dirPath + "/"`) + `title`-Tooltip mit dem vollen Pfad, sowie rechts am Zeilenrand ein schrumpffestes **Dateityp-Badge** (`NFO`, `JPG`, `TXT`, `MKV`, `SRT` …).
 
 ## Kritische Invarianten
 
@@ -245,7 +250,46 @@ Nachbesserung aus dem OrbStack-Handtest (E6b) mit fünf klar abgegrenzten Punkte
        ```
        *(Kein `#fff` mehr — in `Superfood Light` wird der Text beim Hover dunkelblau `#1b3456` auf warmem `#f4e6da`, in dunklen Themes hell `var(--text-main)` auf `var(--bg-hover)`!)*
 
-3. **Cache-Buster konsistent erhöhen (`tests/frontend/cache_busting.test.js`):**
+3. **Ungekürzte Dateinamen & Dateityp-Badge in `gui/static/js/preview_render.js` und `gui/static/style.css` (Ansatz 1):**
+   - Ergänze in `gui/static/js/preview_render.js` eine kleine reine Hilfsfunktion `splitPreviewPath(rawPath)` (und exportiere sie optional mit):
+     ```js
+     export function splitPreviewPath(rawPath) {
+         const str = String(rawPath ?? "");
+         const lastSep = Math.max(str.lastIndexOf("/"), str.lastIndexOf("\\"));
+         const fileName = lastSep >= 0 ? str.slice(lastSep + 1) : str;
+         const dirPath = lastSep > 0 ? str.slice(0, lastSep) : "";
+         const dotIdx = fileName.lastIndexOf(".");
+         const extLabel = (dotIdx > 0 && dotIdx < fileName.length - 1)
+             ? fileName.slice(dotIdx + 1).toUpperCase()
+             : "DATEI";
+         return { fileName: fileName || str, dirPath, extLabel };
+     }
+     ```
+   - Aktualisiere `createPreviewCheckbox(item, checked = true, groupName = "renames")`:
+     - `data-old="${safeOld}"` und `data-new="${safeNew}"` auf `<input type="checkbox" class="preview-cb-${safeGroup}" ...>` bleiben **100 % unverändert**!
+     - Zerlege `rawOld` über `const { fileName, dirPath, extLabel } = splitPreviewPath(rawOld);`.
+     - Wenn **kein** `rawNew` vorliegt (insbesondere `groupName === "junk"`):
+       - Rendere `<label class="mw-wizard-result-item mw-wizard-result-item-junk" title="${safeOld}">` mit:
+         - der Checkbox `<input type="checkbox" class="preview-cb-${safeGroup}" data-old="${safeOld}" data-new="${safeNew}" ${checked ? "checked" : ""}>`
+         - `<div class="mw-wizard-result-item-body">` mit:
+           - `<div class="mw-wizard-result-item-filename">${escapeHTML(fileName)}</div>` (prominent, kein `line-through`, bricht um per `overflow-wrap: anywhere`!)
+           - optional `${dirPath ? `<div class="mw-wizard-result-item-dir">${escapeHTML(dirPath)}/</div>` : ""}` (klein & gedimmt darunter)
+         - rechts außerhalb des `.mw-wizard-result-item-body` ein schrumpffestes Badge `<span class="mw-wizard-result-item-ext">${escapeHTML(extLabel)}</span>` (z. B. `NFO`, `JPG`, `TXT`, `MKV`).
+     - Wenn `rawNew` vorhanden ist (`renames` / `subs`):
+       - Rendere `<label class="mw-wizard-result-item" title="${safeOld}">` mit Checkbox, `<div class="mw-wizard-result-item-body">` (`<div class="mw-wizard-result-item-old">${escapeHTML(fileName)}</div>` + optional `<div class="mw-wizard-result-item-dir">${escapeHTML(dirPath)}/</div>` + `<div class="mw-wizard-result-item-new">${safeNew}</div>`) sowie rechts `<span class="mw-wizard-result-item-ext">${escapeHTML(extLabel)}</span>`.
+   - Ergänze/aktualisiere das CSS in `gui/static/style.css` (um Z. 4459–4464, **ausschließlich mit CSS-Variablen**, keine Hex-Farben!):
+     ```css
+     .mw-wizard-result-item { display: flex; align-items: flex-start; gap: 10px; background: var(--bg-input); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); cursor: pointer; }
+     .mw-wizard-result-item input[type="checkbox"] { accent-color: var(--accent); flex-shrink: 0; margin-top: 2px; }
+     .mw-wizard-result-item-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+     .mw-wizard-result-item-filename { font-size: 0.84rem; font-weight: 500; color: var(--text-main); white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+     .mw-wizard-result-item-dir { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+     .mw-wizard-result-item-old { font-size: 0.76rem; color: var(--text-muted); text-decoration: line-through; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+     .mw-wizard-result-item-new { font-size: 0.85rem; font-weight: 500; color: var(--text-main); white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+     .mw-wizard-result-item-ext { flex-shrink: 0; align-self: center; font-size: 0.7rem; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.03em; padding: 2px 7px; border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--accent); border: 1px solid var(--border-light); }
+     ```
+
+4. **Cache-Buster konsistent erhöhen (`tests/frontend/cache_busting.test.js`):**
    - `gui/static/index.html`: `style.css?v=66` → `style.css?v=67` und `app.js?v=122` → `app.js?v=123`.
    - `gui/static/app.js`: alle 12 relativen ES-Modul-Importe (Z. 1–12) von `?v=122` → `?v=123`.
    - `gui/static/js/film_wizard.js`: alle 3 relativen ES-Modul-Importe (Z. 1–6) von `?v=122` → `?v=123`.
@@ -254,7 +298,14 @@ Nachbesserung aus dem OrbStack-Handtest (E6b) mit fünf klar abgegrenzten Punkte
 
 ### 4. Tests anpassen & erweitern (`tests/frontend/`)
 
-1. **`tests/frontend/film_queue.test.js`:**
+1. **`tests/frontend/preview_render.test.js`:**
+   - Ergänze Tests für **Ansatz 1 bei langen Scene-Pfaden (`Junk-Dateien` & Vorschau)**:
+     - Es prüft mit einem langen Pfad wie `"The.Piano.Tuner.2026.German.DL.1080p.DV.HDR.WEBRip.AV1-WOTT/The.Piano.Tuner.2026.German.DL.1080p.DV.HDR.WEBRip.AV1-WOTT.nfo"` und `"...WOTT.jpg"`, dass:
+       1. `data-old` weiterhin exakt den vollen relativen Pfad hält (`collectPreviewSelection` liefert in `explicit_junk` unverändert den kompletten Pfad!).
+       2. `.mw-wizard-result-item-filename` den vollständigen Dateinamen inkl. Endung enthält (nicht abgeschnitten), `.mw-wizard-result-item-dir` den Ordnerpfad `The.Piano.Tuner.2026.../` separat darstellt, `title` den vollen Pfad trägt und `.mw-wizard-result-item-ext` sichtbar `NFO` bzw. `JPG` ausgibt (XSS-sicher geescaped!).
+       3. In `style.css` `.mw-wizard-result-item-filename` **kein** `text-overflow: ellipsis` und **kein** `line-through` verwendet, sondern `overflow-wrap: anywhere`.
+
+2. **`tests/frontend/film_queue.test.js`:**
    - Aktualisiere die Button-Assertions auf `"Als Filmreihe verarbeiten"` (bei 1 Film) und `"Als Filmreihe verarbeiten (3)"` (bei 3 Filmen).
    - Erweitere die Inbox-Tests um alle E6b-Akzeptanzfälle:
      - **Beidseitiges Überschreiben (Ordner & lose Dateien):**
