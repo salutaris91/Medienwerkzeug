@@ -1,15 +1,15 @@
-import { applyTheme } from './js/theme.js?v=123';
-import { cleanSeriesName } from './js/utils.js?v=123';
-import { formatBytes } from './js/format.js?v=123';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=123';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=123';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=123';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=123';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=123';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=123';
-import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=123';
-import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from './js/nfo_editor.js?v=123';
-import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=123';
+import { applyTheme } from './js/theme.js?v=124';
+import { cleanSeriesName } from './js/utils.js?v=124';
+import { formatBytes } from './js/format.js?v=124';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=124';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=124';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=124';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=124';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=124';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=124';
+import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=124';
+import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from './js/nfo_editor.js?v=124';
+import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=124';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -2903,10 +2903,10 @@ async function scanProject(project) {
 
         // Auto load existing metadata provider and id if found
         if (data.metadata_provider && data.metadata_id) {
-            let mediaType = "series";
-            if (data.metadata_provider.startsWith("tmdb_movie") || data.metadata_provider === "ytdlp_movie") {
-                mediaType = "movie";
-            }
+            const nfoMediaType = (data.metadata_provider.startsWith("tmdb_movie") || data.metadata_provider === "ytdlp_movie")
+                ? "movie"
+                : "series";
+            let mediaType = nfoMediaType;
             if (unlockedMovieProjects.has(project)) {
                 mediaType = "series";
             } else if (unlockedSeriesAsMovieProjects.has(project)) {
@@ -2919,19 +2919,21 @@ async function scanProject(project) {
                     modeCard.click();
                 }
 
-                const metaObj = {
-                    id: data.metadata_id,
-                    provider: data.metadata_provider,
-                    name: data.metadata_name || data.suggested_query || project
-                };
+                if (mediaType === nfoMediaType) {
+                    const metaObj = {
+                        id: data.metadata_id,
+                        provider: data.metadata_provider,
+                        name: data.metadata_name || data.suggested_query || project
+                    };
 
-                setTimeout(() => {
-                    if (mediaType === "series") {
-                        selectShow(metaObj);
-                    } else if (mediaType === "movie" && currentProjectIsDoku) {
-                        selectMovie(metaObj);
-                    }
-                }, 100);
+                    setTimeout(() => {
+                        if (mediaType === "series") {
+                            selectShow(metaObj);
+                        } else if (mediaType === "movie" && currentProjectIsDoku) {
+                            selectMovie(metaObj);
+                        }
+                    }, 100);
+                }
             }, 100);
         }
 

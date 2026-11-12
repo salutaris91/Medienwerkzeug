@@ -867,7 +867,7 @@ test('E6b: Bidirectional Film <-> Serie override for folders and files, NFO scan
     doc.getElementById('mode-movie').addEventListener('click', () => clickedModes.push('movie'));
     sandbox.setSelectShowStub((meta) => selectedShows.push(meta));
 
-    // Movie folder overridden as Serie, but existing NFO says tmdb_movie -> must stay 'series'
+    // Movie folder overridden as Serie, but existing NFO says tmdb_movie -> must stay 'series' and NOT feed tmdb_movie into selectShow
     inboxList.querySelector('[data-project="Zurück in die Zukunft (1985)"] .btn-unlock-movie-series').click();
     scanResponseData = {
         current_dir: '/inbox/Zurück in die Zukunft (1985)',
@@ -878,9 +878,24 @@ test('E6b: Bidirectional Film <-> Serie override for folders and files, NFO scan
     };
     await sandbox.scanProject('Zurück in die Zukunft (1985)');
     assert.deepEqual(clickedModes, ['series'], 'Overridden movie->series must activate mode-series despite tmdb_movie NFO');
-    assert.equal(selectedShows.length, 1);
-    assert.equal(selectedShows[0].id, '105');
+    assert.equal(selectedShows.length, 0, 'Overridden movie->series must not pass foreign tmdb_movie NFO ID into selectShow');
     inboxList.querySelector('[data-project="Zurück in die Zukunft (1985)"] .btn-reset-movie-series').click();
+
+    // Series folder NOT overridden with tvdb NFO -> still calls selectShow with matching series NFO ID
+    clickedModes.length = 0;
+    selectedShows.length = 0;
+    scanResponseData = {
+        current_dir: '/inbox/Breaking.Bad.S01E03.Folder',
+        files: ['bb_s01e03.mkv'],
+        metadata_provider: 'tvdb',
+        metadata_id: '81189',
+        metadata_name: 'Breaking Bad',
+    };
+    await sandbox.scanProject('Breaking.Bad.S01E03.Folder');
+    assert.deepEqual(clickedModes, ['series']);
+    assert.equal(selectedShows.length, 1);
+    assert.equal(selectedShows[0].id, '81189');
+    assert.equal(selectedShows[0].provider, 'tvdb');
 
     // Series folder overridden as Film, but existing NFO says tvdb -> must stay 'movie'
     clickedModes.length = 0;

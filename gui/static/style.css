@@ -4012,7 +4012,7 @@ body.runtime-docker .docker-only-info {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    min-height: 38px;
+    min-height: 42px;
     padding: 4px 0;
     margin-bottom: 12px;
     flex-wrap: nowrap;
@@ -4505,7 +4505,7 @@ body.theme-superfood-light .mw-wizard-artwork-grid-logo .mw-wizard-artwork-tile 
 .mw-wizard-result-item-dir { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mw-wizard-result-item-old { font-size: 0.76rem; color: var(--text-muted); text-decoration: line-through; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
 .mw-wizard-result-item-new { font-size: 0.85rem; font-weight: 500; color: var(--text-main); white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
-.mw-wizard-result-item-ext { flex-shrink: 0; align-self: center; font-size: 0.7rem; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.03em; padding: 2px 7px; border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--accent); border: 1px solid var(--border-light); }
+.mw-wizard-result-item-ext { flex-shrink: 0; align-self: center; font-size: 0.7rem; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.03em; padding: 2px 7px; border-radius: var(--radius-sm); background: rgba(var(--accent-rgb), 0.18); color: var(--text-main); border: 1px solid var(--accent); }
 .mw-wizard-result-empty { font-size: 0.8rem; color: var(--text-muted); padding: 4px 2px; }
 .mw-wizard-similar-box { padding: 12px 14px; margin-bottom: 12px; border-radius: var(--radius-md); border: 1px solid var(--warning); background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem; }
 .mw-wizard-similar-section { margin-bottom: 8px; }
