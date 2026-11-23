@@ -36,7 +36,7 @@ die aktive After-Release-Roadmap übernommen.
 | 27 | Web-Folder-Picker: Dynamische Titel je nach ausgewählter Kategorie | erledigt | klein |
 | 28 | Web-Folder-Picker: Layout-Verbreiterung & responsive Anpassungen | erledigt | klein |
 | 29 | Speicherziel Syncing: Separater Zielordner pro Speicherziel | geplant | klein–mittel |
-| 30 | Cloud-Upload (rclone): Status- und Fortschritts-Feedback in der Warteschlange | geplant | klein–mittel |
+| 30 | Cloud-Upload (rclone): Status- und Fortschritts-Feedback in der Warteschlange | erledigt (2026-11-23) | klein–mittel |
 | 31 | NAS-Downloader-Integration (JDownloader/Download-Backend) | geplant | mittel |
 | 32 | Automatische Papierkorb-Leerung unter Docker | erledigt | klein–mittel |
 | 33 | Automatischer TVDB-Fallback für fehlende TMDB-Plots | geplant | klein |
@@ -836,6 +836,8 @@ Klein–mittel: UI-Raster-Anpassung und Einstellungs-Struktur-Erweiterung.
 ---
 
 ## 30. Cloud-Upload (rclone): Status- und Fortschritts-Feedback in der Warteschlange
+
+- [x] **Status:** erledigt (2026-11-23 — `--stats-log-level NOTICE` + erweitertes Geschwindigkeits-Parsing inkl. `0 B/s` + Retry-Reset + Fehlerzeilen-Protokollierung + größenbasiertes Upload-Timeout in `gui/core/transfers.py`; Pipeline-Anzeige in `/api/queue` und `renderQueue` war bereits verdrahtet)
 
 ### Ziel
 Während der rclone-Übertragung (z. B. zu pCloud) soll der Benutzer in der Warteschlange (Queue-UI) ein klares Feedback und idealerweise einen Fortschritt erhalten. Aktuell ist der Status in der Warteschlange während des Uploads nicht transparent genug oder zeigt den Fortschritt nicht an.
@@ -2469,3 +2471,49 @@ Stufe 1 (Doku): klein bis mittel (~1 Gate-A2-Etappe). Stufe 2 (Serie): mittel bi
 
 ### Aufwand (grob)
 Klein bis mittel (1 kompakte Gate-A2-Etappe über `gui/mw_metadata.py`, `gui/api/project_api.py` / Scan-Kontext, `gui/static/js/film_wizard.js` und `gui/static/app.js`).
+
+---
+
+## 95. Jobs in der Warteschlange pausieren und abbrechen
+
+- [ ] **Status:** Offen (Wunsch von Alex am 2026-11-23 beim 28-GB-Upload von *Die Odyssee (2026)*)
+
+**Einordnung / Priorität:** Mittel bis hoch — heute lassen sich laufende oder wartende Jobs über die Oberfläche weder abbrechen noch pausieren (`/api/queue/clear` räumt nur beendete Jobs ab, `/api/queue/retry` startet fehlgeschlagene/beendete Jobs neu).
+
+### Ausgangslage
+- Wartende Jobs liegen in `job_queue` (`gui/core/helpers.py` / `gui/workers/processor.py`) und `active_jobs` (`gui/core/jobs.py`).
+- Laufende Jobs spawnen externe Subprozesse (`ffmpeg`, `rsync`, `rclone`, `yt-dlp`) teils im Haupt-Worker-Thread, teils im parallelen Transfer-Thread (`job-<task_id>-transfer`).
+
+### Ziel & Architektur-Hinweise für die Planung
+1. **Job abbrechen (`cancel`):**
+   - **Wartende Jobs (`queued`):** Sofort auf `cancelled` setzen und beim Dequeue in `job_queue_worker()` überspringen; Projekt-Sperre in `activeProjectsProcessing` freigeben.
+   - **Laufende Jobs (`running`):** Pro `task_id` ein kooperatives `threading.Event` (`cancel_event`) plus Registrierung aktiver Kind-Prozessgruppen (`os.setsid` / `os.killpg(..., SIGTERM)`), damit laufende `rclone`-, `ffmpeg`-, `rsync`- oder `yt-dlp`-Prozesse sofort sauber beendet werden. Teil-Artefakte im Ziel (z. B. halbfertige Zieldatei oder `.part`) sauber kennzeichnen oder aufräumen, Quelle niemals löschen (`delete_original` strikt unterdrücken!).
+2. **Job pausieren & fortsetzen (`pause` / `resume`):**
+   - **Zwischen wartenden Jobs, Serienfolgen und Pipeline-Phasen (`Metadaten → Konvertierung → NAS → Cloud`):** Verlustfrei über ein `pause_event` je Job möglich (Worker wartet am nächsten Phasen-/Datei-Übergang).
+   - **Mitten in einem einzelnen Subprozess (wichtige Grenze für die Planung):** Lokales `ffmpeg` ließe sich technisch per `SIGSTOP`/`SIGCONT` einfrieren, ein laufender HTTP-Einzeldatei-Upload nach pCloud via `rclone` verwirft jedoch die Verbindung nach ~5 Minuten Leerlauf serverseitig (kein Chunk-Resume bei pCloud). In der Planung klären, ob „Pausieren“ während eines laufenden Cloud-Uploads „nach aktueller Datei pausieren“ bedeutet oder ob ein Hinweis vor Verbindungsverlust warnt.
+3. **UI in `#queue-panel` (`gui/static/app.js`):**
+   - Buttons „Pausieren“ / „Fortsetzen“ und „Abbrechen“ (mit Bestätigung bei laufendem Transfer/Konvertierung) direkt an aktiven und wartenden Einträgen in `renderQueue`, inkl. Status-Badge `Abgebrochen` / `Pausiert`.
+
+### Aufwand (grob)
+Mittel (vorab Kreativteam-/ADR-Planung für Prozessgruppen-Registry, Teil-Artefakt-Verhalten und Pause-Semantik bei Cloud-Streams empfohlen).
+
+---
+
+## 96. Safe-Move überspringt frisch erzeugte Film-NFO bei namensgleicher Alt-NFO in `explicit_junk`
+
+- [ ] **Status:** Offen (Nebenbefund aus dem NAS-Job-Log von *Die Odyssee (2026)* am 2026-11-23)
+
+**Einordnung / Priorität:** Mittel — betrifft Filme im Inbox-Workflow, bei denen im Quellordner bereits eine gleichnamige `.nfo` (z. B. `Die Odyssee (2026).nfo`) lag und in Schritt 4 unter „Junk-Dateien“ angehakt blieb.
+
+### Symptom & Ursache (aus `job-97eaa6bc...log` vom 2026-11-22)
+1. `apply_preview_decisions` verschiebt die alte `TOM-.../Die Odyssee (2026).nfo` in die Quarantäne und zieht `Die Odyssee (2026).mkv` eine Ebene hoch.
+2. Kurz darauf erzeugt `generate_movie_nfo` im Projektordner die neue TMDb-Metadatendatei unter exakt demselben Dateinamen `Die Odyssee (2026).nfo`.
+3. Beim anschließenden Verschieben der Begleitdateien in den Output-Ordner prüft `safe_move_recursive` (`gui/workers/processor.py`) gegen die ursprüngliche Junk-/Ausschlussliste und meldet:
+   `[Safe Move] Überspringe Junk-Datei: .../Die Odyssee (2026).nfo`
+   → Im Output-, NAS- und pCloud-Zielordner landen zwar `.mkv`, `poster.jpg`, `fanart.jpg` und `logo.png`, **aber keine `.nfo`-Datei**.
+
+### Fix-Richtung
+- Die vom Assistenten/Worker selbst frisch generierte `generated_nfo_path` (`<clean_movie_name>.nfo`) explizit von der `explicit_junk`-Filterung ausnehmen bzw. direkt gezielt wie die Hauptvideodatei in den Output-Ordner verschieben.
+
+### Aufwand (grob)
+Klein (1 Produktionsdatei `gui/workers/processor.py` + Regressionstest).

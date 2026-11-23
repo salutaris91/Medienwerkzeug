@@ -1,5 +1,6 @@
 from gui.core.utils import load_settings, save_settings, get_runtime_capabilities
 import os, socket, subprocess, time, shutil
+from collections import deque
 from urllib.parse import quote
 from gui.core.helpers import *
 from gui.core.resilience import run_with_retries_and_timeout
@@ -883,6 +884,40 @@ def resolve_category_target_path(destination_id, target_id, media_type="tv"):
     nas_sub = found_cat.get("nas_sub", "")
     return resolve_target_destination(target, nas_sub, media_type)
 
+_MIN_CLOUD_TIMEOUT_SEC = 3600
+_MAX_CLOUD_TIMEOUT_SEC = 172800
+_MIN_ASSUMED_UPLOAD_BYTES_PER_SEC = 512 * 1024
+_CLOUD_TIMEOUT_BUFFER_SEC = 1800
+
+
+def _calculate_cloud_upload_timeout_sec(source_path):
+    """Berechnet ein größenbasiertes Upload-Timeout (in Sekunden) für rclone-Uploads."""
+    if not source_path:
+        return _MIN_CLOUD_TIMEOUT_SEC
+
+    total_bytes = 0
+    try:
+        if not os.path.exists(source_path):
+            return _MIN_CLOUD_TIMEOUT_SEC
+        if os.path.isfile(source_path) and not os.path.islink(source_path):
+            total_bytes = os.path.getsize(source_path)
+        elif os.path.isdir(source_path):
+            for root, _dirs, files in os.walk(source_path, followlinks=False):
+                for fname in files:
+                    fp = os.path.join(root, fname)
+                    if os.path.islink(fp):
+                        continue
+                    try:
+                        total_bytes += os.path.getsize(fp)
+                    except OSError:
+                        continue
+    except OSError:
+        return _MIN_CLOUD_TIMEOUT_SEC
+
+    estimated = int(total_bytes / _MIN_ASSUMED_UPLOAD_BYTES_PER_SEC) + _CLOUD_TIMEOUT_BUFFER_SEC
+    return max(_MIN_CLOUD_TIMEOUT_SEC, min(_MAX_CLOUD_TIMEOUT_SEC, estimated))
+
+
 def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, explicit_remote_base=None):
     import shutil
     settings = load_settings()
@@ -975,21 +1010,37 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
             log_message(f"❌ Fehler bei lokalem Kopieren nach {target_name}: {e}")
 
     if rclone_remote:
-        log_message(f"☁️ {target_name} (rclone Fallback): {remote_target}")
+        timeout_sec = _calculate_cloud_upload_timeout_sec(source_dir)
+        log_message(f"☁️ {target_name} (rclone Fallback): {remote_target} (Timeout: {timeout_sec}s)")
         if not shutil.which("rclone"):
             log_message("⚠️ Warnung: rclone nicht gefunden. Upload abgebrochen.")
             return False
 
-        cmd = ["rclone", "copy", source_dir, remote_target, "--transfers", "2", "--retries", "1", "--stats", "1s", "--stats-one-line"]
+        cmd = [
+            "rclone", "copy", source_dir, remote_target,
+            "--transfers", "2",
+            "--retries", "1",
+            "--stats", "1s",
+            "--stats-one-line",
+            "--stats-log-level", "NOTICE",
+        ]
         rclone_pattern = re.compile(r'(\d+)%,')
-        speed_pattern = re.compile(r'(\d+\.?\d*\s*[kKMG]i?B/s)')
+        speed_pattern = re.compile(r'(\d+\.?\d*\s*(?:[kKMGTPE]i?)?B/s)')
 
         last_logged_pct = [-1]
+        diag_lines = deque(maxlen=20)
+        immediate_error_count = [0]
+
         def handle_line(line):
-            match = rclone_pattern.search(line)
+            stripped = line.strip()
+            if not stripped:
+                return
+            match = rclone_pattern.search(stripped)
             if match:
                 percent = int(match.group(1))
-                speed_match = speed_pattern.search(line)
+                if percent < last_logged_pct[0]:
+                    last_logged_pct[0] = -1
+                speed_match = speed_pattern.search(stripped)
                 speed_str = f" ({speed_match.group(1)})" if speed_match else ""
                 msg = f"Upload ({target_name}): {percent}%{speed_str}"
                 if task_id:
@@ -1001,11 +1052,19 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
                 if percent % 10 == 0 and percent != last_logged_pct[0]:
                     log_message(msg)
                     last_logged_pct[0] = percent
+            else:
+                already_logged = False
+                if any(sig in stripped for sig in ("ERROR", "CRITICAL", "Failed")):
+                    if immediate_error_count[0] < 20:
+                        log_message(f"   rclone: {stripped}")
+                        immediate_error_count[0] += 1
+                        already_logged = True
+                diag_lines.append((stripped, already_logged))
 
         success = run_with_retries_and_timeout(
             cmd,
             max_attempts=3,
-            timeout_sec=3600, # 1h default timeout for an upload, rclone might hang due to network
+            timeout_sec=timeout_sec,
             line_callback=handle_line
         )
         if success:
@@ -1013,6 +1072,9 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
             return True
         else:
             log_message(f"❌ {target_name} Rclone-Upload fehlgeschlagen nach allen Retrys.")
+            for diag_line, already_logged in diag_lines:
+                if not already_logged:
+                    log_message(f"   rclone: {diag_line}")
 
     return False
 

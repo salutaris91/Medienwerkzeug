@@ -819,7 +819,7 @@ def handle_api_logs():
 
     return Response(generate(), mimetype='text/event-stream', headers={
         'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
+        'X-Accel-Buffering': 'no'
     })
 
 
