@@ -2501,7 +2501,7 @@ Mittel (vorab Kreativteam-/ADR-Planung für Prozessgruppen-Registry, Teil-Artefa
 
 ## 96. Safe-Move überspringt frisch erzeugte Film-NFO bei namensgleicher Alt-NFO in `explicit_junk`
 
-- [ ] **Status:** Offen (Nebenbefund aus dem NAS-Job-Log von *Die Odyssee (2026)* am 2026-11-23)
+- [x] **Status:** erledigt (2026-11-24 — `safe_move_recursive(..., protected_paths=...)` in `gui/workers/processor.py` schützt frisch vom Worker erzeugte Film- und Episoden-NFOs vor `explicit_junk`; zusätzlich strukturierte Fehlerrückgabe `{"nfo": False, "error": ...}` + sichtbares `log_message` in `generate_ofdb_nfo` (`gui/mw_metadata.py`), verbindliche `res`-Fehlerprüfung im Wizard-Pfad und in `tool_nfo_agent` (`movie` & `tvshow`) sowie Eintritt in den Wizard-Zweig auch bei leerem `movie_overrides={}` inkl. `tests/test_nfo_reliability_96.py`; Gate-A2 `2026-11-24-nfo-reliability-96-r2` APPROVED in Runde 1)
 
 **Einordnung / Priorität:** Mittel — betrifft Filme im Inbox-Workflow, bei denen im Quellordner bereits eine gleichnamige `.nfo` (z. B. `Die Odyssee (2026).nfo`) lag und in Schritt 4 unter „Junk-Dateien“ angehakt blieb.
 
@@ -2517,3 +2517,25 @@ Mittel (vorab Kreativteam-/ADR-Planung für Prozessgruppen-Registry, Teil-Artefa
 
 ### Aufwand (grob)
 Klein (1 Produktionsdatei `gui/workers/processor.py` + Regressionstest).
+
+---
+
+## 97. Speicherziel-Syncing: Freie Wurzel-Auswahl im Docker-Ordnerpicker & Rückbau verwaister Sync-/Tool-UI-Altlasten
+
+- [ ] **Status:** Offen (Entscheidung Alex am 2026-11-24: „ansatz a und den C teil auf die Roadmap“, plus Test-Hygiene-Befund aus Gate-A2-Lauf 1 zu #96)
+
+**Einordnung / Priorität:** Niedrig bis mittel — Bedienkomfort beim nachträglichen Synchronisieren bereits verarbeiteter Ordner unter Docker sowie Bereinigung von totem UI-/Test-Altcode.
+
+### Befunde & Bausteine
+1. **Docker-Ordnerpicker beim „Speicherziel-Syncing“ auf `inbox_dir` eingesperrt (`gui/static/app.js` um Zeilen 7888–7914 & 16598–16600):**
+   - Öffnet man auf der Startseite „Speicherziel-Syncing“ (`#tool-btn-manual-sync`), belegt `openToolRunnerModal` das Pfadfeld standardmäßig mit `currentSettings.inbox_dir` (z. B. `/media/inbox`).
+   - Ein Klick auf „Durchsuchen“ (`#btn-browse-tool-modal-path`) setzt im Docker-Modus `dockerRoot` auf den längsten passenden `allowedRoots`-Eintrag des aktuellen Feldwerts — also `/media/inbox`. Dadurch kann man im Web-Folder-Picker nicht nach oben zu einem fertigen Film-/Serienordner unter `/media/nas/...` oder `/media/outbox/...` wechseln, ohne vorher manuell den Textpfad zu ändern oder den Outbox-Shortcut zu kennen.
+   - **Ziel:** Im Tool-Modal (insb. für `tool_manual_sync` und `tool_pcloud_sync`) Direkt-Shortcuts für **NAS / Outbox / Inbox** anbieten bzw. im Web-Folder-Picker einen Wurzel-Umschalter zwischen allen erlaubten Wurzeln (`inbox_dir`, `outbox_dir`, `storage_targets[].root_path`) ermöglichen.
+2. **Tote UI-Altlasten im Tool-Runner & Sync-Modal (`gui/static/app.js`, `gui/static/index.html`):**
+   - In `gui/static/app.js` (um Zeile 7993–8006) liegt in `#btn-tool-modal-execute` noch ein nicht mehr verdrahteter Alt-Zweig `else if (toolType === "tool_nfo_agent")`, der `{ media_type: "tool_nfo_agent", project_name: path }` ohne `nfo_type`/`provider`/IDs abschickt (alle echten Einstiege nutzen längst `openNfoAgentModal`).
+   - In `gui/static/index.html` (um Zeile 2731–2766) liegt ein verwaistes zweites `#sync-modal-overlay` (`#btn-sync-execute`), das in `app.js` nirgends gebunden ist (das echte Sync-Tool nutzt `#modal-tool-runner`).
+3. **Test-Hygiene-Notiz aus Gate A2 (`tests/test_inbox_group_files.py` Zeile 621–650):**
+   - `test_d3_regression_tv_single_file_job_without_files_cleans_empty_dirs` ruft `processor.process_worker` ohne Mock auf `gui.core.trash.send_to_trash` auf: Auf macOS wirft jeder lokale `pytest`-Lauf `LeftoverEmptyDir` über `send2trash` in den echten System-Papierkorb; in Docker-Containern ohne separaten Mountpoint auf `/tmp` (`mount_point == "/"`) scheitert der Test an der Schutzregel in `gui/core/trash.py:118`. Fix: `gui.core.trash.send_to_trash` im Test auf ein temporäres Trash-Verzeichnis innerhalb von `self.temp_dir` mocken (analog zu `tests/test_nfo_reliability_96.py`).
+
+### Aufwand (grob)
+Klein bis mittel (Frontend `gui/static/app.js` + `gui/static/index.html` mit Cache-Busting + 1 Test-Fix in `tests/test_inbox_group_files.py`).
