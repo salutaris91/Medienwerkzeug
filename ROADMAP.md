@@ -2522,7 +2522,7 @@ Klein (1 Produktionsdatei `gui/workers/processor.py` + Regressionstest).
 
 ## 97. Speicherziel-Syncing: Freie Wurzel-Auswahl im Docker-Ordnerpicker & Rückbau verwaister Sync-/Tool-UI-Altlasten
 
-- [ ] **Status:** Offen (Entscheidung Alex am 2026-11-24: „ansatz a und den C teil auf die Roadmap“, plus Test-Hygiene-Befund aus Gate-A2-Lauf 1 zu #96)
+- [x] **Status:** erledigt (2026-11-24 — Wurzel-Umschalter `#folder-picker-roots` im `#modal-folder-picker` inkl. Unterstützung verschachtelter Docker-Standard-Wurzeln, Generations-Guard gegen veraltete Antworten und segmentgenauem `isPathWithinRoot`-Check, dynamische Speicherziel-Shortcuts `#tool-modal-target-shortcuts` sowie Hauptordner-/Punktpfad-/Doppelslash-Sperre in `#btn-tool-modal-execute` im `#modal-tool-runner`, Capability- & NAS-Startpfad-Angleichung für `#btn-lib-tools-browse`, `currentProject`-Hygiene in `openLibraryView`/`#nav-tools-dashboard`, Rückbau von `#sync-modal-overlay` und totem `tool_nfo_agent`-Zweig, Cache-Busting `app.js?v=126` / `style.css?v=70`, `send_to_trash`-Isolierung in `TestInboxGroupFiles` sowie `tests/frontend/roadmap_97_folder_picker_sync.test.js`; interner Plan-Review APPROVE R3, Gate-A2 `2026-11-24-roadmap-97-folder-picker-sync` APPROVED nach 2 Runden; Ansatz C separat als #98 erfasst)
 
 **Einordnung / Priorität:** Niedrig bis mittel — Bedienkomfort beim nachträglichen Synchronisieren bereits verarbeiteter Ordner unter Docker sowie Bereinigung von totem UI-/Test-Altcode.
 
@@ -2539,3 +2539,21 @@ Klein (1 Produktionsdatei `gui/workers/processor.py` + Regressionstest).
 
 ### Aufwand (grob)
 Klein bis mittel (Frontend `gui/static/app.js` + `gui/static/index.html` mit Cache-Busting + 1 Test-Fix in `tests/test_inbox_group_files.py`).
+
+---
+
+## 98. Web-Folder-Picker: Virtuelle Wurzel-Übersicht in `/api/list-subfolders` (Ansatz C aus #97)
+
+- [ ] **Status:** Offen / zurückgestellt (Entscheidung Alex am 2026-11-24: „ansatz a und den C teil auf die Roadmap“; durch #97 Ansatz A im Alltag bereits über die Wurzel-Umschaltleiste `#folder-picker-roots` abgedeckt)
+
+**Einordnung / Priorität:** Niedrig (optionale künftige Komfort-Alternative zu #97).
+
+### Idee & Abgrenzung
+- Statt (bzw. ergänzend zu) den direkten Wurzel-Buttons in `#folder-picker-roots` (#97 Ansatz A) könnte `/api/list-subfolders` bei Aufruf einer virtuellen Wurzel-Ebene alle aus `get_allowed_roots()` erlaubten Wurzeln als einheitliche Einstiegsübersicht zurückgeben, in die man auf oberster Wurzelebene per „Nach oben“ gelangt.
+- **Vor einer Umsetzung zu beachten (aus dem Plan-Review zu #97):**
+  1. Erlaubte Mounts besitzen nicht zwingend einen gemeinsamen Elternordner (z. B. `/mnt/nas`, `/data/inbox`, `/downloads`), weshalb ein strukturiertes Antwortprotokoll (`{ name, path }`) statt reiner Unterordnernamen nötig wäre.
+  2. Auf der virtuellen Übersichtsebene muss `#folder-picker-select-btn` deaktiviert sein, damit keine virtuelle Kennung als Zielpfad übernommen wird.
+  3. Einzel-Wurzel-Aufrufer wie `sync_categories` dürfen ihren `target.root_path` weiterhin nicht nach oben verlassen.
+
+### Aufwand (grob)
+Klein bis mittel (Backend `/api/list-subfolders` + Frontend `#modal-folder-picker` + Tests).

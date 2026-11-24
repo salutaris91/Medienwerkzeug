@@ -1,4 +1,5 @@
 import os
+import shutil
 import unittest
 import tempfile
 import json
@@ -47,6 +48,23 @@ class TestInboxGroupFiles(unittest.TestCase):
             if target.get("id") == "nas":
                 target["root_path"] = self.nas_dir
         persistence.save_settings(settings)
+
+        self.trash_dir = os.path.join(self.temp_dir.name, "_trash")
+        os.makedirs(self.trash_dir, exist_ok=True)
+        self.trashed_items = []
+
+        def _fake_send_to_trash(path, *args, **kwargs):
+            if path and os.path.exists(path):
+                norm_p = os.path.normpath(path)
+                dest_path = os.path.join(self.trash_dir, f"{len(self.trashed_items) + 1}_{os.path.basename(norm_p)}")
+                shutil.move(path, dest_path)
+                self.trashed_items.append((path, dest_path))
+                return True
+            return False
+
+        self.patcher_trash = patch("gui.core.trash.send_to_trash", side_effect=_fake_send_to_trash)
+        self.patcher_trash.start()
+        self.addCleanup(self.patcher_trash.stop)
 
         app.config['TESTING'] = True
         app.config['SECRET_KEY'] = 'test-secret-key-12345'
@@ -647,6 +665,7 @@ class TestInboxGroupFiles(unittest.TestCase):
         self.assertTrue(os.path.exists(out_ep))
         # Empty directory was cleaned up as pre-#65 behavior
         self.assertFalse(os.path.exists(empty_subdir))
+        self.assertTrue(any(os.path.normpath(src) == os.path.normpath(empty_subdir) and os.path.isdir(dst) for src, dst in self.trashed_items))
 
     def test_fallback_subtitle_rename_multiple_languages_preserved(self):
         """
