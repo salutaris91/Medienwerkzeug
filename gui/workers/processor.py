@@ -478,12 +478,23 @@ def move_with_fallback(src_path, dest_dir, fallback_basename, whitelist=None):
     except Exception as e:
         log_message(f"❌ Fehler bei Fallback-Verschiebung von {src_path} nach {dest_dir}: {e}")
 
-def safe_move_recursive(src_dir, dest_dir, prefix_filter=None, fallback_basename=None, whitelist=None, junk_list=None, allowed_files=None, cleanup_empty_dirs=True):
+def safe_move_recursive(
+    src_dir,
+    dest_dir,
+    prefix_filter=None,
+    fallback_basename=None,
+    whitelist=None,
+    junk_list=None,
+    allowed_files=None,
+    cleanup_empty_dirs=True,
+    protected_paths=None,
+):
     """
     Recursively walks src_dir and moves files to dest_dir.
     If prefix_filter is provided, only files whose name starts with prefix_filter
     (or are whitelisted to a name starting with prefix_filter) are moved.
     If allowed_files is provided, only files in allowed_files are moved.
+    If protected_paths is provided, matching real paths bypass junk_list filtering.
     """
     video_exts = ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
     if not os.path.exists(src_dir):
@@ -509,20 +520,31 @@ def safe_move_recursive(src_dir, dest_dir, prefix_filter=None, fallback_basename
             else:
                 allowed_set.add(os.path.realpath(os.path.join(src_dir, af)))
 
+    # Normalize protected_paths set (e.g. freshly generated NFOs that share a name with a trashed junk entry)
+    protected_set = set()
+    if protected_paths:
+        for pp in protected_paths:
+            if not pp:
+                continue
+            if os.path.isabs(pp):
+                protected_set.add(os.path.realpath(pp))
+            else:
+                protected_set.add(os.path.realpath(os.path.join(src_dir, pp)))
+
     # Process files
     for f_path in files_to_process:
         filename = os.path.basename(f_path)
         if filename.lower().endswith(video_exts):
             continue
 
+        f_real = os.path.realpath(f_path)
         if allowed_set is not None:
-            f_real = os.path.realpath(f_path)
             if f_real not in allowed_set:
                 continue
 
         # Check junk list
         is_junk = False
-        if junk_list:
+        if junk_list and f_real not in protected_set:
             for j in junk_list:
                 if path_endswith(f_path, j):
                     is_junk = True
@@ -1352,6 +1374,7 @@ def process_worker(params):
         try:
             # 4. Process mappings sequentially
             for file_idx, (filename, ep_num_val) in enumerate(mapping_items):
+                protected_episode_paths = set()
                 # If explicit_renames was used, the file is ALREADY renamed to the target_filename
                 # We just need to generate the NFO!
 
@@ -1581,6 +1604,9 @@ def process_worker(params):
                                 overwrite=overwrite_nfo
                             )
                             log_message(f"Episode NFO Status: {res}")
+                            ep_nfo_path = os.path.join(current_dir, f"{clean_title}.nfo")
+                            if isinstance(res, dict) and res.get("nfo") and os.path.isfile(ep_nfo_path):
+                                protected_episode_paths.add(ep_nfo_path)
                         except Exception as e:
                             if files_param is not None:
                                 raise
@@ -1722,7 +1748,8 @@ def process_worker(params):
                             whitelist=whitelist_tv,
                             junk_list=explicit_junk,
                             allowed_files=episode_allowed_files,
-                            cleanup_empty_dirs=(files_param is None)
+                            cleanup_empty_dirs=(files_param is None),
+                            protected_paths=protected_episode_paths,
                         )
                     except Exception as e:
                         log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
@@ -2082,6 +2109,7 @@ def process_worker(params):
         try:
             # Process video files sequentially
             for file_idx, video_file in enumerate(video_files):
+                protected_movie_paths = set()
                 ext = os.path.splitext(video_file)[1].lower()
                 target_filename = f"{clean_movie_name}{ext}"
                 filepath = os.path.join(current_dir, video_file)
@@ -2103,12 +2131,10 @@ def process_worker(params):
                 if movie_id and provider:
                     log_message("Generiere NFO und lade Poster/Fanart...")
                     movie_overrides = nfo_overrides.get("movie") if isinstance(nfo_overrides, dict) else None
-                    has_movie_overrides = bool(movie_overrides and isinstance(movie_overrides, dict))
                     is_wizard_overrides = bool(
                         params.get("wizard_overrides")
                         or (isinstance(nfo_overrides, dict) and nfo_overrides.get("wizard"))
                     )
-                    has_wizard_movie_overrides = bool(is_wizard_overrides and has_movie_overrides)
                     artwork_overrides = (
                         params.get("artwork_overrides")
                         if isinstance(params.get("artwork_overrides"), dict)
@@ -2116,7 +2142,7 @@ def process_worker(params):
                     )
                     generated_nfo_path = os.path.join(current_dir, f"{clean_movie_name}.nfo")
 
-                    if has_wizard_movie_overrides:
+                    if is_wizard_overrides:
                         try:
                             from gui.core.nfo_mutation import (
                                 assert_nfo_fingerprint,
@@ -2128,13 +2154,6 @@ def process_worker(params):
 
                             if provider == "ofdb":
                                 res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
-                                if artwork_overrides:
-                                    mw_metadata.apply_movie_artwork_overrides(
-                                        current_dir,
-                                        clean_movie_name,
-                                        artwork_overrides,
-                                        settings=settings,
-                                    )
                             else:
                                 nfo_kwargs = {
                                     "nfo_overrides": movie_overrides,
@@ -2150,10 +2169,27 @@ def process_worker(params):
                                 )
                             log_message(f"Movie NFO Status: {res}")
 
+                            # Fail loudly on provider errors before artwork downloads or patching a stale NFO
+                            if not isinstance(res, dict) or res.get("error") or not res.get("nfo"):
+                                gen_err = (
+                                    res.get("error")
+                                    if isinstance(res, dict) and res.get("error")
+                                    else "Film-NFO wurde vom Provider nicht neu erzeugt."
+                                )
+                                raise RuntimeError(gen_err)
+
+                            if provider == "ofdb" and artwork_overrides:
+                                mw_metadata.apply_movie_artwork_overrides(
+                                    current_dir,
+                                    clean_movie_name,
+                                    artwork_overrides,
+                                    settings=settings,
+                                )
+
                             generated_fp = make_nfo_fingerprint(generated_nfo_path)
                             patch_ok, patch_message = patch_nfo_fields(
                                 generated_nfo_path,
-                                movie_overrides,
+                                movie_overrides or {},
                                 expected_fingerprint=generated_fp if generated_fp is not None else ...,
                                 create_backup=False,
                                 allow_clear=True,
@@ -2161,6 +2197,8 @@ def process_worker(params):
                             if not patch_ok:
                                 raise RuntimeError(patch_message)
                             log_message(f"Movie NFO Feld-Patch: {patch_message}")
+                            if os.path.isfile(generated_nfo_path):
+                                protected_movie_paths.add(generated_nfo_path)
                         except Exception as patch_err:
                             err_msg = f"Fehler beim Schreiben der NFO-Overrides: {patch_err}"
                             log_message(f"❌ {err_msg}")
@@ -2210,6 +2248,8 @@ def process_worker(params):
                                     **nfo_kwargs,
                                 )
                             log_message(f"Movie NFO Status: {res}")
+                            if isinstance(res, dict) and res.get("nfo") and os.path.isfile(generated_nfo_path):
+                                protected_movie_paths.add(generated_nfo_path)
                         except Exception as e:
                             log_message(f"Fehler bei NFO-Erstellung: {e}")
                 current_prog = 50 + int(50 * (file_idx + 1) / N)
@@ -2291,7 +2331,8 @@ def process_worker(params):
                         prefix_filter=None,
                         fallback_basename=clean_movie_name,
                         whitelist=whitelist_movie,
-                        junk_list=explicit_junk
+                        junk_list=explicit_junk,
+                        protected_paths=protected_movie_paths,
                     )
 
                     # Ensure only server-specific core poster/backdrop variants exist
@@ -3473,6 +3514,10 @@ def process_worker(params):
                     if has_expected_main_fingerprint:
                         assert_nfo_fingerprint(show_nfo_path, expected_main_fingerprint)
                     should_overwrite_show = nfo_write_mode == "replace"
+                    existed_show_before = os.path.isfile(show_nfo_path)
+                    requires_provider_show = (
+                        should_overwrite_show or nfo_write_mode == "create" or not existed_show_before
+                    )
                     log_message(f"Prüfe tvshow.nfo in {show_dir} (overwrite: {should_overwrite_show})...")
                     res_show = mw_metadata.generate_tvshow_nfo(
                         provider, show_id, show_dir,
@@ -3480,6 +3525,18 @@ def process_worker(params):
                         overwrite=should_overwrite_show
                     )
                     log_message(f"tvshow.nfo Generierungs-Ergebnis: {res_show}")
+                    if requires_provider_show:
+                        if not isinstance(res_show, dict) or res_show.get("error") or not res_show.get("nfo"):
+                            err_detail = (
+                                res_show.get("error")
+                                if isinstance(res_show, dict) and res_show.get("error")
+                                else "tvshow.nfo wurde vom Provider nicht neu erzeugt."
+                            )
+                            raise RuntimeError(f"tvshow.nfo Fehler: {err_detail}")
+                    elif isinstance(res_show, dict) and res_show.get("error"):
+                        log_message(
+                            f"⚠️ [NFO Agent] Provider-Abruf beim Patch fehlgeschlagen (lokaler Patch läuft weiter): {res_show['error']}"
+                        )
                     if not os.path.isfile(show_nfo_path):
                         raise RuntimeError("tvshow.nfo wurde nicht erzeugt.")
                     patch_expected = (
@@ -3657,6 +3714,10 @@ def process_worker(params):
                     if has_expected_main_fingerprint:
                         assert_nfo_fingerprint(target_nfo_path, expected_main_fingerprint)
                     should_overwrite_movie = nfo_write_mode == "replace"
+                    existed_before = os.path.isfile(target_nfo_path)
+                    requires_provider_nfo = (
+                        should_overwrite_movie or nfo_write_mode == "create" or not existed_before
+                    )
                     log_message(f"Prüfe movie NFO (overwrite: {should_overwrite_movie})...")
                     
                     if provider == "ofdb":
@@ -3675,6 +3736,18 @@ def process_worker(params):
                             overwrite=should_overwrite_movie
                         )
                     log_message(f"Movie NFO Generierungs-Ergebnis: {res_movie}")
+                    if requires_provider_nfo:
+                        if not isinstance(res_movie, dict) or res_movie.get("error") or not res_movie.get("nfo"):
+                            err_detail = (
+                                res_movie.get("error")
+                                if isinstance(res_movie, dict) and res_movie.get("error")
+                                else "Film-NFO wurde vom Provider nicht neu erzeugt."
+                            )
+                            raise RuntimeError(f"Film-NFO Fehler: {err_detail}")
+                    elif isinstance(res_movie, dict) and res_movie.get("error"):
+                        log_message(
+                            f"⚠️ [NFO Agent] Provider-Abruf beim Patch fehlgeschlagen (lokaler Patch läuft weiter): {res_movie['error']}"
+                        )
                     if not os.path.isfile(target_nfo_path):
                         raise RuntimeError("Film-NFO wurde nicht erzeugt.")
                     patch_expected = (
