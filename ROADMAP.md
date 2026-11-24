@@ -2447,7 +2447,7 @@ Stufe 1 (Doku): klein bis mittel (~1 Gate-A2-Etappe). Stufe 2 (Serie): mittel bi
 
 ## 94. Dateinamen-Unterzeile & fehlertolerante Live-Suche im Film-Assistenten (und in der Smart Inbox)
 
-- [ ] **Status:** Offen (Idee von Alex aus dem NAS-Praxistest am 2026-11-12 anhand des Ordners `EMwimA2000` → *„Ey Mann, wo is’ mein Auto?“* (2000))
+- [x] **Status:** erledigt (2026-11-24 — sortierte Nicht-Sample-`video_filenames` in `get_inbox_suggestions()` und `/api/scan-project`, rennfreier Kontext-Abgleich in `gui/static/app.js` inkl. `scanProjectSeq`-Guard, Dateinamen-Unterzeile `#mw-wizard-project-subtitle` im Film-Assistenten für Einzel- und Filmreihen-Modus sowie `.smart-inbox-filename-sub` in der Smart Inbox bei abweichendem Ordnernamen; `380 ms`-Typeahead mit `AbortController` und IME-Schutz in `gui/static/js/film_wizard.js`, parallele TMDb/OFDb-Suche in `gui/api/search_api.py` sowie begrenzter 2-Call-Umgangssprachen-/Teilwort-/Jahres-Fallback in `search_tmdb_movie` (`gui/mw_metadata.py`) inkl. `tests/test_roadmap_94_live_search.py` & `tests/frontend/roadmap_94_live_search.test.js`; Gate-A2 `2026-11-24-roadmap-94-live-search` APPROVED nach 2 Runden)
 
 **Einordnung / Priorität:** Mittel bis hoch — direkte Alltags-Erleichterung bei kryptisch abgekürzten Ordnernamen und umgangssprachlichen oder schwer zu erratenden Filmtiteln.
 
