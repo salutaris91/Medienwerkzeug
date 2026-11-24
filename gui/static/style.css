@@ -4393,6 +4393,10 @@ body.runtime-docker .docker-only-info {
 .mw-wizard-queue-chip.muted { color: var(--text-muted); }
 .mw-wizard-queue-chip.error { border-color: var(--danger); color: var(--danger); }
 .mw-wizard-title { margin: 0; font-size: 1.15rem; color: var(--text-main); }
+.mw-wizard-header-titles { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mw-wizard-project-subtitle { font-size: 0.78rem; color: var(--text-muted); line-height: 1.35; overflow-wrap: anywhere; }
+.mw-wizard-project-subtitle.hidden { display: none; }
+.smart-inbox-filename-sub { font-size: 0.78rem; color: var(--text-muted); line-height: 1.35; overflow-wrap: anywhere; }
 .mw-wizard-close-btn { background: transparent; border: none; color: var(--text-muted); font-size: 1.5rem; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: var(--radius-sm); }
 .mw-wizard-close-btn:hover { color: var(--text-main); background: var(--bg-hover); }
 .mw-wizard-stepper { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; margin-bottom: 14px; background: var(--bg-surface); border: 1px solid var(--border-glass); border-radius: var(--radius-md); }

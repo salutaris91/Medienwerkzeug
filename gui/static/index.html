@@ -6,7 +6,7 @@
     <meta name="description" content="Medienwerkzeug - Automatisches Umbennen, Konvertieren und Kopieren von Filmen und Serien auf das NAS.">
     <meta name="color-scheme" content="dark">
     <title>Medienwerkzeug v5.0 (Master-Detail)</title>
-    <link rel="stylesheet" href="style.css?v=68">
+    <link rel="stylesheet" href="style.css?v=69">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -2765,7 +2765,7 @@ group_add:
     </div>
 </div>
 
-    <script type="module" src="app.js?v=124"></script>
+    <script type="module" src="app.js?v=125"></script>
 
     <!-- Modal: Confirm Merge -->
     <div id="modal-confirm-merge" class="mw-modal-overlay">
@@ -3322,7 +3322,10 @@ group_add:
     <div id="modal-film-wizard" class="mw-modal-overlay mw-wizard-overlay hidden">
         <div class="mw-modal mw-wizard-modal">
             <div class="mw-wizard-header">
-                <h3 id="mw-wizard-title" class="mw-wizard-title">Film-Assistent</h3>
+                <div class="mw-wizard-header-titles">
+                    <h3 id="mw-wizard-title" class="mw-wizard-title">Film-Assistent</h3>
+                    <div id="mw-wizard-project-subtitle" class="mw-wizard-project-subtitle hidden"></div>
+                </div>
                 <button type="button" id="mw-wizard-close" class="close-modal mw-wizard-close-btn" aria-label="Schließen">&times;</button>
             </div>
 
@@ -3364,7 +3367,7 @@ group_add:
             <div class="mw-wizard-body">
                 <section id="mw-wizard-step-1" class="mw-wizard-panel active" data-step-panel="1">
                     <div class="mw-wizard-search-row">
-                        <input type="text" id="mw-wizard-search-input" class="mw-wizard-input" placeholder="Filmtitel oder TMDb/OFDb-Suchbegriff...">
+                        <input type="text" id="mw-wizard-search-input" class="mw-wizard-input" placeholder="Filmtitel oder TMDb/OFDb-Suchbegriff..." aria-label="Filmtitel oder Suchbegriff" autocorrect="off" autocapitalize="none" spellcheck="false">
                         <button type="button" id="mw-wizard-search-btn" class="btn btn-primary">Suchen</button>
                         <button type="button" id="mw-wizard-manual-btn" class="btn btn-secondary">Metadaten manuell eintragen</button>
                     </div>

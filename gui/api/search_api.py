@@ -497,26 +497,30 @@ def handle_api_search():
                 "media_type": "tv"
             })
         elif media_type == "movie":
-            try:
-                tmdb_res = mw_metadata.search_tmdb_movie(q)
-                for r in tmdb_res:
-                    r['provider'] = 'tmdb'
-                    r["media_type"] = "movie"
-                results.extend(tmdb_res)
-            except Exception as e:
-                errors.append(e)
-            
-            try:
-                ofdb_res = mw_metadata.search_ofdb(q)
-                for r in ofdb_res:
-                    results.append({
-                        "id": r["id"],
-                        "name": f"{r['title']} ({r['year']})",
-                        "provider": "ofdb",
-                        "media_type": "movie"
-                    })
-            except Exception as e:
-                errors.append(e)
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                fut_tmdb = pool.submit(mw_metadata.search_tmdb_movie, q)
+                fut_ofdb = pool.submit(mw_metadata.search_ofdb, q)
+                try:
+                    tmdb_res = fut_tmdb.result()
+                    for r in tmdb_res:
+                        r['provider'] = 'tmdb'
+                        r["media_type"] = "movie"
+                    results.extend(tmdb_res)
+                except Exception as e:
+                    errors.append(e)
+
+                try:
+                    ofdb_res = fut_ofdb.result()
+                    for r in ofdb_res:
+                        results.append({
+                            "id": r["id"],
+                            "name": f"{r['title']} ({r['year']})",
+                            "provider": "ofdb",
+                            "media_type": "movie"
+                        })
+                except Exception as e:
+                    errors.append(e)
             if results:
                 results.sort(key=lambda r: mw_metadata.calculate_match_score(q, r['name']), reverse=True)
         elif media_type == "doku":

@@ -331,6 +331,24 @@ def handle_api_scan_project():
     # Get video files list
     video_extensions = {'.mp4', '.mkv', '.avi', '.webm', '.mov'}
     video_files = [os.path.join(target_parent, f) for f in all_files if os.path.splitext(f)[1].lower() in video_extensions]
+
+    if is_single_file:
+        scan_video_filenames = [os.path.basename(target_dir)]
+    else:
+        group_candidates = []
+        for f in all_files:
+            if os.path.splitext(f)[1].lower() in GROUP_VIDEO_EXTENSIONS:
+                try:
+                    f_size = os.path.getsize(os.path.join(target_parent, f))
+                except OSError:
+                    f_size = 0
+                group_candidates.append((f.replace("\\", "/"), f_size))
+        sample_relpaths = find_sample_video_files(group_candidates) if group_candidates else set()
+        sorted_non_sample_relpaths = sorted(
+            [rel_f for rel_f, _ in group_candidates if rel_f not in sample_relpaths],
+            key=lambda p: p.lower(),
+        )
+        scan_video_filenames = [os.path.basename(f) for f in sorted_non_sample_relpaths]
     
     has_inefficient_video = False
     if video_files:
@@ -636,6 +654,7 @@ def handle_api_scan_project():
     return jsonify({
         "current_dir": target_dir,
         "files": file_list,
+        "video_filenames": scan_video_filenames,
         "video_count": video_count,
         "ext_counts": ext_counts,
         "is_doku": is_doku,
@@ -1521,6 +1540,12 @@ def get_inbox_suggestions():
                 gvf for gvf, (rel_gvf, _) in zip(group_video_files, group_videos_with_sizes)
                 if rel_gvf not in sample_relpaths
             ]
+
+        sorted_non_sample_videos = sorted(
+            non_sample_group_videos,
+            key=lambda p: os.path.relpath(p, inbox_dir).replace("\\", "/").lower(),
+        )
+        suggestion_entry["video_filenames"] = [os.path.basename(v) for v in sorted_non_sample_videos]
 
         if is_dir and len(non_sample_group_videos) == 1:
             single_file = non_sample_group_videos[0]
