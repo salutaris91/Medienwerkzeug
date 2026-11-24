@@ -990,7 +990,9 @@ def _parse_ofdb_film_page(html, fallback_title=""):
 
 def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=None):
     url = _ofdb_film_url(ofdb_full_id)
-    if not url: return {}
+    if not url:
+        log_message(f"[OFDb NFO] Ungültige OFDb-ID: {ofdb_full_id}")
+        return {"nfo": False, "error": f"Ungültige OFDb-ID: {ofdb_full_id}"}
 
     try:
         html = fetch_html_with_retry(
@@ -998,8 +1000,8 @@ def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=
             context="OFDb Filmseite",
         )
     except Exception as e:
-        print(f"[OFDb NFO Error] Filmseite für OFDb-ID {ofdb_full_id} nicht abrufbar: {e}", file=sys.stderr)
-        return {}
+        log_message(f"[OFDb NFO] Filmseite für OFDb-ID {ofdb_full_id} nicht abrufbar: {e}")
+        return {"nfo": False, "error": f"OFDb-Filmseite für {ofdb_full_id} nicht abrufbar: {e}"}
 
     film = _parse_ofdb_film_page(html, fallback_title=filename_base)
 
@@ -1019,9 +1021,13 @@ def generate_ofdb_nfo(ofdb_full_id, target_folder, filename_base, fallback_json=
     xml += "</movie>\n"
 
     nfo_path = os.path.join(target_folder, f"{filename_base}.nfo")
-    with open(nfo_path, 'w', encoding='utf-8') as f:
-        f.write(xml)
-        log_message(f"[NFO] {nfo_path}: created (provider='ofdb')")
+    try:
+        with open(nfo_path, 'w', encoding='utf-8') as f:
+            f.write(xml)
+            log_message(f"[NFO] {nfo_path}: created (provider='ofdb')")
+    except OSError as e:
+        log_message(f"[OFDb NFO] Schreibfehler für {nfo_path}: {e}")
+        return {"nfo": False, "error": f"OFDb-NFO Schreibfehler: {e}"}
 
     return {"nfo": True, "poster": False, "fanart": False, "msg": "OFDb NFO erstellt"}
 
