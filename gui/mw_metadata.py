@@ -702,18 +702,27 @@ def search_tmdb_movie(query):
 
     # Normale Textsuche
     clean_query = clean_search_query(query)
+    executed_queries = set()
 
-    def _do_tmdb_search(q_str):
-        url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={urllib.parse.quote(q_str)}&language=de-DE"
+    def _do_tmdb_search(q_str, year=None):
+        if not q_str or not q_str.strip():
+            return []
+        key = (q_str.strip().lower(), str(year or ""))
+        if key in executed_queries:
+            return []
+        executed_queries.add(key)
+        url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={urllib.parse.quote(q_str.strip())}&language=de-DE"
+        if year:
+            url += f"&year={urllib.parse.quote(str(year))}"
         try:
             data = fetch_json_with_retry(lambda: make_tmdb_request(url), context="TMDb Film Textsuche")
             results = []
             for item in data.get('results', [])[:8]:
-                year = item.get('release_date', '')[:4] if item.get('release_date') else '????'
+                item_year = item.get('release_date', '')[:4] if item.get('release_date') else '????'
                 title = item.get('title', '')
                 results.append({
                     'id': item['id'],
-                    'name': f"{title} ({year})",
+                    'name': f"{title} ({item_year})",
                     'genre_ids': item.get('genre_ids', [])
                 })
             return results
@@ -734,6 +743,81 @@ def search_tmdb_movie(query):
         for r in extra_results:
             if r['id'] not in seen_ids:
                 results.append(r)
+
+    if not results and not re.match(r"^(?:tt\d+|tmdb:\d+|\d+)$", query, re.IGNORECASE):
+        year_hint = None
+        if len(re.findall(r"[A-Za-zÄÖÜäöüß]", query)) >= 2:
+            m_year = re.search(r"(?<!\d)(19\d{2}|20\d{2})(?!\d)", query)
+            if m_year:
+                year_hint = m_year.group(1)
+
+        fallback_source = re.sub(r"(?<!\d)(19\d{2}|20\d{2})(?!\d)", " ", umlaut_query)
+        fallback_source = re.sub(r"['’`´]", "", fallback_source)
+        tokens = re.findall(r"[0-9A-Za-zÄÖÜäöüß]+", fallback_source)
+
+        STOPWORDS = {
+            "ist", "is", "sind", "war", "waren", "bin", "bist", "seid", "hat", "hast", "haben", "hatte",
+            "wird", "werden", "wurde", "der", "die", "das", "den", "dem", "des", "ein", "eine", "einer",
+            "einem", "einen", "eines", "und", "oder", "aber", "doch", "mal", "halt", "eben", "im", "in",
+            "am", "an", "auf", "aus", "bei", "beim", "mit", "von", "vom", "zu", "zum", "zur", "ins",
+            "ans", "aufs", "für", "fuer", "über", "ueber", "the", "a", "an", "and", "or", "of", "to",
+            "for", "with", "are", "was", "it", "its", "dont", "don", "cant", "can", "wont", "won",
+            "im", "youre", "hes", "shes", "thats", "whats", "wheres",
+        }
+        QUESTION_WORDS = {"wo", "was", "wer", "wie", "wann", "warum", "wieso", "weshalb"}
+
+        content_tokens = [t for t in tokens if len(t) >= 2 and t.lower() not in STOPWORDS]
+        without_q = [t for t in content_tokens if t.lower() not in QUESTION_WORDS]
+        if len(without_q) >= 2 or any(len(t) >= 4 for t in without_q):
+            content_tokens = without_q
+
+        cand1 = " ".join(content_tokens).strip()
+        cand2 = ""
+        if len(content_tokens) >= 3:
+            long_indexed = [(idx, t) for idx, t in enumerate(content_tokens) if len(t) >= 3]
+            if len(long_indexed) >= 2:
+                top2 = sorted(long_indexed, key=lambda pair: (len(pair[1]), pair[0]), reverse=True)[:2]
+                top2_ordered = [t for _, t in sorted(top2, key=lambda pair: pair[0])]
+                cand2_str = " ".join(top2_ordered).strip()
+                if cand2_str.lower() != cand1.lower():
+                    cand2 = cand2_str
+
+        fallback_calls = []
+        for c in [cand1, cand2]:
+            if not c:
+                continue
+            if year_hint:
+                if (c.lower(), "") not in executed_queries and (c.lower(), year_hint) not in executed_queries:
+                    fallback_calls.append((c, year_hint))
+            else:
+                if (c.lower(), "") not in executed_queries:
+                    fallback_calls.append((c, None))
+        if year_hint:
+            for c in [cand1, cand2]:
+                if not c:
+                    continue
+                if (c.lower(), "") not in executed_queries:
+                    fallback_calls.append((c, None))
+
+        extra_calls = 0
+        for fb_q, fb_year in fallback_calls:
+            if extra_calls >= 2:
+                break
+            key = (fb_q.strip().lower(), str(fb_year or ""))
+            if key in executed_queries:
+                continue
+            # Wurde exakt derselbe Query ohne Jahr bereits erfolglos geprüft, bringt &year= nie mehr Treffer
+            if fb_year and (fb_q.strip().lower(), "") in executed_queries:
+                continue
+            extra_calls += 1
+            extra_results = _do_tmdb_search(fb_q, year=fb_year)
+            if extra_results:
+                seen_ids = {r['id'] for r in results}
+                for r in extra_results:
+                    if r['id'] not in seen_ids:
+                        results.append(r)
+                        seen_ids.add(r['id'])
+                break
 
     return results
 

@@ -1,9 +1,11 @@
-import { renderNfoEditor, buildMovieNfoOverrides, formatProviderLabel } from './nfo_editor.js?v=124';
-import { formatBytes } from './format.js?v=124';
+import { renderNfoEditor, buildMovieNfoOverrides, formatProviderLabel } from './nfo_editor.js?v=125';
+import { formatBytes } from './format.js?v=125';
 import {
     renderPreviewData,
     collectPreviewSelection,
-} from './preview_render.js?v=124';
+} from './preview_render.js?v=125';
+
+const VIDEO_EXT_RE = /\.(mp4|mkv|avi|webm|mov|m4v|3gp|ts|m2ts|flv|wmv)$/i;
 
 let activeWizardInstance = null;
 
@@ -213,6 +215,12 @@ function buildWizardDom(doc, modalOverlay) {
         id: "mw-wizard-search-input",
         cls: "mw-wizard-input",
         type: "text",
+        attrs: {
+            "aria-label": "Filmtitel oder Suchbegriff",
+            autocorrect: "off",
+            autocapitalize: "none",
+            spellcheck: "false",
+        },
     });
     searchInput.placeholder = "Filmtitel oder TMDb/OFDb-Suchbegriff...";
 
@@ -350,7 +358,10 @@ function buildWizardDom(doc, modalOverlay) {
 
     const modal = mkEl(doc, "div", { cls: "mw-modal mw-wizard-modal" }, [
         mkEl(doc, "div", { cls: "mw-wizard-header" }, [
-            mkEl(doc, "h3", { id: "mw-wizard-title", cls: "mw-wizard-title", text: "Film-Assistent" }),
+            mkEl(doc, "div", { cls: "mw-wizard-header-titles" }, [
+                mkEl(doc, "h3", { id: "mw-wizard-title", cls: "mw-wizard-title", text: "Film-Assistent" }),
+                mkEl(doc, "div", { id: "mw-wizard-project-subtitle", cls: "mw-wizard-project-subtitle hidden" }),
+            ]),
             mkEl(doc, "button", { id: "mw-wizard-close", cls: "close-modal mw-wizard-close-btn", type: "button", text: "×", attrs: { "aria-label": "Schließen" } }),
         ]),
         seriesContext,
@@ -376,6 +387,12 @@ export function createFilmWizard(options = {}) {
 
     const fetchFn = options.fetch || (typeof fetch === "function" ? fetch.bind(globalThis) : null);
     const confirmFn = options.confirm || (typeof confirm === "function" ? confirm.bind(globalThis) : () => true);
+    const setTimeoutFn = options.setTimeout || globalThis.setTimeout.bind(globalThis);
+    const clearTimeoutFn = options.clearTimeout || globalThis.clearTimeout.bind(globalThis);
+    const LIVE_SEARCH_DEBOUNCE_MS = typeof options.liveSearchDebounceMs === "number"
+        ? Math.max(0, options.liveSearchDebounceMs)
+        : 380;
+    const LIVE_SEARCH_MIN_CHARS = 2;
     let logFn = options.onLog || (typeof globalThis.appendConsoleLog === "function" ? globalThis.appendConsoleLog : null);
 
     let modalOverlay = doc.getElementById("modal-film-wizard");
@@ -390,6 +407,7 @@ export function createFilmWizard(options = {}) {
 
     const getEl = (id) => doc.getElementById(id);
     const panels = [1, 2, 3, 4].map((n) => getEl(`mw-wizard-step-${n}`));
+    const projectSubtitleEl = getEl("mw-wizard-project-subtitle");
     const seriesContextEl = getEl("mw-wizard-series-context");
     const queueLabelEl = getEl("mw-wizard-queue-label");
     const queueStatusEl = getEl("mw-wizard-queue-status");
@@ -454,6 +472,14 @@ export function createFilmWizard(options = {}) {
     const successfulProviders = new Map();
     let lastSearchResults = [];
     let currentProjectName = options.projectName || "";
+    let currentProjectIsDir = options.isDir !== undefined ? Boolean(options.isDir) : null;
+    let currentProjectVideoFilenames = Array.isArray(options.videoFilenames)
+        ? options.videoFilenames.map(String).filter(Boolean)
+        : [];
+    let liveSearchTimer = null;
+    let activeSearchAbortController = null;
+    let lastExecutedSearchQuery = "";
+    let isImeComposing = false;
     let artworkSkipped = false;
     let activeArtworkTab = "poster";
     const MAX_ARTWORK_UPLOAD_BYTES = 15 * 1024 * 1024;
@@ -584,6 +610,85 @@ export function createFilmWizard(options = {}) {
         return true;
     }
 
+    function formatProjectSubtitle(projectName, isDir, videoFilenames) {
+        const proj = String(projectName || "").trim();
+        if (!proj) return "";
+        const files = Array.isArray(videoFilenames)
+            ? videoFilenames
+                .map((f) => String(f || "").split("/").pop().split("\\").pop().trim())
+                .filter(Boolean)
+            : [];
+        if (isDir === false || (isDir === null && VIDEO_EXT_RE.test(proj) && files.length <= 1)) {
+            return `Datei: ${files[0] || proj}`;
+        }
+        if (files.length === 1) {
+            return `Ordner: ${proj} · Datei: ${files[0]}`;
+        }
+        if (files.length > 1) {
+            const shown = files.slice(0, 2).join(", ");
+            const extra = files.length > 2 ? ` (+${files.length - 2} weitere)` : "";
+            return `Ordner: ${proj} · Dateien: ${shown}${extra}`;
+        }
+        return `Ordner: ${proj}`;
+    }
+
+    function renderProjectSubtitle() {
+        if (projectSubtitleEl) {
+            const text = formatProjectSubtitle(currentProjectName, currentProjectIsDir, currentProjectVideoFilenames);
+            projectSubtitleEl.textContent = text;
+            projectSubtitleEl.classList.toggle("hidden", !text);
+        }
+    }
+
+    function setProjectContext(ctx = {}) {
+        const targetProj = String((ctx && ctx.projectName) || "").trim();
+        if (!currentProjectName || !targetProj || targetProj !== currentProjectName) return false;
+        if (ctx.isDir !== undefined) {
+            currentProjectIsDir = ctx.isDir === null ? null : Boolean(ctx.isDir);
+        }
+        if (Array.isArray(ctx.videoFilenames)) {
+            currentProjectVideoFilenames = ctx.videoFilenames.map(String).filter(Boolean);
+        }
+        if (queueActive && queueItems[queueIndex] && queueItems[queueIndex].projectName === targetProj) {
+            if (ctx.isDir !== undefined) {
+                queueItems[queueIndex].isDir = currentProjectIsDir;
+            }
+            if (Array.isArray(ctx.videoFilenames)) {
+                queueItems[queueIndex].videoFilenames = currentProjectVideoFilenames.slice();
+            }
+        }
+        renderProjectSubtitle();
+        return true;
+    }
+
+    function clearLiveSearchTimer() {
+        if (liveSearchTimer !== null) {
+            clearTimeoutFn(liveSearchTimer);
+            liveSearchTimer = null;
+        }
+    }
+
+    function clearLoadingIndicator() {
+        if (
+            searchResults &&
+            typeof searchResults.querySelector === "function" &&
+            searchResults.querySelector(".mw-wizard-loading")
+        ) {
+            searchResults.innerHTML = "";
+        }
+    }
+
+    function abortActiveSearch() {
+        if (activeSearchAbortController) {
+            const ctrl = activeSearchAbortController;
+            activeSearchAbortController = null;
+            try {
+                ctrl.abort();
+            } catch (_) {}
+        }
+        clearLoadingIndicator();
+    }
+
     function normalizeQueueInput(rawQueue) {
         if (!Array.isArray(rawQueue)) return [];
         const out = [];
@@ -604,9 +709,17 @@ export function createFilmWizard(options = {}) {
                     .replace(/\([0-9]{4}\)/g, "")
                     .trim() || projectName;
             }
+            const isDir = typeof entry === "object" && entry.isDir !== undefined
+                ? Boolean(entry.isDir)
+                : null;
+            const videoFilenames = typeof entry === "object" && Array.isArray(entry.videoFilenames)
+                ? entry.videoFilenames.map(String).filter(Boolean)
+                : [];
             out.push({
                 projectName,
                 query,
+                isDir,
+                videoFilenames,
                 status: "pending",
                 hadError: false,
             });
@@ -2438,6 +2551,9 @@ export function createFilmWizard(options = {}) {
     }
 
     async function selectMovieInWizard(movie, fetchMeta = true, comparisonMovies = null) {
+        clearLiveSearchTimer();
+        abortActiveSearch();
+        lastExecutedSearchQuery = "";
         searchRequestSeq += 1;
         const reqSeq = ++metadataRequestSeq;
         selectedMovie = {
@@ -2509,8 +2625,11 @@ export function createFilmWizard(options = {}) {
     }
 
     async function performSearch(queryOverride) {
+        clearLiveSearchTimer();
         const query = String(queryOverride ?? (searchInput ? searchInput.value : "") ?? "").trim();
         if (!query || !fetchFn) return [];
+        abortActiveSearch();
+        lastExecutedSearchQuery = "";
         const reqSeq = ++searchRequestSeq;
         const reqSession = sessionSeq;
         const reqQueueIndex = queueIndex;
@@ -2521,18 +2640,24 @@ export function createFilmWizard(options = {}) {
             (queueActive && reqQueueIndex !== queueIndex) ||
             reqProjectName !== currentProjectName
         );
+        const controller = typeof AbortController === "function" ? new AbortController() : null;
+        activeSearchAbortController = controller;
         hideError();
         if (searchResults) {
             searchResults.innerHTML = "";
             searchResults.appendChild(mkEl(doc, "div", { cls: "mw-wizard-loading", text: "Suche läuft..." }));
         }
         try {
-            const res = await fetchFn(`/api/search?type=movie&q=${encodeURIComponent(query)}`);
+            const searchUrl = `/api/search?type=movie&q=${encodeURIComponent(query)}`;
+            const res = controller
+                ? await fetchFn(searchUrl, { signal: controller.signal })
+                : await fetchFn(searchUrl);
             if (isStaleSearch()) return [];
             if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : "Fehler"}`);
             const items = await res.json();
             if (isStaleSearch()) return [];
             if (!Array.isArray(items)) throw new Error((items && items.error) || "Unerwartetes Suchergebnis");
+            lastExecutedSearchQuery = query;
             lastSearchResults = items.map((item) => ({
                 id: String(item.id ?? ""),
                 name: String(item.name || item.title || ""),
@@ -2603,7 +2728,18 @@ export function createFilmWizard(options = {}) {
             }
             return items;
         } catch (err) {
-            if (isStaleSearch()) return [];
+            if (
+                (err && err.name === "AbortError") ||
+                (controller && controller.signal && controller.signal.aborted) ||
+                isStaleSearch()
+            ) {
+                if (reqSeq === searchRequestSeq) {
+                    clearLoadingIndicator();
+                    lastExecutedSearchQuery = "";
+                }
+                return [];
+            }
+            lastExecutedSearchQuery = "";
             if (searchResults) searchResults.innerHTML = "";
             if (queueActive) {
                 queueCurrentError = "Provider-Suche fehlgeschlagen";
@@ -2612,10 +2748,42 @@ export function createFilmWizard(options = {}) {
             }
             showError(`Suche fehlgeschlagen: ${err.message || err}`, () => performSearch(query));
             return [];
+        } finally {
+            if (activeSearchAbortController === controller) {
+                activeSearchAbortController = null;
+            }
         }
     }
 
+    function scheduleLiveSearchFromInput() {
+        if (isImeComposing || currentStep !== 1 || modalOverlay.classList.contains("hidden")) return;
+        clearLiveSearchTimer();
+        const trimmed = String(searchInput ? searchInput.value || "" : "").trim();
+        if (trimmed.length < LIVE_SEARCH_MIN_CHARS) {
+            abortActiveSearch();
+            searchRequestSeq += 1;
+            lastExecutedSearchQuery = "";
+            hideError();
+            if (trimmed.length === 0 && searchResults) {
+                searchResults.innerHTML = "";
+                lastSearchResults = [];
+            }
+            return;
+        }
+        if (trimmed === lastExecutedSearchQuery) return;
+        liveSearchTimer = setTimeoutFn(() => {
+            liveSearchTimer = null;
+            if (isImeComposing || currentStep !== 1 || modalOverlay.classList.contains("hidden")) return;
+            const latest = String(searchInput ? searchInput.value || "" : "").trim();
+            if (latest.length < LIVE_SEARCH_MIN_CHARS || latest === lastExecutedSearchQuery) return;
+            performSearch(latest);
+        }, LIVE_SEARCH_DEBOUNCE_MS);
+    }
+
     function resetCurrentMovieState() {
+        clearLiveSearchTimer();
+        abortActiveSearch();
+        lastExecutedSearchQuery = "";
         resetSizeEstimate();
         searchRequestSeq += 1;
         metadataRequestSeq += 1;
@@ -2641,7 +2809,10 @@ export function createFilmWizard(options = {}) {
         queueCurrentError = "";
         const item = queueItems[queueIndex];
         currentProjectName = item.projectName;
+        currentProjectIsDir = item.isDir;
+        currentProjectVideoFilenames = Array.isArray(item.videoFilenames) ? item.videoFilenames.slice() : [];
         resetCurrentMovieState();
+        renderProjectSubtitle();
         const initialQuery = String(item.query || item.projectName || "").trim();
         if (searchInput) searchInput.value = initialQuery;
         nfoEditor.setValues(
@@ -2707,8 +2878,13 @@ export function createFilmWizard(options = {}) {
         queueCurrentError = "";
         renderQueueHeader();
 
-        if (openOptions.projectName !== undefined) currentProjectName = String(openOptions.projectName || "");
+        currentProjectName = openOptions.projectName !== undefined ? String(openOptions.projectName || "") : "";
+        currentProjectIsDir = openOptions.isDir !== undefined ? Boolean(openOptions.isDir) : null;
+        currentProjectVideoFilenames = Array.isArray(openOptions.videoFilenames)
+            ? openOptions.videoFilenames.map(String).filter(Boolean)
+            : [];
         resetCurrentMovieState();
+        renderProjectSubtitle();
 
         const initialQuery = String(openOptions.query ?? "").trim();
         if (searchInput) searchInput.value = initialQuery;
@@ -2730,6 +2906,15 @@ export function createFilmWizard(options = {}) {
         if (isExecutingProcess && !force) return false;
         if (!force && nfoEditor.isDirty()) {
             if (!confirmFn("Änderungen im Film-Assistenten verwerfen?")) return false;
+        }
+        clearLiveSearchTimer();
+        abortActiveSearch();
+        lastExecutedSearchQuery = "";
+        currentProjectIsDir = null;
+        currentProjectVideoFilenames = [];
+        if (projectSubtitleEl) {
+            projectSubtitleEl.textContent = "";
+            projectSubtitleEl.classList.add("hidden");
         }
         sessionSeq += 1;
         queueActive = false;
@@ -2774,6 +2959,9 @@ export function createFilmWizard(options = {}) {
     function nextStep() {
         if (isExecutingProcess) return currentStep;
         if (currentStep === 1) {
+            clearLiveSearchTimer();
+            abortActiveSearch();
+            lastExecutedSearchQuery = "";
             const checkedItems = collectCheckedSearchItems();
             if (checkedItems.length > 0) {
                 const primaryItem = checkedItems.find((it) => String(it.provider).toLowerCase() === "tmdb") || checkedItems[0];
@@ -2850,6 +3038,7 @@ export function createFilmWizard(options = {}) {
     if (artworkSearchInputEl && typeof artworkSearchInputEl.addEventListener === "function") {
         artworkSearchInputEl.addEventListener("keydown", (e) => {
             if (e && e.key === "Enter") {
+                if (e.isComposing) return;
                 if (typeof e.preventDefault === "function") e.preventDefault();
                 triggerManualArtworkSearch();
             }
@@ -2989,9 +3178,22 @@ export function createFilmWizard(options = {}) {
     }
 
     if (searchInput && typeof searchInput.addEventListener === "function") {
+        searchInput.addEventListener("input", () => {
+            scheduleLiveSearchFromInput();
+        });
+        searchInput.addEventListener("compositionstart", () => {
+            isImeComposing = true;
+            clearLiveSearchTimer();
+        });
+        searchInput.addEventListener("compositionend", () => {
+            isImeComposing = false;
+            scheduleLiveSearchFromInput();
+        });
         searchInput.addEventListener("keydown", (e) => {
             if (e && e.key === "Enter") {
+                if (e.isComposing || isImeComposing) return;
                 if (typeof e.preventDefault === "function") e.preventDefault();
+                clearLiveSearchTimer();
                 performSearch();
             }
         });
@@ -3011,6 +3213,7 @@ export function createFilmWizard(options = {}) {
         skipCurrentStep,
         selectMovieInWizard,
         performSearch,
+        setProjectContext,
         switchArtworkTab,
         loadArtworkCandidates,
         selectArtworkCandidate,

@@ -1,15 +1,15 @@
-import { applyTheme } from './js/theme.js?v=124';
-import { cleanSeriesName } from './js/utils.js?v=124';
-import { formatBytes } from './js/format.js?v=124';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=124';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=124';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=124';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=124';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=124';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=124';
-import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=124';
-import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from './js/nfo_editor.js?v=124';
-import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=124';
+import { applyTheme } from './js/theme.js?v=125';
+import { cleanSeriesName } from './js/utils.js?v=125';
+import { formatBytes } from './js/format.js?v=125';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=125';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=125';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=125';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=125';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=125';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=125';
+import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=125';
+import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from './js/nfo_editor.js?v=125';
+import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=125';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -225,6 +225,11 @@ let currentProject = "";
 let projectFiles = [];
 let currentProjectIsDoku = false;
 let currentProjectSuggestedQuery = "";
+let scanProjectSeq = 0;
+let currentScannedProject = "";
+let currentScannedIsSingleFile = false;
+let currentScannedVideoFilenames = [];
+const INBOX_VIDEO_EXT_RE = /\.(mp4|mkv|avi|webm|mov|m4v|3gp|ts|m2ts|flv|wmv)$/i;
 let selectedShow = null;
 let selectedMovie = null;
 let episodesData = {}; // maps episode number (string) to title/info
@@ -1849,9 +1854,12 @@ function initViews() {
                             const searchQueryInput = document.getElementById("movie-search-query");
                             if (searchQueryInput) searchQueryInput.value = cleanedQuery;
                             if (typeof openFilmWizard === "function" && document.getElementById("modal-film-wizard")) {
+                                const projCtx = resolveWizardProjectContext(currentProject);
                                 openFilmWizard({
                                     query: cleanedQuery,
                                     projectName: currentProject,
+                                    isDir: projCtx.isDir,
+                                    videoFilenames: projCtx.videoFilenames,
                                     onProcessSuccess: () => connectLogStream(),
                                     onPersistOptions: saveConversionSettings,
                                     onClosed: () => { if (typeof window.goHome === "function") window.goHome(); },
@@ -2828,6 +2836,13 @@ function applySmartConversionDefault(hasInefficientVideo) {
 }
 
 async function scanProject(project) {
+    const reqScanSeq = ++scanProjectSeq;
+    const isStaleScan = () => reqScanSeq !== scanProjectSeq || Boolean(currentProject && currentProject !== project);
+    if (project !== currentScannedProject) {
+        currentScannedProject = "";
+        currentScannedIsSingleFile = false;
+        currentScannedVideoFilenames = [];
+    }
     updateProjectProcessingStatus(activeProjectsProcessing);
     const title = document.getElementById("current-project-title");
     const path = document.getElementById("current-project-path");
@@ -2862,6 +2877,7 @@ async function scanProject(project) {
 
     try {
         const response = await fetch(`/api/scan-project?project=${encodeURIComponent(project)}`);
+        if (isStaleScan()) return;
         if (!response.ok) {
             if (response.status === 404 && project !== "") {
                 console.warn(`Project folder "${project}" not found, redirecting home.`);
@@ -2889,6 +2905,36 @@ async function scanProject(project) {
         }
 
         const data = await response.json();
+        if (isStaleScan()) return;
+        currentScannedProject = project;
+        currentScannedIsSingleFile = Boolean(data.is_single_file);
+        if (Array.isArray(data.video_filenames)) {
+            currentScannedVideoFilenames = data.video_filenames.map(String).filter(Boolean);
+        } else {
+            currentScannedVideoFilenames = (data.files || [])
+                .filter((f) => {
+                    const rel = String(f || "").replace(/\\/g, "/");
+                    if (!rel || rel.endsWith("/")) return false;
+                    const segments = rel.split("/").filter(Boolean);
+                    if (segments.some((seg) => /^sample$/i.test(seg))) return false;
+                    const base = segments[segments.length - 1] || "";
+                    if (!INBOX_VIDEO_EXT_RE.test(base) || /sample/i.test(base)) return false;
+                    return true;
+                })
+                .map((f) => String(f).replace(/\\/g, "/").split("/").pop())
+                .filter(Boolean);
+        }
+        const wizOverlay = document.getElementById("modal-film-wizard");
+        if (wizOverlay && !wizOverlay.classList.contains("hidden") && typeof initFilmWizard === "function") {
+            const wiz = initFilmWizard();
+            if (wiz && typeof wiz.setProjectContext === "function") {
+                wiz.setProjectContext({
+                    projectName: project,
+                    isDir: !currentScannedIsSingleFile,
+                    videoFilenames: currentScannedVideoFilenames,
+                });
+            }
+        }
         path.textContent = `Pfad: ${data.current_dir}`;
         projectFiles = data.files || [];
         activeSeriesGroupFiles = null;
@@ -2914,6 +2960,7 @@ async function scanProject(project) {
             }
 
             setTimeout(() => {
+                if (isStaleScan()) return;
                 const modeCard = document.getElementById(mediaType === "series" ? "mode-series" : "mode-movie");
                 if (modeCard) {
                     modeCard.click();
@@ -2927,6 +2974,7 @@ async function scanProject(project) {
                     };
 
                     setTimeout(() => {
+                        if (isStaleScan()) return;
                         if (mediaType === "series") {
                             selectShow(metaObj);
                         } else if (mediaType === "movie" && currentProjectIsDoku) {
@@ -3003,6 +3051,7 @@ async function scanProject(project) {
         }
 
     } catch (e) {
+        if (isStaleScan()) return;
         tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">Verbindungsfehler: ${e}</td></tr>`;
     }
 }
@@ -12583,6 +12632,44 @@ function isInboxProjectEligibleForMovieQueue(item) {
     return getEffectiveInboxMediaType(item) === "movie";
 }
 
+function stripMediaExtension(name) {
+    return String(name || "").replace(INBOX_VIDEO_EXT_RE, "").trim();
+}
+
+function getInboxItemVideoFilenames(item) {
+    if (!item) return [];
+    if (Array.isArray(item.video_filenames) && item.video_filenames.length > 0) {
+        return item.video_filenames
+            .map((f) => String(f || "").split("/").pop().split("\\").pop().trim())
+            .filter(Boolean);
+    }
+    if (item.single_video_relpath) {
+        return [String(item.single_video_relpath).split("/").pop().split("\\").pop().trim()].filter(Boolean);
+    }
+    return [];
+}
+
+function resolveWizardProjectContext(projectName) {
+    const suggestions = Array.isArray(currentSmartInboxRawSuggestions) ? currentSmartInboxRawSuggestions : [];
+    const match = suggestions.find((it) => it && !it.is_group && it.project === projectName);
+    if (match) {
+        return {
+            isDir: Boolean(match.is_dir),
+            videoFilenames: getInboxItemVideoFilenames(match),
+        };
+    }
+    if (projectName && currentScannedProject === projectName) {
+        return {
+            isDir: !currentScannedIsSingleFile,
+            videoFilenames: currentScannedVideoFilenames.slice(),
+        };
+    }
+    return {
+        isDir: undefined,
+        videoFilenames: [],
+    };
+}
+
 function buildMovieQueryFromInboxItem(item) {
     let q = String((item && item.suggested_query) || (item && item.project) || "").trim();
     if (!item?.suggested_query && item?.is_dir === false) {
@@ -13171,6 +13258,8 @@ function updateBulkActionsBarUI() {
                 const queueItems = validMovies.map(item => ({
                     projectName: item.project,
                     query: buildMovieQueryFromInboxItem(item),
+                    isDir: Boolean(item.is_dir),
+                    videoFilenames: getInboxItemVideoFilenames(item),
                 }));
 
                 if (typeof getCatIdBySub === "function") {
@@ -13841,6 +13930,24 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                 }
             }
 
+            let filenameSubtitleHtml = "";
+            if (item.is_dir === true) {
+                const videoFiles = getInboxItemVideoFilenames(item);
+                const folderNorm = String(item.project || "").trim().toLowerCase();
+                const differsFromFolder = videoFiles.length > 0 && videoFiles.some((fn) => stripMediaExtension(fn).toLowerCase() !== folderNorm);
+                if (differsFromFolder) {
+                    let subtitleText = "";
+                    if (videoFiles.length === 1) {
+                        subtitleText = `Datei: ${videoFiles[0]}`;
+                    } else {
+                        const shown = videoFiles.slice(0, 2).join(", ");
+                        const extra = videoFiles.length > 2 ? ` (+${videoFiles.length - 2} weitere)` : "";
+                        subtitleText = `Dateien: ${shown}${extra}`;
+                    }
+                    filenameSubtitleHtml = `<div class="smart-inbox-filename-sub">${escapeHTML(subtitleText)}</div>`;
+                }
+            }
+
             const itemDiv = document.createElement("div");
             itemDiv.className = "smart-inbox-item";
             itemDiv.setAttribute("data-project", item.project);
@@ -13860,6 +13967,7 @@ function renderSmartInboxList(rawSuggestions, processingSet) {
                             <span style="font-size: 0.8em; color: var(--text-muted);">${metaHtml}</span>
                             ${typeOverrideHtml}
                         </div>
+                        ${filenameSubtitleHtml}
                         <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;">
                             ${reasonsHtml}
                         </div>
