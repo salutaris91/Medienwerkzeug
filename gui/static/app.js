@@ -1,15 +1,15 @@
-import { applyTheme } from './js/theme.js?v=125';
-import { cleanSeriesName } from './js/utils.js?v=125';
-import { formatBytes } from './js/format.js?v=125';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=125';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=125';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=125';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=125';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=125';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=125';
-import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=125';
-import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from './js/nfo_editor.js?v=125';
-import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=125';
+import { applyTheme } from './js/theme.js?v=126';
+import { cleanSeriesName } from './js/utils.js?v=126';
+import { formatBytes } from './js/format.js?v=126';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=126';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=126';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=126';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=126';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=126';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=126';
+import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=126';
+import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from './js/nfo_editor.js?v=126';
+import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=126';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -258,6 +258,135 @@ function escapeHTML(str) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+}
+
+function isOpenLocalFolderEnabled() {
+    return Boolean(window.AppCapabilities && window.AppCapabilities.capabilities && window.AppCapabilities.capabilities.open_local_folder);
+}
+
+function normalizePickerPath(rawPath) {
+    if (typeof rawPath !== "string") return "";
+    const trimmed = rawPath.trim();
+    if (!trimmed) return "";
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) {
+        return trimmed.replace(/\/+$/, "");
+    }
+    return trimmed.replace(/\/+/g, "/").replace(/\/+$/, "") || "/";
+}
+
+function isPathWithinRoot(candidatePath, rootPath) {
+    const normCandidate = normalizePickerPath(candidatePath);
+    const normRoot = normalizePickerPath(rootPath);
+    if (!normCandidate.startsWith("/") || !normRoot.startsWith("/")) return false;
+    if (normRoot === "/") return true;
+    return normCandidate === normRoot || normCandidate.startsWith(normRoot + "/");
+}
+
+function getParentPickerPath(normPath) {
+    const p = normalizePickerPath(normPath);
+    if (!p || p === "/") return "/";
+    const idx = p.lastIndexOf("/");
+    return idx <= 0 ? "/" : p.slice(0, idx);
+}
+
+function findLongestMatchingRoot(candidatePath, roots) {
+    const normCandidate = normalizePickerPath(candidatePath);
+    if (!normCandidate || !Array.isArray(roots)) return null;
+    let best = null;
+    for (const r of roots) {
+        if (!r || !r.path) continue;
+        const normRoot = normalizePickerPath(r.path);
+        if (isPathWithinRoot(normCandidate, normRoot)) {
+            if (!best || normRoot.length > normalizePickerPath(best.path).length) {
+                best = r;
+            }
+        }
+    }
+    return best;
+}
+
+function isBrowsableStorageTarget(t, openLocalEnabled = isOpenLocalFolderEnabled()) {
+    if (!t || typeof t !== "object" || t.enabled === false) return false;
+    const norm = normalizePickerPath(t.root_path || t.path || "");
+    if (!norm.startsWith("/") || norm === "/") return false;
+    const isCloud = (t.type === "pcloud" || t.type === "cloud" || t.id === "pcloud");
+    if (!openLocalEnabled && isCloud) return false;
+    return true;
+}
+
+function getPrimaryNasRoot(settings = currentSettings, openLocalEnabled = isOpenLocalFolderEnabled()) {
+    const targets = Array.isArray(settings?.storage_targets) ? settings.storage_targets : [];
+    const nasTarget = targets.find(t => isBrowsableStorageTarget(t, openLocalEnabled) && (t.id === "nas" || t.type === "nas"))
+        || targets.find(t => isBrowsableStorageTarget(t, openLocalEnabled));
+    if (nasTarget) {
+        return normalizePickerPath(nasTarget.root_path || nasTarget.path || "");
+    }
+    const fallback = normalizePickerPath(settings?.nas_root || "");
+    return (fallback.startsWith("/") && fallback !== "/") ? fallback : "";
+}
+
+function getConfiguredPickerRoots(settings = currentSettings, openLocalEnabled = isOpenLocalFolderEnabled()) {
+    const roots = [];
+    const seenPaths = new Set();
+    const addRoot = (id, label, raw) => {
+        const norm = normalizePickerPath(raw);
+        if (!norm.startsWith("/") || norm === "/" || seenPaths.has(norm)) return;
+        seenPaths.add(norm);
+        roots.push({ id, label, path: norm });
+    };
+    if (!settings || typeof settings !== "object") return roots;
+
+    addRoot("inbox", "Input-Ordner", settings.inbox_dir);
+    addRoot("outbox", "Output-Ordner", settings.outbox_dir);
+
+    if (Array.isArray(settings.storage_targets)) {
+        settings.storage_targets.forEach((t, idx) => {
+            if (!isBrowsableStorageTarget(t, openLocalEnabled)) return;
+            const rawPath = t.root_path || t.path || "";
+            const label = String(t.name || (t.id === "nas" ? "NAS" : (t.id || "Speicherziel")));
+            addRoot("target-" + String(t.id || idx), label, rawPath);
+        });
+    }
+
+    addRoot("nas-root", "NAS", settings.nas_root);
+
+    if (Array.isArray(settings.import_sources)) {
+        settings.import_sources.forEach((src, idx) => {
+            const rawPath = typeof src === "string" ? src : src?.path;
+            const norm = normalizePickerPath(rawPath);
+            if (!norm.startsWith("/") || norm === "/") return;
+            const base = norm.split("/").pop() || norm;
+            addRoot("import-" + idx, "Import: " + base, norm);
+        });
+    }
+
+    if (Array.isArray(settings.local_download_folders)) {
+        settings.local_download_folders.forEach((f, idx) => {
+            const obj = typeof f === "string" ? { path: f } : f;
+            const norm = normalizePickerPath(obj?.path);
+            if (!norm.startsWith("/") || norm === "/") return;
+            const base = norm.split("/").pop() || norm;
+            const label = String((obj && obj.name) || ("Download: " + base));
+            addRoot("local-" + idx, label, norm);
+        });
+    }
+
+    return roots;
+}
+
+function isSingleFileInboxProject(projName) {
+    if (!projName || typeof projName !== "string") return false;
+    const items = Array.from(document.querySelectorAll(".project-item") || []);
+    const matchEl = items.find(el => el && el.dataset && el.dataset.project === projName);
+    if (matchEl && matchEl.dataset.isDir !== undefined) {
+        return matchEl.dataset.isDir === "false";
+    }
+    const rawHit = (Array.isArray(currentSmartInboxRawSuggestions) ? currentSmartInboxRawSuggestions : [])
+        .find(it => it && !it.is_group && it.project === projName);
+    if (rawHit && rawHit.is_dir !== undefined) {
+        return !Boolean(rawHit.is_dir);
+    }
+    return INBOX_VIDEO_EXT_RE.test(String(projName || ""));
 }
 
 function debounce(func, wait) {
@@ -1909,7 +2038,7 @@ function initViews() {
 
             // Auto-fill path if a project was selected
             const pathInput = document.getElementById("tools-target-path");
-            if(currentProject && !pathInput.value) {
+            if (pathInput && currentProject && currentProject !== "__inbox_recursive__" && !pathInput.value) {
                 pathInput.value = currentProject;
             }
         });
@@ -1977,6 +2106,7 @@ function initViews() {
     const navLibrary = document.getElementById("nav-library");
     function openLibraryView() {
         document.querySelectorAll(".project-item").forEach(item => item.classList.remove("active"));
+        currentProject = "";
         if (navLibrary) navLibrary.classList.add("active");
         document.querySelectorAll(".view-panel").forEach(p => {
             p.classList.add("hidden");
@@ -7323,21 +7453,97 @@ function initEventListeners() {
     let folderPickerCallback = null;
     let folderPickerCurrentPath = "";
     let folderPickerRootLimit = "";
+    let folderPickerIsMultiRoot = false;
+    let folderPickerAllowedRoots = [];
     let folderPickerTarget = null;
+    let folderPickerRequestSeq = 0;
+
+    function canNavigateUpInPicker(normPath) {
+        const p = normalizePickerPath(normPath);
+        if (!p || p === "/") return false;
+        const parentPath = getParentPickerPath(p);
+        if (folderPickerIsMultiRoot) {
+            if (!Array.isArray(folderPickerAllowedRoots) || folderPickerAllowedRoots.length === 0) {
+                return false;
+            }
+            return folderPickerAllowedRoots.some(r => isPathWithinRoot(parentPath, r.path));
+        }
+        if (!folderPickerRootLimit) return true;
+        const normLimit = normalizePickerPath(folderPickerRootLimit);
+        if (p === normLimit) return false;
+        return isPathWithinRoot(parentPath, normLimit);
+    }
+
+    function renderFolderPickerRoots() {
+        const rootsEl = document.getElementById("folder-picker-roots");
+        if (!rootsEl) return;
+        if (!folderPickerIsMultiRoot || !Array.isArray(folderPickerAllowedRoots) || folderPickerAllowedRoots.length < 2) {
+            rootsEl.innerHTML = "";
+            rootsEl.classList.add("hidden");
+            return;
+        }
+        rootsEl.innerHTML = "";
+        rootsEl.classList.remove("hidden");
+        const activeRoot = findLongestMatchingRoot(folderPickerCurrentPath, folderPickerAllowedRoots);
+        folderPickerAllowedRoots.forEach(r => {
+            const isActive = Boolean(activeRoot && activeRoot.path === r.path);
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "btn btn-secondary btn-xs folder-picker-root-btn" + (isActive ? " active" : "");
+            btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+            btn.dataset.rootPath = r.path;
+            btn.title = r.path;
+            btn.textContent = r.label;
+            btn.addEventListener("click", () => {
+                loadFolderPickerDir(r.path, false);
+            });
+            rootsEl.appendChild(btn);
+        });
+    }
 
     window.closeFolderPicker = function() {
+        folderPickerRequestSeq++;
         document.getElementById("modal-folder-picker").classList.remove("active");
         folderPickerCallback = null;
+        folderPickerIsMultiRoot = false;
+        folderPickerAllowedRoots = [];
+        folderPickerRootLimit = "";
     };
 
-    window.openFolderPicker = function(startPath, rootLimit, target, title, onSelect) {
-        folderPickerCallback = onSelect;
-        folderPickerRootLimit = rootLimit || "";
-        folderPickerTarget = target;
+    window.openFolderPicker = function(startPath, rootLimit, target, title, onSelect, options = {}) {
+        const normLimit = normalizePickerPath(rootLimit);
+        const normStart = normalizePickerPath(startPath);
+        const isMulti = Boolean((options && options.multiRoot) || !normLimit);
 
-        let path = startPath || rootLimit || "/media";
-        if (rootLimit && !path.startsWith(rootLimit)) {
-            path = rootLimit;
+        folderPickerCallback = onSelect;
+        folderPickerTarget = target;
+        folderPickerIsMultiRoot = isMulti;
+
+        let path = "/media";
+        if (isMulti) {
+            const roots = Array.isArray(options?.roots)
+                ? options.roots
+                    .map(r => ({ ...r, path: normalizePickerPath(r?.path) }))
+                    .filter(r => r.path.startsWith("/") && r.path !== "/")
+                : getConfiguredPickerRoots(currentSettings);
+            folderPickerAllowedRoots = roots;
+            folderPickerRootLimit = "";
+            const matchedStart = findLongestMatchingRoot(normStart, roots);
+            if (matchedStart) {
+                path = normStart;
+            } else if (roots.length > 0) {
+                const prefNorm = normalizePickerPath(options?.preferredRootPath || normLimit);
+                const prefMatch = findLongestMatchingRoot(prefNorm, roots) || roots[0];
+                path = prefMatch.path;
+            } else {
+                path = normStart || normLimit || "/media";
+            }
+        } else {
+            folderPickerAllowedRoots = [];
+            folderPickerRootLimit = normLimit;
+            path = (normStart && isPathWithinRoot(normStart, normLimit))
+                ? normStart
+                : (normLimit || normStart || "/media");
         }
 
         const titleEl = document.getElementById("modal-folder-picker-title");
@@ -7346,23 +7552,22 @@ function initEventListeners() {
         }
 
         document.getElementById("modal-folder-picker").classList.add("active");
-        loadFolderPickerDir(path);
+        loadFolderPickerDir(path, true);
     };
 
-    async function loadFolderPickerDir(path) {
+    async function loadFolderPickerDir(rawPath, allowRootFallback = true) {
+        const requestId = ++folderPickerRequestSeq;
+        const path = normalizePickerPath(rawPath) || "/";
         folderPickerCurrentPath = path;
         document.getElementById("folder-picker-current-path").textContent = path;
 
         const upBtn = document.getElementById("folder-picker-up-btn");
         if (upBtn) {
-            if (path === folderPickerRootLimit || path === "/" || path === "") {
-                upBtn.disabled = true;
-                upBtn.style.opacity = "0.5";
-            } else {
-                upBtn.disabled = false;
-                upBtn.style.opacity = "1";
-            }
+            const canUp = canNavigateUpInPicker(path);
+            upBtn.disabled = !canUp;
+            upBtn.style.opacity = canUp ? "1" : "0.5";
         }
+        renderFolderPickerRoots();
 
         const listEl = document.getElementById("folder-picker-list");
         const loadingEl = document.getElementById("folder-picker-loading");
@@ -7374,10 +7579,20 @@ function initEventListeners() {
 
         try {
             const response = await fetch(`/api/list-subfolders?path=${encodeURIComponent(path)}`);
+            if (requestId !== folderPickerRequestSeq) return;
             const data = await response.json();
+            if (requestId !== folderPickerRequestSeq) return;
             loadingEl.style.display = "none";
 
             if (data.error) {
+                if (allowRootFallback) {
+                    const fallbackRoot = folderPickerIsMultiRoot
+                        ? ((findLongestMatchingRoot(path, folderPickerAllowedRoots) || folderPickerAllowedRoots[0] || {}).path || "")
+                        : normalizePickerPath(folderPickerRootLimit);
+                    if (fallbackRoot && fallbackRoot !== path) {
+                        return loadFolderPickerDir(fallbackRoot, false);
+                    }
+                }
                 errorEl.textContent = data.error;
                 errorEl.classList.remove("hidden");
                 return;
@@ -7418,12 +7633,13 @@ function initEventListeners() {
                         let newPath = path;
                         if (!newPath.endsWith("/")) newPath += "/";
                         newPath += sub;
-                        loadFolderPickerDir(newPath);
+                        loadFolderPickerDir(newPath, false);
                     });
                     listEl.appendChild(li);
                 });
             }
         } catch (e) {
+            if (requestId !== folderPickerRequestSeq) return;
             loadingEl.style.display = "none";
             errorEl.textContent = "Netzwerkfehler beim Laden: " + e.message;
             errorEl.classList.remove("hidden");
@@ -7434,14 +7650,10 @@ function initEventListeners() {
     if (upBtn) {
         upBtn.onclick = (e) => {
             e.preventDefault();
-            if (folderPickerCurrentPath === folderPickerRootLimit || folderPickerCurrentPath === "/" || folderPickerCurrentPath === "") {
+            if (!canNavigateUpInPicker(folderPickerCurrentPath)) {
                 return;
             }
-            const parts = folderPickerCurrentPath.split("/");
-            parts.pop();
-            let newPath = parts.join("/");
-            if (newPath === "") newPath = "/";
-            loadFolderPickerDir(newPath);
+            loadFolderPickerDir(getParentPickerPath(folderPickerCurrentPath), false);
         };
     }
 
@@ -7452,7 +7664,7 @@ function initEventListeners() {
             if (folderPickerCallback) {
                 folderPickerCallback(folderPickerCurrentPath);
             }
-            closeFolderPicker();
+            window.closeFolderPicker();
         };
     }
 
@@ -7632,21 +7844,15 @@ function initEventListeners() {
     const btnBrowseTools = document.getElementById("btn-browse-tools-path");
     if (btnBrowseTools) {
         btnBrowseTools.addEventListener("click", async () => {
-            const caps = window.AppCapabilities;
-            const openLocalEnabled = caps && caps.capabilities && caps.capabilities.open_local_folder;
+            const openLocalEnabled = isOpenLocalFolderEnabled();
             const inputEl = document.getElementById("tools-target-path");
             if (!inputEl) return;
 
             if (!openLocalEnabled) {
-                let dockerRoot = "/media";
-                const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
-                if (nasTarget && nasTarget.root_path) {
-                    dockerRoot = nasTarget.root_path;
-                }
-                const val = inputEl.value;
-                window.openFolderPicker(val || dockerRoot, dockerRoot, null, "Ordner auswählen", (selectedPath) => {
+                const nasRoot = getPrimaryNasRoot(currentSettings, false) || "/media";
+                window.openFolderPicker(inputEl.value.trim() || nasRoot, "", null, "Ordner auswählen", (selectedPath) => {
                     inputEl.value = selectedPath;
-                });
+                }, { multiRoot: true, preferredRootPath: nasRoot });
             } else {
                 try {
                     const response = await fetch("/api/browse-folder");
@@ -7915,52 +8121,28 @@ function initEventListeners() {
 
     // Modal-Tool-Runner Events
     document.getElementById("btn-browse-tool-modal-path")?.addEventListener("click", async () => {
-        const caps = window.AppCapabilities;
-        const openLocalEnabled = caps && caps.capabilities && caps.capabilities.open_local_folder;
+        const openLocalEnabled = isOpenLocalFolderEnabled();
         const inputEl = document.getElementById("tool-modal-target-path");
         if (!inputEl) return;
 
         if (!openLocalEnabled) {
-            const allowedRoots = [];
-            if (currentSettings.inbox_dir) allowedRoots.push(currentSettings.inbox_dir);
-            if (currentSettings.outbox_dir) allowedRoots.push(currentSettings.outbox_dir);
-            if (currentSettings.import_sources) {
-                currentSettings.import_sources.forEach(src => { if (src) allowedRoots.push(src); });
+            const rawVal = inputEl.value.trim();
+            let startVal = rawVal;
+            if (rawVal && !rawVal.startsWith("/")) {
+                const normInbox = normalizePickerPath(currentSettings?.inbox_dir || "");
+                startVal = isSingleFileInboxProject(rawVal)
+                    ? normInbox
+                    : (normInbox ? normInbox + "/" + rawVal : "");
             }
-            if (currentSettings.local_download_folders) {
-                currentSettings.local_download_folders.forEach(f => { if (f && f.path) allowedRoots.push(f.path); });
-            }
-            if (currentSettings.storage_targets) {
-                currentSettings.storage_targets.forEach(t => { if (t && t.root_path) allowedRoots.push(t.root_path); });
-            }
+            const nasRoot = getPrimaryNasRoot(currentSettings, false);
+            const isSyncTool = (window.currentActiveTool === "tool_manual_sync" || window.currentActiveTool === "tool_pcloud_sync");
+            const preferredRootPath = isSyncTool
+                ? (normalizePickerPath(currentSettings?.outbox_dir) || nasRoot || normalizePickerPath(currentSettings?.inbox_dir))
+                : (normalizePickerPath(currentSettings?.inbox_dir) || nasRoot || normalizePickerPath(currentSettings?.outbox_dir));
 
-            let dockerRoot = "/media";
-            const val = inputEl.value;
-            if (val && val.startsWith("/")) {
-                let longestMatch = "";
-                allowedRoots.forEach(root => {
-                    if (root) {
-                        const normalizedRoot = root.replace(/\/$/, "");
-                        const isMatch = val === normalizedRoot || val.startsWith(normalizedRoot + "/");
-                        if (isMatch && root.length > longestMatch.length) {
-                            longestMatch = root;
-                        }
-                    }
-                });
-                if (longestMatch) {
-                    dockerRoot = longestMatch;
-                } else {
-                    const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
-                    dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
-                }
-            } else {
-                const nasTarget = (currentSettings.storage_targets || []).find(t => t.id === "nas");
-                dockerRoot = (nasTarget && nasTarget.root_path) || "/media";
-            }
-
-            window.openFolderPicker(val || dockerRoot, dockerRoot, null, "Ordner auswählen", (selectedPath) => {
+            window.openFolderPicker(startVal, "", null, "Ordner auswählen", (selectedPath) => {
                 inputEl.value = selectedPath;
-            });
+            }, { multiRoot: true, preferredRootPath });
         } else {
             try {
                 let qs = "";
@@ -8002,13 +8184,46 @@ function initEventListeners() {
             alert("Bitte wähle zuerst einen Zielordner-Pfad aus!");
             return;
         }
-        if (activeProjectsProcessing && activeProjectsProcessing.has(path)) {
+        const normTarget = normalizePickerPath(path);
+        const normInbox = normalizePickerPath(currentSettings?.inbox_dir);
+        const candidateKeys = new Set([path]);
+        if (normTarget) candidateKeys.add(normTarget);
+        if (normInbox) {
+            if (!path.startsWith("/")) {
+                candidateKeys.add(normInbox + "/" + path);
+            } else if (normTarget.startsWith(normInbox + "/")) {
+                const rel = normTarget.slice(normInbox.length + 1);
+                if (rel && !rel.includes("/")) {
+                    candidateKeys.add(rel);
+                }
+            }
+        }
+        if (activeProjectsProcessing && Array.from(candidateKeys).some(k => activeProjectsProcessing.has(k))) {
             alert("Dieses Projekt wird bereits verarbeitet oder befindet sich in der Warteschlange!");
             return;
         }
-        closeToolRunnerModal();
 
         const toolType = window.currentActiveTool;
+        if (normTarget === "/" || /(^|\/)\.\.?(\/|$)/.test(normTarget) || /(^|\/)\.\.?(\/|$)/.test(path)) {
+            alert("Sicherheits-Stopp: Das System-Wurzelverzeichnis '/' sowie relative Punkt-Pfade ('.' / '..') dürfen nicht als Zielordner verwendet werden.");
+            return;
+        }
+        const configuredRootSet = new Set(getConfiguredPickerRoots(currentSettings, true).map(r => r.path));
+        [currentSettings?.inbox_dir, currentSettings?.outbox_dir, currentSettings?.nas_root].forEach(p => {
+            const np = normalizePickerPath(p);
+            if (np.startsWith("/") && np !== "/") configuredRootSet.add(np);
+        });
+        if (configuredRootSet.has(normTarget)) {
+            if (toolType === "tool_manual_sync" || toolType === "tool_pcloud_sync") {
+                alert(`Sicherheits-Stopp: Du hast das Hauptverzeichnis "${normTarget}" ausgewählt.\n\nBitte wähle über "Durchsuchen..." einen konkreten Film- oder Serien-Unterordner aus, statt das gesamte Wurzelverzeichnis zu synchronisieren.`);
+                return;
+            }
+            const confirmRoot = confirm(`WARNUNG: Du hast einen Hauptordner (${normTarget}) ausgewählt!\n\nDas Werkzeug wird auf ALLE Unterordner und Dateien darin angewendet.\n\nBist du dir ganz sicher, dass du keinen spezifischen Unterordner auswählen wolltest?`);
+            if (!confirmRoot) return;
+        }
+
+        closeToolRunnerModal();
+
         if (toolType === "tool_pull_files") {
             expandConsole();
             appendConsoleLog("[System]: Verschiebe Dateien aus Unterordnern nach oben...");
@@ -8033,20 +8248,6 @@ function initEventListeners() {
                      method: "POST",
                      headers: { "Content-Type": "application/json" },
                      body: JSON.stringify({ media_type: "tool_batch_convert", project_name: path, quality: quality })
-                });
-                if (res.ok) connectLogStream();
-                else appendConsoleLog(`[System]: ❌ Serverfehler bei der Ausführung.`);
-            } catch(e) {
-                appendConsoleLog(`[System]: ❌ Fehler: ${e.message}`);
-            }
-        } else if (toolType === "tool_nfo_agent") {
-            expandConsole();
-            appendConsoleLog("[System]: Starte NFO Agent...");
-            try {
-                const res = await fetch("/api/process", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ media_type: "tool_nfo_agent", project_name: path })
                 });
                 if (res.ok) connectLogStream();
                 else appendConsoleLog(`[System]: ❌ Serverfehler bei der Ausführung.`);
@@ -9828,7 +10029,7 @@ function renderSyncCategories() {
                     browseBtn.title = "Ordner auf dem NAS auswählen";
                     browseBtn.onclick = (e) => {
                         e.preventDefault();
-                        const rootPath = target.root_path || "/media";
+                        const rootPath = normalizePickerPath(target.root_path || "/media") || "/media";
                         let startPath = rootPath;
                         if (val && val.startsWith("/")) {
                             startPath = rootPath + val;
@@ -14748,12 +14949,28 @@ function initHealthDashboard() {
     document.getElementById("subtab-btn-duplicates")?.addEventListener("click", () => window.switchLibrarySubTab("duplicates"));
 
     // Manuelle Werkzeuge Ordner-Picker
-    document.getElementById("btn-lib-tools-browse")?.addEventListener("click", () => {
+    document.getElementById("btn-lib-tools-browse")?.addEventListener("click", async () => {
         const input = document.getElementById("lib-tools-manual-path");
-        const startPath = input ? input.value : "";
-        window.openFolderPicker(startPath, "", null, "Ordner für Werkzeuge auswählen", (selectedPath) => {
-            if (input) input.value = selectedPath;
-        });
+        const startPath = input ? input.value.trim() : "";
+        const openLocalEnabled = isOpenLocalFolderEnabled();
+        if (openLocalEnabled) {
+            try {
+                const qs = startPath ? "?default_path=" + encodeURIComponent(startPath) : "";
+                const response = await fetch("/api/browse-folder" + qs);
+                const data = await response.json();
+                if (data.status === "ok" && data.path && input) {
+                    input.value = data.path;
+                }
+            } catch (e) {
+                console.error("Fehler beim Browsen in Bibliotheks-Werkzeugen:", e);
+            }
+        } else {
+            const nasRoot = getPrimaryNasRoot(currentSettings, false);
+            const preferredRootPath = nasRoot || normalizePickerPath(currentSettings?.outbox_dir) || normalizePickerPath(currentSettings?.inbox_dir);
+            window.openFolderPicker(startPath, "", null, "Ordner für Werkzeuge auswählen", (selectedPath) => {
+                if (input) input.value = selectedPath;
+            }, { multiRoot: true, preferredRootPath });
+        }
     });
 
     // Lade Kategorien dynamisch
@@ -16692,6 +16909,48 @@ async function applyNormalize() {
     }
 }
 
+function renderToolModalTargetShortcuts() {
+    const container = document.getElementById("tool-modal-target-shortcuts");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const openLocalEnabled = isOpenLocalFolderEnabled();
+    const skipPaths = new Set(
+        [normalizePickerPath(currentSettings?.inbox_dir), normalizePickerPath(currentSettings?.outbox_dir)].filter(Boolean)
+    );
+
+    const addShortcutBtn = (targetId, label, normPath) => {
+        if (!normPath.startsWith("/") || normPath === "/" || skipPaths.has(normPath)) return;
+        skipPaths.add(normPath);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn btn-secondary btn-xs tool-modal-shortcut-target-btn";
+        btn.dataset.targetId = String(targetId || "nas");
+        btn.dataset.rootPath = normPath;
+        btn.title = normPath;
+        btn.textContent = label;
+        btn.addEventListener("click", () => {
+            const inputEl = document.getElementById("tool-modal-target-path");
+            if (inputEl) inputEl.value = normPath;
+        });
+        container.appendChild(btn);
+    };
+
+    if (Array.isArray(currentSettings?.storage_targets)) {
+        currentSettings.storage_targets.forEach((t, idx) => {
+            if (!isBrowsableStorageTarget(t, openLocalEnabled)) return;
+            const normPath = normalizePickerPath(t.root_path || t.path || "");
+            const label = String(t.name || (t.id === "nas" ? "NAS" : (t.id || "Speicherziel")));
+            addShortcutBtn(t.id || idx, label, normPath);
+        });
+    }
+
+    const normNas = normalizePickerPath(currentSettings?.nas_root);
+    if (normNas.startsWith("/") && normNas !== "/") {
+        addShortcutBtn("nas", "NAS", normNas);
+    }
+}
+
 function openToolRunnerModal(toolType, title, desc, hasQualitySlider = false, presetPath = null) {
     window.currentActiveTool = toolType;
 
@@ -16703,8 +16962,22 @@ function openToolRunnerModal(toolType, title, desc, hasQualitySlider = false, pr
 
     if (titleEl) titleEl.textContent = title;
     if (descEl) descEl.textContent = desc;
+    renderToolModalTargetShortcuts();
     if (pathInput) {
-        pathInput.value = presetPath || currentProject || (currentSettings ? currentSettings.inbox_dir : "");
+        const isSyncTool = (toolType === "tool_manual_sync" || toolType === "tool_pcloud_sync");
+        const libView = document.getElementById("view-library");
+        const inLibraryView = Boolean(libView && libView.classList.contains("active") && !libView.classList.contains("hidden"));
+        const validCurrentProject = (!inLibraryView && currentProject && currentProject !== "__inbox_recursive__") ? currentProject : "";
+        const nasRoot = getPrimaryNasRoot(currentSettings);
+        if (presetPath) {
+            pathInput.value = presetPath;
+        } else if (isSyncTool) {
+            pathInput.value = normalizePickerPath(currentSettings?.outbox_dir) || nasRoot || normalizePickerPath(currentSettings?.inbox_dir) || "";
+        } else if (inLibraryView) {
+            pathInput.value = nasRoot || normalizePickerPath(currentSettings?.outbox_dir) || normalizePickerPath(currentSettings?.inbox_dir) || "";
+        } else {
+            pathInput.value = validCurrentProject || normalizePickerPath(currentSettings?.inbox_dir) || "";
+        }
     }
 
     if (extraOpt) {
