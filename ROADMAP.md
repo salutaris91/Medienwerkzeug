@@ -2476,7 +2476,7 @@ Klein bis mittel (1 kompakte Gate-A2-Etappe über `gui/mw_metadata.py`, `gui/api
 
 ## 95. Jobs in der Warteschlange pausieren und abbrechen
 
-- [ ] **Status:** Offen (Wunsch von Alex am 2026-11-23 beim 28-GB-Upload von *Die Odyssee (2026)*)
+- [x] **Status:** erledigt (2026-11-25 — kooperatives Phasen-/Dateigrenzen-Pausieren & Queue-Überholen (`paused_from`), Prozessgruppen-Abbruch (`SIGTERM` → `SIGKILL`) ohne Retries/Fallbacks/`delete_original`, inhaltssichere Teil-Artefakt- & Leerordner-Bereinigung in `transfers.py`/`processor.py`, Step-Retry für `cancelled`-Jobs inkl. herkunftsgesichertem Film-Outbox-Manifest, `commit_job_retry_state` für mehrteilige TV-Jobs & Wizard-NFO-Fingerprints sowie `#96`-NFO-Schutz, `clear_finished_jobs`-Schutz für aktive/wartende Jobs, REST-Endpunkte `/api/queue/{cancel,pause,resume}` sowie Queue-Panel-Steuerung in `gui/static/app.js` mit `app.js?v=127` / `style.css?v=71` inkl. `tests/test_roadmap_95_queue_control.py` & `tests/frontend/roadmap_95_queue_control.test.js`; interner Plan-Review APPROVE R3, Gate-A2 `r3` + Post-Gate-Delta `r5` APPROVED)
 
 **Einordnung / Priorität:** Mittel bis hoch — heute lassen sich laufende oder wartende Jobs über die Oberfläche weder abbrechen noch pausieren (`/api/queue/clear` räumt nur beendete Jobs ab, `/api/queue/retry` startet fehlgeschlagene/beendete Jobs neu).
 

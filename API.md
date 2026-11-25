@@ -292,8 +292,13 @@ Für `media_type` `'movie'` steuert das optionale Objekt `artwork_overrides` (`p
 { "status": "ok", "task_id": "<uuid>" }
 ```
 
-### `GET /api/queue` · `POST /api/queue-clear` · `POST /api/queue-retry`
-Job-Status abrufen (GET), abgeschlossene Jobs aus der Liste leeren (POST), fehlgeschlagenen Job wiederholen (POST).
+### `GET /api/queue` · `POST /api/queue/clear` (`/api/queue-clear`) · `POST /api/queue/pause` (`/api/queue-pause`) · `POST /api/queue/resume` (`/api/queue-resume`) · `POST /api/queue/cancel` (`/api/queue-cancel`) · `POST /api/queue/retry` (`/api/queue-retry`)
+- `GET /api/queue`: Liefert alle Jobs (`queued`, `running`, `pausing`, `paused`, `cancelling`, `done`, `error`, `cancelled`), inkl. bedingtem Feld `paused_from` (`"queued"` | `"running"`) nur bei aktiv gesetzter Herkunft sowie `files` bei Gruppen-Jobs.
+- `POST /api/queue/pause` (`/api/queue-pause`): Payload `{"task_id": "<id>"}`. Pausiert einen wartenden (`queued` → `paused`, nachfolgende Jobs überholen sofort) oder laufenden (`running` → `pausing` → `paused` am nächsten Phasen-/Dateigrenz-Checkpoint) Job. Antwort: `200 {"status": "success", "job_status": "paused"|"pausing"}` (`400`/`404` sonst).
+- `POST /api/queue/resume` (`/api/queue-resume`): Payload `{"task_id": "<id>"}`. Setzt einen `paused`- oder `pausing`-Job fort (`queued` bei `paused_from == "queued"`, sonst `running`). Antwort: `200 {"status": "success", "job_status": "queued"|"running"}` (`400`/`404` sonst).
+- `POST /api/queue/cancel` (`/api/queue-cancel`): Payload `{"task_id": "<id>"}`. Bricht einen wartenden, pausierten oder laufenden Job ab (aktive Subprozess-Gruppen erhalten `SIGTERM` und nach `1.5 s` `SIGKILL`; unvollständige Zieldateien werden vorbestandssicher bereinigt). Antwort: `200 {"status": "success", "job_status": "cancelled"|"cancelling"}` (`400` bei fehlender `task_id` oder bereits terminalem Status `done`/`error`/`cancelled`, `404` bei unbekannter ID).
+- `POST /api/queue/retry` (`/api/queue-retry`): Payload `{"task_id": "<id>"}`. Reiht einen Job im Status `error`, `cancelled` oder `done` erneut ein und behält bereits erledigte (`done`) oder übersprungene (`skipped`) Pipeline-Schritte bei; nicht wiederholbare Spezialtypen (`normalize`, `unknown`) werden mit HTTP `400` abgelehnt.
+- `POST /api/queue/clear` (`/api/queue-clear`): Entfernt ausschließlich abgeschlossene Endzustände (`done`, `error`, `cancelled`) aus der Liste; laufende, wartende und pausierte Jobs bleiben erhalten.
 
 ---
 

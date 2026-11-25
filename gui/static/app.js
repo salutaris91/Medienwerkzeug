@@ -1,15 +1,15 @@
-import { applyTheme } from './js/theme.js?v=126';
-import { cleanSeriesName } from './js/utils.js?v=126';
-import { formatBytes } from './js/format.js?v=126';
-import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=126';
-import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=126';
-import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=126';
-import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=126';
-import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=126';
-import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=126';
-import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=126';
-import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from './js/nfo_editor.js?v=126';
-import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=126';
+import { applyTheme } from './js/theme.js?v=127';
+import { cleanSeriesName } from './js/utils.js?v=127';
+import { formatBytes } from './js/format.js?v=127';
+import { guessSeasonAndEpisode, guessEpisodeNumber, cleanFilenameForManualTitle } from './js/parse.js?v=127';
+import { osBasename, formatFskLabel } from './js/fsk_batch.js?v=127';
+import { fetchStats, fetchYoutubeSubscriptions, fetchSmartInboxSuggestions } from './js/welcome.js?v=127';
+import { loadConversionRecommendations, triggerQualityHintUpdates } from './js/intelligence.js?v=127';
+import { updateMwDataPanel, prepareSeriesPayload } from './js/nfo_ui.js?v=127';
+import { setupMaskedInput, setMaskedInputValue, validateAllMaskedFields } from './js/masked_input.js?v=127';
+import { initFilmWizard, openFilmWizard } from './js/film_wizard.js?v=127';
+import { renderNfoEditor, buildMovieNfoOverrides, buildWizardMovieOverrides, normalizeFsk, parseGenres } from './js/nfo_editor.js?v=127';
+import { renderPreviewData, collectPreviewSelection } from './js/preview_render.js?v=127';
 
 // ==========================================================================
 // AUTHENTICATION & CSRF WRAPPER
@@ -4549,7 +4549,7 @@ async function executeSeriesWorkflow() {
     const isGroupWorkflow = Boolean(typeof activeSeriesGroupFiles !== "undefined" && activeSeriesGroupFiles && activeSeriesGroupFiles.length > 0);
     if (isGroupWorkflow) {
         const queueList = (typeof currentQueueJobs !== "undefined" && currentQueueJobs) || (typeof globalThis !== "undefined" && globalThis.currentQueueJobs) || [];
-        const activeJobs = queueList.filter(j => j.status === "queued" || j.status === "running");
+        const activeJobs = queueList.filter(j => isQueueJobActive(j.status));
         const activeFilesSet = new Set();
         activeJobs.forEach(job => {
             if (Array.isArray(job.files)) {
@@ -11116,7 +11116,7 @@ function initQueue() {
     const clearBtn = document.getElementById("btn-clear-queue");
     if (clearBtn) {
         clearBtn.addEventListener("click", async () => {
-            if (confirm("Möchtest du die Warteschlange wirklich leeren? (Laufende Aufgaben werden nicht abgebrochen)")) {
+            if (confirm("Möchtest du alle abgeschlossenen, fehlgeschlagenen und abgebrochenen Aufgaben aus der Liste entfernen? (Laufende und wartende Aufgaben bleiben erhalten)")) {
                 try {
                     const res = await fetch("/api/queue/clear", {
                         method: "POST",
@@ -11135,6 +11135,66 @@ function initQueue() {
 
     setInterval(pollQueue, 2000);
     pollQueue();
+}
+
+const pendingQueueActions = new Map();
+
+function isQueueJobActive(status) {
+    return status === "queued" || status === "running" || status === "pausing" || status === "paused" || status === "cancelling";
+}
+
+async function runQueueAction(taskId, action, endpoint, errorPrefix) {
+    if (!taskId || pendingQueueActions.has(taskId)) return;
+
+    const job = (Array.isArray(currentQueueJobs) ? currentQueueJobs : []).find(j => j.id === taskId);
+    if (action === "cancel") {
+        const isStarted = Boolean(
+            job && (
+                job.status === "running" ||
+                job.status === "pausing" ||
+                (job.status === "paused" && job.paused_from === "running")
+            )
+        );
+        if (isStarted && !confirm("Möchtest du diese bereits angelaufene Aufgabe wirklich abbrechen?")) {
+            return;
+        }
+    }
+
+    pendingQueueActions.set(taskId, action);
+    renderQueue(currentQueueJobs);
+
+    try {
+        const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ task_id: taskId })
+        });
+
+        if (res.ok) {
+            if (action === "retry") {
+                knownFinishedJobs.delete(taskId);
+            }
+            pendingQueueActions.delete(taskId);
+            await pollQueue();
+        } else {
+            let errMsg = "Unbekannter Fehler";
+            try {
+                const data = await res.json();
+                if (data && data.message) errMsg = data.message;
+            } catch (_) {
+                // ignore JSON parse error on non-JSON error responses
+            }
+            console.error(`${errorPrefix}:`, errMsg);
+            alert(`${errorPrefix}: ${errMsg}`);
+            pendingQueueActions.delete(taskId);
+            renderQueue(currentQueueJobs);
+        }
+    } catch (err) {
+        console.error(`${errorPrefix}:`, err);
+        alert(`${errorPrefix}: Fehler beim Verbinden mit dem Server.`);
+        pendingQueueActions.delete(taskId);
+        renderQueue(currentQueueJobs);
+    }
 }
 
 async function pollQueue() {
@@ -11162,7 +11222,7 @@ function renderQueue(jobs) {
 
     const activeSet = new Set();
     jobs.forEach(j => {
-        if (j.status === "queued" || j.status === "running") {
+        if (isQueueJobActive(j.status)) {
             const p = j.project_name;
             if (p !== undefined && p !== null && p !== "") {
                 activeSet.add(p);
@@ -11172,7 +11232,7 @@ function renderQueue(jobs) {
     activeProjectsProcessing = activeSet;
     updateSidebarProcessingStates(activeProjectsProcessing);
 
-    const activeJobs = jobs.filter(j => j.status === "queued" || j.status === "running");
+    const activeJobs = jobs.filter(j => isQueueJobActive(j.status));
 
     if (activeJobs.length > 0) {
         if (badge) {
@@ -11206,6 +11266,26 @@ function renderQueue(jobs) {
             icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--accent); animation: spin 2s linear infinite;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>`;
             statusLabel = "Läuft";
         }
+        else if (job.status === "pausing") {
+            statusColor = "var(--warning)";
+            icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pause-circle" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--warning);"><circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/></svg>`;
+            statusLabel = "Pausiert nach Schritt";
+        }
+        else if (job.status === "paused") {
+            statusColor = "var(--warning)";
+            icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pause-circle" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--warning);"><circle cx="12" cy="12" r="10"/><line x1="10" x2="10" y1="15" y2="9"/><line x1="14" x2="14" y1="15" y2="9"/></svg>`;
+            statusLabel = "Pausiert";
+        }
+        else if (job.status === "cancelling") {
+            statusColor = "var(--danger)";
+            icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--danger); animation: spin 2s linear infinite;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>`;
+            statusLabel = "Bricht ab…";
+        }
+        else if (job.status === "cancelled") {
+            statusColor = "var(--text-muted)";
+            icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ban" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--text-muted);"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>`;
+            statusLabel = "Abgebrochen";
+        }
         else if (job.status === "done") {
             statusColor = "var(--success)";
             icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block; vertical-align:middle; margin-right: 4px; color: var(--success);"><polyline points="20 6 9 17 4 12"/></svg>`;
@@ -11238,7 +11318,14 @@ function renderQueue(jobs) {
         }
 
         let progressHtml = "";
-        if (job.status === "running" || job.status === "queued" || job.status === "done") {
+        if (
+            job.status === "running" ||
+            job.status === "queued" ||
+            job.status === "done" ||
+            job.status === "pausing" ||
+            job.status === "paused" ||
+            job.status === "cancelling"
+        ) {
             const displayProgress = job.progress || 0;
             const isAnimated = job.status === "running" ? "animation: pulse 2s infinite;" : "";
             progressHtml = `
@@ -11292,6 +11379,7 @@ function renderQueue(jobs) {
                 let stepIcon = "⚪";
                 let textColor = "var(--text-muted)";
                 let borderStyle = "1px solid rgba(255,255,255,0.05)";
+                let stepDimOpacity = "1";
 
                 if (sData.status === "running") {
                     stepColor = "rgba(59, 130, 246, 0.1)";
@@ -11308,20 +11396,28 @@ function renderQueue(jobs) {
                     stepIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x" style="display:inline-block; vertical-align:middle;"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>`;
                     textColor = "var(--danger)";
                     borderStyle = "1px solid rgba(239, 68, 68, 0.3)";
+                } else if (sData.status === "cancelled") {
+                    stepColor = "rgba(255, 255, 255, 0.03)";
+                    stepIcon = "⊘";
+                    textColor = "var(--text-muted)";
+                    borderStyle = "1px solid var(--border-glass)";
+                    stepDimOpacity = "0.65";
                 } else if (sData.status === "skipped") {
                     stepColor = "rgba(255, 255, 255, 0.02)";
                     stepIcon = "—";
                     textColor = "rgba(255,255,255,0.15)";
                     borderStyle = "1px solid rgba(255,255,255,0.02)";
                 }
-                const stepMessageHtml = sData.message
-                    ? `<span style="font-size: 8px; color: ${textColor}; opacity: 0.85; line-height: 1.1; display: block; max-width: 100%; word-break: break-word;" title="${escapeHTML(sData.message)}">${escapeHTML(sData.message)}</span>`
+                const effectiveStepMsg = sData.message || (sData.status === "cancelled" ? "Abgebrochen" : "");
+                const stepMessageHtml = effectiveStepMsg
+                    ? `<span style="font-size: 8px; color: ${textColor}; opacity: 0.85; line-height: 1.1; display: block; max-width: 100%; word-break: break-word;" title="${escapeHTML(effectiveStepMsg)}">${escapeHTML(effectiveStepMsg)}</span>`
                     : "";
+                const safeStepLabel = escapeHTML(step.label);
 
                 pipelineHtml += `
-                    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px; border-radius: var(--radius-sm); background: ${stepColor}; border: ${borderStyle}; text-align: center; box-sizing: border-box;">
+                    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px; border-radius: var(--radius-sm); background: ${stepColor}; border: ${borderStyle}; opacity: ${stepDimOpacity}; text-align: center; box-sizing: border-box;">
                         <span style="font-size: 13px; line-height: 1; display: inline-flex; align-items: center; justify-content: center;">${stepIcon}</span>
-                        <span style="font-size: 9px; font-weight: 500; color: ${textColor}; white-space: normal; line-height: 1.1; word-break: break-word; max-width: 100%; display: block;" title="${step.label}">${step.label}</span>
+                        <span style="font-size: 9px; font-weight: 500; color: ${textColor}; white-space: normal; line-height: 1.1; word-break: break-word; max-width: 100%; display: block;" title="${safeStepLabel}">${safeStepLabel}</span>
                         ${sData.status === "running" ? `<span style="font-size: 9px; color: ${textColor}; font-weight: bold; display: block;">${sData.progress}%</span>` : ""}
                         ${stepMessageHtml}
                     </div>
@@ -11337,70 +11433,92 @@ function renderQueue(jobs) {
             pipelineHtml += `</div>`;
         }
 
-        let retryHtml = "";
-        if (job.status === "error") {
-            retryHtml = `
-                <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
-                    <button class="queue-retry-btn btn-secondary" data-task-id="${job.id}" style="padding: 4px 10px; font-size: 11px; display: flex; align-items: center; gap: 4px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.2s;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Task wiederholen
+        const safeTaskId = escapeHTML(job.id || "");
+        const safeJobName = escapeHTML(job.name || "");
+        const safeJobMessage = escapeHTML(job.message || "");
+        const pendingAction = pendingQueueActions.get(job.id);
+        const disabledAttr = pendingAction ? " disabled" : "";
+
+        let actionsHtml = "";
+        if (job.status === "queued" || job.status === "running") {
+            actionsHtml = `
+                <div class="queue-card-actions">
+                    <button type="button" class="queue-pause-btn btn-secondary queue-action-btn" data-task-id="${safeTaskId}"${disabledAttr}>${pendingAction === "pause" ? "Pausiere…" : "Pausieren"}</button>
+                    <button type="button" class="queue-cancel-btn btn-secondary queue-action-btn queue-action-btn-danger" data-task-id="${safeTaskId}"${disabledAttr}>${pendingAction === "cancel" ? "Breche ab…" : "Abbrechen"}</button>
+                </div>
+            `;
+        } else if (job.status === "pausing" || job.status === "paused") {
+            actionsHtml = `
+                <div class="queue-card-actions">
+                    <button type="button" class="queue-resume-btn btn-secondary queue-action-btn" data-task-id="${safeTaskId}"${disabledAttr}>${pendingAction === "resume" ? "Setze fort…" : "Fortsetzen"}</button>
+                    <button type="button" class="queue-cancel-btn btn-secondary queue-action-btn queue-action-btn-danger" data-task-id="${safeTaskId}"${disabledAttr}>${pendingAction === "cancel" ? "Breche ab…" : "Abbrechen"}</button>
+                </div>
+            `;
+        } else if (job.status === "cancelling") {
+            actionsHtml = `
+                <div class="queue-card-actions">
+                    <button type="button" class="btn-secondary queue-action-btn" disabled>Wird abgebrochen…</button>
+                </div>
+            `;
+        } else if ((job.status === "error" || job.status === "cancelled") && job.type !== "normalize") {
+            actionsHtml = `
+                <div class="queue-card-actions">
+                    <button type="button" class="queue-retry-btn btn-secondary queue-action-btn" data-task-id="${safeTaskId}"${disabledAttr}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> ${pendingAction === "retry" ? "Einreihen…" : "Task wiederholen"}
                     </button>
                 </div>
             `;
         }
 
         const card = document.createElement("div");
+        card.className = "queue-card";
         card.style.cssText = "background: var(--bg-surface); border: 1px solid var(--border-glass); border-radius: var(--radius-lg); padding: 15px;";
 
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; margin-bottom:5px; align-items: center;">
-                <strong style="font-size:14px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:10px; display:inline-flex; align-items:center; gap: 6px;">${icon} ${job.name}</strong>
+                <strong style="font-size:14px; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:10px; display:inline-flex; align-items:center; gap: 6px;">${icon} ${safeJobName}</strong>
                 <span style="font-size:12px; color:${statusColor}; text-transform:uppercase; font-weight:600;">${statusLabel}</span>
             </div>
-            <div style="font-size:12px; color:var(--text-muted); margin-left: 20px;">${job.message || ""}</div>
+            <div style="font-size:12px; color:var(--text-muted); margin-left: 20px;">${safeJobMessage}</div>
             ${progressHtml}
             ${pipelineHtml}
-            ${retryHtml}
+            ${actionsHtml}
         `;
         list.appendChild(card);
     });
 
-    // Registriere Klick-Handler für Wiederholen-Buttons
-    list.querySelectorAll(".queue-retry-btn").forEach(btn => {
-        btn.addEventListener("click", async (e) => {
+    // Registriere Klick-Handler für Queue-Aktionsbuttons
+    list.querySelectorAll(".queue-pause-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
             const taskId = e.currentTarget.getAttribute("data-task-id");
-            if (!taskId) return;
+            return runQueueAction(taskId, "pause", "/api/queue/pause", "Fehler beim Pausieren");
+        });
+    });
 
-            // Button deaktivieren und Lade-Status anzeigen
-            e.currentTarget.disabled = true;
-            e.currentTarget.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px; animation: spin 2s linear infinite;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Einreihen...`;
+    list.querySelectorAll(".queue-resume-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            const taskId = e.currentTarget.getAttribute("data-task-id");
+            return runQueueAction(taskId, "resume", "/api/queue/resume", "Fehler beim Fortsetzen");
+        });
+    });
 
-            try {
-                const res = await fetch("/api/queue/retry", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ task_id: taskId })
-                });
+    list.querySelectorAll(".queue-cancel-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            const taskId = e.currentTarget.getAttribute("data-task-id");
+            return runQueueAction(taskId, "cancel", "/api/queue/cancel", "Fehler beim Abbrechen");
+        });
+    });
 
-                if (res.ok) {
-                    pollQueue();
-                } else {
-                    const data = await res.json();
-                    alert(`Fehler beim Wiederholen: ${data.message || "Unbekannter Fehler"}`);
-                    e.currentTarget.disabled = false;
-                    e.currentTarget.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Task wiederholen`;
-                }
-            } catch (err) {
-                console.error("Fehler beim Wiederholen des Jobs:", err);
-                alert("Fehler beim Verbinden mit dem Server.");
-                e.currentTarget.disabled = false;
-                e.currentTarget.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block; vertical-align:middle; margin-right: 4px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg> Task wiederholen`;
-            }
+    list.querySelectorAll(".queue-retry-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            const taskId = e.currentTarget.getAttribute("data-task-id");
+            return runQueueAction(taskId, "retry", "/api/queue/retry", "Fehler beim Wiederholen");
         });
     });
 
     // Check for newly finished jobs to show joke
     jobs.forEach(job => {
-        if (job.status === "done" || job.status === "error") {
+        if (job.status === "done" || job.status === "error" || job.status === "cancelled") {
             if (!knownFinishedJobs.has(job.id)) {
                 if (!isFirstQueuePoll && job.status === "done") {
                     // Newly finished job! Trigger joke!
@@ -16856,7 +16974,7 @@ async function waitForQueueJob(taskId, { intervalMs = 2000, timeoutMs = 10 * 60 
                 const job = (data.jobs || []).find(j => j.id === taskId);
                 if (job) {
                     notFoundCount = 0;
-                    if (job.status !== "queued" && job.status !== "running") return job;
+                    if (!isQueueJobActive(job.status)) return job;
                 } else if (++notFoundCount >= 3) {
                     // Job ist aus der Queue verschwunden (z. B. geleert) — nicht ewig warten
                     return null;

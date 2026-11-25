@@ -51,16 +51,17 @@ def _update_transfer_progress(target_id, file_idx, percent, msg, target_progress
 
     update_global_job_progress()
 
-    with active_jobs_lock:
-        if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-            if target_id in active_jobs[task_id]["pipeline"]:
-                active_jobs[task_id]["pipeline"][target_id]["status"] = "running"
-                if is_list:
-                    avg_val = sum(target_progresses[target_id]) / N if N > 0 else percent
-                    active_jobs[task_id]["pipeline"][target_id]["progress"] = int(avg_val)
-                else:
-                    active_jobs[task_id]["pipeline"][target_id]["progress"] = percent
-                active_jobs[task_id]["pipeline"][target_id]["message"] = msg
+    if task_id:
+        from gui.core.jobs import update_job
+        with progress_lock:
+            step_prog = int(sum(target_progresses[target_id]) / N) if (is_list and N > 0) else percent
+        update_job(
+            task_id,
+            pipeline_step=target_id,
+            pipeline_status="running",
+            pipeline_progress=step_prog,
+            pipeline_message=msg,
+        )
 
 def _set_transfer_pipeline_step(task_id, target_id, status=None, progress=None, message=None, job_message=None):
     if not task_id:
@@ -88,6 +89,9 @@ def _handle_transfer_task(
 ):
     import os
     import shutil
+    from gui.core.jobs import JobCancelledError, wait_if_paused_or_cancelled
+
+    wait_if_paused_or_cancelled(task_id)
 
     task_type = task["type"]
     file_idx = task.get("file_idx")
@@ -117,7 +121,6 @@ def _handle_transfer_task(
                 message="Kopieren auf NAS gestartet...",
                 job_message="Kopieren auf NAS gestartet..."
             )
-            os.makedirs(dest_dir_nas, exist_ok=True)
             success = run_rsync_with_progress(
                 os.path.join(dest_dir_outbox, final_filename),
                 os.path.join(dest_dir_nas, final_filename),
@@ -125,15 +128,12 @@ def _handle_transfer_task(
             )
             if not success:
                 log_message(f"⚠️ [Transfer Thread]: Fehler beim Kopieren von {final_filename} auf {target_id}.")
-                with active_jobs_lock:
-                    if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                        if target_id in active_jobs[task_id]["pipeline"]:
-                            active_jobs[task_id]["pipeline"][target_id]["status"] = "error"
-                            active_jobs[task_id]["pipeline"][target_id]["message"] = "Fehlgeschlagen"
+                _set_transfer_pipeline_step(task_id, target_id, status="error", message="Fehlgeschlagen")
             else:
                 with progress_lock:
                     target_progresses[target_id][file_idx] = 100
                 # Copy accompanying files
+                os.makedirs(dest_dir_nas, exist_ok=True)
                 for f in os.listdir(dest_dir_outbox):
                     if f.startswith(clean_title) and f != final_filename:
                         shutil.copy(os.path.join(dest_dir_outbox, f), os.path.join(dest_dir_nas, f))
@@ -159,7 +159,6 @@ def _handle_transfer_task(
                 message="Kopieren auf NAS gestartet...",
                 job_message="Kopieren auf NAS gestartet..."
             )
-            os.makedirs(dest_movie_dir_nas, exist_ok=True)
 
             success = run_rsync_with_progress(
                 dest_movie_dir_outbox,
@@ -168,6 +167,7 @@ def _handle_transfer_task(
                 protect_existing=True
             )
             if success:
+                os.makedirs(dest_movie_dir_nas, exist_ok=True)
                 log_message(f"[Transfer Thread]: Kopieren auf {target_id} fertig für {final_filename}.")
                 with progress_lock:
                     target_progresses[target_id][file_idx] = 100
@@ -180,10 +180,7 @@ def _handle_transfer_task(
                 )
             else:
                 log_message(f"⚠️ [Transfer Thread]: Fehler beim Kopieren von {final_filename} auf {target_id}.")
-                with active_jobs_lock:
-                    if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                        if target_id in active_jobs[task_id]["pipeline"]:
-                            active_jobs[task_id]["pipeline"][target_id]["status"] = "error"
+                _set_transfer_pipeline_step(task_id, target_id, status="error")
 
         update_global_job_progress()
 
@@ -220,6 +217,8 @@ def _handle_transfer_task(
                                 resolved_topic=final_topic
                             )
                             log_message(f"[Transfer Thread]: mw_data in {f} auf NAS aktualisiert.")
+                        except JobCancelledError:
+                            raise
                         except Exception as e:
                             log_message(f"⚠️ [Transfer Thread]: Fehler beim Aktualisieren von mw_data in {f} auf NAS: {e}")
                 else:
@@ -287,47 +286,84 @@ def _handle_transfer_task(
                     target_progresses[target_id] = 100
             log_message(f"[Transfer Thread]: Upload nach {name_log} fertig.")
             update_global_job_progress()
-            with active_jobs_lock:
-                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                    if target_id in active_jobs[task_id]["pipeline"]:
-                        active_jobs[task_id]["pipeline"][target_id]["status"] = "done"
-                        active_jobs[task_id]["pipeline"][target_id]["progress"] = 100
-                        active_jobs[task_id]["pipeline"][target_id]["message"] = f"Upload nach {target_name} abgeschlossen"
+            _set_transfer_pipeline_step(
+                task_id,
+                target_id,
+                status="done",
+                progress=100,
+                message=f"Upload nach {target_name} abgeschlossen",
+            )
         else:
             log_message(f"[Transfer Thread]: ❌ Upload nach {name_log} fehlgeschlagen.")
-            with active_jobs_lock:
-                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                    if target_id in active_jobs[task_id]["pipeline"]:
-                        active_jobs[task_id]["pipeline"][target_id]["status"] = "error"
-                        active_jobs[task_id]["pipeline"][target_id]["message"] = "Fehlgeschlagen"
+            _set_transfer_pipeline_step(task_id, target_id, status="error", message="Fehlgeschlagen")
+
 
 def _update_pipeline_metadata_progress(task_id, current_prog):
-    from gui.core.jobs import active_jobs, active_jobs_lock
-    with active_jobs_lock:
-        if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-            active_jobs[task_id]["pipeline"]["metadata"]["progress"] = min(100, current_prog)
-            if current_prog >= 100:
-                active_jobs[task_id]["pipeline"]["metadata"]["status"] = "done"
+    if not task_id:
+        return
+    from gui.core.jobs import update_job
+    capped = min(100, current_prog)
+    update_job(
+        task_id,
+        pipeline_step="metadata",
+        pipeline_status="done" if current_prog >= 100 else None,
+        pipeline_progress=capped,
+    )
+
 
 def _mark_convert_step_done(task_id):
-    from gui.core.jobs import active_jobs, active_jobs_lock
-    with active_jobs_lock:
-        if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-            if active_jobs[task_id]["pipeline"]["convert"]["status"] == "running":
-                active_jobs[task_id]["pipeline"]["convert"]["status"] = "done"
-                active_jobs[task_id]["pipeline"]["convert"]["progress"] = 100
+    if not task_id:
+        return
+    from gui.core.jobs import get_job, update_job
+    job = get_job(task_id)
+    if job and job.get("pipeline", {}).get("convert", {}).get("status") == "running":
+        update_job(task_id, pipeline_step="convert", pipeline_status="done", pipeline_progress=100)
+
 
 def _calculate_average_progress(progress_values, total_count):
     return int(sum(progress_values) / total_count) if total_count > 0 else 0
 
+
 def _mark_remaining_steps_done(task_id):
-    from gui.core.jobs import active_jobs, active_jobs_lock
-    with active_jobs_lock:
-        if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-            for step_key, step_info in active_jobs[task_id]["pipeline"].items():
-                if step_key not in ["metadata", "convert"] and step_info["status"] == "running":
-                    step_info["status"] = "done"
-                    step_info["progress"] = 100
+    if not task_id:
+        return
+    from gui.core.jobs import get_job, update_job
+    job = get_job(task_id)
+    if job and "pipeline" in job:
+        for step_key, step_info in job["pipeline"].items():
+            if step_key not in ["metadata", "convert"] and step_info.get("status") == "running":
+                update_job(task_id, pipeline_step=step_key, pipeline_status="done", pipeline_progress=100)
+
+
+def _run_cancellable_subproc(cmd, task_id=None, capture_output=True, text=True):
+    from gui.core.jobs import (
+        JobCancelledError,
+        is_job_cancelled,
+        register_job_process,
+        resolve_job_id,
+        unregister_job_process,
+        wait_if_paused_or_cancelled,
+    )
+
+    job_id = resolve_job_id(task_id)
+    wait_if_paused_or_cancelled(job_id)
+    stdout_pipe = subprocess.PIPE if capture_output else None
+    stderr_pipe = subprocess.PIPE if capture_output else None
+    proc = subprocess.Popen(
+        cmd,
+        stdout=stdout_pipe,
+        stderr=stderr_pipe,
+        text=text,
+        start_new_session=(os.name != "nt"),
+    )
+    register_job_process(job_id, proc)
+    try:
+        out, err = proc.communicate()
+    finally:
+        unregister_job_process(job_id, proc)
+    if is_job_cancelled(job_id):
+        raise JobCancelledError("Vom Benutzer abgebrochen")
+    return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
 
 def _finalize_job(params, job_size_gb, transfer_errors, current_dir, inbox_root, log_message):
     import os
@@ -750,13 +786,13 @@ def find_files_recursively(directory, extensions=None):
     return found
 
 def run_subscription_check_job(task_id):
+    from gui.core.jobs import JobCancelledError, update_job, wait_if_paused_or_cancelled
     try:
         settings = load_settings()
         subs = settings.get("youtube_subscriptions", [])
         active_subs = [s for s in subs if s.get("enabled")]
         if not active_subs:
             log_message("[YouTube Abo-Überwachung]: Keine aktiven Abonnements zum Überprüfen gefunden.")
-            from gui.core.jobs import update_job
             update_job(task_id, progress=100, message="Keine aktiven Abonnements", status="done")
             return
 
@@ -764,25 +800,53 @@ def run_subscription_check_job(task_id):
         log_message(f"[YouTube Abo-Überwachung]: Starte manuell getriggerten Check für {total} Abos (via Warteschlange)...")
 
         for idx, sub in enumerate(active_subs):
+            wait_if_paused_or_cancelled(task_id)
             current_progress = int((idx / total) * 100)
             sub_name = sub.get("name", "Unbekannt")
 
-            from gui.core.jobs import update_job
             update_job(task_id, progress=current_progress, message=f"Prüfe '{sub_name}' ({idx + 1}/{total})...")
 
             log_message(f"[YouTube Abo-Überwachung] Überprüfe '{sub_name}' ({idx + 1}/{total})...")
             try:
                 check_single_subscription(sub)
+            except JobCancelledError:
+                raise
             except Exception as sub_err:
                 log_message(f"[YouTube Abo-Überwachung] Fehler bei '{sub_name}': {sub_err}")
 
-        from gui.core.jobs import update_job
+        wait_if_paused_or_cancelled(task_id)
         update_job(task_id, progress=100, message=f"{total} Abonnements erfolgreich überprüft.", status="done")
+    except JobCancelledError:
+        raise
     except Exception as e:
         log_message(f"[YouTube Abo-Überwachung] Fehler bei der manuellen Überprüfung: {e}")
         raise e
 
+
 def process_worker(params):
+    from gui.core.jobs import bind_job_context
+    explicit_tid = params.get("task_id") if isinstance(params, dict) else None
+    with bind_job_context(explicit_tid):
+        return _process_worker_body(params)
+
+
+def _process_worker_body(params):
+    from gui.core.jobs import (
+        JobCancelledError,
+        bind_job_context,
+        check_cancelled,
+        commit_job_manifest,
+        commit_job_retry_state,
+        get_bound_job_control,
+        get_job,
+        is_confirmed_manifest_entry,
+        is_job_cancelled,
+        prepare_outbox_manifest_entry,
+        register_job_wait_event,
+        update_job,
+        wait_if_paused_or_cancelled,
+    )
+    wait_if_paused_or_cancelled(params.get("task_id") if isinstance(params, dict) else None)
     media_type = params.get("media_type")
 
     # Map content_type for Feature 2
@@ -911,7 +975,11 @@ def process_worker(params):
                 current_dir = os.path.abspath(project_name)
             else:
                 current_dir = os.path.join(inbox_root, project_name)
-            if os.path.isfile(current_dir):
+            if os.path.isfile(current_dir) or (
+                not os.path.exists(current_dir)
+                and os.path.splitext(project_name)[1].lower()
+                in ('.mp4', '.mkv', '.avi', '.webm', '.mov', '.ts', '.m2ts', '.flv', '.3gp', '.wmv')
+            ):
                 is_single_file = True
                 current_dir = os.path.dirname(current_dir)
         else:
@@ -928,7 +996,9 @@ def process_worker(params):
             job_size_gb = total_bytes / (1024 * 1024 * 1024)
         elif project_name:
             if is_single_file:
-                job_size_gb = os.path.getsize(os.path.join(current_dir, project_name)) / (1024 * 1024 * 1024)
+                single_fp = os.path.join(current_dir, os.path.basename(project_name))
+                if os.path.exists(single_fp):
+                    job_size_gb = os.path.getsize(single_fp) / (1024 * 1024 * 1024)
             else:
                 job_size_gb = get_dir_size_gb(current_dir)
         else:
@@ -946,9 +1016,11 @@ def process_worker(params):
                     v_files = [r["old"] for r in explicit_renames_check]
                 else:
                     if is_single_file:
-                        v_files = [project_name]
-                    else:
+                        v_files = [os.path.basename(project_name)]
+                    elif os.path.isdir(current_dir):
                         v_files = [f for f in os.listdir(current_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov')) and not f.startswith(".")]
+                    else:
+                        v_files = []
                 for f in v_files:
                     fp = os.path.join(current_dir, f)
                     if os.path.exists(fp):
@@ -1026,18 +1098,36 @@ def process_worker(params):
                 elif new_r is not None and new_r == "":
                     raise RuntimeError(f"Sicherheitsabbruch: Rename-Ziel '{new_r}' darf nicht leer sein.")
 
+    wait_if_paused_or_cancelled(task_id)
+    _job_snap_step0 = get_job(task_id) if task_id else None
+    _step0_retry_state = (
+        _job_snap_step0.get("retry_state", {})
+        if _job_snap_step0 and isinstance(_job_snap_step0.get("retry_state"), dict)
+        else {}
+    )
+    _step0_meta_done = bool(
+        (_job_snap_step0 and _job_snap_step0.get("pipeline", {}).get("metadata", {}).get("status") == "done")
+        or _step0_retry_state.get("step0_done")
+    )
+
     # 0. Apply explicit user choices from preview if provided
+    _step0_renamed = {}
     if explicit_renames is not None:
         log_message("Wende exakte Benutzer-Zuweisungen aus Vorschau an...")
-        if explicit_junk:
+        if explicit_junk and not _step0_meta_done:
             for j in explicit_junk:
                 jp = os.path.join(current_dir, j)
                 if os.path.exists(jp):
                     try:
                         trash.send_to_trash(jp)
                         log_message(f"In Quarantäne (Junk): {j}")
+                    except JobCancelledError:
+                        raise
                     except Exception as e:
                         log_message(f"Fehler beim Löschen von Junk {j}: {e}")
+            if task_id:
+                commit_job_retry_state(task_id, retry_state={"step0_done": True})
+            _step0_meta_done = True
 
         if explicit_renames:
             # Check for duplicate target names (collisions)
@@ -1095,7 +1185,13 @@ def process_worker(params):
                     if files_param is not None and os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
                         raise RuntimeError(f"Kollision beim Umbenennen von Video: Ziel '{r['new']}' existiert bereits.")
                     os.rename(old_path, new_path)
+                    _step0_renamed[r["old"]] = r["new"]
+                    _step0_renamed[r["new"]] = r["new"]
                     log_message(f"Umbenannt/Hochgezogen: {r['old']} -> {r['new']}")
+                elif old_path == new_path and os.path.isfile(old_path):
+                    _step0_renamed[r["old"]] = r["new"]
+            if _step0_renamed and task_id:
+                commit_job_retry_state(task_id, retry_state={"tv_renamed": _step0_renamed})
 
         if explicit_subs:
             for s in explicit_subs:
@@ -1111,20 +1207,30 @@ def process_worker(params):
                     log_message(f"Umbenannt/Hochgezogen (Extra): {s['old']} -> {s['new']}")
 
         # Cleanup empty subdirectories (skip for files-Jobs)
-        if files_param is None:
+        if files_param is None and os.path.isdir(current_dir):
             for root, dirs, files in os.walk(current_dir, topdown=False):
                 if root == current_dir: continue
                 if not os.listdir(root):
                     try:
                         trash.send_to_trash(root)
                         log_message(f"Leeren Unterordner entfernt: {os.path.basename(root)}")
+                    except JobCancelledError:
+                        raise
                     except Exception as e: print(f"Warning: Ignored exception {e}")
+        if not _step0_meta_done and task_id:
+            commit_job_retry_state(task_id, retry_state={"step0_done": True})
+            _step0_meta_done = True
 
     if media_type == "tv":
         from gui.core.jobs import get_job, update_job
         job = get_job(task_id) if task_id else None
         pipeline = job.get("pipeline", {}) if job else {}
         manifest = job.get("manifest", {}) if job else {}
+        retry_state = job.get("retry_state", {}) if (job and isinstance(job.get("retry_state"), dict)) else {}
+        tv_renamed_map = dict(_step0_renamed)
+        if isinstance(retry_state.get("tv_renamed"), dict):
+            tv_renamed_map.update(retry_state["tv_renamed"])
+        tv_nfo_map = dict(retry_state.get("tv_nfo_generated", {})) if isinstance(retry_state.get("tv_nfo_generated"), dict) else {}
 
         is_metadata_done = pipeline.get("metadata", {}).get("status") == "done"
         is_convert_done = pipeline.get("convert", {}).get("status") == "done"
@@ -1165,7 +1271,7 @@ def process_worker(params):
             os.makedirs(dest_show_dir_outbox, exist_ok=True)
 
         if not is_metadata_done:
-            from gui.core.jobs import update_job
+            wait_if_paused_or_cancelled(task_id)
             update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=50)
             if show_id and provider:
                 log_message("Generiere tvshow.nfo und lade Poster/Fanart...")
@@ -1181,12 +1287,15 @@ def process_worker(params):
                                 
                     res = mw_metadata.generate_tvshow_nfo(provider, show_id, show_target_dir, nfo_overrides=show_overrides, overwrite=should_overwrite_show)
                     log_message(f"tvshow.nfo Status: {res}")
+                except JobCancelledError:
+                    raise
                 except Exception as e:
                     log_message(f"Fehler bei tvshow.nfo: {e}")
         else:
             log_message("Metadaten-Schritt ('metadata') ist bereits erledigt. Überspringe tvshow.nfo Generierung.")
 
         # 2. Fetch episodes metadata
+        wait_if_paused_or_cancelled(task_id)
         log_message("Rufe Episoden-Metadaten ab...")
         try:
             episodes = {}
@@ -1216,6 +1325,8 @@ def process_worker(params):
                         episodes[str(ep_idx)] = {"title": ep_title, "plot": ent.get("description", "")}
             elif provider == "fernsehserien":
                 episodes = mw_metadata.get_fernsehserien_episodes(show_id, season)
+        except JobCancelledError:
+            raise
         except Exception as e:
             log_message(f"Fehler beim Laden der Episoden: {e}")
             episodes = {}
@@ -1343,37 +1454,58 @@ def process_worker(params):
 
         transfer_queue = queue.Queue()
         transfer_errors = []
+        _tv_bound_ctrl = get_bound_job_control(task_id)
 
         def transfer_worker():
-            while True:
-                task = transfer_queue.get()
-                if task is None:
-                    transfer_queue.task_done()
-                    break
-                try:
-                    _handle_transfer_task(
-                        task,
-                        task_id,
-                        target_progresses,
-                        target_speeds,
-                        progress_lock,
-                        N,
-                        log_message,
-                        update_global_job_progress
-                    )
-                except Exception as e:
-                    log_message(f"❌ [Transfer Thread] Fehler: {e}")
-                    transfer_errors.append(e)
-                finally:
-                    transfer_queue.task_done()
+            with bind_job_context(task_id, ctrl=_tv_bound_ctrl):
+                while True:
+                    task = transfer_queue.get()
+                    if task is None:
+                        transfer_queue.task_done()
+                        break
+                    t_id = task.get("target_id", "nas" if task.get("type") == "show_metadata_nas_transfer" else None)
+                    if any(isinstance(err, JobCancelledError) for err in transfer_errors) or is_job_cancelled(task_id):
+                        if t_id:
+                            snap = get_job(task_id)
+                            if snap and snap.get("pipeline", {}).get(t_id, {}).get("status") in ("running", "pending"):
+                                _set_transfer_pipeline_step(task_id, t_id, status="cancelled", message="Abgebrochen")
+                        if not any(isinstance(err, JobCancelledError) for err in transfer_errors):
+                            transfer_errors.append(JobCancelledError("Vom Benutzer abgebrochen"))
+                        transfer_queue.task_done()
+                        continue
+                    try:
+                        _handle_transfer_task(
+                            task,
+                            task_id,
+                            target_progresses,
+                            target_speeds,
+                            progress_lock,
+                            N,
+                            log_message,
+                            update_global_job_progress
+                        )
+                    except JobCancelledError as ce:
+                        if t_id:
+                            _set_transfer_pipeline_step(task_id, t_id, status="cancelled", message="Abgebrochen")
+                        transfer_errors.append(ce)
+                    except Exception as e:
+                        log_message(f"❌ [Transfer Thread] Fehler: {e}")
+                        transfer_errors.append(e)
+                    finally:
+                        transfer_queue.task_done()
 
         # Start the Transfer Thread
-        transfer_thread = threading.Thread(target=transfer_worker, name=f"job-{task_id}-transfer", daemon=True)
+        transfer_thread = threading.Thread(
+            target=transfer_worker,
+            name=f"job-{task_id}-transfer" if task_id else "worker-transfer",
+            daemon=True,
+        )
         transfer_thread.start()
 
         try:
             # 4. Process mappings sequentially
             for file_idx, (filename, ep_num_val) in enumerate(mapping_items):
+                wait_if_paused_or_cancelled(task_id)
                 protected_episode_paths = set()
                 # If explicit_renames was used, the file is ALREADY renamed to the target_filename
                 # We just need to generate the NFO!
@@ -1482,39 +1614,49 @@ def process_worker(params):
 
                 outbox_target = os.path.join(dest_dir_outbox, target_filename)
                 outbox_conv = os.path.join(dest_dir_outbox, f"{clean_title}.mkv")
-                manifest_entry = manifest.get(filename)
+                manifest_entry = manifest.get(filename) if isinstance(manifest, dict) else None
                 manifest_file_exists = False
-                if manifest_entry:
+                if is_confirmed_manifest_entry(manifest_entry):
                     manifest_target_filename = manifest_entry.get("target_filename")
                     manifest_dest_dir = manifest_entry.get("dest_dir_outbox")
                     if manifest_target_filename and manifest_dest_dir:
                         manifest_target_path = os.path.join(manifest_dest_dir, manifest_target_filename)
                         manifest_conv_path = os.path.join(manifest_dest_dir, os.path.splitext(manifest_target_filename)[0] + ".mkv")
-                        if os.path.exists(manifest_target_path):
+                        if os.path.isfile(manifest_target_path):
                             manifest_file_exists = True
                             dest_dir_outbox = manifest_dest_dir
                             target_filename = manifest_target_filename
                             clean_title = manifest_entry.get("clean_title", clean_title)
-                        elif os.path.exists(manifest_conv_path):
+                        elif os.path.isfile(manifest_conv_path):
                             manifest_file_exists = True
                             dest_dir_outbox = manifest_dest_dir
                             target_filename = os.path.splitext(manifest_target_filename)[0] + ".mkv"
                             clean_title = manifest_entry.get("clean_title", clean_title)
 
-                file_already_in_outbox = os.path.exists(outbox_target) or os.path.exists(outbox_conv) or manifest_file_exists
+                file_already_in_outbox = manifest_file_exists
+                already_converted_in_inbox = False
+                ep_was_renamed = is_metadata_done or (tv_renamed_map.get(filename) == target_filename)
 
                 if explicit_renames is None:
                     # Old backwards compatible fallback
                     filepath = os.path.join(current_dir, filename)
+                    inbox_conv_tv = os.path.join(current_dir, f"{clean_title}.mkv")
                     if not os.path.exists(filepath):
                         if file_already_in_outbox:
                             log_message(f"Originaldatei {filename} ist nicht mehr in Inbox, aber bereits verarbeitet in Outbox. Überspringe Umbenennung.")
+                        elif ep_was_renamed and os.path.isfile(target_filepath):
+                            log_message(f"Originaldatei {filename} wurde im Input-Ordner bereits zu {target_filename} umbenannt.")
+                        elif ep_was_renamed and convert and os.path.isfile(inbox_conv_tv):
+                            log_message(f"Originaldatei {filename} wurde im Input-Ordner bereits zu {clean_title}.mkv konvertiert.")
+                            target_filename = f"{clean_title}.mkv"
+                            target_filepath = inbox_conv_tv
+                            already_converted_in_inbox = True
                         else:
                             if files_param is not None:
                                 raise RuntimeError(f"Datei nicht gefunden (TOCTOU): '{filename}' existiert nicht mehr.")
                             continue
                     else:
-                        if file_already_in_outbox and is_metadata_done:
+                        if file_already_in_outbox:
                             log_message(f"Episode {filename} ist bereits verarbeitet. Überspringe Umbenennung.")
                         else:
                             if files_param is not None and os.path.exists(target_filepath) and os.path.abspath(filepath) != os.path.abspath(target_filepath):
@@ -1524,6 +1666,14 @@ def process_worker(params):
                             log_message(f"Benenne um: {filename} -> {target_filename}")
                             try:
                                 os.rename(filepath, target_filepath)
+                                tv_renamed_map[filename] = target_filename
+                                if task_id:
+                                    commit_job_retry_state(
+                                        task_id,
+                                        retry_state={"tv_renamed": {filename: target_filename}},
+                                    )
+                            except JobCancelledError:
+                                raise
                             except Exception as e:
                                 if files_param is not None:
                                     raise
@@ -1555,6 +1705,11 @@ def process_worker(params):
                                             sub_old_path = os.path.join(current_dir, comp)
                                             sub_new_path = os.path.join(current_dir, sub_new_name)
                                             if not os.path.exists(sub_old_path):
+                                                if (ep_was_renamed or file_already_in_outbox) and (
+                                                    os.path.exists(sub_new_path)
+                                                    or os.path.exists(os.path.join(dest_dir_outbox, sub_new_name))
+                                                ):
+                                                    continue
                                                 raise RuntimeError(f"Datei nicht gefunden (TOCTOU): '{comp}' existiert nicht mehr.")
                                             if os.path.exists(sub_old_path):
                                                 if os.path.exists(sub_new_path) and os.path.abspath(sub_old_path) != os.path.abspath(sub_new_path):
@@ -1564,6 +1719,8 @@ def process_worker(params):
                                                 log_message(f"Benenne Untertitel um: {comp} -> {sub_new_name}")
                                                 try:
                                                     os.rename(sub_old_path, sub_new_path)
+                                                except JobCancelledError:
+                                                    raise
                                                 except Exception as e:
                                                     if files_param is not None:
                                                         raise
@@ -1579,21 +1736,59 @@ def process_worker(params):
                                     log_message(f"Benenne Untertitel um: {f} -> {clean_title}{sub_ext}")
                                     try:
                                         os.rename(sub_old_path, sub_new_path)
+                                    except JobCancelledError:
+                                        raise
                                     except Exception as e:
                                         log_message(f"Fehler: {e}")
+                else:
+                    filepath = os.path.join(current_dir, filename)
+                    inbox_conv_tv = os.path.join(current_dir, f"{clean_title}.mkv")
+                    if not file_already_in_outbox and os.path.isfile(filepath) and os.path.isfile(target_filepath):
+                        if not ep_was_renamed:
+                            ep_was_renamed = True
+                            tv_renamed_map[filename] = target_filename
+                            if task_id:
+                                commit_job_retry_state(
+                                    task_id,
+                                    retry_state={"tv_renamed": {filename: target_filename}},
+                                )
+                    if (
+                        not file_already_in_outbox
+                        and not os.path.exists(target_filepath)
+                        and convert
+                        and ep_was_renamed
+                        and os.path.isfile(inbox_conv_tv)
+                    ):
+                        log_message(f"Originaldatei {filename} wurde im Input-Ordner bereits zu {clean_title}.mkv konvertiert.")
+                        target_filename = f"{clean_title}.mkv"
+                        target_filepath = inbox_conv_tv
+                        already_converted_in_inbox = True
+                    elif not file_already_in_outbox and (
+                        not os.path.exists(target_filepath)
+                        or (not os.path.exists(filepath) and not ep_was_renamed)
+                    ):
+                        if files_param is not None:
+                            raise RuntimeError(f"Datei nicht gefunden (TOCTOU): '{filename}' existiert nicht mehr.")
+                        continue
 
                 # Generate Episode NFO
                 if show_id and provider:
-                    if file_already_in_outbox and is_metadata_done:
+                    ep_nfo_path = os.path.join(current_dir, f"{clean_title}.nfo")
+                    ep_nfo_was_generated = is_metadata_done or (tv_nfo_map.get(filename) == os.path.basename(ep_nfo_path))
+                    if file_already_in_outbox:
                         log_message(f"Episode NFO für {ep_str} existiert bereits. Überspringe Generierung.")
+                    elif ep_nfo_was_generated and os.path.isfile(ep_nfo_path):
+                        log_message(f"Episode NFO für {ep_str} wurde bereits erstellt. Überspringe Generierung.")
+                        protected_episode_paths.add(ep_nfo_path)
                     else:
                         log_message(f"Generiere Episoden-NFO für {ep_str}...")
                         if files_param is not None:
-                            nfo_target_path = os.path.join(current_dir, f"{clean_title}.nfo")
-                            if os.path.exists(nfo_target_path):
+                            if os.path.exists(ep_nfo_path):
                                 raise RuntimeError(
                                     f"Kollision beim Generieren von NFO: Ziel '{clean_title}.nfo' existiert bereits."
                                 )
+                        existed_ep_nfo_before = os.path.isfile(ep_nfo_path)
+                        res = None
                         try:
                             ep_overrides = None
                             if "episodes" in nfo_overrides:
@@ -1604,17 +1799,30 @@ def process_worker(params):
                                 overwrite=overwrite_nfo
                             )
                             log_message(f"Episode NFO Status: {res}")
-                            ep_nfo_path = os.path.join(current_dir, f"{clean_title}.nfo")
-                            if isinstance(res, dict) and res.get("nfo") and os.path.isfile(ep_nfo_path):
-                                protected_episode_paths.add(ep_nfo_path)
+                        except JobCancelledError:
+                            raise
                         except Exception as e:
                             if files_param is not None:
                                 raise
                             log_message(f"Fehler bei Episode NFO: {e}")
+                        finally:
+                            if os.path.isfile(ep_nfo_path) and (
+                                (isinstance(res, dict) and res.get("nfo"))
+                                or not existed_ep_nfo_before
+                                or overwrite_nfo
+                            ):
+                                protected_episode_paths.add(ep_nfo_path)
+                                tv_nfo_map[filename] = os.path.basename(ep_nfo_path)
+                                if task_id:
+                                    commit_job_retry_state(
+                                        task_id,
+                                        retry_state={"tv_nfo_generated": {filename: os.path.basename(ep_nfo_path)}},
+                                    )
                 current_prog = 50 + int(50 * (file_idx + 1) / N)
                 _update_pipeline_metadata_progress(task_id, current_prog)
 
                 # H.265 Conversion
+                wait_if_paused_or_cancelled(task_id)
                 final_filename = target_filename
                 final_filepath = target_filepath
 
@@ -1631,9 +1839,19 @@ def process_worker(params):
 
                 if convert:
                     has_conv_file = os.path.exists(os.path.join(dest_dir_outbox, f"{clean_title}.mkv")) if file_already_in_outbox else os.path.exists(outbox_conv)
-                    if file_already_in_outbox and (is_convert_done or has_conv_file):
+                    if already_converted_in_inbox or (file_already_in_outbox and (is_convert_done or has_conv_file)):
                         log_message(f"Konvertierung für {final_filename} ist bereits erledigt. Überspringe.")
                         conv_pct[file_idx] = 100
+                        if task_id and not is_convert_done:
+                            if file_idx == N - 1:
+                                update_job(task_id, pipeline_step="convert", pipeline_status="done", pipeline_progress=100)
+                            else:
+                                update_job(
+                                    task_id,
+                                    pipeline_step="convert",
+                                    pipeline_status="running",
+                                    pipeline_progress=_calculate_average_progress(conv_pct, N),
+                                )
                     else:
                         temp_output = os.path.join(current_dir, f"{clean_title}_neu.mkv")
                         final_conv_output = os.path.join(current_dir, f"{clean_title}.mkv")
@@ -1649,7 +1867,6 @@ def process_worker(params):
                         convert_message = f"Konvertierung gestartet: {final_filename}"
                         current_convert_progress = _calculate_average_progress(conv_pct, N)
                         if task_id:
-                            from gui.core.jobs import update_job
                             update_job(
                                 task_id,
                                 message=convert_message,
@@ -1661,13 +1878,16 @@ def process_worker(params):
                         def ffmpeg_progress_cb(percent, msg):
                             conv_pct[file_idx] = percent
                             update_global_job_progress()
-                            with active_jobs_lock:
-                                if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                    active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
-                                    avg_conv = sum(conv_pct) / N
-                                    active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
-                                    active_jobs[task_id]["pipeline"]["convert"]["message"] = msg
-                                    active_jobs[task_id]["message"] = msg
+                            if task_id:
+                                avg_conv = int(sum(conv_pct) / N) if N > 0 else percent
+                                update_job(
+                                    task_id,
+                                    message=msg,
+                                    pipeline_step="convert",
+                                    pipeline_status="running",
+                                    pipeline_progress=avg_conv,
+                                    pipeline_message=msg,
+                                )
 
                         conv_success, conv_file = media.execute_video_conversion(
                             target_filepath=target_filepath,
@@ -1692,15 +1912,36 @@ def process_worker(params):
                 update_global_job_progress()
 
                 # Move to local Output folder
+                wait_if_paused_or_cancelled(task_id)
+                outbox_tv_video_path = os.path.join(dest_dir_outbox, final_filename)
+                confirmed_tv_entry = {
+                    "target_filename": final_filename,
+                    "dest_dir_outbox": dest_dir_outbox,
+                    "clean_title": clean_title,
+                    "season": ep_season,
+                    "episode": ep_num,
+                }
                 if file_already_in_outbox:
                     log_message(f"Datei liegt bereits in Output-Ordner: {final_filename}. Überspringe Verschieben.")
+                    if os.path.isfile(outbox_tv_video_path):
+                        manifest[filename] = dict(confirmed_tv_entry)
+                        if task_id:
+                            commit_job_manifest(task_id, manifest)
                 else:
+                    video_moved = False
+                    if task_id:
+                        prepare_outbox_manifest_entry(task_id, filename, confirmed_tv_entry)
                     log_message(f"Verschiebe in Output-Pfad: {dest_dir_outbox}")
                     try:
                         os.makedirs(dest_dir_outbox, exist_ok=True)
 
                         # Move video file
-                        shutil.move(final_filepath, os.path.join(dest_dir_outbox, final_filename))
+                        shutil.move(final_filepath, outbox_tv_video_path)
+                        video_moved = True
+                        if os.path.isfile(outbox_tv_video_path):
+                            manifest[filename] = dict(confirmed_tv_entry)
+                            if task_id:
+                                commit_job_manifest(task_id, manifest)
                         log_message(f"Erfolgreich in Output-Ordner verschoben: {final_filename}")
 
                         # Move accompanying files safely (excluding original video files, handling subfolders recursively)
@@ -1751,19 +1992,21 @@ def process_worker(params):
                             cleanup_empty_dirs=(files_param is None),
                             protected_paths=protected_episode_paths,
                         )
+                    except JobCancelledError:
+                        raise
                     except Exception as e:
                         log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
+                        if not video_moved:
+                            raise
+                    finally:
+                        if video_moved and os.path.isfile(outbox_tv_video_path):
+                            manifest[filename] = dict(confirmed_tv_entry)
+                        else:
+                            manifest.pop(filename, None)
+                        if task_id:
+                            commit_job_manifest(task_id, manifest)
 
-                # Persist manifest entry for future retries only if file actually exists in outbox
-                if os.path.exists(os.path.join(dest_dir_outbox, final_filename)):
-                    manifest[filename] = {
-                        "target_filename": final_filename,
-                        "dest_dir_outbox": dest_dir_outbox,
-                        "clean_title": clean_title,
-                        "season": ep_season,
-                        "episode": ep_num
-                    }
-                    update_job(task_id, manifest=manifest)
+                wait_if_paused_or_cancelled(task_id)
 
                 # Queue NAS transfer task
                 settings = load_settings()
@@ -1810,6 +2053,7 @@ def process_worker(params):
             _mark_convert_step_done(task_id)
 
             # Move show-level files to local Output (only for non-files_param jobs, as files_param writes directly to dest_show_dir_outbox)
+            wait_if_paused_or_cancelled(task_id)
             if files_param is None:
                 nas_serien = destination if destination else f"{nas_root}/Serien"
                 rel_dest = os.path.relpath(nas_serien, nas_root)
@@ -1830,6 +2074,8 @@ def process_worker(params):
                     # Open local destination in Finder
                     if settings.get("open_outbox_finder"):
                         open_folder_in_finder(dest_show_dir_outbox)
+                except JobCancelledError:
+                    raise
                 except Exception as e:
                     log_message(f"Fehler beim Verschieben der Serien-Metadaten in Output-Ordner: {e}")
 
@@ -1848,6 +2094,8 @@ def process_worker(params):
                         whitelist=whitelist_show,
                         junk_list=explicit_junk
                     )
+                except JobCancelledError:
+                    raise
                 except Exception as e:
                     log_message(f"Fehler bei finaler Safe-Move-Bereinigung: {e}")
             else:
@@ -1922,6 +2170,11 @@ def process_worker(params):
             transfer_queue.put(None)
             transfer_thread.join()
 
+        for err in transfer_errors:
+            if isinstance(err, JobCancelledError):
+                raise err
+        check_cancelled(task_id)
+
         _mark_remaining_steps_done(task_id)
 
         _finalize_job(params, job_size_gb, transfer_errors, current_dir, inbox_root, log_message)
@@ -1952,23 +2205,48 @@ def process_worker(params):
 
         log_message(f"Typ: Film | Name: {movie_name} | Ziel: {dest_movies}")
 
+        job = get_job(task_id) if task_id else None
+        pipeline = job.get("pipeline", {}) if job else {}
+        manifest = job.get("manifest", {}) if job else {}
+        retry_state = job.get("retry_state", {}) if (job and isinstance(job.get("retry_state"), dict)) else {}
+        if (
+            job
+            and isinstance(job.get("params"), dict)
+            and "main_nfo_fingerprint" in job["params"]
+            and params.get("main_nfo_fingerprint") is None
+            and job["params"].get("main_nfo_fingerprint") is not None
+        ):
+            params["main_nfo_fingerprint"] = job["params"]["main_nfo_fingerprint"]
+        is_metadata_done = pipeline.get("metadata", {}).get("status") == "done"
+        is_convert_done = pipeline.get("convert", {}).get("status") in ("done", "skipped")
+
         # Scan video files
         if explicit_renames is not None:
             video_files = [r["new"] for r in explicit_renames]
         else:
             if is_single_file:
-                video_files = [project_name]
-            else:
+                video_files = [os.path.basename(project_name)]
+            elif os.path.isdir(current_dir):
                 video_files = [f for f in os.listdir(current_dir) if f.lower().endswith(('.mp4', '.mkv', '.avi', '.webm', '.mov')) and not f.startswith(".")]
+            else:
+                video_files = []
+        if isinstance(manifest, dict) and manifest:
+            represented = set(video_files)
+            extra_from_manifest = [
+                k for k, v in manifest.items()
+                if is_confirmed_manifest_entry(v)
+                and k not in represented
+                and v.get("target_filename") not in represented
+            ]
+            if extra_from_manifest:
+                video_files = extra_from_manifest + video_files
         if not video_files:
             log_message("Keine Video-Dateien im Ordner gefunden.")
             return
 
         clean_movie_name = limit_filename_length(sanitize_filename(movie_name))
-        with active_jobs_lock:
-            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                active_jobs[task_id]["pipeline"]["metadata"]["status"] = "running"
-                active_jobs[task_id]["pipeline"]["metadata"]["progress"] = 50
+        if task_id and not is_metadata_done:
+            update_job(task_id, pipeline_step="metadata", pipeline_status="running", pipeline_progress=50)
 
         # Setup progress tracking
         N = len(video_files)
@@ -2070,200 +2348,358 @@ def process_worker(params):
                 message = " | ".join(status_parts)
 
                 if task_id:
-                    with active_jobs_lock:
-                        if task_id in active_jobs:
-                            active_jobs[task_id]["progress"] = percent
-                            active_jobs[task_id]["message"] = message
+                    update_job(task_id, progress=percent, message=message)
 
         # Initialize Transfer Queue
         transfer_queue = queue.Queue()
         transfer_errors = []
+        _movie_bound_ctrl = get_bound_job_control(task_id)
 
         def transfer_worker():
-            while True:
-                task = transfer_queue.get()
-                if task is None:
-                    transfer_queue.task_done()
-                    break
-                try:
-                    _handle_transfer_task(
-                        task,
-                        task_id,
-                        target_progresses,
-                        target_speeds,
-                        progress_lock,
-                        N,
-                        log_message,
-                        update_global_job_progress
-                    )
-                except Exception as e:
-                    log_message(f"❌ [Transfer Thread] Fehler: {e}")
-                    transfer_errors.append(e)
-                finally:
-                    transfer_queue.task_done()
+            with bind_job_context(task_id, ctrl=_movie_bound_ctrl):
+                while True:
+                    task = transfer_queue.get()
+                    if task is None:
+                        transfer_queue.task_done()
+                        break
+                    t_id = task.get("target_id")
+                    if any(isinstance(err, JobCancelledError) for err in transfer_errors) or is_job_cancelled(task_id):
+                        if t_id:
+                            snap = get_job(task_id)
+                            if snap and snap.get("pipeline", {}).get(t_id, {}).get("status") in ("running", "pending"):
+                                _set_transfer_pipeline_step(task_id, t_id, status="cancelled", message="Abgebrochen")
+                        if not any(isinstance(err, JobCancelledError) for err in transfer_errors):
+                            transfer_errors.append(JobCancelledError("Vom Benutzer abgebrochen"))
+                        transfer_queue.task_done()
+                        continue
+                    try:
+                        _handle_transfer_task(
+                            task,
+                            task_id,
+                            target_progresses,
+                            target_speeds,
+                            progress_lock,
+                            N,
+                            log_message,
+                            update_global_job_progress
+                        )
+                    except JobCancelledError as ce:
+                        if t_id:
+                            _set_transfer_pipeline_step(task_id, t_id, status="cancelled", message="Abgebrochen")
+                        transfer_errors.append(ce)
+                    except Exception as e:
+                        log_message(f"❌ [Transfer Thread] Fehler: {e}")
+                        transfer_errors.append(e)
+                    finally:
+                        transfer_queue.task_done()
+
+        def _queue_movie_targets_for_file(file_idx_arg, dest_movie_dir_outbox_arg, final_filename_arg, clean_movie_name_arg):
+            cur_settings = load_settings()
+            for target in cur_settings.get("storage_targets", []):
+                t_id = target.get("id")
+                t_type = target.get("type")
+
+                if pipeline.get(t_id, {}).get("status") == "done":
+                    if t_id in target_progresses:
+                        target_progresses[t_id][file_idx_arg] = 100
+                    continue
+
+                should_copy = False
+                if params.get(f"copy_to_{t_id}") is not None:
+                    should_copy = params.get(f"copy_to_{t_id}")
+                elif t_type == "nas" and params.get("copy_to_nas") is not None:
+                    should_copy = params.get("copy_to_nas")
+                elif t_type != "nas" and params.get("copy_to_pcloud") is not None:
+                    should_copy = params.get("copy_to_pcloud")
+
+                if should_copy and target.get("enabled", True):
+                    if t_type == "nas" or t_id == "nas":
+                        if t_id == "nas":
+                            if not ensure_nas_mounted():
+                                raise RuntimeError("NAS konnte nicht gemountet werden. Kopiervorgang abgebrochen.")
+
+                        target_base = resolve_target_destination(target, rel_sub, "movie")
+                        dest_movie_dir_target = os.path.join(target_base, clean_movie_name_arg)
+
+                        transfer_queue.put({
+                            "type": "movie_nas_transfer",
+                            "target_id": t_id,
+                            "file_idx": file_idx_arg,
+                            "dest_movie_dir_outbox": dest_movie_dir_outbox_arg,
+                            "dest_movie_dir_nas": dest_movie_dir_target,
+                            "final_filename": final_filename_arg
+                        })
+                    else:
+                        target_base = resolve_target_destination(target, rel_sub, "movie")
+                        transfer_queue.put({
+                            "type": "movie_cloud_transfer",
+                            "target_id": t_id,
+                            "file_idx": file_idx_arg,
+                            "dest_movie_dir_outbox": dest_movie_dir_outbox_arg,
+                            "dest_movies": target_base,
+                            "explicit_remote_base": explicit_pcloud_base if t_id == "pcloud" else None,
+                            "clean_movie_name": clean_movie_name_arg
+                        })
+                else:
+                    if t_id in target_progresses:
+                        target_progresses[t_id][file_idx_arg] = 100
 
         # Start the Transfer Thread
-        transfer_thread = threading.Thread(target=transfer_worker, name=f"job-{task_id}-transfer", daemon=True)
+        transfer_thread = threading.Thread(
+            target=transfer_worker,
+            name=f"job-{task_id}-transfer" if task_id else "worker-transfer",
+            daemon=True,
+        )
         transfer_thread.start()
 
         try:
             # Process video files sequentially
             for file_idx, video_file in enumerate(video_files):
+                wait_if_paused_or_cancelled(task_id)
                 protected_movie_paths = set()
                 ext = os.path.splitext(video_file)[1].lower()
                 target_filename = f"{clean_movie_name}{ext}"
                 filepath = os.path.join(current_dir, video_file)
                 target_filepath = os.path.join(current_dir, target_filename)
 
-                if not os.path.exists(filepath) and not os.path.exists(target_filepath):
-                    log_message(f"⚠️ Datei '{video_file}' existiert nicht (mehr). Überspringe.")
+                dest_movies = destination if destination else f"{nas_root}/Filme"
+                rel_dest = os.path.relpath(dest_movies, nas_root)
+                outbox_movies = os.path.join(outbox_root, rel_dest)
+                dest_movie_dir_outbox = os.path.join(outbox_movies, clean_movie_name)
+
+                # Outbox resume strictly via THIS job's confirmed manifest entry + physical file presence
+                file_already_in_outbox = False
+                final_filename = target_filename
+                manifest_entry = manifest.get(video_file) if isinstance(manifest, dict) else None
+                if is_confirmed_manifest_entry(manifest_entry):
+                    m_dir = manifest_entry.get("dest_movie_dir_outbox") or dest_movie_dir_outbox
+                    m_target = manifest_entry.get("target_filename") or target_filename
+                    m_clean = manifest_entry.get("clean_movie_name") or clean_movie_name
+                    cand_target = os.path.join(m_dir, m_target)
+                    cand_mkv = os.path.join(m_dir, f"{m_clean}.mkv")
+                    if os.path.isfile(cand_target):
+                        file_already_in_outbox = True
+                        dest_movie_dir_outbox = m_dir
+                        final_filename = m_target
+                        clean_movie_name = m_clean
+                    elif os.path.isfile(cand_mkv):
+                        file_already_in_outbox = True
+                        dest_movie_dir_outbox = m_dir
+                        final_filename = f"{m_clean}.mkv"
+                        clean_movie_name = m_clean
+
+                if file_already_in_outbox:
+                    log_message(f"Datei liegt bereits in Output-Ordner: {final_filename}. Überspringe Vorverarbeitung.")
+                    if not is_single_file and project_name and os.path.isdir(current_dir):
+                        resume_nfo = os.path.join(current_dir, f"{clean_movie_name}.nfo")
+                        if (
+                            is_metadata_done
+                            or retry_state.get("movie_nfo_generated") == os.path.basename(resume_nfo)
+                        ) and os.path.isfile(resume_nfo):
+                            protected_movie_paths.add(resume_nfo)
+                        whitelist_resume = []
+                        if explicit_renames:
+                            whitelist_resume.extend(explicit_renames)
+                        if explicit_subs:
+                            whitelist_resume.extend(explicit_subs)
+                        safe_move_recursive(
+                            current_dir,
+                            dest_movie_dir_outbox,
+                            prefix_filter=None,
+                            fallback_basename=clean_movie_name,
+                            whitelist=whitelist_resume,
+                            junk_list=explicit_junk,
+                            protected_paths=protected_movie_paths,
+                        )
+                    conv_pct[file_idx] = 100
+                    _queue_movie_targets_for_file(file_idx, dest_movie_dir_outbox, final_filename, clean_movie_name)
+                    update_global_job_progress()
                     continue
 
-                if video_file != target_filename:
+                already_converted_movie_in_inbox = False
+                inbox_conv_movie = os.path.join(current_dir, f"{clean_movie_name}.mkv")
+                if not os.path.exists(filepath) and not os.path.exists(target_filepath):
+                    if is_metadata_done and convert and os.path.isfile(inbox_conv_movie):
+                        target_filename = f"{clean_movie_name}.mkv"
+                        target_filepath = inbox_conv_movie
+                        already_converted_movie_in_inbox = True
+                    else:
+                        log_message(f"⚠️ Datei '{video_file}' existiert nicht (mehr). Überspringe.")
+                        continue
+
+                if video_file != target_filename and os.path.exists(filepath):
                     log_message(f"Benenne um: {video_file} -> {target_filename}")
                     try:
                         os.rename(filepath, target_filepath)
+                    except JobCancelledError:
+                        raise
                     except Exception as e:
                         log_message(f"Fehler beim Umbenennen: {e}")
                         continue
 
                 # Generate movie NFO
                 if movie_id and provider:
-                    log_message("Generiere NFO und lade Poster/Fanart...")
-                    movie_overrides = nfo_overrides.get("movie") if isinstance(nfo_overrides, dict) else None
-                    is_wizard_overrides = bool(
-                        params.get("wizard_overrides")
-                        or (isinstance(nfo_overrides, dict) and nfo_overrides.get("wizard"))
-                    )
-                    artwork_overrides = (
-                        params.get("artwork_overrides")
-                        if isinstance(params.get("artwork_overrides"), dict)
-                        else None
-                    )
                     generated_nfo_path = os.path.join(current_dir, f"{clean_movie_name}.nfo")
-
-                    if is_wizard_overrides:
-                        try:
-                            from gui.core.nfo_mutation import (
-                                assert_nfo_fingerprint,
-                                make_nfo_fingerprint,
-                                patch_nfo_fields,
-                            )
-                            if "main_nfo_fingerprint" in params:
-                                assert_nfo_fingerprint(generated_nfo_path, params.get("main_nfo_fingerprint"))
-
-                            if provider == "ofdb":
-                                res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
-                            else:
-                                nfo_kwargs = {
-                                    "nfo_overrides": movie_overrides,
-                                    "overwrite": True,
-                                }
-                                if artwork_overrides is not None:
-                                    nfo_kwargs["artwork_overrides"] = artwork_overrides
-                                res = mw_metadata.generate_movie_nfo(
-                                    movie_id,
-                                    current_dir,
-                                    clean_movie_name,
-                                    **nfo_kwargs,
-                                )
-                            log_message(f"Movie NFO Status: {res}")
-
-                            # Fail loudly on provider errors before artwork downloads or patching a stale NFO
-                            if not isinstance(res, dict) or res.get("error") or not res.get("nfo"):
-                                gen_err = (
-                                    res.get("error")
-                                    if isinstance(res, dict) and res.get("error")
-                                    else "Film-NFO wurde vom Provider nicht neu erzeugt."
-                                )
-                                raise RuntimeError(gen_err)
-
-                            if provider == "ofdb" and artwork_overrides:
-                                mw_metadata.apply_movie_artwork_overrides(
-                                    current_dir,
-                                    clean_movie_name,
-                                    artwork_overrides,
-                                    settings=settings,
-                                )
-
-                            generated_fp = make_nfo_fingerprint(generated_nfo_path)
-                            patch_ok, patch_message = patch_nfo_fields(
-                                generated_nfo_path,
-                                movie_overrides or {},
-                                expected_fingerprint=generated_fp if generated_fp is not None else ...,
-                                create_backup=False,
-                                allow_clear=True,
-                            )
-                            if not patch_ok:
-                                raise RuntimeError(patch_message)
-                            log_message(f"Movie NFO Feld-Patch: {patch_message}")
-                            if os.path.isfile(generated_nfo_path):
-                                protected_movie_paths.add(generated_nfo_path)
-                        except Exception as patch_err:
-                            err_msg = f"Fehler beim Schreiben der NFO-Overrides: {patch_err}"
-                            log_message(f"❌ {err_msg}")
-                            if task_id:
-                                from gui.core.jobs import update_job
-                                update_job(
-                                    task_id,
-                                    status="error",
-                                    message=err_msg,
-                                    pipeline_step="metadata",
-                                    pipeline_status="failed",
-                                    pipeline_progress=100,
-                                    pipeline_message=err_msg,
-                                )
-                            raise RuntimeError(err_msg) from patch_err
+                    if retry_state.get("movie_nfo_generated") == os.path.basename(generated_nfo_path) and os.path.isfile(generated_nfo_path):
+                        protected_movie_paths.add(generated_nfo_path)
+                    if is_metadata_done and os.path.isfile(generated_nfo_path):
+                        log_message(f"Film-NFO '{os.path.basename(generated_nfo_path)}' wurde bereits erstellt. Überspringe Generierung.")
+                        protected_movie_paths.add(generated_nfo_path)
                     else:
-                        try:
-                            from gui.core.health import should_overwrite_nfo, find_primary_nfo
-                            nfo_path = find_primary_nfo(current_dir, is_movie=True)
-                            should_overwrite_movie = should_overwrite_nfo(
-                                overwrite_nfo,
-                                movie_overrides,
-                                nfo_path or generated_nfo_path,
-                                "movie"
-                            )
+                        log_message("Generiere NFO und lade Poster/Fanart...")
+                        movie_overrides = nfo_overrides.get("movie") if isinstance(nfo_overrides, dict) else None
+                        is_wizard_overrides = bool(
+                            params.get("wizard_overrides")
+                            or (isinstance(nfo_overrides, dict) and nfo_overrides.get("wizard"))
+                        )
+                        artwork_overrides = (
+                            params.get("artwork_overrides")
+                            if isinstance(params.get("artwork_overrides"), dict)
+                            else None
+                        )
 
-                            if provider == "ofdb":
-                                res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
-                                if artwork_overrides:
-                                    mw_metadata.apply_movie_artwork_overrides(
+                        if is_wizard_overrides:
+                            try:
+                                from gui.core.nfo_mutation import (
+                                    assert_nfo_fingerprint,
+                                    make_nfo_fingerprint,
+                                    patch_nfo_fields,
+                                )
+                                if "main_nfo_fingerprint" in params:
+                                    assert_nfo_fingerprint(generated_nfo_path, params.get("main_nfo_fingerprint"))
+
+                                try:
+                                    if provider == "ofdb":
+                                        res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
+                                    else:
+                                        nfo_kwargs = {
+                                            "nfo_overrides": movie_overrides,
+                                            "overwrite": True,
+                                        }
+                                        if artwork_overrides is not None:
+                                            nfo_kwargs["artwork_overrides"] = artwork_overrides
+                                        res = mw_metadata.generate_movie_nfo(
+                                            movie_id,
+                                            current_dir,
+                                            clean_movie_name,
+                                            **nfo_kwargs,
+                                        )
+                                    log_message(f"Movie NFO Status: {res}")
+
+                                    # Fail loudly on provider errors before artwork downloads or patching a stale NFO
+                                    if not isinstance(res, dict) or res.get("error") or not res.get("nfo"):
+                                        gen_err = (
+                                            res.get("error")
+                                            if isinstance(res, dict) and res.get("error")
+                                            else "Film-NFO wurde vom Provider nicht neu erzeugt."
+                                        )
+                                        raise RuntimeError(gen_err)
+
+                                    if provider == "ofdb" and artwork_overrides:
+                                        mw_metadata.apply_movie_artwork_overrides(
+                                            current_dir,
+                                            clean_movie_name,
+                                            artwork_overrides,
+                                            settings=settings,
+                                        )
+
+                                    generated_fp = make_nfo_fingerprint(generated_nfo_path)
+                                    patch_ok, patch_message = patch_nfo_fields(
+                                        generated_nfo_path,
+                                        movie_overrides or {},
+                                        expected_fingerprint=generated_fp if generated_fp is not None else ...,
+                                        create_backup=False,
+                                        allow_clear=True,
+                                    )
+                                    if not patch_ok:
+                                        raise RuntimeError(patch_message)
+                                    log_message(f"Movie NFO Feld-Patch: {patch_message}")
+                                finally:
+                                    if os.path.isfile(generated_nfo_path):
+                                        protected_movie_paths.add(generated_nfo_path)
+                                        latest_fp = make_nfo_fingerprint(generated_nfo_path)
+                                        params["main_nfo_fingerprint"] = latest_fp
+                                        retry_state["movie_nfo_generated"] = os.path.basename(generated_nfo_path)
+                                        if task_id:
+                                            commit_job_retry_state(
+                                                task_id,
+                                                retry_state={"movie_nfo_generated": os.path.basename(generated_nfo_path)},
+                                                params_patch={"main_nfo_fingerprint": latest_fp},
+                                            )
+                            except JobCancelledError:
+                                raise
+                            except Exception as patch_err:
+                                err_msg = f"Fehler beim Schreiben der NFO-Overrides: {patch_err}"
+                                log_message(f"❌ {err_msg}")
+                                if task_id:
+                                    update_job(
+                                        task_id,
+                                        status="error",
+                                        message=err_msg,
+                                        pipeline_step="metadata",
+                                        pipeline_status="failed",
+                                        pipeline_progress=100,
+                                        pipeline_message=err_msg,
+                                    )
+                                raise RuntimeError(err_msg) from patch_err
+                        else:
+                            try:
+                                from gui.core.health import should_overwrite_nfo, find_primary_nfo
+                                nfo_path = find_primary_nfo(current_dir, is_movie=True)
+                                should_overwrite_movie = should_overwrite_nfo(
+                                    overwrite_nfo,
+                                    movie_overrides,
+                                    nfo_path or generated_nfo_path,
+                                    "movie"
+                                )
+
+                                if provider == "ofdb":
+                                    res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
+                                    if artwork_overrides:
+                                        mw_metadata.apply_movie_artwork_overrides(
+                                            current_dir,
+                                            clean_movie_name,
+                                            artwork_overrides,
+                                            settings=settings,
+                                        )
+                                else:
+                                    nfo_kwargs = {
+                                        "nfo_overrides": movie_overrides,
+                                        "overwrite": should_overwrite_movie,
+                                    }
+                                    if artwork_overrides is not None:
+                                        nfo_kwargs["artwork_overrides"] = artwork_overrides
+                                    res = mw_metadata.generate_movie_nfo(
+                                        movie_id,
                                         current_dir,
                                         clean_movie_name,
-                                        artwork_overrides,
-                                        settings=settings,
+                                        **nfo_kwargs,
                                     )
-                            else:
-                                nfo_kwargs = {
-                                    "nfo_overrides": movie_overrides,
-                                    "overwrite": should_overwrite_movie,
-                                }
-                                if artwork_overrides is not None:
-                                    nfo_kwargs["artwork_overrides"] = artwork_overrides
-                                res = mw_metadata.generate_movie_nfo(
-                                    movie_id,
-                                    current_dir,
-                                    clean_movie_name,
-                                    **nfo_kwargs,
-                                )
-                            log_message(f"Movie NFO Status: {res}")
-                            if isinstance(res, dict) and res.get("nfo") and os.path.isfile(generated_nfo_path):
-                                protected_movie_paths.add(generated_nfo_path)
-                        except Exception as e:
-                            log_message(f"Fehler bei NFO-Erstellung: {e}")
+                                log_message(f"Movie NFO Status: {res}")
+                                if isinstance(res, dict) and res.get("nfo") and os.path.isfile(generated_nfo_path):
+                                    protected_movie_paths.add(generated_nfo_path)
+                                    retry_state["movie_nfo_generated"] = os.path.basename(generated_nfo_path)
+                                    if task_id:
+                                        commit_job_retry_state(
+                                            task_id,
+                                            retry_state={"movie_nfo_generated": os.path.basename(generated_nfo_path)},
+                                        )
+                            except JobCancelledError:
+                                raise
+                            except Exception as e:
+                                log_message(f"Fehler bei NFO-Erstellung: {e}")
                 current_prog = 50 + int(50 * (file_idx + 1) / N)
                 _update_pipeline_metadata_progress(task_id, current_prog)
 
                 # H.265 Conversion
+                wait_if_paused_or_cancelled(task_id)
                 final_filename = target_filename
                 final_filepath = target_filepath
-                if convert:
+                if convert and not already_converted_movie_in_inbox:
                     temp_output = os.path.join(current_dir, f"{clean_movie_name}_neu.mkv")
                     convert_message = f"Konvertierung gestartet: {target_filename}"
                     current_convert_progress = _calculate_average_progress(conv_pct, N)
                     if task_id:
-                        from gui.core.jobs import update_job
                         update_job(
                             task_id,
                             message=convert_message,
@@ -2275,13 +2711,16 @@ def process_worker(params):
                     def ffmpeg_progress_cb(percent, msg):
                         conv_pct[file_idx] = percent
                         update_global_job_progress()
-                        with active_jobs_lock:
-                            if task_id and task_id in active_jobs and "pipeline" in active_jobs[task_id]:
-                                active_jobs[task_id]["pipeline"]["convert"]["status"] = "running"
-                                avg_conv = sum(conv_pct) / N
-                                active_jobs[task_id]["pipeline"]["convert"]["progress"] = int(avg_conv)
-                                active_jobs[task_id]["pipeline"]["convert"]["message"] = msg
-                                active_jobs[task_id]["message"] = msg
+                        if task_id:
+                            avg_conv = int(sum(conv_pct) / N) if N > 0 else percent
+                            update_job(
+                                task_id,
+                                message=msg,
+                                pipeline_step="convert",
+                                pipeline_status="running",
+                                pipeline_progress=avg_conv,
+                                pipeline_message=msg,
+                            )
 
                     conv_success, conv_file = media.execute_video_conversion(
                         target_filepath=target_filepath,
@@ -2303,20 +2742,37 @@ def process_worker(params):
                     conv_pct[file_idx] = 100
                 else:
                     conv_pct[file_idx] = 100
+                    if convert and already_converted_movie_in_inbox and task_id and not is_convert_done:
+                        update_job(task_id, pipeline_step="convert", pipeline_status="done", pipeline_progress=100)
                 update_global_job_progress()
 
                 # Move to local Output folder
+                wait_if_paused_or_cancelled(task_id)
                 dest_movies = destination if destination else f"{nas_root}/Filme"
                 rel_dest = os.path.relpath(dest_movies, nas_root)
                 outbox_movies = os.path.join(outbox_root, rel_dest)
                 dest_movie_dir_outbox = os.path.join(outbox_movies, clean_movie_name)
+                outbox_movie_video_path = os.path.join(dest_movie_dir_outbox, final_filename)
+                confirmed_movie_entry = {
+                    "target_filename": final_filename,
+                    "dest_movie_dir_outbox": dest_movie_dir_outbox,
+                    "clean_movie_name": clean_movie_name,
+                }
+                video_moved = False
+                if task_id:
+                    prepare_outbox_manifest_entry(task_id, video_file, confirmed_movie_entry)
 
                 log_message(f"Verschiebe in Output-Pfad: {dest_movie_dir_outbox}")
                 try:
                     os.makedirs(dest_movie_dir_outbox, exist_ok=True)
 
                     # Move movie video file
-                    shutil.move(final_filepath, os.path.join(dest_movie_dir_outbox, final_filename))
+                    shutil.move(final_filepath, outbox_movie_video_path)
+                    video_moved = True
+                    if os.path.isfile(outbox_movie_video_path):
+                        manifest[video_file] = dict(confirmed_movie_entry)
+                        if task_id:
+                            commit_job_manifest(task_id, manifest)
                     log_message(f"Erfolgreich in Output-Ordner verschoben: {final_filename}")
 
                     # Move accompanying files safely (excluding original video files, handling subfolders recursively)
@@ -2504,56 +2960,26 @@ def process_worker(params):
                                 log_message(f"⚠️ Banner-Duplikat konnte nicht entfernt werden: {f} ({e})")
 
                     # Open output directory in Finder
-                    if settings.get("open_outbox_finder"):
+                    if settings.get("open_outbox_finder") and not is_job_cancelled(task_id):
                         open_folder_in_finder(dest_movie_dir_outbox)
+                except JobCancelledError:
+                    raise
                 except Exception as e:
                     log_message(f"Fehler beim Verschieben in Output-Ordner: {e}")
+                    if not video_moved:
+                        raise
+                finally:
+                    if video_moved and os.path.isfile(outbox_movie_video_path):
+                        manifest[video_file] = dict(confirmed_movie_entry)
+                    else:
+                        manifest.pop(video_file, None)
+                    if task_id:
+                        commit_job_manifest(task_id, manifest)
+
+                wait_if_paused_or_cancelled(task_id)
 
                 # Queue copies for each enabled target
-                settings = load_settings()
-                for target in settings.get("storage_targets", []):
-                    t_id = target.get("id")
-                    t_type = target.get("type")
-
-                    should_copy = False
-                    if params.get(f"copy_to_{t_id}") is not None:
-                        should_copy = params.get(f"copy_to_{t_id}")
-                    elif t_type == "nas" and params.get("copy_to_nas") is not None:
-                        should_copy = params.get("copy_to_nas")
-                    elif t_type != "nas" and params.get("copy_to_pcloud") is not None:
-                        should_copy = params.get("copy_to_pcloud")
-
-                    if should_copy and target.get("enabled", True):
-                        if t_type == "nas" or t_id == "nas":
-                            if t_id == "nas":
-                                if not ensure_nas_mounted():
-                                    raise RuntimeError("NAS konnte nicht gemountet werden. Kopiervorgang abgebrochen.")
-
-                            target_base = resolve_target_destination(target, rel_sub, "movie")
-                            dest_movie_dir_target = os.path.join(target_base, clean_movie_name)
-
-                            transfer_queue.put({
-                                "type": "movie_nas_transfer",
-                                "target_id": t_id,
-                                "file_idx": file_idx,
-                                "dest_movie_dir_outbox": dest_movie_dir_outbox,
-                                "dest_movie_dir_nas": dest_movie_dir_target,
-                                "final_filename": final_filename
-                            })
-                        else:
-                            target_base = resolve_target_destination(target, rel_sub, "movie")
-                            transfer_queue.put({
-                                "type": "movie_cloud_transfer",
-                                "target_id": t_id,
-                                "file_idx": file_idx,
-                                "dest_movie_dir_outbox": dest_movie_dir_outbox,
-                                "dest_movies": target_base,
-                                "explicit_remote_base": explicit_pcloud_base if t_id == "pcloud" else None,
-                                "clean_movie_name": clean_movie_name
-                            })
-                    else:
-                        if t_id in target_progresses:
-                            target_progresses[t_id][file_idx] = 100
+                _queue_movie_targets_for_file(file_idx, dest_movie_dir_outbox, final_filename, clean_movie_name)
 
                 update_global_job_progress()
 
@@ -2562,6 +2988,11 @@ def process_worker(params):
             # Send Sentinel and join
             transfer_queue.put(None)
             transfer_thread.join()
+
+        for err in transfer_errors:
+            if isinstance(err, JobCancelledError):
+                raise err
+        check_cancelled(task_id)
 
         _mark_remaining_steps_done(task_id)
 
@@ -2624,6 +3055,8 @@ def process_worker(params):
             "mapping_event": threading.Event(),
             "mapping": None
         }
+        register_job_wait_event(task_id, task_info["event"])
+        register_job_wait_event(task_id, task_info["mapping_event"])
         with active_yt_tasks_lock:
             active_yt_tasks[task_id] = task_info
 
@@ -2640,6 +3073,9 @@ def process_worker(params):
             # Verify that all files described in the manifest actually exist in the outbox
             manifest_files_ok = True
             for filename, entry in manifest.items():
+                if not is_confirmed_manifest_entry(entry):
+                    manifest_files_ok = False
+                    break
                 target_filename = entry.get("target_filename")
                 dest_dir_outbox = entry.get("dest_dir_outbox")
                 if not target_filename or not dest_dir_outbox:
@@ -2741,10 +3177,13 @@ def process_worker(params):
 
                 # Download parts sequentially
                 for idx, part_url in enumerate(urls, 1):
-                    with active_jobs_lock:
-                        if task_id in active_jobs:
-                            active_jobs[task_id]["progress"] = int(((idx - 1) / num_urls) * 90)
-                            active_jobs[task_id]["message"] = f"Lade Teil {idx} von {num_urls}..."
+                    wait_if_paused_or_cancelled(task_id)
+                    if task_id:
+                        update_job(
+                            task_id,
+                            progress=int(((idx - 1) / num_urls) * 90),
+                            message=f"Lade Teil {idx} von {num_urls}...",
+                        )
 
                     format_opt = params.get("yt_format", "best")
                     part_output = f"part_{idx:02d}.%(ext)s"
@@ -2793,10 +3232,9 @@ def process_worker(params):
                     log_message("Nur ein Teil heruntergeladen. Überspringe FFmpeg-Concat.")
                     os.rename(os.path.join(temp_dir, files[0]), final_path)
                 else:
-                    with active_jobs_lock:
-                        if task_id in active_jobs:
-                            active_jobs[task_id]["progress"] = 90
-                            active_jobs[task_id]["message"] = "Füge Teile zusammen (FFmpeg)..."
+                    wait_if_paused_or_cancelled(task_id)
+                    if task_id:
+                        update_job(task_id, progress=90, message="Füge Teile zusammen (FFmpeg)...")
 
                     update_task_pipeline_status(task_id, "metadata", "done", 100)
                     update_task_pipeline_status(task_id, "convert", "running", 0)
@@ -2808,7 +3246,7 @@ def process_worker(params):
 
                     ffmpeg_cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", inputs_txt_path, "-c", "copy", final_path]
                     log_message(f"Führe FFmpeg aus: {' '.join(ffmpeg_cmd)}")
-                    ffmpeg_res = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
+                    ffmpeg_res = _run_cancellable_subproc(ffmpeg_cmd, task_id=task_id, capture_output=True, text=True)
                     if ffmpeg_res.returncode != 0:
                         raise RuntimeError(f"FFmpeg-Zusammenfügen fehlgeschlagen: {ffmpeg_res.stderr}")
 
@@ -2825,24 +3263,6 @@ def process_worker(params):
                         os.remove(inputs_txt_path)
                     except Exception as e:
                         log_message(f"  ❌ Fehler beim Löschen von inputs.txt: {e}")
-
-                # Clear pending videos in subscription if needed
-                if subscription_id and video_ids_to_remove:
-                    try:
-                        settings_save = load_settings()
-                        for s in settings_save.get("youtube_subscriptions", []):
-                            if s.get("id") == subscription_id:
-                                pending = s.get("pending_videos", [])
-                                s["pending_videos"] = [v for v in pending if v.get("id") not in video_ids_to_remove]
-                                downloaded_ids = s.get("downloaded_ids", [])
-                                for vid in video_ids_to_remove:
-                                    if vid not in downloaded_ids:
-                                        downloaded_ids.append(vid)
-                                s["downloaded_ids"] = downloaded_ids
-                                save_settings(settings_save)
-                                break
-                    except Exception as sub_clean_err:
-                        log_message(f"Fehler beim Bereinigen der Freigabeliste nach Merge: {sub_clean_err}")
 
                 downloaded_files = [final_name]
 
@@ -2862,6 +3282,7 @@ def process_worker(params):
                         task_info["state"] = "waiting_for_cut"
                         log_message("⏳ Warte darauf, dass der Nutzer den Schnitt in LosslessCut fertigstellt...")
                         task_info["event"].wait()
+                        wait_if_paused_or_cancelled(task_id)
 
                         log_message("Schnitt als abgeschlossen markiert. Scanne nach exportierten Dateien...")
                         time.sleep(1)
@@ -2874,6 +3295,8 @@ def process_worker(params):
                             try:
                                 trash.send_to_trash(primary_filepath)
                                 log_message("Ungeschnittene Originaldatei in Quarantäne verschoben.")
+                            except JobCancelledError:
+                                raise
                             except Exception as e:
                                 log_message(f"Fehler beim In-Quarantäne-Verschieben des Originals: {e}")
                             downloaded_files = cut_files
@@ -2897,12 +3320,14 @@ def process_worker(params):
                     log_message("⏳ Warte auf Zuweisung der Video-Kapitel/Segmente im Web-Interface...")
                     update_task_pipeline_status(task_id, "metadata", "running", 90)
                     task_info["mapping_event"].wait()
+                    wait_if_paused_or_cancelled(task_id)
 
                     mapping = task_info.get("mapping", {})
                     log_message(f"Zuweisungen erhalten: {mapping}")
 
                 # If embed_thumbnail was requested and we had splits/cuts, embed thumbnail now
                 if embed_thumb:
+                    wait_if_paused_or_cancelled(task_id)
                     log_message("🖼️ Thumbnail wird heruntergeladen und eingebettet...")
                     thumb_tmp = os.path.join(temp_dir, ".thumbnail_tmp")
                     thumb_jpg = os.path.join(temp_dir, ".thumbnail_tmp.jpg")
@@ -2910,7 +3335,7 @@ def process_worker(params):
                         os.remove(thumb_jpg)
 
                     thumb_dl_cmd = ["yt-dlp", "--write-thumbnail", "--skip-download", "--convert-thumbnails", "jpg", "-o", thumb_tmp, url]
-                    subprocess.run(thumb_dl_cmd, capture_output=True)
+                    _run_cancellable_subproc(thumb_dl_cmd, task_id=task_id, capture_output=True)
 
                     if os.path.exists(thumb_jpg):
                         for f in downloaded_files:
@@ -2922,7 +3347,15 @@ def process_worker(params):
                                     "-map", "0", "-map", "1", "-c", "copy",
                                     "-disposition:v:1", "attached_pic", temp_thumb_file
                                 ]
-                                ff_proc = subprocess.run(ff_thumb_cmd, capture_output=True)
+                                try:
+                                    ff_proc = _run_cancellable_subproc(ff_thumb_cmd, task_id=task_id, capture_output=True)
+                                except JobCancelledError:
+                                    if os.path.exists(temp_thumb_file):
+                                        try:
+                                            os.remove(temp_thumb_file)
+                                        except OSError:
+                                            pass
+                                    raise
                                 if ff_proc.returncode == 0 and os.path.exists(temp_thumb_file):
                                     os.replace(temp_thumb_file, filepath)
                                     log_message(f"  ✅ Thumbnail in {f} eingebettet.")
@@ -2939,6 +3372,8 @@ def process_worker(params):
                 if metadata_mode == "tv" and show_id and provider:
                     try:
                         mw_metadata.generate_tvshow_nfo(provider, show_id, temp_dir)
+                    except JobCancelledError:
+                        raise
                     except Exception as e:
                         log_message(f"Fehler bei tvshow.nfo: {e}")
 
@@ -2954,6 +3389,7 @@ def process_worker(params):
 
             all_transfers_successful = True
             for idx, filename in enumerate(downloaded_files):
+                wait_if_paused_or_cancelled(task_id)
                 entry = manifest.get(filename, {})
                 target_filename = entry.get("target_filename", filename)
                 dest_dir_outbox = entry.get("dest_dir_outbox")
@@ -3011,6 +3447,8 @@ def process_worker(params):
                                     ep_title = ep_data.get("title", "")
                                 else:
                                     ep_title = str(ep_data)
+                            except JobCancelledError:
+                                raise
                             except Exception as e:
                                 log_message(f"⚠️ Episodentitel für S{season}E{ep_num} konnte nicht abgerufen werden: {e}")
 
@@ -3050,6 +3488,8 @@ def process_worker(params):
                             with open(nfo_path, "w", encoding="utf-8") as nf:
                                 nf.write(xml)
                             log_message(f"  ✅ NFO erstellt: {clean_base}.nfo")
+                        except JobCancelledError:
+                            raise
                         except Exception as e:
                             log_message(f"  ❌ Fehler bei NFO-Erstellung: {e}")
 
@@ -3072,6 +3512,8 @@ def process_worker(params):
                                     with open(art_path, "wb") as f_art:
                                         f_art.write(thumb_data)
                                 log_message("  ✅ Poster und Fanart heruntergeladen.")
+                            except JobCancelledError:
+                                raise
                             except Exception as e:
                                 log_message(f"  ❌ Fehler beim Herunterladen des YouTube-Thumbnails: {e}")
 
@@ -3081,6 +3523,7 @@ def process_worker(params):
                     elif metadata_mode == "movie" and movie_id:
                         dest_dir_outbox = os.path.join(outbox_dest, clean_base)
 
+                    wait_if_paused_or_cancelled(task_id)
                     log_message(f"Verschiebe {target_filename} nach {dest_dir_outbox}...")
                     transfer_successful = False
                     try:
@@ -3139,6 +3582,8 @@ def process_worker(params):
                             "episode": ep_num if (metadata_mode == "tv" and 'ep_num' in locals()) else None
                         }
                         update_job(task_id, manifest=manifest)
+                    except JobCancelledError:
+                        raise
                     except Exception as e:
                         log_message(f"  ❌ Fehler bei Übertragung in Output-Ordner: {e}")
                         all_transfers_successful = False
@@ -3156,6 +3601,7 @@ def process_worker(params):
                         rel_sub = os.path.basename(destination)
 
                     for target in settings.get("storage_targets", []):
+                        wait_if_paused_or_cancelled(task_id)
                         t_id = target.get("id")
                         t_type = target.get("type")
 
@@ -3189,10 +3635,10 @@ def process_worker(params):
 
                                 log_message(f"Kopiere von Output auf {target.get('name', t_id)}: {dest_dir_target}...")
                                 try:
-                                    os.makedirs(dest_dir_target, exist_ok=True)
                                     success = run_rsync_with_progress(os.path.join(dest_dir_outbox, target_filename), os.path.join(dest_dir_target, target_filename), task_id)
                                     if not success:
                                         raise RuntimeError(f"Kopieren auf {target.get('name', t_id)} fehlgeschlagen.")
+                                    os.makedirs(dest_dir_target, exist_ok=True)
                                     for f in os.listdir(dest_dir_outbox):
                                         if f.startswith(clean_base) and f != target_filename:
                                             shutil.copy(os.path.join(dest_dir_outbox, f), os.path.join(dest_dir_target, f))
@@ -3210,6 +3656,8 @@ def process_worker(params):
                                     update_task_pipeline_status(task_id, t_id, "done", 100)
                                     if t_id == "nas" and settings.get("open_nas_finder"):
                                         open_folder_in_finder(dest_dir_target)
+                                except JobCancelledError:
+                                    raise
                                 except Exception as e:
                                     log_message(f"  ❌ Fehler bei {target.get('name', t_id)}-Kopie: {e}")
                                     update_task_pipeline_status(task_id, t_id, "error", 0)
@@ -3254,6 +3702,8 @@ def process_worker(params):
                                 else:
                                     shutil.move(p_src, p_dest)
                                     log_message(f"Serien-Metadatei verschoben: {f}")
+                    except JobCancelledError:
+                        raise
                     except Exception as e:
                         log_message(f"Fehler beim Verschieben der Serien-Metadaten in Output: {e}")
                         all_transfers_successful = False
@@ -3302,11 +3752,15 @@ def process_worker(params):
                                                     resolved_topic=final_topic
                                                 )
                                                 log_message(f"mw_data in {f} auf {target.get('name', t_id)} aktualisiert.")
+                                            except JobCancelledError:
+                                                raise
                                             except Exception as e:
                                                 log_message(f"⚠️ Fehler beim Aktualisieren von mw_data in {f} auf {target.get('name', t_id)}: {e}")
                                     else:
                                         shutil.copy(p_src, p_dest)
                                         log_message(f"Serien-Metadatei auf {target.get('name', t_id)} kopiert: {f}")
+                        except JobCancelledError:
+                            raise
                         except Exception as e:
                             log_message(f"Fehler beim Kopieren der Serien-Metadaten auf {target.get('name', t_id)}: {e}")
                             all_transfers_successful = False
@@ -3316,6 +3770,7 @@ def process_worker(params):
                 if pipeline.get("local", {}).get("status") == "done":
                     log_message("Kopieren in lokalen Ordner ('local') ist bereits erledigt. Überspringe.")
                 else:
+                    wait_if_paused_or_cancelled(task_id)
                     update_task_pipeline_status(task_id, "local", "running", 0)
                     try:
                         # Build structured destination path
@@ -3329,13 +3784,14 @@ def process_worker(params):
                             yt_title = sanitize_filename(params.get("yt_title", "YouTube Download"))
                             local_dest_dir = os.path.join(local_destination_path, limit_filename_length(yt_title))
 
-                        os.makedirs(local_dest_dir, exist_ok=True)
                         log_message(f"Kopiere in lokalen Ordner: {local_dest_dir}...")
 
-                        # Copy video file
+                        # Copy video file cooperatively via run_copy_fallback
                         src_video = os.path.join(dest_dir_outbox, target_filename) if transfer_successful else filepath
-                        shutil.copy2(src_video, os.path.join(local_dest_dir, target_filename))
+                        if not run_copy_fallback(src_video, os.path.join(local_dest_dir, target_filename), task_id):
+                            raise RuntimeError("Lokales Kopieren der Videodatei fehlgeschlagen.")
 
+                        os.makedirs(local_dest_dir, exist_ok=True)
                         # Copy accompanying files (NFOs, subtitles)
                         source_dir = dest_dir_outbox if transfer_successful else temp_dir
                         for f in os.listdir(source_dir):
@@ -3365,10 +3821,14 @@ def process_worker(params):
                         # Open local folder if setting is enabled
                         if settings.get("open_outbox_finder"):
                             open_folder_in_finder(local_dest_dir)
+                    except JobCancelledError:
+                        raise
                     except Exception as e:
                         log_message(f"  ❌ Fehler beim Kopieren in lokalen Ordner: {e}")
                         update_task_pipeline_status(task_id, "local", "error", 0)
                         all_transfers_successful = False
+
+            check_cancelled(task_id)
 
             # Clean up temp folder OR open it on failure
             if not copy_to_nas or all_transfers_successful:
@@ -3382,16 +3842,37 @@ def process_worker(params):
                 # Open temp folder in Finder so the user can access files manually
                 open_folder_in_finder(temp_dir)
 
-            from gui.core.jobs import update_job
             if not all_transfers_successful:
                 update_job(task_id, status="error", message="Übertragung unvollständig oder fehlgeschlagen")
             else:
+                if media_type == "youtube_merge":
+                    sub_id = params.get("subscription_id")
+                    vids_to_remove = params.get("video_ids_to_remove", [])
+                    if sub_id and vids_to_remove:
+                        try:
+                            settings_save = load_settings()
+                            for s in settings_save.get("youtube_subscriptions", []):
+                                if s.get("id") == sub_id:
+                                    pending = s.get("pending_videos", [])
+                                    s["pending_videos"] = [v for v in pending if v.get("id") not in vids_to_remove]
+                                    downloaded_ids = s.get("downloaded_ids", [])
+                                    for vid in vids_to_remove:
+                                        if vid not in downloaded_ids:
+                                            downloaded_ids.append(vid)
+                                    s["downloaded_ids"] = downloaded_ids
+                                    save_settings(settings_save)
+                                    break
+                        except Exception as sub_clean_err:
+                            log_message(f"Fehler beim Bereinigen der Freigabeliste nach Merge: {sub_clean_err}")
                 update_job(task_id, status="done", progress=100, message="Erfolgreich beendet")
 
+        except JobCancelledError:
+            if not should_bypass and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            raise
         except Exception as e:
             log_message(f"❌ Fehler in YouTube-Pipeline: {e}")
             log_message(traceback.format_exc())
-            from gui.core.jobs import update_job
             update_job(task_id, status="error", message=f"Fehler: {str(e)}")
         finally:
             with active_yt_tasks_lock:
@@ -3405,6 +3886,7 @@ def process_worker(params):
             if root == current_dir:
                 continue
             for f in files:
+                wait_if_paused_or_cancelled(task_id)
                 src = os.path.join(root, f)
                 dst = os.path.join(current_dir, f)
                 if not os.path.exists(dst):
@@ -3412,6 +3894,8 @@ def process_worker(params):
                         shutil.move(src, dst)
                         log_message(f"Hochgezogen: {f}")
                         moved_count += 1
+                    except JobCancelledError:
+                        raise
                     except Exception as e:
                         log_message(f"Fehler bei {f}: {e}")
                 else:
@@ -3437,6 +3921,7 @@ def process_worker(params):
             log_message("Keine Videodateien im Ordner gefunden.")
         else:
             for f in video_files:
+                wait_if_paused_or_cancelled(task_id)
                 filepath = os.path.join(current_dir, f)
                 is_hevc = False
                 try:
@@ -3445,6 +3930,8 @@ def process_worker(params):
                     if not force_reconvert and codec in ["hevc", "h265", "vp9", "av1"]:
                         log_message(f"{f} ist bereits {codec.upper()}. Überspringe.")
                         is_hevc = True
+                except JobCancelledError:
+                    raise
                 except Exception as e:
                     log_message(f"⚠️ Codec-Prüfung (ffprobe) fehlgeschlagen für {f}: {e}")
 
@@ -3602,6 +4089,7 @@ def process_worker(params):
                 log_message(f"Verarbeite {N} Episoden-Mappings...")
                 
                 for idx, (filename, ep_num_val) in enumerate(mapping_items):
+                    wait_if_paused_or_cancelled(task_id)
                     if not ep_num_val or ep_num_val == "skip":
                         log_message(f"Skip-Auswahl für '{filename}'. NFO wird nicht generiert.")
                         continue
@@ -3689,6 +4177,8 @@ def process_worker(params):
                             raise RuntimeError(patch_message)
                         log_message(f"Episoden-NFO Feld-Patch für '{filename}': {patch_message}")
                         written_nfo_paths.append((episode_nfo_path, "episode"))
+                    except JobCancelledError:
+                        raise
                     except Exception as e:
                         episode_error = f"{filename}: {e}"
                         episode_errors.append(episode_error)
@@ -3794,7 +4284,9 @@ def process_worker(params):
 
             log_message("✅ NFO Agent erfolgreich abgeschlossen.")
             update_job(task_id, pipeline_step="metadata", pipeline_status="done", pipeline_progress=100)
-            
+
+        except JobCancelledError:
+            raise
         except Exception as e:
             log_message(f"❌ NFO Agent Fehler: {e}")
             update_job(task_id, pipeline_step="metadata", pipeline_status="failed", pipeline_progress=100)
@@ -3817,6 +4309,7 @@ def process_worker(params):
         any_attempted = False
 
         for target in settings.get("storage_targets", []):
+            wait_if_paused_or_cancelled(task_id)
             t_id = target.get("id")
             if target.get("enabled") is False:
                 continue
@@ -3858,6 +4351,8 @@ def process_worker(params):
                     else:
                         log_message(f"❌ Fehler bei Sync für {target.get('name')}.")
                         all_success = False
+                except JobCancelledError:
+                    raise
                 except Exception as e:
                     log_message(f"❌ Ausnahme bei Sync für {target.get('name')}: {e}")
                     all_success = False
@@ -3882,6 +4377,8 @@ def process_worker(params):
                 if not success:
                     all_success = False
 
+        check_cancelled(task_id)
+
         if not any_attempted:
             raise RuntimeError("Keine Speicherziele ausgewählt oder Mapping ungültig.")
 
@@ -3903,8 +4400,10 @@ def process_worker(params):
         delete_original = params.get("delete_original", False)
         task_id = params.get("task_id")
 
+        wait_if_paused_or_cancelled(task_id)
         log_message(f"=== STARTE REINEN PCLOUD SYNC FÜR: {dest} ===")
         success = copy_to_pcloud(current_dir, dest, task_id)
+        check_cancelled(task_id)
 
         if success and delete_original:
             log_message(f"🗑️ Lösche Originalordner nach erfolgreichem Transfer: {current_dir}")
@@ -3914,51 +4413,84 @@ def process_worker(params):
                 log_message(f"⚠️ Konnte Originalordner nicht in Quarantäne verschieben: {e}")
 
         if success and open_after:
-            # We don't exactly know the local fuse path here easily without reproducing it,
-            # but we can try to open the source dir if it wasn't deleted.
             pass
 
     log_message("=== VORGANG BEENDET ===")
 
+
 def job_queue_worker():
+    from gui.core.jobs import (
+        JobCancelledError,
+        bind_job_context,
+        claim_or_skip_dequeued_job,
+        cleanup_job_control,
+        finalize_cancelled_job,
+        finalize_cancelling_job_if_needed,
+        get_job,
+        is_job_cancelled,
+        update_job,
+    )
+    from gui.core.helpers import close_job_log
+
     while True:
         job = job_queue.get()
         if job is None:
+            job_queue.task_done()
             break
         task_id = job["id"]
-        from gui.core.jobs import update_job, get_job
-        update_job(task_id, status="running", message="Verarbeitung gestartet...")
-
         curr_thread = threading.current_thread()
         old_name = curr_thread.name
         curr_thread.name = f"job-{task_id}"
+        keep_control = False
 
-        try:
-            params = job["params"]
-            params["task_id"] = task_id
-            process_worker(params)
+        with bind_job_context(task_id) as run_ctx:
+            try:
+                claimed, keep_control = claim_or_skip_dequeued_job(task_id)
+                if not claimed:
+                    continue
 
-            job_state = get_job(task_id)
-            if job_state and job_state.get("status") != "error":
-                update_job(task_id, status="done", progress=100, message="Erfolgreich beendet")
-        except Exception as e:
-            log_message(traceback.format_exc())
-            job_state = get_job(task_id)
-            pipeline = None
-            if job_state and "pipeline" in job_state:
-                pipeline = job_state["pipeline"]
-                for step_key, step_info in pipeline.items():
-                    if step_info.get("status") in ["running", "pending"]:
-                        step_info["status"] = "error"
-                        step_info["message"] = "Fehlgeschlagen"
-            update_job(task_id, status="error", message=f"Fehler: {str(e)}", pipeline=pipeline)
-            print(f"Job {task_id} failed: {e}")
-            print(traceback.format_exc())
-        finally:
-            curr_thread.name = old_name
-            from gui.core.helpers import close_job_log
-            close_job_log(task_id)
-            job_queue.task_done()
+                latest_job = get_job(task_id)
+                params = (
+                    latest_job["params"]
+                    if latest_job and isinstance(latest_job.get("params"), dict)
+                    else copy.deepcopy(job["params"])
+                )
+                params["task_id"] = task_id
+                process_worker(params)
+
+                if is_job_cancelled(task_id):
+                    raise JobCancelledError("Vom Benutzer abgebrochen")
+
+                job_state = get_job(task_id)
+                if job_state and job_state.get("status") not in ("error", "cancelled", "cancelling"):
+                    update_job(task_id, status="done", progress=100, message="Erfolgreich beendet")
+            except JobCancelledError:
+                log_message(f"⏹️ Job {task_id} wurde vom Benutzer abgebrochen.")
+                finalize_cancelled_job(task_id, expected_ctrl=run_ctx.ctrl)
+            except Exception as e:
+                if is_job_cancelled(task_id):
+                    log_message(f"⏹️ Job {task_id} wurde vom Benutzer abgebrochen.")
+                    finalize_cancelled_job(task_id, expected_ctrl=run_ctx.ctrl)
+                else:
+                    log_message(traceback.format_exc())
+                    job_state = get_job(task_id)
+                    pipeline = None
+                    if job_state and "pipeline" in job_state:
+                        pipeline = job_state["pipeline"]
+                        for step_key, step_info in pipeline.items():
+                            if step_info.get("status") in ["running", "pending"]:
+                                step_info["status"] = "error"
+                                step_info["message"] = "Fehlgeschlagen"
+                    update_job(task_id, status="error", message=f"Fehler: {str(e)}", pipeline=pipeline)
+                    print(f"Job {task_id} failed: {e}")
+                    print(traceback.format_exc())
+            finally:
+                finalize_cancelling_job_if_needed(task_id, expected_ctrl=run_ctx.ctrl)
+                if not keep_control:
+                    cleanup_job_control(task_id, expected_ctrl=run_ctx.ctrl)
+                curr_thread.name = old_name
+                close_job_log(task_id)
+                job_queue.task_done()
 
 _rclone_about_cache = {}
 _RCLONE_ABOUT_TTL = 300

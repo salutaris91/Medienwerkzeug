@@ -265,9 +265,9 @@ def handle_api_system_restart():
         params = {}
     query = request.args
     active_count = 0
-    from gui.core.jobs import get_all_jobs
+    from gui.core.jobs import get_all_jobs, TERMINAL_JOB_STATUSES
     for job in get_all_jobs():
-        if job.get("status") not in ("done", "error"):
+        if job.get("status") not in TERMINAL_JOB_STATUSES:
             active_count += 1
 
     if active_count > 0:

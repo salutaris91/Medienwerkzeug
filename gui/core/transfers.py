@@ -471,23 +471,79 @@ def _quarantine_colliding_files(src, dst):
             log_message(f"❌ Zentraler Transfer-Schutz: Quarantäne fehlgeschlagen für {col}: {e}")
             raise RuntimeError(f"Quarantäne-Backup fehlgeschlagen für {col}: {e}")
 
+def _makedirs_tracked(target_dir, created_dirs):
+    if not target_dir:
+        return
+    norm = os.path.abspath(target_dir)
+    missing = []
+    cur = norm
+    while cur and not os.path.exists(cur):
+        missing.append(cur)
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            break
+        cur = parent
+    for d in reversed(missing):
+        os.makedirs(d, exist_ok=True)
+        if d not in created_dirs:
+            created_dirs.append(d)
+
+
 def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
     import shutil
     import os
+    import threading
+    from gui.core.jobs import (
+        JobCancelledError,
+        check_cancelled,
+        resolve_job_id,
+        wait_if_paused_or_cancelled,
+    )
+
+    job_id = resolve_job_id(task_id)
+    wait_if_paused_or_cancelled(job_id)
 
     log_message(f"rsync nicht verfügbar. Verwende Python-Fallback zum Kopieren von {src} nach {dst}...")
     if protect_existing:
         try:
             _quarantine_colliding_files(src, dst)
+        except JobCancelledError:
+            raise
         except Exception as e:
             log_message(f"❌ Kopiervorgang abgebrochen, da das Quarantäne-Sicherheitsnetz fehlgeschlagen ist: {e}")
             return False
+
+    created_dirs = []
+    created_files = []
+    current_tmp_path = None
+
+    def _cleanup_cancelled():
+        nonlocal current_tmp_path
+        if current_tmp_path and os.path.lexists(current_tmp_path):
+            try:
+                os.unlink(current_tmp_path)
+            except OSError:
+                pass
+            current_tmp_path = None
+        for fp in reversed(created_files):
+            try:
+                if os.path.isdir(fp) and not os.path.islink(fp):
+                    shutil.rmtree(fp, ignore_errors=True)
+                elif os.path.lexists(fp):
+                    os.unlink(fp)
+            except OSError:
+                pass
+        for dp in reversed(created_dirs):
+            try:
+                os.rmdir(dp)
+            except OSError:
+                pass
 
     try:
         # Determine if we are copying a directory or a file
         if os.path.isdir(src):
             # Target should be the destination directory (mirroring contents of src)
-            os.makedirs(dst, exist_ok=True)
+            _makedirs_tracked(dst, created_dirs)
 
             # Find all files/symlinks to copy recursively to calculate total size
             files_to_copy = []
@@ -499,22 +555,23 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
                     dir_path = os.path.join(root, d)
                     dest_dir = os.path.join(dst, os.path.relpath(dir_path, src))
                     if os.path.islink(dir_path):
-                        # Recreate directory symlink
-                        if os.path.lexists(dest_dir):
+                        existed_before = os.path.lexists(dest_dir)
+                        if existed_before:
                             if os.path.isdir(dest_dir) and not os.path.islink(dest_dir):
                                 shutil.rmtree(dest_dir)
                             else:
                                 os.remove(dest_dir)
                         os.symlink(os.readlink(dir_path), dest_dir)
-                        dirs.remove(d) # Prevent os.walk from entering this directory
+                        if not existed_before:
+                            created_files.append(dest_dir)
+                        dirs.remove(d)  # Prevent os.walk from entering this directory
                     else:
-                        os.makedirs(dest_dir, exist_ok=True)
+                        _makedirs_tracked(dest_dir, created_dirs)
 
                 for f in files:
                     filepath = os.path.join(root, f)
                     relpath = os.path.relpath(filepath, src)
                     if os.path.islink(filepath):
-                        # It's a symlink, size is 0 for copy progress, flag as symlink
                         files_to_copy.append((filepath, relpath, 0, True))
                     else:
                         size = os.path.getsize(filepath)
@@ -522,8 +579,8 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
                         total_size += size
 
             copied_size = 0
-            # If directory has no files or symlinks, we still succeed (empty dirs are already created in walk)
             if not files_to_copy:
+                check_cancelled(job_id)
                 if task_id:
                     if callable(task_id):
                         task_id(100, "Übertragung: 100%")
@@ -534,23 +591,29 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
 
             last_logged_pct = -1
             for filepath, relpath, size, is_symlink in files_to_copy:
+                wait_if_paused_or_cancelled(job_id)
                 dest_filepath = os.path.join(dst, relpath)
-                os.makedirs(os.path.dirname(dest_filepath), exist_ok=True)
+                _makedirs_tracked(os.path.dirname(dest_filepath), created_dirs)
+                existed_before = os.path.lexists(dest_filepath)
 
                 if is_symlink:
-                    # Recreate symlink
-                    if os.path.lexists(dest_filepath):
+                    if existed_before:
                         if os.path.isdir(dest_filepath) and not os.path.islink(dest_filepath):
                             shutil.rmtree(dest_filepath)
                         else:
                             os.remove(dest_filepath)
                     os.symlink(os.readlink(filepath), dest_filepath)
+                    if not existed_before:
+                        created_files.append(dest_filepath)
                 else:
-                    # Copy with chunked progress
+                    # Write to sibling temporary file first so pre-existing destination content is never truncated
+                    tmp_path = f"{dest_filepath}.mwtmp.{os.getpid()}.{threading.get_ident()}"
+                    current_tmp_path = tmp_path
                     with open(filepath, 'rb') as fsrc:
-                        with open(dest_filepath, 'wb') as fdst:
+                        with open(tmp_path, 'wb') as fdst:
                             while True:
-                                buf = fsrc.read(1024 * 1024) # 1MB chunk
+                                wait_if_paused_or_cancelled(job_id)
+                                buf = fsrc.read(1024 * 1024)  # 1MB chunk
                                 if not buf:
                                     break
                                 fdst.write(buf)
@@ -565,16 +628,22 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
                                         else:
                                             from gui.core.jobs import update_job
                                             update_job(task_id, progress=percent, message=msg)
-                                    # Throttle logging
                                     if percent % 10 == 0 and percent != last_logged_pct:
                                         log_message(msg)
                                         last_logged_pct = percent
 
                     try:
-                        shutil.copystat(filepath, dest_filepath)
+                        shutil.copystat(filepath, tmp_path)
                     except Exception:
                         pass
 
+                    check_cancelled(job_id)
+                    os.replace(tmp_path, dest_filepath)
+                    current_tmp_path = None
+                    if not existed_before:
+                        created_files.append(dest_filepath)
+
+            check_cancelled(job_id)
             if task_id:
                 if callable(task_id):
                     task_id(100, "Übertragung: 100%")
@@ -587,21 +656,26 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
         else:
             # src is a file
             dest_file = dst
-            if os.path.isdir(dst):
+            if os.path.isdir(dst) or dst.endswith("/") or dst.endswith(os.sep):
+                _makedirs_tracked(dst, created_dirs)
                 dest_file = os.path.join(dst, os.path.basename(src))
             else:
                 dest_dir = os.path.dirname(dst)
                 if dest_dir:
-                    os.makedirs(dest_dir, exist_ok=True)
+                    _makedirs_tracked(dest_dir, created_dirs)
+
+            existed_before = os.path.lexists(dest_file)
 
             if os.path.islink(src):
-                # Recreate symlink at dest_file
-                if os.path.lexists(dest_file):
+                check_cancelled(job_id)
+                if existed_before:
                     if os.path.isdir(dest_file) and not os.path.islink(dest_file):
                         shutil.rmtree(dest_file)
                     else:
                         os.remove(dest_file)
                 os.symlink(os.readlink(src), dest_file)
+                if not existed_before:
+                    created_files.append(dest_file)
                 if task_id:
                     if callable(task_id):
                         task_id(100, "Übertragung: 100%")
@@ -615,9 +689,13 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
             copied_size = 0
             last_logged_pct = -1
 
+            tmp_path = f"{dest_file}.mwtmp.{os.getpid()}.{threading.get_ident()}"
+            current_tmp_path = tmp_path
+
             with open(src, 'rb') as fsrc:
-                with open(dest_file, 'wb') as fdst:
+                with open(tmp_path, 'wb') as fdst:
                     while True:
+                        wait_if_paused_or_cancelled(job_id)
                         buf = fsrc.read(1024 * 1024)
                         if not buf:
                             break
@@ -633,15 +711,20 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
                                 else:
                                     from gui.core.jobs import update_job
                                     update_job(task_id, progress=percent, message=msg)
-                            # Throttle logging
                             if percent % 10 == 0 and percent != last_logged_pct:
                                 log_message(msg)
                                 last_logged_pct = percent
 
             try:
-                shutil.copystat(src, dest_file)
+                shutil.copystat(src, tmp_path)
             except Exception:
                 pass
+
+            check_cancelled(job_id)
+            os.replace(tmp_path, dest_file)
+            current_tmp_path = None
+            if not existed_before:
+                created_files.append(dest_file)
 
             if task_id:
                 if callable(task_id):
@@ -652,36 +735,150 @@ def run_copy_fallback(src, dst, task_id=None, protect_existing=False):
             log_message("Übertragung: 100%")
             return True
 
+    except JobCancelledError:
+        _cleanup_cancelled()
+        raise
     except Exception as e:
+        if current_tmp_path and os.path.lexists(current_tmp_path):
+            try:
+                os.unlink(current_tmp_path)
+            except OSError:
+                pass
         log_message(f"❌ Fehler bei Python-Kopier-Fallback von {src} nach {dst}: {e}")
         return False
+
 
 def run_rsync_with_progress(src, dst, task_id=None, move=False, protect_existing=False):
     import subprocess
     import re
     import shutil
+    from gui.core.jobs import (
+        JobCancelledError,
+        check_cancelled,
+        is_job_cancelled,
+        register_job_process,
+        resolve_job_id,
+        unregister_job_process,
+        wait_if_paused_or_cancelled,
+    )
+
+    job_id = resolve_job_id(task_id)
+    wait_if_paused_or_cancelled(job_id)
 
     if protect_existing:
         try:
             _quarantine_colliding_files(src, dst)
+        except JobCancelledError:
+            raise
         except Exception as e:
             log_message(f"❌ Rsync-Vorgang abgebrochen, da das Quarantäne-Sicherheitsnetz fehlgeschlagen ist: {e}")
             return False
 
-    os.makedirs(os.path.dirname(dst) if not os.path.isdir(dst) else dst, exist_ok=True)
+    src_is_dir = os.path.isdir(src)
+    created_dirs = []
+    dst_dir_existed_before = False
+    existing_rel_files = set()
+    existing_rel_dirs = set()
+    dest_file = None
+    dest_file_existed_before = False
+    dest_parent_dir = None
+    parent_entries_before = set()
 
-    cmd = ["rsync", "-a", "--inplace", "--no-owner", "--no-group", get_rsync_progress_flag()]
+    if src_is_dir:
+        dst_dir_existed_before = os.path.exists(dst)
+        if dst_dir_existed_before:
+            for r, ds, fs in os.walk(dst):
+                for d in ds:
+                    existing_rel_dirs.add(os.path.relpath(os.path.join(r, d), dst))
+                for f in fs:
+                    existing_rel_files.add(os.path.relpath(os.path.join(r, f), dst))
+        has_preexisting_target = bool(existing_rel_files)
+        _makedirs_tracked(dst, created_dirs)
+    else:
+        dst_is_dir_target = os.path.isdir(dst) or dst.endswith("/") or dst.endswith(os.sep)
+        dest_file = os.path.join(dst, os.path.basename(src)) if dst_is_dir_target else dst
+        dest_file_existed_before = os.path.lexists(dest_file)
+        dest_parent_dir = dst if dst_is_dir_target else os.path.dirname(os.path.abspath(dst))
+        if dest_parent_dir and os.path.isdir(dest_parent_dir):
+            parent_entries_before = set(os.listdir(dest_parent_dir))
+        has_preexisting_target = dest_file_existed_before
+        _makedirs_tracked(dest_parent_dir, created_dirs)
+
+    def _cleanup_cancelled_rsync():
+        if src_is_dir:
+            if not dst_dir_existed_before:
+                if os.path.exists(dst):
+                    shutil.rmtree(dst, ignore_errors=True)
+                for dp in reversed(created_dirs):
+                    try:
+                        os.rmdir(dp)
+                    except OSError:
+                        pass
+            else:
+                for r, ds, fs in os.walk(dst, topdown=False):
+                    for f in fs:
+                        full_f = os.path.join(r, f)
+                        rel_f = os.path.relpath(full_f, dst)
+                        if rel_f not in existing_rel_files:
+                            try:
+                                os.unlink(full_f)
+                            except OSError:
+                                pass
+                    for d in ds:
+                        full_d = os.path.join(r, d)
+                        rel_d = os.path.relpath(full_d, dst)
+                        if rel_d not in existing_rel_dirs:
+                            try:
+                                os.rmdir(full_d)
+                            except OSError:
+                                pass
+        else:
+            if not dest_file_existed_before and dest_file and os.path.lexists(dest_file):
+                try:
+                    os.unlink(dest_file)
+                except OSError:
+                    pass
+            if dest_parent_dir and os.path.isdir(dest_parent_dir) and dest_file:
+                base_name = os.path.basename(dest_file)
+                for entry in os.listdir(dest_parent_dir):
+                    if entry not in parent_entries_before and entry.startswith(f".{base_name}."):
+                        try:
+                            os.unlink(os.path.join(dest_parent_dir, entry))
+                        except OSError:
+                            pass
+            for dp in reversed(created_dirs):
+                try:
+                    os.rmdir(dp)
+                except OSError:
+                    pass
+
+    cmd = ["rsync", "-a"]
+    if not (has_preexisting_target and not protect_existing):
+        cmd.append("--inplace")
+    cmd.extend(["--no-owner", "--no-group", get_rsync_progress_flag()])
     src_path = src
-    if os.path.isdir(src) and not src.endswith('/'):
+    if src_is_dir and not src.endswith('/'):
         src_path += '/'
 
     cmd.extend([src_path, dst])
 
     try:
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=0,
+            start_new_session=(os.name != 'nt'),
+        )
     except (FileNotFoundError, OSError) as e:
+        for dp in reversed(created_dirs):
+            try:
+                os.rmdir(dp)
+            except OSError:
+                pass
         log_message(f"rsync konnte nicht gestartet werden ({e}). Verwende Python-Kopier-Fallback...")
-        success = run_copy_fallback(src, dst, task_id, protect_existing=protect_existing)
+        success = run_copy_fallback(src, dst, task_id, protect_existing=False)
+        check_cancelled(job_id)
         if success and move:
             import gui.core.trash as trash
             try:
@@ -690,31 +887,46 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False, protect_existing
                 log_message(f"⚠️ Konnte Quellpfad {src} nach Fallback-Move nicht in Quarantäne verschieben: {tr_err}")
         return success
 
+    register_job_process(job_id, process)
     progress_pattern = re.compile(r'(\d+)%')
     speed_pattern = re.compile(r'(\d+\.?\d*\s*[kKMG]i?B/s)')
 
     output_lines = []
     last_logged_pct = -1
-    for line in read_lines_from_stream(process.stdout):
-        output_lines.append(line.strip())
-        match = progress_pattern.search(line)
-        if match:
-            percent = int(match.group(1))
-            speed_match = speed_pattern.search(line)
-            speed_str = f" ({speed_match.group(1)})" if speed_match else ""
-            msg = f"Übertragung: {percent}%{speed_str}"
-            if task_id:
-                if callable(task_id):
-                    task_id(percent, msg)
-                else:
-                    from gui.core.jobs import update_job
-                    update_job(task_id, progress=percent, message=msg)
-            # Throttle logging: only print to log_message at multiples of 10%
-            if percent % 10 == 0 and percent != last_logged_pct:
-                log_message(msg)
-                last_logged_pct = percent
+    try:
+        for line in read_lines_from_stream(process.stdout):
+            output_lines.append(line.strip())
+            match = progress_pattern.search(line)
+            if match:
+                percent = int(match.group(1))
+                speed_match = speed_pattern.search(line)
+                speed_str = f" ({speed_match.group(1)})" if speed_match else ""
+                msg = f"Übertragung: {percent}%{speed_str}"
+                if task_id:
+                    if callable(task_id):
+                        task_id(percent, msg)
+                    else:
+                        from gui.core.jobs import update_job
+                        update_job(task_id, progress=percent, message=msg)
+                if percent % 10 == 0 and percent != last_logged_pct:
+                    log_message(msg)
+                    last_logged_pct = percent
 
-    process.wait()
+        process.wait()
+    except JobCancelledError:
+        try:
+            process.wait(timeout=2)
+        except Exception:
+            pass
+        _cleanup_cancelled_rsync()
+        raise
+    finally:
+        unregister_job_process(job_id, process)
+
+    if is_job_cancelled(job_id):
+        _cleanup_cancelled_rsync()
+        raise JobCancelledError("Vom Benutzer abgebrochen")
+
     success = (process.returncode == 0)
 
     if not success:
@@ -734,9 +946,21 @@ def run_rsync_with_progress(src, dst, task_id=None, move=False, protect_existing
 
     return success
 
+
 def run_ffmpeg_with_progress(cmd, filepath, task_id=None, log_queue=None):
     import subprocess
     import re
+    from gui.core.jobs import (
+        JobCancelledError,
+        is_job_cancelled,
+        register_job_process,
+        resolve_job_id,
+        unregister_job_process,
+        wait_if_paused_or_cancelled,
+    )
+
+    job_id = resolve_job_id(task_id)
+    wait_if_paused_or_cancelled(job_id)
 
     duration = None
     try:
@@ -744,65 +968,99 @@ def run_ffmpeg_with_progress(cmd, filepath, task_id=None, log_queue=None):
     except Exception as e:
         log_message(f"Fehler bei get_video_duration: {e}")
 
-    if not duration:
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        for line in proc.stdout:
-            if log_queue:
-                log_queue.put(line)
-        proc.wait()
-        return proc.returncode == 0
-
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=(os.name != 'nt'),
+    )
+    register_job_process(job_id, proc)
     time_pattern = re.compile(r'time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})')
     time_pattern_sec = re.compile(r'time=(\d+)\.(\d+)')
 
-    for line in proc.stdout:
-        if log_queue:
-            log_queue.put(line)
+    try:
+        for line in proc.stdout:
+            if log_queue:
+                log_queue.put(line)
 
-        match = time_pattern.search(line)
-        current_time = None
-        if match:
-            h, m, s, ms = match.groups()
-            current_time = int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 100.0
-        else:
-            match_sec = time_pattern_sec.search(line)
-            if match_sec:
-                s, ms = match_sec.groups()
-                current_time = int(s) + int(ms) / 100.0
-
-        if current_time is not None and duration > 0:
-            percent = min(99, int((current_time / duration) * 100))
-            if task_id:
-                if callable(task_id):
-                    task_id(percent, f"Konvertierung: {percent}%")
+            if duration and duration > 0:
+                match = time_pattern.search(line)
+                current_time = None
+                if match:
+                    h, m, s, ms = match.groups()
+                    current_time = int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 100.0
                 else:
-                    from gui.core.jobs import update_job
-                    update_job(task_id, progress=percent, message=f"Konvertierung: {percent}%")
+                    match_sec = time_pattern_sec.search(line)
+                    if match_sec:
+                        s, ms = match_sec.groups()
+                        current_time = int(s) + int(ms) / 100.0
 
-    proc.wait()
+                if current_time is not None:
+                    percent = min(99, int((current_time / duration) * 100))
+                    if task_id:
+                        if callable(task_id):
+                            task_id(percent, f"Konvertierung: {percent}%")
+                        else:
+                            from gui.core.jobs import update_job
+                            update_job(task_id, progress=percent, message=f"Konvertierung: {percent}%")
+
+        proc.wait()
+    finally:
+        unregister_job_process(job_id, proc)
+
+    if is_job_cancelled(job_id):
+        raise JobCancelledError("Vom Benutzer abgebrochen")
+
     return proc.returncode == 0
+
 
 def run_ytdlp_with_progress(cmd, task_id=None, log_queue=None):
     import subprocess
     import re
+    from gui.core.jobs import (
+        JobCancelledError,
+        is_job_cancelled,
+        register_job_process,
+        resolve_job_id,
+        unregister_job_process,
+        wait_if_paused_or_cancelled,
+    )
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    job_id = resolve_job_id(task_id)
+    wait_if_paused_or_cancelled(job_id)
+
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        start_new_session=(os.name != 'nt'),
+    )
+    register_job_process(job_id, proc)
     progress_pattern = re.compile(r'\[download\]\s+(\d+(?:\.\d+)?)%')
 
-    for line in iter(proc.stdout.readline, ''):
-        if log_queue:
-            log_queue.put(line)
+    try:
+        for line in iter(proc.stdout.readline, ''):
+            if log_queue:
+                log_queue.put(line)
 
-        match = progress_pattern.search(line)
-        if match:
-            percent = int(float(match.group(1)))
-            if task_id:
-                from gui.core.jobs import update_job
-                update_job(task_id, progress=percent, message=f"Download: {percent}%",
-                           pipeline_step="metadata", pipeline_status="running", pipeline_progress=percent)
+            match = progress_pattern.search(line)
+            if match:
+                percent = int(float(match.group(1)))
+                if task_id:
+                    from gui.core.jobs import update_job
+                    update_job(task_id, progress=percent, message=f"Download: {percent}%",
+                               pipeline_step="metadata", pipeline_status="running", pipeline_progress=percent)
 
-    proc.wait()
+        proc.wait()
+    finally:
+        unregister_job_process(job_id, proc)
+
+    if is_job_cancelled(job_id):
+        raise JobCancelledError("Vom Benutzer abgebrochen")
+
     return proc.returncode == 0
 
 def resolve_target_destination(target, rel_sub, media_type="movie"):
@@ -920,6 +1178,11 @@ def _calculate_cloud_upload_timeout_sec(source_path):
 
 def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, explicit_remote_base=None):
     import shutil
+    from gui.core.jobs import JobCancelledError, bind_job_context, resolve_job_id, wait_if_paused_or_cancelled
+
+    job_id = resolve_job_id(task_id)
+    wait_if_paused_or_cancelled(job_id)
+
     settings = load_settings()
     nas_target = next((t for t in settings.get("storage_targets", []) if t.get("id") == "nas"), None)
     nas_root = nas_target.get("root_path", "") if nas_target else settings.get("nas_root", "")
@@ -1006,6 +1269,8 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
                 return True
             else:
                 log_message(f"❌ {target_name} Fehler bei der Übertragung.")
+        except JobCancelledError:
+            raise
         except Exception as e:
             log_message(f"❌ Fehler bei lokalem Kopieren nach {target_name}: {e}")
 
@@ -1061,12 +1326,13 @@ def copy_to_cloud_target(source_dir, nas_target_dir, target_id, task_id=None, ex
                         already_logged = True
                 diag_lines.append((stripped, already_logged))
 
-        success = run_with_retries_and_timeout(
-            cmd,
-            max_attempts=3,
-            timeout_sec=timeout_sec,
-            line_callback=handle_line
-        )
+        with bind_job_context(job_id):
+            success = run_with_retries_and_timeout(
+                cmd,
+                max_attempts=3,
+                timeout_sec=timeout_sec,
+                line_callback=handle_line,
+            )
         if success:
             log_message(f"✅ {target_name}: Rclone-Upload abgeschlossen nach {remote_target}")
             return True

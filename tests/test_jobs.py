@@ -101,26 +101,33 @@ class TestJobs(unittest.TestCase):
         self.assertEqual(data[job_id]["progress"], 20)
 
     def test_crash_recovery(self):
-        """Checks if interrupted jobs ('running' or 'queued') are recovered to 'error' state on startup."""
-        # Create a pre-existing state on disk with running and done jobs
+        """Checks that all active states recover to 'error' on startup while 'done'/'cancelled' remain intact."""
         disk_state = {
             "job-done": {"id": "job-done", "status": "done", "progress": 100, "message": "Success"},
-            "job-running": {"id": "job-running", "status": "running", "progress": 50, "message": "Running"},
+            "job-cancelled": {"id": "job-cancelled", "status": "cancelled", "progress": 35, "message": "Vom Benutzer abgebrochen"},
+            "job-running": {"id": "job-running", "status": "running", "progress": 50, "message": "Running",
+                            "pipeline": {"metadata": {"status": "done", "progress": 100}, "convert": {"status": "running", "progress": 50}}},
             "job-queued": {"id": "job-queued", "status": "queued", "progress": 0, "message": "Queued"},
+            "job-pausing": {"id": "job-pausing", "status": "pausing", "paused_from": "running", "progress": 20, "message": "Pausing"},
+            "job-paused": {"id": "job-paused", "status": "paused", "paused_from": "queued", "progress": 0, "message": "Paused"},
+            "job-cancelling": {"id": "job-cancelling", "status": "cancelling", "progress": 80, "message": "Cancelling"},
         }
         with open(self.jobs_state_file, "w", encoding="utf-8") as f:
             json.dump(disk_state, f)
-            
+
         self.jobs.recover_interrupted_jobs()
-        
-        # Verify from disk and RAM
+
         recovered = self.jobs.get_all_jobs()
         recovered_dict = {j["id"]: j for j in recovered}
-        
+
         self.assertEqual(recovered_dict["job-done"]["status"], "done")
-        self.assertEqual(recovered_dict["job-running"]["status"], "error")
-        self.assertIn("unerwartet", recovered_dict["job-running"]["message"])
-        self.assertEqual(recovered_dict["job-queued"]["status"], "error")
+        self.assertEqual(recovered_dict["job-cancelled"]["status"], "cancelled")
+        for active_id in ("job-running", "job-queued", "job-pausing", "job-paused", "job-cancelling"):
+            self.assertEqual(recovered_dict[active_id]["status"], "error")
+            self.assertIn("unerwartet", recovered_dict[active_id]["message"])
+            self.assertIsNone(recovered_dict[active_id].get("paused_from"))
+        self.assertEqual(recovered_dict["job-running"]["pipeline"]["metadata"]["status"], "done")
+        self.assertEqual(recovered_dict["job-running"]["pipeline"]["convert"]["status"], "error")
 
     def test_temp_quarantine(self):
         """Verifies that orphaned .mwtmp files older than 12 hours are moved to quarantine."""
@@ -153,40 +160,40 @@ class TestJobs(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(quarantine_dir, "regular.mkv")))
 
     def test_clear_finished_jobs_and_queue_drain(self):
-        """Verifies that clear_finished_jobs removes done, error, and queued jobs, and safely drains job_queue."""
-        # Create some jobs
-        self.jobs.create_job("job-done", "Job Done", "movie", {})
-        self.jobs.create_job("job-error", "Job Error", "movie", {})
-        self.jobs.create_job("job-queued", "Job Queued", "movie", {})
-        self.jobs.create_job("job-running", "Job Running", "movie", {})
-        
-        # Set statuses
-        self.jobs.update_job("job-done", status="done")
-        self.jobs.update_job("job-error", status="error")
-        self.jobs.update_job("job-queued", status="queued")
-        self.jobs.update_job("job-running", status="running")
-        
-        # Populate the actual queue module job_queue
+        """Verifies that clear_finished_jobs removes only terminal jobs and preserves active/queued jobs & job_queue."""
+        for jid, st in (
+            ("job-done", "done"),
+            ("job-error", "error"),
+            ("job-cancelled", "cancelled"),
+            ("job-queued", "queued"),
+            ("job-running", "running"),
+            ("job-pausing", "pausing"),
+            ("job-paused", "paused"),
+            ("job-cancelling", "cancelling"),
+        ):
+            self.jobs.create_job(jid, jid, "movie", {}, status=st)
+
         from gui.core.helpers import job_queue
-        # Push 2 dummy items to the internal queue
-        job_queue.put({"id": "job-queued", "type": "test"})
-        job_queue.put({"id": "some-other-queued", "type": "test"})
-        
-        initial_unfinished = job_queue.unfinished_tasks
-        
-        # Act
-        self.jobs.clear_finished_jobs()
-        
-        # Verify active_jobs dictionary
-        active = self.jobs.active_jobs
-        self.assertNotIn("job-done", active)
-        self.assertNotIn("job-error", active)
-        self.assertNotIn("job-queued", active)
-        self.assertIn("job-running", active)  # running should remain!
-        
-        # Verify job_queue is drained and unfinished_tasks is adjusted correctly
-        self.assertEqual(len(job_queue.queue), 0)
-        self.assertEqual(job_queue.unfinished_tasks, initial_unfinished - 2)
+        with job_queue.mutex:
+            job_queue.queue.clear()
+            job_queue.unfinished_tasks = 0
+
+        job_queue.put({"id": "job-queued", "type": "movie"})
+        try:
+            self.jobs.clear_finished_jobs()
+
+            active = self.jobs.active_jobs
+            for term_id in ("job-done", "job-error", "job-cancelled"):
+                self.assertNotIn(term_id, active)
+            for keep_id in ("job-queued", "job-running", "job-pausing", "job-paused", "job-cancelling"):
+                self.assertIn(keep_id, active)
+
+            self.assertEqual(len(job_queue.queue), 1)
+            self.assertEqual(job_queue.unfinished_tasks, 1)
+        finally:
+            with job_queue.mutex:
+                job_queue.queue.clear()
+                job_queue.unfinished_tasks = 0
 
     def test_get_all_jobs_no_deadlock(self):
         """Verifies that calling get_all_jobs() when active_jobs is empty does not deadlock."""

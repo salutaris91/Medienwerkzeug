@@ -393,12 +393,24 @@ def execute_video_conversion(
     send_to_trash_fn,
     log_queue=None
 ):
+    from gui.core.jobs import (
+        JobCancelledError,
+        is_job_cancelled,
+        resolve_job_id,
+        wait_if_paused_or_cancelled,
+    )
+
+    job_id = resolve_job_id(progress_callback)
+    wait_if_paused_or_cancelled(job_id)
+
     log_message_fn(f"Konvertiere {os.path.basename(target_filepath)} nach H.265 (Qualität {quality})...")
     ffmpeg_cmd = build_hevc_ffmpeg_cmd(target_filepath, temp_output, quality)
     used_codec = "hevc_vaapi" if "-vaapi_device" in ffmpeg_cmd else ("hevc_videotoolbox" if "-c:v" in ffmpeg_cmd and "hevc_videotoolbox" in ffmpeg_cmd else "hevc_libx265")
     try:
         success = run_ffmpeg_fn(ffmpeg_cmd, target_filepath, task_id=progress_callback, log_queue=log_queue)
-        
+        if is_job_cancelled(job_id):
+            raise JobCancelledError("Vom Benutzer abgebrochen")
+
         if not success and "-vaapi_device" in ffmpeg_cmd:
             log_message_fn("⚠️ Hardware-Encoding fehlgeschlagen. Versuche Fallback auf Software-Encoding (libx265)...")
             if os.path.exists(temp_output):
@@ -407,6 +419,8 @@ def execute_video_conversion(
             ffmpeg_cmd = build_hevc_ffmpeg_cmd(target_filepath, temp_output, quality, force_software=True)
             used_codec = "hevc_libx265"
             success = run_ffmpeg_fn(ffmpeg_cmd, target_filepath, task_id=progress_callback, log_queue=log_queue)
+            if is_job_cancelled(job_id):
+                raise JobCancelledError("Vom Benutzer abgebrochen")
 
         if success and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
             log_message_fn("Konvertierung erfolgreich beendet.")
@@ -431,6 +445,13 @@ def execute_video_conversion(
             if os.path.exists(temp_output):
                 os.remove(temp_output)
             return False, None
+    except JobCancelledError:
+        if os.path.exists(temp_output):
+            try:
+                os.remove(temp_output)
+            except OSError:
+                pass
+        raise
     except Exception as e:
         log_message_fn(f"Konvertierungsfehler: {e}")
         if os.path.exists(temp_output):
