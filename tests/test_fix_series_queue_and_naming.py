@@ -112,10 +112,17 @@ class TestFixSeriesQueueAndNaming(unittest.TestCase):
         self.assertEqual(job["progress"], 100)
         self.assertEqual(job["message"], "Erfolgreich")
 
-        # Retry job -> reset status to running (must go through)
-        self.jobs.update_job(job_id, status="running", progress=0, message="Wiederaufnahme")
+        # Ordinary status="running" without _allow_retry_reset must stay frozen on terminal state
+        self.jobs.update_job(job_id, status="running", progress=0, message="Unerlaubte Reaktivierung")
         job = self.jobs.get_job(job_id)
-        self.assertEqual(job["status"], "running")
+        self.assertEqual(job["status"], "done")
+        self.assertEqual(job["progress"], 100)
+        self.assertEqual(job["message"], "Erfolgreich")
+
+        # Explicit retry reset (_allow_retry_reset=True) transitions back to queued
+        self.jobs.update_job(job_id, status="queued", progress=0, message="Wiederaufnahme", _allow_retry_reset=True)
+        job = self.jobs.get_job(job_id)
+        self.assertEqual(job["status"], "queued")
         self.assertEqual(job["progress"], 0)
         self.assertEqual(job["message"], "Wiederaufnahme")
 

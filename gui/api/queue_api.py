@@ -905,11 +905,6 @@ def handle_api_process():
 
 @queue_api.route('/queue', methods=['GET', 'POST'])
 def handle_api_queue():
-    try:
-        params = request.get_json() or {}
-    except Exception:
-        params = {}
-    query = request.args
     from gui.core.jobs import get_all_jobs
     all_jobs = get_all_jobs()
     jobs_list = []
@@ -928,93 +923,92 @@ def handle_api_queue():
         }
         if params.get("files") is not None:
             job_item["files"] = params.get("files")
+        if j.get("paused_from") is not None:
+            job_item["paused_from"] = j.get("paused_from")
         jobs_list.append(job_item)
     jobs_list.sort(key=lambda x: x.get("timestamp", 0))
     return jsonify({"jobs": jobs_list})
 
 
+def _extract_task_id_from_request():
+    raw = request.get_json(silent=True)
+    if raw is None:
+        return None, (jsonify({"status": "error", "message": "Missing task_id"}), 400)
+    if not isinstance(raw, dict):
+        return None, (jsonify({"status": "error", "message": "Invalid JSON body (object expected)"}), 400)
+    task_id = raw.get("task_id")
+    if not isinstance(task_id, str) or not task_id.strip():
+        return None, (jsonify({"status": "error", "message": "Missing task_id"}), 400)
+    return task_id, None
+
 
 @queue_api.route('/queue-clear', methods=['POST'])
 @queue_api.route('/queue/clear', methods=['POST'])
 def handle_api_queue_clear():
-    try:
-        params = request.get_json(silent=True) or {}
-    except Exception:
-        params = {}
+    request.get_json(silent=True)
     from gui.core.jobs import clear_finished_jobs
     clear_finished_jobs()
     return jsonify({"status": "success"})
 
 
+@queue_api.route('/queue/cancel', methods=['POST'])
+@queue_api.route('/queue-cancel', methods=['POST'])
+def handle_api_queue_cancel():
+    task_id, err_resp = _extract_task_id_from_request()
+    if err_resp is not None:
+        return err_resp
+    from gui.core.jobs import cancel_job
+    ok, code, info = cancel_job(task_id)
+    if not ok:
+        return jsonify({"status": "error", "message": info}), code
+    return jsonify({"status": "success", "job_status": info})
+
+
+@queue_api.route('/queue/pause', methods=['POST'])
+@queue_api.route('/queue-pause', methods=['POST'])
+def handle_api_queue_pause():
+    task_id, err_resp = _extract_task_id_from_request()
+    if err_resp is not None:
+        return err_resp
+    from gui.core.jobs import pause_job
+    ok, code, info = pause_job(task_id)
+    if not ok:
+        return jsonify({"status": "error", "message": info}), code
+    return jsonify({"status": "success", "job_status": info})
+
+
+@queue_api.route('/queue/resume', methods=['POST'])
+@queue_api.route('/queue-resume', methods=['POST'])
+def handle_api_queue_resume():
+    task_id, err_resp = _extract_task_id_from_request()
+    if err_resp is not None:
+        return err_resp
+    from gui.core.jobs import resume_job
+    ok, code, info = resume_job(task_id)
+    if not ok:
+        return jsonify({"status": "error", "message": info}), code
+    return jsonify({"status": "success", "job_status": info})
+
 
 @queue_api.route('/queue/retry', methods=['POST'])
 @queue_api.route('/queue-retry', methods=['POST'])
 def handle_api_queue_retry():
-    try:
-        params = request.get_json() or {}
-    except Exception:
-        params = {}
+    task_id, err_resp = _extract_task_id_from_request()
+    if err_resp is not None:
+        return err_resp
 
-    task_id = params.get("task_id")
-    if not task_id:
-        return jsonify({"status": "error", "message": "Missing task_id"}), 400
+    from gui.core.jobs import retry_job
 
-    from gui.core.jobs import get_job, update_job
-    job = get_job(task_id)
-    if not job:
-        return jsonify({"status": "error", "message": "Job nicht gefunden"}), 404
+    def _build_ref_pipeline(job_params):
+        convert = job_params.get("convert", False)
+        show_id = job_params.get("show_id")
+        movie_id = job_params.get("movie_id")
+        provider = job_params.get("provider")
+        has_metadata = (show_id and provider) or (movie_id and provider)
+        return build_job_pipeline(job_params, has_metadata, convert)
 
-    if job.get("status") not in ("error", "done"):
-        return jsonify({"status": "error", "message": "Job ist nicht fehlgeschlagen oder beendet"}), 400
-
-    # Parameter kopieren und Pipeline neu initialisieren
-    job_params = job.get("params", {})
-    convert = job_params.get("convert", False)
-
-    # Bestimme has_metadata
-    show_id = job_params.get("show_id")
-    movie_id = job_params.get("movie_id")
-    provider = job_params.get("provider")
-    has_metadata = (show_id and provider) or (movie_id and provider)
-
-    ref_pipeline = build_job_pipeline(job_params, has_metadata, convert)
-    old_pipeline = job.get("pipeline", {})
-    new_pipeline = {}
-    for step_key, ref_val in ref_pipeline.items():
-        old_step = old_pipeline.get(step_key, {})
-        if old_step.get("status") == "done":
-            new_pipeline[step_key] = {
-                "status": "done",
-                "progress": 100
-            }
-        elif old_step.get("status") == "skipped":
-            new_pipeline[step_key] = {
-                "status": "skipped",
-                "progress": 0
-            }
-        else:
-            if ref_val.get("status") == "skipped":
-                new_pipeline[step_key] = {
-                    "status": "skipped",
-                    "progress": 0
-                }
-            else:
-                new_pipeline[step_key] = {
-                    "status": "pending",
-                    "progress": 0
-                }
-
-    # Zurücksetzen auf initialen Warteschlangen-Zustand
-    update_job(
-        task_id,
-        status="queued",
-        progress=0,
-        message="Wiederholung eingereiht...",
-        pipeline=new_pipeline
-    )
-
-    # In die Queue einreihen
-    updated_job = get_job(task_id)
-    job_queue.put(updated_job)
+    ok, code, info = retry_job(task_id, _build_ref_pipeline)
+    if not ok:
+        return jsonify({"status": "error", "message": info}), code
 
     return jsonify({"status": "success"})

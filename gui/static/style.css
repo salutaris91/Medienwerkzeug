@@ -2574,6 +2574,47 @@ body.theme-superfood-light #queue-panel {
     box-shadow: -5px 0 25px rgba(27, 52, 86, 0.15);
 }
 
+.queue-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-lg);
+    padding: 15px;
+}
+
+.queue-card-actions {
+    margin-top: 12px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.queue-action-btn {
+    padding: 4px 10px;
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: opacity 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.queue-action-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.queue-action-btn-danger {
+    color: var(--danger);
+    border-color: var(--border-light);
+}
+
+.queue-action-btn-danger:hover:not(:disabled) {
+    border-color: var(--danger);
+}
+
 
 
 

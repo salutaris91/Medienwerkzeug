@@ -618,16 +618,19 @@ test('ROADMAP #97 AK6: Static verification of legacy removal (#sync-modal-overla
     }
     assert.match(indexHtml, /<button[^>]*type="button"[^>]*onclick="closeFolderPicker\(\)"/);
 
-    assert.match(indexHtml, /href="style\.css\?v=70"/);
-    assert.match(indexHtml, /src="app\.js\?v=126"/);
+    const cssVerMatch = indexHtml.match(/href="style\.css\?v=(\d+)"/);
+    assert.ok(cssVerMatch && Number(cssVerMatch[1]) >= 71, 'style.css?v= must be >= 71');
+    const jsVerMatch = indexHtml.match(/src="app\.js\?v=(\d+)"/);
+    assert.ok(jsVerMatch && Number(jsVerMatch[1]) >= 127, 'app.js?v= must be >= 127');
+    const expectedJsVersion = jsVerMatch[1];
 
     const appImports = [...appJs.matchAll(/from\s+['"]\.\/js\/[^'"]+\?v=(\d+)['"]/g)];
     assert.equal(appImports.length, 12);
-    appImports.forEach((m) => assert.equal(m[1], '126'));
+    appImports.forEach((m) => assert.equal(m[1], expectedJsVersion));
 
     const wizImports = [...filmWizardJs.matchAll(/from\s+['"]\.\/[^'"]+\?v=(\d+)['"]/g)];
     assert.equal(wizImports.length, 3);
-    wizImports.forEach((m) => assert.equal(m[1], '126'));
+    wizImports.forEach((m) => assert.equal(m[1], expectedJsVersion));
 
     for (const selector of ['.tool-modal-shortcuts-row', '.tool-modal-target-shortcuts', '.folder-picker-roots', '.folder-picker-root-btn']) {
         const idx = styleCss.indexOf(selector);

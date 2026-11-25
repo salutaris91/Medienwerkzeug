@@ -1,9 +1,9 @@
-import { renderNfoEditor, buildMovieNfoOverrides, formatProviderLabel } from './nfo_editor.js?v=126';
-import { formatBytes } from './format.js?v=126';
+import { renderNfoEditor, buildMovieNfoOverrides, formatProviderLabel } from './nfo_editor.js?v=127';
+import { formatBytes } from './format.js?v=127';
 import {
     renderPreviewData,
     collectPreviewSelection,
-} from './preview_render.js?v=126';
+} from './preview_render.js?v=127';
 
 const VIDEO_EXT_RE = /\.(mp4|mkv|avi|webm|mov|m4v|3gp|ts|m2ts|flv|wmv)$/i;
 

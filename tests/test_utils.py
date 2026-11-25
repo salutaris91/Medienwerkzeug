@@ -43,8 +43,33 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             return self.orig_expanduser(path)
         os.path.expanduser = mock_expanduser
 
+        # Isolate persistence files in temp_dir so no artifacts leak into workspace data/
+        import types
+        import gui.core.persistence as persistence
+        self._env_keys_backup = {
+            k: os.environ.get(k)
+            for k in ("MW_SETTINGS_FILE", "MW_JOBS_STATE_FILE", "MW_ENV_FILE", "MW_DATA_DIR")
+        }
+        os.environ["MW_SETTINGS_FILE"] = os.path.join(self.test_dir, "settings.json")
+        os.environ["MW_JOBS_STATE_FILE"] = os.path.join(self.test_dir, "jobs_state.json")
+        os.environ["MW_ENV_FILE"] = os.path.join(self.test_dir, ".env")
+        os.environ["MW_DATA_DIR"] = utils.DATA_DIR
+        persistence._cached_settings = None
+        persistence._MOCK_SETTINGS = None
+        utils._MOCK_SETTINGS = None
+
         # Mock send2trash to perform direct deletion to avoid macOS permission issues
         from unittest.mock import patch
+        self._stubbed_send2trash = False
+        if "send2trash" not in sys.modules:
+            try:
+                import send2trash  # noqa: F401
+            except ImportError:
+                stub_mod = types.ModuleType("send2trash")
+                stub_mod.send2trash = lambda _p: None
+                sys.modules["send2trash"] = stub_mod
+                self._stubbed_send2trash = True
+
         def mock_s2t_action(path):
             if os.path.exists(path):
                 if os.path.isdir(path):
@@ -57,6 +82,18 @@ class TestMediawerkzeugLogic(unittest.TestCase):
     def tearDown(self):
         # Stop send2trash patcher
         self.s2t_patcher.stop()
+        if getattr(self, "_stubbed_send2trash", False):
+            sys.modules.pop("send2trash", None)
+
+        import gui.core.persistence as persistence
+        persistence._cached_settings = None
+        persistence._MOCK_SETTINGS = None
+        utils._MOCK_SETTINGS = None
+        for k, v in getattr(self, "_env_keys_backup", {}).items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
         # Restore original variables and functions
         utils.DATA_DIR = self.orig_data_dir
@@ -318,6 +355,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
                 media.add_conversion_to_history(60, "hevc_libx265", 0.45)
                 self.assertEqual(media.konvertierung_schaetzen("nonexistent_file.mkv", 60), 0.475)
 
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg not installed")
     def test_conversion_estimation_test_encode(self):
         import subprocess
         video_path = os.path.join(self.test_dir, "test_mock_video.mkv")
@@ -1755,6 +1793,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             server.active_jobs["job2"] = {"id": "job2", "status": "error", "timestamp": 2.0}
             server.active_jobs["job3"] = {"id": "job3", "status": "running", "timestamp": 3.0}
             server.active_jobs["job4"] = {"id": "job4", "status": "queued", "timestamp": 4.0}
+            server.active_jobs["job5"] = {"id": "job5", "status": "cancelled", "timestamp": 5.0}
             
         try:
             GUIRequestHandler.handle_api_queue_clear(dummy)
@@ -1762,11 +1801,12 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             self.assertEqual(dummy.sent_json, {"status": "success"})
             
             with server.active_jobs_lock:
-                self.assertEqual(len(server.active_jobs), 1)
+                self.assertEqual(len(server.active_jobs), 2)
                 self.assertIn("job3", server.active_jobs)
+                self.assertIn("job4", server.active_jobs)
                 self.assertNotIn("job1", server.active_jobs)
                 self.assertNotIn("job2", server.active_jobs)
-                self.assertNotIn("job4", server.active_jobs)
+                self.assertNotIn("job5", server.active_jobs)
                 
         finally:
             with server.active_jobs_lock:

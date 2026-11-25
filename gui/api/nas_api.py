@@ -2180,7 +2180,18 @@ def handle_api_normalize_films_apply():
         return jsonify({"ok": False, "message": "Keine Einträge ausgewählt."}), 400
 
     task_id = str(uuid.uuid4())
-    from gui.core.jobs import create_job, update_job
+    from gui.core.jobs import (
+        JobCancelledError,
+        bind_job_context,
+        cleanup_job_control,
+        create_job,
+        finalize_cancelled_job,
+        finalize_cancelling_job_if_needed,
+        get_job_control,
+        is_job_cancelled,
+        update_job,
+        wait_if_paused_or_cancelled,
+    )
     pipeline = {
         "normalize": {"status": "running", "progress": 0},
     }
@@ -2192,26 +2203,41 @@ def handle_api_normalize_films_apply():
         pipeline=pipeline,
         status="running"
     )
+    run_ctrl = get_job_control(task_id)
 
     def _run():
-        try:
-            def _on_progress(idx, total, label):
-                pct = int((idx / total) * 100) if total else 100
-                update_job(task_id, progress=pct, message=f"Verschiebe {idx + 1}/{total}: {label}",
-                           pipeline_step="normalize", pipeline_progress=pct)
+        with bind_job_context(task_id, ctrl=run_ctrl) as run_ctx:
+            try:
+                wait_if_paused_or_cancelled(task_id)
 
-            results = fn.apply_moves(items, on_progress=_on_progress)
-            moved = results.get("moved", 0)
-            skipped = results.get("skipped", 0)
-            errors = results.get("errors", [])
-            msg = f"{moved} verschoben, {skipped} übersprungen"
-            if errors:
-                msg += f", {len(errors)} Fehler"
-            update_job(task_id, status="done", progress=100, message=msg,
-                       pipeline_step="normalize", pipeline_status="done", pipeline_progress=100)
-        except Exception as e:
-            update_job(task_id, status="error", message=f"Fehler: {e}",
-                       pipeline_step="normalize", pipeline_status="error")
+                def _on_progress(idx, total, label):
+                    wait_if_paused_or_cancelled(task_id)
+                    pct = int((idx / total) * 100) if total else 100
+                    update_job(task_id, progress=pct, message=f"Verschiebe {idx + 1}/{total}: {label}",
+                               pipeline_step="normalize", pipeline_progress=pct)
 
-    threading.Thread(target=_run, daemon=True).start()
+                results = fn.apply_moves(items, on_progress=_on_progress)
+                if is_job_cancelled(task_id):
+                    raise JobCancelledError("Vom Benutzer abgebrochen")
+                moved = results.get("moved", 0)
+                skipped = results.get("skipped", 0)
+                errors = results.get("errors", [])
+                msg = f"{moved} verschoben, {skipped} übersprungen"
+                if errors:
+                    msg += f", {len(errors)} Fehler"
+                update_job(task_id, status="done", progress=100, message=msg,
+                           pipeline_step="normalize", pipeline_status="done", pipeline_progress=100)
+            except JobCancelledError:
+                finalize_cancelled_job(task_id, expected_ctrl=run_ctx.ctrl)
+            except Exception as e:
+                if is_job_cancelled(task_id):
+                    finalize_cancelled_job(task_id, expected_ctrl=run_ctx.ctrl)
+                else:
+                    update_job(task_id, status="error", message=f"Fehler: {e}",
+                               pipeline_step="normalize", pipeline_status="error")
+            finally:
+                finalize_cancelling_job_if_needed(task_id, expected_ctrl=run_ctx.ctrl)
+                cleanup_job_control(task_id, expected_ctrl=run_ctx.ctrl)
+
+    threading.Thread(target=_run, name=f"job-{task_id}", daemon=True).start()
     return jsonify({"ok": True, "task_id": task_id, "message": "In Warteschlange eingereiht."})
