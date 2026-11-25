@@ -392,6 +392,48 @@ def commit_job_manifest(job_id, manifest):
     return should_save
 
 
+def _merge_retry_state_dict(target_dict, patch_dict):
+    for key, val in patch_dict.items():
+        if isinstance(val, dict) and isinstance(target_dict.get(key), dict):
+            _merge_retry_state_dict(target_dict[key], val)
+        else:
+            target_dict[key] = copy.deepcopy(val)
+
+
+def commit_job_retry_state(job_id, retry_state=None, params_patch=None):
+    """Persists per-job step-retry progress metadata and/or params patches even while status is 'cancelling'."""
+    resolved_id = resolve_job_id(job_id)
+    has_retry_state = isinstance(retry_state, dict)
+    has_params_patch = isinstance(params_patch, dict)
+    if not resolved_id or (not has_retry_state and not has_params_patch):
+        return False
+    bound = get_bound_job_control(resolved_id)
+    should_save = False
+    with active_jobs_lock:
+        job = active_jobs.get(resolved_id)
+        with _job_controls_lock:
+            cur_ctrl = _job_controls.get(resolved_id)
+            is_current_run = bound is None or cur_ctrl is bound
+        if job is not None and is_current_run and job.get("status") not in TERMINAL_JOB_STATUSES:
+            if has_retry_state:
+                cur_rs = job.get("retry_state")
+                if not isinstance(cur_rs, dict):
+                    cur_rs = {}
+                    job["retry_state"] = cur_rs
+                _merge_retry_state_dict(cur_rs, retry_state)
+                should_save = True
+            if has_params_patch:
+                cur_params = job.get("params")
+                if not isinstance(cur_params, dict):
+                    cur_params = {}
+                    job["params"] = cur_params
+                cur_params.update(copy.deepcopy(params_patch))
+                should_save = True
+    if should_save:
+        save_jobs_to_disk()
+    return should_save
+
+
 def _remove_job_from_queue_locked(job_id):
     """Removes matching job entries from job_queue while job_queue.mutex is held."""
     from gui.core.helpers import job_queue

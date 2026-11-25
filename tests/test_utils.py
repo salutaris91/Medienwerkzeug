@@ -522,6 +522,7 @@ class TestMediawerkzeugLogic(unittest.TestCase):
             if os.path.isdir(src):
                 shutil.copytree(src, dst, dirs_exist_ok=True)
             else:
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
                 shutil.copy(src, dst)
             return True
         processor.run_rsync_with_progress = mock_rsync

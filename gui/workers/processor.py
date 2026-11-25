@@ -121,7 +121,6 @@ def _handle_transfer_task(
                 message="Kopieren auf NAS gestartet...",
                 job_message="Kopieren auf NAS gestartet..."
             )
-            os.makedirs(dest_dir_nas, exist_ok=True)
             success = run_rsync_with_progress(
                 os.path.join(dest_dir_outbox, final_filename),
                 os.path.join(dest_dir_nas, final_filename),
@@ -134,6 +133,7 @@ def _handle_transfer_task(
                 with progress_lock:
                     target_progresses[target_id][file_idx] = 100
                 # Copy accompanying files
+                os.makedirs(dest_dir_nas, exist_ok=True)
                 for f in os.listdir(dest_dir_outbox):
                     if f.startswith(clean_title) and f != final_filename:
                         shutil.copy(os.path.join(dest_dir_outbox, f), os.path.join(dest_dir_nas, f))
@@ -159,7 +159,6 @@ def _handle_transfer_task(
                 message="Kopieren auf NAS gestartet...",
                 job_message="Kopieren auf NAS gestartet..."
             )
-            os.makedirs(dest_movie_dir_nas, exist_ok=True)
 
             success = run_rsync_with_progress(
                 dest_movie_dir_outbox,
@@ -168,6 +167,7 @@ def _handle_transfer_task(
                 protect_existing=True
             )
             if success:
+                os.makedirs(dest_movie_dir_nas, exist_ok=True)
                 log_message(f"[Transfer Thread]: Kopieren auf {target_id} fertig für {final_filename}.")
                 with progress_lock:
                     target_progresses[target_id][file_idx] = 100
@@ -836,6 +836,7 @@ def _process_worker_body(params):
         bind_job_context,
         check_cancelled,
         commit_job_manifest,
+        commit_job_retry_state,
         get_bound_job_control,
         get_job,
         is_confirmed_manifest_entry,
@@ -1099,11 +1100,18 @@ def _process_worker_body(params):
 
     wait_if_paused_or_cancelled(task_id)
     _job_snap_step0 = get_job(task_id) if task_id else None
+    _step0_retry_state = (
+        _job_snap_step0.get("retry_state", {})
+        if _job_snap_step0 and isinstance(_job_snap_step0.get("retry_state"), dict)
+        else {}
+    )
     _step0_meta_done = bool(
-        _job_snap_step0 and _job_snap_step0.get("pipeline", {}).get("metadata", {}).get("status") == "done"
+        (_job_snap_step0 and _job_snap_step0.get("pipeline", {}).get("metadata", {}).get("status") == "done")
+        or _step0_retry_state.get("step0_done")
     )
 
     # 0. Apply explicit user choices from preview if provided
+    _step0_renamed = {}
     if explicit_renames is not None:
         log_message("Wende exakte Benutzer-Zuweisungen aus Vorschau an...")
         if explicit_junk and not _step0_meta_done:
@@ -1117,6 +1125,9 @@ def _process_worker_body(params):
                         raise
                     except Exception as e:
                         log_message(f"Fehler beim Löschen von Junk {j}: {e}")
+            if task_id:
+                commit_job_retry_state(task_id, retry_state={"step0_done": True})
+            _step0_meta_done = True
 
         if explicit_renames:
             # Check for duplicate target names (collisions)
@@ -1174,7 +1185,13 @@ def _process_worker_body(params):
                     if files_param is not None and os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
                         raise RuntimeError(f"Kollision beim Umbenennen von Video: Ziel '{r['new']}' existiert bereits.")
                     os.rename(old_path, new_path)
+                    _step0_renamed[r["old"]] = r["new"]
+                    _step0_renamed[r["new"]] = r["new"]
                     log_message(f"Umbenannt/Hochgezogen: {r['old']} -> {r['new']}")
+                elif old_path == new_path and os.path.isfile(old_path):
+                    _step0_renamed[r["old"]] = r["new"]
+            if _step0_renamed and task_id:
+                commit_job_retry_state(task_id, retry_state={"tv_renamed": _step0_renamed})
 
         if explicit_subs:
             for s in explicit_subs:
@@ -1200,12 +1217,20 @@ def _process_worker_body(params):
                     except JobCancelledError:
                         raise
                     except Exception as e: print(f"Warning: Ignored exception {e}")
+        if not _step0_meta_done and task_id:
+            commit_job_retry_state(task_id, retry_state={"step0_done": True})
+            _step0_meta_done = True
 
     if media_type == "tv":
         from gui.core.jobs import get_job, update_job
         job = get_job(task_id) if task_id else None
         pipeline = job.get("pipeline", {}) if job else {}
         manifest = job.get("manifest", {}) if job else {}
+        retry_state = job.get("retry_state", {}) if (job and isinstance(job.get("retry_state"), dict)) else {}
+        tv_renamed_map = dict(_step0_renamed)
+        if isinstance(retry_state.get("tv_renamed"), dict):
+            tv_renamed_map.update(retry_state["tv_renamed"])
+        tv_nfo_map = dict(retry_state.get("tv_nfo_generated", {})) if isinstance(retry_state.get("tv_nfo_generated"), dict) else {}
 
         is_metadata_done = pipeline.get("metadata", {}).get("status") == "done"
         is_convert_done = pipeline.get("convert", {}).get("status") == "done"
@@ -1610,6 +1635,7 @@ def _process_worker_body(params):
 
                 file_already_in_outbox = manifest_file_exists
                 already_converted_in_inbox = False
+                ep_was_renamed = is_metadata_done or (tv_renamed_map.get(filename) == target_filename)
 
                 if explicit_renames is None:
                     # Old backwards compatible fallback
@@ -1618,9 +1644,9 @@ def _process_worker_body(params):
                     if not os.path.exists(filepath):
                         if file_already_in_outbox:
                             log_message(f"Originaldatei {filename} ist nicht mehr in Inbox, aber bereits verarbeitet in Outbox. Überspringe Umbenennung.")
-                        elif is_metadata_done and os.path.isfile(target_filepath):
+                        elif ep_was_renamed and os.path.isfile(target_filepath):
                             log_message(f"Originaldatei {filename} wurde im Input-Ordner bereits zu {target_filename} umbenannt.")
-                        elif is_metadata_done and convert and os.path.isfile(inbox_conv_tv):
+                        elif ep_was_renamed and convert and os.path.isfile(inbox_conv_tv):
                             log_message(f"Originaldatei {filename} wurde im Input-Ordner bereits zu {clean_title}.mkv konvertiert.")
                             target_filename = f"{clean_title}.mkv"
                             target_filepath = inbox_conv_tv
@@ -1630,7 +1656,7 @@ def _process_worker_body(params):
                                 raise RuntimeError(f"Datei nicht gefunden (TOCTOU): '{filename}' existiert nicht mehr.")
                             continue
                     else:
-                        if file_already_in_outbox and is_metadata_done:
+                        if file_already_in_outbox:
                             log_message(f"Episode {filename} ist bereits verarbeitet. Überspringe Umbenennung.")
                         else:
                             if files_param is not None and os.path.exists(target_filepath) and os.path.abspath(filepath) != os.path.abspath(target_filepath):
@@ -1640,6 +1666,12 @@ def _process_worker_body(params):
                             log_message(f"Benenne um: {filename} -> {target_filename}")
                             try:
                                 os.rename(filepath, target_filepath)
+                                tv_renamed_map[filename] = target_filename
+                                if task_id:
+                                    commit_job_retry_state(
+                                        task_id,
+                                        retry_state={"tv_renamed": {filename: target_filename}},
+                                    )
                             except JobCancelledError:
                                 raise
                             except Exception as e:
@@ -1673,6 +1705,11 @@ def _process_worker_body(params):
                                             sub_old_path = os.path.join(current_dir, comp)
                                             sub_new_path = os.path.join(current_dir, sub_new_name)
                                             if not os.path.exists(sub_old_path):
+                                                if (ep_was_renamed or file_already_in_outbox) and (
+                                                    os.path.exists(sub_new_path)
+                                                    or os.path.exists(os.path.join(dest_dir_outbox, sub_new_name))
+                                                ):
+                                                    continue
                                                 raise RuntimeError(f"Datei nicht gefunden (TOCTOU): '{comp}' existiert nicht mehr.")
                                             if os.path.exists(sub_old_path):
                                                 if os.path.exists(sub_new_path) and os.path.abspath(sub_old_path) != os.path.abspath(sub_new_path):
@@ -1703,13 +1740,44 @@ def _process_worker_body(params):
                                         raise
                                     except Exception as e:
                                         log_message(f"Fehler: {e}")
+                else:
+                    filepath = os.path.join(current_dir, filename)
+                    inbox_conv_tv = os.path.join(current_dir, f"{clean_title}.mkv")
+                    if not file_already_in_outbox and os.path.isfile(filepath) and os.path.isfile(target_filepath):
+                        if not ep_was_renamed:
+                            ep_was_renamed = True
+                            tv_renamed_map[filename] = target_filename
+                            if task_id:
+                                commit_job_retry_state(
+                                    task_id,
+                                    retry_state={"tv_renamed": {filename: target_filename}},
+                                )
+                    if (
+                        not file_already_in_outbox
+                        and not os.path.exists(target_filepath)
+                        and convert
+                        and ep_was_renamed
+                        and os.path.isfile(inbox_conv_tv)
+                    ):
+                        log_message(f"Originaldatei {filename} wurde im Input-Ordner bereits zu {clean_title}.mkv konvertiert.")
+                        target_filename = f"{clean_title}.mkv"
+                        target_filepath = inbox_conv_tv
+                        already_converted_in_inbox = True
+                    elif not file_already_in_outbox and (
+                        not os.path.exists(target_filepath)
+                        or (not os.path.exists(filepath) and not ep_was_renamed)
+                    ):
+                        if files_param is not None:
+                            raise RuntimeError(f"Datei nicht gefunden (TOCTOU): '{filename}' existiert nicht mehr.")
+                        continue
 
                 # Generate Episode NFO
                 if show_id and provider:
                     ep_nfo_path = os.path.join(current_dir, f"{clean_title}.nfo")
-                    if file_already_in_outbox and is_metadata_done:
+                    ep_nfo_was_generated = is_metadata_done or (tv_nfo_map.get(filename) == os.path.basename(ep_nfo_path))
+                    if file_already_in_outbox:
                         log_message(f"Episode NFO für {ep_str} existiert bereits. Überspringe Generierung.")
-                    elif is_metadata_done and os.path.isfile(ep_nfo_path):
+                    elif ep_nfo_was_generated and os.path.isfile(ep_nfo_path):
                         log_message(f"Episode NFO für {ep_str} wurde bereits erstellt. Überspringe Generierung.")
                         protected_episode_paths.add(ep_nfo_path)
                     else:
@@ -1719,6 +1787,8 @@ def _process_worker_body(params):
                                 raise RuntimeError(
                                     f"Kollision beim Generieren von NFO: Ziel '{clean_title}.nfo' existiert bereits."
                                 )
+                        existed_ep_nfo_before = os.path.isfile(ep_nfo_path)
+                        res = None
                         try:
                             ep_overrides = None
                             if "episodes" in nfo_overrides:
@@ -1729,14 +1799,25 @@ def _process_worker_body(params):
                                 overwrite=overwrite_nfo
                             )
                             log_message(f"Episode NFO Status: {res}")
-                            if isinstance(res, dict) and res.get("nfo") and os.path.isfile(ep_nfo_path):
-                                protected_episode_paths.add(ep_nfo_path)
                         except JobCancelledError:
                             raise
                         except Exception as e:
                             if files_param is not None:
                                 raise
                             log_message(f"Fehler bei Episode NFO: {e}")
+                        finally:
+                            if os.path.isfile(ep_nfo_path) and (
+                                (isinstance(res, dict) and res.get("nfo"))
+                                or not existed_ep_nfo_before
+                                or overwrite_nfo
+                            ):
+                                protected_episode_paths.add(ep_nfo_path)
+                                tv_nfo_map[filename] = os.path.basename(ep_nfo_path)
+                                if task_id:
+                                    commit_job_retry_state(
+                                        task_id,
+                                        retry_state={"tv_nfo_generated": {filename: os.path.basename(ep_nfo_path)}},
+                                    )
                 current_prog = 50 + int(50 * (file_idx + 1) / N)
                 _update_pipeline_metadata_progress(task_id, current_prog)
 
@@ -1762,7 +1843,15 @@ def _process_worker_body(params):
                         log_message(f"Konvertierung für {final_filename} ist bereits erledigt. Überspringe.")
                         conv_pct[file_idx] = 100
                         if task_id and not is_convert_done:
-                            update_job(task_id, pipeline_step="convert", pipeline_status="done", pipeline_progress=100)
+                            if file_idx == N - 1:
+                                update_job(task_id, pipeline_step="convert", pipeline_status="done", pipeline_progress=100)
+                            else:
+                                update_job(
+                                    task_id,
+                                    pipeline_step="convert",
+                                    pipeline_status="running",
+                                    pipeline_progress=_calculate_average_progress(conv_pct, N),
+                                )
                     else:
                         temp_output = os.path.join(current_dir, f"{clean_title}_neu.mkv")
                         final_conv_output = os.path.join(current_dir, f"{clean_title}.mkv")
@@ -2119,6 +2208,15 @@ def _process_worker_body(params):
         job = get_job(task_id) if task_id else None
         pipeline = job.get("pipeline", {}) if job else {}
         manifest = job.get("manifest", {}) if job else {}
+        retry_state = job.get("retry_state", {}) if (job and isinstance(job.get("retry_state"), dict)) else {}
+        if (
+            job
+            and isinstance(job.get("params"), dict)
+            and "main_nfo_fingerprint" in job["params"]
+            and params.get("main_nfo_fingerprint") is None
+            and job["params"].get("main_nfo_fingerprint") is not None
+        ):
+            params["main_nfo_fingerprint"] = job["params"]["main_nfo_fingerprint"]
         is_metadata_done = pipeline.get("metadata", {}).get("status") == "done"
         is_convert_done = pipeline.get("convert", {}).get("status") in ("done", "skipped")
 
@@ -2394,7 +2492,10 @@ def _process_worker_body(params):
                     log_message(f"Datei liegt bereits in Output-Ordner: {final_filename}. Überspringe Vorverarbeitung.")
                     if not is_single_file and project_name and os.path.isdir(current_dir):
                         resume_nfo = os.path.join(current_dir, f"{clean_movie_name}.nfo")
-                        if is_metadata_done and os.path.isfile(resume_nfo):
+                        if (
+                            is_metadata_done
+                            or retry_state.get("movie_nfo_generated") == os.path.basename(resume_nfo)
+                        ) and os.path.isfile(resume_nfo):
                             protected_movie_paths.add(resume_nfo)
                         whitelist_resume = []
                         if explicit_renames:
@@ -2439,6 +2540,8 @@ def _process_worker_body(params):
                 # Generate movie NFO
                 if movie_id and provider:
                     generated_nfo_path = os.path.join(current_dir, f"{clean_movie_name}.nfo")
+                    if retry_state.get("movie_nfo_generated") == os.path.basename(generated_nfo_path) and os.path.isfile(generated_nfo_path):
+                        protected_movie_paths.add(generated_nfo_path)
                     if is_metadata_done and os.path.isfile(generated_nfo_path):
                         log_message(f"Film-NFO '{os.path.basename(generated_nfo_path)}' wurde bereits erstellt. Überspringe Generierung.")
                         protected_movie_paths.add(generated_nfo_path)
@@ -2465,53 +2568,64 @@ def _process_worker_body(params):
                                 if "main_nfo_fingerprint" in params:
                                     assert_nfo_fingerprint(generated_nfo_path, params.get("main_nfo_fingerprint"))
 
-                                if provider == "ofdb":
-                                    res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
-                                else:
-                                    nfo_kwargs = {
-                                        "nfo_overrides": movie_overrides,
-                                        "overwrite": True,
-                                    }
-                                    if artwork_overrides is not None:
-                                        nfo_kwargs["artwork_overrides"] = artwork_overrides
-                                    res = mw_metadata.generate_movie_nfo(
-                                        movie_id,
-                                        current_dir,
-                                        clean_movie_name,
-                                        **nfo_kwargs,
-                                    )
-                                log_message(f"Movie NFO Status: {res}")
+                                try:
+                                    if provider == "ofdb":
+                                        res = mw_metadata.generate_ofdb_nfo(movie_id, current_dir, clean_movie_name)
+                                    else:
+                                        nfo_kwargs = {
+                                            "nfo_overrides": movie_overrides,
+                                            "overwrite": True,
+                                        }
+                                        if artwork_overrides is not None:
+                                            nfo_kwargs["artwork_overrides"] = artwork_overrides
+                                        res = mw_metadata.generate_movie_nfo(
+                                            movie_id,
+                                            current_dir,
+                                            clean_movie_name,
+                                            **nfo_kwargs,
+                                        )
+                                    log_message(f"Movie NFO Status: {res}")
 
-                                # Fail loudly on provider errors before artwork downloads or patching a stale NFO
-                                if not isinstance(res, dict) or res.get("error") or not res.get("nfo"):
-                                    gen_err = (
-                                        res.get("error")
-                                        if isinstance(res, dict) and res.get("error")
-                                        else "Film-NFO wurde vom Provider nicht neu erzeugt."
-                                    )
-                                    raise RuntimeError(gen_err)
+                                    # Fail loudly on provider errors before artwork downloads or patching a stale NFO
+                                    if not isinstance(res, dict) or res.get("error") or not res.get("nfo"):
+                                        gen_err = (
+                                            res.get("error")
+                                            if isinstance(res, dict) and res.get("error")
+                                            else "Film-NFO wurde vom Provider nicht neu erzeugt."
+                                        )
+                                        raise RuntimeError(gen_err)
 
-                                if provider == "ofdb" and artwork_overrides:
-                                    mw_metadata.apply_movie_artwork_overrides(
-                                        current_dir,
-                                        clean_movie_name,
-                                        artwork_overrides,
-                                        settings=settings,
-                                    )
+                                    if provider == "ofdb" and artwork_overrides:
+                                        mw_metadata.apply_movie_artwork_overrides(
+                                            current_dir,
+                                            clean_movie_name,
+                                            artwork_overrides,
+                                            settings=settings,
+                                        )
 
-                                generated_fp = make_nfo_fingerprint(generated_nfo_path)
-                                patch_ok, patch_message = patch_nfo_fields(
-                                    generated_nfo_path,
-                                    movie_overrides or {},
-                                    expected_fingerprint=generated_fp if generated_fp is not None else ...,
-                                    create_backup=False,
-                                    allow_clear=True,
-                                )
-                                if not patch_ok:
-                                    raise RuntimeError(patch_message)
-                                log_message(f"Movie NFO Feld-Patch: {patch_message}")
-                                if os.path.isfile(generated_nfo_path):
-                                    protected_movie_paths.add(generated_nfo_path)
+                                    generated_fp = make_nfo_fingerprint(generated_nfo_path)
+                                    patch_ok, patch_message = patch_nfo_fields(
+                                        generated_nfo_path,
+                                        movie_overrides or {},
+                                        expected_fingerprint=generated_fp if generated_fp is not None else ...,
+                                        create_backup=False,
+                                        allow_clear=True,
+                                    )
+                                    if not patch_ok:
+                                        raise RuntimeError(patch_message)
+                                    log_message(f"Movie NFO Feld-Patch: {patch_message}")
+                                finally:
+                                    if os.path.isfile(generated_nfo_path):
+                                        protected_movie_paths.add(generated_nfo_path)
+                                        latest_fp = make_nfo_fingerprint(generated_nfo_path)
+                                        params["main_nfo_fingerprint"] = latest_fp
+                                        retry_state["movie_nfo_generated"] = os.path.basename(generated_nfo_path)
+                                        if task_id:
+                                            commit_job_retry_state(
+                                                task_id,
+                                                retry_state={"movie_nfo_generated": os.path.basename(generated_nfo_path)},
+                                                params_patch={"main_nfo_fingerprint": latest_fp},
+                                            )
                             except JobCancelledError:
                                 raise
                             except Exception as patch_err:
@@ -2564,6 +2678,12 @@ def _process_worker_body(params):
                                 log_message(f"Movie NFO Status: {res}")
                                 if isinstance(res, dict) and res.get("nfo") and os.path.isfile(generated_nfo_path):
                                     protected_movie_paths.add(generated_nfo_path)
+                                    retry_state["movie_nfo_generated"] = os.path.basename(generated_nfo_path)
+                                    if task_id:
+                                        commit_job_retry_state(
+                                            task_id,
+                                            retry_state={"movie_nfo_generated": os.path.basename(generated_nfo_path)},
+                                        )
                             except JobCancelledError:
                                 raise
                             except Exception as e:
@@ -3515,10 +3635,10 @@ def _process_worker_body(params):
 
                                 log_message(f"Kopiere von Output auf {target.get('name', t_id)}: {dest_dir_target}...")
                                 try:
-                                    os.makedirs(dest_dir_target, exist_ok=True)
                                     success = run_rsync_with_progress(os.path.join(dest_dir_outbox, target_filename), os.path.join(dest_dir_target, target_filename), task_id)
                                     if not success:
                                         raise RuntimeError(f"Kopieren auf {target.get('name', t_id)} fehlgeschlagen.")
+                                    os.makedirs(dest_dir_target, exist_ok=True)
                                     for f in os.listdir(dest_dir_outbox):
                                         if f.startswith(clean_base) and f != target_filename:
                                             shutil.copy(os.path.join(dest_dir_outbox, f), os.path.join(dest_dir_target, f))
@@ -3664,7 +3784,6 @@ def _process_worker_body(params):
                             yt_title = sanitize_filename(params.get("yt_title", "YouTube Download"))
                             local_dest_dir = os.path.join(local_destination_path, limit_filename_length(yt_title))
 
-                        os.makedirs(local_dest_dir, exist_ok=True)
                         log_message(f"Kopiere in lokalen Ordner: {local_dest_dir}...")
 
                         # Copy video file cooperatively via run_copy_fallback
@@ -3672,6 +3791,7 @@ def _process_worker_body(params):
                         if not run_copy_fallback(src_video, os.path.join(local_dest_dir, target_filename), task_id):
                             raise RuntimeError("Lokales Kopieren der Videodatei fehlgeschlagen.")
 
+                        os.makedirs(local_dest_dir, exist_ok=True)
                         # Copy accompanying files (NFOs, subtitles)
                         source_dir = dest_dir_outbox if transfer_successful else temp_dir
                         for f in os.listdir(source_dir):
@@ -4329,7 +4449,12 @@ def job_queue_worker():
                 if not claimed:
                     continue
 
-                params = job["params"]
+                latest_job = get_job(task_id)
+                params = (
+                    latest_job["params"]
+                    if latest_job and isinstance(latest_job.get("params"), dict)
+                    else copy.deepcopy(job["params"])
+                )
                 params["task_id"] = task_id
                 process_worker(params)
 

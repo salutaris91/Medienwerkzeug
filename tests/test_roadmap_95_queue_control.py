@@ -737,6 +737,223 @@ class TestRoadmap95QueueControl(unittest.TestCase):
             self.assertFalse(w2.is_alive())
             self.assertEqual(self.jobs.get_job(fin_id)["status"], "done")
 
+    def test_commit_job_retry_state_persistence_cancelling_stale_terminal_and_isolation(self):
+        """Delta Test 1: commit_job_retry_state persists to disk (incl. cancelling), rejects stale/terminal, isolates jobs."""
+        job_id = "retry-state-job"
+        self.jobs.create_job(
+            job_id, "Retry State", "tv", {"media_type": "tv", "main_nfo_fingerprint": None}, status="running"
+        )
+        ctrl_1 = self.jobs.get_job_control(job_id)
+
+        with self.jobs.bind_job_context(job_id, ctrl=ctrl_1):
+            ok1 = self.jobs.commit_job_retry_state(
+                job_id,
+                retry_state={"step0_done": True, "tv_renamed": {"ep1.mp4": "Show - S01E01.mp4"}},
+                params_patch={"main_nfo_fingerprint": "fp-run-1"},
+            )
+            self.assertTrue(ok1)
+
+            # Transition to 'cancelling' -> commit_job_retry_state must still persist for current run
+            self.jobs.cancel_job(job_id)
+            self.assertEqual(self.jobs.get_job(job_id)["status"], "cancelling")
+            ok2 = self.jobs.commit_job_retry_state(
+                job_id,
+                retry_state={"tv_nfo_generated": {"ep1.mp4": "Show - S01E01.nfo"}},
+                params_patch={"main_nfo_fingerprint": "fp-cancelling"},
+            )
+            self.assertTrue(ok2)
+
+        with open(self.jobs_state_file, "r", encoding="utf-8") as fh:
+            disk_job = json.load(fh)[job_id]
+        self.assertEqual(
+            disk_job["retry_state"],
+            {
+                "step0_done": True,
+                "tv_renamed": {"ep1.mp4": "Show - S01E01.mp4"},
+                "tv_nfo_generated": {"ep1.mp4": "Show - S01E01.nfo"},
+            },
+        )
+        self.assertEqual(disk_job["params"]["main_nfo_fingerprint"], "fp-cancelling")
+        self.assertNotIn("manifest", disk_job)
+
+        # Stale run context (bound is not cur_ctrl) -> rejected
+        self.jobs.reset_job_control(job_id)
+        with self.jobs.bind_job_context(job_id, ctrl=ctrl_1):
+            self.assertFalse(
+                self.jobs.commit_job_retry_state(
+                    job_id,
+                    retry_state={"step0_done": False},
+                    params_patch={"main_nfo_fingerprint": "stale-fp"},
+                )
+            )
+        self.assertEqual(self.jobs.get_job(job_id)["params"]["main_nfo_fingerprint"], "fp-cancelling")
+
+        # Terminal statuses ('done', 'error', 'cancelled') -> rejected
+        for term_status in ("done", "error", "cancelled"):
+            with self.jobs.active_jobs_lock:
+                self.jobs.active_jobs[job_id]["status"] = term_status
+            self.assertFalse(
+                self.jobs.commit_job_retry_state(
+                    job_id,
+                    retry_state={"step0_done": False, "tampered": term_status},
+                    params_patch={"main_nfo_fingerprint": f"fp-{term_status}"},
+                )
+            )
+        with open(self.jobs_state_file, "r", encoding="utf-8") as fh:
+            disk_after = json.load(fh)[job_id]
+        self.assertTrue(disk_after["retry_state"]["step0_done"])
+        self.assertNotIn("tampered", disk_after["retry_state"])
+        self.assertEqual(disk_after["params"]["main_nfo_fingerprint"], "fp-cancelling")
+
+        # Foreign new job -> inherits no retry_state or params
+        foreign = self.jobs.create_job("foreign-fresh-job", "Fresh", "tv", {"media_type": "tv"}, status="queued")
+        self.assertNotIn("retry_state", foreign)
+        self.assertNotIn("main_nfo_fingerprint", foreign["params"])
+
+    def test_handle_transfer_task_cancel_cleans_new_nas_dirs_and_missing_src_no_empty_dir(self):
+        """Delta Test 4: _handle_transfer_task with real subprocess cancel removes new NAS dirs, keeps parent dirs, and creates no dir on FileNotFoundError."""
+        from gui.workers.processor import _handle_transfer_task
+
+        real_popen = subprocess.Popen
+        nas_movies_root = os.path.join(self.nas_root, "Filme")
+        nas_show_root = os.path.join(self.nas_root, "Serien", "VorbestandsSerie")
+        os.makedirs(nas_movies_root, exist_ok=True)
+        os.makedirs(nas_show_root, exist_ok=True)
+
+        outbox_movie_dir = os.path.join(self.outbox_dir, "Filme", "CancelMovie (2026)")
+        os.makedirs(outbox_movie_dir, exist_ok=True)
+        with open(os.path.join(outbox_movie_dir, "CancelMovie (2026).mkv"), "wb") as f:
+            f.write(b"MOVIE_DATA")
+        with open(os.path.join(outbox_movie_dir, "CancelMovie (2026).nfo"), "wb") as f:
+            f.write(b"<movie/>")
+
+        outbox_ep_dir = os.path.join(
+            self.outbox_dir, "Serien", "VorbestandsSerie", "Staffel 1", "VorbestandsSerie - S01E01 - Pilot"
+        )
+        os.makedirs(outbox_ep_dir, exist_ok=True)
+        with open(os.path.join(outbox_ep_dir, "VorbestandsSerie - S01E01 - Pilot.mkv"), "wb") as f:
+            f.write(b"EP_DATA")
+        with open(os.path.join(outbox_ep_dir, "VorbestandsSerie - S01E01 - Pilot.nfo"), "wb") as f:
+            f.write(b"<episodedetails/>")
+
+        dest_movie_nas = os.path.join(nas_movies_root, "CancelMovie (2026)")
+        dest_season_nas = os.path.join(nas_show_root, "Staffel 1")
+        dest_ep_nas = os.path.join(dest_season_nas, "VorbestandsSerie - S01E01 - Pilot")
+
+        cases = [
+            (
+                "movie-nas-cancel",
+                {
+                    "type": "movie_nas_transfer",
+                    "target_id": "nas",
+                    "file_idx": 0,
+                    "dest_movie_dir_outbox": outbox_movie_dir,
+                    "dest_movie_dir_nas": dest_movie_nas,
+                    "final_filename": "CancelMovie (2026).mkv",
+                },
+                os.path.join(dest_movie_nas, "CancelMovie (2026).mkv"),
+                [dest_movie_nas],
+                nas_movies_root,
+            ),
+            (
+                "tv-nas-cancel",
+                {
+                    "type": "nas_transfer",
+                    "target_id": "nas",
+                    "file_idx": 0,
+                    "dest_dir_outbox": outbox_ep_dir,
+                    "dest_dir_nas": dest_ep_nas,
+                    "final_filename": "VorbestandsSerie - S01E01 - Pilot.mkv",
+                    "clean_title": "VorbestandsSerie - S01E01 - Pilot",
+                },
+                os.path.join(dest_ep_nas, "VorbestandsSerie - S01E01 - Pilot.mkv"),
+                [dest_ep_nas, dest_season_nas],
+                nas_show_root,
+            ),
+        ]
+
+        for job_id, task_dict, partial_target_file, must_not_exist, parent_must_exist in cases:
+            with self.subTest(job_id=job_id):
+                self.jobs.create_job(job_id, job_id, "movie", {}, status="running")
+                spawned_procs = []
+
+                def spawn_fake_rsync(_cmd, _target_f=partial_target_file, **kw):
+                    script = (
+                        "import os, sys, time; "
+                        f"p = {_target_f!r}; "
+                        "os.makedirs(os.path.dirname(p), exist_ok=True); "
+                        "open(p, 'wb').write(b'PARTIAL'); "
+                        "sys.stdout.write('  25%   12.00MB/s\\n'); sys.stdout.flush(); "
+                        "time.sleep(30)"
+                    )
+                    proc = real_popen([sys.executable, "-c", script], **kw)
+                    spawned_procs.append(proc)
+                    return proc
+
+                target_progs = {"nas": [0]}
+                target_speeds = {"nas": [""]}
+                plock = threading.RLock()
+
+                def on_global_prog(_jid=job_id):
+                    if target_progs["nas"][0] >= 20:
+                        self.jobs.cancel_job(_jid)
+
+                try:
+                    with self.jobs.bind_job_context(job_id), \
+                         patch("gui.core.transfers.get_rsync_progress_flag", return_value="--progress"), \
+                         patch("gui.core.transfers.subprocess.Popen", side_effect=spawn_fake_rsync):
+                        with self.assertRaises(self.jobs.JobCancelledError):
+                            _handle_transfer_task(
+                                task_dict, job_id, target_progs, target_speeds, plock, 1, lambda _m: None, on_global_prog
+                            )
+                finally:
+                    for proc in spawned_procs:
+                        if proc.stdout:
+                            proc.stdout.close()
+
+                for p in must_not_exist:
+                    self.assertFalse(os.path.exists(p), f"Newly created NAS dir {p} must be cleaned up on cancel")
+                self.assertTrue(os.path.isdir(parent_must_exist), f"Pre-existing NAS parent {parent_must_exist} must stay")
+
+        # Missing source raising FileNotFoundError -> no empty target folder is pre-created by _handle_transfer_task
+        missing_movie_nas = os.path.join(nas_movies_root, "MissingSrcFilm (2026)")
+        missing_ep_nas = os.path.join(nas_show_root, "Staffel 9", "VorbestandsSerie - S09E01 - Missing")
+        for m_id, m_task, m_dst in (
+            (
+                "missing-movie-src",
+                {
+                    "type": "movie_nas_transfer",
+                    "target_id": "nas",
+                    "file_idx": 0,
+                    "dest_movie_dir_outbox": os.path.join(self.outbox_dir, "Filme", "DoesNotExist"),
+                    "dest_movie_dir_nas": missing_movie_nas,
+                    "final_filename": "DoesNotExist.mkv",
+                },
+                missing_movie_nas,
+            ),
+            (
+                "missing-tv-src",
+                {
+                    "type": "nas_transfer",
+                    "target_id": "nas",
+                    "file_idx": 0,
+                    "dest_dir_outbox": os.path.join(self.outbox_dir, "Serien", "DoesNotExist"),
+                    "dest_dir_nas": missing_ep_nas,
+                    "final_filename": "DoesNotExist.mkv",
+                    "clean_title": "DoesNotExist",
+                },
+                os.path.dirname(missing_ep_nas),
+            ),
+        ):
+            self.jobs.create_job(m_id, m_id, "movie", {}, status="running")
+            with self.jobs.bind_job_context(m_id), \
+                 patch("gui.workers.processor.run_rsync_with_progress", side_effect=FileNotFoundError("Quelle fehlt")):
+                with self.assertRaises(FileNotFoundError):
+                    _handle_transfer_task(
+                        m_task, m_id, {"nas": [0]}, {"nas": [""]}, threading.RLock(), 1, lambda _m: None, lambda: None
+                    )
+            self.assertFalse(os.path.exists(m_dst))
+
 
 if __name__ == "__main__":
     unittest.main()

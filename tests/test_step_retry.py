@@ -46,7 +46,7 @@ class TestStepRetry(unittest.TestCase):
         settings["outbox_dir"] = self.outbox_dir
         settings["nas_root"] = self.nas_root
         settings["storage_targets"] = [
-            {"id": "nas", "type": "nas", "enabled": True, "name": "NAS Target"},
+            {"id": "nas", "type": "nas", "root_path": self.nas_root, "enabled": True, "name": "NAS Target"},
             {"id": "pcloud", "type": "pcloud", "enabled": False, "name": "Cloud Target"}
         ]
         persistence.save_settings(settings)
@@ -1142,3 +1142,396 @@ class TestStepRetry(unittest.TestCase):
                     self.assertEqual(len(done_mf), 1)
                     for entry in done_mf.values():
                         self.assertFalse(entry.get("provisional", False))
+
+    @patch("gui.workers.processor.ensure_nas_mounted", return_value=True)
+    @patch("gui.workers.processor.run_rsync_with_progress", return_value=True)
+    @patch("gui.workers.processor.mw_metadata.fetch_tvdb")
+    def test_tv_multi_episode_cancel_and_retry_conversion_and_checkpoint(
+        self, mock_fetch_tvdb, mock_rsync, _mock_nas
+    ):
+        """Delta Test 2: N=2 TV job cancelled during Ep1 conversion (with/without explicit_renames + #96 explicit_junk), post-Ep1 conversion before Outbox move, or at Ep1/Ep2 checkpoint retries both episodes without NFO quarantine, orphaned show-root NFO, or foreign MKV adoption."""
+        from gui.workers.processor import job_queue_worker, process_worker
+        from gui.core.helpers import job_queue
+        from gui.core.jobs import JobCancelledError
+
+        mock_fetch_tvdb.return_value = {"1": {"title": "Alpha"}, "2": {"title": "Beta"}}
+
+        mode_shows = {
+            "conv_explicit_junk": "DarkShow One",
+            "conv_implicit_rename": "DarkShow Two",
+            "checkpoint_after_ep1_outbox": "DarkShow Three",
+            "post_conv_explicit_rename": "DarkShow Four",
+        }
+        for mode, show_name in mode_shows.items():
+            with self.subTest(mode=mode):
+                mock_rsync.reset_mock()
+                while not job_queue.empty():
+                    job_queue.get_nowait()
+                    job_queue.task_done()
+                job_id = f"tv-2ep-{mode}"
+                proj_dir = os.path.join(self.inbox_dir, f"Proj_{mode}")
+                os.makedirs(proj_dir, exist_ok=True)
+                with open(os.path.join(proj_dir, "raw1.mp4"), "wb") as f:
+                    f.write(b"EP1_RAW_BYTES")
+                with open(os.path.join(proj_dir, "raw2.mp4"), "wb") as f:
+                    f.write(b"EP2_RAW_BYTES")
+                if mode == "conv_implicit_rename":
+                    with open(os.path.join(proj_dir, "raw1.srt"), "wb") as f:
+                        f.write(b"SUB1_BYTES")
+                    with open(os.path.join(proj_dir, "raw2.srt"), "wb") as f:
+                        f.write(b"SUB2_BYTES")
+
+                ep1_clean = f"{show_name} - S01E01 - Alpha"
+                ep2_clean = f"{show_name} - S01E02 - Beta"
+                stale_nfo_path = os.path.join(proj_dir, f"{ep1_clean}.nfo")
+                if mode == "conv_explicit_junk":
+                    with open(stale_nfo_path, "w", encoding="utf-8") as f:
+                        f.write("<episodedetails><title>STALE_JUNK_NFO</title></episodedetails>")
+
+                trashed_contents = []
+
+                def track_trash(path, *_a, **_kw):
+                    if os.path.isfile(path):
+                        with open(path, "r", encoding="utf-8", errors="ignore") as tf:
+                            trashed_contents.append((os.path.basename(path), tf.read()))
+                        os.remove(path)
+                    elif os.path.isdir(path):
+                        shutil.rmtree(path, ignore_errors=True)
+                    return True
+
+                def fake_gen_show_nfo(_prov, _sid, folder, **_kw):
+                    with open(os.path.join(folder, "tvshow.nfo"), "w", encoding="utf-8") as nf:
+                        nf.write(f"<tvshow><title>{show_name}</title></tvshow>")
+                    return {"nfo": True}
+
+                def fake_gen_ep_nfo(_prov, _sid, _s, ep, folder, base, **kw):
+                    p = os.path.join(folder, f"{base}.nfo")
+                    if not kw.get("overwrite") and os.path.isfile(p):
+                        return {"nfo": False}
+                    with open(p, "w", encoding="utf-8") as nf:
+                        nf.write(f"<episodedetails><title>FRESH_EP_{ep}</title></episodedetails>")
+                    return {"nfo": True}
+
+                use_explicit = mode in ("conv_explicit_junk", "post_conv_explicit_rename")
+                params = {
+                    "task_id": job_id,
+                    "project_name": f"Proj_{mode}",
+                    "media_type": "tv",
+                    "show_name": show_name,
+                    "show_id": "555",
+                    "provider": "tvdb",
+                    "season": "1",
+                    "mappings": {"raw1.mp4": 1, "raw2.mp4": 2},
+                    "convert": True,
+                    "copy_to_nas": True,
+                    "overwrite_nfo": False,
+                    "explicit_renames": (
+                        [
+                            {"old": "raw1.mp4", "new": f"{ep1_clean}.mp4"},
+                            {"old": "raw2.mp4", "new": f"{ep2_clean}.mp4"},
+                        ]
+                        if use_explicit
+                        else None
+                    ),
+                    "explicit_junk": [f"{ep1_clean}.nfo"] if mode == "conv_explicit_junk" else [],
+                }
+                pipeline = {
+                    "metadata": {"status": "pending", "progress": 0},
+                    "convert": {"status": "pending", "progress": 0},
+                    "nas": {"status": "pending", "progress": 0},
+                }
+                self.jobs.create_job(job_id, show_name, "tv", params, pipeline=pipeline, status="running")
+
+                conv_calls = [0]
+                orig_commit_mf = self.jobs.commit_job_manifest
+                ep1_manifest_committed = []
+
+                def hook_commit_mf(tid, mf):
+                    res = orig_commit_mf(tid, mf)
+                    if (
+                        mode == "checkpoint_after_ep1_outbox"
+                        and not ep1_manifest_committed
+                        and isinstance(mf, dict)
+                        and "raw1.mp4" in mf
+                    ):
+                        ep1_manifest_committed.append(True)
+                        # Trigger cancel right before the post-Outbox-move episode checkpoint
+                        self.jobs.cancel_job(job_id)
+                    return res
+
+                def fake_conv_run1(**kwargs):
+                    conv_calls[0] += 1
+                    if mode.startswith("conv_") and conv_calls[0] == 1:
+                        self.jobs.cancel_job(job_id)
+                        raise JobCancelledError("Abgebrochen während Ep1 H.265-Konvertierung")
+                    shutil.copy2(kwargs["target_filepath"], kwargs["final_filepath"])
+                    if mode == "post_conv_explicit_rename" and conv_calls[0] == 1:
+                        os.remove(kwargs["target_filepath"])
+                        self.jobs.cancel_job(job_id)
+                    return True, os.path.basename(kwargs["final_filepath"])
+
+                with patch("gui.core.trash.send_to_trash", side_effect=track_trash), \
+                     patch("gui.core.jobs.commit_job_manifest", side_effect=hook_commit_mf), \
+                     patch("gui.workers.processor.mw_metadata.generate_tvshow_nfo", side_effect=fake_gen_show_nfo), \
+                     patch("gui.workers.processor.mw_metadata.generate_episode_nfo", side_effect=fake_gen_ep_nfo), \
+                     patch("gui.workers.processor.media.execute_video_conversion", side_effect=fake_conv_run1):
+                    with self.assertRaises(JobCancelledError):
+                        process_worker(params)
+                self.jobs.finalize_cancelled_job(job_id)
+
+                snap_cancelled = self.jobs.get_job(job_id)
+                self.assertEqual(snap_cancelled["status"], "cancelled")
+                self.assertNotEqual(snap_cancelled["pipeline"]["metadata"]["status"], "done")
+
+                # Trigger /api/queue/retry and run via job_queue_worker to completion
+                self.assertEqual(self._post("/api/queue/retry", {"task_id": job_id}).status_code, 200)
+                job_queue.put(None)
+
+                run2_conv_calls = [0]
+
+                def fake_conv_run2(**kwargs):
+                    run2_conv_calls[0] += 1
+                    shutil.copy2(kwargs["target_filepath"], kwargs["final_filepath"])
+                    return True, os.path.basename(kwargs["final_filepath"])
+
+                with patch("gui.core.trash.send_to_trash", side_effect=track_trash), \
+                     patch("gui.workers.processor.mw_metadata.generate_tvshow_nfo", side_effect=fake_gen_show_nfo), \
+                     patch("gui.workers.processor.mw_metadata.generate_episode_nfo", side_effect=fake_gen_ep_nfo), \
+                     patch("gui.workers.processor.media.execute_video_conversion", side_effect=fake_conv_run2):
+                    job_queue_worker()
+
+                self.assertEqual(self.jobs.get_job(job_id)["status"], "done")
+                if mode == "post_conv_explicit_rename":
+                    self.assertEqual(run2_conv_calls[0], 1)
+
+                show_outbox = os.path.join(self.outbox_dir, "Serien", show_name)
+                ep1_outbox_dir = os.path.join(show_outbox, "Staffel 1", ep1_clean)
+                ep2_outbox_dir = os.path.join(show_outbox, "Staffel 1", ep2_clean)
+
+                self.assertTrue(os.path.isfile(os.path.join(ep1_outbox_dir, f"{ep1_clean}.mkv")))
+                self.assertTrue(os.path.isfile(os.path.join(ep1_outbox_dir, f"{ep1_clean}.nfo")))
+                self.assertTrue(os.path.isfile(os.path.join(ep2_outbox_dir, f"{ep2_clean}.mkv")))
+                self.assertTrue(os.path.isfile(os.path.join(ep2_outbox_dir, f"{ep2_clean}.nfo")))
+                if mode == "conv_implicit_rename":
+                    self.assertTrue(os.path.isfile(os.path.join(ep1_outbox_dir, f"{ep1_clean}.srt")))
+                    self.assertTrue(os.path.isfile(os.path.join(ep2_outbox_dir, f"{ep2_clean}.srt")))
+
+                with open(os.path.join(ep1_outbox_dir, f"{ep1_clean}.nfo"), "r", encoding="utf-8") as f:
+                    self.assertIn("FRESH_EP_1", f.read())
+
+                # No generated fresh NFO was ever quarantined (#96)
+                for _fname, payload in trashed_contents:
+                    self.assertNotIn("FRESH_EP_", payload)
+
+                # No orphaned episode NFO in series root folder
+                self.assertFalse(os.path.exists(os.path.join(show_outbox, f"{ep1_clean}.nfo")))
+                self.assertFalse(os.path.exists(os.path.join(show_outbox, f"{ep2_clean}.nfo")))
+
+        # Negative test: new job with missing expected source and foreign <clean_title>.mkv must NOT adopt foreign MKV
+        for neg_label, neg_src, neg_renames in (
+            ("empty_list", "raw1.mp4", []),
+            ("empty_list_mkv_src", "raw1.mkv", []),
+            ("explicit_missing_src", "raw1.mp4", [{"old": "raw1.mp4", "new": "ForeignGuardShow - S01E01 - Alpha.mp4"}]),
+            ("explicit_missing_mkv_src", "raw1.mkv", [{"old": "raw1.mkv", "new": "ForeignGuardShow - S01E01 - Alpha.mkv"}]),
+            ("implicit_none", "raw1.mp4", None),
+        ):
+            with self.subTest(foreign_mkv_guard=neg_label):
+                mock_rsync.reset_mock()
+                neg_job_id = f"tv-foreign-mkv-{neg_label}"
+                neg_proj_dir = os.path.join(self.inbox_dir, f"Proj_Foreign_{neg_label}")
+                os.makedirs(neg_proj_dir, exist_ok=True)
+                foreign_clean = "ForeignGuardShow - S01E01 - Alpha"
+                foreign_mkv = os.path.join(neg_proj_dir, f"{foreign_clean}.mkv")
+                with open(foreign_mkv, "wb") as f:
+                    f.write(b"FOREIGN_PREEXISTING_MKV")
+
+                neg_params = {
+                    "task_id": neg_job_id,
+                    "project_name": f"Proj_Foreign_{neg_label}",
+                    "media_type": "tv",
+                    "show_name": "ForeignGuardShow",
+                    "show_id": "555",
+                    "provider": "tvdb",
+                    "season": "1",
+                    "mappings": {neg_src: 1},
+                    "convert": True,
+                    "copy_to_nas": True,
+                    "explicit_renames": neg_renames,
+                }
+                self.jobs.create_job(
+                    neg_job_id,
+                    "ForeignGuardShow",
+                    "tv",
+                    neg_params,
+                    pipeline={
+                        "metadata": {"status": "pending", "progress": 0},
+                        "convert": {"status": "pending", "progress": 0},
+                        "nas": {"status": "pending", "progress": 0},
+                    },
+                    status="running",
+                )
+                with patch("gui.workers.processor.mw_metadata.generate_tvshow_nfo", return_value={"nfo": True}), \
+                     patch("gui.workers.processor.mw_metadata.generate_episode_nfo", return_value={"nfo": True}), \
+                     patch("gui.workers.processor.media.execute_video_conversion") as mock_neg_conv:
+                    process_worker(neg_params)
+                mock_neg_conv.assert_not_called()
+                mock_rsync.assert_not_called()
+                self.assertTrue(os.path.isfile(foreign_mkv), "Foreign MKV must remain untouched in inbox")
+                neg_outbox_mkv = os.path.join(
+                    self.outbox_dir, "Serien", "ForeignGuardShow", "Staffel 1", foreign_clean, f"{foreign_clean}.mkv"
+                )
+                self.assertFalse(os.path.exists(neg_outbox_mkv), "Foreign MKV must not be adopted into outbox")
+                self.assertEqual(self.jobs.get_job(neg_job_id).get("manifest", {}), {})
+
+        # Positive test: new job with explicit_renames=[] and existing already-correctly-named episode succeeds (project and files_param)
+        for use_files_param in (False, True):
+            with self.subTest(prenamed_explicit_empty=use_files_param):
+                mock_rsync.reset_mock()
+                pos_show = "PreNamedFilesShow" if use_files_param else "PreNamedProjShow"
+                pos_job_id = f"tv-prenamed-{'files' if use_files_param else 'proj'}"
+                pos_clean = f"{pos_show} - S01E01 - Alpha"
+                pos_fname = f"{pos_clean}.mkv"
+                pos_dir = self.inbox_dir if use_files_param else os.path.join(self.inbox_dir, "Proj_PreNamed")
+                os.makedirs(pos_dir, exist_ok=True)
+                with open(os.path.join(pos_dir, pos_fname), "wb") as f:
+                    f.write(b"PRENAMED_VALID_EPISODE")
+
+                pos_params = {
+                    "task_id": pos_job_id,
+                    "media_type": "tv",
+                    "show_name": pos_show,
+                    "show_id": "555",
+                    "provider": "tvdb",
+                    "season": "1",
+                    "mappings": {pos_fname: 1},
+                    "convert": False,
+                    "copy_to_nas": True,
+                    "explicit_renames": [],
+                    **({"files": [pos_fname]} if use_files_param else {"project_name": "Proj_PreNamed"}),
+                }
+                self.jobs.create_job(
+                    pos_job_id,
+                    pos_show,
+                    "tv",
+                    pos_params,
+                    pipeline={
+                        "metadata": {"status": "pending", "progress": 0},
+                        "convert": {"status": "skipped", "progress": 0},
+                        "nas": {"status": "pending", "progress": 0},
+                    },
+                    status="running",
+                )
+                with patch("gui.workers.processor.mw_metadata.generate_tvshow_nfo", return_value={"nfo": True}), \
+                     patch("gui.workers.processor.mw_metadata.generate_episode_nfo", return_value={"nfo": True}):
+                    process_worker(pos_params)
+                pos_outbox_mkv = os.path.join(
+                    self.outbox_dir, "Serien", pos_show, "Staffel 1", pos_clean, pos_fname
+                )
+                self.assertTrue(os.path.isfile(pos_outbox_mkv))
+                self.assertIn(pos_fname, self.jobs.get_job(pos_job_id).get("manifest", {}))
+
+    @patch("gui.core.trash.send_to_trash")
+    def test_wizard_movie_cancel_during_nfo_artwork_retry_and_tamper_detection(self, mock_trash):
+        """Delta Test 3: Wizard movie cancelled after writing NFO (during artwork download, before metadata=done) retries without NfoConflictError; external tampering still raises NfoConflictError."""
+        from gui.workers.processor import job_queue_worker, process_worker
+        from gui.core.helpers import job_queue
+        from gui.core.jobs import JobCancelledError
+        from gui.core.nfo_mutation import NfoConflictError
+
+        mock_trash.side_effect = (
+            lambda p, *_a, **_kw: (os.remove(p) if os.path.isfile(p) else shutil.rmtree(p, ignore_errors=True)) or True
+        )
+
+        proj_dir = os.path.join(self.inbox_dir, "ArrivalProj")
+        os.makedirs(proj_dir, exist_ok=True)
+        with open(os.path.join(proj_dir, "raw.mkv"), "wb") as f:
+            f.write(b"MOVIE_BYTES")
+        nfo_path = os.path.join(proj_dir, "Arrival (2016).nfo")
+        with open(nfo_path, "w", encoding="utf-8") as f:
+            f.write("<movie><title>Old Junk NFO</title></movie>")
+
+        job_id = "wizard-cancel-during-artwork"
+        params = {
+            "task_id": job_id,
+            "project_name": "ArrivalProj",
+            "media_type": "movie",
+            "movie_name": "Arrival (2016)",
+            "movie_id": "329865",
+            "provider": "tmdb",
+            "convert": False,
+            "copy_to_nas": False,
+            "copy_to_pcloud": False,
+            "wizard_overrides": True,
+            "main_nfo_fingerprint": None,
+            "nfo_overrides": {"movie": {"title": "Arrival", "year": "2016", "fsk": "12"}},
+            "explicit_renames": [{"old": "raw.mkv", "new": "Arrival (2016).mkv"}],
+            "explicit_junk": ["Arrival (2016).nfo"],
+        }
+        pipeline = {
+            "metadata": {"status": "pending", "progress": 0},
+            "convert": {"status": "skipped", "progress": 0},
+            "nas": {"status": "skipped", "progress": 0},
+            "pcloud": {"status": "skipped", "progress": 0},
+        }
+        self.jobs.create_job(job_id, "Arrival (2016)", "movie", params, pipeline=pipeline, status="running")
+
+        def gen_nfo_cancel_during_artwork(_mid, folder, base, **_kw):
+            p = os.path.join(folder, f"{base}.nfo")
+            with open(p, "w", encoding="utf-8") as nf:
+                nf.write('<?xml version="1.0" encoding="UTF-8"?>\n<movie><title>Arrival TMDb</title></movie>\n')
+            # User cancels while artwork download is running inside generate_movie_nfo
+            self.jobs.cancel_job(job_id)
+            raise JobCancelledError("Abgebrochen während Artwork-Download")
+
+        with patch("gui.workers.processor.mw_metadata.generate_movie_nfo", side_effect=gen_nfo_cancel_during_artwork):
+            with self.assertRaises(JobCancelledError):
+                process_worker(self.jobs.get_job(job_id)["params"])
+        self.jobs.finalize_cancelled_job(job_id)
+
+        snap_after_cancel = self.jobs.get_job(job_id)
+        self.assertEqual(snap_after_cancel["status"], "cancelled")
+        self.assertNotEqual(snap_after_cancel["pipeline"]["metadata"]["status"], "done")
+        self.assertIsNotNone(snap_after_cancel["params"]["main_nfo_fingerprint"])
+        self.assertTrue(os.path.isfile(nfo_path))
+
+        # External manipulation between cancel and retry MUST still trigger NfoConflictError
+        self.assertEqual(self._post("/api/queue/retry", {"task_id": job_id}).status_code, 200)
+        self.jobs.update_job(job_id, status="running")
+        with open(nfo_path, "r", encoding="utf-8") as f:
+            untampered_xml = f.read()
+        with open(nfo_path, "w", encoding="utf-8") as f:
+            f.write("<movie><title>Externally Tampered By Third Party</title></movie>")
+
+        with self.assertRaises(RuntimeError) as ctx_err:
+            process_worker(self.jobs.get_job(job_id)["params"])
+        self.assertIsInstance(ctx_err.exception.__cause__, NfoConflictError)
+        self.assertEqual(self.jobs.get_job(job_id)["status"], "error")
+
+        # Restore untampered NFO from Run 1 -> /api/queue/retry + job_queue_worker reloads persisted params and completes to 'done'
+        with open(nfo_path, "w", encoding="utf-8") as f:
+            f.write(untampered_xml)
+        while not job_queue.empty():
+            job_queue.get_nowait()
+            job_queue.task_done()
+        self.assertEqual(self._post("/api/queue/retry", {"task_id": job_id}).status_code, 200)
+        # Put a stale params snapshot on the queued dict entry to prove job_queue_worker reloads latest params from get_job(task_id)
+        with job_queue.mutex:
+            job_queue.queue[0]["params"] = {**job_queue.queue[0]["params"], "main_nfo_fingerprint": None}
+        job_queue.put(None)
+
+        def gen_nfo_ok(_mid, folder, base, **_kw):
+            p = os.path.join(folder, f"{base}.nfo")
+            with open(p, "w", encoding="utf-8") as nf:
+                nf.write('<?xml version="1.0" encoding="UTF-8"?>\n<movie><title>Arrival TMDb</title></movie>\n')
+            return {"nfo": True}
+
+        with patch("gui.workers.processor.mw_metadata.generate_movie_nfo", side_effect=gen_nfo_ok):
+            job_queue_worker()
+
+        outbox_nfo = os.path.join(self.outbox_dir, "Filme", "Arrival (2016)", "Arrival (2016).nfo")
+        self.assertTrue(os.path.isfile(outbox_nfo))
+        with open(outbox_nfo, "r", encoding="utf-8") as f:
+            final_xml = f.read()
+        self.assertIn("<title>Arrival</title>", final_xml)
+        self.assertIn("FSK 12", final_xml)
+        self.assertEqual(self.jobs.get_job(job_id)["status"], "done")
